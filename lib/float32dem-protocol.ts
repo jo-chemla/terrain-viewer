@@ -293,12 +293,16 @@ const GETMAP_ATTEMPTS = 3
 // would time out and retry for nothing. The attempt timer starts once a
 // request holds one of these slots.
 const GETMAP_PER_HOST = 6
-const hostSlots = new Map<string, { active: number; waiting: (() => void)[] }>()
+// An HTTP/2 or HTTP/3 host multiplexes, and the browser's six-per-host rule
+// does not apply: once a host's first answer says so (the Resource Timing
+// entry's nextHopProtocol), its limit rises to this.
+const GETMAP_PER_HOST_MULTIPLEXED = 24
+const hostSlots = new Map<string, { active: number; limit: number; waiting: (() => void)[] }>()
 async function acquireSlot(host: string, signal?: AbortSignal): Promise<() => void> {
   let h = hostSlots.get(host)
-  if (!h) { h = { active: 0, waiting: [] }; hostSlots.set(host, h) }
+  if (!h) { h = { active: 0, limit: GETMAP_PER_HOST, waiting: [] }; hostSlots.set(host, h) }
   const slots = h
-  if (slots.active >= GETMAP_PER_HOST) {
+  if (slots.active >= slots.limit) {
     await new Promise<void>((resolve, reject) => {
       const go = () => { signal?.removeEventListener("abort", cancel); resolve() }
       const cancel = () => { slots.waiting = slots.waiting.filter((w) => w !== go); reject(new DOMException("Aborted", "AbortError")) }
@@ -313,6 +317,25 @@ async function acquireSlot(host: string, signal?: AbortSignal): Promise<() => vo
     released = true
     slots.active--
     slots.waiting.shift()?.()
+  }
+}
+
+/** Reads the protocol the host answered with, once, and widens its slots
+ *  when it is not HTTP/1.1. */
+function noteHostProtocol(host: string, url: string) {
+  const slots = hostSlots.get(host)
+  if (!slots || slots.limit !== GETMAP_PER_HOST || typeof performance === "undefined") return
+  const entry = performance.getEntriesByName(url).at(-1) as (PerformanceEntry & { nextHopProtocol?: string }) | undefined
+  const proto = entry?.nextHopProtocol
+  if (!proto) return
+  if (proto === "h2" || proto === "h3" || proto.startsWith("h3")) {
+    slots.limit = GETMAP_PER_HOST_MULTIPLEXED
+    // Let the queue catch up to the new limit (each woken waiter takes its
+    // own slot when it resumes).
+    let woken = 0
+    while (slots.active + woken < slots.limit && slots.waiting.length) { slots.waiting.shift()?.(); woken++ }
+  } else {
+    slots.limit = GETMAP_PER_HOST + 0.5 // marks "checked": still six, never re-read
   }
 }
 
@@ -331,7 +354,9 @@ async function fetchGetMapWithRetry(url: string, signal?: AbortSignal): Promise<
     try {
       const response = await fetch(url, { signal: controller.signal })
       if (response.status === 429 || response.status >= 500) throw new Error(`GetMap answered ${response.status}`)
-      return await response.arrayBuffer()
+      const body = await response.arrayBuffer()
+      noteHostProtocol(host, url)
+      return body
     } catch (e) {
       if (signal?.aborted) throw e
       lastError = e

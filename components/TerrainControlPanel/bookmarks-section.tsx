@@ -19,7 +19,7 @@ import { useIsTruncated } from "@/hooks/use-is-truncated"
 import {
   bookmarksAtom, activeBookmarkProjectIdAtom, activeBookmarkIdAtom, restoreBookmark, exportBookmarksJson,
   mergeImportedBookmarks, summarizeActiveVizModes, type Bookmark, bookmarkClickProps } from "@/lib/bookmarks"
-import { bookmarksListHeightAtom, collapsedBookmarkGroupsAtom, bookmarksViewModeAtom } from "@/lib/settings-atoms"
+import { bookmarksListHeightAtom, collapsedBookmarkGroupsAtom, bookmarksViewModeAtom, bookmarksFoldsOpenAtom } from "@/lib/settings-atoms"
 import { reverseGeocodeLabel } from "@/lib/geocode"
 import { captureBookmarkThumbnail } from "@/lib/controls-utils"
 import { BookmarksGalleryModal } from "./bookmarks-gallery-modal"
@@ -429,8 +429,10 @@ export const BookmarksSection: React.FC<{
   // convention as TerraDrawSystem.tsx's own layers editMode toggle, so
   // day-to-day use (restore a view, add a new one) isn't cluttered by them.
   const [editMode, setEditMode] = useState(false)
-  const [isFeaturedOpen, setIsFeaturedOpen] = useState(false)
-  const [isOwnOpen, setIsOwnOpen] = useState(true)
+  const [folds, setFolds] = useAtom(bookmarksFoldsOpenAtom)
+  const isFeaturedOpen = folds.featured, isOwnOpen = folds.own
+  const setIsFeaturedOpen = (v: boolean) => setFolds({ ...folds, featured: v })
+  const setIsOwnOpen = (v: boolean) => setFolds({ ...folds, own: v })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleRestorePreset = useCallback((preset: Bookmark) => {

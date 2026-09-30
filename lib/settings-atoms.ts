@@ -392,6 +392,9 @@ export const collapsedBookmarkGroupsAtom = atomWithStorage<string[]>("collapsedB
 // list/gallery icon-toggle idea as RiverREM_UI's runsView selector, which this
 // whole Bookmarks UI is modeled on.
 export const bookmarksViewModeAtom = atomWithStorage<"list" | "grid">("bookmarksViewMode", "list")
+/** Whether the Bookmarks section's Featured and Your Bookmarks folds are
+ *  open. Both open on a first visit; a fold the user closes stays closed. */
+export const bookmarksFoldsOpenAtom = atomWithStorage<{ featured: boolean; own: boolean }>("bookmarksFoldsOpen", { featured: true, own: true })
 // Gallery MODAL presentation — "grid" (default: the original thumbnail cards)
 // or "list" (compact rows: small thumbnail left, project + view name right).
 // Deliberately its own atom rather than sharing bookmarksViewModeAtom above:

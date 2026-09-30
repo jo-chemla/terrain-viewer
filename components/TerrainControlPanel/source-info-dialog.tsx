@@ -76,7 +76,9 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
     <Dialog>
       <DialogTrigger
         render={
-          <Button variant="ghost" size="icon" className="cursor-pointer">
+          // h-8 like the row's other icon buttons: at the default 36 px this
+          // one made every built-in row taller than a Bring Your Own Data row.
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer">
             <Tooltip>
               <TooltipTrigger render={<span><Info className="h-4 w-4" /></span>} />
               <TooltipContent>View source details</TooltipContent>
