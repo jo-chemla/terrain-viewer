@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- Stand-in for the docs in the "-online-doc" desktop bundles, which leave
+     the docs export out: views://app/docs/ lands here and the real pages
+     open on the website. window.open with _blank goes through the main
+     process's new-window-open handler, which sends http(s) to the system
+     browser (src/bun/index.ts). -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Terrain Viewer documentation</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; color: #333; max-width: 36rem; margin: 4rem auto; padding: 0 1.5rem; }
+      a { color: #2563eb; }
+    </style>
+  </head>
+  <body>
+    <h1>Documentation</h1>
+    <p>This build keeps the documentation online. It should have opened in your browser; if not, follow the link:</p>
+    <p><a id="link" href="https://terrain-viewer.iconem.com/docs/" target="_blank" rel="noopener">terrain-viewer.iconem.com/docs</a></p>
+    <script>
+      // Keep whatever page was asked for: views://app/docs/features/byod/ ->
+      // https://terrain-viewer.iconem.com/docs/features/byod/
+      var path = location.pathname.replace(/^.*?\/docs\/?/, "")
+      var url = "https://terrain-viewer.iconem.com/docs/" + path + location.search + location.hash
+      document.getElementById("link").href = url
+      window.open(url, "_blank")
+    </script>
+  </body>
+</html>

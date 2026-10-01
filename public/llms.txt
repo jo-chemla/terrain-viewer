@@ -30,6 +30,7 @@ Agents that support skills can install one that does this for them: `npx skills 
 
 ## Developer documentation
 
+- [Advocacy and Community](https://terrain-viewer.iconem.com/docs/dev/advocacy/): Where Terrain Viewer has been presented, where it still could be, and the upstream threads it takes part in — venues per country for LiDAR and open elevation data
 - [Camera Sync](https://terrain-viewer.iconem.com/docs/dev/camera-sync/): Keeping up to eight map views on one camera — elevation as the sixth parameter, the idle settle, and the rules that keep gestures intact
 - [Custom Protocols](https://terrain-viewer.iconem.com/docs/dev/custom-protocols/): What a MapLibre custom protocol is, every scheme this app registers, and the registry that lets every consumer reach every one of them
 - [Derived Terrain Protocol](https://terrain-viewer.iconem.com/docs/dev/demdiff-protocol/): demdiff:// — subtracting one elevation source from another, tile by tile, and the alpha-254 convention that keeps holes flat

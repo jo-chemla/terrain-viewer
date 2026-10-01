@@ -67,38 +67,22 @@ jobs:
         run: |
           & ([scriptblock]::Create((irm https://hutch.blackboard.sh/hutch/install.ps1)))
           "$env:USERPROFILE\.hutch\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-      - name: Electrobun config from dist
-        working-directory: desktop
-        run: node gen-config.mjs
-      - name: Bundle
+      - name: Bundle, with the docs and with the docs online
+        # Two bundles per platform from the same web build: the full one
+        # carries the docs export for offline reading, the "-online-doc" one
+        # leaves it out (about 180 MB less) and its Documentation button
+        # opens the website. desktop/ci-bundle.sh does one bundle.
         working-directory: desktop
         shell: bash
         run: |
           hutch --version
           hutch run install
-          hutch electrobun build --env=stable
-          ls -la artifacts
-      - name: Portable bundle (no installer)
-        # The application folder itself, zipped: unpack anywhere and run
-        # bin/launcher.exe (bin/launcher on Linux). Electrobun has no
-        # single-file executable; this is the closest thing. Not on macOS:
-        # the .dmg already holds the .app, and the folder sits elsewhere
-        # there. Windows' Git Bash has no `zip`; 7-Zip is on the runner.
-        # See docs/content/docs/dev/desktop.mdx.
-        if: runner.os != 'macOS'
-        working-directory: desktop
-        shell: bash
-        run: |
-          app=$(ls -d build/stable-*/TerrainViewer* | head -n 1)
-          echo "portable: $app"
-          out="$PWD/artifacts/terrain-viewer-portable-${{ matrix.label }}.zip"
-          cd "$(dirname "$app")"
-          if command -v zip >/dev/null; then zip -qr "$out" "$(basename "$app")"; else 7z a -tzip -bso0 "$out" "$(basename "$app")"; fi
-          ls -la "$(dirname "$out")"
+          bash ci-bundle.sh ${{ matrix.label }} bundled ""
+          bash ci-bundle.sh ${{ matrix.label }} online -online-doc
       - uses: actions/upload-artifact@v4
         with:
           name: terrain-viewer-desktop-${{ matrix.label }}
-          path: desktop/artifacts
+          path: desktop/out
           if-no-files-found: error
 
   release:
@@ -115,7 +99,7 @@ jobs:
       - name: Collect assets
         run: |
           mkdir -p assets
-          find bundles -type f \( -name "*.zip" -o -name "*.dmg" -o -name "*.exe" -o -name "*.tar.gz" -o -name "*.AppImage" \) -exec cp {} assets/ \;
+          find bundles -type f -exec cp {} assets/ \;
           ls -la assets
           [ -n "$(ls -A assets)" ] || { echo "no bundle built on any platform"; exit 1; }
       - name: Rolling release desktop-latest
@@ -124,6 +108,6 @@ jobs:
         run: |
           sha=$(git rev-parse --short HEAD)
           date=$(date -u +%Y-%m-%d)
-          notes="Desktop bundles built on $date from \`$sha\`. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/dev/desktop/ for what works and how to run them. Portable zips unpack anywhere; the others are installers."
+          notes="Desktop bundles built on $date from \`$sha\`. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/dev/desktop/ for what works and how to run them. Each platform comes twice: the plain file carries the documentation for offline reading, the \`-online-doc\` one is about 180 MB smaller and opens the documentation on the website. Portable zips unpack anywhere; the others are installers."
           gh release delete desktop-latest --yes --cleanup-tag || true
-          gh release create desktop-latest assets/*             --title "Desktop bundles ($date)"             --notes "$notes"             --prerelease --latest=false
+          gh release create desktop-latest assets/* --title "Desktop bundles ($date)" --notes "$notes" --prerelease --latest=false
