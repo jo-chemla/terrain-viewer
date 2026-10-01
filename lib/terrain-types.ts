@@ -12,7 +12,8 @@ export const HILLSHADE_METHODS = [
   "igor",
   "basic",
   "aspect-multidir",
-  "multidir-colors"
+  "multidir-colors",
+  "duotone-nw-ne"
 ] as const
 
 // export type HillshadeMethod = "standard" | "combined" | "igor" | "basic" | "multidirectional"

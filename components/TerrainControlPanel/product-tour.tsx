@@ -612,7 +612,7 @@ const TERRAIN_STEPS: TourStepDef[] = [
   {
     key: "viz-modes", domId: "tour-viz-modes", side: "left", align: "start",
     title: "Visualization Modes",
-    description: "Each checkbox turns one layer on or off, with its own opacity slider alongside it. Once a mode is switched on, its detailed options appear in the Options group further down this panel — only available here, in Terrain mode.",
+    description: "Each checkbox turns one layer on or off, with its own opacity slider alongside it. Once a mode is switched on, its detailed options appear in the Options group further down this panel — only available here, in Terrain mode. Not sure which mode fits? The layers button in this heading (and in the panel's title bar) opens a picker that shows every mode with a picture; it is the next step.",
     // Standard hillshade alone, nothing else. This is the first thing the
     // terrain branch shows, and whatever the visitor had stacked up before
     // (hypso over relief over analysis) makes the map an unreadable pile

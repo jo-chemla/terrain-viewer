@@ -126,8 +126,8 @@
       "type": "boolean",
       "items": null,
       "enum": null,
-      "default": true,
-      "defaultSource": "true",
+      "default": false,
+      "defaultSource": "false",
       "note": "Lets a picked blend mode be toggled off (falls back to plain \"normal\") without losing/resetting it — a quick way to flip back and forth between a blended and a plain overlay comparison for the same p…"
     },
     {
@@ -2918,7 +2918,8 @@
         "igor",
         "basic",
         "aspect-multidir",
-        "multidir-colors"
+        "multidir-colors",
+        "duotone-nw-ne"
       ],
       "default": "combined",
       "defaultSource": "\"combined\"",
@@ -3572,6 +3573,12 @@
       "key": "bookmarksViewMode",
       "default": "\"list\"",
       "note": "Sidebar bookmarks list presentation — \"list\" (default: the original tree of project rows with children indented beneath) or \"grid\" (flattened thumbnail tiles, a compact in-panel cousin of the gallery…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "bookmarksFoldsOpen",
+      "default": "{ featured: true, own: true }",
+      "note": ""
     },
     {
       "file": "lib/settings-atoms.ts",

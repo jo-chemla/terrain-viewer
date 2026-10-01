@@ -1,10 +1,18 @@
 # Desktop bundles with Electrobun, one native runner per platform (Hutch
-# builds for the OS it runs on). Manual: nothing here is released, the
-# artifacts are for trying the app offline. See desktop/README.md.
+# builds for the OS it runs on). Runs weekly and on demand; the three
+# bundles are attached to one rolling GitHub Release, `desktop-latest`,
+# which is re-created on every run so its assets are always the newest
+# build of main. Unsigned, experimental. See desktop/README.md.
 name: Desktop bundles (Electrobun, experimental)
 
 on:
   workflow_dispatch:
+  schedule:
+    # Mondays 04:00 UTC
+    - cron: "0 4 * * 1"
+
+permissions:
+  contents: write
 
 jobs:
   bundle:
@@ -83,3 +91,26 @@ jobs:
           name: terrain-viewer-desktop-${{ matrix.label }}
           path: desktop/artifacts
           if-no-files-found: error
+
+  release:
+    needs: bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: bundles
+      - name: Collect assets
+        run: |
+          mkdir -p assets
+          find bundles -type f \( -name "*.zip" -o -name "*.dmg" -o -name "*.exe" -o -name "*.tar.gz" -o -name "*.AppImage" \) -exec cp {} assets/ \;
+          ls -la assets
+      - name: Rolling release desktop-latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          date=$(date -u +%Y-%m-%d)
+          notes="Desktop bundles built on $date from \`$sha\`. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/dev/desktop/ for what works and how to run them. Portable zips unpack anywhere; the others are installers."
+          gh release delete desktop-latest --yes --cleanup-tag || true
+          gh release create desktop-latest assets/*             --title "Desktop bundles ($date)"             --notes "$notes"             --prerelease --latest=false

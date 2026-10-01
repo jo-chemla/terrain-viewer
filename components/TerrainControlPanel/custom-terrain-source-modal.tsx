@@ -373,7 +373,7 @@ export const CustomTerrainSourceModal: React.FC<{
                   <SelectItem value="vrt">VRT mosaic</SelectItem>
                 </SelectGroup>
                 <SelectGroup>
-                  <SelectLabel>Derived</SelectLabel>
+                  <SelectLabel>Derived: nDSM and change detection / comparison</SelectLabel>
                   <SelectItem value="dem-diff">Difference of two sources (DSM − DTM)</SelectItem>
                 </SelectGroup>
                 {!editingSource && (

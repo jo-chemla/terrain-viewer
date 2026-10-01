@@ -50,7 +50,7 @@ export const HillshadeOptionsSection: React.FC<{
 
   const hillshadeMethodOptions = [
     { value: "combined", label: "Combined [2d]" }, { value: "standard", label: "Standard [1d]" },
-    { value: "multidir-colors", label: "Aspect (Multidir Colors)" }, { value: "igor", label: "Igor [1d]" },
+    { value: "multidir-colors", label: "Aspect (Multidir Colors)" }, { value: "duotone-nw-ne", label: "Duotone NW/NE (warm south, cold north)" }, { value: "igor", label: "Igor [1d]" },
     { value: "basic", label: "Basic [2d]" },
     // { value: "aspect-multidir", label: "Aspect classic (Multidir Colors)" },
   ]

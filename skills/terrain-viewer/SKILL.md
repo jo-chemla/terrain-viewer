@@ -12,16 +12,16 @@ Base URL: `https://terrain-viewer.iconem.com/`
 ## Steps
 
 1. Find the place's latitude and longitude (4 decimals is enough) and pick a zoom: 5 for a country, 9 for a region, 12 for a mountain or valley, 15 for a site.
-2. Pick the view: `viewMode=2d` for maps and analysis, `3d` for a tilted landscape (add `pitch=55`), `globe` for continental scale.
+2. Pick the view: `viewMode=2d` (top-down) for sites, maps, analysis and anything the user wants to read like a plan; `3d` for a landscape, a valley, a mountain (add `pitch=55` and keep zoom at 13 or less, since a tilted camera close to the ground ends up under the terrain while tiles load); `globe` for continental scale.
 3. Turn on the modes that answer the question (table below). Several can be on at once.
-4. Pick the terrain source only if the default (Mapterhorn, global, up to about 0.5 m where national LiDAR is open) is not what the user wants.
+4. Pick the terrain source. The default, Mapterhorn, is global but its detail depends on the place: about 0.5 to 2 m where a national LiDAR survey is open (most of Europe, the US, Japan, New Zealand, parts of Canada and Australia), 30 m elsewhere (Copernicus GLO-30). At 30 m a fortress, a field system or a round house is a few pixels: say so, rather than send a link that shows nothing. Where it matters, check the library for a finer dataset (Terrain sources below) or offer `showRasterBasemap=true` imagery with a top-down view, with the caveat that forest hides what is under it.
 5. Percent-encode any URL placed inside the query string, and give the user the link with one sentence on what they will see.
 
 ## Modes
 
 | Question | Parameters |
 |---|---|
-| General relief | `showHillshade=true` (on by default) |
+| General relief | `showHillshade=true` (on by default); `hillshadeMethod=duotone-nw-ne` gives the two-light LiDAR look (grey north-west light, blue and orange north-east light) used in landscape archaeology; `multidir-colors` colours by aspect |
 | Elevation as colours | `showColorRelief=true` |
 | Contour lines | `showContoursAndGraticules=true&showContours=true` |
 | Steepness | `showTerrainAnalysis=true&showSlope=true` |
@@ -59,6 +59,19 @@ What published studies use, from the 120-study [Research References](https://ter
 - `terrainSourceA=mapterhorn` (default, global), `aws` (global, 30 m class).
 - National and LiDAR datasets have ids such as `custom-mx-aguadafenix-lidar`; the list with ids is on https://terrain-viewer.iconem.com/docs/features/national-datasets/. Do not invent ids.
 - The user's own data: `terrainSourceA=<percent-encoded URL>`. A URL containing `{z}` is read as Terrarium tiles, anything else as a Cloud-Optimized GeoTIFF. Add `terrainType=terrainrgb` for Terrain-RGB tiles. Without `lat`/`lng` the view frames the COG itself. The server must allow cross-origin and range requests; a COG not in Web Mercator needs `viaTitiler=1`.
+
+## National dataset or Mapterhorn?
+
+Mapterhorn already ingests most open national LiDAR, so for a place in Europe, the US, Japan or New Zealand the default source is usually the fine one. Use a library id instead when the study needs a dataset Mapterhorn does not have or has coarser; in the research references these are the entries with a `library_id`, today Mexico (`custom-mx-aguadafenix-lidar` for the Aguada Fénix survey, `custom-mx-inegi-cem` nationwide at 15 m), the Netherlands (`custom-nl-ahn-dtm`, 0.5 m, finer than Mapterhorn's 5 m there), Queensland (`custom-au-qld-dem`) and Czechia (`custom-cz-cuzk-dmr5g`, 2 m). The [National Datasets](https://terrain-viewer.iconem.com/docs/features/national-datasets/) page lists every id grouped as finer than, same as, or absent from Mapterhorn; its "vs Mapterhorn" links are side-by-side comparisons ready to copy.
+
+## Worked examples
+
+From the research references, each the study's own area and the modes it used:
+
+- Monumental Maya architecture under forest (Inomata et al. 2020): Aguada Fénix LiDAR, hillshade plus local relief model, top-down. https://terrain-viewer.iconem.com/?viewMode=2d&zoom=15&lat=17.7338&lng=-91.2886&terrainSourceA=custom-mx-aguadafenix-lidar&showReliefVisualization=true&showLrm=true&place=Aguada%20F%C3%A9nix
+- Barrows and Celtic fields found by machine learning (Verschoof-van der Vaart et al. 2019): Veluwe, AHN 0.5 m, hillshade with the mound detector. https://terrain-viewer.iconem.com/?viewMode=2d&zoom=14&lat=52.2&lng=5.85&terrainSourceA=custom-nl-ahn-dtm&tellsBeta=true&showTellsDetector=true&showReliefVisualization=true&showLrm=true&place=Veluwe
+- The 2014 Oso landslide (Iverson et al. 2015): Mapterhorn (Washington 3DEP LiDAR), slope and sky-view factor over hillshade. https://terrain-viewer.iconem.com/?viewMode=2d&zoom=14&lat=48.2826&lng=-121.848&showTerrainAnalysis=true&showSlope=true&showReliefVisualization=true&showSvf=true&place=Oso%20landslide
+- Drumlins (Yu, Eyles and Sookhan 2015): Wadena drumlin field, Minnesota, curvature plus local relief model in 3D at a landscape zoom. https://terrain-viewer.iconem.com/?viewMode=3d&zoom=11&lat=46.4425&lng=-95.1361&pitch=50&showTerrainAnalysis=true&showCurvature=true&showReliefVisualization=true&showLrm=true&place=Wadena%20drumlins
 
 ## Comparing
 

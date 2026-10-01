@@ -846,6 +846,18 @@ export const computeHillshadePaint = ({
     paint["hillshade-shadow-color"] = ["#00bfff", "#0000ff", "#bf00ff", "#FF0080"]
     paint["hillshade-illumination-direction"] = [270, 315, 0, 45]
     paint["hillshade-illumination-altitude"] = [30, 30, 30, 30]
+  } else if (hillshadeMethod === "duotone-nw-ne") {
+    // After Zoran Čučković's two-light LiDAR hillshade
+    // (landscapearchaeology.org/2018/lidar-hillshade): a grey north-west
+    // light for the relief, and a north-east light whose lit side is cold
+    // (blue, slopes leaning north) and whose shaded side is warm (orange,
+    // slopes leaning south), so the two models tell their orientations apart
+    // instead of stacking the same alignment twice.
+    paint["hillshade-method"] = "multidirectional"
+    paint["hillshade-highlight-color"] = ["#FFFFFF", "#4A90D9"]
+    paint["hillshade-shadow-color"] = ["#000000", "#B8692E"]
+    paint["hillshade-illumination-direction"] = [315, 45]
+    paint["hillshade-illumination-altitude"] = [35, 35]
   } else if (hillshadeMethod === "aspect-multidir") {
     paint["hillshade-method"] = "multidirectional"
     paint["hillshade-highlight-color"] = ["#CC0000", "#0000CC"]

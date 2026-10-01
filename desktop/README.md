@@ -2,7 +2,7 @@
 
 The web app packaged as a desktop application with [Electrobun](https://blackboard.sh/electrobun/): the system webview (WKWebView on macOS, WebView2 on Windows, WebKitGTK on Linux) showing the Vite build, no bundled Chromium, so the installer is small. The point is working offline on local data: a COG picked from disk opens through the app's own file picker, and every mode runs in the browser engine. Online sources (Mapterhorn, basemaps, WMS services) still need the network.
 
-Status: a first attempt. Not signed, not notarized, not released; the workflow builds artifacts to download and try.
+Status: a first attempt. Not signed, not notarized. The workflow builds weekly and attaches the three bundles to the rolling `desktop-latest` pre-release.
 
 ## Build
 
@@ -39,7 +39,7 @@ Hutch writes everything inside `desktop/` (or wherever the config lives), never 
 - Docs: when `dist/docs/index.html` exists (the workflow merges the Next export there like the Pages deploy does), `gen-config.mjs` bundles it and the sidebar's Documentation button resolves to `views://app/docs/` offline; `src/bun/index.ts` opens `target="_blank"` links to `views://` in a second window and http(s) ones in the system browser. Untested: whether the `views://` handler serves `index.html` for a directory URL (the docs export uses trailing-slash URLs). If `views://app/docs/` shows nothing, the fix is a `will-navigate` rewrite to `.../index.html` or serving the docs from a local port.
 - Fullscreen: the map's fullscreen button uses the browser Fullscreen API on the map container. WebView2 and WKWebView implement it inside the webview (the element fills the window's content area); whether the native window frame drops needs a check - Electrobun has `BrowserWindow.setFullScreen()` for that, not wired yet.
 
-The GitHub workflow `.github/workflows/desktop.yml` runs the same steps on a macOS, a Windows and an Ubuntu runner (manual trigger) and uploads `desktop/artifacts` for each.
+The GitHub workflow `.github/workflows/desktop.yml` runs the same steps on a macOS, a Windows and an Ubuntu runner (Mondays 04:00 UTC, or on demand), uploads `desktop/artifacts` for each, then a `release` job re-creates the `desktop-latest` pre-release with every bundle attached.
 
 ## Building from a git worktree
 

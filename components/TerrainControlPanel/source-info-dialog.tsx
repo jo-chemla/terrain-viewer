@@ -54,6 +54,7 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
     combined: "-combined",
     igor: "-igor",
     "multidir-colors": "-multidirectional",
+    "duotone-nw-ne": "-multidirectional",
   }
   const hillshadeMethod = state?.hillshadeMethod ?? "combined"
   const supportsIlluminationDirection = ["standard", "combined", "igor", "basic"].includes(hillshadeMethod)

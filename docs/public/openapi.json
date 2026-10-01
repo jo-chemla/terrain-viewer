@@ -344,7 +344,7 @@
             "description": "State. Lets a picked blend mode be toggled off (falls back to plain \"normal\") without losing/resetting it — a quick way to flip back and forth between a blended and a plain overlay comparison for the same p…",
             "schema": {
               "type": "boolean",
-              "default": true
+              "default": false
             }
           },
           {
@@ -3232,7 +3232,8 @@
                 "igor",
                 "basic",
                 "aspect-multidir",
-                "multidir-colors"
+                "multidir-colors",
+                "duotone-nw-ne"
               ],
               "default": "combined"
             }
