@@ -102,7 +102,10 @@ jobs:
           if-no-files-found: error
 
   release:
+    # Publishes whatever did build: one platform failing must not hide the
+    # other two. Only a cancelled run skips it.
     needs: bundle
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +117,7 @@ jobs:
           mkdir -p assets
           find bundles -type f \( -name "*.zip" -o -name "*.dmg" -o -name "*.exe" -o -name "*.tar.gz" -o -name "*.AppImage" \) -exec cp {} assets/ \;
           ls -la assets
+          [ -n "$(ls -A assets)" ] || { echo "no bundle built on any platform"; exit 1; }
       - name: Rolling release desktop-latest
         env:
           GH_TOKEN: ${{ github.token }}
