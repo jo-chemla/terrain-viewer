@@ -17,6 +17,7 @@ import GeocoderControl from "./MapControls/GeocoderControl"
 import NavigationControlThemed from "./MapControls/NavigationControlThemed"
 import FullscreenControlThemed from "./MapControls/FullscreenControlThemed"
 import GeolocateControlThemed from "./MapControls/GeolocateControlThemed"
+import { GEOREF_TYPE_IDS } from "@/lib/georef"
 import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, rampSessionOverridesAtom, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -125,6 +126,7 @@ import {
   TellsInspectPopup,
   TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT,
   PlaneSlicerLayer,
+  GeorefImageLayer,
   LAYER_SLOTS,
   computeHillshadePaint,
   computeColorReliefPaint,
@@ -720,6 +722,14 @@ export const QUERY_STATE_PARSERS = {
     // above or below a chosen elevation/LRM-height plane. See PlaneSlicerLayer/
     // computePlaneSlicerPaint in MapLayers.tsx.
     showPlaneSlicer: parseAsBoolean.withDefault(false),
+    // Georeference tool (Tools): a plain image drawn on the map from control
+    // points. georefImage is a URL (a disk file stays session-only in
+    // georefImageAtom); georefGcps is "px,py,lng,lat;..." (lib/georef.ts).
+    showGeoref: parseAsBoolean.withDefault(true),
+    georefImage: parseAsString.withDefault(""),
+    georefGcps: parseAsString.withDefault(""),
+    georefType: parseAsStringLiteral(GEOREF_TYPE_IDS).withDefault("helmert"),
+    georefOpacity: parseAsFloat.withDefault(0.8),
     planeSlicerReferenceMode: parseAsStringLiteral(PLANE_SLICER_REFERENCE_MODES).withDefault("absolute"),
     // Absolute and LRM keep independent threshold values — the two reference
     // frames have wildly different natural ranges (metres of real elevation vs.
@@ -4077,6 +4087,9 @@ export function TerrainViewer() {
           <OpennessReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode} showOpenness={state.showOpenness} opennessReliefPaint={opennessReliefPaint} />
           <LocalDominanceReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode} showLocalDominance={state.showLocalDominance} localDominanceReliefPaint={localDominanceReliefPaint} />
           <PlaneSlicerLayer enabled={state.showPlaneSlicer && !isHistoricalMode} referenceMode={state.planeSlicerReferenceMode} planeSlicerPaint={planeSlicerPaint} />
+          {/* The georeferenced image, every view: it is content, like a
+              basemap overlay, not a tool marker. */}
+          <GeorefImageLayer imageUrl={state.georefImage} gcpsParam={state.georefGcps} type={state.georefType} opacity={state.georefOpacity} visible={state.showGeoref} />
           {isPrimary && (
             <TellsMarkersLayer
               enabled={state.tellsBeta}

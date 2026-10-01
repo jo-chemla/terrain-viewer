@@ -38,6 +38,7 @@ import { useTerraDraw, TerraDrawSection, drawingUrlsAtom } from "./TerraDrawSyst
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
+import { GeorefSection } from "./GeorefSection"
 import { SunShadowCalculatorSection } from "./sun-shadow-calculator-section"
 import { SourceInfoSection, isProvenanceSource } from "./SourceInfoSection"
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -70,6 +71,7 @@ export const SECTION_KEYS = [
   "drawing",
   "elevationPicker",
   "sunShadowCalculator",
+  "georef",
   "animation",
   "sourceInfo",
   "footer"
@@ -94,6 +96,7 @@ export const SCROLL_TARGETS: Record<string, string> = {
   drawing: "tour-drawing-section",
   elevationPicker: "tour-elevation-picker-section",
   sunShadowCalculator: "tour-sun-shadow-section",
+  georef: "tour-georef-section",
   animation: "tour-animation-section",
   comparisonMix: "tour-historical-compare-blend",
   tellsDetector: "tour-tells-detector-section",
@@ -109,6 +112,7 @@ export const SECTION_MACRO_GROUP: Record<string, MacroGroupKey> = {
   tools: "Tools",
   drawing: "Tools",
   elevationPicker: "Tools",
+  georef: "Tools",
   sunShadowCalculator: "Tools",
   animation: "Tools",
 }
@@ -134,6 +138,7 @@ export const DEFAULT_OPEN_STATE: SectionOpenState = {
   background: false,
   drawing: false,
   elevationPicker: false,
+  georef: false,
   sunShadowCalculator: false,
   animation: false,
   sourceInfo: false,
@@ -820,6 +825,11 @@ export function TerrainControlPanel({
               {!hiddenSections.includes("sunShadowCalculator") && state.sunShadowBeta && (
                 <div id="tour-sun-shadow-section" className="scroll-mt-[100px]">
                   <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
+                </div>
+              )}
+              {!hiddenSections.includes("georef") && (
+                <div id="tour-georef-section" className="scroll-mt-[100px]">
+                  <GeorefSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.georef} onOpenChange={toggle("georef")} />
                 </div>
               )}
               {/* Camera-pose animation has no meaning without a terrain/DEM

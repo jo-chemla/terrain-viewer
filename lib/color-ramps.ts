@@ -518,6 +518,27 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // The green-to-red relief ramp of archaeological LiDAR figures (the
+  // Angkor DTM plates among them): pale cyan for water and the lowest
+  // ground, greens for the plain, yellow and orange rising to a dark red
+  // top. Stops on a 0-3500 m domain like Wiki; Auto range rescales them.
+  "relief-green-red": {
+    name: "Relief Green-Red",
+    colors: [
+      "interpolate",
+      ["linear"],
+      ["elevation"],
+      0, "rgb(176, 232, 240)",
+      150, "rgb(20, 120, 70)",
+      500, "rgb(70, 160, 70)",
+      1000, "rgb(170, 200, 80)",
+      1500, "rgb(240, 220, 70)",
+      2100, "rgb(240, 160, 40)",
+      2700, "rgb(220, 80, 25)",
+      3500, "rgb(120, 25, 15)",
+    ],
+    continuous: true,
+  },
   wiki: {
     name: "Wiki",
     colors: [

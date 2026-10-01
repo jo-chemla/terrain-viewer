@@ -1,6 +1,6 @@
 ---
-title: "Tools (Drawing, Elevation Picker, Anim)"
-description: Drawing, Elevation Picker, Sun/Shadow Calculator, Animation, and the catalog searches that find new data
+title: "Tools (Drawing, Elevation Picker, Georeference, Anim)"
+description: Drawing, Elevation Picker, Sun/Shadow Calculator, Georeference Image, Animation, and the catalog searches that find new data
 ---
 
 A grab bag of map-based utilities in the sidebar's Tools group, independent of whichever visualization modes are active. Source Info also lives in that group — it is documented with the [coverage overlays](/features/coverage-overlays) it contains.
@@ -57,6 +57,14 @@ The answer is written into the **same** shared light fields the [Sun Position](/
 <Callout>
 A solar azimuth/elevation pair does not map to a single instant: the same sun position recurs twice a year, and the day/time pair the solver returns is one of a small family. Use it to narrow a season and an hour, not to timestamp to the minute.
 </Callout>
+
+## Georeference Image
+
+A plain image with no georeferencing, a figure from a paper, a scanned plan, a drone orthomosaic exported as a JPEG, placed on the map from control points. Open the image from disk or paste its URL, switch on **Place control points**, then click a spot on the image in the panel (wheel zooms, drag pans) and the same spot on the map. Each pair gets a number on both sides. From two pairs on, the image appears on the map, drawn through MapLibre's image source above the basemap and under the relief layers, so hillshade and contours still read through it at the chosen opacity.
+
+The fit comes from the [Allmaps](https://allmaps.org) transform library, without IIIF: **Similarity** (two points, keeps shapes) is the usual choice for a map figure, **Affine** (three) adds shear, **Projective** (four) suits a photograph of a flat map taken at an angle, and the polynomial and thin-plate-spline fits bend. The image is drawn from its four fitted corners, so the first three are exact on screen and the bending fits are exact at the corners only. Residuals in metres are listed per point once there are more points than the fit needs; a point can be removed from the list.
+
+What travels in the link: the points (`georefGcps`), the fit (`georefType`), opacity and visibility, and the image when it was loaded from a URL (`georefImage`). An image opened from disk stays in the browser session. **World file** downloads an ESRI world file (`.pgw` or `.jgw`, in WGS 84 degrees, with a `.prj`) to put next to the image for QGIS or GDAL.
 
 ## Animation
 

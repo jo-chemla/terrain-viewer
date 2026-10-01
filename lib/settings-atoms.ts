@@ -98,6 +98,15 @@ export const sunShadowPicksAtom = atom<{ base: PickedLngLat | null; tip: PickedL
 export const elevationPickerActiveAtom = atom(false)
 export const sunShadowActiveAtom = atom(false)
 export const sunShadowModeAtom = atom<"forward" | "reverse">("forward")
+
+// Georeference tool (lib/georef.ts, components/TerrainControlPanel/
+// GeorefSection.tsx): the loaded image and its control points. The image is
+// session-only when it came from disk (an object URL), so the whole state
+// stays out of storage; a URL-loaded image and its points travel in the URL
+// (georefImage, georefGcps in TerrainViewer's query state).
+export interface GeorefImage { url: string; width: number; height: number; name: string; fromDisk: boolean }
+export const georefImageAtom = atom<GeorefImage | null>(null)
+export const georefActiveAtom = atom(false)
 /** Object height for the reverse solve, in metres. Lifted so the walkthrough
  *  can present a complete worked example rather than a half-filled form. */
 export const sunShadowHeightAtom = atom(10)

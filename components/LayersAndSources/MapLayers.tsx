@@ -1,9 +1,10 @@
 import { memo, useEffect, useRef, type RefObject } from "react"
-import { Layer, type MapRef } from "react-map-gl/maplibre"
+import { Layer, Source, type MapRef } from "react-map-gl/maplibre"
 import * as maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import { useAtom } from "jotai"
-import { highResTerrainAtom } from "@/lib/settings-atoms"
+import { highResTerrainAtom, georefImageAtom } from "@/lib/settings-atoms"
+import { fitGeoref, gcpsFromParam, type GeorefType } from "@/lib/georef"
 import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops, buildCustomRampColors, extractStops, applyBlackWhiteTransparent, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop, type RampOverride } from "@/lib/color-ramps"
 
 export const LAYER_SLOTS = {
@@ -435,6 +436,33 @@ export const PlaneSlicerLayer = memo(({ enabled, referenceMode, planeSlicerPaint
   )
 })
 PlaneSlicerLayer.displayName = "PlaneSlicerLayer"
+
+// A plain image placed on the map from control points (Tools > Georeference
+// Image, lib/georef.ts). The image itself (URL or object URL, with its pixel
+// size) is in georefImageAtom; the points and the fit type come from the URL
+// state. MapLibre's image source takes the four corners, so the fit is exact
+// on screen up to an affine; above the basemap and under the relief layers,
+// like an overlay basemap. Keyed on the URL: react-map-gl updates an image
+// source's coordinates in place but a new image is a new source.
+export const GeorefImageLayer = memo(({ imageUrl, gcpsParam, type, opacity, visible }: { imageUrl: string; gcpsParam: string; type: GeorefType; opacity: number; visible: boolean }) => {
+  const [image] = useAtom(georefImageAtom)
+  const url = image?.url || imageUrl
+  const fit = (image && gcpsParam) ? fitGeoref(gcpsFromParam(gcpsParam), type, image.width, image.height) : null
+  if (!url || !fit) return null
+  return (
+    <Source key={url} id="georef-image-source" type="image" url={url} coordinates={fit.corners}>
+      <Layer
+        beforeId={LAYER_SLOTS.OVERLAYS}
+        id="georef-image"
+        type="raster"
+        source="georef-image-source"
+        paint={{ "raster-opacity": opacity, "raster-resampling": "linear", "raster-fade-duration": 0 }}
+        layout={{ visibility: visible ? "visible" : "none" }}
+      />
+    </Source>
+  )
+})
+GeorefImageLayer.displayName = "GeorefImageLayer"
 
 export const RoughnessReliefLayer = memo(({ enabled, showRoughness, roughnessReliefPaint }: { enabled: boolean; showRoughness: boolean; roughnessReliefPaint: any }) => {
   if (!enabled) return null

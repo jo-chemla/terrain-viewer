@@ -34,7 +34,17 @@ export default function FullscreenControlThemed({ position, ...options }: Fullsc
   )
 
   React.useEffect(() => {
-    const onChange = () => setIsFull(!!document.fullscreenElement)
+    const onChange = () => {
+      const on = !!document.fullscreenElement
+      setIsFull(on)
+      // In the desktop app (Electrobun) HTML fullscreen only fills the
+      // webview; the window itself stays as it was. Tell the main process,
+      // which mirrors it with BrowserWindow.setFullScreen
+      // (desktop/src/bun/index.ts). Escape leaves HTML fullscreen, which
+      // fires this again with `on` false.
+      const send = (window as unknown as { __electrobunSendToHost?: (m: unknown) => void }).__electrobunSendToHost
+      if (typeof send === "function") send({ type: "fullscreen", on })
+    }
     document.addEventListener("fullscreenchange", onChange)
     return () => document.removeEventListener("fullscreenchange", onChange)
   }, [])

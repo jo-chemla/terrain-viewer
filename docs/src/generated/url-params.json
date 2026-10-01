@@ -2396,6 +2396,56 @@
       "note": "Plane Slicer — Tools: Elevation Picker sub-section."
     },
     {
+      "key": "showGeoref",
+      "stateKey": "showGeoref",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Georeference tool (Tools): a plain image drawn on the map from control points."
+    },
+    {
+      "key": "georefImage",
+      "stateKey": "georefImage",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": ""
+    },
+    {
+      "key": "georefGcps",
+      "stateKey": "georefGcps",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": ""
+    },
+    {
+      "key": "georefType",
+      "stateKey": "georefType",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "helmert",
+      "defaultSource": "\"helmert\"",
+      "note": ""
+    },
+    {
+      "key": "georefOpacity",
+      "stateKey": "georefOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.8,
+      "defaultSource": "0.8",
+      "note": ""
+    },
+    {
       "key": "planeSlicerReferenceMode",
       "stateKey": "planeSlicerReferenceMode",
       "type": "enum",

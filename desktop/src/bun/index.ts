@@ -30,3 +30,12 @@ mainWindow.webview.on("new-window-open", (event: unknown) => {
     Utils.openExternal(url);
   }
 });
+
+// The app's fullscreen button uses the HTML Fullscreen API, which in WebView2
+// only fills the webview; the window stays. The page reports every change
+// through __electrobunSendToHost (FullscreenControlThemed.tsx) and the
+// window follows.
+mainWindow.webview.on("host-message", (event: unknown) => {
+  const msg = (event as { data?: { detail?: unknown } }).data?.detail as { type?: string; on?: boolean } | undefined;
+  if (msg?.type === "fullscreen") mainWindow.setFullScreen(!!msg.on);
+});

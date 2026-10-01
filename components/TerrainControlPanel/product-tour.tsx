@@ -234,7 +234,7 @@ const TERRAIN_LIBRARY_COVERAGE_IDS: string[] = (customSources.SAMPLE_TERRAIN_SOU
   .filter((s) => s.bounds)
   .map((s) => `lib:${s.id}`)
 
-const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", "animation", "sourceInfo"] as const
+const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", "georef", "animation", "sourceInfo"] as const
 
 // ─── Where the demos happen ─────────────────────────────────────────────────
 //

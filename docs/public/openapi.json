@@ -2697,6 +2697,56 @@
             }
           },
           {
+            "name": "showGeoref",
+            "in": "query",
+            "required": false,
+            "description": "State. Georeference tool (Tools): a plain image drawn on the map from control points.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "georefImage",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "georefGcps",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "georefType",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "helmert"
+            }
+          },
+          {
+            "name": "georefOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.8
+            }
+          },
+          {
             "name": "planeSlicerReferenceMode",
             "in": "query",
             "required": false,

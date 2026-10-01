@@ -37,6 +37,8 @@ Terrain Viewer is an application, not a library, and it concentrates on what Ces
 
 Terrain Viewer complements it by displaying that data without downloading it. It reads OpenTopography's cloud-optimized rasters and VRT mosaics in the browser, including the Aguada Fénix and Haiti LiDAR surveys in its library. For the data itself, point-cloud processing or bulk downloads, go to OpenTopography.
 
+OpenTopography also runs on-demand processing on its global rasters and lists community tools in its [Tool Registry](https://opentopography.org/tools). One service has no equivalent here: **Global Solar Irradiation**, which computes for each pixel the monthly sum of global irradiation (beam, diffuse and reflected, in Wh/m²/day) and the monthly hours of sunlight on the DEM or DSM surface, with terrain shading, through GRASS's [r.sun](https://grass.osgeo.org/grass72/manuals/r.sun.html). Terrain Viewer's [Sun Position](/features/sun-position) tool and cast shadows show one moment; r.sun integrates a whole month. For a monthly irradiation map, use OpenTopography on a global raster, or r.sun in GRASS or QGIS on any DEM.
+
 ## Other tools
 
 | Tool | Best at | Terrain Viewer, by comparison |

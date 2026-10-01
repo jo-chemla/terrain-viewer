@@ -107,6 +107,10 @@ The full interactive version renders four charts per saved location, each answer
 3. **Sun-path diagram** — the same yearly trace in a polar compass projection (angle = azimuth, N at top, clockwise; radius = elevation, center = zenith). Where in the sky, compass-relative, does the sun sit at a given hour across the year?
 4. **Full-year coverage envelope** — a filled region in the same polar projection, computed from the reachability inequality above, showing the entire dome of sky the sun occupies at any hour on any day of the year at this latitude.
 
+## Monthly irradiation, elsewhere
+
+The tool answers "where is the sun, and what does it shade, at this moment". For energy over time, the monthly sum of global irradiation (beam, diffuse and reflected) and hours of sunlight per pixel with terrain shading, GRASS's [r.sun](https://grass.osgeo.org/grass72/manuals/r.sun.html) is the reference; [OpenTopography](https://opentopography.org/tools) runs it as its Global Solar Irradiation service on its global rasters, and QGIS exposes it through the GRASS provider for any DEM. See [Compared with other tools](/resources/compared-with-other-tools#opentopography).
+
 ## Where this shows up in the app
 
 - `components/TerrainControlPanel/light-direction-control.tsx` — the datetime-driven / compass-fixed light-direction control for [Phong](/features/visualization-modes#lighting-effects), using `solarPosition()`, `inverseSunPosition()`, and `dayLength()` to bound the day-length slider.
