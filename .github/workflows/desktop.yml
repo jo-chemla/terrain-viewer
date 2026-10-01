@@ -68,17 +68,18 @@ jobs:
           & ([scriptblock]::Create((irm https://hutch.blackboard.sh/hutch/install.ps1)))
           "$env:USERPROFILE\.hutch\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
       - name: Bundle, with the docs and with the docs online
-        # Two bundles per platform from the same web build: the full one
-        # carries the docs export for offline reading, the "-online-doc" one
-        # leaves it out (about 180 MB less) and its Documentation button
-        # opens the website. desktop/ci-bundle.sh does one bundle.
+        # Two bundles per platform from the same web build: "with-offline-docs"
+        # carries the docs export, "light-online-docs" leaves it out (about
+        # 180 MB less) and its Documentation button opens the website.
+        # desktop/ci-bundle.sh does one bundle and names the files
+        # TerrainViewer-<Setup|Portable>-<platform>-<variant>.<ext>.
         working-directory: desktop
         shell: bash
         run: |
           hutch --version
           hutch run install
-          bash ci-bundle.sh ${{ matrix.label }} bundled ""
-          bash ci-bundle.sh ${{ matrix.label }} online -online-doc
+          bash ci-bundle.sh bundled with-offline-docs
+          bash ci-bundle.sh online light-online-docs
       - uses: actions/upload-artifact@v4
         with:
           name: terrain-viewer-desktop-${{ matrix.label }}
@@ -108,6 +109,6 @@ jobs:
         run: |
           sha=$(git rev-parse --short HEAD)
           date=$(date -u +%Y-%m-%d)
-          notes="Desktop bundles built on $date from \`$sha\`. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/dev/desktop/ for what works and how to run them. Each platform comes twice: the plain file carries the documentation for offline reading, the \`-online-doc\` one is about 180 MB smaller and opens the documentation on the website. Portable zips unpack anywhere; the others are installers."
+          notes="Desktop bundles built on $date from \`$sha\`. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/dev/desktop/ for what works and how to run them. Each platform comes twice: \`with-offline-docs\` carries the documentation for offline reading, \`light-online-docs\` is about 180 MB smaller and opens the documentation on the website. Setup files are installers (zip holding the installer on Windows, dmg on macOS, self-extracting tar.gz on Linux); Portable zips unpack anywhere and run as they are."
           gh release delete desktop-latest --yes --cleanup-tag || true
           gh release create desktop-latest assets/* --title "Desktop bundles ($date)" --notes "$notes" --prerelease --latest=false
