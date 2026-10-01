@@ -6,6 +6,17 @@ icon: Monitor
 
 The desktop app is the same Vite build as the website, shown in the operating system's own webview (WebView2 on Windows, WKWebView on macOS, WebKitGTK on Linux) by [Electrobun](https://framework.blackboard.sh/electrobun/). No Chromium is bundled, so a build without the documentation is about 40 MB. The point is working offline on local data: a COG picked from disk opens through the app's own file picker and every mode runs in the webview; online sources (Mapterhorn, basemaps, WMS services) still need the network. It is an experiment: unsigned, built weekly (and on demand) by the `Desktop bundles` GitHub workflow on a macOS, a Windows and an Ubuntu runner, and attached to the rolling [`desktop-latest`](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest) release, which is replaced on every run. Each platform comes in two files, `TerrainViewer-Setup-<platform>-with-offline-docs` (the documentation bundled for offline reading, about 220 MB) and `...-light-online-docs` (about 40 MB, its Documentation button opens this website); Windows and Linux also get a `TerrainViewer-Portable-...` zip that runs without installing. Sources live in `desktop/` of the repository.
 
+
+## Opening the macOS build
+
+The app is not signed with an Apple certificate, only ad-hoc signed on the build runner, so macOS refuses it on first launch. Either right-click the app and choose Open, then confirm; or, if it is reported as "damaged", clear the download quarantine flag in Terminal and open it normally:
+
+```bash
+xattr -cr "/Applications/Terrain Viewer.app"
+```
+
+Windows shows a SmartScreen warning for the same reason: More info, then Run anyway.
+
 ## The pieces
 
 | File | What it is |

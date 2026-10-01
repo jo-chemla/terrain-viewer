@@ -20,7 +20,20 @@ hutch electrobun build --env=stable
 builddir=$(ls -d build/stable-* | head -n 1)
 platform=${builddir#build/stable-}
 
-if [ "$(uname -s)" != "Darwin" ]; then
+if [ "$(uname -s)" = "Darwin" ]; then
+  # No Apple developer certificate, so no real signature or notarization.
+  # An app with NO signature that carries the download quarantine flag is
+  # refused as "damaged" on recent macOS, with no way through but
+  # `xattr -cr`. An ad-hoc signature (identity "-", no certificate) turns
+  # that into "unidentified developer", which System Settings > Privacy &
+  # Security > Open Anyway lets through. Hutch has already written the
+  # dmg by now, so the signed .app is repacked into a fresh one.
+  app=$(find "$builddir" -maxdepth 1 -name "*.app" | head -n 1)
+  codesign --force --deep --sign - "$app"
+  codesign --verify --deep --strict "$app" && echo "ad-hoc signed: $app"
+  rm -f artifacts/*.dmg
+  hdiutil create -quiet -volname "Terrain Viewer" -srcfolder "$app" -ov -format UDZO "artifacts/TerrainViewer.dmg"
+else
   # The application folder itself, zipped: unpack anywhere and run
   # bin/launcher.exe (bin/launcher on Linux). Electrobun has no single-file
   # executable; this is the closest thing. On macOS the .dmg already holds
