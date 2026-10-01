@@ -1,7 +1,10 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown, Plus, Edit, Library } from "lucide-react"
+import { ChevronDown, Plus, Edit, Library, Crosshair } from "lucide-react"
+import { georefImageAtom, georefEditingIdAtom, georefActiveAtom } from "@/lib/settings-atoms"
+import { sectionOpenAtom } from "./TerrainControlPanel"
+import { pushToast } from "@/components/ui/toast"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -222,6 +225,24 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const basemapRoleSources = customBasemapSources.filter((s) => (s.role ?? "basemap") === "basemap" && matchesByodQuery(s, byodQ))
   const overlaySources = customBasemapSources.filter((s) => s.role === "overlay" && matchesByodQuery(s, byodQ))
 
+  // Sends a saved picture back to Tools > Georeference Image with its points,
+  // so they can be moved and the overlay updated in place.
+  const setGeorefImage = useSetAtom(georefImageAtom)
+  const setGeorefEditingId = useSetAtom(georefEditingIdAtom)
+  const setGeorefActive = useSetAtom(georefActiveAtom)
+  const setSectionOpen = useSetAtom(sectionOpenAtom)
+  const reopenGeoref = useCallback((source: CustomBasemapSource) => {
+    const g = source.georef
+    if (!g) return
+    const url = source.type === "image-local" ? resolveLocalFileUrl(localFileId(source.url)) : source.url
+    if (!url) { pushToast({ key: "georef", title: "The picture is not available in this session", body: "Re-select its file first (the row offers it)." }); return }
+    setGeorefImage({ url, width: g.width, height: g.height, name: source.name, fromDisk: source.type === "image-local" })
+    setGeorefEditingId(source.id)
+    setGeorefActive(true)
+    setState({ georefBeta: true, georefGcps: g.gcps, georefType: g.type, georefImage: source.type === "image" ? source.url : "", showGeoref: true })
+    setSectionOpen((prev: any) => ({ ...prev, georef: true }))
+  }, [setGeorefImage, setGeorefEditingId, setGeorefActive, setSectionOpen, setState])
+
   const handleToggleOverlay = useCallback((id: string, checked: boolean) => {
     const current: string[] = state.overlayBasemapIds || []
     setState({ overlayBasemapIds: checked ? [...current, id] : current.filter((x) => x !== id) })
@@ -350,6 +371,11 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
                     onSelect={(id) => handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
                   />
+                  {(source.type === "image" || source.type === "image-local") && source.georef && (
+                    <Button variant="ghost" size="sm" className="h-6 w-6 shrink-0 cursor-pointer p-0" title="Edit the control points in Tools > Georeference Image" onClick={() => reopenGeoref(source)}>
+                      <Crosshair className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>

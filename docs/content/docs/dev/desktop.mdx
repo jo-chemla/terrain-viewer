@@ -9,9 +9,13 @@ The desktop app is the same Vite build as the website, shown in the operating sy
 
 ## Installing or running on Windows and Linux
 
-The Setup file is a zip holding `Terrain Viewer-Setup.exe` and a hidden `.installer` folder with the actual payload (on Linux, a self-extracting tar.gz). **Extract the whole zip first**, then run Setup: started from inside a zip viewer, or copied without its `.installer` folder, it stops with "the installer package is incomplete". The installer puts the app under `%LOCALAPPDATA%\com.iconem.terrain-viewer` and adds a Start menu entry.
+On Windows the Setup file is one self-contained `.exe` (the payload is appended to Electrobun's installer stub, the layout its Linux installer uses; Hutch itself only writes a zip with a hidden `.installer` folder beside the exe). It installs under `%LOCALAPPDATA%\com.iconem.terrain-viewer` (`-light` for the light build, so both can be installed) and adds a Start menu entry. On Linux the Setup is a self-extracting tar.gz.
 
 The Portable zip needs no installation: unzip it anywhere and start `Terrain Viewer.cmd` (Windows) or `./terrain-viewer` (Linux); the program itself is `bin/launcher`, which has to stay next to `Resources/`. Nothing is written outside the folder except the webview's own profile.
+
+## Updates
+
+The full build checks the rolling release at every launch: `stable-<platform>-update.json` and the matching `.tar.zst` are uploaded next to the installers, and Electrobun's updater (`release.baseUrl` in the generated config) downloads a newer build in the background and installs it at the following launch, quitting and relaunching through its update helper. The light build has no feed and is replaced by downloading it again; so is the Portable folder, which the updater never touches (it only knows the installed copy).
 
 ## Opening the macOS build
 

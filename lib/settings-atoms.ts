@@ -107,6 +107,8 @@ export const sunShadowModeAtom = atom<"forward" | "reverse">("forward")
 export interface GeorefImage { url: string; width: number; height: number; name: string; fromDisk: boolean }
 export const georefImageAtom = atom<GeorefImage | null>(null)
 export const georefActiveAtom = atom(false)
+/** The saved overlay being re-georeferenced, so Save updates it instead of adding another. */
+export const georefEditingIdAtom = atom<string | null>(null)
 /** Object height for the reverse solve, in metres. Lifted so the walkthrough
  *  can present a complete worked example rather than a half-filled form. */
 export const sunShadowHeightAtom = atom(10)
@@ -345,7 +347,16 @@ export interface CustomBasemapSource {
    *  lib/local-file-store.ts) rather than a real URL — the actual File only
    *  lives in-memory for the current session. */
   url: string
-  type: "cog" | "cog-local" | "tms" | "wms" | "wmts" | "tilejson"
+  /** "image" / "image-local": a plain picture placed from its four corners
+   *  (Tools > Georeference Image); "image-local" keeps a `local://<id>` url
+   *  like "cog-local". */
+  type: "cog" | "cog-local" | "tms" | "wms" | "wmts" | "tilejson" | "image" | "image-local"
+  /** For "image" / "image-local": the corners in lng/lat, MapLibre image-source
+   *  order (top-left, top-right, bottom-right, bottom-left). */
+  coordinates?: [[number, number], [number, number], [number, number], [number, number]]
+  /** For "image" / "image-local": what produced the corners, so the
+   *  georeferencer can reopen the picture and its points. */
+  georef?: { gcps: string; type: string; width: number; height: number }
   description?: string
   /** Whether "Load Sample Sources" includes this entry. Defaults to true when
    *  absent; see CustomTerrainSource.loadWithSamples for the rationale. */
@@ -601,12 +612,13 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true, stacSearch: false }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true, stacSearch: false, georef: false }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
 export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
 export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")
 /** STAC catalog search in the Add Dataset / Add Basemap modals (no URL param: local only). */
 export const stacSearchBetaEnabledAtom = booleanField(betaEnabledAtom, "stacSearch")
+export const georefBetaEnabledAtom = booleanField(betaEnabledAtom, "georef")
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one
 // continuous grid (each card's label prefixed with its project name) so

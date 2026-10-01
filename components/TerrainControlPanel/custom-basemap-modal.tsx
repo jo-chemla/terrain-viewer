@@ -112,7 +112,7 @@ export const CustomBasemapModal: React.FC<{
     if (editingSource) {
       setName(editingSource.name)
       setUrl(editingSource.url)
-      setType(editingSource.type)
+      setType(editingSource.type as BasemapFormType)
       setDescription(editingSource.description || "")
       setRole(editingSource.role ?? "basemap")
       setCogViaTitiler(!!editingSource.cogViaTitiler)

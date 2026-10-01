@@ -827,7 +827,7 @@ export function TerrainControlPanel({
                   <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
                 </div>
               )}
-              {!hiddenSections.includes("georef") && (
+              {!hiddenSections.includes("georef") && state.georefBeta && (
                 <div id="tour-georef-section" className="scroll-mt-[100px]">
                   <GeorefSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.georef} onOpenChange={toggle("georef")} />
                 </div>

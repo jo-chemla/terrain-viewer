@@ -925,6 +925,27 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </p>
             </div>
 
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Georeference Image</h4>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="georef-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
+                  <Switch
+                    id="georef-beta"
+                    checked={state.georefBeta}
+                    className="cursor-pointer"
+                    onCheckedChange={(checked) => setState({ georefBeta: checked })}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Place a plain PNG or JPEG (a figure, a scan, a plan) on the map from
+                point pairs clicked on the image and on the map (Tools section), then
+                keep it as a basemap overlay. Local images are stored with the
+                persisted local files below.
+              </p>
+            </div>
+
             <Separator />
 
             <div className="space-y-2">

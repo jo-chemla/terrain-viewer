@@ -23,7 +23,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -755,6 +755,8 @@ export const QUERY_STATE_PARSERS = {
     // Default true so the URL stays clean when the feature is on (the atom
     // default is also true); `?sunShadowBeta=false` disables it explicitly.
     sunShadowBeta: parseAsBoolean.withDefault(true),
+    // Same opt-in gate, for Tools: Georeference Image. Off by default.
+    georefBeta: parseAsBoolean.withDefault(false),
     // Same opt-in-beta gate as tellsBeta above, for the historical-imagery
     // basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel.
     // Default true — same rationale as sunShadowBeta.
@@ -1831,6 +1833,10 @@ export function TerrainViewer() {
   useEffect(() => {
     setSunShadowBetaEnabled(state.sunShadowBeta)
   }, [state.sunShadowBeta, setSunShadowBetaEnabled])
+  const [, setGeorefBetaEnabled] = useAtom(georefBetaEnabledAtom)
+  useEffect(() => {
+    setGeorefBetaEnabled(state.georefBeta)
+  }, [state.georefBeta, setGeorefBetaEnabled])
   useEffect(() => {
     setHistoricalBetaEnabled(state.historicalBeta)
   }, [state.historicalBeta, setHistoricalBetaEnabled])

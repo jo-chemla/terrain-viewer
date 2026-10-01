@@ -2545,6 +2545,16 @@
       "note": "Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator."
     },
     {
+      "key": "georefBeta",
+      "stateKey": "georefBeta",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Same opt-in gate, for Tools: Georeference Image."
+    },
+    {
       "key": "historicalBeta",
       "stateKey": "historicalBeta",
       "type": "boolean",

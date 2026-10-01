@@ -8,7 +8,8 @@
 // URL rather than from disk.
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { v4 as uuidv4 } from "uuid"
 import * as maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -19,9 +20,13 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { georefImageAtom, georefActiveAtom, type GeorefImage } from "@/lib/settings-atoms"
+import { georefImageAtom, georefActiveAtom, georefEditingIdAtom, customBasemapSourcesAtom, type GeorefImage, type CustomBasemapSource } from "@/lib/settings-atoms"
+import { registerLocalFileAtom, makeLocalFileUrl } from "@/lib/local-file-store"
+import { pushToast } from "@/components/ui/toast"
 import { activeDrawModeAtom } from "./TerraDrawSystem"
-import { GEOREF_TYPES, fitGeoref, fitBounds, gcpsFromParam, gcpsToParam, minPointsFor, worldFile, type GeorefGcp, type GeorefType } from "@/lib/georef"
+import { GEOREF_TYPES, fitGeoref, fitBounds, gcpsFromParam, gcpsToParam, minPointsFor, worldFile, completeGcps, type GeorefGcp, type GeorefType } from "@/lib/georef"
+
+const completeCount = (g: GeorefGcp[]) => completeGcps(g).length
 import { track } from "@/lib/analytics"
 
 const MARKER_COLOR = "#f59e0b"
@@ -54,6 +59,12 @@ export const GeorefSection: React.FC<{
   const fileInputRef = useRef<HTMLInputElement>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
   const objectUrlRef = useRef<string | null>(null)
+  // The picked File, kept for "Save as overlay" (it goes into the local file
+  // store then, like a local COG). Null for a URL image or a reopened one.
+  const fileRef = useRef<File | null>(null)
+  const [editingId, setEditingId] = useAtom(georefEditingIdAtom)
+  const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const registerLocalFile = useSetAtom(registerLocalFileAtom)
 
   const type = state.georefType as GeorefType
   const gcps = useMemo(() => gcpsFromParam(state.georefGcps), [state.georefGcps])
@@ -96,16 +107,58 @@ export const GeorefSection: React.FC<{
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
     const url = URL.createObjectURL(file)
     objectUrlRef.current = url
+    fileRef.current = file
+    setEditingId(null)
     void loadFromUrl(url, true, file.name)
-  }, [loadFromUrl])
+  }, [loadFromUrl, setEditingId])
 
   const clearAll = useCallback(() => {
     setImage(null)
     setPending(null)
     setIsActive(false)
+    setEditingId(null)
+    fileRef.current = null
     setState({ georefImage: "", georefGcps: "" })
     if (objectUrlRef.current) { URL.revokeObjectURL(objectUrlRef.current); objectUrlRef.current = null }
-  }, [setImage, setIsActive, setState])
+  }, [setImage, setIsActive, setState, setEditingId])
+
+  // Keeps the result as a basemap overlay (Basemap > Bring Your Own Data,
+  // overlay list), the way a local COG or a WMS is kept: in the custom
+  // basemap list in local storage, the picture itself in the local file
+  // store when it came from disk. Editing an existing overlay updates it.
+  const saveAsOverlay = useCallback(() => {
+    if (!image || !fit) return
+    const existing = editingId ? customBasemapSources.find((s) => s.id === editingId) : undefined
+    let url = image.url
+    let type: CustomBasemapSource["type"] = "image"
+    if (image.fromDisk) {
+      if (fileRef.current) {
+        const id = existing?.type === "image-local" ? existing.url.replace(/^local:\/\//, "") : uuidv4()
+        registerLocalFile({ id, file: fileRef.current })
+        url = makeLocalFileUrl(id)
+      } else if (existing?.type === "image-local") {
+        url = existing.url
+      } else {
+        pushToast({ key: "georef", title: "The picture is no longer available", body: "Open it again." })
+        return
+      }
+      type = "image-local"
+    }
+    const entry: CustomBasemapSource = {
+      ...(existing ?? { id: `georef-${Date.now()}`, name: image.name.replace(/\.[^.]+$/, "") || "Georeferenced image" }),
+      url, type,
+      role: "overlay",
+      coordinates: fit.corners,
+      georef: { gcps: gcpsToParam(gcps), type: fit.type, width: image.width, height: image.height },
+      description: `Georeferenced picture, ${completeCount(gcps)} control points, ${fit.type} fit, RMSE ${fit.rmseM.toFixed(1)} m (Tools > Georeference Image).`,
+    } as CustomBasemapSource
+    setCustomBasemapSources((prev) => existing ? prev.map((s) => (s.id === existing.id ? entry : s)) : [...prev, entry])
+    const ids: string[] = state.overlayBasemapIds || []
+    setState({ overlayBasemapIds: ids.includes(entry.id) ? ids : [...ids, entry.id], showRasterBasemap: true, georefImage: "", georefGcps: "" })
+    track("georef-save-overlay", { type: fit.type, points: completeCount(gcps), local: type === "image-local" })
+    pushToast({ key: "georef", title: existing ? "Overlay updated" : "Saved as a basemap overlay", body: "Basemap > Bring Your Own Data > Overlays. Edit its points again from there.", duration: 6000 })
+    setImage(null); setPending(null); setIsActive(false); setEditingId(null); fileRef.current = null
+  }, [image, fit, editingId, customBasemapSources, gcps, registerLocalFile, setCustomBasemapSources, setState, state.overlayBasemapIds, setImage, setIsActive, setEditingId])
 
   // Map clicks complete the pending pair. Registered while the tool is on,
   // on view A, the way the Elevation Picker does it.
@@ -246,6 +299,7 @@ export const GeorefSection: React.FC<{
                 <Button variant="outline" size="sm" className="h-7 cursor-pointer text-xs" onClick={downloadWorldFile} title="ESRI world file (lng/lat, WGS 84) plus .prj: drop next to the image for QGIS">World file</Button>
                 <Button variant="outline" size="sm" className="h-7 cursor-pointer text-xs" onClick={() => setGcps([])}>Clear points</Button>
               </div>
+              <Button size="sm" className="h-7 w-full cursor-pointer text-xs" onClick={saveAsOverlay}>{editingId ? "Update the overlay" : "Save as basemap overlay"}</Button>
               {image.fromDisk && <p className="text-[11px] text-muted-foreground">The image stays in this browser session; the points are in the URL. Load it from a URL to share the whole result.</p>}
             </>
           )}
@@ -279,19 +333,27 @@ const GeorefImagePane: React.FC<{
     setView({ scale, tx: (w - image.width * scale) / 2, ty: (PANE_H - image.height * scale) / 2 })
   }, [image])
 
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
+  // A native, non-passive wheel listener: React registers onWheel passively,
+  // so preventDefault there is ignored and the wheel scrolls the sidebar
+  // under the pane as well as zooming the image.
+  useEffect(() => {
     const el = paneRef.current
     if (!el) return
-    const r = el.getBoundingClientRect()
-    const mx = e.clientX - r.left, my = e.clientY - r.top
-    setView((v) => {
-      const factor = Math.exp(-e.deltaY * 0.0015)
-      const scale = Math.min(Math.max(v.scale * factor, 0.02), 40)
-      // keep the pixel under the cursor fixed
-      const ix = (mx - v.tx) / v.scale, iy = (my - v.ty) / v.scale
-      return { scale, tx: mx - ix * scale, ty: my - iy * scale }
-    })
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const r = el.getBoundingClientRect()
+      const mx = e.clientX - r.left, my = e.clientY - r.top
+      setView((v) => {
+        const factor = Math.exp(-e.deltaY * 0.0015)
+        const scale = Math.min(Math.max(v.scale * factor, 0.02), 40)
+        // keep the pixel under the cursor fixed
+        const ix = (mx - v.tx) / v.scale, iy = (my - v.ty) / v.scale
+        return { scale, tx: mx - ix * scale, ty: my - iy * scale }
+      })
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
   }, [])
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -324,7 +386,6 @@ const GeorefImagePane: React.FC<{
       ref={paneRef}
       className={`relative w-full select-none overflow-hidden rounded border bg-muted/40 ${active ? "cursor-crosshair" : "cursor-grab"}`}
       style={{ height: PANE_H, touchAction: "none" }}
-      onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

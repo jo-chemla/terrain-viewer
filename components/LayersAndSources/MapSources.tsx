@@ -648,6 +648,16 @@ export const OverlayBasemapSources = memo(({
             {overlayIds.map((id) => {
                 const source = customBasemapSources.find((s) => s.id === id)
                 if (!source) return null
+                // A georeferenced picture: MapLibre's image source from its
+                // four corners (Tools > Georeference Image). Keyed on the
+                // resolved url: a re-picked local file is a new source.
+                if ((source.type === "image" || source.type === "image-local") && source.coordinates) {
+                    const imgUrl = source.type === "image-local" ? resolveLocalFileUrl(localFileId(source.url)) : source.url
+                    if (!imgUrl) return null
+                    return (
+                        <Source key={`overlay-${id}-${imgUrl}`} id={`overlay-basemap-source-${id}`} type="image" url={imgUrl} coordinates={source.coordinates} />
+                    )
+                }
                 const isCogLocal = source.type === "cog-local"
                 const resolvedCogUrl = isCogLocal ? resolveLocalFileUrl(localFileId(source.url)) : null
                 if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session

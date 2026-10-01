@@ -2849,6 +2849,16 @@
             }
           },
           {
+            "name": "georefBeta",
+            "in": "query",
+            "required": false,
+            "description": "State. Same opt-in gate, for Tools: Georeference Image.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
             "name": "historicalBeta",
             "in": "query",
             "required": false,

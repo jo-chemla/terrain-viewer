@@ -22,12 +22,13 @@ export type GeorefGcp = {
 export type GeorefType = "helmert" | "polynomial1" | "polynomial2" | "thinPlateSpline" | "projective"
 
 export const GEOREF_TYPES: { value: GeorefType; label: string; minPoints: number; hint: string }[] = [
-  { value: "helmert", label: "Similarity (2+)", minPoints: 2, hint: "Move, scale, rotate. Shapes kept. The usual choice for a map figure or a drawn plan." },
-  { value: "polynomial1", label: "Affine (3+)", minPoints: 3, hint: "Adds shear and different scales in x and y. Still exact on screen." },
-  { value: "projective", label: "Projective (4+)", minPoints: 4, hint: "A photograph of a flat map taken at an angle." },
-  { value: "polynomial2", label: "Polynomial 2 (6+)", minPoints: 6, hint: "Gentle bending. Only the four corners are exact on screen." },
-  { value: "thinPlateSpline", label: "Thin plate spline (3+)", minPoints: 3, hint: "Rubber sheet through every point. Only the four corners are exact on screen." },
+  { value: "helmert", label: "Similarity (2+ points)", minPoints: 2, hint: "Move, scale, rotate. Shapes kept. The usual choice for a map figure or a drawn plan." },
+  { value: "polynomial1", label: "Affine (3+ points)", minPoints: 3, hint: "Adds shear and different scales in x and y. Still exact on screen." },
+  { value: "projective", label: "Projective (4+ points)", minPoints: 4, hint: "A photograph of a flat map taken at an angle. Exact at the corners; the inside is close for small tilts." },
 ]
+// polynomial2 and thinPlateSpline fit too, but MapLibre draws the image from
+// its four corners only, so a bending fit would show a wrongly placed
+// inside; left out until the image is warped through a canvas.
 
 export const GEOREF_TYPE_IDS = GEOREF_TYPES.map((t) => t.value) as GeorefType[]
 

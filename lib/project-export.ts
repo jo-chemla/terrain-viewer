@@ -129,7 +129,7 @@ function mergeFeaturesById(existing: GeoJSONFeature[], imported: GeoJSONFeature[
  *  before that source renders. */
 export function hasLocalFileSources(sources?: ProjectExportPayload["sources"]): boolean {
   if (!sources) return false
-  return sources.customTerrainSources.some((s) => s.type === "cog-local") || sources.customBasemapSources.some((s) => s.type === "cog-local")
+  return sources.customTerrainSources.some((s) => s.type === "cog-local") || sources.customBasemapSources.some((s) => s.type === "cog-local" || s.type === "image-local")
 }
 
 function buildProjectExport(
@@ -212,7 +212,7 @@ function collectLocalCogIds(sources?: ProjectExportPayload["sources"]): string[]
   if (!sources) return []
   const ids = new Set<string>()
   for (const s of [...sources.customTerrainSources, ...sources.customBasemapSources]) {
-    if (s.type === "cog-local" && isLocalFileUrl(s.url)) ids.add(localFileId(s.url))
+    if ((s.type === "cog-local" || s.type === "image-local") && isLocalFileUrl(s.url)) ids.add(localFileId(s.url))
   }
   return Array.from(ids)
 }

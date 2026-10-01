@@ -73,12 +73,35 @@ PY
     if command -v zip >/dev/null; then zip -qr "$out" "$(basename "$app")"; else 7z a -tzip -bso0 "$out" "$(basename "$app")"; fi )
 fi
 
+if [ "$(uname -s)" != "Darwin" ] && [ "$(uname -s)" != "Linux" ]; then
+  # One self-contained Setup.exe instead of Hutch's zip (Setup.exe plus a
+  # hidden .installer folder, which fails when the exe is run on its own).
+  # Hutch only concatenates the payload into the executable on Linux, but
+  # the extractor looks for the same embedded layout on Windows when no
+  # adjacent payload exists (package/src/extractor/main.zig):
+  #   exe ++ "ELECTROBUN_METADATA_V1" ++ metadata.json ++ "ELECTROBUN_ARCHIVE_V1" ++ archive
+  # Verified 2026-10-01: the result installs and launches. Delta patches do
+  # not apply to an embedded install; the updater then downloads the full
+  # bundle, which is what generatePatch: false makes it do anyway.
+  setup="$builddir/Terrain Viewer-Setup"
+  if [ -f "$setup.exe" ] && [ -f "$setup.metadata.json" ] && [ -f "$setup.tar.zst" ]; then
+    rm -f artifacts/*-Setup.zip
+    { cat "$setup.exe"; printf 'ELECTROBUN_METADATA_V1'; cat "$setup.metadata.json"; printf 'ELECTROBUN_ARCHIVE_V1'; cat "$setup.tar.zst"; } > artifacts/Setup.exe
+  fi
+fi
+
 mkdir -p out
 for f in artifacts/*; do
   name=$(basename "$f")
   case "$name" in
-    *.tar.zst|*update.json) continue ;;   # the updater feed, not a download
+    *.tar.zst|*update.json)
+      # The updater feed: names must stay exactly as Hutch wrote them
+      # (stable-<platform>-update.json points at the .tar.zst by name), and
+      # only the full build has a feed (gen-config.mjs).
+      if [ "$docs" = "bundled" ]; then mv "$f" "out/$name"; fi
+      continue ;;
     portable.zip) kind=Portable; ext=zip ;;
+    Setup.exe)    kind=Setup; ext=exe ;;
     *.tar.gz)     kind=Setup; ext=tar.gz ;;
     *.dmg)        kind=Setup; ext=dmg ;;   # the macOS installer image
     *)            kind=Setup; ext=${name##*.} ;;

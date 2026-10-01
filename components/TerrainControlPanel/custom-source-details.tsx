@@ -36,7 +36,8 @@ export const CustomSourceDetails: React.FC<{
   // a reload (or in a fresh tab) it's gone until re-picked, so re-render whenever
   // one is (re-)registered to flip between "Re-select file…" and the normal row.
   useAtomValue(localFileVersionAtom)
-  const isLocalFileMissing = source.type === "cog-local" && !resolveLocalFileUrl(localFileId(source.url))
+  const isLocalFile = source.type === "cog-local" || source.type === "image-local"
+  const isLocalFileMissing = isLocalFile && !resolveLocalFileUrl(localFileId(source.url))
   // A difference source holds its two operands by id, and deleting one leaves
   // the difference behind pointing at nothing: it selects, renders nothing,
   // and gives no hint why. Name the missing side and disable the row instead.
@@ -58,7 +59,7 @@ export const CustomSourceDetails: React.FC<{
         <input
           ref={fileInputRef}
           type="file"
-          accept=".tif,.tiff,image/tiff"
+          accept={source.type === "image-local" ? "image/png,image/jpeg,image/webp" : ".tif,.tiff,image/tiff"}
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]
@@ -128,7 +129,7 @@ export const CustomSourceDetails: React.FC<{
         (or restored from OPFS) — this badge is the only remaining hint that
         it's a browser-local file (like a QGIS scratch/memory layer) rather
         than a portable, shareable URL anyone else could open. */}
-    {source.type === "cog-local" && (
+    {isLocalFile && (
       <Tooltip>
         <TooltipTrigger render={<span className="shrink-0"><HardDrive className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
         <TooltipContent><p>Local file — lives only in this browser's storage, not a shareable URL</p></TooltipContent>
