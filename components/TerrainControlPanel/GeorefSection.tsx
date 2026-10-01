@@ -8,6 +8,8 @@
 // URL rather than from disk.
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
+import { GripHorizontal, X } from "lucide-react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import * as maplibregl from "maplibre-gl"
@@ -56,6 +58,9 @@ export const GeorefSection: React.FC<{
   const [loadError, setLoadError] = useState<string | null>(null)
   // The pair being placed: its image pixel is known, its map point is not.
   const [pending, setPending] = useState<{ px: number; py: number } | null>(null)
+  // The image is worked on in a floating window over the map (the sidebar
+  // is far too narrow to pick points in); opened with the image.
+  const [windowOpen, setWindowOpen] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
   const objectUrlRef = useRef<string | null>(null)
@@ -97,6 +102,7 @@ export const GeorefSection: React.FC<{
       setState({ georefImage: fromDisk ? "" : url, georefGcps: "", showGeoref: true })
       setPending(null)
       setIsActive(true)
+      setWindowOpen(true)
       track("georef-load", { fromDisk, width, height })
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : String(e))
@@ -242,13 +248,21 @@ export const GeorefSection: React.FC<{
           </div>
           {drawModeActive && <p className="text-xs text-muted-foreground">Unavailable while a drawing tool is active.</p>}
 
-          <GeorefImagePane
-            image={image}
-            gcps={gcps}
-            pending={pending}
-            active={isActive}
-            onPick={(px, py) => { if (isActive) setPending({ px, py }) }}
-          />
+          <div className="flex items-center gap-2">
+            <Switch id="georef-window" checked={windowOpen} onCheckedChange={setWindowOpen} className="cursor-pointer" />
+            <Label htmlFor="georef-window" className="text-xs">Image window</Label>
+          </div>
+          {windowOpen && (
+            <GeorefImageWindow title={image.name} onClose={() => setWindowOpen(false)}>
+              <GeorefImagePane
+                image={image}
+                gcps={gcps}
+                pending={pending}
+                active={isActive}
+                onPick={(px, py) => { if (isActive) setPending({ px, py }) }}
+              />
+            </GeorefImageWindow>
+          )}
           {isActive && (
             <p className="text-xs text-muted-foreground">
               {pending ? `Point ${gcps.length + 1}: now click the same spot on the map.` : `Point ${gcps.length + 1}: click a spot on the image (wheel to zoom, drag to pan).`}
@@ -322,15 +336,22 @@ const GeorefImagePane: React.FC<{
   // View transform: image pixel -> pane CSS pixel is  x * scale + tx.
   const [view, setView] = useState({ scale: 0, tx: 0, ty: 0 })
   const dragRef = useRef<{ x: number; y: number; tx: number; ty: number; moved: boolean } | null>(null)
-  const PANE_H = 220
 
-  // Fit the whole image on first show and whenever the image changes.
+  // Fit the whole image on first show, when the image changes, and when the
+  // window is resized (the pane fills whatever holds it).
   useEffect(() => {
     const el = paneRef.current
     if (!el) return
-    const w = el.clientWidth
-    const scale = Math.min(w / image.width, PANE_H / image.height)
-    setView({ scale, tx: (w - image.width * scale) / 2, ty: (PANE_H - image.height * scale) / 2 })
+    const fit = () => {
+      const w = el.clientWidth, h = el.clientHeight
+      if (!w || !h) return
+      const scale = Math.min(w / image.width, h / image.height)
+      setView({ scale, tx: (w - image.width * scale) / 2, ty: (h - image.height * scale) / 2 })
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [image])
 
   // A native, non-passive wheel listener: React registers onWheel passively,
@@ -384,8 +405,8 @@ const GeorefImagePane: React.FC<{
   return (
     <div
       ref={paneRef}
-      className={`relative w-full select-none overflow-hidden rounded border bg-muted/40 ${active ? "cursor-crosshair" : "cursor-grab"}`}
-      style={{ height: PANE_H, touchAction: "none" }}
+      className={`relative h-full w-full select-none overflow-hidden rounded border bg-muted/40 ${active ? "cursor-crosshair" : "cursor-grab"}`}
+      style={{ touchAction: "none" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -407,5 +428,42 @@ const GeorefImagePane: React.FC<{
         >{m.id}</div>
       ))}
     </div>
+  )
+}
+
+// A floating, draggable, resizable window over the map, so the image can
+// be read at a useful size while the map stays clickable beside it. Not a
+// dialog: nothing is modal, and the map keeps receiving clicks. Portaled to
+// the body so the sidebar's own scrolling and clipping do not apply.
+const GeorefImageWindow: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => {
+  const [pos, setPos] = useState(() => ({ x: Math.max(16, window.innerWidth * 0.5 - 300), y: 72 }))
+  const dragRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
+  const onPointerDown = (e: React.PointerEvent) => {
+    dragRef.current = { x: e.clientX, y: e.clientY, px: pos.x, py: pos.y }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current
+    if (!d) return
+    setPos({ x: Math.max(0, d.px + e.clientX - d.x), y: Math.max(0, d.py + e.clientY - d.y) })
+  }
+  const onPointerUp = () => { dragRef.current = null }
+  return createPortal(
+    <div
+      className="fixed z-[60] flex min-h-[240px] min-w-[320px] flex-col overflow-hidden rounded-md border bg-background shadow-xl"
+      style={{ left: pos.x, top: pos.y, width: 600, height: 460, resize: "both" }}
+    >
+      <div
+        className="flex shrink-0 cursor-move select-none items-center gap-2 border-b bg-muted/60 px-2 py-1 text-xs"
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+      >
+        <GripHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="truncate font-medium">{title}</span>
+        <span className="ml-auto text-muted-foreground">wheel: zoom · drag: pan · click: point · corner: resize</span>
+        <button type="button" className="ml-1 cursor-pointer rounded p-0.5 hover:bg-muted" onClick={onClose} aria-label="Close the image window"><X className="h-3.5 w-3.5" /></button>
+      </div>
+      <div className="min-h-0 flex-1 p-1">{children}</div>
+    </div>,
+    document.body,
   )
 }
