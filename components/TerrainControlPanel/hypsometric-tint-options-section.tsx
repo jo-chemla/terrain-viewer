@@ -32,6 +32,14 @@ function computeStep(min: number, max: number) {
   return magnitude;
 }
 
+// The ramp categories that have a tab, in tab order. lib/color-ramps.ts also
+// holds topcpt and topsvg (cpt-city and SVG imports), which are reachable
+// only through ramps shared by name with the tabbed ones.
+const RAMP_TAB_CATEGORIES = ["classic", "topqgs", "topo", "cet", "sdr", "temp", "topobath"] as const
+const RAMP_TAB_LABELS: Record<(typeof RAMP_TAB_CATEGORIES)[number], string> = {
+  classic: "Classic", topqgs: "Top Qgs", topo: "Topo", cet: "CET", sdr: "SDR", temp: "Temp", topobath: "TopoBath",
+}
+
 export const HypsometricTintOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
   isOpen: boolean
@@ -40,7 +48,6 @@ export const HypsometricTintOptionsSection: React.FC<{
 }> = ({ state, setState, isOpen, onOpenChange, mapRef }) => {
   const [colorRampType, setColorRampType] = useAtom(colorRampTypeAtom)
   const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)
-  const isUserActionRef = useRef(false)
   const tabsScrollRef = useRef<HTMLDivElement>(null)
 
   // The category tab bar scrolls horizontally (see the wrapping div's
@@ -51,7 +58,8 @@ export const HypsometricTintOptionsSection: React.FC<{
   // categories — so scroll it into view whenever it becomes active.
   useEffect(() => {
     if (!isOpen) return
-    const activeTab = tabsScrollRef.current?.querySelector('[data-state="active"]')
+    // Base UI marks the active trigger with `data-active` (see components/ui/tabs.tsx).
+    const activeTab = tabsScrollRef.current?.querySelector('[data-active]')
     activeTab?.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" })
   }, [colorRampType, isOpen])
 
@@ -98,24 +106,18 @@ export const HypsometricTintOptionsSection: React.FC<{
     })
   }, [state.colorRamp, setState])
 
-  // Initialize/sync colorRampType based on current colorRamp (for URL sharing)
+  // Sync colorRampType to the current colorRamp (shared URLs arrive with a
+  // ramp but no tab). 74 ramp names live in more than one category, and two
+  // categories (topcpt, topsvg) have no tab at all: the old "first category
+  // that has it" walk made the tab jump to Topo when a Top Qgs ramp was
+  // picked, or land on a tab-less category so nothing was highlighted and
+  // the list showed hidden ramps. Keep the current tab whenever it holds the
+  // ramp; otherwise pick the first TAB category that does.
   useEffect(() => {
-    // Skip if this was a user-initiated change
-    if (isUserActionRef.current) {
-      isUserActionRef.current = false
-      return
-    }
-
-    // Find which category contains the current ramp
-    for (const [category, ramps] of Object.entries(colorRamps)) {
-      if (ramps[state.colorRamp]) {
-        setColorRampType(category)
-        return
-      }
-    }
-    // Fallback if ramp not found
-    setColorRampType('classic')
-  }, [state.colorRamp, setColorRampType])
+    if (colorRamps[colorRampType]?.[state.colorRamp]) return
+    const category = RAMP_TAB_CATEGORIES.find((c) => colorRamps[c]?.[state.colorRamp])
+    setColorRampType(category ?? "classic")
+  }, [state.colorRamp, colorRampType, setColorRampType])
 
   function filterColorRamps(colorRamps_: any, colorRampType_: string, licenseFilter_: string): Record<string, any> {
     const ramps = colorRamps_[colorRampType_] || {}
@@ -459,12 +461,11 @@ export const HypsometricTintOptionsSection: React.FC<{
           value={colorRampType}
           onValueChange={(value) => {
             if (value) {
-              isUserActionRef.current = true
               setColorRampType(value)
               const filteredNow = filterColorRamps(colorRamps, value, licenseFilter)
               // Always switch to first ramp in the new category
               // if (!filteredNow[state.colorRamp]) {
-              const first = Object.values(filteredNow)[0].name
+              const first = Object.values(filteredNow)[0]?.name
               // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
               if (first) setState({ colorRamp: first.toLowerCase() })
               // }
@@ -480,13 +481,9 @@ export const HypsometricTintOptionsSection: React.FC<{
               directly. */}
           <div ref={tabsScrollRef} className="overflow-x-auto">
             <TabsList className="flex h-12 w-full justify-start gap-1 [&>*]:shrink-0">
-              <TabsTrigger value="classic" className="cursor-pointer">Classic</TabsTrigger>
-              <TabsTrigger value="topqgs" className="cursor-pointer">Top Qgs</TabsTrigger>
-              <TabsTrigger value="topo" className="cursor-pointer">Topo</TabsTrigger>
-              <TabsTrigger value="cet" className="cursor-pointer">CET</TabsTrigger>
-              <TabsTrigger value="sdr" className="cursor-pointer">SDR</TabsTrigger>
-              <TabsTrigger value="temp" className="cursor-pointer">Temp</TabsTrigger>
-              <TabsTrigger value="topobath" className="cursor-pointer">TopoBath</TabsTrigger>
+              {RAMP_TAB_CATEGORIES.map((c) => (
+                <TabsTrigger key={c} value={c} className="cursor-pointer">{RAMP_TAB_LABELS[c]}</TabsTrigger>
+              ))}
             </TabsList>
           </div>
         </Tabs>
@@ -589,7 +586,7 @@ export const HypsometricTintOptionsSection: React.FC<{
                   setLicenseFilter(value)
                   const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
                   if (!filteredNow[state.colorRamp]) {
-                    const first = Object.values(filteredNow)[0].name
+                    const first = Object.values(filteredNow)[0]?.name
                     // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
                     setState({ colorRamp: first.toLowerCase() })
                   }

@@ -29,7 +29,7 @@ hutch electrobun build --env=stable  # artifacts/ : .dmg / setup .exe / self-ext
 
 Hutch writes everything inside `desktop/` (or wherever the config lives), never into the app's `dist/`:
 
-- `build/stable-win-x64/TerrainViewer/` (`.app` on macOS): the application bundle itself, `bin/launcher.exe` plus `Resources/app/views/app/` holding the copied dist. This folder runs as is - it is the "portable" form; there is no single-file executable, the webview runtime and the Bun main process are separate files next to the launcher.
+- `build/stable-win-x64/TerrainViewer/` (`.app` on macOS): NOT a runnable app on Windows and Linux. Its `bin/launcher.exe` is the self-extracting installer stub and `Resources/` holds the real app as one `.tar.zst`; run from there without the payload it reports "the installer package is incomplete". The real app layout (`bin/launcher.exe`, `bin/cottontail.exe`, `Resources/main.js`, `Resources/app/views/app/`...) is what that archive unpacks to, and it runs from any folder: `ci-bundle.sh` unpacks it for the Portable zip (verified from `C:	mp` on 2026-10-01). There is no single-file executable.
 - `build/stable-win-x64/Terrain Viewer-Setup.exe`, the `.tar.zst` update archive and `update.json`: the installer and the updater feed (`.dmg` on macOS, self-extracting `.tar.gz` on Linux).
 - `artifacts/`: the distributable files only, e.g. `win-x64-TerrainViewer-Setup.zip`; this is what the workflow uploads.
 

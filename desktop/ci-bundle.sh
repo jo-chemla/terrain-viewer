@@ -34,11 +34,40 @@ if [ "$(uname -s)" = "Darwin" ]; then
   rm -f artifacts/*.dmg
   hdiutil create -quiet -volname "Terrain Viewer" -srcfolder "$app" -ov -format UDZO "artifacts/TerrainViewer.dmg"
 else
-  # The application folder itself, zipped: unpack anywhere and run
-  # bin/launcher.exe (bin/launcher on Linux). Electrobun has no single-file
-  # executable; this is the closest thing. On macOS the .dmg already holds
-  # the .app. Windows' Git Bash has no `zip`; 7-Zip is on the runner.
-  app=$(ls -d "$builddir"/TerrainViewer* | head -n 1)
+  # A true portable build. What Hutch leaves in build/<channel>/TerrainViewer
+  # is NOT the app: its bin/launcher.exe is the self-extracting installer
+  # stub and Resources/ holds the real app as one .tar.zst, which the stub
+  # unpacks into %LOCALAPPDATA% (~/.local/share on Linux) on first run.
+  # Running that stub from a zip viewer, or anywhere without its payload,
+  # fails with "the installer package is incomplete". Unpacking the
+  # payload here gives the installed layout (bin/launcher.exe, cottontail,
+  # Resources/main.js...), which runs from any folder: verified on Windows
+  # 2026-10-01 from C:\tmp. The launcher must stay in bin/ (it finds
+  # Resources through ../Resources), so a one-line starter sits at the top.
+  stub=$(ls -d "$builddir"/TerrainViewer* | head -n 1)
+  payload=$(ls "$stub"/Resources/*.tar.zst | head -n 1)
+  rm -rf portable && mkdir -p portable
+  python3 -m pip install --quiet --disable-pip-version-check zstandard
+  python3 - "$payload" portable <<'PY'
+import sys, io, tarfile, zstandard
+src, dest = sys.argv[1], sys.argv[2]
+with open(src, "rb") as f:
+    data = zstandard.ZstdDecompressor().stream_reader(f).read()
+tar = tarfile.open(fileobj=io.BytesIO(data))
+try:
+    tar.extractall(dest, filter="fully_trusted")   # Python 3.12+: keep modes as shipped
+except TypeError:
+    tar.extractall(dest)
+PY
+  app=$(ls -d portable/* | head -n 1)
+  if [ "$(uname -s)" = "Linux" ]; then
+    chmod +x "$app"/bin/* 2>/dev/null || true
+    printf '#!/bin/sh\ncd "$(dirname "$0")" && exec bin/launcher "$@"\n' > "$app/terrain-viewer"
+    chmod +x "$app/terrain-viewer"
+  else
+    printf '@echo off\r\nstart "" "%%~dp0bin\\launcher.exe" %%*\r\n' > "$app/Terrain Viewer.cmd"
+  fi
+  printf 'Terrain Viewer, portable: no installation. Start it with "Terrain Viewer.cmd" (Windows) or ./terrain-viewer (Linux); the program itself is bin/launcher.\nUnzip the whole folder first: starting it from inside the zip viewer runs it without its files.\nhttps://terrain-viewer.iconem.com/docs/dev/desktop/\n' > "$app/README.txt"
   out="$PWD/artifacts/portable.zip"
   ( cd "$(dirname "$app")"
     if command -v zip >/dev/null; then zip -qr "$out" "$(basename "$app")"; else 7z a -tzip -bso0 "$out" "$(basename "$app")"; fi )
