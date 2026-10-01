@@ -80,16 +80,21 @@ jobs:
           ls -la artifacts
       - name: Portable bundle (no installer)
         # The application folder itself, zipped: unpack anywhere and run
-        # bin/launcher.exe (TerrainViewer.app on macOS, bin/launcher on
-        # Linux). Electrobun has no single-file executable; this is the
-        # closest thing. See docs/content/docs/dev/desktop.mdx.
+        # bin/launcher.exe (bin/launcher on Linux). Electrobun has no
+        # single-file executable; this is the closest thing. Not on macOS:
+        # the .dmg already holds the .app, and the folder sits elsewhere
+        # there. Windows' Git Bash has no `zip`; 7-Zip is on the runner.
+        # See docs/content/docs/dev/desktop.mdx.
+        if: runner.os != 'macOS'
         working-directory: desktop
         shell: bash
         run: |
           app=$(ls -d build/stable-*/TerrainViewer* | head -n 1)
           echo "portable: $app"
-          (cd "$(dirname "$app")" && zip -qr "../../artifacts/terrain-viewer-portable-${{ matrix.label }}.zip" "$(basename "$app")")
-          ls -la artifacts
+          out="$PWD/artifacts/terrain-viewer-portable-${{ matrix.label }}.zip"
+          cd "$(dirname "$app")"
+          if command -v zip >/dev/null; then zip -qr "$out" "$(basename "$app")"; else 7z a -tzip -bso0 "$out" "$(basename "$app")"; fi
+          ls -la "$(dirname "$out")"
       - uses: actions/upload-artifact@v4
         with:
           name: terrain-viewer-desktop-${{ matrix.label }}
