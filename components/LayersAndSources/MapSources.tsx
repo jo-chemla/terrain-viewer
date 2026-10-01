@@ -6,7 +6,7 @@ import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
-import { probeMaxZoomAt } from "@/lib/tile-max-zoom"
+import { probeMaxZoomAt, probeWorthwhile } from "@/lib/tile-max-zoom"
 import { pushToast } from "@/components/ui/toast"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
@@ -380,18 +380,22 @@ export const TerrainSources = memo(({
     // lat/lng nudge a live pan/zoom might otherwise produce.
     const roundedLat = typeof lat === "number" ? Math.round(lat * 10) / 10 : lat
     const roundedLng = typeof lng === "number" ? Math.round(lng * 10) / 10 : lng
+    // Deferred until the view is deep enough for the clamp to matter: a
+    // boolean, so the effect re-runs only when the view crosses that line.
+    const viewZoom = useAtomValue(viewportCenterAtom)?.zoom
+    const probeNeeded = configuredMaxzoom != null && probeWorthwhile(viewZoom, configuredMaxzoom)
     useEffect(() => {
         // Reset unconditionally (not just in the early-return branch below) —
         // otherwise a stale probe result from the PREVIOUS source/template
         // would keep clamping this new one until its own probe resolves.
         setProbedMaxzoom(null)
-        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null) return
+        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null || !probeNeeded) return
         let cancelled = false
         probeMaxZoomAt(probeTileUrl, roundedLng, roundedLat, configuredMaxzoom).then((z) => {
             if (!cancelled) setProbedMaxzoom(z)
         })
         return () => { cancelled = true }
-    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng])
+    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng, probeNeeded])
 
     // Only ever lowers maxzoom (probedMaxzoom is always <= configuredMaxzoom by
     // construction) — clamping here just tells maplibre where to stop
@@ -1036,16 +1040,18 @@ export const useClientDemUpstream = (
     const [probedMaxzoom, setProbedMaxzoom] = useState<number | null>(null)
     const roundedLat = typeof lat === "number" ? Math.round(lat * 10) / 10 : lat
     const roundedLng = typeof lng === "number" ? Math.round(lng * 10) / 10 : lng
+    const viewZoom = useAtomValue(viewportCenterAtom)?.zoom
+    const probeNeeded = configuredMaxzoom != null && probeWorthwhile(viewZoom, configuredMaxzoom)
     useEffect(() => {
         setProbedMaxzoom(null)
         if (roundedLat == null || roundedLng == null) return
-        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null) return
+        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null || !probeNeeded) return
         let cancelled = false
         probeMaxZoomAt(probeTileUrl, roundedLng, roundedLat, configuredMaxzoom).then((z) => {
             if (!cancelled) setProbedMaxzoom(z)
         })
         return () => { cancelled = true }
-    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng])
+    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng, probeNeeded])
 
     return useMemo<ClientDemUpstream | null>(() => {
         if (!baseUpstream || probedMaxzoom == null || baseUpstream.maxzoom == null || probedMaxzoom >= baseUpstream.maxzoom) return baseUpstream

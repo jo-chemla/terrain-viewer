@@ -1099,9 +1099,12 @@ export function TerrainViewer() {
   const setViewportCenter = useSetAtom(viewportCenterAtom)
   const centerLat = Math.round(state.lat * 10) / 10
   const centerLng = Math.round(state.lng * 10) / 10
+  // Integer zoom: the probe only runs once the view is deep enough for a
+  // missing high-zoom tile to matter (lib/tile-max-zoom.ts probeWorthwhile).
+  const centerZoom = Math.floor(state.zoom)
   useEffect(() => {
-    setViewportCenter({ lat: centerLat, lng: centerLng })
-  }, [centerLat, centerLng, setViewportCenter])
+    setViewportCenter({ lat: centerLat, lng: centerLng, zoom: centerZoom })
+  }, [centerLat, centerLng, centerZoom, setViewportCenter])
   // Dynamic per-view field lookups (viewFieldName/sourceFieldName return a
   // plain `string`, not a key of the huge literal QUERY_STATE_PARSERS type)
   // need an escape hatch from that type's strict indexing — same pragmatic

@@ -8,7 +8,7 @@ import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, tourProgressAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
   elevationPickerActiveAtom, elevationPickerPointsAtom, sunShadowActiveAtom, sunShadowModeAtom, sunShadowPicksAtom, sunShadowHeightAtom, orbitRequestAtom, type PickedLngLat,
-  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom, hypsoAutoRangeRequestAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
+  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom, dataLayersModalOpenAtom, hypsoAutoRangeRequestAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import customSources from "@/lib/custom-sources.json"
@@ -61,6 +61,7 @@ type TourActions = {
   comparisonMixAdvancedOpen: boolean
   setComparisonMixAdvancedOpen: (v: boolean) => void
   setTerrainLibraryOpen: (v: boolean) => void
+  setDataLayersOpen: (v: boolean) => void
   coverageOverlays: string[]
   setCoverageOverlays: (ids: string[]) => void
   // The two point-picking tools, so a demo step can arm one and place a real
@@ -292,6 +293,14 @@ function prepareTerrainLibrary(a: TourActions) {
   a.setTerrainLibraryOpen(true)
 }
 
+// The Data layers picker is the picture version of the Visualization Modes
+// list: one card per mode with a thumbnail. Hillshade-only underneath, so a
+// card clicked during the step turns on exactly one more thing.
+function prepareDataLayers(a: TourActions) {
+  prepareHillshadeOnly(a)
+  a.setDataLayersOpen(true)
+}
+
 // Source Info is a Tools section, so the Tools group has to be open (and the
 // other tool sections closed, as prepareTerrainTools does) before its
 // coverage picker can be spotlighted. Mapterhorn's own coverage is turned on
@@ -383,6 +392,12 @@ interface TourStepDef {
   // screen as possible on any aspect ratio, not just a fixed square tuned
   // for desktop.
   fullScreenSpotlight?: boolean
+  // Pins the popup to the viewport's bottom-left corner instead of beside
+  // its target. For a step whose target is a wide centred dialog (the Data
+  // layers picker, 64rem): beside it there is no room under ~1700 px and
+  // the popup ran off the left edge; over it, the cards are what the step
+  // is about. The corner sits over the map, which the dialog already dims.
+  pinBottomLeft?: boolean
   // Overrides which element goToIndex/chooseBranch's own scrollTargetIntoView
   // scrolls to — defaults to this step's own `domId` (the Coachmark target
   // itself) when absent. Used by a step whose most useful scroll destination
@@ -608,6 +623,12 @@ const TERRAIN_STEPS: TourStepDef[] = [
       a.setState({ hillshadeMethod: "standard" })
       a.setCamera(MATTERHORN)
     },
+  },
+  {
+    key: "data-layers", domId: "tour-data-layers", side: "left", align: "start", pinBottomLeft: true,
+    title: "Data Layers: Every Mode With a Picture",
+    description: "The same list as a gallery: one card per visualization mode, with a thumbnail of what it draws. Click a card to turn that mode on or off, the way the checkboxes do. Open it any time from the layers button in the panel's title bar or next to the Visualization Modes heading.",
+    onEnter: prepareDataLayers,
   },
   {
     key: "hillshade", domId: "tour-hillshade-section", side: "left", align: "start",
@@ -1307,6 +1328,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
   const [colorizeMapBorders, setColorizeMapBorders] = useAtom(colorizeMapBordersAtom)
   const [comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen] = useAtom(isComparisonMixAdvancedOpenAtom)
   const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
+  const setDataLayersOpen = useSetAtom(dataLayersModalOpenAtom)
   const [coverageOverlays, setCoverageOverlays] = useAtom(coverageOverlaysAtom)
   const setElevationPickerActive = useSetAtom(elevationPickerActiveAtom)
   const setElevationPickerPoints = useSetAtom(elevationPickerPointsAtom)
@@ -1458,7 +1480,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     taAdvanced, setTaAdvanced, rvAdvanced, setRvAdvanced,
     colorizeMapBorders, setColorizeMapBorders,
     comparisonMixAdvancedOpen, setComparisonMixAdvancedOpen,
-    setTerrainLibraryOpen, coverageOverlays, setCoverageOverlays,
+    setTerrainLibraryOpen, setDataLayersOpen, coverageOverlays, setCoverageOverlays,
     setElevationPickerActive, setElevationPickerPoints,
     setSunShadowActive, setSunShadowMode, setSunShadowPicks, setSunShadowHeight, setOrbit,
     setCamera, fitCameraTo, requestHypsoAutoRange: () => setHypsoAutoRangeRequest((n) => n + 1),
@@ -1529,6 +1551,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
    *  those picks straight into it. */
   const returnStepLoans = useCallback((enteringKey: string | undefined) => {
     if (enteringKey !== "terrain-library") setTerrainLibraryOpen(false)
+    if (enteringKey !== "data-layers") setDataLayersOpen(false)
     if (enteringKey !== "coverage-overlays" && enteringKey !== "l2-byod-coverage") setCoverageOverlays([])
     if (enteringKey !== "l2-elevation-picker") {
       setElevationPickerActive(false); setElevationPickerPoints([])
@@ -1543,7 +1566,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
     // Zero is the cancel: the effect early-returns on a falsy nonce, so its
     // cleanup aborts the pending poll.
     if (enteringKey !== "coverage-overlays" && enteringKey !== "l2-byod-coverage") setHypsoAutoRangeRequest(0)
-  }, [setTerrainLibraryOpen, setCoverageOverlays, setElevationPickerActive, setElevationPickerPoints, setState, setSunShadowActive, setSunShadowPicks, setOrbit, setHypsoAutoRangeRequest])
+  }, [setTerrainLibraryOpen, setDataLayersOpen, setCoverageOverlays, setElevationPickerActive, setElevationPickerPoints, setState, setSunShadowActive, setSunShadowPicks, setOrbit, setHypsoAutoRangeRequest])
 
   // Moves to `newIndex` within the CURRENT branch's step list: runs that
   // step's own onEnter (forcing whatever sidebar/section/mode state its
@@ -1955,6 +1978,7 @@ export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductT
                 // perfectly on both axes, with no measurement or transform
                 // math needed, immune to content length.
                 step.fullScreenSpotlight && "!fixed !inset-4 !m-auto !h-fit !w-fit !transform-none",
+                step.pinBottomLeft && "!fixed !left-4 !bottom-4 !top-auto !right-auto !h-fit !w-fit !transform-none",
               )}
             >
               <Coachmark.Popup

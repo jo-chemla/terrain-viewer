@@ -30,8 +30,29 @@ Base URL: `https://terrain-viewer.iconem.com/`
 | Subtle features: archaeology, old field systems, landslides | `showReliefVisualization=true&showLrm=true` (local relief model) or `&showSvf=true` (sky-view factor) or `&showOpenness=true` |
 | Shaded 3D look | `showLightingEffects=true&showPhong=true` or `&showMatcap=true` |
 | Satellite imagery underneath | `showRasterBasemap=true` |
+| Height of buildings and trees above ground (nDSM, canopy height) | `terrainSourceA=<nDSM id>&showColorRelief=true`, e.g. `custom-fr-ign-lidarhd-nhm` (France), `custom-nl-ahn-nhm` (Netherlands); a 0 to 40 m colour range reads as canopy height |
+| Change between two surveys or dates (ground gained or lost) | `terrainSourceA=<change id>&showColorRelief=true`, e.g. `custom-fr-ign-lidarhd-minus-rgealti`; symmetric colour range so gain and loss read as opposite colours. Any two loaded sources can be subtracted in the app (Add Terrain, Difference of two sources), see https://terrain-viewer.iconem.com/docs/features/ndsm-and-comparison/ |
 
-A mode's section switch (`showTerrainAnalysis`, `showReliefVisualization`, `showLightingEffects`) must be on for its modes to show.
+A mode's section switch (`showTerrainAnalysis`, `showReliefVisualization`, `showLightingEffects`) must be on for its modes to show. `place=<name>` labels the view (shown in the geocoder box); `openDataLayers=true` opens the picker that shows every mode with a thumbnail, useful when the user wants to choose for themselves.
+
+## Which modes for which subject
+
+What published studies use, from the 120-study [Research References](https://terrain-viewer.iconem.com/docs/resources/research-references/) (counts in the [table](https://terrain-viewer.iconem.com/docs/resources/research-references-table/), which filters by field and mode and opens each study area in the app). Start with the first two modes of a row; add the others when the first do not show the feature.
+
+| Subject | Modes most used | Parameters |
+|---|---|---|
+| Settlements, earthworks and roads under forest | hillshade, LRM, SVF | `showReliefVisualization=true&showLrm=true&showSvf=true` |
+| Mounds, tells, barrows, field systems | mound detector, LRM, hillshade, TPI | `tellsBeta=true&showTellsDetector=true&showReliefVisualization=true&showLrm=true` (the mound detector is a beta mode: both flags are needed) |
+| Karst dolines, pits, bomb craters, trenches | mound detector, SVF, hillshade | `showReliefVisualization=true&showSvf=true` |
+| Faults, scarps and earthquake ruptures | hillshade, slope, SVF, DEM difference | `showTerrainAnalysis=true&showSlope=true` and a low sun (`illuminationAlt=20`) across the fault |
+| Landslides and mass movements | hillshade, slope, SVF, curvature, roughness, DEM difference | `showTerrainAnalysis=true&showSlope=true&showCurvature=true` |
+| Glaciers, moraines, glacial landforms | hillshade, SVF, slope, DEM difference, contours | `showReliefVisualization=true&showSvf=true&showContoursAndGraticules=true&showContours=true` |
+| Volcanoes, dunes, coasts, permafrost | DEM difference first, then hillshade, roughness, TPI | a change source (see above) with `showColorRelief=true` |
+| Rivers, floodplains, palaeochannels | hillshade, REM (height above the river), TPI, LRM | `showReliefVisualization=true&showLrm=true`; the river REM is in the app's Tools, see https://terrain-viewer.iconem.com/docs/features/river-rem/ |
+| Soils, ecology, habitat | slope, TPI, hillshade, curvature, roughness | `showTerrainAnalysis=true&showSlope=true&showTpi=true` |
+| Mining, quarries, historic industry | hillshade, slope, LRM | `showTerrainAnalysis=true&showSlope=true&showReliefVisualization=true&showLrm=true` |
+| Relief visualization methods, general geomorphometry | SVF, LRM, openness, slope, aspect, curvature | compare them side by side, `splitStyle=side-by-side` |
+| Looting, site damage, Google Earth prospection, declassified imagery | historical imagery rather than terrain | `appMode=historical&basemapSourceA=ge-historical` or `wayback`, see Sources below |
 
 ## Terrain sources
 
@@ -101,5 +122,7 @@ In the app, the Animation panel's Export Video button records it as an MP4.
 
 - Every parameter, with types and defaults: https://terrain-viewer.iconem.com/docs/openapi.json and https://terrain-viewer.iconem.com/docs/dev/url-api/
 - What each mode shows: https://terrain-viewer.iconem.com/docs/features/visualization-modes/
+- Which modes published studies use, by subject and with the study areas as links: https://terrain-viewer.iconem.com/docs/resources/research-references-table/
+- nDSM, canopy height and change between surveys: https://terrain-viewer.iconem.com/docs/features/ndsm-and-comparison/
 - The whole documentation for agents: https://terrain-viewer.iconem.com/llms.txt
 - In the app, the GeoTIFF button's menu exports the DEM and any mode as a georeferenced file.

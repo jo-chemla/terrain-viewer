@@ -202,7 +202,7 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[85vh] flex flex-col gap-0 overflow-hidden p-0" showCloseButton={false}>
+      <DialogContent id="tour-data-layers" className="sm:max-w-5xl max-h-[85vh] flex flex-col gap-0 overflow-hidden p-0" showCloseButton={false}>
         <div className="shrink-0 border-b px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <DialogHeader className="gap-0.5">

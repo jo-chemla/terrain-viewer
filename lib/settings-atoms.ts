@@ -121,7 +121,7 @@ export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://t
  *  (Syria, and anywhere else with GLO-30 only), so past z12.5 MapLibre asked
  *  the slope protocol for z13 tiles that 404, and the overlay went blank.
  *  Session-only, never persisted. */
-export const viewportCenterAtom = atom<{ lat: number; lng: number } | null>(null)
+export const viewportCenterAtom = atom<{ lat: number; lng: number; zoom: number } | null>(null)
 
 /** Type the "Add Basemap" modal opens on: NextGIS QMS search the very first
  *  time, then whatever was picked last. Persisted; edit mode ignores it. */

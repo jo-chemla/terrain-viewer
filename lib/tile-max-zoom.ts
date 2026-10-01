@@ -20,6 +20,17 @@ import { lngLatToTile } from "./source-provenance"
 
 const MAX_STEP_DOWN = 8
 
+/** Whether probing can change anything for the current view. MapLibre only
+ *  requests tiles at about the view's zoom, and the probe only ever lowers
+ *  maxzoom by up to MAX_STEP_DOWN, so at a world view over a maxzoom-18
+ *  source the answer cannot matter yet: every step down would 404 (six
+ *  console errors over Mapterhorn's GLO-30 areas) for a clamp nothing
+ *  reads. Callers skip the probe until the view is within reach. */
+export function probeWorthwhile(viewZoom: number | null | undefined, configuredMaxzoom: number): boolean {
+  if (viewZoom == null) return true
+  return viewZoom >= configuredMaxzoom - MAX_STEP_DOWN
+}
+
 // Cached at a coarse zoom-6 tile bucket (~300km square at the equator) keyed
 // by URL template — panning within the same region resolves instantly from
 // cache instead of re-probing on every viewport-center change.
