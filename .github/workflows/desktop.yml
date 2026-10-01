@@ -39,6 +39,10 @@ jobs:
         # does it, so gen-config.mjs bundles it and the Documentation button
         # works offline.
         shell: bash
+        env:
+          # The Vite build's chunk rendering runs out of the default heap on
+          # the macOS arm64 runner (2 GB); the Pages deploy on Ubuntu gets by.
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           pnpm install --frozen-lockfile
           pnpm --dir docs install --frozen-lockfile
