@@ -4,6 +4,7 @@ import { useAtom, useSetAtom } from "jotai"
 import { Coachmark, useCoachmark } from "coachmark"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { Layers } from "lucide-react"
 import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, tourProgressAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
@@ -612,7 +613,12 @@ const TERRAIN_STEPS: TourStepDef[] = [
   {
     key: "viz-modes", domId: "tour-viz-modes", side: "left", align: "start",
     title: "Visualization Modes",
-    description: "Each checkbox turns one layer on or off, with its own opacity slider alongside it. Once a mode is switched on, its detailed options appear in the Options group further down this panel — only available here, in Terrain mode. Not sure which mode fits? The layers button in this heading (and in the panel's title bar) opens a picker that shows every mode with a picture; it is the next step.",
+    description: (
+      <>
+        <p className="pb-2">Each checkbox turns one layer on or off, with its own opacity slider alongside it. Once a mode is switched on, its detailed options appear in the Options group further down this panel — only available here, in Terrain mode.</p>
+        <p>Not sure which mode fits? The layers button <Layers className="inline h-3.5 w-3.5 align-[-2px] text-foreground" aria-label="layers icon" /> in this heading (and in the panel's title bar) opens a picker that shows every mode with a picture; it is the next step.</p>
+      </>
+    ),
     // Standard hillshade alone, nothing else. This is the first thing the
     // terrain branch shows, and whatever the visitor had stacked up before
     // (hypso over relief over analysis) makes the map an unreadable pile
