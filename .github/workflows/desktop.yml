@@ -72,7 +72,7 @@ jobs:
         # carries the docs export, "light-online-docs" leaves it out (about
         # 180 MB less) and its Documentation button opens the website.
         # desktop/ci-bundle.sh does one bundle and names the files
-        # TerrainViewer-<Setup|Portable>-<platform>-<variant>.<ext>.
+        # TerrainViewer-<variant>-v<date>-<Setup|Portable>-<platform>.<ext>.
         working-directory: desktop
         shell: bash
         run: |

@@ -1020,7 +1020,7 @@ export function TerrainViewer() {
   // live by the normal pick flow (custom-terrain-source-modal.tsx /
   // custom-basemap-modal.tsx), not through this path.
   useEffect(() => {
-    const all = [...customTerrainSources, ...customBasemapSources].filter((s) => s.type === "cog-local")
+    const all = [...customTerrainSources, ...customBasemapSources].filter((s) => s.type === "cog-local" || s.type === "image-local")
     const ids = all.map((s) => localFileId(s.url))
     if (ids.length === 0) return
     let cancelled = false

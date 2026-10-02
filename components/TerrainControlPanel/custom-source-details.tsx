@@ -9,6 +9,8 @@ import { registerLocalFileAtom, resolveLocalFileUrl, localFileId, localFileVersi
 
 export const CustomSourceDetails: React.FC<{
   source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any
+  /** Rendered right after the name, before the fit / edit / delete buttons. */
+  extraActions?: React.ReactNode
   /** Called with source.id when the label is clicked, e.g. setState({ sourceA: id }) or
    *  setState({ basemapSource: id }) — the caller decides which state key to write.
    *  Omit in contexts (e.g. split-screen A/B) where a separate control already handles
@@ -29,7 +31,7 @@ export const CustomSourceDetails: React.FC<{
   libraryIds?: Set<string>
   /** Adds the given library entries to the user's sources. */
   onLoadFromLibrary?: (ids: string[]) => void
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds, libraryIds, onLoadFromLibrary }) => {
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds, libraryIds, onLoadFromLibrary, extraActions }) => {
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // The File behind a "cog-local" source only lives in this tab's memory — after
@@ -166,6 +168,7 @@ export const CustomSourceDetails: React.FC<{
       </TooltipContent>
     </Tooltip>
 
+    {extraActions}
     {restorable.length > 0 && (
       <Tooltip>
         <TooltipTrigger

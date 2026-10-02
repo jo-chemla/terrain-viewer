@@ -2,8 +2,8 @@
 # One desktop bundle, as the GitHub workflow runs it: regenerate the
 # Electrobun config for the chosen docs mode, build, add the portable zip
 # (Windows, Linux), then move the distributables into out/ renamed as
-#   TerrainViewer-<Setup|Portable>-<platform>-<variant>.<ext>
-# e.g. TerrainViewer-Setup-win-x64-with-offline-docs.zip. Called twice per
+#   TerrainViewer-<variant>-v<YYYY.MM.DD>-<Setup|Portable>-<platform>.<ext>
+# e.g. TerrainViewer-light-online-docs-v2026.10.02-Portable-win-x64.zip. Called twice per
 # platform: `ci-bundle.sh bundled with-offline-docs` and
 # `ci-bundle.sh online light-online-docs`. Run from desktop/.
 #
@@ -90,6 +90,8 @@ if [ "$(uname -s)" != "Darwin" ] && [ "$(uname -s)" != "Linux" ]; then
   fi
 fi
 
+# Asset names: TerrainViewer-<variant>-v<YYYY.MM.DD>-<Setup|Portable>-<platform>.<ext>
+stamp="v$(date -u +%Y.%m.%d)"
 mkdir -p out
 for f in artifacts/*; do
   name=$(basename "$f")
@@ -106,6 +108,6 @@ for f in artifacts/*; do
     *.dmg)        kind=Setup; ext=dmg ;;   # the macOS installer image
     *)            kind=Setup; ext=${name##*.} ;;
   esac
-  mv "$f" "out/TerrainViewer-${kind}-${platform}-${variant}.${ext}"
+  mv "$f" "out/TerrainViewer-${variant}-${stamp}-${kind}-${platform}.${ext}"
 done
 ls -la out

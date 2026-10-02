@@ -58,9 +58,9 @@ The answer is written into the **same** shared light fields the [Sun Position](/
 A solar azimuth/elevation pair does not map to a single instant: the same sun position recurs twice a year, and the day/time pair the solver returns is one of a small family. Use it to narrow a season and an hour, not to timestamp to the minute.
 </Callout>
 
-## Georeference Image
+## Image Georeferencer
 
-A plain image with no georeferencing, a figure from a paper, a scanned plan, a drone orthomosaic exported as a JPEG, placed on the map from control points. Open the image from disk or paste its URL, switch on **Place control points**, then click a spot on the image in the panel (wheel zooms, drag pans) and the same spot on the map. Each pair gets a number on both sides. From two pairs on, the image appears on the map, drawn through MapLibre's image source above the basemap and under the relief layers, so hillshade and contours still read through it at the chosen opacity.
+A plain image with no georeferencing, a figure from a paper, a scanned plan, a drone orthomosaic exported as a JPEG, placed on the map from control points. Open the image from disk or paste its URL: it opens in a floating window over the map (drag its header, resize from any corner, wheel to zoom, drag to pan). With **Place control points** on, click matching spots on the image and on the map, in any order: the n-th image point pairs with the n-th map point, and both can be dragged afterwards. Each pair gets a number on both sides, and clicking a row in the list enlarges its two marks. From two pairs on, the image appears on the map, drawn through MapLibre's image source above the basemap and under the relief layers, so hillshade and contours still read through it at the chosen opacity.
 
 The fit comes from the [Allmaps](https://allmaps.org) transform library, without IIIF: **Similarity** (two points, keeps shapes) is the usual choice for a map figure, **Affine** (three) adds shear, **Projective** (four) suits a photograph of a flat map taken at an angle, and the polynomial and thin-plate-spline fits bend. The image is drawn from its four fitted corners, so the first three are exact on screen and the bending fits are exact at the corners only. Residuals in metres are listed per point once there are more points than the fit needs; a point can be removed from the list.
 

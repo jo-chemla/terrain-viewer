@@ -114,7 +114,10 @@ export const HypsometricTintOptionsSection: React.FC<{
   // the list showed hidden ramps. Keep the current tab whenever it holds the
   // ramp; otherwise pick the first TAB category that does.
   useEffect(() => {
-    if (colorRamps[colorRampType]?.[state.colorRamp]) return
+    // The stored tab may be a tab-less category from before (topcpt, topsvg):
+    // keeping it would leave no tab highlighted, so it never counts as held.
+    const hasTab = (RAMP_TAB_CATEGORIES as readonly string[]).includes(colorRampType)
+    if (hasTab && colorRamps[colorRampType]?.[state.colorRamp]) return
     const category = RAMP_TAB_CATEGORIES.find((c) => colorRamps[c]?.[state.colorRamp])
     setColorRampType(category ?? "classic")
   }, [state.colorRamp, colorRampType, setColorRampType])
@@ -463,12 +466,15 @@ export const HypsometricTintOptionsSection: React.FC<{
             if (value) {
               setColorRampType(value)
               const filteredNow = filterColorRamps(colorRamps, value, licenseFilter)
-              // Always switch to first ramp in the new category
-              // if (!filteredNow[state.colorRamp]) {
-              const first = Object.values(filteredNow)[0]?.name
-              // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
-              if (first) setState({ colorRamp: first.toLowerCase() })
-              // }
+              // The new tab keeps the current ramp when it has one by that
+              // name (74 names exist in several categories); otherwise its
+              // first ramp. Switching to the first one while the ramp was
+              // also in this tab made the sync effect flip the tab back.
+              if (!filteredNow[state.colorRamp]) {
+                const first = Object.values(filteredNow)[0]?.name
+                // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
+                if (first) setState({ colorRamp: first.toLowerCase() })
+              }
             }
           }}
           className="w-full"

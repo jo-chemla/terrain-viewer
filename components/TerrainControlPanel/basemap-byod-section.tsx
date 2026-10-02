@@ -370,12 +370,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     handleEditSource={handleEditBasemap}
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
                     onSelect={(id) => handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
+                    extraActions={(source.type === "image" || source.type === "image-local") && source.georef ? (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" title="Edit the control points in Tools > Image Georeferencer" onClick={() => reopenGeoref(source)}>
+                        <Crosshair className="h-4 w-4" />
+                      </Button>
+                    ) : undefined}
                   />
-                  {(source.type === "image" || source.type === "image-local") && source.georef && (
-                    <Button variant="ghost" size="sm" className="h-6 w-6 shrink-0 cursor-pointer p-0" title="Edit the control points in Tools > Georeference Image" onClick={() => reopenGeoref(source)}>
-                      <Crosshair className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
                 </div>
               ))}
             </div>
