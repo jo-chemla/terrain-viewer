@@ -54,9 +54,9 @@ const CURVATURE_MODE_OPTIONS: { value: CurvatureMode; label: string; tooltip: st
     value: "combined",
     label: "Mean/Combined",
     tooltip: "General curvature — mean curvature H = (κ₁+κ₂)/2 in the small-slope approximation (the discrete Laplacian, ∇²z) — surface bending that doesn't separate flow direction from contour direction.",
-    defaultMagnitude: 5,
+    defaultMagnitude: 1,
     sliderMax: 10,
-    sliderStep: 0.5,
+    sliderStep: 0.1,
     defaultSymmetric: true,
   },
   {

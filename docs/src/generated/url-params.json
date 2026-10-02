@@ -1562,9 +1562,9 @@
       "type": "number",
       "items": null,
       "enum": null,
-      "default": -20,
-      "defaultSource": "-20",
-      "note": ""
+      "default": -1,
+      "defaultSource": "-1",
+      "note": "±1 matches Mean/Combined's defaultMagnitude (curvature-options-section.tsx)."
     },
     {
       "key": "curvatureMax",
@@ -1572,8 +1572,8 @@
       "type": "number",
       "items": null,
       "enum": null,
-      "default": 20,
-      "defaultSource": "20",
+      "default": 1,
+      "defaultSource": "1",
       "note": ""
     },
     {

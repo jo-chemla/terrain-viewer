@@ -644,8 +644,9 @@ export const QUERY_STATE_PARSERS = {
     curvatureOpacity: parseAsFloat.withDefault(1.0),
     curvatureMode: parseAsStringLiteral(CURVATURE_MODES).withDefault("combined"),
     curvatureColorRamp: parseAsString.withDefault("curvature-diverging"),
-    curvatureMin: parseAsFloat.withDefault(-20),
-    curvatureMax: parseAsFloat.withDefault(20),
+    // ±1 matches Mean/Combined's defaultMagnitude (curvature-options-section.tsx).
+    curvatureMin: parseAsFloat.withDefault(-1),
+    curvatureMax: parseAsFloat.withDefault(1),
     curvatureInvertColorRamp: parseAsBoolean.withDefault(false),
     curvatureSymmetric: parseAsBoolean.withDefault(true),
     curvatureCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),

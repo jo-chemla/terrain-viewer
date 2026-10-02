@@ -1896,10 +1896,10 @@
             "name": "curvatureMin",
             "in": "query",
             "required": false,
-            "description": "State.",
+            "description": "State. ±1 matches Mean/Combined's defaultMagnitude (curvature-options-section.tsx).",
             "schema": {
               "type": "number",
-              "default": -20
+              "default": -1
             }
           },
           {
@@ -1909,7 +1909,7 @@
             "description": "State.",
             "schema": {
               "type": "number",
-              "default": 20
+              "default": 1
             }
           },
           {
