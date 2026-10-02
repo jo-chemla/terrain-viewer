@@ -1,8 +1,10 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
-import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight, Code } from "lucide-react"
+import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight, Code, Globe, Info } from "lucide-react"
 import { track } from "@/lib/analytics"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
+import { customTerrainSourcesAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { makePortableShareUrl, type PortableResult } from "@/lib/portable-share-url"
 // Same import-cycle shape as product-tour.tsx's — established/working here.
 import { sectionOpenAtom, DEFAULT_OPEN_STATE } from "./TerrainControlPanel"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -325,6 +327,45 @@ const CopyUrlWithPanelsButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => 
 // ── ShortenToggle ─────────────────────────────────────────────────────────────
 
 const SHORTEN_STORAGE_KEY = "terrain-viewer:shorten-urls"
+const PORTABLE_STORAGE_KEY = "terrain-viewer:share-sources-by-url"
+
+// ── PortableSourcesToggle ─────────────────────────────────────────────────────
+// Shown only when the link names at least one of the user's own sources
+// (otherwise there is nothing to rewrite). Lists what travels by URL and
+// what cannot (local files, entries needing more than a URL and a type).
+
+const PortableSourcesToggle: React.FC<{
+  enabled: boolean
+  onChange: (v: boolean) => void
+  result: PortableResult
+}> = ({ enabled, onChange, result }) => {
+  if (!result.replaced.length && !result.kept.length) return null
+  return (
+    <div className="rounded-md border border-border bg-muted/20 px-3 py-2 space-y-1">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Label htmlFor="portable-sources-toggle" className="text-xs font-medium cursor-pointer select-none">
+            Name my sources by URL
+          </Label>
+          <Tooltip>
+            <TooltipTrigger render={<Info className="h-3 w-3 text-muted-foreground cursor-help" />} />
+            <TooltipContent side="top" className="max-w-[260px] text-xs">
+              Your own terrain, basemap and overlay sources are written into the link as their remote URL and type instead of an id from this browser, so the recipient's app loads them without having them in its library. Local files and entries that need more than a URL and a type stay by id.
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <Switch id="portable-sources-toggle" checked={enabled} onCheckedChange={onChange} />
+      </div>
+      {enabled && result.replaced.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">By URL: {result.replaced.join(", ")}</p>
+      )}
+      {result.kept.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">Stay by id (the recipient needs them in their own list): {result.kept.map((k) => `${k.name} (${k.reason})`).join(", ")}</p>
+      )}
+    </div>
+  )
+}
 
 const ShortenToggle: React.FC<{
   enabled: boolean
@@ -440,7 +481,27 @@ const ShareModal: React.FC<{
   // Cache the short URL so we don't re-shorten on re-render
   const cachedShortUrlRef = useRef<string | null>(null)
 
-  const pageUrl = typeof window !== "undefined" ? window.location.href : ""
+  // "Sources by URL": the user's own remote sources named by their URL and
+  // type instead of a localStorage id, so the link works for someone who
+  // does not have them (lib/portable-share-url.ts). Persisted like the
+  // shorten toggle.
+  const [portableEnabled, setPortableEnabled] = useState(() => {
+    try { return localStorage.getItem(PORTABLE_STORAGE_KEY) !== "false" } catch { return true }
+  })
+  const handlePortableToggle = useCallback((v: boolean) => {
+    setPortableEnabled(v)
+    try { localStorage.setItem(PORTABLE_STORAGE_KEY, String(v)) } catch {}
+  }, [])
+  const customTerrainSources = useAtomValue(customTerrainSourcesAtom)
+  const customBasemapSources = useAtomValue(customBasemapSourcesAtom)
+  const rawPageUrl = typeof window !== "undefined" ? window.location.href : ""
+  const portable = useMemo(
+    () => (rawPageUrl ? makePortableShareUrl(rawPageUrl, customTerrainSources, customBasemapSources) : { url: rawPageUrl, replaced: [], kept: [] }),
+    // Recomputed each time the dialog opens: the URL is read from the window.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rawPageUrl, customTerrainSources, customBasemapSources, open],
+  )
+  const pageUrl = portableEnabled ? portable.url : rawPageUrl
 
   const platformUrls = useMemo(() => {
     // If we have a short URL, use it for intent links; otherwise fall back to pageUrl
@@ -624,6 +685,8 @@ const ShareModal: React.FC<{
             to paste before publishing.
           </DialogDescription>
         </DialogHeader>
+
+        <PortableSourcesToggle enabled={portableEnabled} onChange={handlePortableToggle} result={portable} />
 
         {/* ── Shorten toggle (top of modal body) ── */}
         {/* <ShortenToggle

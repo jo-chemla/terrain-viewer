@@ -4481,7 +4481,8 @@ export function TerrainViewer() {
   const distinctModesSuffix = (side: ViewId): React.ReactNode => {
     if (state.vizSync !== false || !isSplit) return null
     const names = distinctModeLabels(stateAny, side, activeViewIds)
-    return names.length ? <span data-snapshot-ignore className="text-muted-foreground"> · {names.join(", ")}</span> : null
+    // Kept in snapshots: the mode names are what tells the panes apart.
+    return names.length ? <span className="text-muted-foreground"> · {names.join(", ")}</span> : null
   }
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
     if (effectiveCaptureDatePill === "off") return null
