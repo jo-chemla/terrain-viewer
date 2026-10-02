@@ -20,12 +20,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            label: macos-arm64
+          # macOS and Linux are paused to save Actions minutes (2026-10-02);
+          # their last bundles stay on the release because the release job
+          # below only replaces the assets of the platforms it just built.
+          # - os: macos-latest
+          #   label: macos-arm64
           - os: windows-latest
             label: windows-x64
-          - os: ubuntu-latest
-            label: linux-x64
+          # - os: ubuntu-latest
+          #   label: linux-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -118,11 +121,23 @@ jobs:
           ls -la assets
           [ -n "$(ls -A assets)" ] || { echo "no bundle built on any platform"; exit 1; }
       - name: Rolling release desktop-latest
+        # The release is kept and only the assets of the platforms built in
+        # this run are replaced: a paused or failed platform keeps its last
+        # bundle instead of vanishing.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           sha=$(git rev-parse --short HEAD)
           date=$(date -u +%Y-%m-%d)
           notes="Desktop bundles built on $date from \`$sha\`. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/dev/desktop/ for what works and how to run them. Each platform comes twice: \`with-offline-docs\` carries the documentation for offline reading, \`light-online-docs\` is about 180 MB smaller and opens the documentation on the website. Setup files are installers (zip holding the installer on Windows, dmg on macOS, self-extracting tar.gz on Linux); Portable zips unpack anywhere and run as they are. macOS: the app is only ad-hoc signed, so right-click, Open on first launch; if it is reported as damaged, run xattr -cr on the app once (see the docs page). Windows: SmartScreen, More info, Run anyway."
-          gh release delete desktop-latest --yes --cleanup-tag || true
-          gh release create desktop-latest assets/* --title "Desktop bundles ($date)" --notes "$notes" --latest
+          if ! gh release view desktop-latest >/dev/null 2>&1; then
+            gh release create desktop-latest --title "Desktop bundles ($date)" --notes "$notes" --latest
+          fi
+          # drop the previous assets of the platforms this run built (dated
+          # names change every day, so --clobber alone would pile them up)
+          built=$(ls assets | grep -o -E 'win-x64|macos-arm64|linux-x64' | sort -u)
+          for plat in $built; do
+            gh release view desktop-latest --json assets -q '.assets[].name' | grep -- "$plat" | while read -r a; do gh release delete-asset desktop-latest "$a" --yes || true; done
+          done
+          gh release upload desktop-latest assets/* --clobber
+          gh release edit desktop-latest --title "Desktop bundles ($date)" --notes "$notes" --latest
