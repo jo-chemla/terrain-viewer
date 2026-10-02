@@ -1,4 +1,5 @@
 import type React from "react"
+import { perViewProps } from "@/lib/viz-views"
 import { useAtom } from "jotai"
 import { Hourglass } from "lucide-react"
 import { Section, CheckboxWithSlider, AdvancedModeToggle } from "./controls-components"
@@ -34,6 +35,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
   // of assuming 256.
   terrainTileSize: number
 }> = ({ state, setState, isOpen, onOpenChange, terrainTileSize }) => {
+  const perViewFor = perViewProps(state, setState)
   const [advanced, setAdvanced] = useAtom(reliefVisualizationAdvancedAtom)
   if (!state.showReliefVisualization) return null
 
@@ -48,7 +50,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showLrm")}
             id="relief-visualization-lrm"
             label="Local Relief Model"
             tooltip="Elevation relative to a smoothed regional trend (wider neighborhood than Topographic Position). Somewhat like HAG (Height Above Ground), but the 'ground' is that smoothed local trend, not a classified bare-earth surface."
@@ -71,7 +73,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             YIELD_EVERY_ROWS in lib/normal-derived-protocol.ts), just takes a beat to
             actually paint. */}
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showSvf")}
             id="relief-visualization-svf"
             label={<SlowModeLabel>Sky View Factor</SlowModeLabel>}
             tooltip="Slow - Fraction of the sky hemisphere visible from each point — low in enclosed pits/canyons, high on open summits/ridges."
@@ -84,7 +86,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showOpenness")}
             id="relief-visualization-openness"
             label={<SlowModeLabel>Openness</SlowModeLabel>}
             tooltip="Slow - Mean angular distance from zenith to the horizon across several directions — reads above flat (90°) on ridges/summits (Positive mode) or in valleys/pits (Negative mode)."
@@ -97,7 +99,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showLocalDominance")}
             id="relief-visualization-local-dominance"
             label={<SlowModeLabel>Local Dominance</SlowModeLabel>}
             tooltip="Slow - Mean downward view angle onto the surrounding terrain over a ring of distances (Hesse 2016) — high on mounds/ridges that look down on their surroundings, low in enclosed depressions. Complements Openness for isolating closed mounds and pits."

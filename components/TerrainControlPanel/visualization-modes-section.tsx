@@ -1,9 +1,10 @@
 import type React from "react"
+import { perViewProps } from "@/lib/viz-views"
 import { useState } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { activeProjectConfigAtom, vizModePinnedAtom, dataLayersModalOpenAtom } from "@/lib/settings-atoms"
 import { Section, CheckboxWithSlider, SectionFoldPinToggle, TooltipIconButton } from "./controls-components"
-import { Layers } from "lucide-react"
+import { Layers, RefreshCw } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 
 export const VisualizationModesSection: React.FC<{
@@ -11,6 +12,7 @@ export const VisualizationModesSection: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, isOpen, onOpenChange }) => {
+  const perViewFor = perViewProps(state, setState)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const [vizModePinned, setVizModePinned] = useAtom(vizModePinnedAtom)
   const openDataLayers = useSetAtom(dataLayersModalOpenAtom)
@@ -40,6 +42,14 @@ export const VisualizationModesSection: React.FC<{
         <div className="flex items-center gap-1">
           {/* The picture version of this very list, so it sits next to the
               list rather than up in the panel's own title bar. */}
+          {/* Per-view modes (lib/viz-views.ts): synced by default; off, each
+              mode's checkbox becomes the view grid in split / grid layouts. */}
+          <TooltipIconButton
+            icon={RefreshCw}
+            tooltip={state.vizSync ? "Modes synced across all map views. Click to pick views per mode (split and grid layouts)." : "Modes per view: each checkbox is the view grid. Click to sync every mode across all views again."}
+            className={state.vizSync ? "" : "bg-primary/15 text-primary"}
+            onClick={() => setState({ vizSync: !state.vizSync })}
+          />
           <TooltipIconButton
             icon={Layers}
             tooltip="Data layers: every visualization mode, with a picture"
@@ -57,12 +67,12 @@ export const VisualizationModesSection: React.FC<{
       }
     >
       {!hideContours && (
-        <CheckboxWithSlider id="contours" gotoSection="contour" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />
+        <CheckboxWithSlider perView={perViewFor("showContoursAndGraticules")} id="contours" gotoSection="contour" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />
       )}
       {/* Native MapLibre hillshade — its own independent viz mode, entirely
           separate from "Lighting Effects" below. See Options: Hillshade for
           method/illumination/color controls. */}
-      <CheckboxWithSlider
+      <CheckboxWithSlider perView={perViewFor("showHillshade")}
         id="hillshade" gotoSection="hillshade"
         checked={state.showHillshade}
         onCheckedChange={(checked) => setState({ showHillshade: checked })}
@@ -71,8 +81,8 @@ export const VisualizationModesSection: React.FC<{
         sliderValue={state.hillshadeOpacity}
         onSliderChange={(value) => setState({ hillshadeOpacity: value })}
       />
-      <CheckboxWithSlider id="terrain-raster" gotoSection="rasterBasemap" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} tooltip="Raster Basemap source (predefined aerial/satellite or BYOD)" />
-      <CheckboxWithSlider id="color-relief" gotoSection="hypsometricTint" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} tooltip="Hypsometric/Color relief colorramp altitude representation" />
+      <CheckboxWithSlider perView={perViewFor("showRasterBasemap")} id="terrain-raster" gotoSection="rasterBasemap" checked={state.showRasterBasemap} onCheckedChange={(checked) => setState({ showRasterBasemap: checked })} label="Raster Basemap" sliderValue={state.rasterBasemapOpacity} onSliderChange={(value) => setState({ rasterBasemapOpacity: value })} tooltip="Raster Basemap source (predefined aerial/satellite or BYOD)" />
+      <CheckboxWithSlider perView={perViewFor("showColorRelief")} id="color-relief" gotoSection="hypsometricTint" checked={state.showColorRelief} onCheckedChange={(checked) => setState({ showColorRelief: checked })} label="Elevation Hypso" sliderValue={state.colorReliefOpacity} onSliderChange={(value) => setState({ colorReliefOpacity: value })} tooltip="Hypsometric/Color relief colorramp altitude representation" />
       {/* Separates the "basic" modes above (contours/hillshade/basemap/hypso)
           from the more advanced derived-analysis ones below. Darker than the
           default --border (which is barely visible) — bg-foreground/NN
@@ -85,7 +95,7 @@ export const VisualizationModesSection: React.FC<{
           Aspect/Curvature/Blobness/TPI/TRI/Roughness) — see
           relief-visualization-section.tsx / terrain-analysis-section.tsx. */}
       {!hideReliefVisualization && (
-        <CheckboxWithSlider
+        <CheckboxWithSlider perView={perViewFor("showReliefVisualization")}
           id="relief-visualization" gotoSection="reliefVisualization"
           checked={state.showReliefVisualization}
           onCheckedChange={(checked) => setState({ showReliefVisualization: checked })}
@@ -96,7 +106,7 @@ export const VisualizationModesSection: React.FC<{
         />
       )}
       {!hideTerrainAnalysis && (
-        <CheckboxWithSlider
+        <CheckboxWithSlider perView={perViewFor("showTerrainAnalysis")}
           id="terrain-analysis" gotoSection="terrainAnalysis"
           checked={state.showTerrainAnalysis}
           onCheckedChange={(checked) => setState({ showTerrainAnalysis: checked })}
@@ -108,7 +118,7 @@ export const VisualizationModesSection: React.FC<{
       )}
       {/* Matcap + Phong, both raster-tile protocols draped over 3D terrain —
           see Options: Lighting Effects for material/light controls. */}
-      <CheckboxWithSlider
+      <CheckboxWithSlider perView={perViewFor("showLightingEffects")}
         id="lighting-effects" gotoSection="lightingEffects"
         checked={state.showLightingEffects}
         onCheckedChange={(checked) => setState({ showLightingEffects: checked })}
@@ -121,12 +131,12 @@ export const VisualizationModesSection: React.FC<{
           (and was rendering a dead control) in flat 2D — but lives last in this
           list whenever it does apply. */}
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
-        <CheckboxWithSlider id="background" gotoSection="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
+        <CheckboxWithSlider perView={perViewFor("showBackground")} id="background" gotoSection="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
       )}
       {state.tellsBeta && (
         <>
           <Separator className="bg-foreground/33" />
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showTellsDetector")}
             id="tells-visibility" gotoSection="tellsDetector"
             checked={state.showTellsDetector}
             onCheckedChange={(checked) => setState({ showTellsDetector: checked === true })}

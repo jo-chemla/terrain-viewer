@@ -1,4 +1,5 @@
 import type React from "react"
+import { perViewProps } from "@/lib/viz-views"
 import { useState, useCallback } from "react"
 import { useAtom } from "jotai"
 import { ChevronDown, ChevronLeft, ChevronRight, Hourglass } from "lucide-react"
@@ -44,6 +45,7 @@ export const LightingEffectsOptionsSection: React.FC<{
   isOpen,
   onOpenChange,
 }) => {
+  const perViewFor = perViewProps(state, setState)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   // Opaque hiddenSections identifier, same pattern as splitScreen/sourceInfo —
   // drops the whole Shadows sub-mode (checkbox + detail fields) for embeds.
@@ -109,7 +111,7 @@ export const LightingEffectsOptionsSection: React.FC<{
       <div className="space-y-4">
         {/* ─── Phong sub-mode ─── */}
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showPhong")}
             id="lighting-phong"
             label="Phong"
             tooltip="Ambient+diffuse+specular shading against the raster basemap as albedo, with a movable light — a physically-flavored alternative to a matcap material."
@@ -177,7 +179,7 @@ export const LightingEffectsOptionsSection: React.FC<{
 
         {/* ─── Matcap sub-mode ─── */}
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showMatcap")}
             id="lighting-matcap"
             label="Matcap"
             tooltip="Shades the terrain surface from a material-capture image (like a 3D sculpting tool) instead of a directional light."
@@ -270,7 +272,7 @@ export const LightingEffectsOptionsSection: React.FC<{
         {/* ─── Shadows sub-mode ─── */}
         {!hideShadows && (
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showShadows")}
             id="lighting-shadows"
             label={
               // Hourglass = "slow to compute" hint, same monochrome inline-icon

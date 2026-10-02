@@ -3,7 +3,7 @@
 // Vite dist has a few hundred, so the list is generated rather than kept by
 // hand. Run after `pnpm build` at the repo root; `hutch electrobun build`
 // then packages dist/ as views://app/.
-import { readdirSync, statSync, writeFileSync, existsSync, readFileSync } from "node:fs"
+import { readdirSync, statSync, writeFileSync, existsSync } from "node:fs"
 import { join, relative, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -38,7 +38,12 @@ if (docsArg === "bundled" && !docsExported) {
 }
 const docsBundled = docsArg === "bundled" || (docsArg === "auto" && docsExported)
 const kept = files.filter((f) => docsBundled || !f.startsWith("docs/"))
-const version = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8")).version ?? "0.0.0"
+// The app version is the build day as YYYY.M.D (a valid three-part version
+// for the installers; the updater compares bundle hashes, not versions), so
+// the installed app reports the same day the About section shows.
+// BUILD_VERSION overrides it.
+const today = new Date()
+const version = process.env.BUILD_VERSION ?? `${today.getUTCFullYear()}.${today.getUTCMonth() + 1}.${today.getUTCDate()}`
 
 // The two variants are two apps to the installer and the updater: the full
 // build (docs bundled) is "com.iconem.terrain-viewer" and updates itself

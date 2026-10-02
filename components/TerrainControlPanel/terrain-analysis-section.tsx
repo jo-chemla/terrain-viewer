@@ -1,4 +1,5 @@
 import type React from "react"
+import { perViewProps } from "@/lib/viz-views"
 import { useAtom } from "jotai"
 import { ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -44,6 +45,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean
 }> = ({ state, setState, isOpen, onOpenChange, withSeparator }) => {
+  const perViewFor = perViewProps(state, setState)
   const [advanced, setAdvanced] = useAtom(terrainAnalysisAdvancedAtom)
   if (!state.showTerrainAnalysis) return null
 
@@ -61,7 +63,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         <FoldableGroup id="surface" title="Surface derivatives">
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showSlope")}
             id="terrain-analysis-slope"
             label="Slope"
             tooltip="Magnitude of the gradient."
@@ -74,7 +76,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showAspect")}
             id="terrain-analysis-aspect"
             label="Aspect"
             tooltip="Direction of the gradient."
@@ -87,7 +89,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showCurvature")}
             id="terrain-analysis-curvature"
             label="Curvature"
             tooltip="Rate of slope change — Profile, Plan/Divergence, Mean/Combined, or Gaussian curvature (Det Hessian). Useful for ridge/valley mapping — try the Diverging or Monochrome color ramp below."
@@ -103,7 +105,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         <FoldableGroup id="neighborhood" title="Neighborhood statistics">
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showTpi")}
             id="terrain-analysis-tpi"
             label="Topographic Position"
             tooltip="Elevation relative to neighborhood mean."
@@ -116,7 +118,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showTri")}
             id="terrain-analysis-tri"
             label="Terrain Ruggedness"
             tooltip="TRI (Terrain Ruggedness Index): mean elevation difference to neighbors."
@@ -129,7 +131,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showRoughness")}
             id="terrain-analysis-roughness"
             label="Roughness"
             tooltip="Max − min elevation in a neighborhood."
@@ -142,7 +144,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showShapeIndex")}
             id="terrain-analysis-shape-index"
             label="Shape Index"
             tooltip="Koenderink & van Doorn's scale-free local shape descriptor, from the same principal curvatures as Casorati Curvature (see Surface derivatives): +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl."
@@ -158,7 +160,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         <FoldableGroup id="pca" title="Principal Components">
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showBlobness")}
             id="terrain-analysis-blobness"
             label="Blobness"
             tooltip="Structure-tensor (2D PCA of the local gradient field) measure — det/trace, conflating shape with steepness: high at peaks/pits/saddles, low on a uniform slope or straight ridge."
@@ -171,7 +173,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showEigenRatio")}
             id="terrain-analysis-eigen-ratio"
             label="Eigenvalue Ratio"
             tooltip="λmin/λmax of the same structure tensor as Blobness — shape only, independent of steepness: 0 = coherent edge (slope, ridge, or valley), 100 = isotropic blob (peak/pit/saddle)."
@@ -184,7 +186,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
         </div>
 
         <div className="space-y-2">
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showOrientation")}
             id="terrain-analysis-orientation"
             label="Dominant Orientation"
             tooltip="Axis (0-180°) of the structure tensor's dominant eigenvector — which way a linear feature (ridge, valley, fault line) runs. Most meaningful where Eigenvalue Ratio is low; closer to noise where it's high."

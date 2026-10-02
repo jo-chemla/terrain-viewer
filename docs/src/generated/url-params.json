@@ -1087,6 +1087,26 @@
       "note": "Which clock convention lightTimeOfDay is expressed in — \"local\": the real civil wall-clock time at the viewport lat/lng, including that location's actual DST rules (see lib/timezone.ts); \"utc\": UTC d…"
     },
     {
+      "key": "vizSync",
+      "stateKey": "vizSync",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Per-view visualization modes (lib/viz-views.ts): vizSync true draws every mode on every view; false draws each mode on the views listed in vizViews (\"showSlope:AC;showLrm:B\"), chosen with the view gr…"
+    },
+    {
+      "key": "vizViews",
+      "stateKey": "vizViews",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": ""
+    },
+    {
       "key": "showColorRelief",
       "stateKey": "showColorRelief",
       "type": "boolean",

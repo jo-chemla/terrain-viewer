@@ -1418,6 +1418,26 @@
             }
           },
           {
+            "name": "vizSync",
+            "in": "query",
+            "required": false,
+            "description": "State. Per-view visualization modes (lib/viz-views.ts): vizSync true draws every mode on every view; false draws each mode on the views listed in vizViews (\"showSlope:AC;showLrm:B\"), chosen with the view gr…",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "vizViews",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
             "name": "showColorRelief",
             "in": "query",
             "required": false,

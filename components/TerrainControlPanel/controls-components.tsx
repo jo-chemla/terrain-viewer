@@ -620,7 +620,10 @@ export const CheckboxWithSlider: React.FC<{
    *  "where do I tune this" is asked right here, next to the switch that
    *  turned it on, not from a menu somewhere else. */
   gotoSection?: string
-}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip, gotoSection }) => {
+  /** Per-view modes (lib/viz-views.ts): with this set the checkbox becomes
+   *  the view-grid toggle, one cell per map view. */
+  perView?: { gridLayout: GridLayoutId; isActive: (side: ViewId) => boolean; onSelect: (side: ViewId) => void }
+}> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip, gotoSection, perView }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const fullId = `${sectionId}:${id}`
@@ -630,7 +633,9 @@ export const CheckboxWithSlider: React.FC<{
 
   return (
     <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
-      <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />
+      {perView
+        ? <SourceGridToggle gridLayout={perView.gridLayout} isActive={perView.isActive} onSelect={perView.onSelect} disabled={disabled} allowUnpress />
+        : <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />}
       {tooltip ? (
         <Tooltip>
           <TooltipTrigger render={labelEl} />
