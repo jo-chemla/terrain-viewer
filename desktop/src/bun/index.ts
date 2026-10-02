@@ -65,10 +65,21 @@ function ulog(...parts: unknown[]) {
   try { appendFileSync(updaterLogPath, line + String.fromCharCode(10)); } catch {}
 }
 
-// Tells the page, which shows a toast with "Restart now" (lib/desktop-bridge.ts).
-function announceUpdate(status: "ready" | "error", version: string) {
+// Tells the page (lib/desktop-bridge.ts), which toasts the milestones and
+// shows the state under the version in About. Every Electrobun status entry
+// is forwarded as is (checking, update-available, download-progress,
+// download-complete, applying, complete, no-update...), plus "ready" and
+// "error" from the flow below. The last one is kept and replayed when the
+// page asks (host-message "update-status"): the "complete" of a freshly
+// applied update fires before the page has loaded.
+type UpdateDetail = { status: string; version?: string; progress?: number; message?: string };
+let lastUpdateDetail: UpdateDetail | null = null;
+let feedVersion = "";
+function announceUpdate(status: string, version?: string, extra: Partial<UpdateDetail> = {}) {
+  const detail: UpdateDetail = { status, version: version || feedVersion || undefined, ...extra };
+  lastUpdateDetail = detail;
   try {
-    mainWindow.webview.executeJavascript(`window.dispatchEvent(new CustomEvent("tv-desktop-update", { detail: ${JSON.stringify({ status, version })} }))`);
+    mainWindow.webview.executeJavascript(`window.dispatchEvent(new CustomEvent("tv-desktop-update", { detail: ${JSON.stringify(detail)} }))`);
   } catch (e) {
     console.warn("announce update:", e);
   }
@@ -79,6 +90,7 @@ async function updateOnLaunch() {
     if (!local.baseUrl || local.channel === "dev") { ulog("no feed (baseUrl empty) or dev channel"); return; }
     const info = await Updater.checkForUpdate();
     ulog("check", info);
+    feedVersion = info.version ?? "";
     if (info.error) { announceUpdate("error", info.error); return; }
     if (info.updateReady) {
       // Apply at most once per downloaded build. If the apply helper fails
@@ -109,7 +121,11 @@ async function updateOnLaunch() {
     announceUpdate("error", String(e));
   }
 }
-Updater.onStatusChange((entry) => ulog(entry.status, entry.message, entry.details ?? ""));
+Updater.onStatusChange((entry) => {
+  ulog(entry.status, entry.message, entry.details ?? "");
+  const d = (entry.details ?? {}) as { progress?: number; version?: string };
+  announceUpdate(entry.status, d.version, { message: entry.message, progress: typeof d.progress === "number" ? d.progress : undefined });
+});
 // A beat after the window exists, so the page is there to receive the toast.
 setTimeout(() => { void updateOnLaunch(); }, 4000);
 
@@ -153,4 +169,9 @@ mainWindow.webview.on("host-message", (event: unknown) => {
   const msg = (event as { data?: { detail?: unknown } }).data?.detail as { type?: string; on?: boolean } | undefined;
   if (msg?.type === "fullscreen") mainWindow.setFullScreen(!!msg.on);
   if (msg?.type === "apply-update") void Updater.applyUpdate();
+  // The page has loaded (or wants a refresh): replay the latest state.
+  if (msg?.type === "update-status" && lastUpdateDetail) {
+    const { status, version, message, progress } = lastUpdateDetail;
+    announceUpdate(status, version, { message, progress });
+  }
 });

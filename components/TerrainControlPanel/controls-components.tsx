@@ -484,7 +484,8 @@ export const SourceGridToggle: React.FC<{
     onPressedChange={(pressed) => { if (pressed || allowUnpress) onSelect(onlySide) }}
     disabled={disabled}
     title={`View ${onlySide} only (selected through its pill)`}
-    className="h-6 min-w-6 px-1.5 rounded-md border text-[10px] leading-none cursor-pointer data-pressed:font-bold"
+    // 26 px: a one-row grid is 24 px of cells inside a 1 px border.
+    className="h-[26px] min-w-[26px] px-1.5 rounded-md border text-[10px] leading-none cursor-pointer data-pressed:font-bold"
   >
     {onlySide}
   </Toggle>

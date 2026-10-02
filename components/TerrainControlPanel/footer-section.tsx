@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
+import { useDesktopUpdate, describeDesktopUpdate } from "@/lib/desktop-bridge"
 import { CREDITS_MARKDOWN, CREDITS_MARKDOWN_COMPONENTS } from "./settings-dialog"
 
 /** Not a shared `Section` instance on purpose — that component carries
@@ -33,6 +34,17 @@ export const FooterSection: React.FC<{
         Version: {__BUILD_DATE__}{" "}
         <a href={`https://github.com/Iconem/terrain-viewer/commit/${__BUILD_COMMIT__}`} target="_blank" rel="noopener noreferrer" className="underline">{__BUILD_COMMIT__}</a>
       </p>
+      <DesktopUpdateLine />
     </CollapsibleContent>
   </Collapsible>
 )
+
+// Desktop app only: the updater's state (checking, downloading with its
+// percentage, downloaded, installing, installed at this launch). Renders
+// nothing in the browser.
+const DesktopUpdateLine: React.FC = () => {
+  const update = useDesktopUpdate()
+  const line = describeDesktopUpdate(update)
+  if (!line) return null
+  return <p className="font-mono text-[11px]">{line}</p>
+}

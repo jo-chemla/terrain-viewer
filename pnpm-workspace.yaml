@@ -1,2 +1,3 @@
 patchedDependencies:
+  '@geomatico/maplibre-cog-protocol': patches/@geomatico__maplibre-cog-protocol.patch
   coachmark: patches/coachmark.patch

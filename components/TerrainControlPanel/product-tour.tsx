@@ -771,7 +771,8 @@ const TERRAIN_STEPS: TourStepDef[] = [
     description: (
       <>
         <p className="pb-2">In a split or grid, every mode draws on every view by default. Switch <span className="font-semibold text-foreground">Sync viz modes across views</span> off and each checkbox becomes the view grid: a cell puts that mode, or sub-mode, on that view only.</p>
-        <p className="pb-2">Here, four views of the same terrain: imagery on A, hillshade with contours on B, hillshade with slope on C, matcap on D. The pill under each view names what it draws that the others do not; clicking a mode's name puts it back on every view.</p>
+        <p className="pb-2">Here, four views of the same terrain: imagery on A, hillshade with contours on B, hillshade with slope on C, matcap on D. The pill under each view names what it draws that the others do not.</p>
+        <p className="pb-2">Two shortcuts: clicking the <span className="font-semibold text-foreground">name</span> of a mode, or of a terrain, basemap or overlay source, switches it on for every view at once, and off everywhere when it already is on all of them. Clicking a view's <span className="font-semibold text-foreground">pill</span> selects that view: every grid in the sidebar collapses to that one letter, so a mode or source then applies to the selected view only. Esc, the pill again or its x deselects.</p>
         <p>Mostly for advanced users, hence the toggle.</p>
       </>
     ),
