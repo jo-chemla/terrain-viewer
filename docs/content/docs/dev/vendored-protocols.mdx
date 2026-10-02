@@ -23,7 +23,19 @@ Two consequences worth knowing:
 - **The host must serve range requests and CORS.** A PMTiles archive on a host that ignores `Range` will download the entire file to read one tile. This is the single most common reason a PMTiles URL "doesn't work".
 - **No result caching by us.** The protocol's own directory cache already avoids re-reading the archive header, and its output is raw archived bytes rather than something we computed, so there is nothing for our LRU to save.
 
-Elevation archives are ordinary Terrain-RGB or Terrarium once unwrapped, so everything downstream — hillshade, the [viz-mode protocols](/dev/terrain-analysis-pipeline), [derived terrain](/dev/demdiff-protocol) — treats them like any other tiled DEM.
+Elevation archives are ordinary Terrain-RGB or Terrarium once unwrapped, so everything downstream — hillshade, the [viz-mode protocols](/dev/terrain-analysis-pipeline), [derived terrain](/dev/demdiff-protocol) — treats them like any other tiled DEM. An archive with MapLibre's `custom` encoding works too: a library entry (or your own source) carries `redFactor`, `greenFactor`, `blueFactor` and `baseShift`, and the decoder reads `value = R·redFactor + G·greenFactor + B·blueFactor − baseShift`.
+
+### Worked example: a painting as PMTiles
+
+[impasto.dev](https://impasto.dev/almond-blossom) streams a condition-assessment scan of a painting as three PMTiles archives, and the library carries two of them as **ART - Impasto: Almond Blossom**, height and colour. What is in them, read from the archives' own headers and metadata:
+
+| Archive | Tiles | Content |
+|---|---|---|
+| `rgb.pmtiles` | PNG, 1024 px, z0–5 | the colour scan, 32768 × 32768 px of a 24 cm painting |
+| `height.pmtiles` | PNG, 1024 px, z0–5 | the height scan, `custom` encoding `R*65536 + G*256 + B`, integers of 0.25 µm |
+| `r8.v2.pmtiles` | JPEG, 512 px, z0–5 | their pre-rendered 8-bit shaded relief |
+
+The painting is stretched over the whole Web Mercator world (bounds ±180, ±85), the same fake-geo trick as the [non-geo relief recipe](/dev/non-geo-relief-visualization); the metadata keeps the real scale (`conversionLengthPixels` 3072 per `conversionLengthMeters` 0.024) and `metersPerInteger` 2.5e-7, so a tool can convert back. The viewer reads the height integers as raw units, as impasto.dev does with exaggeration 12: relief and slopes are relative, not metres. Nothing in the format is bespoke; the one obstacle is that the host answers `Access-Control-Allow-Origin` for impasto.dev only, so a browser elsewhere needs a CORS-allowing extension or a proxy in front of the archive URL.
 
 ## `cog-contour://`
 

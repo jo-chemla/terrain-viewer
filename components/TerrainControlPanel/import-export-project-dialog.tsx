@@ -70,7 +70,7 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
 
   const localFileWarning = hasLocalFileSources({ customTerrainSources, customBasemapSources })
   const localCogCount = customTerrainSources.filter((s) => s.type === "cog-local").length
-    + customBasemapSources.filter((s) => s.type === "cog-local").length
+    + customBasemapSources.filter((s) => s.type === "cog-local" || s.type === "image-local").length
   const hasBookmarkThumbs = bookmarks.some((b) => b.thumb)
 
   const toggle = (category: keyof ProjectExportSelection) => setSelection((prev) => ({ ...prev, [category]: !prev[category] }))

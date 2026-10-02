@@ -867,6 +867,25 @@
             "infoUrl": "https://source.coop/smartmaps/gel"
         },
         {
+            "id": "custom-art-impasto-almond-blossom-height",
+            "name": "ART - Impasto: Harm Belt's Almond Blossom, height scan (0.25 um units, fake-geo) - PMTiles",
+            "url": "pmtiles://https://tiles.larsmaxfield.com/paintings/almond-blossom/20250107-1604/20250520_153658/height.pmtiles/{z}/{x}/{y}",
+            "type": "terrainrgb",
+            "loadWithSamples": false,
+            "minzoom": 0,
+            "maxzoom": 5,
+            "tileSize": 1024,
+            "redFactor": 65536,
+            "greenFactor": 256,
+            "blueFactor": 1,
+            "baseShift": 0,
+            "bounds": [-180, -85.0511, 180, 85.0511],
+            "linkedBasemapId": "custom-art-impasto-almond-blossom-rgb",
+            "description": "A painting as terrain: the 24 cm Almond Blossom (Harm Belt, after Van Gogh) scanned by a Keyence condition-assessment scanner at 3072 px per 24 mm, 32768 x 32768 px, stretched over the whole Web Mercator world the way the non-geo relief recipe does. One PMTiles archive of 1024 px PNG tiles, z0-5, MapLibre custom encoding value = R*65536 + G*256 + B, integers of 0.25 micrometres (range about 9000-45000, 2 to 11 mm of impasto), read as raw units here, as on impasto.dev, so slopes and relief are relative: use exaggeration (their viewer uses 12) and the hypsometric Set from viewport. The host only allows impasto.dev to read the archive: a browser needs a CORS-allowing extension or a proxy. Format notes on the PMTiles page of the dev docs.",
+            "resolutionM": 0.0000078,
+            "infoUrl": "https://impasto.dev/almond-blossom"
+        },
+        {
             "id": "custom-openwaters-seascape",
             "name": "Global - Open Waters Seascape Bathymetry - Terrarium",
             "url": "https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp",
@@ -1375,6 +1394,17 @@
             "type": "cog",
             "loadWithSamples": false,
             "description": ""
+        },
+        {
+            "id": "custom-art-impasto-almond-blossom-rgb",
+            "name": "ART - Impasto: Harm Belt's Almond Blossom, colour scan (fake-geo) - PMTiles",
+            "url": "pmtiles://https://tiles.larsmaxfield.com/paintings/almond-blossom/20250107-1604/20250520_153658/rgb.pmtiles/{z}/{x}/{y}",
+            "type": "tms",
+            "maxzoom": 5,
+            "loadWithSamples": false,
+            "linkedTerrainId": "custom-art-impasto-almond-blossom-height",
+            "description": "The colour scan that goes with the Almond Blossom height scan: 1024 px PNG tiles in one PMTiles archive, z0-5, over the whole world (fake-geo). Same CORS caveat as the height archive: the host allows impasto.dev only.",
+            "infoUrl": "https://impasto.dev/almond-blossom"
         },
         {
             "id": "stadia-stamen-watercolor",

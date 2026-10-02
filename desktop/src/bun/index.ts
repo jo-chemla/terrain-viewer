@@ -6,7 +6,7 @@
 import { BrowserWindow, Utils, Updater } from "electrobun/main";
 import { dlopen, FFIType, ptr } from "bun:ffi";
 import { dirname, join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
 const mainWindow = new BrowserWindow({
   title: "Terrain Viewer",
@@ -71,7 +71,24 @@ async function updateOnLaunch() {
     const info = await Updater.checkForUpdate();
     console.log("[updater]", JSON.stringify(info));
     if (info.error) { announceUpdate("error", info.error); return; }
-    if (info.updateReady) { await Updater.applyUpdate(); return; }
+    if (info.updateReady) {
+      // Apply at most once per downloaded build. If the apply helper fails
+      // (the app quits, nothing comes back), the next launch must not quit
+      // again four seconds in: it shows the toast instead, and "Restart now"
+      // is the user's explicit retry.
+      const dir = join(dirname(process.execPath), "..", "..");
+      const marker = join(dir, "update-attempted.json");
+      let attempted: string | null = null;
+      try { attempted = JSON.parse(readFileSync(marker, "utf8")).hash ?? null; } catch {}
+      if (attempted === info.hash) {
+        console.log("[updater] apply of", info.hash, "already attempted once; not retrying automatically");
+        announceUpdate("ready", info.version ?? "");
+        return;
+      }
+      try { mkdirSync(dir, { recursive: true }); writeFileSync(marker, JSON.stringify({ hash: info.hash, at: new Date().toISOString() })); } catch (e) { console.warn("[updater] marker:", e); }
+      await Updater.applyUpdate();
+      return;
+    }
     if (info.updateAvailable) {
       await Updater.downloadUpdate();
       if (Updater.updateInfo().updateReady) announceUpdate("ready", info.version ?? "");
