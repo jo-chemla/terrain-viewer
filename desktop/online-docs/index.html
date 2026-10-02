@@ -23,7 +23,10 @@
       var path = location.pathname.replace(/^.*?\/docs\/?/, "")
       var url = "https://terrain-viewer.iconem.com/docs/" + path + location.search + location.hash
       document.getElementById("link").href = url
-      window.open(url, "_blank")
+      // The host channel first: on Windows a plain window.open pops
+      // WebView2's own window instead of the browser (src/bun/index.ts).
+      if (window.__electrobunSendToHost) window.__electrobunSendToHost({ type: "open-external", url: url })
+      else window.open(url, "_blank")
     </script>
   </body>
 </html>

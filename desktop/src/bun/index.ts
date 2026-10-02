@@ -140,10 +140,19 @@ const DOCS_SITE = "https://terrain-viewer.iconem.com/docs/";
 // Links the app opens in a new tab (target="_blank"): the docs, when bundled
 // (views://app/docs/), get their own window; anything on the web (GitHub,
 // data providers, the online docs) goes to the system browser rather than
-// replacing the map.
-mainWindow.webview.on("new-window-open", (event: unknown) => {
+// replacing the map. Two routes land here: Electrobun's "new-window-open"
+// event (macOS, Linux), and the page's own host-message "open-external"
+// (lib/desktop-bridge.ts), because on Windows the WebView2 wrapper (2.0.2)
+// has no new-window handler, so window.open there used to pop WebView2's
+// own bare window and the event never fired.
+function urlOfNewWindowEvent(event: unknown): string | undefined {
   const detail = (event as { data?: { detail?: unknown } }).data?.detail;
-  const url = typeof detail === "string" ? detail : (detail as { url?: string } | undefined)?.url;
+  if (typeof detail === "string") {
+    try { return (JSON.parse(detail) as { url?: string }).url ?? detail; } catch { return detail; }
+  }
+  return (detail as { url?: string } | undefined)?.url;
+}
+function openUrl(url: string | undefined) {
   if (!url) return;
   if (url.startsWith("views://")) {
     const docsPath = url.match(/^views:\/\/app\/docs\/?(.*)$/)?.[1];
@@ -152,22 +161,27 @@ mainWindow.webview.on("new-window-open", (event: unknown) => {
     applyWindowIcon(w);
     // Links inside the bundled docs (GitHub, data providers) go to the browser too.
     w.webview.on("new-window-open", (ev: unknown) => {
-      const d = (ev as { data?: { detail?: unknown } }).data?.detail;
-      const u = typeof d === "string" ? d : (d as { url?: string } | undefined)?.url;
+      const u = urlOfNewWindowEvent(ev);
       if (u && /^https?:/.test(u)) Utils.openExternal(u);
+    });
+    w.webview.on("host-message", (ev: unknown) => {
+      const msg = (ev as { data?: { detail?: unknown } }).data?.detail as { type?: string; url?: string } | undefined;
+      if (msg?.type === "open-external" && msg.url && /^https?:/.test(msg.url)) Utils.openExternal(msg.url);
     });
   } else if (/^https?:/.test(url)) {
     Utils.openExternal(url);
   }
-});
+}
+mainWindow.webview.on("new-window-open", (event: unknown) => openUrl(urlOfNewWindowEvent(event)));
 
 // The app's fullscreen button uses the HTML Fullscreen API, which in WebView2
 // only fills the webview; the window stays. The page reports every change
 // through __electrobunSendToHost (FullscreenControlThemed.tsx) and the
 // window follows.
 mainWindow.webview.on("host-message", (event: unknown) => {
-  const msg = (event as { data?: { detail?: unknown } }).data?.detail as { type?: string; on?: boolean } | undefined;
+  const msg = (event as { data?: { detail?: unknown } }).data?.detail as { type?: string; on?: boolean; url?: string } | undefined;
   if (msg?.type === "fullscreen") mainWindow.setFullScreen(!!msg.on);
+  if (msg?.type === "open-external") openUrl(msg.url);
   if (msg?.type === "apply-update") void Updater.applyUpdate();
   // The page has loaded (or wants a refresh): replay the latest state.
   if (msg?.type === "update-status" && lastUpdateDetail) {

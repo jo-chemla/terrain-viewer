@@ -9,7 +9,7 @@ The desktop app is the same Vite build as the website, shown in the operating sy
 
 ## Installing or running on Windows and Linux
 
-On Windows the Setup file is one self-contained `.exe` (the payload is appended to Electrobun's installer stub, the layout its Linux installer uses; Hutch itself only writes a zip with a hidden `.installer` folder beside the exe). It installs under `%LOCALAPPDATA%\com.iconem.terrain-viewer` (`-light` for the light build, so both can be installed) and adds a Start menu entry. On Linux the Setup is a self-extracting tar.gz.
+On Windows the Setup file is one self-contained `.exe` (the payload is appended to Electrobun's installer stub, the layout its Linux installer uses; Hutch itself only writes a zip with a hidden `.installer` folder beside the exe). It installs under `%LOCALAPPDATA%\com.iconem.terrain-viewer` (`-light` for the light build, so both can be installed) and adds a Start menu entry; the light build's shortcuts are named "Terrain Viewer Light" so the two installs do not overwrite each other's. Links the app opens in a new tab (the documentation, GitHub, data providers) go to the system browser: the page sends them to the main process over the host channel, because on Windows Electrobun's WebView2 wrapper has no new-window handler and a plain `window.open` would pop WebView2's own bare window. On Linux the Setup is a self-extracting tar.gz.
 
 The Portable zip needs no installation: unzip it anywhere and start `Terrain Viewer.cmd` (Windows) or `./terrain-viewer` (Linux); the program itself is `bin/launcher`, which has to stay next to `Resources/`. Nothing is written outside the folder except the webview's own profile.
 

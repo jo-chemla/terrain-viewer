@@ -108,4 +108,37 @@ export function initDesktopBridge(): void {
   const ask = () => hostSend()?.({ type: "update-status" })
   ask()
   setTimeout(ask, 3000)
+  routeNewWindowsThroughHost()
+}
+
+// On Windows, Electrobun 2.0.2's WebView2 wrapper has no handler for the
+// webview's new-window request: window.open and target="_blank" links open
+// WebView2's own bare popup window, and the main process's "new-window-open"
+// event (what sends links to the system browser, and the bundled docs to
+// their own window) never fires. So the page routes them itself over the
+// host-message channel; desktop/src/bun/index.ts opens them. Decided per
+// call, since the host channel appears with the preload.
+function routeNewWindowsThroughHost(): void {
+  const resolve = (u: unknown): string | null => {
+    if (u == null || u === "") return null
+    try { return new URL(String(u), window.location.href).href } catch { return null }
+  }
+  const openViaHost = (u: unknown): boolean => {
+    const send = hostSend()
+    const url = resolve(u)
+    if (!send || !url) return false
+    send({ type: "open-external", url })
+    return true
+  }
+  const originalOpen = window.open.bind(window)
+  window.open = ((url?: string | URL, target?: string, features?: string) => {
+    if ((!target || target === "_blank") && openViaHost(url)) return null
+    return originalOpen(url, target, features)
+  }) as typeof window.open
+  document.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey) return
+    const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null
+    if (!a || a.target !== "_blank") return
+    if (openViaHost(a.href)) e.preventDefault()
+  }, true)
 }

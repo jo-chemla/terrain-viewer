@@ -64,7 +64,11 @@ import type { ElectrobunConfig } from "electrobun";
 
 export default {
   app: {
-    name: "Terrain Viewer",
+    // The light build gets its own name too: the installer names the
+    // Desktop and Start menu shortcuts after it, so two builds with the
+    // same name overwrote each other's shortcut (and an uninstall removed
+    // the other's).
+    name: ${JSON.stringify(docsBundled ? "Terrain Viewer" : "Terrain Viewer Light")},
     identifier: ${JSON.stringify(identifier)},
     version: ${JSON.stringify(version)},
   },${release}
