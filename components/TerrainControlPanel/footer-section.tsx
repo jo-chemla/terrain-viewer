@@ -27,6 +27,12 @@ export const FooterSection: React.FC<{
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={CREDITS_MARKDOWN_COMPONENTS}>
         {CREDITS_MARKDOWN}
       </ReactMarkdown>
+      {/* Build stamp (vite.config.ts `define`): the day and the commit, with
+          the commit linking to it on GitHub, so a report can name the build. */}
+      <p className="pt-1 font-mono text-[11px]">
+        Version: {__BUILD_DATE__}{" "}
+        <a href={`https://github.com/Iconem/terrain-viewer/commit/${__BUILD_COMMIT__}`} target="_blank" rel="noopener noreferrer" className="underline">{__BUILD_COMMIT__}</a>
+      </p>
     </CollapsibleContent>
   </Collapsible>
 )

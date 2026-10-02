@@ -56,18 +56,34 @@ applyWindowIcon(mainWindow);
 // in the background and applied (the updater quits and relaunches) at the
 // following launch, so nothing interrupts a session. The light build has
 // no feed and skips this; the dev channel never reports updates.
+// Tells the page, which shows a toast with "Restart now" (lib/desktop-bridge.ts).
+function announceUpdate(status: "ready" | "error", version: string) {
+  try {
+    mainWindow.webview.executeJavascript(`window.dispatchEvent(new CustomEvent("tv-desktop-update", { detail: ${JSON.stringify({ status, version })} }))`);
+  } catch (e) {
+    console.warn("announce update:", e);
+  }
+}
 async function updateOnLaunch() {
   try {
     const local = await Updater.getLocalInfo();
-    if (!local.baseUrl || local.channel === "dev") return;
+    if (!local.baseUrl || local.channel === "dev") { console.log("[updater] no feed (baseUrl empty) or dev channel"); return; }
     const info = await Updater.checkForUpdate();
+    console.log("[updater]", JSON.stringify(info));
+    if (info.error) { announceUpdate("error", info.error); return; }
     if (info.updateReady) { await Updater.applyUpdate(); return; }
-    if (info.updateAvailable) await Updater.downloadUpdate();
+    if (info.updateAvailable) {
+      await Updater.downloadUpdate();
+      if (Updater.updateInfo().updateReady) announceUpdate("ready", info.version ?? "");
+    }
   } catch (e) {
     console.warn("update check:", e);
+    announceUpdate("error", String(e));
   }
 }
-void updateOnLaunch();
+Updater.onStatusChange((entry) => console.log("[updater]", entry.status, entry.message));
+// A beat after the window exists, so the page is there to receive the toast.
+setTimeout(() => { void updateOnLaunch(); }, 4000);
 
 // Links the app opens in a new tab (target="_blank"): the docs, when bundled
 // (views://app/docs/), get their own window; anything on the web (GitHub,
@@ -91,4 +107,5 @@ mainWindow.webview.on("new-window-open", (event: unknown) => {
 mainWindow.webview.on("host-message", (event: unknown) => {
   const msg = (event as { data?: { detail?: unknown } }).data?.detail as { type?: string; on?: boolean } | undefined;
   if (msg?.type === "fullscreen") mainWindow.setFullScreen(!!msg.on);
+  if (msg?.type === "apply-update") void Updater.applyUpdate();
 });

@@ -15,7 +15,7 @@ The Portable zip needs no installation: unzip it anywhere and start `Terrain Vie
 
 ## Updates
 
-The full build checks the rolling release at every launch: `stable-<platform>-update.json` and the matching `.tar.zst` are uploaded next to the installers, and Electrobun's updater (`release.baseUrl` in the generated config) downloads a newer build in the background and installs it at the following launch, quitting and relaunching through its update helper. The light build has no feed and is replaced by downloading it again; so is the Portable folder, which the updater never touches (it only knows the installed copy).
+The full build checks the rolling release at every launch: `stable-<platform>-update.json` and the matching `.tar.zst` are uploaded next to the installers, and Electrobun's updater (`release.baseUrl` in the generated config) downloads a newer build in the background, shows a toast with **Restart now** once it is ready, and otherwise installs it at the following launch, quitting and relaunching through its update helper. Builds made before 2026-10-02 have no feed address baked in and never update: install the current one once. The About section at the bottom of the sidebar shows the build day and commit. The light build has no feed and is replaced by downloading it again; so is the Portable folder, which the updater never touches (it only knows the installed copy).
 
 ## Opening the macOS build
 

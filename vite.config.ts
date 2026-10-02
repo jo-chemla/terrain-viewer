@@ -4,8 +4,19 @@ import tailwindcss from "@tailwindcss/vite"
 import { devtools } from '@tanstack/devtools-vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { fileURLToPath, URL } from "url"
+import { execSync } from "child_process"
+
+// Build stamp for the About section: the commit and the build day. The
+// commit comes from git at build time (CI checks the repo out), "dev" when
+// git is not there.
+const buildCommit = (() => { try { return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim() } catch { return "dev" } })()
+const buildDate = new Date().toISOString().slice(0, 10)
 
 export default defineConfig({
+  define: {
+    __BUILD_COMMIT__: JSON.stringify(buildCommit),
+    __BUILD_DATE__: JSON.stringify(buildDate),
+  },
   plugins: [
     devtools({
       // Fixed port, so two dev servers started from this repo at once (a git

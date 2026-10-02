@@ -17,6 +17,9 @@ import ReactDOM from "react-dom/client"
 import { NuqsAdapter } from "nuqs/adapters/react"
 import App from "./App"
 import "./index.css"
+import { initDesktopBridge } from "@/lib/desktop-bridge"
+
+initDesktopBridge()
 // Imported AFTER index.css so the [data-theme="…"] preset blocks (tweakcn color
 // presets, picked from Settings > Appearance) win over :root/.dark by source order.
 import "./styles/themes/index.css"
