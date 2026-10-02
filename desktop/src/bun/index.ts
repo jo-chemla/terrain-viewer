@@ -102,6 +102,14 @@ Updater.onStatusChange((entry) => console.log("[updater]", entry.status, entry.m
 // A beat after the window exists, so the page is there to receive the toast.
 setTimeout(() => { void updateOnLaunch(); }, 4000);
 
+// The light build ships no docs: its identifier ends in "-light"
+// (desktop/gen-config.mjs), and views://app/docs/ holds only a stand-in.
+// Read once from the bundle's own version.json.
+const docsOnline = (() => {
+  try { return String(JSON.parse(readFileSync(join(dirname(process.execPath), "..", "Resources", "version.json"), "utf8")).identifier ?? "").endsWith("-light"); } catch { return false; }
+})();
+const DOCS_SITE = "https://terrain-viewer.iconem.com/docs/";
+
 // Links the app opens in a new tab (target="_blank"): the docs, when bundled
 // (views://app/docs/), get their own window; anything on the web (GitHub,
 // data providers, the online docs) goes to the system browser rather than
@@ -111,7 +119,16 @@ mainWindow.webview.on("new-window-open", (event: unknown) => {
   const url = typeof detail === "string" ? detail : (detail as { url?: string } | undefined)?.url;
   if (!url) return;
   if (url.startsWith("views://")) {
-    applyWindowIcon(new BrowserWindow({ title: "Terrain Viewer docs", url, frame: { width: 1100, height: 800, x: 140, y: 100 } }));
+    const docsPath = url.match(/^views:\/\/app\/docs\/?(.*)$/)?.[1];
+    if (docsOnline && docsPath !== undefined) { Utils.openExternal(DOCS_SITE + docsPath); return; }
+    const w = new BrowserWindow({ title: "Terrain Viewer docs", url, frame: { width: 1100, height: 800, x: 140, y: 100 } });
+    applyWindowIcon(w);
+    // Links inside the bundled docs (GitHub, data providers) go to the browser too.
+    w.webview.on("new-window-open", (ev: unknown) => {
+      const d = (ev as { data?: { detail?: unknown } }).data?.detail;
+      const u = typeof d === "string" ? d : (d as { url?: string } | undefined)?.url;
+      if (u && /^https?:/.test(u)) Utils.openExternal(u);
+    });
   } else if (/^https?:/.test(url)) {
     Utils.openExternal(url);
   }

@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Plus, Edit, Library, Crosshair } from "lucide-react"
-import { georefImageAtom, georefEditingIdAtom, georefActiveAtom } from "@/lib/settings-atoms"
+import { georefImageAtom, georefEditingIdAtom, georefActiveAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { sectionOpenAtom } from "./TerrainControlPanel"
 import { pushToast } from "@/components/ui/toast"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -228,6 +228,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // Sends a saved picture back to Tools > Georeference Image with its points,
   // so they can be moved and the overlay updated in place.
   const setCustomTerrainSources = useSetAtom(customTerrainSourcesAtom)
+  const activeView = useAtomValue(activeViewAtom)
   const setGeorefImage = useSetAtom(georefImageAtom)
   const [georefEditingId, setGeorefEditingId] = useAtom(georefEditingIdAtom)
   const setGeorefActive = useSetAtom(georefActiveAtom)
@@ -381,6 +382,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                       isActive={(side: ViewId) => overlayIdsOf(side).includes(source.id)}
                       onSelect={(side: ViewId) => toggleOverlaySide(side, source.id)}
                       allowUnpress
+                      onlySide={activeView}
                     />
                   ) : (
                   <Checkbox

@@ -18,7 +18,7 @@ import { useToast } from "@/components/ui/toast"
 import type { LucideIcon } from "lucide-react"
 import { atom, useAtom, useSetAtom } from "jotai"
 import { cn } from "@/lib/utils"
-import { activeSliderAtom, transparentUiAtom, vizActivationAtom, revealSectionAtom } from "@/lib/settings-atoms"
+import { activeSliderAtom, transparentUiAtom, vizActivationAtom, revealSectionAtom , activeViewAtom } from "@/lib/settings-atoms"
 import { GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 
 
@@ -475,7 +475,20 @@ export const SourceGridToggle: React.FC<{
   /** Radio behaviour by default (a basemap cannot be unselected, only
    *  replaced); overlays are a set, so their toggle also fires on unpress. */
   allowUnpress?: boolean
-}> = ({ gridLayout, isActive, onSelect, disabled, allowUnpress }) => (
+  /** A selected view (activeViewAtom): the grid collapses to that view's
+   *  one button, so the mode is switched for it alone. */
+  onlySide?: ViewId | null
+}> = ({ gridLayout, isActive, onSelect, disabled, allowUnpress, onlySide }) => onlySide ? (
+  <Toggle
+    pressed={isActive(onlySide)}
+    onPressedChange={(pressed) => { if (pressed || allowUnpress) onSelect(onlySide) }}
+    disabled={disabled}
+    title={`View ${onlySide} only (selected through its pill)`}
+    className="h-6 min-w-6 px-1.5 rounded-md border text-[11px] font-bold leading-none cursor-pointer data-pressed:bg-primary data-pressed:text-primary-foreground"
+  >
+    {onlySide}
+  </Toggle>
+) : (
   <div className="flex flex-col border shrink-0 overflow-hidden rounded-md divide-y divide-border">
     {GRID_LAYOUTS[gridLayout].grid.map((row, rowIdx) => (
       <div key={rowIdx} className="flex divide-x divide-border">
@@ -625,6 +638,7 @@ export const CheckboxWithSlider: React.FC<{
   perView?: { gridLayout: GridLayoutId; isActive: (side: ViewId) => boolean; onSelect: (side: ViewId) => void; onAll: () => void }
 }> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip, gotoSection, perView }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
+  const [activeView] = useAtom(activeViewAtom)
   const sectionId = useContext(SectionIdContext)
   const fullId = `${sectionId}:${id}`
   const isDimmed = activeSlider !== null && activeSlider !== fullId
@@ -636,7 +650,7 @@ export const CheckboxWithSlider: React.FC<{
   return (
     <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
       {perView
-        ? <SourceGridToggle gridLayout={perView.gridLayout} isActive={perView.isActive} onSelect={perView.onSelect} disabled={disabled} allowUnpress />
+        ? <SourceGridToggle gridLayout={perView.gridLayout} isActive={perView.isActive} onSelect={perView.onSelect} disabled={disabled} allowUnpress onlySide={activeView} />
         : <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />}
       {tooltip ? (
         <Tooltip>

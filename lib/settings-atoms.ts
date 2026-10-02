@@ -1,5 +1,6 @@
 import { atomWithStorage } from "jotai/utils"
 import { atom } from "jotai"
+import type { ViewId } from "./grid-layouts"
 import type { ProjectConfig } from "./project-config"
 
 // Builds a PrimitiveAtom<boolean>-shaped view (same [value, SetStateAction]
@@ -106,6 +107,10 @@ export const sunShadowModeAtom = atom<"forward" | "reverse">("forward")
 // (georefImage, georefGcps in TerrainViewer's query state).
 export interface GeorefImage { url: string; width: number; height: number; name: string; fromDisk: boolean }
 export const georefImageAtom = atom<GeorefImage | null>(null)
+/** The view selected through its pill in a split layout (null: none). While
+ *  one is selected, every per-view mode toggle collapses to that view's
+ *  single button (lib/viz-views.ts, SourceGridToggle onlySide). */
+export const activeViewAtom = atom<ViewId | null>(null)
 export const georefActiveAtom = atom(false)
 /** The saved overlay being re-georeferenced, so Save updates it instead of adding another. */
 export const georefEditingIdAtom = atom<string | null>(null)

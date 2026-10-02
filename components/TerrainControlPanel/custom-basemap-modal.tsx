@@ -576,7 +576,7 @@ export const CustomBasemapModal: React.FC<{
                       onValueChange={(value) => value && setLinkedTerrainId(value === "none" ? "" : value)}
                       items={{ none: "None", ...Object.fromEntries(customTerrainSources.map((t) => [t.id, t.name])) }}
                     >
-                      <SelectTrigger id="basemap-linked-terrain" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="basemap-linked-terrain" className="cursor-pointer w-full min-w-0 [&>span]:truncate"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>
                         {customTerrainSources.map((t) => (

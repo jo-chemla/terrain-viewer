@@ -24,7 +24,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -2331,6 +2331,9 @@ export function TerrainViewer() {
   // when nothing has been touched.
   const lastInteractedViewRef = useRef<ViewId>("A")
   const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
+  const [activeView, setActiveView] = useAtom(activeViewAtom)
+  // A view that leaves the layout cannot stay selected.
+  useEffect(() => { if (activeView && !activeViewIds.includes(activeView)) setActiveView(null) }, [activeView, activeViewIds, setActiveView])
   // Dev-only handle for poking the live maps and state from the console or
   // an automated browser (window.__tv): the agent preview cannot render a
   // style, but map instances and state exist, so constraints can be checked.
@@ -4528,8 +4531,17 @@ export function TerrainViewer() {
     // are stripped from snapshots (data-snapshot-plain / data-snapshot-ignore,
     // see captureMapScreenshot).
     const label = baseLabel
-    const selectable = isSplit && historicalTimelineVisible && !!state.basemapPerView
-    const selected = selectable && timelineActiveSide === pane.side
+    // Any split: a pill click selects the view (bold, a touch larger), a
+    // second click deselects. With a view selected, per-view mode toggles
+    // in the sidebar collapse to that view's single button. In historical
+    // mode the click also arms the timeline's arrow keys for the view.
+    const timelineSelectable = isSplit && historicalTimelineVisible && !!state.basemapPerView
+    const selectable = isSplit
+    const selected = (timelineSelectable && timelineActiveSide === pane.side) || activeView === pane.side
+    const onPillClick = () => {
+      if (timelineSelectable) setTimelineActiveSide(pane.side)
+      setActiveView((cur) => (cur === pane.side ? null : pane.side))
+    }
     const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : "0.5rem"
     // The rightmost column's own pane DOM box intentionally extends under the
     // floating sidebar (see paneLayouts/mapPaddingFor above) so its VISIBLE
@@ -4586,13 +4598,13 @@ export function TerrainViewer() {
           <Tooltip>
             <TooltipTrigger
               render={
-                <span data-snapshot-plain data-timeline-side-select="" onClick={() => setTimelineActiveSide(pane.side)} className={cn("cursor-pointer", selected && "font-bold")}>
+                <span data-snapshot-plain data-timeline-side-select="" onClick={onPillClick} className={cn("cursor-pointer", selected && "font-bold text-[1.08em]")}>
                   {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
                   {label}{distinctModesSuffix(pane.side)}
                 </span>
               }
             />
-            <TooltipContent><p>Click to make the timeline's arrow keys act on this view</p></TooltipContent>
+            <TooltipContent><p>{activeView === pane.side ? "Selected: per-view mode toggles act on this view. Click again to deselect." : timelineSelectable ? "Click to select this view: per-view mode toggles and the timeline's arrow keys act on it" : "Click to select this view: per-view mode toggles act on it alone"}</p></TooltipContent>
           </Tooltip>
         ) : (
           <span data-snapshot-plain className={cn(selected && "font-bold")}>

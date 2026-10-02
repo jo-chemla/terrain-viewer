@@ -648,11 +648,11 @@ export const CustomTerrainSourceModal: React.FC<{
                       onValueChange={(value) => value && setLinkedBasemapId(value === "none" ? "" : value)}
                       items={{ none: "None", ...Object.fromEntries(customBasemapSources.map((b) => [b.id, b.name])) }}
                     >
-                      <SelectTrigger id="source-linked-basemap" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="source-linked-basemap" className="cursor-pointer w-full min-w-0 [&>span]:truncate"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>
                         {customBasemapSources.map((b) => (
-                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                          <SelectItem key={b.id} value={b.id} className="max-w-[28rem] [&>span]:truncate">{b.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

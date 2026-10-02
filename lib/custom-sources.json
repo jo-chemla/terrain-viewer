@@ -886,6 +886,25 @@
             "infoUrl": "https://impasto.dev/almond-blossom"
         },
         {
+            "id": "custom-art-impasto-almond-blossom-height-localproxy",
+            "name": "ART - Impasto: Almond Blossom height, through a local CORS proxy (dev: node scripts/cors-proxy.mjs) - PMTiles",
+            "url": "pmtiles://http://localhost:5209/https://tiles.larsmaxfield.com/paintings/almond-blossom/20250107-1604/20250520_153658/height.pmtiles/{z}/{x}/{y}",
+            "type": "terrainrgb",
+            "loadWithSamples": false,
+            "minzoom": 0,
+            "maxzoom": 5,
+            "tileSize": 1024,
+            "redFactor": 65536,
+            "greenFactor": 256,
+            "blueFactor": 1,
+            "baseShift": 0,
+            "bounds": [-180, -85.0511, 180, 85.0511],
+            "linkedBasemapId": "custom-art-impasto-almond-blossom-rgb-localproxy",
+            "description": "The Almond Blossom height scan read through the repository's local CORS proxy (run `node scripts/cors-proxy.mjs`, port 5209) because the host allows impasto.dev only. For testing on your own machine; see the entry without 'localproxy' for the data.",
+            "resolutionM": 0.0000078,
+            "infoUrl": "https://impasto.dev/almond-blossom"
+        },
+        {
             "id": "custom-openwaters-seascape",
             "name": "Global - Open Waters Seascape Bathymetry - Terrarium",
             "url": "https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp",
@@ -1404,6 +1423,17 @@
             "loadWithSamples": false,
             "linkedTerrainId": "custom-art-impasto-almond-blossom-height",
             "description": "The colour scan that goes with the Almond Blossom height scan: 1024 px PNG tiles in one PMTiles archive, z0-5, over the whole world (fake-geo). Same CORS caveat as the height archive: the host allows impasto.dev only.",
+            "infoUrl": "https://impasto.dev/almond-blossom"
+        },
+        {
+            "id": "custom-art-impasto-almond-blossom-rgb-localproxy",
+            "name": "ART - Impasto: Almond Blossom colour, through a local CORS proxy (dev) - PMTiles",
+            "url": "pmtiles://http://localhost:5209/https://tiles.larsmaxfield.com/paintings/almond-blossom/20250107-1604/20250520_153658/rgb.pmtiles/{z}/{x}/{y}",
+            "type": "tms",
+            "maxzoom": 5,
+            "loadWithSamples": false,
+            "linkedTerrainId": "custom-art-impasto-almond-blossom-height-localproxy",
+            "description": "The Almond Blossom colour scan through the local CORS proxy (node scripts/cors-proxy.mjs). Testing only.",
             "infoUrl": "https://impasto.dev/almond-blossom"
         },
         {
