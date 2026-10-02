@@ -228,12 +228,18 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // Sends a saved picture back to Tools > Georeference Image with its points,
   // so they can be moved and the overlay updated in place.
   const setGeorefImage = useSetAtom(georefImageAtom)
-  const setGeorefEditingId = useSetAtom(georefEditingIdAtom)
+  const [georefEditingId, setGeorefEditingId] = useAtom(georefEditingIdAtom)
   const setGeorefActive = useSetAtom(georefActiveAtom)
   const setSectionOpen = useSetAtom(sectionOpenAtom)
   const reopenGeoref = useCallback((source: CustomBasemapSource) => {
     const g = source.georef
     if (!g) return
+    // Already open on this overlay: the same button closes the tool.
+    if (georefEditingId === source.id) {
+      setGeorefImage(null); setGeorefEditingId(null); setGeorefActive(false)
+      setState({ georefGcps: "", georefImage: "" })
+      return
+    }
     const url = source.type === "image-local" ? resolveLocalFileUrl(localFileId(source.url)) : source.url
     if (!url) { pushToast({ key: "georef", title: "The picture is not available in this session", body: "Re-select its file first (the row offers it)." }); return }
     setGeorefImage({ url, width: g.width, height: g.height, name: source.name, fromDisk: source.type === "image-local" })
@@ -241,7 +247,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     setGeorefActive(true)
     setState({ georefBeta: true, georefGcps: g.gcps, georefType: g.type, georefImage: source.type === "image" ? source.url : "", showGeoref: true })
     setSectionOpen((prev: any) => ({ ...prev, georef: true }))
-  }, [setGeorefImage, setGeorefEditingId, setGeorefActive, setSectionOpen, setState])
+  }, [georefEditingId, setGeorefImage, setGeorefEditingId, setGeorefActive, setSectionOpen, setState])
 
   const handleToggleOverlay = useCallback((id: string, checked: boolean) => {
     const current: string[] = state.overlayBasemapIds || []
@@ -371,7 +377,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
                     onSelect={(id) => handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
                     extraActions={(source.type === "image" || source.type === "image-local") && source.georef ? (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" title="Edit the control points in Tools > Image Georeferencer" onClick={() => reopenGeoref(source)}>
+                      <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
                         <Crosshair className="h-4 w-4" />
                       </Button>
                     ) : undefined}

@@ -113,7 +113,19 @@ export const HypsometricTintOptionsSection: React.FC<{
   // picked, or land on a tab-less category so nothing was highlighted and
   // the list showed hidden ramps. Keep the current tab whenever it holds the
   // ramp; otherwise pick the first TAB category that does.
+  // A tab the user just clicked. The tab (a jotai atom) and the ramp (nuqs
+  // URL state) commit in separate renders, so right after a click this
+  // effect can see the new tab with the old ramp, or the old tab with the
+  // new ramp, and either way "derive the tab from the ramp" sent Topo back
+  // to Top Qgs (the two share most names). While a click is settling the
+  // effect does nothing; the derivation is only for a ramp arriving from
+  // outside (a shared link) that the current tab does not hold.
+  const tabClickRef = useRef<string | null>(null)
   useEffect(() => {
+    if (tabClickRef.current) {
+      if (colorRampType === tabClickRef.current && colorRamps[colorRampType]?.[state.colorRamp]) tabClickRef.current = null
+      return
+    }
     // The stored tab may be a tab-less category from before (topcpt, topsvg):
     // keeping it would leave no tab highlighted, so it never counts as held.
     const hasTab = (RAMP_TAB_CATEGORIES as readonly string[]).includes(colorRampType)
@@ -464,6 +476,7 @@ export const HypsometricTintOptionsSection: React.FC<{
           value={colorRampType}
           onValueChange={(value) => {
             if (value) {
+              tabClickRef.current = value
               setColorRampType(value)
               const filteredNow = filterColorRamps(colorRamps, value, licenseFilter)
               // The new tab keeps the current ramp when it has one by that

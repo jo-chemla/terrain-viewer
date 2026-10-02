@@ -11,7 +11,9 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { GripHorizontal, X } from "lucide-react"
+import { GripHorizontal, X, ChevronDown } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
 import * as maplibregl from "maplibre-gl"
@@ -68,6 +70,7 @@ export const GeorefSection: React.FC<{
   const activeDrawMode = useAtomValue(activeDrawModeAtom)
   const drawModeActive = activeDrawMode !== "select"
   const [urlInput, setUrlInput] = useState("")
+  const [urlDialogOpen, setUrlDialogOpen] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   // The two point lists, paired by index. Only complete pairs go to the URL.
   const [imagePts, setImagePts] = useState<ImagePt[]>([])
@@ -165,6 +168,19 @@ export const GeorefSection: React.FC<{
     setMapPts((p) => p.filter((_, k) => k !== i))
     setSelected(null)
   }, [])
+  // Delete / Backspace removes the selected pair on both sides.
+  useEffect(() => {
+    if (selected == null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      e.preventDefault()
+      removePair(selected)
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [selected, removePair])
 
   // Keeps the result as a basemap overlay (Basemap > Bring Your Own Data,
   // overlay list), the way a local COG or a WMS is kept: in the custom
@@ -232,10 +248,13 @@ export const GeorefSection: React.FC<{
       const size = selected === i ? 28 : 18
       const complete = i < imagePts.length
       el.textContent = String(i + 1)
-      el.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;background:${complete ? MARKER_COLOR : "rgba(245,158,11,.35)"};color:#111;font:700 ${selected === i ? 14 : 11}px/${size}px system-ui,sans-serif;text-align:center;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4);cursor:grab`
+      el.style.cssText = `display:flex;align-items:center;justify-content:center;line-height:1;width:${size}px;height:${size}px;border-radius:50%;background:${complete ? MARKER_COLOR : "rgba(245,158,11,.35)"};color:#111;font:700 ${selected === i ? 14 : 11}px system-ui,sans-serif;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4);cursor:crosshair`
       el.title = `Point ${i + 1}: drag to move, click to select`
       const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([p.lng, p.lat]).addTo(map)
+      // Hidden while dragged, so the crosshair lands on the spot itself.
+      marker.on("dragstart", () => { el.style.opacity = "0" })
       marker.on("dragend", () => {
+        el.style.opacity = "1"
         const ll = marker.getLngLat()
         setMapPts((prev) => prev.map((q, k) => (k === i ? { lng: ll.lng, lat: ll.lat } : q)))
       })
@@ -274,14 +293,31 @@ export const GeorefSection: React.FC<{
           <p className="text-xs text-muted-foreground">
             Place a plain image (a figure, a scan, a plan) on the map: click matching spots on the image and on the map, two or more pairs, in any order.
           </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => fileInputRef.current?.click()}>Open image…</Button>
+          <div className="flex">
+            <Button variant="outline" size="sm" className="cursor-pointer rounded-r-none" onClick={() => fileInputRef.current?.click()}>Open image…</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="cursor-pointer rounded-l-none border-l-0 px-1.5" aria-label="More ways to open an image" />}>
+                <ChevronDown className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem className="cursor-pointer" onClick={() => fileInputRef.current?.click()}>From disk…</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => setUrlDialogOpen(true)}>From a URL…</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = "" }} />
           </div>
-          <div className="flex gap-2">
-            <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://…/figure.png" className="h-8 text-xs" />
-            <Button variant="outline" size="sm" className="cursor-pointer" disabled={!urlInput.trim()} onClick={() => void loadFromUrl(urlInput.trim(), false, urlInput.trim().split("/").pop() ?? "image")}>Load</Button>
-          </div>
+          <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Open an image from a URL</DialogTitle>
+                <DialogDescription>A PNG, JPEG or WebP the server lets other sites read (CORS). The link to the result will carry this URL.</DialogDescription>
+              </DialogHeader>
+              <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); const u = urlInput.trim(); if (!u) return; setUrlDialogOpen(false); void loadFromUrl(u, false, u.split("/").pop() ?? "image") }}>
+                <Input autoFocus value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://…/figure.png" className="h-8 text-xs" />
+                <Button type="submit" size="sm" className="cursor-pointer" disabled={!urlInput.trim()}>Load</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
           {loadError && <p className="text-xs text-destructive">{loadError}</p>}
         </div>
       ) : (
@@ -318,13 +354,15 @@ export const GeorefSection: React.FC<{
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
 
           <div className="space-y-1">
-            <Label className="text-xs">Transform</Label>
-            <Select value={type} onValueChange={(v) => v && setState({ georefType: v })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {GEOREF_TYPES.map((t) => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Label className="shrink-0 text-xs">Transform</Label>
+              <Select value={type} onValueChange={(v) => v && setState({ georefType: v })}>
+                <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {GEOREF_TYPES.map((t) => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <p className="text-[11px] text-muted-foreground">{GEOREF_TYPES.find((t) => t.value === type)?.hint}</p>
           </div>
 
@@ -340,7 +378,7 @@ export const GeorefSection: React.FC<{
                   const isSel = selected === i
                   return (
                     <li key={i} className={`flex cursor-pointer items-center gap-2 rounded px-1 ${isSel ? "bg-muted" : "hover:bg-muted/50"}`} onClick={() => setSelected(isSel ? null : i)} title="Click to highlight this point on the image and the map">
-                      <span className="inline-block h-4 w-4 rounded-full text-center text-[10px] font-bold leading-4 text-black" style={{ background: ip && mp ? MARKER_COLOR : "rgba(245,158,11,.35)" }}>{i + 1}</span>
+                      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold leading-none text-black" style={{ background: ip && mp ? MARKER_COLOR : "rgba(245,158,11,.35)" }}>{i + 1}</span>
                       <span className="truncate text-muted-foreground">{ip ? `${Math.round(ip.px)},${Math.round(ip.py)}` : "image?"} → {mp ? `${mp.lat.toFixed(5)}, ${mp.lng.toFixed(5)}` : "map?"}</span>
                       <span className="ml-auto tabular-nums">{fit && i < fit.residualsM.length ? fmtM(fit.residualsM[i]) : ""}</span>
                       <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground" title="Remove this pair" onClick={(e) => { e.stopPropagation(); removePair(i) }}>×</button>
@@ -395,6 +433,8 @@ const GeorefImagePane: React.FC<{
   const viewRef = useRef(view); viewRef.current = view
   const dragRef = useRef<{ x: number; y: number; tx: number; ty: number; moved: boolean } | null>(null)
   const markDragRef = useRef<{ i: number; moved: boolean } | null>(null)
+  // The mark being dragged is hidden, so the crosshair lands on the spot.
+  const [dragging, setDragging] = useState<number | null>(null)
 
   // Fit the whole image on first show, when the image changes, and when the
   // window is resized (the pane fills whatever holds it).
@@ -449,6 +489,7 @@ const GeorefImagePane: React.FC<{
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     const md = markDragRef.current
     if (md) {
+      if (!md.moved) setDragging(md.i)
       md.moved = true
       const { px, py } = toImage(e.clientX, e.clientY)
       onMove(md.i, Math.min(Math.max(px, 0), image.width), Math.min(Math.max(py, 0), image.height))
@@ -462,7 +503,7 @@ const GeorefImagePane: React.FC<{
   }, [image, onMove])
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     const md = markDragRef.current
-    if (md) { markDragRef.current = null; if (!md.moved) onSelect(selected === md.i ? null : md.i); return }
+    if (md) { markDragRef.current = null; setDragging(null); if (!md.moved) onSelect(selected === md.i ? null : md.i); return }
     const d = dragRef.current
     dragRef.current = null
     if (!d || d.moved || !paneRef.current) return
@@ -494,8 +535,8 @@ const GeorefImagePane: React.FC<{
         return (
           <div
             key={i}
-            className="absolute flex -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-white font-bold text-black shadow"
-            style={{ left: m.px * view.scale + view.tx, top: m.py * view.scale + view.ty, width: size, height: size, fontSize: selected === i ? 14 : 11, background: i < mapCount ? MARKER_COLOR : "rgba(245,158,11,.35)" }}
+            className="absolute flex -translate-x-1/2 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full border-2 border-white font-bold leading-none text-black shadow"
+            style={{ left: m.px * view.scale + view.tx, top: m.py * view.scale + view.ty, width: size, height: size, fontSize: selected === i ? 14 : 11, background: i < mapCount ? MARKER_COLOR : "rgba(245,158,11,.35)", opacity: dragging === i ? 0 : 1 }}
             title={`Point ${i + 1}: drag to move, click to select`}
             onPointerDown={(e) => { e.stopPropagation(); markDragRef.current = { i, moved: false }; (paneRef.current as HTMLElement).setPointerCapture(e.pointerId) }}
           >{i + 1}</div>
