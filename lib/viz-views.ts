@@ -5,8 +5,8 @@
 // listed is drawn on every view; a key listed with no views is off there
 // (the mode's own switch then reads as off). The sidebar replaces each
 // mode's checkbox with the view-grid toggle (SourceGridToggle) while sync is
-// off and a split layout is on. Tells, contours and graticules stay on view
-// A: they are primary-only layers.
+// off and a split layout is on. Tells stay on view A (their inspect popup,
+// frozen snapshot and export are built around the primary map).
 import { activeViews, type GridLayoutId, type ViewId } from "./grid-layouts"
 
 export type VizViews = Record<string, ViewId[]>
@@ -19,6 +19,30 @@ export const VIZ_GROUP_OF: Record<string, string> = {
   showEigenRatio: "showTerrainAnalysis", showOrientation: "showTerrainAnalysis",
   showLrm: "showReliefVisualization", showSvf: "showReliefVisualization", showOpenness: "showReliefVisualization", showLocalDominance: "showReliefVisualization",
   showPhong: "showLightingEffects", showMatcap: "showLightingEffects", showShadows: "showLightingEffects",
+}
+
+/** Short names for the pill under each view. Groups are not listed: their
+ *  submodes are. */
+export const VIZ_MODE_LABELS: Record<string, string> = {
+  showHillshade: "Hillshade", showColorRelief: "Hypso", showRasterBasemap: "Basemap", showContoursAndGraticules: "Contours", backgroundLayerActive: "Background",
+  showSlope: "Slope", showAspect: "Aspect", showTri: "TRI", showCurvature: "Curvature", showTpi: "TPI", showRoughness: "Roughness",
+  showShapeIndex: "Shape index", showBlobness: "Blobness", showEigenRatio: "Eigen ratio", showOrientation: "Orientation",
+  showLrm: "LRM", showSvf: "SVF", showOpenness: "Openness", showLocalDominance: "Local dominance",
+  showPhong: "Phong", showMatcap: "Matcap", showShadows: "Shadows",
+}
+
+/** The modes `side` draws that some other active view does not. */
+export function distinctModeLabels(state: Record<string, any>, side: ViewId, views: ViewId[]): string[] {
+  const v = parseVizViews(state.vizViews || "")
+  const drawn = (key: string, s: ViewId) => {
+    if (!state[key]) return false
+    const group = VIZ_GROUP_OF[key]
+    if (group && !(state[group] && viewDrawsMode(v, group, s))) return false
+    return viewDrawsMode(v, key, s)
+  }
+  return Object.entries(VIZ_MODE_LABELS)
+    .filter(([key]) => drawn(key, side) && views.some((s) => s !== side && !drawn(key, s)))
+    .map(([, label]) => label)
 }
 
 export function parseVizViews(s: string): VizViews {

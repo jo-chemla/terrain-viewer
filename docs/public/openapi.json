@@ -1350,6 +1350,89 @@
             }
           },
           {
+            "name": "phongLightCount",
+            "in": "query",
+            "required": false,
+            "description": "State. Up to three Phong lights (live renderer): light 1 is the app light (illuminationDir/Alt) with its own colour; lights 2 and 3 have their own direction and colour and only affect Phong.",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "phongLight1Color",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#ffffff"
+            }
+          },
+          {
+            "name": "phongLight2Dir",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 45
+            }
+          },
+          {
+            "name": "phongLight2Alt",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 35
+            }
+          },
+          {
+            "name": "phongLight2Color",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#4a90d9"
+            }
+          },
+          {
+            "name": "phongLight3Dir",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 135
+            }
+          },
+          {
+            "name": "phongLight3Alt",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 35
+            }
+          },
+          {
+            "name": "phongLight3Color",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "format": "color",
+              "default": "#b8692e"
+            }
+          },
+          {
             "name": "phongRenderer",
             "in": "query",
             "required": false,

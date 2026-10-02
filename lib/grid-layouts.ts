@@ -157,17 +157,49 @@ const PER_VIEW_BASES: PerViewBase[] = ["basemapSource", "date", "historicalActiv
  *  nothing per-view to move. Everything is read before anything is written. */
 export function permuteViewsUpdates(state: Record<string, any>, from: ViewId[], to: ViewId[]): Record<string, unknown> {
   const perView = !!state.basemapPerView
+  const overlayField = (side: ViewId) => (side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`)
   const contents = from.map((side) => ({
     source: state[sourceFieldName(side)],
     bases: perView ? PER_VIEW_BASES.map((b) => state[viewFieldName(side, b, true)]) : null,
+    overlays: perView ? (state[overlayField(side)] ?? []) : null,
   }))
   const updates: Record<string, unknown> = {}
   to.forEach((side, i) => {
     if (side === from[i]) return
     updates[sourceFieldName(side)] = contents[i].source
     contents[i].bases?.forEach((v, j) => { updates[viewFieldName(side, PER_VIEW_BASES[j], true)] = v })
+    if (contents[i].overlays) updates[overlayField(side)] = contents[i].overlays
   })
+  // Per-view visualization modes (lib/viz-views.ts, "showSlope:AC;..."):
+  // the letters move with the views.
+  if (typeof state.vizViews === "string" && state.vizViews) {
+    const map: Partial<Record<ViewId, ViewId>> = {}
+    from.forEach((f, i) => { map[f] = to[i] })
+    const order = VIEW_IDS
+    updates.vizViews = state.vizViews.split(";").map((part: string) => {
+      const [key, views = ""] = part.split(":")
+      const moved = views.split("").map((c) => map[c as ViewId] ?? c)
+      return `${key}:${order.filter((v) => moved.includes(v)).join("")}`
+    }).join(";")
+  }
   return updates
+}
+
+/** With no split on screen, a source picked for "the" view is put on every
+ *  view, so a later split or grid does not open views still on the old
+ *  source. A patch with sourceA fans out to sourceA..H; one with
+ *  basemapSource / basemapSourceA fans out to the single field and every
+ *  per-view field. In a split the patch is left alone. */
+export function fanOutWhenSingle(state: Record<string, any>, patch: Record<string, any>): Record<string, any> {
+  if (state.splitStyle && state.splitStyle !== "off") return patch
+  const out = { ...patch }
+  if ("sourceA" in patch) for (const side of VIEW_IDS) out[sourceFieldName(side)] = patch.sourceA
+  const basemap = patch.basemapSourceA ?? patch.basemapSource
+  if (basemap !== undefined) {
+    out.basemapSource = basemap
+    for (const side of VIEW_IDS) out[viewFieldName(side, "basemapSource", true)] = basemap
+  }
+  return out
 }
 
 /** Terrain source has no shared/unsuffixed variant at all (unlike basemap) —

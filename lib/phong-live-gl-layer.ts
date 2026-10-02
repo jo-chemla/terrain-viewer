@@ -217,6 +217,12 @@ export type PhongLiveOptions = {
    *  gesture, not just after it settles. Absolute mode (false) leaves the
    *  light pinned to compass directions, unaffected by camera orientation. */
   lightRelativeToCamera: boolean
+  /** Light 1's colour, linear-ish RGB 0..1 (white = the classic grey shading). */
+  lightColor?: [number, number, number]
+  /** Lights 2 and 3: same azimuth/altitude conventions as lightDir/lightAlt
+   *  (camera-relative too when that flag is on), each with a colour. Their
+   *  diffuse adds per channel, so a slope lit by one of them takes its hue. */
+  extraLights?: { dir: number; alt: number; color: [number, number, number] }[]
   diffuseStrength: number
   specularStrength: number
   exaggeration: number
@@ -348,7 +354,9 @@ vec3 demNormal(vec2 uv, float exaggeration) {
 const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec2 v_uv;
-uniform vec3 u_lightDir;
+uniform vec3 u_lightDir[3];
+uniform vec3 u_lightColor[3];
+uniform int u_lightCount;
 uniform float u_diffuseStrength;
 uniform float u_specularStrength;
 uniform float u_exaggeration;
@@ -362,11 +370,21 @@ const float SHININESS = 32.0;
 void main() {
   vec3 n = demNormal(v_uv, u_exaggeration);
 
-  vec3 L = u_lightDir;
   vec3 V = vec3(0.0, 0.0, 1.0);
-  vec3 H = normalize(L + V);
-
-  float diffuse = u_diffuseStrength * max(dot(n, L), 0.0);
+  // Up to three lights, each with a colour: the diffuse terms add per
+  // channel and are averaged so a slope every light reaches stays at the
+  // single-light maximum; specular is averaged the same way.
+  vec3 diffuseRgb = vec3(0.0);
+  float specDotSum = 0.0;
+  for (int i = 0; i < 3; i++) {
+    if (i >= u_lightCount) break;
+    vec3 L = u_lightDir[i];
+    vec3 H = normalize(L + V);
+    diffuseRgb += u_lightColor[i] * max(dot(n, L), 0.0);
+    specDotSum += pow(max(dot(n, H), 0.0), SHININESS);
+  }
+  float count = float(max(u_lightCount, 1));
+  vec3 diffuse = u_diffuseStrength * diffuseRgb / count;
   // NORMALIZED for the multiply-compositing model (deliberate deviation
   // from the raster path's raw AMBIENT + diffuse): dividing by the maximum
   // attainable value (AMBIENT + u_diffuseStrength) maps a fully-lit slope
@@ -375,15 +393,14 @@ void main() {
   // AMBIENT + diffuse (max 1.35 clamped, floor 0.35), so turning Diffuse
   // Strength DOWN darkened the entire map toward 35% — a specular-only
   // setup dimmed the basemap instead of just adding highlights.
-  float diffuseIntensity = clamp((AMBIENT + diffuse) / (AMBIENT + u_diffuseStrength), 0.0, 1.0);
-  float specDot = max(dot(n, H), 0.0);
-  float specular = u_specularStrength * pow(specDot, SHININESS);
+  vec3 diffuseIntensity = clamp((vec3(AMBIENT) + diffuse) / (AMBIENT + u_diffuseStrength), 0.0, 1.0);
+  float specular = u_specularStrength * specDotSum / count;
 
   // Shade-buffer encoding, consumed by COMPOSITE_FRAG: RGB = the
   // multiplicative diffuse factor (1.0 = identity — also the buffer's
   // clear color, so uncovered pixels leave the map untouched), A = the
   // additive specular term.
-  fragColor = vec4(vec3(mix(1.0, diffuseIntensity, u_opacity)), clamp(specular * u_opacity, 0.0, 1.0));
+  fragColor = vec4(mix(vec3(1.0), diffuseIntensity, u_opacity), clamp(specular * u_opacity, 0.0, 1.0));
 }
 `
 
@@ -452,6 +469,8 @@ interface ProgramBundle {
   uDemDim: WebGLUniformLocation | null
   uInvGroundRes: WebGLUniformLocation | null
   uLightDir: WebGLUniformLocation | null
+  uLightColor: WebGLUniformLocation | null
+  uLightCount: WebGLUniformLocation | null
   uDiffuseStrength: WebGLUniformLocation | null
   uSpecularStrength: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
@@ -672,6 +691,8 @@ export class PhongLiveLayer implements CustomLayerInterface {
       uDemDim: gl.getUniformLocation(program, "u_demDim"),
       uInvGroundRes: gl.getUniformLocation(program, "u_invGroundRes"),
       uLightDir: gl.getUniformLocation(program, "u_lightDir"),
+      uLightColor: gl.getUniformLocation(program, "u_lightColor"),
+      uLightCount: gl.getUniformLocation(program, "u_lightCount"),
       uDiffuseStrength: gl.getUniformLocation(program, "u_diffuseStrength"),
       uSpecularStrength: gl.getUniformLocation(program, "u_specularStrength"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
@@ -828,55 +849,48 @@ export class PhongLiveLayer implements CustomLayerInterface {
       // a STALE dev tab — if an inversion is ever reported again, have the
       // reporter hard-refresh and A/B against native hillshade (same
       // illuminationDir state) before touching any sign here.
-      const azRad = (this.options.lightDir * Math.PI) / 180
-      const elRad = (this.options.lightAlt * Math.PI) / 180
-      const cosEl = Math.cos(elRad)
-      const lx0 = -Math.sin(azRad) * cosEl
-      const ly0 = -Math.cos(azRad) * cosEl
-      const lz0 = Math.sin(elRad)
-
-      let lx = lx0, ly = ly0, lz = lz0
-      if (this.options.lightRelativeToCamera) {
-        // Camera-relative ("headlamp"): (lightDir, lightAlt) is an offset
-        // from the camera's own orientation — pad-up = light from straight
-        // ahead, pad-right = from the right, elevation rises toward the
-        // viewer. ANALYTIC camera frame from bearing/pitch — the same
-        // construction that fixed Matcap's east/west mirror (see
-        // matcap-live-gl-layer.ts render()); the previous
-        // computeCameraBasis unprojection had the same bearing-handedness
-        // flaw here (correct facing north/south where sin β = 0, mirrored
-        // facing east/west — user-reported 2026-08-21). Frame derived in
-        // right-handed ENU, converted to tile coords (negate y):
-        //   right   = (cos β, sin β, 0)
-        //   up_s    = (sin β·cos p, −cos β·cos p, sin p)
-        //   viewer  = (−sin β·sin p, cos β·sin p, cos p)   (toward camera)
-        // The TRUE light direction is then flipped in x into the normals'
-        // convention — the shared hornGradient's x axis is negated vs the
-        // standard derivative (see matcap's nGeo comment), and the
-        // absolute-path formula (−sin/−cos) already encodes that same flip.
-        // Reduces exactly to the absolute formula with azimuth = az + β at
-        // pitch 0, so the reference-orientation behavior is unchanged.
-        const bRad = (map.getBearing() * Math.PI) / 180
-        const pRad = (map.getPitch() * Math.PI) / 180
+      // One direction per light, in the normals' convention; camera-relative
+      // mode rotates each of them with the camera (see the comment above).
+      const bRad = (map.getBearing() * Math.PI) / 180
+      const pRad = (map.getPitch() * Math.PI) / 180
+      const toLightVec = (dirDeg: number, altDeg: number): [number, number, number] => {
+        const azRad = (dirDeg * Math.PI) / 180
+        const elRad = (altDeg * Math.PI) / 180
+        const cosEl = Math.cos(elRad)
+        const lx0 = -Math.sin(azRad) * cosEl
+        const ly0 = -Math.cos(azRad) * cosEl
+        const lz0 = Math.sin(elRad)
+        if (!this.options.lightRelativeToCamera) return [lx0, ly0, lz0]
+        // Camera-relative ("headlamp"): (dir, alt) is an offset from the
+        // camera's own orientation. Analytic camera frame from bearing/pitch
+        // (right-handed ENU, y negated into tile coords):
+        //   right = (cos b, sin b, 0); up_s = (sin b cos p, -cos b cos p, sin p); viewer = (-sin b sin p, cos b sin p, cos p)
+        // then the x flip into the normals' (hornGradient) convention.
         const sinB = Math.sin(bRad), cosB = Math.cos(bRad)
         const sinP = Math.sin(pRad), cosP = Math.cos(pRad)
         const sinAz = Math.sin(azRad), cosAz = Math.cos(azRad)
-        // True-convention tile-space light: cosEl·(sinAz·right + cosAz·up_s) + sinEl·viewer
         const tx = cosEl * (sinAz * cosB + cosAz * sinB * cosP) + lz0 * (-sinB * sinP)
         const ty = cosEl * (sinAz * sinB + cosAz * -cosB * cosP) + lz0 * (cosB * sinP)
         const tz = cosEl * (cosAz * sinP) + lz0 * cosP
-        lx = -tx // x-flip into the normals' (hornGradient) convention
-        ly = ty
-        lz = tz
+        let lx = -tx, ly = ty, lz = tz
         const len = Math.hypot(lx, ly, lz) || 1
         lx /= len; ly /= len; lz /= len
+        return [lx, ly, lz]
       }
+      const lights: { vec: [number, number, number]; color: [number, number, number] }[] = [
+        { vec: toLightVec(this.options.lightDir, this.options.lightAlt), color: this.options.lightColor ?? [1, 1, 1] },
+        ...(this.options.extraLights ?? []).slice(0, 2).map((l) => ({ vec: toLightVec(l.dir, l.alt), color: l.color })),
+      ]
+      const dirs = new Float32Array(9), cols = new Float32Array(9)
+      lights.forEach((l, i) => { dirs.set(l.vec, i * 3); cols.set(l.color, i * 3) })
 
       gl.useProgram(bundle.program)
       gl.bindVertexArray(this.vao)
       gl.uniform1i(bundle.uDem, 0)
       gl.uniform1f(bundle.uDemDim, this.options.tileSize)
-      gl.uniform3f(bundle.uLightDir, lx, ly, lz)
+      gl.uniform3fv(bundle.uLightDir, dirs)
+      gl.uniform3fv(bundle.uLightColor, cols)
+      gl.uniform1i(bundle.uLightCount, lights.length)
       gl.uniform1f(bundle.uDiffuseStrength, this.options.diffuseStrength)
       gl.uniform1f(bundle.uSpecularStrength, this.options.specularStrength)
       gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)

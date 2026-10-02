@@ -11,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN } from "./controls-components"
-import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
+import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, type ViewId } from "@/lib/grid-layouts"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
@@ -72,8 +72,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // replaced a pair of reactive effects that used to live in TerrainViewer.tsx.
   const selectBasemapA = useCallback((id: string) => {
     const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
-    setState(linkedTerrainId ? { basemapSourceA: id, sourceA: linkedTerrainId } : { basemapSourceA: id })
-  }, [customTerrainSources, customBasemapSources, setState])
+    setState(fanOutWhenSingle(state, linkedTerrainId ? { basemapSourceA: id, sourceA: linkedTerrainId } : { basemapSourceA: id }))
+  }, [customTerrainSources, customBasemapSources, state, setState])
 
   // Every non-A view (B-F) — this whole branch only ever renders once
   // isSplit is true, which per viewFieldName's rule always means suffixed
@@ -89,8 +89,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
 
   const selectBasemapSingle = useCallback((id: string) => {
     const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
-    setState(linkedTerrainId ? { basemapSource: id, sourceA: linkedTerrainId } : { basemapSource: id })
-  }, [customTerrainSources, customBasemapSources, setState])
+    setState(fanOutWhenSingle(state, linkedTerrainId ? { basemapSource: id, sourceA: linkedTerrainId } : { basemapSource: id }))
+  }, [customTerrainSources, customBasemapSources, state, setState])
 
   const handleSaveCustomBasemap = useCallback((source: Omit<CustomBasemapSource, "id"> & { id?: string }) => {
     if (source.id) {
@@ -115,9 +115,9 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         const ids: string[] = state.overlayBasemapIds || []
         setState({ ...show, overlayBasemapIds: ids.includes(newSource.id) ? ids : [...ids, newSource.id] })
       } else if (newSource.linkedTerrainId) {
-        setState({ ...show, basemapSource: newSource.id, basemapSourceA: newSource.id, sourceA: newSource.linkedTerrainId })
+        setState(fanOutWhenSingle(state, { ...show, basemapSource: newSource.id, basemapSourceA: newSource.id, sourceA: newSource.linkedTerrainId }))
       } else {
-        setState({ ...show, basemapSource: newSource.id, basemapSourceA: newSource.id })
+        setState(fanOutWhenSingle(state, { ...show, basemapSource: newSource.id, basemapSourceA: newSource.id }))
       }
     }
   }, [customBasemapSources, setCustomBasemapSources, setState, state.showRasterBasemap, state.overlayBasemapIds])

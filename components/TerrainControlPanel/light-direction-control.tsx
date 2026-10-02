@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { CalendarDays, Clock, ChevronDown } from "lucide-react"
 import { MobileSlider, SectionIdContext, SegmentedToggle } from "./controls-components"
 import { SphericalXYPad } from "./XYPad"
+import { ColorAlphaSwatch } from "./color-picker"
 import { useDebouncedState, useDebouncedLightDir } from "./use-debounced-state"
 import { cn } from "@/lib/utils"
 import { activeSliderAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
@@ -112,6 +113,9 @@ export const LightDirectionControl: React.FC<{
    *  camera heading rather than a compass direction — the pad ring shows
    *  screen-relative arrows instead of N/E/S/W. */
   cameraRelative?: boolean
+  /** Phong only: the Lights 1 / 2 / 3 row, per-light colours and the extra
+   *  pills on the pad (phongLightCount, phongLightNDir/Alt/Color). */
+  multiLight?: boolean
 }> = ({
   state, setState, sliderId,
   debounceMs = 150,
@@ -121,6 +125,7 @@ export const LightDirectionControl: React.FC<{
   timeStepMinutes = 15,
   padFoldable = false,
   cameraRelative = false,
+  multiLight = false,
 }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
@@ -265,6 +270,29 @@ export const LightDirectionControl: React.FC<{
               { value: "datetime", label: "Datetime", tooltip: "Set the day + time with the sliders, or drag the pad directly — either one updates the other, using the viewport-center latitude/longitude." },
             ]}
           />
+        </div>
+      )}
+
+      {multiLight && !useDatetime && (
+        <div className="space-y-2">
+          <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+            <Label className="text-sm font-medium">Lights</Label>
+            <SegmentedToggle
+              className={SEG_WIDTH}
+              value={String(Math.min(3, Math.max(1, state.phongLightCount ?? 1)))}
+              onChange={(value) => setState({ phongLightCount: Number(value) })}
+              options={[
+                { value: "1", label: "1", tooltip: "One light: the app light, shared with hillshade and shadows." },
+                { value: "2", label: "2", tooltip: "Two lights: the app light plus a second one with its own direction and colour, Phong only." },
+                { value: "3", label: "3", tooltip: "Three lights, each with its own direction and colour, Phong only. Drag their pills on the pad." },
+              ]}
+            />
+          </div>
+          <div className={cn("flex items-center justify-end gap-2", dimWhenSliding)}>
+            {[1, 2, 3].slice(0, Math.min(3, Math.max(1, state.phongLightCount ?? 1))).map((i) => (
+              <ColorAlphaSwatch key={i} color={state[`phongLight${i}Color`] ?? "#ffffff"} onChange={(hex) => setState({ [`phongLight${i}Color`]: hex })} title={`Light ${i} colour`} size="h-6 w-6" />
+            ))}
+          </div>
         </div>
       )}
 
@@ -443,6 +471,13 @@ export const LightDirectionControl: React.FC<{
             // Headlamp mode: azimuth 0 = light from straight ahead (screen
             // top), 90 = from the right, etc. — arrows, not compass points.
             cardinalLabels={cameraRelative ? ["↑", "→", "↓", "←"] : undefined}
+            pillColor={multiLight && (state.phongLightCount ?? 1) > 1 ? state.phongLight1Color : undefined}
+            extraPoints={multiLight && !useDatetime ? [2, 3].slice(0, Math.max(0, Math.min(3, state.phongLightCount ?? 1) - 1)).map((i) => ({
+              azimuthDeg: state[`phongLight${i}Dir`] ?? 45,
+              elevationDeg: state[`phongLight${i}Alt`] ?? 35,
+              color: state[`phongLight${i}Color`] ?? "#4a90d9",
+              onChange: (v: { azimuthDeg: number; elevationDeg: number }) => setState({ [`phongLight${i}Dir`]: Math.round(v.azimuthDeg * 10) / 10, [`phongLight${i}Alt`]: Math.round(v.elevationDeg * 10) / 10 }),
+            })) : undefined}
           />
         </div>
       )}

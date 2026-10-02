@@ -55,7 +55,7 @@ Both raster protocols also carry a hand-rolled staleness guard (`__currentParams
 
 <p className="text-sm text-fd-muted-foreground italic">Matcap — Clay Brown material — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9744&lng=7.6511&zoom=13.1&pitch=0&viewMode=3d&showHillshade=true&showLightingEffects=true&showPhong=false&showMatcap=true&hillshadeOpacity=0.2&matcapLightRelativeToCamera=false&matcapTextureId=clay_brown&matcapRenderer=raster&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
-The rotated normal's `(x, y)` is used directly as a UV into a curated matcap material image (`lib/matcap-textures.ts`, a Potree/Blender-style set) — an orthographic simplification in the protocol/GPU-compute path:
+The rotated normal's `(x, y)` is used directly as a UV into a curated matcap material image (`lib/matcap-textures.ts`, a Potree/Blender-style set, plus a generated **Duotone NW/NE Sphere**: a grey light from the top-left and a top-right light whose lit side is blue and shaded side orange, the duotone hillshade as a material) — an orthographic simplification in the protocol/GPU-compute path:
 
 <Tabs items={['Code', 'Formula']}>
 <Tab value="Code">
@@ -132,6 +132,12 @@ The az/alt → `(x, y, z)` light-vector signs were pinned by empirical measureme
 - **`total > 1`** (specular highlight): color = white, `alpha = total - 1` → a screen-like brightening, letting a strong reflection paint brighter than the albedo.
 
 `diffuseIntensity` alone is capped at 1, so ordinary sunlit slopes (however bright) stay in the shadow/neutral regime — only specular can push `total` past 1 into the highlight regime.
+
+### Up to three coloured lights (live renderer)
+
+The live renderer takes up to three lights. Light 1 is the app light shared with hillshade and shadows, with its own colour (white by default, so nothing changes until a colour is set). Lights 2 and 3 have their own azimuth, altitude and colour (`phongLightCount`, `phongLight2Dir`, `phongLight2Alt`, `phongLight2Color`, and the same for 3) and only reach Phong; in Camera anchor mode they rotate with the camera like the first. Their diffuse terms add per channel and are averaged, so a slope reached by every light stays at the single-light maximum and a slope reached by one takes that light's hue; specular is averaged the same way. The defaults are the duotone hillshade palette: blue from the north-east and orange from the south-east, which with a white key light from the north-west gives the two-tone LiDAR look with real specular highlights. The raster renderer keeps a single grey light: its output is one scalar packed into alpha, which cannot carry a hue.
+
+Under Light Direction, Free mode shows a **Lights 1 / 2 / 3** choice and one colour swatch per light; the extra lights are pills of their colour on the same pad and drag like the first.
 
 ## Hard Shadows: single-ray horizon march toward the sun
 

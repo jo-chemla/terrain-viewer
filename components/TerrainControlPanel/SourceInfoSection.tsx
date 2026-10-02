@@ -436,6 +436,14 @@ export const SourceInfoSection: React.FC<{
     const { lng, lat } = map.getCenter()
     const zoom = Math.round(map.getZoom())
     const requestId = ++requestIdRef.current
+    // One coverage tile at the view centre: below zoom 5 it spans a
+    // continent and lists dozens of datasets that say nothing about what is
+    // on screen.
+    if (zoom < 5) {
+      setResult(null); setLoading(false)
+      setError("Zoom in past level 5: at this scale the lookup tile covers a whole region and lists every dataset in it.")
+      return
+    }
     setLoading(true)
     setError(null)
     fetchSourceProvenance(kind, lng, lat, zoom)

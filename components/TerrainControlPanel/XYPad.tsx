@@ -38,6 +38,11 @@ interface SphericalXYPadProps {
   // border turns destructive-red the moment the pointer is over a direction
   // the real sun never actually reaches at this latitude.
   sunEnvelopeLat?: number;
+  /** More lights on the same pad (Phong's lights 2 and 3): each drawn as a
+   *  pill of its colour with its own line, draggable; the main pill keeps
+   *  the primary colour unless `pillColor` is given. */
+  extraPoints?: { azimuthDeg: number; elevationDeg: number; color: string; onChange: (v: { azimuthDeg: number; elevationDeg: number }) => void }[];
+  pillColor?: string;
 }
 
 export function SphericalXYPad({
@@ -55,6 +60,8 @@ export function SphericalXYPad({
   fixedAzimuth = null,
   fixedElevation = null,
   sunEnvelopeLat,
+  extraPoints,
+  pillColor,
 }: SphericalXYPadProps) {
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   
@@ -124,11 +131,40 @@ export function SphericalXYPad({
     setPos(degToXY(value));
   }, [value, fixedAzimuth, fixedElevation]);
 
+  // Which pill a drag moves: -1 the main one, else an index into extraPoints.
+  const dragTargetRef = useRef(-1);
+  const pickDragTarget = (e: React.PointerEvent) => {
+    dragTargetRef.current = -1;
+    if (!extraPoints?.length || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    let best = -1, bestD = (pillRadius + 6) ** 2;
+    extraPoints.forEach((p, i) => {
+      const q = projectPoint(p.azimuthDeg, p.elevationDeg);
+      const qx = ((q.x + 1) / 2) * (width - 2 * margin) + margin, qy = ((q.y + 1) / 2) * (height - 2 * margin) + margin;
+      const d = (qx - px) ** 2 + (qy - py) ** 2;
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    // The main pill wins a tie when it is at least as close.
+    const mx = ((pos.x + 1) / 2) * (width - 2 * margin) + margin, my = ((pos.y + 1) / 2) * (height - 2 * margin) + margin;
+    if (best >= 0 && (mx - px) ** 2 + (my - py) ** 2 <= bestD) best = -1;
+    dragTargetRef.current = best;
+  };
+
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     let x = ((e.clientX - rect.left - margin) / (width - 2 * margin)) * 2 - 1;
     let y = ((e.clientY - rect.top - margin) / (height - 2 * margin)) * 2 - 1;
+
+    // An extra light's pill: unconstrained, straight to its own onChange.
+    if (dragTargetRef.current >= 0 && extraPoints?.[dragTargetRef.current]) {
+      const maxR0 = Math.cos((minElevationDeg * Math.PI) / 180);
+      const mag0 = Math.sqrt(x * x + y * y);
+      if (mag0 > maxR0) { x = (x / mag0) * maxR0; y = (y / mag0) * maxR0; }
+      extraPoints[dragTargetRef.current].onChange(xyToDeg(x, y));
+      return;
+    }
 
     const maxR = Math.cos((minElevationDeg * Math.PI) / 180);
     const minR = Math.cos((maxElevationDeg * Math.PI) / 180);
@@ -262,6 +298,7 @@ export function SphericalXYPad({
         onPointerDown={(e) => {
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
+        pickDragTarget(e);
         handlePointerMove(e);
         if (transparentUi) setActiveSlider(fullSliderId)
       }}
@@ -386,13 +423,30 @@ export function SphericalXYPad({
         </>
       )}
 
-      {/* Line from origin to pill */}
+      {/* Line from origin to pill, plus one per extra light */}
       <svg className="absolute inset-0 pointer-events-none" style={{ width, height }}>
         <line
           x1={centerX} y1={centerY} x2={pillX} y2={pillY}
-          stroke="var(--primary)" strokeLinecap="round" strokeWidth="2" opacity="1"
+          stroke={pillColor ?? "var(--primary)"} strokeLinecap="round" strokeWidth="2" opacity="1"
         />
+        {extraPoints?.map((p, i) => {
+          const q = projectPoint(p.azimuthDeg, p.elevationDeg);
+          const qx = ((q.x + 1) / 2) * (width - 2 * margin) + margin, qy = ((q.y + 1) / 2) * (height - 2 * margin) + margin;
+          return <line key={i} x1={centerX} y1={centerY} x2={qx} y2={qy} stroke={p.color} strokeLinecap="round" strokeWidth="2" opacity="0.9" />;
+        })}
       </svg>
+      {extraPoints?.map((p, i) => {
+        const q = projectPoint(p.azimuthDeg, p.elevationDeg);
+        const qx = ((q.x + 1) / 2) * (width - 2 * margin) + margin, qy = ((q.y + 1) / 2) * (height - 2 * margin) + margin;
+        return (
+          <div
+            key={i}
+            className="absolute rounded-full bg-background border-2 shadow-sm pointer-events-none"
+            style={{ width: pillRadius * 2, height: pillRadius * 2, left: `${qx}px`, top: `${qy}px`, transform: "translate(-50%, -50%)", borderColor: p.color }}
+            title={`Light ${i + 2}`}
+          />
+        );
+      })}
 
       {/* Draggable pill — border turns destructive-red while the live drag
           position is somewhere the real sun never reaches at this latitude
@@ -401,7 +455,7 @@ export function SphericalXYPad({
       <div
         className={cn(
           "absolute rounded-full bg-background border-2 shadow-sm hover:shadow-md transition-shadow pointer-events-none cursor-pointer",
-          isUnreachable ? "border-destructive" : "border-primary",
+          isUnreachable ? "border-destructive" : (pillColor ? "" : "border-primary"),
         )}
         style={{
           width: pillRadius * 2,
@@ -409,6 +463,7 @@ export function SphericalXYPad({
           left: `${pillX}px`,
           top: `${pillY}px`,
           transform: "translate(-50%, -50%)",
+          ...(pillColor && !isUnreachable ? { borderColor: pillColor } : {}),
         }}
       />
     </div>

@@ -18,7 +18,7 @@ import NavigationControlThemed from "./MapControls/NavigationControlThemed"
 import FullscreenControlThemed from "./MapControls/FullscreenControlThemed"
 import GeolocateControlThemed from "./MapControls/GeolocateControlThemed"
 import { GEOREF_TYPE_IDS } from "@/lib/georef"
-import { parseVizViews, viewDrawsMode } from "@/lib/viz-views"
+import { parseVizViews, viewDrawsMode, distinctModeLabels } from "@/lib/viz-views"
 import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, rampSessionOverridesAtom, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -535,6 +535,19 @@ export const QUERY_STATE_PARSERS = {
     // (Matcap's own anchor keeps Camera as ITS default — the material
     // lookup is what a camera-held sphere means — unlike a scene light.)
     phongLightRelativeToCamera: parseAsBoolean.withDefault(true),
+    // Up to three Phong lights (live renderer): light 1 is the app light
+    // (illuminationDir/Alt) with its own colour; lights 2 and 3 have their
+    // own direction and colour and only affect Phong. Defaults: a white
+    // key light, a blue light from the north-east, an orange one from the
+    // south-east, the duotone hillshade palette.
+    phongLightCount: parseAsInteger.withDefault(1),
+    phongLight1Color: parseAsColor().withDefault("#ffffff"),
+    phongLight2Dir: parseAsFloat.withDefault(45),
+    phongLight2Alt: parseAsFloat.withDefault(35),
+    phongLight2Color: parseAsColor().withDefault("#4a90d9"),
+    phongLight3Dir: parseAsFloat.withDefault(135),
+    phongLight3Alt: parseAsFloat.withDefault(35),
+    phongLight3Color: parseAsColor().withDefault("#b8692e"),
     // "raster" (default): lib/phong-protocol.ts's plain raster-tile pipeline —
     // drapes correctly over 3D terrain exaggeration AND globe, but every
     // light/strength/exaggeration change costs a real tile refetch (~150ms
@@ -4031,6 +4044,8 @@ export function TerrainViewer() {
             lightDir={phongLightDir}
             lightAlt={phongLightAlt}
             lightRelativeToCamera={state.phongLightRelativeToCamera}
+            lightColor={state.phongLight1Color}
+            extraLights={[{ dir: state.phongLight2Dir, alt: state.phongLight2Alt, color: state.phongLight2Color }, { dir: state.phongLight3Dir, alt: state.phongLight3Alt, color: state.phongLight3Color }].slice(0, Math.max(0, Math.min(3, state.phongLightCount) - 1))}
             exaggeration={state.exaggeration}
             opacity={state.phongOpacity * state.lightingEffectsOpacity}
             terrainSource={source}
@@ -4160,9 +4175,9 @@ export function TerrainViewer() {
           />
 
           {/* Contours — self-contained, primary map only */}
-          {isPrimary && (
+          {(
             <ContoursLayer
-              showContours={state.showContoursAndGraticules && state.showContours && !isHistoricalMode}
+              showContours={state.showContoursAndGraticules && vm("showContoursAndGraticules") && state.showContours && !isHistoricalMode}
               showContourLabels={state.showContourLabels}
               sourceId={source}
               referenceMode={state.contourReferenceMode}
@@ -4175,7 +4190,7 @@ export function TerrainViewer() {
               maptilerKey={maptilerKey}
               customTerrainSources={customTerrainSources}
               titilerEndpoint={titilerEndpoint}
-              mapLoaded={!!mapLoaded.A}
+              mapLoaded={!!mapLoaded[side]}
               theme={theme}
             />
           )}
@@ -4186,8 +4201,8 @@ export function TerrainViewer() {
           {/* Terra Draw edits on view A; the other views mirror its features read-only */}
           {!isPrimary && <DrawingMirrorLayer />}
 
-          {/* Graticules — primary map only */}
-          {isPrimary && state.showGraticules && !isHistoricalMode && (
+          {/* Graticules, every view */}
+          {state.showGraticules && !isHistoricalMode && vm("showContoursAndGraticules") && (
             <GraticuleLayer
               showGraticules={state.showContoursAndGraticules && state.showGraticules && !isHistoricalMode}
               graticuleColor={state.graticuleColor || themeAntiColor}
@@ -4273,6 +4288,7 @@ export function TerrainViewer() {
       state.lat, state.lng, state.zoom, state.pitch, state.bearing, state.viewMode, state.exaggeration,
       state.basemapSource, state.basemapPerView, state.basemapSourceA, state.basemapSourceB, state.overlayBasemapIds,
       state.showRasterBasemap, state.rasterBasemapOpacity, state.basemapSourceOpacity,
+      state.phongLightCount, state.phongLight1Color, state.phongLight2Dir, state.phongLight2Alt, state.phongLight2Color, state.phongLight3Dir, state.phongLight3Alt, state.phongLight3Color,
       state.vizSync, state.vizViews,
       state.showHillshade, state.hillshadeMethod, state.shadowColor, state.highlightColor, state.hillshadeExag, state.accentColor,
       state.showLightingEffects, state.lightingEffectsOpacity,
@@ -4445,6 +4461,13 @@ export function TerrainViewer() {
   const effectiveCaptureDatePill = state.showCaptureDatePill === "auto"
     ? (isSplit ? "source-date" : "off")
     : state.showCaptureDatePill
+  // With modes per view (vizSync off), the pill names the modes this view
+  // draws that not every view draws, so the panes can be told apart.
+  const distinctModesSuffix = (side: ViewId): React.ReactNode => {
+    if (state.vizSync !== false || !isSplit) return null
+    const names = distinctModeLabels(stateAny, side, activeViewIds)
+    return names.length ? <span data-snapshot-ignore className="text-muted-foreground"> · {names.join(", ")}</span> : null
+  }
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
     if (effectiveCaptureDatePill === "off") return null
     // The pill describes the BASEMAP source/date — in terrain mode that layer
@@ -4564,7 +4587,7 @@ export function TerrainViewer() {
               render={
                 <span data-snapshot-plain data-timeline-side-select="" onClick={() => setTimelineActiveSide(pane.side)} className={cn("cursor-pointer", selected && "font-bold")}>
                   {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
-                  {label}
+                  {label}{distinctModesSuffix(pane.side)}
                 </span>
               }
             />
@@ -4573,7 +4596,7 @@ export function TerrainViewer() {
         ) : (
           <span data-snapshot-plain className={cn(selected && "font-bold")}>
             {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
-            {label}
+            {label}{distinctModesSuffix(pane.side)}
           </span>
         )}
         {isSplit && (pane.side !== "A" || activeViewIds.length === 2) && (

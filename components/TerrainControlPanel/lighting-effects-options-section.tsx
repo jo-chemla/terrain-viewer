@@ -170,6 +170,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                     // Live renderer honors the Camera anchor (raster forces
                     // Absolute), hence the renderer check too.
                     cameraRelative={state.phongRenderer === "live" && state.phongLightRelativeToCamera}
+                    multiLight={state.phongRenderer === "live"}
                   />
                 </CollapsibleContent>
               </Collapsible>

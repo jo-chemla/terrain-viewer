@@ -531,7 +531,7 @@
         },
         {
             "id": "custom-np-bhotekoshi-dsm-rasuwagadhi",
-            "name": "NPL - Bhotekoshi 2026 post-event DSM 0.5m, Rasuwagadhi-Timure - COG",
+            "name": "NPL - Geopera: Bhotekoshi 2026 post-event DSM 0.5m, Rasuwagadhi-Timure - COG",
             "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2570/cog",
             "type": "cog",
             "titilerNodata": -1000000,
@@ -544,7 +544,7 @@
         },
         {
             "id": "custom-np-bhotekoshi-dh-rasuwagadhi",
-            "name": "NPL - Bhotekoshi 2026 elevation change (dh) 2m, Rasuwagadhi-Timure - COG",
+            "name": "NPL - Geopera: Bhotekoshi 2026 elevation change (dh) 2m, Rasuwagadhi-Timure - COG",
             "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2572/cog",
             "type": "cog",
             "titilerNodata": -9999,
@@ -557,7 +557,7 @@
         },
         {
             "id": "custom-np-bhotekoshi-dsm-syabrubesi",
-            "name": "NPL - Bhotekoshi 2026 post-event DSM 0.5m, Syabrubesi - COG",
+            "name": "NPL - Geopera: Bhotekoshi 2026 post-event DSM 0.5m, Syabrubesi - COG",
             "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2569/cog",
             "type": "cog",
             "titilerNodata": -1000000,
@@ -570,7 +570,7 @@
         },
         {
             "id": "custom-np-bhotekoshi-dh-syabrubesi",
-            "name": "NPL - Bhotekoshi 2026 elevation change (dh) 2m, Syabrubesi - COG",
+            "name": "NPL - Geopera: Bhotekoshi 2026 elevation change (dh) 2m, Syabrubesi - COG",
             "url": "https://nextgis-web.prod.heritagewatch.ai/api/resource/2571/cog",
             "type": "cog",
             "titilerNodata": -9999,
@@ -583,7 +583,7 @@
         },
         {
             "id": "custom-np-bhotekoshi-change-rasuwagadhi-vs-mapterhorn",
-            "name": "NPL - nDSM Bhotekoshi 2026: post-event DSM − Mapterhorn (GLO-30), Rasuwagadhi-Timure - derived",
+            "name": "NPL - Geopera nDSM: Bhotekoshi 2026: post-event DSM − Mapterhorn (GLO-30), Rasuwagadhi-Timure - derived",
             "url": "diff://custom-np-bhotekoshi-dsm-rasuwagadhi-mapterhorn",
             "type": "dem-diff",
             "diffMinuendId": "custom-np-bhotekoshi-dsm-rasuwagadhi",
@@ -596,7 +596,7 @@
         },
         {
             "id": "custom-np-bhotekoshi-change-syabrubesi-vs-mapterhorn",
-            "name": "NPL - nDSM Bhotekoshi 2026: post-event DSM − Mapterhorn (GLO-30), Syabrubesi - derived",
+            "name": "NPL - Geopera nDSM: Bhotekoshi 2026: post-event DSM − Mapterhorn (GLO-30), Syabrubesi - derived",
             "url": "diff://custom-np-bhotekoshi-dsm-syabrubesi-mapterhorn",
             "type": "dem-diff",
             "diffMinuendId": "custom-np-bhotekoshi-dsm-syabrubesi",

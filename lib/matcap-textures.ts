@@ -34,6 +34,9 @@ const NORMAL_SPHERE_MATCAP_URL = "/matcap-normal-sphere.png"
 
 export const MATCAP_TEXTURES: MatcapTexture[] = [
   { id: "normal_sphere", name: "Normal Sphere", url: NORMAL_SPHERE_MATCAP_URL },
+  // Generated: grey light from the top-left plus a top-right light whose lit
+  // side is blue and shaded side orange, the duotone hillshade as a sphere.
+  { id: "duotone_sphere", name: "Duotone NW/NE Sphere", url: "/matcap-duotone-sphere.png" },
   { id: "basic_1", name: "Basic 1", url: `${BASE_URL}basic_1.jpg` },
   { id: "basic_2", name: "Basic 2", url: `${BASE_URL}basic_2.jpg` },
   { id: "basic_dark", name: "Basic Dark", url: `${BASE_URL}basic_dark.jpg` },

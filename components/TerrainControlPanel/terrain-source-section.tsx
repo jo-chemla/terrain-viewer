@@ -21,7 +21,7 @@ import { type Bounds, templateLink, shouldZoomToTerrainBounds } from "@/lib/cont
 import { resolveLinkedBasemapId } from "@/lib/linked-sources"
 import { staticBoundsFor } from "@/lib/max-bounds"
 import { applyBoundedViewAll, fitPaddingFor } from "@/lib/underzoom"
-import { viewFieldName, sourceFieldName, VIEW_IDS, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
+import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { SourceDetails } from "./source-details"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
@@ -142,10 +142,10 @@ export const TerrainSourceSection: React.FC<{
   // was fragile).
   const selectTerrainA = useCallback((id: string) => {
     const linkedBasemapId = resolveLinkedBasemapId(id, customTerrainSources, customBasemapSources)
-    setState(linkedBasemapId
+    setState(fanOutWhenSingle(state, linkedBasemapId
       ? (state.basemapPerView ? { sourceA: id, basemapSourceA: linkedBasemapId } : { sourceA: id, basemapSource: linkedBasemapId })
-      : { sourceA: id })
-  }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState])
+      : { sourceA: id }))
+  }, [customTerrainSources, customBasemapSources, state, setState])
 
   // Every non-A view (B-F) always uses its own suffixed source/basemap
   // fields — it can only be active at all once splitStyle !== "off", same
@@ -179,11 +179,11 @@ export const TerrainSourceSection: React.FC<{
       // existed), and customTerrainSources here is one render stale (doesn't
       // include newSource yet), so only the forward link is relevant.
       if (newSource.linkedBasemapId) {
-        setState(state.basemapPerView
+        setState(fanOutWhenSingle(state, state.basemapPerView
           ? { sourceA: newSource.id, basemapSourceA: newSource.linkedBasemapId }
-          : { sourceA: newSource.id, basemapSource: newSource.linkedBasemapId })
+          : { sourceA: newSource.id, basemapSource: newSource.linkedBasemapId }))
       } else {
-        setState({ sourceA: newSource.id })
+        setState(fanOutWhenSingle(state, { sourceA: newSource.id }))
       }
     }
   }, [customTerrainSources, setCustomTerrainSources, state.basemapPerView, setState])
