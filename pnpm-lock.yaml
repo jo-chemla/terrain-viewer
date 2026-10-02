@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  '@geomatico/maplibre-cog-protocol':
+    hash: c07c101adaf8a2acb03440adbed30aa14468919791fbcd15a1d0c800dbe65587
+    path: patches/@geomatico__maplibre-cog-protocol.patch
   coachmark:
     hash: bf975d63d8944e3aaeef2bc9fdb9d1ec2e91e6ae5a7e4de9ffc5297391e31666
     path: patches/coachmark.patch
@@ -24,7 +27,7 @@ importers:
         version: 1.1.0
       '@geomatico/maplibre-cog-protocol':
         specifier: ^0.10.0
-        version: 0.10.0(maplibre-gl@6.11.2)
+        version: 0.10.0(patch_hash=c07c101adaf8a2acb03440adbed30aa14468919791fbcd15a1d0c800dbe65587)(maplibre-gl@6.11.2)
       '@loaders.gl/core':
         specifier: ^4.5.2
         version: 4.5.2
@@ -5370,7 +5373,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@geomatico/maplibre-cog-protocol@0.10.0(maplibre-gl@6.11.2)':
+  '@geomatico/maplibre-cog-protocol@0.10.0(patch_hash=c07c101adaf8a2acb03440adbed30aa14468919791fbcd15a1d0c800dbe65587)(maplibre-gl@6.11.2)':
     dependencies:
       '@mapbox/sphericalmercator': 2.0.2
       d3-scale: 4.0.2
