@@ -410,6 +410,8 @@ export const SourceInfoSection: React.FC<{
   const [isActive, setIsActive] = useState(false)
   const [result, setResult] = useState<ProvenanceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // A quiet hint (not a failure): shown in muted text.
+  const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const requestIdRef = useRef(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -440,10 +442,11 @@ export const SourceInfoSection: React.FC<{
     // continent and lists dozens of datasets that say nothing about what is
     // on screen.
     if (zoom < 5) {
-      setResult(null); setLoading(false)
-      setError("Zoom in past level 5: at this scale the lookup tile covers a whole region and lists every dataset in it.")
+      setResult(null); setLoading(false); setError(null)
+      setNotice("Zoom in past level 5: at this scale the lookup tile covers a whole region and lists every dataset in it.")
       return
     }
+    setNotice(null)
     setLoading(true)
     setError(null)
     fetchSourceProvenance(kind, lng, lat, zoom)
@@ -510,6 +513,7 @@ export const SourceInfoSection: React.FC<{
         <div className="space-y-2">
           {loading && <p className="text-xs text-muted-foreground">Looking up…</p>}
           {error && <p className="text-xs text-destructive">{error}</p>}
+          {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
 
           {result?.kind === "aws" && (
             <div className="space-y-1">

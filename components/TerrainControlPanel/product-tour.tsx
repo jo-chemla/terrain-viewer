@@ -114,6 +114,9 @@ const TOUR_STATE_KEYS = [
   "sourceA",
   "basemapSource", "basemapSourceA", "basemapSourceB", "basemapPerView",
   "splitStyle", "gridLayout", "splitBlendModeEnabled", "splitBlendMode", "overlayOpacity",
+  // The per-view modes step: masks, sources on every view, its own modes.
+  "vizSync", "vizViews", "sourceB", "sourceC", "sourceD", "basemapSourceC", "basemapSourceD",
+  "showMatcap", "showPhong", "matcapTextureId", "slopeMaxDegrees",
   "historicalTimelineCollapsed", "historicalControlsExpanded",
   // The camera. Level-1 never touches it - a shared link's viewport survives
   // the tour untouched - but the level-2 demos fly somewhere with real terrain
@@ -761,6 +764,30 @@ const TERRAIN_STEPS: TourStepDef[] = [
       </>
     ),
     onEnter: (a) => a.setSectionOpen((prev) => ({ ...prev, comparisonMix: true })),
+  },
+  {
+    key: "viz-per-view", domId: "tour-viz-modes", side: "left", align: "start",
+    title: "Modes per View",
+    description: (
+      <>
+        <p className="pb-2">In a split or grid, every mode draws on every view by default. Switch <span className="font-semibold text-foreground">Sync viz modes across views</span> off and each checkbox becomes the view grid: a cell puts that mode, or sub-mode, on that view only.</p>
+        <p className="pb-2">Here, four views of the same terrain: imagery on A, hillshade with contours on B, hillshade with slope on C, matcap on D. The pill under each view names what it draws that the others do not; clicking a mode's name puts it back on every view.</p>
+        <p>Mostly for advanced users, hence the toggle.</p>
+      </>
+    ),
+    onEnter: (a) => {
+      a.setIsSidebarOpen(true)
+      a.setSectionOpen((prev) => ({ ...prev, visualizationModes: true, comparisonMix: false }))
+      a.setState({
+        splitStyle: "side-by-side", gridLayout: "2x2", vizSync: false,
+        vizViews: "showSlope:C;showTerrainAnalysis:AC;showContoursAndGraticules:B;showHillshade:BC;showRasterBasemap:A;showMatcap:D",
+        showRasterBasemap: true, showHillshade: true, showTerrainAnalysis: true, showSlope: true, showContoursAndGraticules: true, showContours: true,
+        showLightingEffects: true, showMatcap: true, showPhong: false, matcapTextureId: "basic_1", slopeMaxDegrees: 54,
+        showColorRelief: false, showReliefVisualization: false,
+        sourceA: "esri", sourceB: "esri", sourceC: "esri", sourceD: "esri", basemapSourceC: "google", basemapSourceD: "esri",
+      })
+      a.setCamera({ lat: 44.9185, lng: 6.8913, zoom: 12.42, pitch: 44, bearing: 0 })
+    },
   },
   {
     key: "terrain-tools", domId: "tour-tools-group", side: "left", align: "start",

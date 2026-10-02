@@ -277,6 +277,11 @@ export const LightDirectionControl: React.FC<{
         <div className="space-y-2">
           <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
             <Label className="text-sm font-medium">Lights</Label>
+            <div className="flex items-center gap-1.5">
+              {[1, 2, 3].slice(0, Math.min(3, Math.max(1, state.phongLightCount ?? 1))).map((i) => (
+                <ColorAlphaSwatch key={i} color={state[`phongLight${i}Color`] ?? "#ffffff"} onChange={(hex) => setState({ [`phongLight${i}Color`]: hex })} title={`Light ${i} colour`} size="h-6 w-6" />
+              ))}
+            </div>
             <SegmentedToggle
               className={SEG_WIDTH}
               value={String(Math.min(3, Math.max(1, state.phongLightCount ?? 1)))}
@@ -287,11 +292,6 @@ export const LightDirectionControl: React.FC<{
                 { value: "3", label: "3", tooltip: "Three lights, each with its own direction and colour, Phong only. Drag their pills on the pad." },
               ]}
             />
-          </div>
-          <div className={cn("flex items-center justify-end gap-2", dimWhenSliding)}>
-            {[1, 2, 3].slice(0, Math.min(3, Math.max(1, state.phongLightCount ?? 1))).map((i) => (
-              <ColorAlphaSwatch key={i} color={state[`phongLight${i}Color`] ?? "#ffffff"} onChange={(hex) => setState({ [`phongLight${i}Color`]: hex })} title={`Light ${i} colour`} size="h-6 w-6" />
-            ))}
           </div>
         </div>
       )}
@@ -471,7 +471,8 @@ export const LightDirectionControl: React.FC<{
             // Headlamp mode: azimuth 0 = light from straight ahead (screen
             // top), 90 = from the right, etc. — arrows, not compass points.
             cardinalLabels={cameraRelative ? ["↑", "→", "↓", "←"] : undefined}
-            pillColor={multiLight && (state.phongLightCount ?? 1) > 1 ? state.phongLight1Color : undefined}
+            // A white light keeps the default stroke (foreground), a coloured one its colour.
+            pillColor={multiLight && (state.phongLightCount ?? 1) > 1 && !/^#f{6}$/i.test(state.phongLight1Color ?? "") ? state.phongLight1Color : undefined}
             extraPoints={multiLight && !useDatetime ? [2, 3].slice(0, Math.max(0, Math.min(3, state.phongLightCount ?? 1) - 1)).map((i) => ({
               azimuthDeg: state[`phongLight${i}Dir`] ?? 45,
               elevationDeg: state[`phongLight${i}Alt`] ?? 35,
