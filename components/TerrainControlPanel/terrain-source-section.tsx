@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
   titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom, cesiumIonKeyAtom,
-  type CustomTerrainSource, terrainLibraryOpenAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
+  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { deletePersistedCogFile } from "@/lib/opfs-file-store"
@@ -42,7 +42,7 @@ export const TerrainSourceSection: React.FC<{
   const [isByodOpen, setIsByodOpen] = useAtom(isByodOpenAtom)
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
-  const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
+  const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
   const setLastTerrainType = useSetAtom(customTerrainLastTypeAtom)
@@ -106,6 +106,17 @@ export const TerrainSourceSection: React.FC<{
     () => new Set((customSources.SAMPLE_TERRAIN_SOURCES as { id: string }[]).map((s) => s.id)),
     [],
   )
+  // A library terrain that names a basemap twin (linkedBasemapId) brings
+  // that basemap into the user's list too, so the pair works at once.
+  const addLinkedBasemaps = useCallback((added: CustomTerrainSource[]) => {
+    const wanted = added.map((s) => s.linkedBasemapId).filter((id): id is string => !!id)
+    if (!wanted.length) return
+    setCustomBasemapSources((prev) => {
+      const have = new Set(prev.map((s) => s.id))
+      const add = wanted.filter((id) => !have.has(id)).map((id) => (customSources.SAMPLE_BASEMAPS_SOURCES as any[]).find((s) => s.id === id)).filter(Boolean) as CustomBasemapSource[]
+      return add.length ? [...prev, ...add] : prev
+    })
+  }, [setCustomBasemapSources])
   const loadLibrarySourcesById = useCallback((ids: string[]) => {
     setCustomTerrainSources((prev) => {
       const have = new Set(prev.map((s) => s.id))
@@ -113,9 +124,10 @@ export const TerrainSourceSection: React.FC<{
         .filter((id) => !have.has(id))
         .map((id) => (customSources.SAMPLE_TERRAIN_SOURCES as any[]).find((s) => s.id === id))
         .filter(Boolean) as CustomTerrainSource[]
+      if (add.length) addLinkedBasemaps(add)
       return add.length ? [...prev, ...add] : prev
     })
-  }, [setCustomTerrainSources])
+  }, [setCustomTerrainSources, addLinkedBasemaps])
 
   const [byodQuery, setByodQuery] = useState("")
   const byodQ = byodQuery.trim().toLowerCase()
@@ -490,6 +502,8 @@ export const TerrainSourceSection: React.FC<{
             if (cur && cur.startsWith("custom") && !kept.has(cur) && customTerrainSources.some((s) => s.id === cur)) updates[sourceFieldName(side)] = fallback[side]
           }
           if (Object.keys(updates).length > 0) setState(updates)
+          const before = new Set(customTerrainSources.map((s) => s.id))
+          addLinkedBasemaps(next.filter((s) => !before.has(s.id)))
           setCustomTerrainSources(next)
         }}
         compareToMapterhorn

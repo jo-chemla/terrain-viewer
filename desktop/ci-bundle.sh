@@ -14,6 +14,20 @@ docs="$1"; variant="$2"
 
 rm -rf build artifacts
 node gen-config.mjs --docs="$docs"
+
+if [ "$(uname -s)" != "Darwin" ] && [ "$(uname -s)" != "Linux" ] && [ -z "${COTTONTAIL_NAMED:-}" ]; then
+  # cottontail.exe (the Bun-compatible runtime that owns the window) ships
+  # with an empty version resource, so Windows names the process, the
+  # taskbar tooltip and a pinned icon "cottontail". Stamp the devkit copy
+  # Hutch bundles, once per job (both variants build from it); rcedit comes
+  # from npm. Harmless if the exe is not found.
+  exe=$(find "$USERPROFILE/.hutch/releases/cottontail" -iname cottontail.exe 2>/dev/null | head -n 1 || true)
+  if [ -n "$exe" ]; then
+    npx --yes rcedit@5 "$exe" --set-version-string FileDescription "Terrain Viewer" --set-version-string ProductName "Terrain Viewer" --set-version-string CompanyName "Iconem" --set-version-string OriginalFilename "cottontail.exe" --set-icon icons/icon.ico && echo "named: $exe" || echo "rcedit failed (continuing)"
+  fi
+  export COTTONTAIL_NAMED=1
+fi
+
 hutch electrobun build --env=stable
 
 # Hutch names the build folder stable-<platform>: win-x64, macos-arm64, linux-x64.

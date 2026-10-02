@@ -15,7 +15,7 @@ import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, type ViewId
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
-  type CustomBasemapSource, basemapLibraryOpenAtom, customBasemapLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
+  type CustomBasemapSource, type CustomTerrainSource, basemapLibraryOpenAtom, customBasemapLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -227,6 +227,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
 
   // Sends a saved picture back to Tools > Georeference Image with its points,
   // so they can be moved and the overlay updated in place.
+  const setCustomTerrainSources = useSetAtom(customTerrainSourcesAtom)
   const setGeorefImage = useSetAtom(georefImageAtom)
   const [georefEditingId, setGeorefEditingId] = useAtom(georefEditingIdAtom)
   const setGeorefActive = useSetAtom(georefActiveAtom)
@@ -440,6 +441,15 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             if (removed(state[field])) updates[field] = fallback[side]
           }
           if (Object.keys(updates).length > 0) setState(updates)
+          // A library basemap that names a terrain twin (linkedTerrainId)
+          // brings that terrain into the user's list too.
+          const before = new Set(customBasemapSources.map((s) => s.id))
+          const wanted = next.filter((s) => !before.has(s.id)).map((s) => s.linkedTerrainId).filter((id): id is string => !!id)
+          if (wanted.length) setCustomTerrainSources((prev) => {
+            const have = new Set(prev.map((s) => s.id))
+            const add = wanted.filter((id) => !have.has(id)).map((id) => (customSources.SAMPLE_TERRAIN_SOURCES as any[]).find((s) => s.id === id)).filter(Boolean) as CustomTerrainSource[]
+            return add.length ? [...prev, ...add] : prev
+          })
           setCustomBasemapSources(next)
         }}
       />
