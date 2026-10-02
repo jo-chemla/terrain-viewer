@@ -108,8 +108,12 @@ if [ "$(uname -s)" != "Darwin" ] && [ "$(uname -s)" != "Linux" ]; then
   # Verified 2026-10-01: the result installs and launches. Delta patches do
   # not apply to an embedded install; the updater then downloads the full
   # bundle, which is what generatePatch: false makes it do anyway.
-  setup="$builddir/Terrain Viewer-Setup"
-  if [ -f "$setup.exe" ] && [ -f "$setup.metadata.json" ] && [ -f "$setup.tar.zst" ]; then
+  # Named after app.name ("Terrain Viewer-Setup.exe", "Terrain Viewer
+  # Light-Setup.exe"): found by glob, not spelled out, since a renamed
+  # variant once silently fell back to the zip.
+  setup=$(ls "$builddir"/*-Setup.exe 2>/dev/null | head -n 1)
+  setup="${setup%.exe}"
+  if [ -n "$setup" ] && [ -f "$setup.exe" ] && [ -f "$setup.metadata.json" ] && [ -f "$setup.tar.zst" ]; then
     rm -f artifacts/*-Setup.zip
     { cat "$setup.exe"; printf 'ELECTROBUN_METADATA_V1'; cat "$setup.metadata.json"; printf 'ELECTROBUN_ARCHIVE_V1'; cat "$setup.tar.zst"; } > artifacts/Setup.exe
   fi
