@@ -62,8 +62,7 @@ const updaterLogPath = join(dirname(process.execPath), "..", "..", "updater.log"
 function ulog(...parts: unknown[]) {
   const line = `${new Date().toISOString()} ${parts.map((p) => (typeof p === "string" ? p : JSON.stringify(p))).join(" ")}`;
   console.log("[updater]", line);
-  try { appendFileSync(updaterLogPath, line + "
-"); } catch {}
+  try { appendFileSync(updaterLogPath, line + String.fromCharCode(10)); } catch {}
 }
 
 // Tells the page, which shows a toast with "Restart now" (lib/desktop-bridge.ts).
