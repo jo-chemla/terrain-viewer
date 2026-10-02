@@ -622,14 +622,16 @@ export const CheckboxWithSlider: React.FC<{
   gotoSection?: string
   /** Per-view modes (lib/viz-views.ts): with this set the checkbox becomes
    *  the view-grid toggle, one cell per map view. */
-  perView?: { gridLayout: GridLayoutId; isActive: (side: ViewId) => boolean; onSelect: (side: ViewId) => void }
+  perView?: { gridLayout: GridLayoutId; isActive: (side: ViewId) => boolean; onSelect: (side: ViewId) => void; onAll: () => void }
 }> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip, gotoSection, perView }) => {
   const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const fullId = `${sectionId}:${id}`
   const isDimmed = activeSlider !== null && activeSlider !== fullId
 
-  const labelEl = <Label htmlFor={id} className={`text-sm cursor-pointer ${hideSlider && !gotoSection ? "col-span-2" : ""}`}>{label}</Label>
+  // In per-view mode the checkbox is gone, so the label click puts the mode
+  // on every view (the way a basemap label does), rather than toggling.
+  const labelEl = <Label htmlFor={perView ? undefined : id} onClick={perView ? perView.onAll : undefined} className={`text-sm cursor-pointer ${hideSlider && !gotoSection ? "col-span-2" : ""}`}>{label}</Label>
 
   return (
     <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>

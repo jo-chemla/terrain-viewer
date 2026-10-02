@@ -1,0 +1,30 @@
+---
+title: Post-Crisis Response
+description: Who produces terrain and imagery right after an earthquake, a landslide, an eruption or a flood, and where that data shows up in Terrain Viewer
+icon: Siren
+---
+
+After a disaster the first elevation models and images come from a handful of groups that task satellites, fly LiDAR and publish within days. This page lists them, with what they put out and how it reaches the viewer. The studies built on such data are in the [Research References](/resources/research-references), under faults, landslides, volcanoes and glaciers.
+
+## Groups and services
+
+- **[CIEST², Pôle Terre Solide / ForM@Ter (France)](https://www.poleterresolide.fr/ciest-2-nouvelle-generation-2/)**: the French solid-Earth data hub's rapid scientific response cell. After an earthquake, a landslide or an eruption it triggers Pléiades and other acquisitions, and produces DEMs, orthoimages and displacement fields for the research community within days.
+- **[Geopera (Nepal)](https://geopera.com/)**: drone and photogrammetry survey of the Bhotekoshi valley after the 2026 event, published as 0.5 m post-event surface models and 2 m elevation-change rasters. They stream in the viewer's library as the **NPL - Geopera: Bhotekoshi 2026** entries (Rasuwagadhi-Timure and Syabrubesi), with a derived normalised model against Mapterhorn.
+- **[OpenTopography](https://opentopography.org/)**: the archive where post-event LiDAR and photogrammetry land, often as rapid-response collections (Kaikōura 2016, Ridgecrest 2019, several wildfire and flood surveys). Its raster and point-cloud footprints are a coverage overlay in the viewer, and its cloud-optimised rasters open directly.
+- **[Copernicus Emergency Management Service](https://emergency.copernicus.eu/)**: the European rapid-mapping service; damage grading, flood extents and reference maps from Sentinel and commercial imagery, activated by civil protection.
+- **[International Charter Space and Major Disasters](https://disasterscharter.org/)**: pooled satellite tasking from the space agencies, activated by authorised users after a major disaster; the imagery behind many of the maps above.
+- **[UNOSAT, UNITAR](https://unosat.org/)**: the UN's satellite analysis unit; rapid mapping of damage, floods and displacement for humanitarian operations.
+- **[NASA ARIA, JPL and Caltech](https://aria.jpl.nasa.gov/)**: damage proxy maps and surface-displacement maps from Sentinel-1 and ALOS-2 radar within days of earthquakes, floods and eruptions, through the [NASA Disasters programme](https://disasters.nasa.gov/).
+- **[Maxar Open Data Program](https://www.maxar.com/open-data)**: very-high-resolution pre- and post-event imagery released openly for major disasters, as cloud-optimised GeoTIFFs with a STAC catalogue.
+- **[USGS Earthquake Hazards Program](https://earthquake.usgs.gov/)** and the **[USGS Landslide Hazards Program](https://www.usgs.gov/programs/landslide-hazards)**: event pages, field reconnaissance and post-event LiDAR for US events, archived on OpenTopography and the 3DEP services the viewer streams.
+- **[GNS Science (New Zealand)](https://www.gns.cri.nz/)** with **[LINZ](https://www.linz.govt.nz/)**: post-earthquake LiDAR and imagery (Kaikōura 2016), served through LINZ's open elevation data, in the viewer's library and references.
+- **[ICIMOD (Himalaya)](https://www.icimod.org/)**: regional rapid assessments of glacial lake outbursts, landslides and floods across the Hindu Kush Himalaya, such as the Chamoli 2021 event in the references.
+- **[Humanitarian OpenStreetMap Team](https://www.hotosm.org/)** and **[OpenAerialMap](https://openaerialmap.org/)**: crowd mapping after disasters, and the open archive of drone and aerial imagery that responders fly; OpenAerialMap tiles and images open in the viewer as basemaps.
+- **[ESA Geohazards Exploitation Platform](https://geohazards-tep.eu/)**: on-demand radar interferometry and optical correlation for earthquakes, volcanoes and landslides, for the scientific community.
+- **[CEOS Working Group on Disasters](https://ceos.org/ourwork/workinggroups/disasters/)**: coordination between the space agencies on recovery observatories and pilots (floods, seismic, volcanoes, landslides).
+
+## What the viewer adds
+
+A post-event DEM is most readable next to the pre-event one. The library holds six event change pairs (Kaikōura, Kīlauea, Fagradalsfjall, Columbia Glacier, Chamoli, Ridgecrest) and the Bhotekoshi surveys, each as a difference source so uplift, collapse, deposition and erosion read as colour; see [nDSM and Comparison](/features/ndsm-and-comparison). Any post-event raster published as a cloud-optimised GeoTIFF opens from its URL, and Historical mode puts Wayback, Google Earth and Sentinel-2 dates beside it.
+
+Know another group that publishes post-event terrain or imagery openly? Open an issue on the repository.

@@ -651,7 +651,17 @@ const TERRAIN_STEPS: TourStepDef[] = [
   {
     key: "terrain-analysis-section", domId: "tour-terrain-analysis-section", side: "left", align: "start",
     title: "Terrain Analysis",
-    description: "Surface derivatives (Slope, Aspect, Curvature), neighborhood statistics (TPI, TRI, Roughness, and more), and Principal Components (Blobness, Eigenvalue Ratio, etc). Each sub-mode has its own checkbox, and checking one reveals its own color ramp and range options directly beneath it. Slope is switched on here as an example.",
+    description: (
+      <>
+        <p className="pb-2">Derivatives and statistics of the surface:</p>
+        <ul className="list-disc pl-4 space-y-1.5">
+          <li><span className="font-semibold text-foreground">Surface derivatives</span>: Slope, Aspect, Curvature.</li>
+          <li><span className="font-semibold text-foreground">Neighborhood statistics</span>: TPI, TRI, Roughness, and more.</li>
+          <li><span className="font-semibold text-foreground">Principal components</span>: Blobness, Eigenvalue Ratio, Orientation.</li>
+        </ul>
+        <p className="pt-2">Each sub-mode has its own checkbox, and checking one reveals its own color ramp and range options directly beneath it. Slope is switched on here as an example.</p>
+      </>
+    ),
     onEnter: prepareTerrainAnalysisOnly,
   },
   {

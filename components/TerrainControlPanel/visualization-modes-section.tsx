@@ -5,6 +5,9 @@ import { useAtom, useSetAtom } from "jotai"
 import { activeProjectConfigAtom, vizModePinnedAtom, dataLayersModalOpenAtom } from "@/lib/settings-atoms"
 import { Section, CheckboxWithSlider, SectionFoldPinToggle, TooltipIconButton } from "./controls-components"
 import { Layers, RefreshCw } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
 
 export const VisualizationModesSection: React.FC<{
@@ -42,14 +45,6 @@ export const VisualizationModesSection: React.FC<{
         <div className="flex items-center gap-1">
           {/* The picture version of this very list, so it sits next to the
               list rather than up in the panel's own title bar. */}
-          {/* Per-view modes (lib/viz-views.ts): synced by default; off, each
-              mode's checkbox becomes the view grid in split / grid layouts. */}
-          <TooltipIconButton
-            icon={RefreshCw}
-            tooltip={state.vizSync ? "Modes synced across all map views. Click to pick views per mode (split and grid layouts)." : "Modes per view: each checkbox is the view grid. Click to sync every mode across all views again."}
-            className={state.vizSync ? "" : "bg-primary/15 text-primary"}
-            onClick={() => setState({ vizSync: !state.vizSync })}
-          />
           <TooltipIconButton
             icon={Layers}
             tooltip="Data layers: every visualization mode, with a picture"
@@ -66,6 +61,17 @@ export const VisualizationModesSection: React.FC<{
         />
       }
     >
+      {/* Per-view modes (lib/viz-views.ts): synced by default. Off, in a
+          split / grid layout, every mode's checkbox becomes the view grid. */}
+      {state.splitStyle !== "off" && (
+        <div className="flex items-center gap-2 pb-1">
+          <Switch id="viz-sync" checked={state.vizSync !== false} onCheckedChange={(v) => setState({ vizSync: v })} className="cursor-pointer" />
+          <Tooltip>
+            <TooltipTrigger render={<Label htmlFor="viz-sync" className="flex cursor-pointer items-center gap-1.5 text-sm"><RefreshCw className="h-3.5 w-3.5 text-muted-foreground" /> Sync viz modes across views</Label>} />
+            <TooltipContent><p>On: every mode draws on every map view. Off: each mode's checkbox becomes the view grid, to put slope on one view and hillshade on another. Mostly for advanced users: with it off, a mode you tick may show on fewer views than you expect. Clicking a mode's name puts it back on every view.</p></TooltipContent>
+          </Tooltip>
+        </div>
+      )}
       {!hideContours && (
         <CheckboxWithSlider perView={perViewFor("showContoursAndGraticules")} id="contours" gotoSection="contour" checked={state.showContoursAndGraticules} onCheckedChange={(checked) => setState({ showContoursAndGraticules: checked })} label="Contours + GeoGrid" hideSlider={true} tooltip="Controllable contours (minor/major elevation difference)" />
       )}

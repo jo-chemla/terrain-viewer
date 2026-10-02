@@ -11,6 +11,16 @@ import { activeViews, type GridLayoutId, type ViewId } from "./grid-layouts"
 
 export type VizViews = Record<string, ViewId[]>
 
+/** A submode's group switch: turning slope on for a view also needs the
+ *  Terrain Analysis group on that view, or nothing shows there. */
+export const VIZ_GROUP_OF: Record<string, string> = {
+  showSlope: "showTerrainAnalysis", showAspect: "showTerrainAnalysis", showTri: "showTerrainAnalysis", showCurvature: "showTerrainAnalysis",
+  showTpi: "showTerrainAnalysis", showRoughness: "showTerrainAnalysis", showShapeIndex: "showTerrainAnalysis", showBlobness: "showTerrainAnalysis",
+  showEigenRatio: "showTerrainAnalysis", showOrientation: "showTerrainAnalysis",
+  showLrm: "showReliefVisualization", showSvf: "showReliefVisualization", showOpenness: "showReliefVisualization", showLocalDominance: "showReliefVisualization",
+  showPhong: "showLightingEffects", showMatcap: "showLightingEffects", showShadows: "showLightingEffects",
+}
+
 export function parseVizViews(s: string): VizViews {
   const out: VizViews = {}
   if (!s) return out
@@ -44,11 +54,35 @@ export function toggleModeView(state: Record<string, any>, key: string, side: Vi
   const v = parseVizViews(state.vizViews || "")
   const all = activeViews(effectiveGridLayout(state))
   const current: ViewId[] = state[key] ? (v[key] ?? all) : []
-  const next = current.includes(side) ? current.filter((s) => s !== side) : [...current, side]
-  if (next.length === 0) { delete v[key]; return { vizViews: serializeVizViews(v), [key]: false } }
-  if (all.every((s) => next.includes(s))) { delete v[key]; return { vizViews: serializeVizViews(v), [key]: true } }
-  v[key] = all.filter((s) => next.includes(s))
-  return { vizViews: serializeVizViews(v), [key]: true }
+  const turningOn = !current.includes(side)
+  const next = turningOn ? [...current, side] : current.filter((s) => s !== side)
+  const patch: Record<string, any> = {}
+  if (next.length === 0) { delete v[key]; patch[key] = false }
+  else if (all.every((s) => next.includes(s))) { delete v[key]; patch[key] = true }
+  else { v[key] = all.filter((s) => next.includes(s)); patch[key] = true }
+  // A submode switched on for a view brings its group along on that view.
+  const group = VIZ_GROUP_OF[key]
+  if (turningOn && group) {
+    const gViews: ViewId[] = state[group] ? (v[group] ?? all) : []
+    if (!gViews.includes(side)) {
+      const g = [...gViews, side]
+      if (all.every((s) => g.includes(s))) delete v[group]; else v[group] = all.filter((s) => g.includes(s))
+      patch[group] = true
+    }
+  }
+  patch.vizViews = serializeVizViews(v)
+  return patch
+}
+
+/** The mode on every view (the label click): the group too, for a submode. */
+export function modeOnAllViews(state: Record<string, any>, key: string): Record<string, any> {
+  const v = parseVizViews(state.vizViews || "")
+  delete v[key]
+  const patch: Record<string, any> = { [key]: true }
+  const group = VIZ_GROUP_OF[key]
+  if (group) { delete v[group]; patch[group] = true }
+  patch.vizViews = serializeVizViews(v)
+  return patch
 }
 
 /** Builds the `perView` prop for CheckboxWithSlider rows, or undefined when
@@ -62,5 +96,6 @@ export function perViewProps(state: Record<string, any>, setState: (u: Record<st
     gridLayout,
     isActive: (side: ViewId) => !!state[key] && viewDrawsMode(v, key, side),
     onSelect: (side: ViewId) => setState(toggleModeView(state, key, side)),
+    onAll: () => setState(modeOnAllViews(state, key)),
   })
 }
