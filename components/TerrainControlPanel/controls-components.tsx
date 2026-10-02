@@ -484,7 +484,7 @@ export const SourceGridToggle: React.FC<{
     onPressedChange={(pressed) => { if (pressed || allowUnpress) onSelect(onlySide) }}
     disabled={disabled}
     title={`View ${onlySide} only (selected through its pill)`}
-    className="h-6 min-w-6 px-1.5 rounded-md border text-[11px] font-bold leading-none cursor-pointer data-pressed:bg-primary data-pressed:text-primary-foreground"
+    className="h-6 min-w-6 px-1.5 rounded-md border text-[10px] leading-none cursor-pointer data-pressed:font-bold"
   >
     {onlySide}
   </Toggle>

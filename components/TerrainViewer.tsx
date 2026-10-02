@@ -54,7 +54,7 @@ import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
 import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
-import { ArrowLeftRight } from "lucide-react"
+import { ArrowLeftRight, X } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
 import { bookmarksAtom, mergeImportedBookmarks, type Bookmark } from "@/lib/bookmarks"
@@ -2332,8 +2332,19 @@ export function TerrainViewer() {
   const lastInteractedViewRef = useRef<ViewId>("A")
   const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
   const [activeView, setActiveView] = useAtom(activeViewAtom)
-  // A view that leaves the layout cannot stay selected.
+  // A view that leaves the layout cannot stay selected; Escape deselects.
   useEffect(() => { if (activeView && !activeViewIds.includes(activeView)) setActiveView(null) }, [activeView, activeViewIds, setActiveView])
+  useEffect(() => {
+    if (!activeView) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      setActiveView(null)
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [activeView, setActiveView])
   // Dev-only handle for poking the live maps and state from the console or
   // an automated browser (window.__tv): the agent preview cannot render a
   // style, but map instances and state exist, so constraints can be checked.
@@ -4598,7 +4609,7 @@ export function TerrainViewer() {
           <Tooltip>
             <TooltipTrigger
               render={
-                <span data-snapshot-plain data-timeline-side-select="" onClick={onPillClick} className={cn("cursor-pointer", selected && "font-bold text-[1.08em]")}>
+                <span data-snapshot-plain data-timeline-side-select="" onClick={onPillClick} className={cn("cursor-pointer", activeView === pane.side ? "font-bold text-[1.08em]" : selected && "font-bold")}>
                   {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
                   {label}{distinctModesSuffix(pane.side)}
                 </span>
@@ -4611,6 +4622,18 @@ export function TerrainViewer() {
             {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
             {label}{distinctModesSuffix(pane.side)}
           </span>
+        )}
+        {activeView === pane.side && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button type="button" data-snapshot-ignore onClick={() => setActiveView(null)} className="cursor-pointer text-muted-foreground hover:text-foreground" aria-label="Deselect this view">
+                  <X className="h-3 w-3" />
+                </button>
+              }
+            />
+            <TooltipContent><p>Deselect this view (Esc): per-view toggles go back to the view grid</p></TooltipContent>
+          </Tooltip>
         )}
         {isSplit && (pane.side !== "A" || activeViewIds.length === 2) && (
           <Tooltip>

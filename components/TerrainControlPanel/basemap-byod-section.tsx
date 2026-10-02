@@ -11,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN } from "./controls-components"
-import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, type ViewId } from "@/lib/grid-layouts"
+import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
@@ -86,6 +86,32 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       ? { [viewFieldName(side, "basemapSource", true)]: id, [sourceFieldName(side)]: linkedTerrainId }
       : { [viewFieldName(side, "basemapSource", true)]: id })
   }, [customTerrainSources, customBasemapSources, setState, selectBasemapA])
+
+  // The label click in a split: the basemap on every view, with its linked
+  // terrain on every view too (the terrain side's selectTerrainAll twin).
+  const selectBasemapAll = useCallback((id: string) => {
+    const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
+    const patch: Record<string, any> = { basemapSource: id }
+    for (const side of VIEW_IDS) {
+      patch[viewFieldName(side, "basemapSource", true)] = id
+      if (linkedTerrainId) patch[sourceFieldName(side)] = linkedTerrainId
+    }
+    setState(patch)
+  }, [customTerrainSources, customBasemapSources, setState])
+
+  // An overlay's label in a split: on every active view, or off everywhere
+  // when it already is on all of them.
+  const toggleOverlayAll = useCallback((id: string) => {
+    const views = activeViewsOf(state)
+    const everywhere = views.every((side) => overlayIdsOf(side).includes(id))
+    const patch: Record<string, any> = {}
+    for (const side of views) {
+      const field = overlayField(side)
+      const current: string[] = state[field] || []
+      patch[field] = everywhere ? current.filter((x) => x !== id) : (current.includes(id) ? current : [...current, id])
+    }
+    setState(patch)
+  }, [state, setState])
 
   const selectBasemapSingle = useCallback((id: string) => {
     const linkedTerrainId = resolveLinkedTerrainId(id, customTerrainSources, customBasemapSources)
@@ -258,6 +284,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // Per view, in split / grid with per-view basemaps: view A is the plain
   // overlayBasemapIds, the others overlayBasemapIds<side>.
   const overlayField = (side: ViewId) => (side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`)
+  const activeViewsOf = (st: Record<string, any>): ViewId[] => st.splitStyle === "off" ? ["A"] : GRID_LAYOUTS[(st.splitStyle === "overlay" ? "2x1" : (st.gridLayout ?? "2x1")) as GridLayoutId].grid.flat()
   const overlayIdsOf = (side: ViewId): string[] => state[overlayField(side)] || []
   const toggleOverlaySide = useCallback((side: ViewId, id: string) => {
     const field = side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`
@@ -321,7 +348,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                         handleFitToBounds={handleFitToBounds}
                         handleEditSource={handleEditBasemap}
                         handleDeleteCustomSource={handleDeleteCustomBasemap}
-                        onSelect={selectBasemapA}
+                        onSelect={state.splitStyle !== "off" ? selectBasemapAll : selectBasemapA}
                         linkedSourceName={linkedTerrainName(source)}
                       />
                     </div>
@@ -341,7 +368,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                         handleFitToBounds={handleFitToBounds}
                         handleEditSource={handleEditBasemap}
                         handleDeleteCustomSource={handleDeleteCustomBasemap}
-                        onSelect={selectBasemapA}
+                        onSelect={state.splitStyle !== "off" ? selectBasemapAll : selectBasemapA}
                         linkedSourceName={linkedTerrainName(source)}
                       />
                     </div>
@@ -396,7 +423,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     handleFitToBounds={handleFitToBounds}
                     handleEditSource={handleEditBasemap}
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
-                    onSelect={(id) => handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
+                    onSelect={(id) => (state.basemapPerView && state.splitStyle !== "off") ? toggleOverlayAll(id) : handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
                     extraActions={(source.type === "image" || source.type === "image-local") && source.georef ? (
                       <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "bg-primary/15 text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
                         <Crosshair className="h-4 w-4" />

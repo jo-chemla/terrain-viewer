@@ -6,7 +6,7 @@
 import { BrowserWindow, Utils, Updater } from "electrobun/main";
 import { dlopen, FFIType, ptr } from "bun:ffi";
 import { dirname, join } from "node:path";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
 
 const mainWindow = new BrowserWindow({
   title: "Terrain Viewer",
@@ -56,6 +56,16 @@ applyWindowIcon(mainWindow);
 // in the background and applied (the updater quits and relaunches) at the
 // following launch, so nothing interrupts a session. The light build has
 // no feed and skips this; the dev channel never reports updates.
+// The launcher does not forward the main process's console, so updater
+// lines also go to <channel root>/updater.log, readable after a failed apply.
+const updaterLogPath = join(dirname(process.execPath), "..", "..", "updater.log");
+function ulog(...parts: unknown[]) {
+  const line = `${new Date().toISOString()} ${parts.map((p) => (typeof p === "string" ? p : JSON.stringify(p))).join(" ")}`;
+  console.log("[updater]", line);
+  try { appendFileSync(updaterLogPath, line + "
+"); } catch {}
+}
+
 // Tells the page, which shows a toast with "Restart now" (lib/desktop-bridge.ts).
 function announceUpdate(status: "ready" | "error", version: string) {
   try {
@@ -67,9 +77,9 @@ function announceUpdate(status: "ready" | "error", version: string) {
 async function updateOnLaunch() {
   try {
     const local = await Updater.getLocalInfo();
-    if (!local.baseUrl || local.channel === "dev") { console.log("[updater] no feed (baseUrl empty) or dev channel"); return; }
+    if (!local.baseUrl || local.channel === "dev") { ulog("no feed (baseUrl empty) or dev channel"); return; }
     const info = await Updater.checkForUpdate();
-    console.log("[updater]", JSON.stringify(info));
+    ulog("check", info);
     if (info.error) { announceUpdate("error", info.error); return; }
     if (info.updateReady) {
       // Apply at most once per downloaded build. If the apply helper fails
@@ -81,12 +91,14 @@ async function updateOnLaunch() {
       let attempted: string | null = null;
       try { attempted = JSON.parse(readFileSync(marker, "utf8")).hash ?? null; } catch {}
       if (attempted === info.hash) {
-        console.log("[updater] apply of", info.hash, "already attempted once; not retrying automatically");
+        ulog("apply of", info.hash, "already attempted once; not retrying automatically");
         announceUpdate("ready", info.version ?? "");
         return;
       }
-      try { mkdirSync(dir, { recursive: true }); writeFileSync(marker, JSON.stringify({ hash: info.hash, at: new Date().toISOString() })); } catch (e) { console.warn("[updater] marker:", e); }
+      try { mkdirSync(dir, { recursive: true }); writeFileSync(marker, JSON.stringify({ hash: info.hash, at: new Date().toISOString() })); } catch (e) { ulog("marker error", String(e)); }
+      ulog("applying", info.hash);
       await Updater.applyUpdate();
+      ulog("applyUpdate returned");
       return;
     }
     if (info.updateAvailable) {
@@ -94,11 +106,11 @@ async function updateOnLaunch() {
       if (Updater.updateInfo().updateReady) announceUpdate("ready", info.version ?? "");
     }
   } catch (e) {
-    console.warn("update check:", e);
+    ulog("update check failed", String(e));
     announceUpdate("error", String(e));
   }
 }
-Updater.onStatusChange((entry) => console.log("[updater]", entry.status, entry.message));
+Updater.onStatusChange((entry) => ulog(entry.status, entry.message, entry.details ?? ""));
 // A beat after the window exists, so the page is there to receive the toast.
 setTimeout(() => { void updateOnLaunch(); }, 4000);
 

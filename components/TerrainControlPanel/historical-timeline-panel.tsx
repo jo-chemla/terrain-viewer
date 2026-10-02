@@ -256,9 +256,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // value directly — switching FROM a historical 3x2 grid TO terrain mode
   // left every one of that grid's 6 views' pills on the timeline, even
   // though TerrainViewer.tsx itself had already collapsed back to 2x1.
-  const gridLayoutForTimeline: GridLayoutId = (state.splitStyle === "overlay" || state.appMode !== "historical")
-    ? "2x1"
-    : (state.gridLayout ?? "2x1")
+  // Since Compare and Blend came to terrain mode, both modes honour the
+  // picked grid; only overlay is a fixed pair.
+  const gridLayoutForTimeline: GridLayoutId = state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")
   // Every side beyond A only ever shows as independently-draggable when
   // views are genuinely independent (per-view basemap AND split both on) —
   // in every other mode every side's basemap is identical by construction

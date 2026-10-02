@@ -98,10 +98,14 @@ export function toggleModeView(state: Record<string, any>, key: string, side: Vi
   return patch
 }
 
-/** The mode on every view (the label click): the group too, for a submode. */
+/** The label click: the mode on every view (the group too, for a submode);
+ *  when it already is on every active view, off everywhere instead. */
 export function modeOnAllViews(state: Record<string, any>, key: string): Record<string, any> {
   const v = parseVizViews(state.vizViews || "")
+  const all = activeViews(effectiveGridLayout(state))
+  const everywhere = !!state[key] && all.every((s) => viewDrawsMode(v, key, s))
   delete v[key]
+  if (everywhere) return { [key]: false, vizViews: serializeVizViews(v) }
   const patch: Record<string, any> = { [key]: true }
   const group = VIZ_GROUP_OF[key]
   if (group) { delete v[group]; patch[group] = true }
