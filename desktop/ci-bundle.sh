@@ -23,7 +23,12 @@ if [ "$(uname -s)" != "Darwin" ] && [ "$(uname -s)" != "Linux" ] && [ -z "${COTT
   # from npm. Harmless if the exe is not found.
   exe=$(find "$USERPROFILE/.hutch/releases/cottontail" -iname cottontail.exe 2>/dev/null | head -n 1 || true)
   if [ -n "$exe" ]; then
-    npx --yes rcedit@5 "$exe" --set-version-string FileDescription "Terrain Viewer" --set-version-string ProductName "Terrain Viewer" --set-version-string CompanyName "Iconem" --set-version-string OriginalFilename "cottontail.exe" --set-icon icons/icon.ico && echo "named: $exe" || echo "rcedit failed (continuing)"
+    # The npm package has no CLI entry, but ships rcedit-x64.exe; a file
+    # version is set too, or Windows reports the strings as empty.
+    ico="$PWD/icons/icon.ico"
+    ver="${BUILD_VERSION:-$(date -u +%Y.%-m.%-d)}"
+    tmp=$(mktemp -d)
+    ( cd "$tmp" && npm init -y >/dev/null 2>&1 && npm i --no-save --silent rcedit@5 >/dev/null 2>&1       && "$tmp/node_modules/rcedit/bin/rcedit-x64.exe" "$exe" --set-file-version "$ver" --set-product-version "$ver" --set-version-string FileDescription "Terrain Viewer" --set-version-string ProductName "Terrain Viewer" --set-version-string CompanyName "Iconem" --set-icon "$ico"       && echo "named: $exe ($ver)" ) || echo "rcedit failed (continuing)"
   fi
   export COTTONTAIL_NAMED=1
 fi
