@@ -8,9 +8,12 @@ import { SourceInfoDialog } from "./source-info-dialog"
 
 export const SourceDetails: React.FC<{
   sourceKey: string; config: any; getTilesUrl: any; linkCallback: any; getMapBounds: () => Bounds; state?: any
-}> = ({ sourceKey, config, getTilesUrl, linkCallback, getMapBounds, state }) => (
+  /** Split layouts: the label click activates the source on every view
+   *  (the grid toggle beside it picks single views). */
+  onSelect?: (key: string) => void
+}> = ({ sourceKey, config, getTilesUrl, linkCallback, getMapBounds, state, onSelect }) => (
   <>
-    <Label htmlFor={`source-${sourceKey}`} className={`flex-1 text-sm truncate min-w-0 ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
+    <Label htmlFor={`source-${sourceKey}`} onClick={onSelect && sourceKey !== "google3dtiles" ? () => onSelect(sourceKey) : undefined} title={onSelect ? "Use on every view" : undefined} className={`flex-1 text-sm truncate min-w-0 ${sourceKey !== "google3dtiles" ? "cursor-pointer" : "cursor-not-allowed"}`}>
       <span className="truncate min-w-0">{config.name}</span>
     </Label>
     {/* No datum badge here. An "ellipsoidal" pill next to the name read as a

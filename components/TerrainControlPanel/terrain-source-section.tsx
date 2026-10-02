@@ -158,6 +158,20 @@ export const TerrainSourceSection: React.FC<{
       : { [sourceFieldName(side)]: id })
   }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState, selectTerrainA])
 
+  // The label click in a split layout: the source on every view at once,
+  // with its linked basemap per view, the way a viz-mode label puts the
+  // mode on every view.
+  const selectTerrainAll = useCallback((id: string) => {
+    const linkedBasemapId = resolveLinkedBasemapId(id, customTerrainSources, customBasemapSources)
+    const patch: Record<string, any> = {}
+    for (const side of VIEW_IDS) {
+      patch[sourceFieldName(side)] = id
+      if (linkedBasemapId) patch[viewFieldName(side, "basemapSource", true)] = linkedBasemapId
+    }
+    if (linkedBasemapId && !state.basemapPerView) patch.basemapSource = linkedBasemapId
+    setState(patch)
+  }, [customTerrainSources, customBasemapSources, state.basemapPerView, setState])
+
   // Same rule as TerrainViewer's effectiveGridLayout: overlay is always a
   // 2x1 pair, every other split honours the picked grid, in both app modes
   // (terrain mode used to be pinned to 2x1 before it got Compare and Blend).
@@ -342,7 +356,7 @@ export const TerrainSourceSection: React.FC<{
                       isActive={(side) => state[sourceFieldName(side)] === key}
                       onSelect={(side) => selectTerrainSide(side, key)}
                     />
-                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
+                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} onSelect={selectTerrainAll} />
                   </div>
                 ))}
               </div>
@@ -414,7 +428,7 @@ export const TerrainSourceSection: React.FC<{
                   ) : (
                     <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
                   )}
-                  <CustomSourceDetails liveSourceIds={liveTerrainSourceIds} libraryIds={libraryTerrainIds} onLoadFromLibrary={loadLibrarySourcesById} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
+                  <CustomSourceDetails liveSourceIds={liveTerrainSourceIds} libraryIds={libraryTerrainIds} onLoadFromLibrary={loadLibrarySourcesById} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: isSplit ? selectTerrainAll : selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
                 </div>
               )
               const body = (
