@@ -253,6 +253,7 @@ export const GeorefSection: React.FC<{
       const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([p.lng, p.lat]).addTo(map)
       // Hidden while dragged, so the crosshair lands on the spot itself.
       marker.on("dragstart", () => { el.style.opacity = "0" })
+      marker.on("drag", () => { el.style.opacity = "0" })
       marker.on("dragend", () => {
         el.style.opacity = "1"
         const ll = marker.getLngLat()
@@ -324,7 +325,7 @@ export const GeorefSection: React.FC<{
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <span className="truncate text-xs text-muted-foreground" title={image.name}>{image.name} · {image.width}×{image.height}</span>
-            <Button variant="ghost" size="sm" className="h-7 cursor-pointer text-xs" onClick={clearAll}>Remove</Button>
+            <Button variant="ghost" size="sm" className="cursor-pointer" onClick={clearAll}>Remove</Button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -335,7 +336,7 @@ export const GeorefSection: React.FC<{
 
           <div className="flex items-center gap-2">
             <Switch id="georef-window" checked={windowOpen} onCheckedChange={setWindowOpen} className="cursor-pointer" />
-            <Label htmlFor="georef-window" className="text-xs">Image window</Label>
+            <Label htmlFor="georef-window" className="text-sm font-medium">Image window</Label>
           </div>
           {windowOpen && (
             <GeorefImageWindow title={image.name} aspect={image.width / image.height} onClose={() => setWindowOpen(false)}>
@@ -355,32 +356,32 @@ export const GeorefSection: React.FC<{
 
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Label className="shrink-0 text-xs">Transform</Label>
+              <Label className="shrink-0 text-sm font-medium">Transform</Label>
               <Select value={type} onValueChange={(v) => v && setState({ georefType: v })}>
-                <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 flex-1 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {GEOREF_TYPES.map((t) => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
+                  {GEOREF_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-[11px] text-muted-foreground">{GEOREF_TYPES.find((t) => t.value === type)?.hint}</p>
+            <p className="text-xs text-muted-foreground">{GEOREF_TYPES.find((t) => t.value === type)?.hint}</p>
           </div>
 
           {rows > 0 && (
             <div className="space-y-1">
               <div className="flex items-baseline justify-between">
-                <Label className="text-xs">Control points ({gcps.length}{gcps.length < needed ? `, ${needed} needed` : ""})</Label>
-                <button type="button" className="cursor-pointer text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground" onClick={() => { setImagePts([]); setMapPts([]); setSelected(null) }}>clear all</button>
+                <Label className="text-sm font-medium">Control points ({gcps.length}{gcps.length < needed ? `, ${needed} needed` : ""})</Label>
+                <button type="button" className="cursor-pointer text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground" onClick={() => { setImagePts([]); setMapPts([]); setSelected(null) }}>clear all</button>
               </div>
-              <ul className="space-y-0.5 text-xs">
+              <ul className="space-y-0.5 text-sm">
                 {Array.from({ length: rows }, (_, i) => {
                   const ip = imagePts[i], mp = mapPts[i]
                   const isSel = selected === i
                   return (
                     <li key={i} className={`flex cursor-pointer items-center gap-2 rounded px-1 ${isSel ? "bg-muted" : "hover:bg-muted/50"}`} onClick={() => setSelected(isSel ? null : i)} title="Click to highlight this point on the image and the map">
-                      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold leading-none text-black" style={{ background: ip && mp ? MARKER_COLOR : "rgba(245,158,11,.35)" }}>{i + 1}</span>
-                      <span className="truncate text-muted-foreground">{ip ? `${Math.round(ip.px)},${Math.round(ip.py)}` : "image?"} → {mp ? `${mp.lat.toFixed(5)}, ${mp.lng.toFixed(5)}` : "map?"}</span>
-                      <span className="ml-auto tabular-nums">{fit && i < fit.residualsM.length ? fmtM(fit.residualsM[i]) : ""}</span>
+                      <span className={`w-5 shrink-0 text-right font-mono text-xs ${ip && mp ? "" : "text-muted-foreground"}`}>{i + 1}</span>
+                      <span className="truncate font-mono text-xs text-muted-foreground">{ip ? `${Math.round(ip.px)},${Math.round(ip.py)}` : "image?"} → {mp ? `${mp.lat.toFixed(5)}, ${mp.lng.toFixed(5)}` : "map?"}</span>
+                      <span className="ml-auto font-mono text-xs tabular-nums">{fit && i < fit.residualsM.length ? fmtM(fit.residualsM[i]) : ""}</span>
                       <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground" title="Remove this pair" onClick={(e) => { e.stopPropagation(); removePair(i) }}>×</button>
                     </li>
                   )
@@ -395,18 +396,18 @@ export const GeorefSection: React.FC<{
             <>
               <div className="flex items-center gap-2">
                 <Switch id="georef-visible" checked={state.showGeoref} onCheckedChange={(v) => setState({ showGeoref: v })} className="cursor-pointer" />
-                <Label htmlFor="georef-visible" className="text-xs">Show on map</Label>
+                <Label htmlFor="georef-visible" className="text-sm font-medium">Show on map</Label>
                 <div className="ml-auto flex items-center gap-2">
-                  <Label className="text-xs">Opacity</Label>
+                  <Label className="text-sm">Opacity</Label>
                   <MobileSlider className="w-24" min={0} max={1} step={0.05} value={state.georefOpacity} onValueChange={(v: number | readonly number[]) => setState({ georefOpacity: Array.isArray(v) ? v[0] : v })} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" className="h-7 w-full cursor-pointer text-xs" onClick={zoomToImage}>Zoom to image</Button>
-                <Button variant="outline" size="sm" className="h-7 w-full cursor-pointer text-xs" onClick={downloadWorldFile} title="ESRI world file (lng/lat, WGS 84) plus .prj: drop next to the image for QGIS">World file</Button>
+                <Button variant="outline" size="sm" className="w-full cursor-pointer" onClick={zoomToImage}>Zoom to image</Button>
+                <Button variant="outline" size="sm" className="w-full cursor-pointer" onClick={downloadWorldFile} title="ESRI world file (lng/lat, WGS 84) plus .prj: drop next to the image for QGIS">World file</Button>
               </div>
-              <Button size="sm" className="h-7 w-full cursor-pointer text-xs" onClick={saveAsOverlay}>{editingId ? "Update the overlay" : "Save as basemap overlay"}</Button>
-              {image.fromDisk && <p className="text-[11px] text-muted-foreground">The image stays in this browser session; the points are in the URL. Load it from a URL to share the whole result.</p>}
+              <Button size="sm" className="w-full cursor-pointer" onClick={saveAsOverlay}>{editingId ? "Update the overlay" : "Save as basemap overlay"}</Button>
+              {image.fromDisk && <p className="text-xs text-muted-foreground">The image stays in this browser session; the points are in the URL. Load it from a URL to share the whole result.</p>}
             </>
           )}
         </div>

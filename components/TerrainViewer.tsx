@@ -360,6 +360,16 @@ export const QUERY_STATE_PARSERS = {
     // basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B,
     // only meaningful in split-or-radio basemap mode (basemapPerView).
     overlayBasemapIds: parseAsArrayOf(parseAsString).withDefault([]),
+    // Per-view overlay lists for split / grid layouts when basemapPerView is
+    // on (view A keeps overlayBasemapIds), picked with the same grid toggle
+    // as the per-view basemaps.
+    overlayBasemapIdsB: parseAsArrayOf(parseAsString).withDefault([]),
+    overlayBasemapIdsC: parseAsArrayOf(parseAsString).withDefault([]),
+    overlayBasemapIdsD: parseAsArrayOf(parseAsString).withDefault([]),
+    overlayBasemapIdsE: parseAsArrayOf(parseAsString).withDefault([]),
+    overlayBasemapIdsF: parseAsArrayOf(parseAsString).withDefault([]),
+    overlayBasemapIdsG: parseAsArrayOf(parseAsString).withDefault([]),
+    overlayBasemapIdsH: parseAsArrayOf(parseAsString).withDefault([]),
     // The ONE scrubbed date (epoch ms) for whichever concrete historical
     // source is active on this side (historicalActiveSource(A/B) below) —
     // Wayback/HLS/GE-Historical/Planet/EOX-S2/Bing all share this single
@@ -2324,7 +2334,7 @@ export function TerrainViewer() {
   //               that are not in Web Mercator.
   //   camera      a link with no lat/lng of its own is framed on view A's
   //               COG bounds, once.
-  const urlSourceKey = [...VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]), state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`]), ...(state.overlayBasemapIds ?? [])]
+  const urlSourceKey = [...VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]), state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`]), ...(state.overlayBasemapIds ?? []), ...VIEW_IDS.flatMap((side) => (side === "A" ? [] : (stateAny[`overlayBasemapIds${side}`] ?? [])))]
     .filter((v) => typeof v === "string" && /^https?:\/\//i.test(v)).join("\n")
   // ?addTerrainUrl= / ?addBasemapUrl= / ?addOverlayUrl= (repeatable): COGs
   // or tile templates registered in the BYOD lists without being selected
@@ -3549,6 +3559,10 @@ export function TerrainViewer() {
   const renderMap = useCallback(
     (source: TerrainSource | string, side: ViewId) => {
       const isPrimary = side === "A"
+      // Overlays per view: with per-view basemaps on, views B-H read their own
+      // overlayBasemapIds<side>; view A and the single-basemap mode read the
+      // plain overlayBasemapIds (basemap-byod-section.tsx's grid toggle writes them).
+      const overlayIdsForView = (s: ViewId): string[] => (state.basemapPerView && s !== "A" ? ((stateAny[`overlayBasemapIds${s}`] as string[] | undefined) ?? []) : (state.overlayBasemapIds ?? []))
       const isBottomRight = side === bottomRightViewId
       // "live" (lib/phong-live-gl-layer.ts) now projects through MapLibre's own
       // per-frame shaderData prelude, so it renders correctly under BOTH
@@ -3805,7 +3819,7 @@ export function TerrainViewer() {
           />
           {state.basemapPerView && state.showRasterBasemap && (
             <OverlayBasemapSources
-              overlayIds={state.overlayBasemapIds}
+              overlayIds={overlayIdsForView(side)}
               customBasemapSources={customBasemapSources}
               titilerEndpoint={titilerEndpoint}
             />
@@ -4072,7 +4086,7 @@ export function TerrainViewer() {
             rasterBasemapOpacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.basemapSourceOpacity}
           />
           {state.basemapPerView && state.showRasterBasemap && (
-            <OverlayBasemapLayers overlayIds={state.overlayBasemapIds} opacity={isHistoricalMode ? 1 : state.rasterBasemapOpacity} customBasemapSources={customBasemapSources} />
+            <OverlayBasemapLayers overlayIds={overlayIdsForView(side)} opacity={isHistoricalMode ? 1 : state.rasterBasemapOpacity} customBasemapSources={customBasemapSources} />
           )}
           <ColorReliefLayer
             showColorRelief={state.showColorRelief && !isHistoricalMode}

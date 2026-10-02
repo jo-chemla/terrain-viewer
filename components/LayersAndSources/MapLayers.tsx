@@ -103,18 +103,22 @@ RasterLayer.displayName = "RasterLayer"
 // the only control, which meant an overlay could only ever be fully opaque or
 // track the primary basemap's slider, with no way to blend a specific overlay
 // (e.g. a land-cover map) more subtly against what's under it.
+const OVERLAY_STACK_SLOT = { under: LAYER_SLOTS.OVERLAYS, relief: LAYER_SLOTS.HILLSHADE, top: LAYER_SLOTS.CONTOURS } as const
 export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSources }: {
   overlayIds: string[]
   opacity: number
-  customBasemapSources: { id: string; opacity?: number }[]
+  customBasemapSources: { id: string; opacity?: number; stack?: "under" | "relief" | "top" }[]
 }) => (
   <>
     {overlayIds.map((id) => {
-      const sourceOpacity = (customBasemapSources.find((s) => s.id === id)?.opacity ?? 100) / 100
+      const source = customBasemapSources.find((s) => s.id === id)
+      const sourceOpacity = (source?.opacity ?? 100) / 100
+      // Keyed on the slot: a layer's position is set when it is created.
+      const stack = source?.stack ?? "under"
       return (
         <Layer
-          key={`overlay-layer-${id}`}
-          beforeId={LAYER_SLOTS.OVERLAYS}
+          key={`overlay-layer-${id}-${stack}`}
+          beforeId={OVERLAY_STACK_SLOT[stack]}
           id={`overlay-basemap-${id}`}
           type="raster"
           source={`overlay-basemap-source-${id}`}

@@ -351,6 +351,11 @@ export interface CustomBasemapSource {
    *  (Tools > Georeference Image); "image-local" keeps a `local://<id>` url
    *  like "cog-local". */
   type: "cog" | "cog-local" | "tms" | "wms" | "wmts" | "tilejson" | "image" | "image-local"
+  /** Where an overlay sits in the layer stack: under the relief layers (the
+   *  default, hillshade and colour relief draw over it), above the colour
+   *  relief but under hillshade ("relief"), or above every terrain layer
+   *  ("top"). See OverlayBasemapLayers. */
+  stack?: "under" | "relief" | "top"
   /** For "image" / "image-local": the corners in lng/lat, MapLibre image-source
    *  order (top-left, top-right, bottom-right, bottom-left). */
   coordinates?: [[number, number], [number, number], [number, number], [number, number]]

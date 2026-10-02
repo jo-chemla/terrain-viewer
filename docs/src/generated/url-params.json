@@ -346,6 +346,76 @@
       "note": "'overlay'-role custom basemap sources currently stacked on top of the active basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B, only meaningful in split-or-radio basemap mode…"
     },
     {
+      "key": "overlayBasemapIdsB",
+      "stateKey": "overlayBasemapIdsB",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": "Per-view overlay lists for split / grid layouts when basemapPerView is on (view A keeps overlayBasemapIds), picked with the same grid toggle as the per-view basemaps."
+    },
+    {
+      "key": "overlayBasemapIdsC",
+      "stateKey": "overlayBasemapIdsC",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "overlayBasemapIdsD",
+      "stateKey": "overlayBasemapIdsD",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "overlayBasemapIdsE",
+      "stateKey": "overlayBasemapIdsE",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "overlayBasemapIdsF",
+      "stateKey": "overlayBasemapIdsF",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "overlayBasemapIdsG",
+      "stateKey": "overlayBasemapIdsG",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "overlayBasemapIdsH",
+      "stateKey": "overlayBasemapIdsH",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
       "key": "date",
       "stateKey": "date",
       "type": "integer",

@@ -85,6 +85,9 @@ jobs:
           name: terrain-viewer-desktop-${{ matrix.label }}
           path: desktop/out
           if-no-files-found: error
+          # The release holds the bundles; the run artifact only carries them
+          # to the release job, so it need not linger (default is 90 days).
+          retention-days: 1
 
   release:
     # Publishes whatever did build: one platform failing must not hide the

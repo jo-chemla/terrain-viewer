@@ -253,6 +253,15 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     const current: string[] = state.overlayBasemapIds || []
     setState({ overlayBasemapIds: checked ? [...current, id] : current.filter((x) => x !== id) })
   }, [state.overlayBasemapIds, setState])
+  // Per view, in split / grid with per-view basemaps: view A is the plain
+  // overlayBasemapIds, the others overlayBasemapIds<side>.
+  const overlayField = (side: ViewId) => (side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`)
+  const overlayIdsOf = (side: ViewId): string[] => state[overlayField(side)] || []
+  const toggleOverlaySide = useCallback((side: ViewId, id: string) => {
+    const field = side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`
+    const current: string[] = state[field] || []
+    setState({ [field]: current.includes(id) ? current.filter((x) => x !== id) : [...current, id] })
+  }, [state, setState])
 
   return (
     <>
@@ -365,11 +374,19 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               <GroupHeading>Overlays</GroupHeading>
               {overlaySources.map((source) => (
                 <div key={source.id} className="flex items-center gap-2 min-w-0">
+                  {state.basemapPerView && state.splitStyle !== "off" ? (
+                    <SourceGridToggle
+                      gridLayout={state.splitStyle === "overlay" ? "2x1" : state.gridLayout}
+                      isActive={(side: ViewId) => overlayIdsOf(side).includes(source.id)}
+                      onSelect={(side: ViewId) => toggleOverlaySide(side, source.id)}
+                    />
+                  ) : (
                   <Checkbox
                     checked={(state.overlayBasemapIds || []).includes(source.id)}
                     onCheckedChange={(checked) => handleToggleOverlay(source.id, checked === true)}
                     className="cursor-pointer shrink-0"
                   />
+                  )}
                   <CustomSourceDetails
                     source={source}
                     handleFitToBounds={handleFitToBounds}
@@ -377,7 +394,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
                     onSelect={(id) => handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
                     extraActions={(source.type === "image" || source.type === "image-local") && source.georef ? (
-                      <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
+                      <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "bg-primary/15 text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
                         <Crosshair className="h-4 w-4" />
                       </Button>
                     ) : undefined}

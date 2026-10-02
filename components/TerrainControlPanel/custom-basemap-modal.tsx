@@ -64,6 +64,7 @@ export const CustomBasemapModal: React.FC<{
   }, [])
   const [description, setDescription] = useState("")
   const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
+  const [stack, setStack] = useState<NonNullable<CustomBasemapSource["stack"]>>("under")
   const [cogViaTitiler, setCogViaTitiler] = useState(false)
   const [opacity, setOpacity] = useState(100)
   // Unlike the terrain side, no basemap source type gets an auto-detected zoom
@@ -115,6 +116,7 @@ export const CustomBasemapModal: React.FC<{
       setType(editingSource.type as BasemapFormType)
       setDescription(editingSource.description || "")
       setRole(editingSource.role ?? "basemap")
+      setStack(editingSource.stack ?? "under")
       setCogViaTitiler(!!editingSource.cogViaTitiler)
       setOpacity(editingSource.opacity ?? 100)
       originalOpacityRef.current = editingSource.opacity ?? 100
@@ -140,6 +142,7 @@ export const CustomBasemapModal: React.FC<{
       setTypeState((((stacSearchBeta || lastType !== "stac") ? lastType : "qms") as BasemapFormType) || "qms")
       setDescription("")
       setRole("basemap")
+      setStack("under")
       setCogViaTitiler(false)
       setOpacity(100)
       setMinzoom("")
@@ -213,7 +216,7 @@ export const CustomBasemapModal: React.FC<{
       ? (boundsValues as [number, number, number, number])
       : undefined
     onSave({
-      id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role, opacity,
+      id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role, opacity, stack: role === "overlay" ? stack : undefined,
       minzoom: minzoom === "" ? undefined : Number(minzoom),
       maxzoom: maxzoom === "" ? undefined : Number(maxzoom),
       linkedTerrainId: linkedTerrainId || undefined,
@@ -221,7 +224,7 @@ export const CustomBasemapModal: React.FC<{
       cogViaTitiler: type === "cog" && cogViaTitiler ? true : undefined,
     })
     onOpenChange(false)
-  }, [name, url, type, description, role, opacity, minzoom, maxzoom, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, cogViaTitiler, editingSource, onSave, onOpenChange])
+  }, [name, url, type, description, role, opacity, stack, minzoom, maxzoom, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, cogViaTitiler, editingSource, onSave, onOpenChange])
 
   // Unlike terrain, no basemap source type gets an auto-detected zoom range applied
   // at render time (RasterBasemapSource just reads customBasemap.maxzoom with a 0/22
@@ -453,6 +456,24 @@ export const CustomBasemapModal: React.FC<{
                 <p className="text-xs text-muted-foreground">
                   Overlays stack on top of the active basemap instead of replacing it — only available in Split/Radio basemap mode.
                 </p>
+                {role === "overlay" && (
+                  <>
+                    <Label>Draw it</Label>
+                    <SegmentedToggle
+                      className="w-full"
+                      value={stack}
+                      onChange={(value) => setStack(value)}
+                      options={[
+                        { value: "under" as const, label: "Under relief" },
+                        { value: "relief" as const, label: "Over hypso" },
+                        { value: "top" as const, label: "On top" },
+                      ]}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Under relief: hillshade and colour relief draw over it. Over hypso: above the colour relief, hillshade still shades it. On top: above every terrain layer, only contours and markers over it.
+                    </p>
+                  </>
+                )}
               </div>
               {/* Named "Style" (rather than folded into the fields above) so it
                   reads as a display preference belonging to this saved source —

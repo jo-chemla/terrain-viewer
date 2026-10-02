@@ -569,6 +569,111 @@
             "explode": false
           },
           {
+            "name": "overlayBasemapIdsB",
+            "in": "query",
+            "required": false,
+            "description": "State. Per-view overlay lists for split / grid layouts when basemapPerView is on (view A keeps overlayBasemapIds), picked with the same grid toggle as the per-view basemaps.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "overlayBasemapIdsC",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "overlayBasemapIdsD",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "overlayBasemapIdsE",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "overlayBasemapIdsF",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "overlayBasemapIdsG",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "overlayBasemapIdsH",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
             "name": "date",
             "in": "query",
             "required": false,
