@@ -79,15 +79,26 @@ jobs:
           hutch --version
           hutch run install
           bash ci-bundle.sh bundled with-offline-docs
-          bash ci-bundle.sh online light-online-docs
+      - name: Bundle, docs online
+        # Its own step, so the full bundle above still ships when this one
+        # fails; the job is still marked failed afterwards.
+        working-directory: desktop
+        shell: bash
+        continue-on-error: true
+        id: light
+        run: bash ci-bundle.sh online light-online-docs
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: terrain-viewer-desktop-${{ matrix.label }}
           path: desktop/out
-          if-no-files-found: error
+          if-no-files-found: warn
           # The release holds the bundles; the run artifact only carries them
           # to the release job, so it need not linger (default is 90 days).
           retention-days: 1
+      - name: Light variant failed
+        if: steps.light.outcome == 'failure'
+        run: exit 1
 
   release:
     # Publishes whatever did build: one platform failing must not hide the
