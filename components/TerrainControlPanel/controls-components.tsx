@@ -472,7 +472,10 @@ export const SourceGridToggle: React.FC<{
   isActive: (side: ViewId) => boolean
   onSelect: (side: ViewId) => void
   disabled?: boolean
-}> = ({ gridLayout, isActive, onSelect, disabled }) => (
+  /** Radio behaviour by default (a basemap cannot be unselected, only
+   *  replaced); overlays are a set, so their toggle also fires on unpress. */
+  allowUnpress?: boolean
+}> = ({ gridLayout, isActive, onSelect, disabled, allowUnpress }) => (
   <div className="flex flex-col border shrink-0 overflow-hidden rounded-md divide-y divide-border">
     {GRID_LAYOUTS[gridLayout].grid.map((row, rowIdx) => (
       <div key={rowIdx} className="flex divide-x divide-border">
@@ -480,7 +483,7 @@ export const SourceGridToggle: React.FC<{
           <Toggle
             key={side}
             pressed={isActive(side)}
-            onPressedChange={(pressed) => { if (pressed) onSelect(side) }}
+            onPressedChange={(pressed) => { if (pressed || allowUnpress) onSelect(side) }}
             disabled={disabled}
             className="h-6 w-6 min-w-6 p-0 rounded-none text-[10px] leading-none cursor-pointer data-pressed:font-bold"
           >

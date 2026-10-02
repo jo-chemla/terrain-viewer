@@ -379,6 +379,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                       gridLayout={state.splitStyle === "overlay" ? "2x1" : state.gridLayout}
                       isActive={(side: ViewId) => overlayIdsOf(side).includes(source.id)}
                       onSelect={(side: ViewId) => toggleOverlaySide(side, source.id)}
+                      allowUnpress
                     />
                   ) : (
                   <Checkbox
