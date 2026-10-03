@@ -3,7 +3,7 @@
 <!-- released: 2026-10-02 -->
 
 #### TL;DR
-- **Modes per view.** In a split or grid, switch **Sync viz modes across views** off and every mode and sub-mode checkbox becomes the view grid: slope on C, contours on B, matcap on D. Clicking a mode's name puts it back on every view, a sub-mode brings its group along, swapping views keeps the assignment, and the pill under each view names what it draws that the others do not. Contours and graticules now draw on every view. [Split modes](/docs/features/split-modes).
+- **Modes per view.** In a split or grid, switch **Sync viz modes across views** off and every mode and sub-mode checkbox becomes the view grid: slope on C, contours on B, matcap on D. Clicking the name of a mode, or of a terrain, basemap or overlay source, switches it on for every view at once, and off everywhere when it already is on all of them; a sub-mode brings its group along; swapping views keeps the assignment. The pill under each view names what it draws that the others do not, and **clicking a pill selects that view**: every grid in the sidebar collapses to that one letter, so a mode or source then applies to the selected view only (Esc, the pill or its x deselects). Contours and graticules now draw on every view. [Split modes](/docs/features/split-modes).
 - **Image Georeferencer.** Place a plain PNG or JPEG, a figure or a scan, on the map from point pairs clicked on the image and on the map in any order, in a floating window; similarity, affine or projective fit with residuals; drag the points; world file export; save the result as a basemap overlay, local pictures included, and reopen it to edit. Built on Allmaps' transform library; switch it on under Settings → Beta.
 - **Desktop apps.** Windows, macOS and Linux bundles (Electrobun) built weekly on the [desktop-latest release](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest): a self-contained Setup per platform plus a portable folder, each with the documentation bundled or online; the installed full build updates itself. [Desktop](/docs/dev/desktop).
 - **Phong with up to three coloured lights.** Light 1 is the app light; lights 2 and 3 have their own direction and colour, drag as pills of their colour on the light pad, and default to blue from the north-east and orange from the south-east.
@@ -15,13 +15,18 @@
 - A terrain or basemap picked with the split off is set on every view, so a later split opens on it; in a split, clicking a terrain source's name sets it on every view.
 - Walkthrough: a **Data Layers** step and a **Modes per View** step; the Terrain Analysis step lists its three groups.
 - **Relief Green-Red** hypsometric ramp (the archaeological LiDAR palette) in the Classic tab; Mean/Combined curvature opens at ±1.
-- The About section shows the build day and commit; Source Info waits for zoom 5 before listing datasets.
+- The About section shows the build day and commit, and **Is this the latest version?** compares them with the newest commit and the desktop release; Source Info waits for zoom 5 before listing datasets.
+- Share: **Name my sources by URL** writes your own remote terrain, basemap and overlay sources into the link by URL and type, so the recipient's app loads them without having them in its library (local files and entries needing more than a URL stay by id, and the dialog says which).
+- Snapshots keep the per-view mode names in the pills.
+- COGs read in the browser are resampled bilinearly when a tile is upsampled from a coarser overview (a patched geomatico reader), instead of the nearest-neighbour blocks a 10 cm DSM showed between overview levels.
+- Impasto's Almond Blossom scan (height and colour PMTiles, custom encoding) in the library, with local-proxy twins while its host allows only its own origin.
 - Docs: [Research References](/docs/resources/research-references) with the table, [Post-Crisis Response](/docs/dev/post-crisis-response), [Advocacy and Community](/docs/dev/advocacy); the Geopera Bhotekoshi surveys are named as such in the library.
 
 ### Fixes
 - Hypsometric ramp tabs no longer jump or go blank when a ramp name exists in several collections, or after a tab click.
 - No more z13–18 404s from Mapterhorn at a world view: the per-location coverage probe waits until the view is close enough for it to matter.
 - Local pictures saved as overlays are restored from browser storage after a reload, like local COGs.
+- Desktop (Windows): links that open a new tab, the documentation included, reach the system browser; they used to pop WebView2's own bare window. The light build is named "Terrain Viewer Light", so the two variants no longer overwrite each other's shortcuts; the updater logs every step to `updater.log` and its state shows under About.
 
 # Changelog — MapLibre 6, and Compare and Blend Everywhere
 

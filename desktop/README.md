@@ -2,7 +2,7 @@
 
 The web app packaged as a desktop application with [Electrobun](https://blackboard.sh/electrobun/): the system webview (WKWebView on macOS, WebView2 on Windows, WebKitGTK on Linux) showing the Vite build, no bundled Chromium, so the installer is small. The point is working offline on local data: a COG picked from disk opens through the app's own file picker, and every mode runs in the browser engine. Online sources (Mapterhorn, basemaps, WMS services) still need the network.
 
-Status: a first attempt. Not signed, not notarized. The workflow builds weekly and attaches the three bundles to the rolling `desktop-latest` release.
+Status: a first attempt. Not signed, not notarized. The workflow attaches the bundles to the rolling `desktop-latest` release; since 2026-10-03 it only runs on demand (the schedule and the macOS / Linux jobs are paused for Actions minutes), so bundles are built locally for now: `pnpm build`, copy the docs export into `dist/docs` for the full variant, then from a plain copy of `desktop/` (see the worktree note below) `node gen-config.mjs --docs=bundled|online && hutch electrobun build --env=stable && bash ci-bundle.sh <bundled|online> <with-offline-docs|light-online-docs>`, and `gh release upload desktop-latest out/* --clobber`.
 
 ## Build
 

@@ -6,10 +6,13 @@
 name: Desktop bundles (Electrobun, experimental)
 
 on:
+  # On demand only. The weekly schedule and the macOS / Linux jobs are
+  # paused to save Actions minutes (2026-10-03); bundles are built locally
+  # for now (desktop/README.md) and uploaded to the desktop-latest release
+  # by hand with `gh release upload desktop-latest <files> --clobber`.
   workflow_dispatch:
-  schedule:
-    # Mondays 04:00 UTC
-    - cron: "0 4 * * 1"
+  # schedule:
+  #   - cron: "0 4 * * 1"  # Mondays 04:00 UTC
 
 permissions:
   contents: write
