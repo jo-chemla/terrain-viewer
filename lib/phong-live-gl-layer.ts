@@ -414,7 +414,13 @@ void main() {
   // away from the camera; u_viewDir is the direction from the ground to the
   // camera in the normals' frame, per frame. Additive and white, so it
   // shares the specular channel.
-  float rim = u_fresnelStrength * pow(1.0 - clamp(dot(n, u_viewDir), 0.0, 1.0), u_fresnelPower);
+  // n.v is remapped from [-1, 1] to [0, 1] rather than clamped at 0: a
+  // clamp made every slope tilted more than (90 - pitch) degrees away from
+  // the camera saturate to the full rim at once, a hard black edge along
+  // every ridge at a steep pitch. With the remap a back-facing slope keeps
+  // grading (facing away at the grazing angle gives 0.5^p, fully reversed 1).
+  float facing = clamp(dot(n, u_viewDir) * 0.5 + 0.5, 0.0, 1.0);
+  float rim = u_fresnelStrength * pow(1.0 - facing, u_fresnelPower);
   // A dark rim goes into the multiplicative channel (the buffer cannot add
   // a negative), a light one into the additive channel with the specular.
   vec3 shade = diffuseIntensity * (1.0 - u_fresnelDark * clamp(rim, 0.0, 1.0));
