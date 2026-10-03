@@ -100,7 +100,10 @@ export const ElevationProfileChart: React.FC<{
     return best
   }
   const setHover = (i: number | null) => { setHoverIdx(i); onHover?.(i) }
-  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+  // Mouse: hover follows, drag pans. Touch: a finger along the chart scrubs
+  // the point on the map (no hover on a phone), double-tap resets the zoom.
+  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "touch") { setHover(nearestIndex(distanceAt(e.clientX))); return }
     if (dragRef.current) {
       const svg = svgRef.current!
       const r = svg.getBoundingClientRect()
@@ -147,8 +150,13 @@ export const ElevationProfileChart: React.FC<{
 
   return (
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-auto text-foreground cursor-crosshair select-none" preserveAspectRatio="none" role="img" aria-label="Terrain elevation profile"
-      onMouseMove={onMove} onMouseLeave={() => { dragRef.current = null; setHover(null) }} onWheel={onWheel}
-      onMouseDown={(e) => { dragRef.current = { x: e.clientX, win }; }} onMouseUp={() => { dragRef.current = null }}
+      style={{ touchAction: "none" }}
+      onPointerMove={onMove} onPointerLeave={(e) => { dragRef.current = null; if (e.pointerType !== "touch") setHover(null) }} onWheel={onWheel}
+      onPointerDown={(e) => {
+        if (e.pointerType === "touch") { (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId); setHover(nearestIndex(distanceAt(e.clientX))); return }
+        dragRef.current = { x: e.clientX, win }
+      }}
+      onPointerUp={() => { dragRef.current = null }} onPointerCancel={() => { dragRef.current = null }}
       onDoubleClick={() => setWin([0, 1])}>
       <defs><clipPath id="profile-clip"><rect x={PAD.l} y={PAD.t} width={W - PAD.l - PAD.r} height={H - PAD.t - PAD.b} /></clipPath></defs>
       {/* frame */}

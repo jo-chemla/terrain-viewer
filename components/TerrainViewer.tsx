@@ -99,6 +99,7 @@ import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
 import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource } from "./LayersAndSources/MapSources"
 import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
+import { ProfileDock } from "./ProfileDock"
 import { MatcapLiveGlLayer } from "./LayersAndSources/MatcapLiveGlLayer"
 import {
   LayerOrderSlots,
@@ -4867,6 +4868,13 @@ export function TerrainViewer() {
           )
         })}
         {paneLayouts.map(datePillFor)}
+        {/* The elevation profile, when docked: across the bottom of the map
+            area, clear of the left map controls, the sidebar and the timeline. */}
+        <ProfileDock style={{
+          left: 56,
+          right: 8 + ((isSidebarOpen && !isMobile) ? sidebarFootprintPx : 0),
+          bottom: `calc(${historicalTimelineVisible ? measuredPanelClearance : "0.5rem"} + 2.25rem)`,
+        }} />
         {/* Static (non-interactive) seams between fixed columns/rows — every
             grid layout except 2x1 (which gets the draggable SplitPill
             instead, just below) and overlay (no seam at all, panes fully

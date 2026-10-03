@@ -17,13 +17,12 @@ import { resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { BUILTIN_BASEMAP_OPTIONS } from "./raster-basemap-section"
 import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
-import { useAtomValue, useAtom, useSetAtom } from "jotai"
-import { ExternalLink, ChevronDown, X, Plus } from "lucide-react"
+import { useAtomValue, useAtom } from "jotai"
+import { ExternalLink, ChevronDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { coverageOverlaysAtom, coverageGroups, type EliLike } from "@/lib/coverage-overlays"
-import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
 import { terrainKindOf } from "./sample-sources-modal"
@@ -278,11 +277,6 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
  *  Selected leaves show as pills, one pill per fully selected group. */
 const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ mapRef }) => {
   const [selected, setSelected] = useAtom(coverageOverlaysAtom)
-  // "Add to map": the same request the footprint click modal posts, applied
-  // by the control panel (library entries join the BYOD list, ELI layers
-  // become a basemap, then view A points at the id).
-  const setUseRequest = useSetAtom(coverageUseRequestAtom)
-  const addToMap = (id: string) => setUseRequest({ overlay: id, nonce: Date.now() })
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
   const [eliInView, setEliInView] = useState<EliLike[]>([])
@@ -375,20 +369,6 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
                                   as subtitle-only. */}
                               <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
                               {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
-                              <span className="ml-auto flex items-center gap-0.5 shrink-0">
-                                {/* The dataset's own page, and "add to map" for
-                                    anything that can become a source here. */}
-                                {l.url && (
-                                  <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground p-0.5" title="Open the dataset's page" aria-label={`Open ${l.label} upstream`}>
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                )}
-                                {coverageUseKind(l.id) && (
-                                  <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5" title={coverageUseKind(l.id) === "terrain" ? "Use as the terrain of view A" : "Use as basemap (or overlay) on view A"} aria-label={`Add ${l.label} to the map`} onClick={() => addToMap(l.id)}>
-                                    <Plus className="h-3 w-3" />
-                                  </button>
-                                )}
-                              </span>
                             </div>
                           ))}
                         </div>
@@ -415,7 +395,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
           <button type="button" className="text-[11px] underline text-muted-foreground hover:text-foreground cursor-pointer self-center" onClick={() => setSelected([])}>clear</button>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point, click for their links. In the picker, the arrow opens a dataset's page and + puts it on the map.</p>
+      <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point; click a footprint for the dataset's page and to put it on the map.</p>
     </div>
   )
 }
@@ -517,7 +497,7 @@ export const SourceInfoSection: React.FC<{
           BasemapAttributionList below always renders alongside this, not
           instead of it. The section is not gated on a queryable source: the
           picker is useful whatever the terrain. */}
-      <GroupHeading>Coverage overlays (terrain and basemaps)</GroupHeading>
+      <GroupHeading>Coverage overlays</GroupHeading>
       <CoverageOverlayPicker mapRef={mapRef} />
       <GroupHeading>Source info</GroupHeading>
       {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}

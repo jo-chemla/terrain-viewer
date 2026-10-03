@@ -27,7 +27,7 @@ const EliSearchPanel = lazy(() => import("./eli-search-panel").then((m) => ({ de
 const StacSearchPanel = lazy(() => import("./stac-search-panel").then((m) => ({ default: m.StacSearchPanel })))
 import { WmsPickerPanel } from "./wms-picker-panel"
 
-type BasemapFormType = "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker" | "stac"
+type BasemapFormType = "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker" | "stac" | "iiif"
 
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
@@ -216,7 +216,8 @@ export const CustomBasemapModal: React.FC<{
       ? (boundsValues as [number, number, number, number])
       : undefined
     onSave({
-      id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role, opacity, stack: role === "overlay" ? stack : undefined,
+      id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role: type === "iiif" ? "overlay" : role, opacity, stack: (type === "iiif" || role === "overlay") ? (type === "iiif" && role !== "overlay" ? "top" : stack) : undefined,
+      ...(type === "iiif" ? { provider: "allmaps" as const } : {}),
       minzoom: minzoom === "" ? undefined : Number(minzoom),
       maxzoom: maxzoom === "" ? undefined : Number(maxzoom),
       linkedTerrainId: linkedTerrainId || undefined,
@@ -248,6 +249,7 @@ export const CustomBasemapModal: React.FC<{
 
   let helper_text = ""
   if (type === "tms") helper_text = '/{z}/{x}/{y}.png'
+  if (type === "iiif") helper_text = 'https://annotations.allmaps.org/maps/<id>  (or ?url=<IIIF manifest or image>)'
   else if (type === "wms") helper_text = 'bbox={bbox-epsg-3857}'
   
   // Only WMS URLs need this. A plain string replace, not `new URL(...
@@ -298,6 +300,7 @@ export const CustomBasemapModal: React.FC<{
                 "cog-local": "Local COG file (this browser only)",
                 wms: "Raster (WMS / WMTS)",
                 tilejson: "TileJSON (Raster Basemap)",
+                iiif: "IIIF map with a Georeference Annotation (Allmaps)",
                 "wms-picker": "WMS (list layers)",
                 qms: "NextGIS QMS (search)",
                 eli: "OSM Editor Layer Index (search)",
@@ -332,6 +335,15 @@ export const CustomBasemapModal: React.FC<{
                   {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
                   <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
                   <SelectItem value="tilejson">TileJSON (Raster Basemap)</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Georeferenced images</SelectLabel>
+                  {/* A Georeference Annotation (the IIIF extension Allmaps
+                      writes): the URL of the annotation, a map's at
+                      annotations.allmaps.org/maps/<id>, or a manifest's or
+                      image's annotation page. Drawn warped from its control
+                      points; always an overlay. */}
+                  <SelectItem value="iiif">IIIF map with a Georeference Annotation (Allmaps)</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>

@@ -590,40 +590,36 @@ export function TerrainControlPanel({
     document.documentElement.classList.toggle("dark", theme === "dark")
   }, [theme])
 
-  if (!isSidebarOpen) {
-    return (
-      <>
-        <TooltipProvider delay={0} timeout={0}>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
-                  <PanelRightOpen className="h-5 w-5" />
-                </Button>
-              }
-            />
-            <TooltipContent>
-              <p>Open sidebar</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        {/* Same position (2nd child of this Fragment) as in the open-panel
-            return below, so React keeps this instance mounted — not
-            remounted — across an isSidebarOpen flip the tour itself
-            triggers (see product-tour.tsx's "prepare" step). */}
-        <ProductTour state={state} setState={setState} switchAppMode={handleSelectMode} mapRef={mapRef} />
-      </>
-    )
-  }
-
   return (
     <>
     <TooltipProvider delay={0} timeout={0}>
-      {/* Mobile backdrop — tap outside to close */}
+      {/* A closed sidebar only HIDES the card (below): unmounting it took
+          every tool's map listeners with it, so the Elevation Picker, Sun
+          Shadow and the georeferencer stopped answering taps the moment the
+          panel closed - on a phone, where the panel covers the map and has to
+          be closed to reach it, the picker could never work at all. */}
+      {!isSidebarOpen && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
+                <PanelRightOpen className="h-5 w-5" />
+              </Button>
+            }
+          />
+          <TooltipContent>
+            <p>Open sidebar</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
+      {/* Mobile backdrop — tap outside to close. On click, not pointer-down:
+          removed at pointer-down, the rest of the tap fell through to the
+          map, so the tap that closed the panel also placed an Elevation
+          Picker point (or a drawing vertex) wherever it landed. */}
       {isMobile && isSidebarOpen &&  (
         <div
           className="fixed inset-0 z-40 bg-transparent"
-          onPointerDown={() => setIsSidebarOpen(false)}
+          onClick={() => setIsSidebarOpen(false)}
         />
       )}
       {/* The header (title + fold-all/home/settings/close buttons) lives OUTSIDE
@@ -649,8 +645,10 @@ export function TerrainControlPanel({
           transparentUi && activeSlider
             ? "bg-background/20"
             : "bg-background/95",
-          "transition-[background-color] duration-150"
+          "transition-[background-color] duration-150",
+          !isSidebarOpen && "hidden",
         )}
+        aria-hidden={!isSidebarOpen || undefined}
       >
         <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b">
           <Tooltip>
@@ -865,8 +863,8 @@ export function TerrainControlPanel({
         </div>
       </Card>
     </TooltipProvider>
-    {/* Same position (2nd child of this Fragment) as in the closed-sidebar
-        return above — see that branch's comment. */}
+    {/* One return for both states, so the tour stays mounted across an
+        isSidebarOpen flip the tour itself triggers (product-tour.tsx). */}
     <ProductTour state={state} setState={setState} switchAppMode={handleSelectMode} mapRef={mapRef} />
     </>
   )

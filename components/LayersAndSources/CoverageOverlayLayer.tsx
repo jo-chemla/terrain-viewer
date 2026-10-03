@@ -4,7 +4,7 @@ import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent, ExpressionSpecification } from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue, useSetAtom } from "jotai"
-import { coverageOverlaysAtom, loadCoverageFeatures, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
+import { coverageOverlaysAtom, loadCoverageFeatures, loadAllmapsCoverage, ALLMAPS_VIEW_LEAVES, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { Button } from "@/components/ui/button"
@@ -98,6 +98,31 @@ export const CoverageOverlayLayer: React.FC = () => {
     return () => { cancelled = true }
   }, [showMapterhorn, mhMeta])
   const geoIds = useMemo(() => ids.filter((id) => id !== "mapterhorn"), [ids])
+  // Leaves drawn from a per-view query (Allmaps): refetched on moveend.
+  const viewIds = useMemo(() => geoIds.filter((id) => id in ALLMAPS_VIEW_LEAVES), [geoIds])
+  const viewKey = viewIds.join(",")
+  useEffect(() => {
+    const m = map?.getMap()
+    if (!m || !viewIds.length) return
+    let ctrl: AbortController | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const refresh = () => {
+      ctrl?.abort()
+      ctrl = new AbortController()
+      const signal = ctrl.signal
+      const bounds = m.getBounds()
+      for (const id of viewIds) {
+        loadAllmapsCoverage(id, bounds, signal)
+          .then((fc) => { if (!signal.aborted) setCollections((prev) => ({ ...prev, [id]: fc })) })
+          .catch(() => {})
+      }
+    }
+    const onMoveEnd = () => { if (timer) clearTimeout(timer); timer = setTimeout(refresh, 400) }
+    refresh()
+    m.on("moveend", onMoveEnd)
+    return () => { m.off("moveend", onMoveEnd); if (timer) clearTimeout(timer); ctrl?.abort() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, viewKey])
   // A deleted custom source takes its overlay with it.
   const setIds = useSetAtom(coverageOverlaysAtom)
   const requestUse = useSetAtom(coverageUseRequestAtom)
@@ -110,7 +135,7 @@ export const CoverageOverlayLayer: React.FC = () => {
   useEffect(() => {
     let cancelled = false
     for (const id of geoIds) {
-      if (collections[id]) continue
+      if (collections[id] || id in ALLMAPS_VIEW_LEAVES) continue
       loadCoverageFeatures(id, { terrains, basemaps }).then((fc) => { if (!cancelled) setCollections((prev) => (prev[id] ? prev : { ...prev, [id]: fc })) }).catch(() => {})
     }
     return () => { cancelled = true }
@@ -196,12 +221,14 @@ export const CoverageOverlayLayer: React.FC = () => {
         <Source id={SOURCE_ID} type="geojson" data={data}>
           <Layer id={FILL_ID} type="fill" paint={{
             "fill-color": ["get", "color"],
-            "fill-opacity": ["case", ["boolean", ["get", "hollow"], false], 0.04, ["coalesce", ["get", "opacity"], 0.2]],
+            // noFill: outline-only sets (Allmaps: hundreds of overlapping maps
+            // per city). The fill stays for hit-testing, at zero opacity.
+            "fill-opacity": ["case", ["boolean", ["get", "noFill"], false], 0, ["boolean", ["get", "hollow"], false], 0.04, ["coalesce", ["get", "opacity"], 0.2]],
           }} />
           <Layer id={LINE_ID} type="line" paint={{
             "line-color": ["get", "color"],
-            "line-width": 1.5,
-            "line-opacity": 0.9,
+            "line-width": ["coalesce", ["get", "lineWidth"], 1.5],
+            "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.9],
           }} />
         </Source>
       )}

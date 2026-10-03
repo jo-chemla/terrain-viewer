@@ -651,6 +651,9 @@ export const OverlayBasemapSources = memo(({
                 // A georeferenced picture: MapLibre's image source from its
                 // four corners (Tools > Georeference Image). Keyed on the
                 // resolved url: a re-picked local file is a new source.
+                // A georeferenced IIIF map draws from its own custom layer
+                // (MapLayers.tsx, AllmapsOverlayLayer): no MapLibre source.
+                if (source.type === "iiif") return null
                 if ((source.type === "image" || source.type === "image-local") && source.coordinates) {
                     const imgUrl = source.type === "image-local" ? resolveLocalFileUrl(localFileId(source.url)) : source.url
                     if (!imgUrl) return null

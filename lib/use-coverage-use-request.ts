@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { atom, useAtom, useSetAtom } from "jotai"
 import customSources from "./custom-sources.json"
+import { allmapsMeta, ALLMAPS_API } from "./coverage-overlays"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "./settings-atoms"
 
 /**
@@ -16,7 +17,7 @@ export const coverageUseRequestAtom = atom<{ overlay: string; nonce: number } | 
 /** Which side of the app an overlay id selects. */
 export const coverageUseKind = (overlay: string): "terrain" | "basemap" | null =>
   overlay === "mapterhorn" || overlay.startsWith("lib:") || overlay.startsWith("terrain:") ? "terrain"
-  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") ? "basemap"
+  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") ? "basemap"
   : null
 
 /** Overlay-role sources stack on the active basemap (overlayBasemapIds)
@@ -67,6 +68,20 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
       if (!s) return
       setBasemaps((prev) => (prev.some((x) => x.id === key) ? prev : [...prev, s]))
       activateBasemapSource(setState, s)
+      return
+    }
+    if (kind === "allmaps") {
+      // A georeferenced IIIF map: the annotation URL is the source, drawn by
+      // Allmaps' warped layer (AllmapsOverlayLayer.tsx); always an overlay.
+      const meta = allmapsMeta(key)
+      const id = `custom-basemap-allmaps-${key}`
+      const source: CustomBasemapSource = {
+        id, name: meta?.label ?? `Allmaps map ${key}`, url: `${ALLMAPS_API}/maps/${key}`, type: "iiif", role: "overlay", stack: "top",
+        description: `Georeferenced IIIF map, Allmaps annotation ${key}${meta ? ` · ${meta.detail}` : ""}`,
+        infoUrl: meta?.pageUrl ?? `https://viewer.allmaps.org/?url=${encodeURIComponent(`${ALLMAPS_API}/maps/${key}`)}`, provider: "allmaps",
+      }
+      setBasemaps((prev) => (prev.some((x) => x.id === id) ? prev : [...prev, source]))
+      activateBasemapSource(setState, source)
       return
     }
     if (kind === "eli") {

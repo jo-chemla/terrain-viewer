@@ -50,7 +50,7 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string; /** The dataset's own page (the label links there). */ url?: string }
 export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps"; parent?: string }
 
-export const OVERLAY_COLORS = { mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7", otRaster: "#84cc16", otPointCloud: "#eab308" }
+export const OVERLAY_COLORS = { allmaps: "#d946ef", mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7", otRaster: "#84cc16", otPointCloud: "#eab308" }
 
 const ELI_ID_RE = /OSM Editor Layer Index id (\S+)/
 type Bounded = { id: string; name: string; bounds?: number[]; type?: string; resolutionM?: number; maxzoom?: number; infoUrl?: string }
@@ -58,6 +58,74 @@ const TERRAIN_LIB = customSources.SAMPLE_TERRAIN_SOURCES as Bounded[]
 const BASEMAP_LIB = customSources.SAMPLE_BASEMAPS_SOURCES as Bounded[]
 
 export interface EliLike { id: string; name: string; category?: string; countryCodes: string[]; infoUrl?: string }
+
+/** Allmaps (annotations.allmaps.org): one endpoint, /maps.geojson, returns
+ *  the warped outline of every georeferenced map intersecting a bbox, at most
+ *  200 per call, filterable by the IIIF image host (David Rumsey's maps are
+ *  in there, imported from his Georeferencer data). The two Allmaps leaves
+ *  are drawn from it for the current view (CoverageOverlayLayer refetches on
+ *  moveend), not one entry per map. */
+export const ALLMAPS_API = "https://annotations.allmaps.org"
+export const ALLMAPS_VIEW_LEAVES: Record<string, { domain?: string }> = {
+  allmapsAll: {},
+  allmapsRumsey: { domain: "www.davidrumsey.com" },
+}
+export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string }
+const allmapsMetaCache = new Map<string, AllmapsLike>()
+export function allmapsMeta(id: string): AllmapsLike | undefined { return allmapsMetaCache.get(id) }
+const RUMSEY_IIIF_RE = /davidrumsey\.com\/luna\/servlet\/iiif\/([^/]+)/
+function allmapsLikeOf(p: Record<string, any>): AllmapsLike {
+  const id = String(p.id ?? "").split("/").pop() ?? ""
+  const provider = p.resource?.provider?.[0]
+  const providerLabel: string | undefined = provider?.label ? (Object.values(provider.label as Record<string, string[]>)[0] ?? [])[0] : undefined
+  const resourceId: string = p.resource?.id ?? ""
+  const segs = resourceId.split("/").filter(Boolean)
+  const last = decodeURIComponent(segs.pop() ?? id)
+  // "f1", "default"... say nothing on their own: keep the segment before.
+  const imageName = last.length <= 4 && segs.length ? `${decodeURIComponent(segs.pop()!)}/${last}` : last
+  const label = providerLabel ? `${providerLabel} · ${imageName}` : imageName
+  const areaKm2 = Number(p._allmaps?.area) / 1e6
+  const area = Number.isFinite(areaKm2) ? (areaKm2 >= 100 ? `${Math.round(areaKm2).toLocaleString()} km²` : `${areaKm2.toFixed(1)} km²`) : ""
+  const detail = [area, `georeferenced ${String(p.modified ?? p.created ?? "").slice(0, 10)}`].filter(Boolean).join(" · ")
+  const annotationUrl = `${ALLMAPS_API}/maps/${id}`
+  // The holding institution's own page when its pattern is known (David
+  // Rumsey's LUNA detail page), otherwise the map in the Allmaps viewer.
+  const rumsey = resourceId.match(RUMSEY_IIIF_RE)
+  const pageUrl = rumsey ? `https://www.davidrumsey.com/luna/servlet/detail/${rumsey[1]}` : `https://viewer.allmaps.org/?url=${encodeURIComponent(annotationUrl)}`
+  return { id, label, detail, annotationUrl, pageUrl }
+}
+/** Every map outline in the view, as coverage features. The area window
+ *  keeps the 200 that matter at this scale: city plans when zoomed in,
+ *  regional maps when zoomed out, and no world map tinting a street view. */
+export async function loadAllmapsCoverage(leafId: string, bounds: { getWest(): number; getSouth(): number; getEast(): number; getNorth(): number }, signal?: AbortSignal): Promise<FeatureCollection> {
+  const w = Math.max(-180, bounds.getWest()), e = Math.min(180, bounds.getEast())
+  const s = Math.max(-85, bounds.getSouth()), n = Math.min(85, bounds.getNorth())
+  const midLat = ((s + n) / 2) * Math.PI / 180
+  const viewM2 = Math.abs((e - w) * 111320 * Math.cos(midLat) * (n - s) * 110540)
+  // Latitude first: the API reads the box as minLat,minLng,maxLat,maxLng (a
+  // longitude-first box lands somewhere else entirely and returns only the
+  // world maps that happen to cover both places).
+  const q = new URLSearchParams({ intersects: [s, w, n, e].map((v) => v.toFixed(4)).join(","), limit: "200", minArea: String(Math.round(viewM2 / 500)), maxArea: String(Math.round(viewM2 * 200)) })
+  const domain = ALLMAPS_VIEW_LEAVES[leafId]?.domain
+  if (domain) q.set("imageServiceDomain", domain)
+  const res = await fetch(`${ALLMAPS_API}/maps.geojson?${q}`, { signal })
+  if (!res.ok) throw new Error(`Allmaps ${res.status}`)
+  const fc = (await res.json()) as FeatureCollection
+  const features: Feature[] = []
+  for (const f of fc.features) {
+    const meta = allmapsLikeOf((f.properties ?? {}) as Record<string, any>)
+    if (!meta.id || !f.geometry) continue
+    allmapsMetaCache.set(meta.id, meta)
+    features.push({ type: "Feature", geometry: f.geometry, properties: {
+      // Outlines only: a city has hundreds of overlapping maps, and filled
+      // they stacked into one opaque sheet hiding the map underneath.
+      overlay: `allmaps:${meta.id}`, color: OVERLAY_COLORS.allmaps, hollow: true, noFill: true, lineWidth: 1, lineOpacity: 0.45,
+      label: meta.label, detail: `${meta.detail} · Allmaps`, url: meta.pageUrl, role: "overlay",
+    } })
+  }
+  return { type: "FeatureCollection", features }
+}
+
 
 export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps: CustomBasemapSource[]; eliInView: EliLike[] }): CoverageGroup[] {
   const yourTerrain: CoverageLeaf[] = []
@@ -96,6 +164,12 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
       ] },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category, url: l.infoUrl })) },
+    { section: "Basemaps", key: "allmaps", label: "Old maps (Allmaps)", color: OVERLAY_COLORS.allmaps,
+      note: "Georeferenced historical maps from the Allmaps annotations API: every map whose outline touches the view, up to 200, sized to the zoom. David Rumsey's collection is in there too. Click an outline for its page and to drape it as an overlay.",
+      leaves: [
+        { id: "allmapsAll", label: "All georeferenced maps", color: OVERLAY_COLORS.allmaps, detail: "every collection, per view", url: "https://allmaps.org/" },
+        { id: "allmapsRumsey", label: "David Rumsey Map Collection", color: OVERLAY_COLORS.allmaps, detail: "its maps in Allmaps", url: "https://www.davidrumsey.com/" },
+      ] },
     { section: "Basemaps", key: "yourBasemaps", label: "Your basemaps", color: OVERLAY_COLORS.yourBasemaps, note: "Every loaded basemap that declares bounds or came from the index, library entries included.", leaves: yourBasemaps },
     { section: "Basemaps", key: "basemapLibrary", label: "Basemap library", color: OVERLAY_COLORS.basemapLibrary,
       leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary, url: s.infoUrl })) },

@@ -97,6 +97,14 @@ export const sunShadowPicksAtom = atom<{ base: PickedLngLat | null; tip: PickedL
 // Whether each tool is armed for picking. Lifted for the same reason as the
 // picks themselves: a walkthrough step has to be able to switch the tool on.
 export const elevationPickerActiveAtom = atom(false)
+/** The elevation profile docked under the map (components/ProfileDock.tsx)
+ *  instead of inside the Elevation Picker section; remembered. */
+export const profileDockedAtom = atomWithStorage("profileDocked", false)
+/** What the picker section has to draw: the sampled line and the mast
+ *  height, published for the dock; null when there is no profile. */
+export const profileChartAtom = atom<{ points: { lng: number; lat: number; distanceM: number; elevation: number | null }[]; poleHeightM: number } | null>(null)
+/** The sample under the pointer, in either chart; the section's marker follows. */
+export const profileHoverIndexAtom = atom<number | null>(null)
 export const sunShadowActiveAtom = atom(false)
 export const sunShadowModeAtom = atom<"forward" | "reverse">("forward")
 
@@ -355,7 +363,9 @@ export interface CustomBasemapSource {
   /** "image" / "image-local": a plain picture placed from its four corners
    *  (Tools > Georeference Image); "image-local" keeps a `local://<id>` url
    *  like "cog-local". */
-  type: "cog" | "cog-local" | "tms" | "wms" | "wmts" | "tilejson" | "image" | "image-local"
+  /** "iiif": a georeferenced IIIF map drawn from its Georeference Annotation
+   *  (Allmaps; `url` is the annotation URL). Always an overlay. */
+  type: "cog" | "cog-local" | "tms" | "wms" | "wmts" | "tilejson" | "image" | "image-local" | "iiif"
   /** Where an overlay sits in the layer stack: under the relief layers (the
    *  default, hillshade and colour relief draw over it), above the colour
    *  relief but under hillshade ("relief"), or above every terrain layer
@@ -398,7 +408,7 @@ export interface CustomBasemapSource {
   licenseUrl?: string
   /** Catalog record or provider page for this source. */
   infoUrl?: string
-  provider?: "qms" | "eli"
+  provider?: "qms" | "eli" | "allmaps"
   /** Mirror of CustomTerrainSource.linkedBasemapId — the terrain source this
    *  basemap auto-selects (and is auto-selected by) when either becomes
    *  active. Only needs to be set from one side of the pair. */

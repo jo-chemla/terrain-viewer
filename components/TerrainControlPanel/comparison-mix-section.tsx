@@ -352,9 +352,10 @@ export const ComparisonMixSection: React.FC<{
                 apart (its terrain or basemap when the views differ, the modes
                 not every view draws); "always" names it on every pill,
                 "never" leaves it out. */}
-            {([["pillTerrain", "Pill: terrain"], ["pillBasemap", "Pill: basemap"], ["pillModes", "Pill: viz modes"]] as const).map(([key, label]) => (
-              <div key={key} className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-medium">{label}</Label>
+            <GroupHeading>Pills</GroupHeading>
+            {([["pillTerrain", "Terrain"], ["pillBasemap", "Basemap"], ["pillModes", "Viz modes"]] as const).map(([key, label]) => (
+              <div key={key} className="flex items-center justify-between gap-2 pl-2">
+                <Label className="text-sm">{label}</Label>
                 <SegmentedToggle
                   className="w-[220px]"
                   value={state[key] ?? "auto"}

@@ -1,6 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { PanelBottomOpen, PanelBottomClose } from "lucide-react"
 import * as maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -12,7 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useSourceConfig } from "@/lib/controls-utils"
-import { customTerrainSourcesAtom, elevationPickerPointsAtom, elevationPickerActiveAtom, mapboxKeyAtom, maptilerKeyAtom, titilerEndpointAtom } from "@/lib/settings-atoms"
+import { customTerrainSourcesAtom, elevationPickerPointsAtom, elevationPickerActiveAtom, mapboxKeyAtom, maptilerKeyAtom, titilerEndpointAtom, profileDockedAtom, profileChartAtom, profileHoverIndexAtom } from "@/lib/settings-atoms"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { activeDrawModeAtom } from "./TerraDrawSystem"
 import { getClientExportSource, type ClientExportSource } from "@/lib/client-export"
@@ -129,7 +130,9 @@ export const ElevationPickerSection: React.FC<{
   const markersRef = useRef<maplibregl.Marker[]>([])
   // The profile sample under the pointer, mirrored as a marker on the map
   // (straight or routed path alike: the samples are the drawn line's own).
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const [hoverIndex, setHoverIndex] = useAtom(profileHoverIndexAtom)
+  const [profileDocked, setProfileDocked] = useAtom(profileDockedAtom)
+  const setProfileChart = useSetAtom(profileChartAtom)
   const hoverMarkerRef = useRef<maplibregl.Marker | null>(null)
   useEffect(() => {
     const map = mapRef.current?.getMap()
@@ -147,6 +150,11 @@ export const ElevationPickerSection: React.FC<{
     return undefined
   }, [hoverIndex, profilePoints, mapRef])
   useEffect(() => () => { hoverMarkerRef.current?.remove(); hoverMarkerRef.current = null }, [])
+  // The dock (components/ProfileDock.tsx) draws the same profile from this.
+  useEffect(() => {
+    setProfileChart(isActive && profileMode && points.length === 2 && !profileLoading && profilePoints.length >= 2 ? { points: profilePoints, poleHeightM: poleHeight } : null)
+  }, [isActive, profileMode, points.length, profileLoading, profilePoints, poleHeight, setProfileChart])
+  useEffect(() => () => { setProfileChart(null); setHoverIndex(null) }, [setProfileChart, setHoverIndex])
 
   // TerraDraw's own click handling (placing vertices) would otherwise fight with
   // ours — turn the picker off the moment an actual drawing mode (not just the
@@ -661,8 +669,16 @@ export const ElevationPickerSection: React.FC<{
                 <p className="text-xs text-muted-foreground">Sampling terrain along the line…</p>
               ) : (
                 <>
-                  <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} onHover={setHoverIndex} />
-                  <p className="text-[10px] text-muted-foreground">Hover: the point on the map. Wheel zooms, drag pans, double-click resets.</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-muted-foreground">Hover: the point on the map. Wheel zooms, drag pans, double-click resets.</p>
+                    <button type="button" className="cursor-pointer inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground shrink-0" onClick={() => setProfileDocked(!profileDocked)} title={profileDocked ? "Show the profile here" : "Dock the profile under the map"}>
+                      {profileDocked ? <PanelBottomClose className="h-3 w-3" /> : <PanelBottomOpen className="h-3 w-3" />}
+                      {profileDocked ? "Undock" : "Dock under the map"}
+                    </button>
+                  </div>
+                  {profileDocked
+                    ? <p className="text-xs text-muted-foreground">The profile is docked under the map.</p>
+                    : <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} onHover={setHoverIndex} />}
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="pole-height" className="text-sm font-medium">Mast height</Label>
                     <div className="flex items-center gap-1">
