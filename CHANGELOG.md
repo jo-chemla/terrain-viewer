@@ -17,16 +17,13 @@
 - **Relief Green-Red** hypsometric ramp (the archaeological LiDAR palette) in the Classic tab; Mean/Combined curvature opens at ±1.
 - The About section shows the build day and commit, and **Is this the latest version?** compares them with the newest commit and the desktop release; Source Info waits for zoom 5 before listing datasets.
 - Share: **Name my sources by URL** writes your own remote terrain, basemap and overlay sources into the link by URL and type, so the recipient's app loads them without having them in its library (local files and entries needing more than a URL stay by id, and the dialog says which).
-- Snapshots keep the per-view mode names in the pills.
 - COGs read in the browser are resampled bilinearly when a tile is upsampled from a coarser overview (a patched geomatico reader), instead of the nearest-neighbour blocks a 10 cm DSM showed between overview levels.
-- Impasto's Almond Blossom scan (height and colour PMTiles, custom encoding) in the library, with local-proxy twins while its host allows only its own origin.
 - Docs: [Research References](/docs/resources/research-references) with the table, [Post-Crisis Response](/docs/dev/post-crisis-response), [Advocacy and Community](/docs/dev/advocacy); the Geopera Bhotekoshi surveys are named as such in the library.
 
 ### Fixes
 - Hypsometric ramp tabs no longer jump or go blank when a ramp name exists in several collections, or after a tab click.
 - No more z13–18 404s from Mapterhorn at a world view: the per-location coverage probe waits until the view is close enough for it to matter.
 - Local pictures saved as overlays are restored from browser storage after a reload, like local COGs.
-- Desktop (Windows): links that open a new tab, the documentation included, reach the system browser; they used to pop WebView2's own bare window. The light build is named "Terrain Viewer Light", so the two variants no longer overwrite each other's shortcuts; the updater logs every step to `updater.log` and its state shows under About.
 
 # Changelog — MapLibre 6, and Compare and Blend Everywhere
 
