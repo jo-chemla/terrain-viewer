@@ -19,7 +19,9 @@ const LIBRARY_TERRAIN_IDS = new Set(((customSourcesData as any)["SAMPLE_TERRAIN_
 const LIBRARY_BASEMAP_IDS = new Set(((customSourcesData as any)["SAMPLE_BASEMAPS_SOURCES"] as { id: string }[]).map((s) => s.id))
 
 const isRemote = (url: string | undefined): url is string => !!url && /^https?:\/\//i.test(url)
-const TERRAIN_FIELD = /^source[A-H]$/
+// The terrain state fields (sourceA..H) travel as terrainSourceA..H in the
+// address bar (lib/url-keys.ts); the legacy bare key is accepted too.
+const TERRAIN_FIELD = /^(terrainSource|source)[A-H]$/
 const BASEMAP_FIELD = /^basemapSource[A-H]?$/
 const OVERLAY_FIELD = /^overlayBasemapIds[B-H]?$/
 
