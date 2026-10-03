@@ -3,6 +3,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Info, RotateCcw } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -85,6 +86,7 @@ export const ContourOptionsSection: React.FC<{
   // reads/writes a different pair of fields rather than dragging one
   // interval across both scales.
   const isLrm = state.contourReferenceMode === "lrm"
+  const isThreshold = state.contourReferenceMode === "threshold" && state.thresholdBeta
   const minorField = isLrm ? "contourMinorLrm" : "contourMinor"
   const majorField = isLrm ? "contourMajorLrm" : "contourMajor"
   const currentMinor = Number(state[minorField]) || (isLrm ? 5 : 50)
@@ -161,7 +163,21 @@ export const ContourOptionsSection: React.FC<{
               <ElevationReferenceToggle
                 value={state.contourReferenceMode}
                 onChange={(v) => setState({ contourReferenceMode: v })}
+                threshold={state.thresholdBeta}
               />
+              {isThreshold ? (
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="contour-threshold" className="text-sm font-medium">Outline at (m)</Label>
+                  <Input
+                    id="contour-threshold"
+                    type="number"
+                    step={0.1}
+                    value={state.contourThreshold}
+                    onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) setState({ contourThreshold: v }) }}
+                    className="h-7 w-24 text-xs"
+                  />
+                </div>
+              ) : (<>
               <SliderControl
                 label={`Minor: ${snappedMinor}m`}
                 value={minorIndex}
@@ -177,6 +193,7 @@ export const ContourOptionsSection: React.FC<{
                 onChange={(i) => setState({ [majorField]: snappedMinor * MAJOR_MULTIPLIERS[i] })}
                 min={0} max={MAJOR_MULTIPLIERS.length - 1} step={1} hideValue
               />
+              </>)}
               {colorRow("Line Color", "contourColor")}
             </>
           )}

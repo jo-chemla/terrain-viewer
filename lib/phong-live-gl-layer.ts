@@ -225,6 +225,13 @@ export type PhongLiveOptions = {
   extraLights?: { dir: number; alt: number; color: [number, number, number] }[]
   diffuseStrength: number
   specularStrength: number
+  /** Fresnel rim: brightens slopes that face away from the camera (the
+   *  grazing-angle term, Schlick's form), 0 = off. View dependent, so only
+   *  this live renderer can draw it: the view vector is the camera's own
+   *  orientation, read from the transform every frame. */
+  fresnelStrength?: number
+  /** Exponent of the rim falloff; higher = thinner rim. */
+  fresnelPower?: number
   exaggeration: number
   opacity: number
 }
@@ -359,6 +366,9 @@ uniform vec3 u_lightColor[3];
 uniform int u_lightCount;
 uniform float u_diffuseStrength;
 uniform float u_specularStrength;
+uniform float u_fresnelStrength;
+uniform float u_fresnelPower;
+uniform vec3 u_viewDir;
 uniform float u_exaggeration;
 uniform float u_opacity;
 out vec4 fragColor;
@@ -395,12 +405,17 @@ void main() {
   // setup dimmed the basemap instead of just adding highlights.
   vec3 diffuseIntensity = clamp((vec3(AMBIENT) + diffuse) / (AMBIENT + u_diffuseStrength), 0.0, 1.0);
   float specular = u_specularStrength * specDotSum / count;
+  // Fresnel rim (Schlick): (1 - n.v)^p, strongest where the surface turns
+  // away from the camera; u_viewDir is the direction from the ground to the
+  // camera in the normals' frame, per frame. Additive and white, so it
+  // shares the specular channel.
+  float rim = u_fresnelStrength * pow(1.0 - clamp(dot(n, u_viewDir), 0.0, 1.0), u_fresnelPower);
 
   // Shade-buffer encoding, consumed by COMPOSITE_FRAG: RGB = the
   // multiplicative diffuse factor (1.0 = identity — also the buffer's
   // clear color, so uncovered pixels leave the map untouched), A = the
-  // additive specular term.
-  fragColor = vec4(mix(vec3(1.0), diffuseIntensity, u_opacity), clamp(specular * u_opacity, 0.0, 1.0));
+  // additive specular (+ rim) term.
+  fragColor = vec4(mix(vec3(1.0), diffuseIntensity, u_opacity), clamp((specular + rim) * u_opacity, 0.0, 1.0));
 }
 `
 
@@ -473,6 +488,9 @@ interface ProgramBundle {
   uLightCount: WebGLUniformLocation | null
   uDiffuseStrength: WebGLUniformLocation | null
   uSpecularStrength: WebGLUniformLocation | null
+  uFresnelStrength: WebGLUniformLocation | null
+  uFresnelPower: WebGLUniformLocation | null
+  uViewDir: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
   uOpacity: WebGLUniformLocation | null
   uTerrain: WebGLUniformLocation | null
@@ -695,6 +713,9 @@ export class PhongLiveLayer implements CustomLayerInterface {
       uLightCount: gl.getUniformLocation(program, "u_lightCount"),
       uDiffuseStrength: gl.getUniformLocation(program, "u_diffuseStrength"),
       uSpecularStrength: gl.getUniformLocation(program, "u_specularStrength"),
+      uFresnelStrength: gl.getUniformLocation(program, "u_fresnelStrength"),
+      uFresnelPower: gl.getUniformLocation(program, "u_fresnelPower"),
+      uViewDir: gl.getUniformLocation(program, "u_viewDir"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
       uOpacity: gl.getUniformLocation(program, "u_opacity"),
       uTerrain: gl.getUniformLocation(program, "u_terrain"),
@@ -893,6 +914,13 @@ export class PhongLiveLayer implements CustomLayerInterface {
       gl.uniform1i(bundle.uLightCount, lights.length)
       gl.uniform1f(bundle.uDiffuseStrength, this.options.diffuseStrength)
       gl.uniform1f(bundle.uSpecularStrength, this.options.specularStrength)
+      // Ground-to-camera direction in the normals' frame (x east, y south,
+      // z up): the camera sits opposite the bearing, pitch degrees off the
+      // vertical. Same frame as the "viewer" vector in the comment above,
+      // with the x flip into the hornGradient convention.
+      gl.uniform1f(bundle.uFresnelStrength, this.options.fresnelStrength ?? 0)
+      gl.uniform1f(bundle.uFresnelPower, this.options.fresnelPower ?? 3)
+      gl.uniform3f(bundle.uViewDir, Math.sin(bRad) * Math.sin(pRad), Math.cos(bRad) * Math.sin(pRad), Math.cos(pRad))
       gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)
       gl.uniform1f(bundle.uOpacity, this.options.opacity)
       gl.uniform1i(bundle.uTerrain, 1)
@@ -997,7 +1025,7 @@ export class PhongLiveLayer implements CustomLayerInterface {
       gl.blendFunc(gl.DST_COLOR, gl.ZERO)
       gl.uniform1i(this.compositeUPass, 0)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
-      if (this.options.specularStrength > 0) {
+      if (this.options.specularStrength > 0 || (this.options.fresnelStrength ?? 0) > 0) {
         gl.blendFunc(gl.ONE, gl.ONE)
         gl.uniform1i(this.compositeUPass, 1)
         gl.drawArrays(gl.TRIANGLES, 0, 3)

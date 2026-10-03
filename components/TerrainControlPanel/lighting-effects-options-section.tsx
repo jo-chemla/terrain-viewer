@@ -104,6 +104,12 @@ export const LightingEffectsOptionsSection: React.FC<{
   const [phongSpecularStrength, setPhongSpecularStrength] = useDebouncedState(
     state.phongSpecularStrength, useCallback((v: number) => setState({ phongSpecularStrength: v }), [setState]), phongDebounceMs,
   )
+  const [phongFresnelStrength, setPhongFresnelStrength] = useDebouncedState(
+    state.phongFresnelStrength, useCallback((v: number) => setState({ phongFresnelStrength: v }), [setState]), phongDebounceMs,
+  )
+  const [phongFresnelPower, setPhongFresnelPower] = useDebouncedState(
+    state.phongFresnelPower, useCallback((v: number) => setState({ phongFresnelPower: v }), [setState]), phongDebounceMs,
+  )
   if (!state.showLightingEffects) return null
 
   return (
@@ -134,6 +140,12 @@ export const LightingEffectsOptionsSection: React.FC<{
                   <SliderControl label="Albedo (Raster Basemap Opacity)" value={state.rasterBasemapOpacity} onChange={(v) => setState({ rasterBasemapOpacity: v })} min={0} max={1} step={0.05} decimals={2} sliderId="phong-albedo" />
                   <SliderControl label="Diffuse Strength" value={phongDiffuseStrength} onChange={setPhongDiffuseStrength} min={0} max={1} step={0.05} decimals={2} sliderId="phong-diffuse" />
                   <SliderControl label="Specular Strength" value={phongSpecularStrength} onChange={setPhongSpecularStrength} min={0} max={1} step={0.05} decimals={2} sliderId="phong-specular" />
+                  {/* Fresnel rim: view dependent (the camera's own direction),
+                      so the live renderer only; the raster path ignores it. */}
+                  <SliderControl label="Fresnel Rim" value={phongFresnelStrength} onChange={setPhongFresnelStrength} min={0} max={1} step={0.05} decimals={2} sliderId="phong-fresnel" />
+                  {phongFresnelStrength > 0 && (
+                    <SliderControl label="Rim Falloff" value={phongFresnelPower} onChange={setPhongFresnelPower} min={1} max={8} step={0.5} decimals={1} sliderId="phong-fresnel-power" />
+                  )}
                 </CollapsibleContent>
               </Collapsible>
               {/* Light Anchor: Absolute keeps the light fixed to compass

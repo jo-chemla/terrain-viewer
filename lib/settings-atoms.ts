@@ -622,13 +622,15 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true, stacSearch: false, georef: false }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true, stacSearch: false, georef: false, threshold: false }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
 export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
 export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")
 /** STAC catalog search in the Add Dataset / Add Basemap modals (no URL param: local only). */
 export const stacSearchBetaEnabledAtom = booleanField(betaEnabledAtom, "stacSearch")
 export const georefBetaEnabledAtom = booleanField(betaEnabledAtom, "georef")
+/** Contours: the threshold outline mode (one isoline where the DEM crosses a value). */
+export const thresholdBetaEnabledAtom = booleanField(betaEnabledAtom, "threshold")
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one
 // continuous grid (each card's label prefixed with its project name) so

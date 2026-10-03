@@ -27,13 +27,16 @@ function hexToRgb01(hex?: string): [number, number, number] {
 
 export function PhongLiveGlLayer({
   mapRef, enabled,
-  diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, lightColor, extraLights, exaggeration, opacity,
+  diffuseStrength, specularStrength, fresnelStrength = 0, fresnelPower = 3, lightDir, lightAlt, lightRelativeToCamera, lightColor, extraLights, exaggeration, opacity,
   terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
 }: {
   mapRef: React.RefObject<MapRef>
   enabled: boolean
   diffuseStrength: number
   specularStrength: number
+  /** Fresnel rim strength (0 = off) and falloff exponent; live renderer only. */
+  fresnelStrength?: number
+  fresnelPower?: number
   lightDir: number
   lightAlt: number
   lightRelativeToCamera: boolean
@@ -62,7 +65,7 @@ export function PhongLiveGlLayer({
       tileSize: clientUpstream.tileSize,
       minzoom: clientUpstream.minzoom,
       maxzoom: clientUpstream.maxzoom,
-      diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity,
+      diffuseStrength, specularStrength, fresnelStrength, fresnelPower, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity,
       lightColor: hexToRgb01(lightColor), extraLights: (extraLights ?? []).map((l) => ({ dir: l.dir, alt: l.alt, color: hexToRgb01(l.color) })),
     }
     const layer = new PhongLiveLayerImpl(LIVE_LAYER_ID, options)
@@ -111,9 +114,9 @@ export function PhongLiveGlLayer({
 
   const extraKey = JSON.stringify(extraLights ?? [])
   useEffect(() => {
-    layerRef.current?.updateOptions({ diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity, lightColor: hexToRgb01(lightColor), extraLights: (extraLights ?? []).map((l) => ({ dir: l.dir, alt: l.alt, color: hexToRgb01(l.color) })) })
+    layerRef.current?.updateOptions({ diffuseStrength, specularStrength, fresnelStrength, fresnelPower, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity, lightColor: hexToRgb01(lightColor), extraLights: (extraLights ?? []).map((l) => ({ dir: l.dir, alt: l.alt, color: hexToRgb01(l.color) })) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [diffuseStrength, specularStrength, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity, lightColor, extraKey])
+  }, [diffuseStrength, specularStrength, fresnelStrength, fresnelPower, lightDir, lightAlt, lightRelativeToCamera, exaggeration, opacity, lightColor, extraKey])
 
   return null
 }

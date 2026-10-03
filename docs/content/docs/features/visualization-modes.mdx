@@ -94,6 +94,8 @@ Color-encoded elevation with a choice of color ramps (including [CPT City](http:
 
 ## Contours + Geo Grid
 
+Contour lines trace one of three references. **Absolute** is real elevation, with a minor and a major interval. **LRM** traces the Local Relief Model instead, so the lines follow local bumps and hollows rather than altitude. **Threshold** (beta, Settings → Beta → Threshold Outlines) draws a single outline where the terrain crosses the value you type: on an nDSM, 1.5 m outlines canopy and buildings; on a DEM, a flood or lake level. The outline is computed by the same contour engine as the other two, so it is a vector layer that exports as GeoJSON like contours. Under the hood the DEM is re-encoded as two plateaus by a `threshold://` tile protocol and contoured once at the step between them (`contourReferenceMode=threshold&contourThreshold=1.5`).
+
 Configurable-interval contour lines via [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour), plus a lat/lng graticule overlay.
 
 ![Contour lines, with the Contours & GeoGrid controls panel open](/screenshots/viz-modes/contours.jpg)

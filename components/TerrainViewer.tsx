@@ -24,7 +24,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom, thresholdBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -84,6 +84,7 @@ import { curvatureProtocol, CURVATURE_ENCODE_SCALE } from '@/lib/curvature-proto
 import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
+import { thresholdProtocol } from '@/lib/threshold-protocol'
 import { blobnessProtocol } from '@/lib/blobness-protocol'
 import { svfProtocol } from '@/lib/svf-protocol'
 import { opennessProtocol } from '@/lib/openness-protocol'
@@ -520,6 +521,9 @@ export const QUERY_STATE_PARSERS = {
     phongOpacity: parseAsFloat.withDefault(1.0),
     phongDiffuseStrength: parseAsFloat.withDefault(0.8),
     phongSpecularStrength: parseAsFloat.withDefault(0.2),
+    // Fresnel rim on the live Phong renderer: strength 0 = off, power = falloff.
+    phongFresnelStrength: parseAsFloat.withDefault(0),
+    phongFresnelPower: parseAsFloat.withDefault(3),
     // Off (default — briefly flipped to Camera on 2026-08-20, reverted the
     // same day on the user's follow-up): illuminationDir is a compass
     // azimuth, fixed to the world, matching maplibre's own hillshade
@@ -782,6 +786,8 @@ export const QUERY_STATE_PARSERS = {
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
+    // Same opt-in-beta gate, for the threshold outline contour mode.
+    thresholdBeta: parseAsBoolean.withDefault(false),
     // Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator.
     // Default true so the URL stays clean when the feature is on (the atom
     // default is also true); `?sunShadowBeta=false` disables it explicitly.
@@ -889,7 +895,10 @@ export const QUERY_STATE_PARSERS = {
     // (PLANE_SLICER_REFERENCE_MODES above), applied to what the contour LINES
     // themselves trace: iso-altitude lines vs iso-relief lines. See
     // ContoursLayer.tsx for how LRM mode swaps the DEM source it contours.
-    contourReferenceMode: parseAsStringLiteral(PLANE_SLICER_REFERENCE_MODES).withDefault("absolute"),
+    // "threshold" (beta, thresholdBeta) traces one outline where the DEM
+    // crosses contourThreshold: canopy or buildings on an nDSM at 1.5 m.
+    contourReferenceMode: parseAsStringLiteral(["absolute", "lrm", "threshold"] as const).withDefault("absolute"),
+    contourThreshold: parseAsFloat.withDefault(1.5),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
     // Absolute and LRM keep independent interval values, same reasoning as
@@ -1774,6 +1783,7 @@ export function TerrainViewer() {
     registerProtocol('curvature', withTileResultCache(curvatureProtocol))
     registerProtocol('tpi', withTileResultCache(tpiProtocol))
     registerProtocol('lrm', withTileResultCache(lrmProtocol))
+    registerProtocol('threshold', withTileResultCache(thresholdProtocol))
     registerProtocol('roughness', withTileResultCache(roughnessProtocol))
     registerProtocol('blobness', withTileResultCache(blobnessProtocol))
     // withSlowTileStats composes INSIDE withTileResultCache so it measures the
@@ -1868,6 +1878,10 @@ export function TerrainViewer() {
   useEffect(() => {
     setGeorefBetaEnabled(state.georefBeta)
   }, [state.georefBeta, setGeorefBetaEnabled])
+  const [thresholdBetaEnabled, setThresholdBetaEnabled] = useAtom(thresholdBetaEnabledAtom)
+  useEffect(() => {
+    setThresholdBetaEnabled(state.thresholdBeta)
+  }, [state.thresholdBeta, setThresholdBetaEnabled])
   useEffect(() => {
     setHistoricalBetaEnabled(state.historicalBeta)
   }, [state.historicalBeta, setHistoricalBetaEnabled])
@@ -1900,6 +1914,7 @@ export function TerrainViewer() {
     // Restore the beta gates from their persisted last value, unless the URL
     // itself already carries an explicit override.
     if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
+    if (!searchParams.has("thresholdBeta") && thresholdBetaEnabled) stateOverrides.thresholdBeta = true
     if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
     if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
     if (!searchParams.has("appMode")) {
@@ -4052,6 +4067,8 @@ export function TerrainViewer() {
             enabled={state.showLightingEffects && vm("showLightingEffects") && state.showPhong && vm("showPhong") && effectivePhongRenderer === "live" && !isHistoricalMode}
             diffuseStrength={state.phongDiffuseStrength}
             specularStrength={state.phongSpecularStrength}
+            fresnelStrength={state.phongFresnelStrength}
+            fresnelPower={state.phongFresnelPower}
             // Raw compass azimuth + a relative flag: the live layer adds the
             // CURRENT map bearing itself every frame (headlamp that tracks
             // through the whole rotate gesture), instead of us baking in the
@@ -4196,6 +4213,7 @@ export function TerrainViewer() {
               showContourLabels={state.showContourLabels}
               sourceId={source}
               referenceMode={state.contourReferenceMode}
+              thresholdValue={state.contourThreshold}
               lrmRadius={state.lrmRadius}
               contourMinor={state.contourReferenceMode === "lrm" ? state.contourMinorLrm : state.contourMinor}
               contourMajor={state.contourReferenceMode === "lrm" ? state.contourMajorLrm : state.contourMajor}
