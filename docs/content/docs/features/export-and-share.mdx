@@ -7,6 +7,11 @@ Everything here lives in the sidebar's **Download and Snapshot** section. In his
 
 ## Snapshot & Copy
 
+![The Download and Snapshot section of the sidebar: Snapshot, GeoTIFF with its menu arrow, Copy, Share, Export Historical GeoTiffs, and the Export settings fold](/screenshots/export-share/download-section.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">The Download and Snapshot section — Snapshot, GeoTIFF (with the menu arrow for Visible layers…), Copy, Share and the historical batch export, over the Matterhorn in hillshade and hypsometric tint</p>
+
+
 - **Snapshot** — saves the map area to disk as a JPEG, exactly as laid out on screen: a single view, or every view of a side-by-side, grid or overlay comparison (wipe position, blend mode and opacity included), with the date pills, scale bar and attribution, but never the side panel or the map's buttons (search, zoom, compass, geolocate). The strips hidden under the open side panel and the historical timeline are cropped off so the subject stays centred; open the **Export settings** fold under the export buttons and tick **Include the timeline in snapshots** to keep the timeline in the picture instead — it applies to Copy and Share too. In **2D view mode**, a matching `.jgw` world file is saved alongside it (and the filename is tagged `-epsg4326`), so the image drops into GIS software already georeferenced — for a single view or an overlay comparison only, since a side-by-side or grid image holds several extents. 3D and globe views get the plain image only — a perspective render has no single affine georeferencing.
 - **Copy** — the same capture, copied straight to the clipboard for pasting into chats, slides, or issues.
 
@@ -20,6 +25,10 @@ Everything here lives in the sidebar's **Download and Snapshot** section. In his
 The **Max Download Resolution (px)** field, in the **Export settings** fold below the buttons, caps the output width/height for both paths. If the source's tile pyramid runs out of zoom over the selected area, the export still saves — at the best resolution available — with a warning explaining the shortfall.
 
 ## Visible layers export
+
+![The Export layers dialog: name, Screen or Custom size resolution, values as raw or coloured, images as GeoTIFF, PNG or JPEG, then the Visible and Not visible trees with the DEM, the basemap, hillshade and hypso](/screenshots/export-share/export-layers-dialog.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">The Export layers dialog — one file per line, the Visible branch ticked, the Not visible branch folded; Export 4 writes the snapshot, the DEM, the hillshade and the hypso</p>
 
 The arrow beside **GeoTIFF** opens a menu: **Elevation (DEM) GeoTIFF**, the same as the button, and **Visible layers…**. The second opens a tree with two branches, **Visible** and **Not visible**, one file per line. A branch's or group's checkbox ticks or unticks everything under it, and the chevrons fold. Everything visible starts ticked; the Not visible branch starts unticked and folded.
 
@@ -56,6 +65,10 @@ The contour lines are the ones **currently rendered in the viewport**, with segm
 
 ## Export Multi (Historical)
 
+![The Export Multi (Historical) dialog in historical mode: Viewport or Per-Feature target, a date range, the historical sources and current basemaps, 48 captures counted at the viewport centre, target resolution, and Run Export](/screenshots/export-share/export-historical-dialog.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Export Multi (Historical) over Île de la Cité — 48 captures from ESRI Wayback and Google Earth in the date range, one GeoTIFF each</p>
+
 **Export Historical GeoTiffs** opens a batch-export dialog: one RGB GeoTIFF per **export target × historical source × capture date** in a picked range, each cropped to its target's own extent, bundled into a single `.zip`.
 
 - **Export target** — either the current **viewport** (one extent, nothing needs drawing) or **Per-Feature**: one target per drawn feature, optionally filtered to a single [Drawing](/features/tools#drawing) layer. Per-feature targets get configurable padding — meters around points, percent around lines/polygons.
@@ -65,9 +78,14 @@ The contour lines are the ones **currently rendered in the viewport**, with segm
 
 ## Share
 
+![The Share modal: the Name my sources by URL box listing a LiDAR DSM going by URL and a local scan staying by id, the six platform tiles, Native Share, the copy buttons and the iframe snippet](/screenshots/export-share/share-modal.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">The Share modal — the link names the user's own LiDAR DSM by URL so the recipient loads it too, while a local picture stays by id; platform tiles, copy buttons and the iframe embed below</p>
+
 **Share** opens a modal that shares the **current page URL** — since every viz mode, source, and camera setting lives in the URL, the link alone reproduces your exact view. A preset blurb introducing the app is prepended as the post text. Platform tiles open each network's composer: **X/Twitter, Bluesky, Mastodon** (via a share page that lets you pick your instance), **LinkedIn, Threads, Reddit**. Clicking a tile also captures a screenshot and copies it to your clipboard automatically, so you can paste it (`Ctrl+V` / `⌘V`) into the composer before publishing. Below the grid:
 
 - **Native Share** (shown when the browser supports the Web Share API) — hands the URL, text, and the screenshot as an attached PNG to the OS share sheet, for apps like WhatsApp or Slack.
 - **Copy screenshot to clipboard** and **Copy URL to clipboard** — the same two pieces, for doing it manually.
+- **Name my sources by URL** — the box at the top. Your own terrain, basemap and overlay sources (added in the sidebar, with a remote URL) are written into the link by URL, type and name instead of the id that only exists in your browser, so the recipient's app registers and shows them without having them in its library. Library entries already resolve for everyone and are left alone; local files and entries that need more than a URL and a type stay by id, and the box says which. The switch is disabled when the link names none of your own sources.
 
 Related: the [Open In](/features/advanced/open-in) launcher hands the current viewport off to other web viewers (River-REM, ESRI Wayback, Google Earth, …) instead of exporting anything.

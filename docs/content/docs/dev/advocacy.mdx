@@ -4,6 +4,8 @@ description: Where Terrain Viewer has been presented, where it still could be, a
 icon: Megaphone
 ---
 
+import { Accordions, Accordion } from "fumadocs-ui/components/accordion";
+
 Terrain Viewer streams national LiDAR and elevation datasets that each have their own community. This page keeps the list of venues where a release or showcase post fits, which ones have been done, and the upstream issues the project takes part in. It exists so that the next announcement starts from a list rather than from a search.
 
 ## Done
@@ -19,7 +21,165 @@ Terrain Viewer streams national LiDAR and elevation datasets that each have thei
 
 - **maplibre-contour** [issue 434](https://github.com/onthegomap/maplibre-contour/issues/434): the custom-protocol fetch through the main thread, with [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts) as the example.
 - **Mapterhorn** [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27): a sweep of national sources finer than what is ingested, with the [National Datasets](/features/national-datasets#finer-than-mapterhorn) comparison as the reference.
+- **Lars Maxfield (impasto.dev)**: ask for `https://terrain-viewer.iconem.com` as an allowed origin on the Almond Blossom PMTiles host, so the library's [impasto entries](/dev/vendored-protocols#pmtiles) work without a local proxy. Not to be sent yet.
+- **geomatico/maplibre-cog-protocol**: a bilinear option when a tile is upsampled from a coarser overview; [issue 14](https://github.com/geomatico/maplibre-cog-protocol/issues/14) is the nearest thread.
 - The venues below, Geoforum.nl first.
+
+## Posts to make, raw
+
+The drafts behind the list above, as Markdown ready to paste. Each fold is one post; the intro line says where it goes and what state it is in.
+
+<Accordions type="single">
+<Accordion title="maplibre-contour issue 434: main-thread fetch for custom protocols">
+
+Comment on [onthegomap/maplibre-contour#434](https://github.com/onthegomap/maplibre-contour/issues/434).
+
+````md
+A follow-up with a working implementation, in case it helps shape an API.
+
+[Terrain Viewer](https://terrain-viewer.iconem.com) added various custom protocols crafted with AI assistance:
+- a set of visualization modes on top of MapLibre's hillshade: slope, curvatures, TPI, local relief model, sky-view factor, openness, Phong shading, etc. Each is its own `addProtocol` scheme that reads a `raster-dem` upstream and computes from it.
+- terrain MapLibre cannot read on its own, again through protocols: `cog://`, `vrt://` for GDAL VRT mosaics in any CRS, `lerc://` for ArcGIS ImageServers, `quantized-mesh://`, `float32dem://` for WMS, `demdiff://` for the difference of two DEMs. We wanted every mode to work on every one of those source types, without any mode knowing which protocol sits underneath its raster-dem.
+
+**What we built.** All of them go through one small registry, [`lib/protocol-registry.ts`](https://github.com/jo-chemla/terrain-viewer/blob/main/lib/protocol-registry.ts). `registerProtocol()` passes the handler to `maplibregl.addProtocol` and also keeps it, so anything that builds a tile URL itself can call `dispatchTile(url)` and reach the same handler. Architecture notes: [Custom Protocols](https://terrain-viewer.iconem.com/docs/dev/custom-protocols).
+
+**How it feeds maplibre-contour today.** For a template on one of those schemes we build a `DemSource` with `worker: false`, then give its `LocalDemManager` two functions ([`buildRegistryDemSource`](https://github.com/jo-chemla/terrain-viewer/blob/main/components/LayersAndSources/ContoursLayer.tsx)):
+
+```ts
+dem.manager = new LocalDemManager({
+  demUrlPattern: template, encoding, maxzoom, cacheSize: 100, timeoutMs: 20000,
+  // any registered scheme, through the registry
+  getTile: async (url, ac) => ({ data: await toBitmap(await dispatchTile(url, ac.signal)) }),
+  // straight from the bitmap the protocol returns: no PNG round trip
+  decodeImage: async (bitmap, encoding) => {
+    ctx.drawImage(bitmap, 0, 0)
+    return decodeParsedImage(bitmap.width, bitmap.height, encoding, ctx.getImageData(0, 0, bitmap.width, bitmap.height).data)
+  },
+})
+```
+
+It works: contours now draw over every source type we have, VRT mosaics, LERC, quantized mesh and DEM differences included. Live example over a LiDAR VRT: [Aguada Fénix, Mexico](https://terrain-viewer.iconem.com/?viewMode=2d&zoom=15&lat=17.7338&lng=-91.2886&terrainSourceA=custom-mx-aguadafenix-lidar&showContoursAndGraticules=true&showContours=true&showHillshade=true).
+
+The cost is that isolines run on the main thread, because a `getTile` function cannot be posted to the worker.
+
+**The proposal.** Would you take an option that lets the worker defer the fetch to a main-thread `getTile` over the existing Actor? The worker would send "fetch this URL" to the main thread and get bytes or an `ImageBitmap` back, both transferable. Decoding and isoline generation stay in the worker. That is how MapLibre's own worker already reaches `addProtocol` handlers, so needing the main thread for the fetch is not a red flag, just the same arrangement one level down. Something like:
+
+```ts
+new DemSource({ url: "vrt://…/{z}/{x}/{y}", encoding: "mapbox", worker: true,
+  getTile: (url, ac) => myFetch(url, ac) }) // runs on the main thread, called from the worker
+```
+
+If the contour source in [maplibre/maplibre-style-spec#583](https://github.com/maplibre/maplibre-style-spec/issues/583) lands, this would come for free: MapLibre would fetch the DEM through its normal pipeline, custom protocols included. Until then this closes the gap. Happy to open a PR if the direction suits you.
+````
+
+</Accordion>
+<Accordion title="Mapterhorn issue 27: national sources finer than what is ingested">
+
+Comment on [mapterhorn/mapterhorn#27](https://github.com/mapterhorn/mapterhorn/issues/27). Facts as of 2026-09-28; to be reworked before posting.
+
+````md
+A sweep of this thread, since a lot has landed since it opened and I kept suggesting things that were already merged: what is in, what is open, and what still looks like a gap. Resolutions are read from each entry's `source-catalog/*/metadata.json`, PR states from the repo, as of 2026-09-28.
+
+**Still a gap, country-wide and finer than what is ingested:**
+
+| | Source | Res | In the catalog | Tracked |
+|---|---|---|---|---|
+| **CAN** | [NRCan HRDEM](https://datacube.services.geo.ca/stac/api), STAC + COGs on S3 | 1 m | `cahrdem2`, 2 m | #211, #267 |
+| **NLD** | [AHN](https://www.ahn.nl/) 0.5 m | 0.5 m | `nlahn5lowresfilled`, 5 m (the Caribbean municipalities are already 0.5 m) | #287, #247 |
+| **NOR** | [Kartverket NDH](https://hoydedata.no/) | 0.25 m | `no`, 1 m | — |
+| **CZE** | [ČÚZK DMR 5G](https://geoportal.cuzk.cz/) | 2 m | `cz`, 5 m | — |
+| **AUS** | [Queensland](https://qldspatial.information.qld.gov.au/), [NSW](https://elevation.fsdf.org.au/) | 0.5 m / 1 m | `au5*`, 5 m; `autas` 2 m | #268 |
+
+All of these stream live in Terrain Viewer, each with a side-by-side "vs Mapterhorn" link, on its [National Datasets](https://terrain-viewer.iconem.com/docs/features/national-datasets/#finer-than-mapterhorn) page.
+
+<details>
+<summary><b>Open PRs worth landing together</b></summary>
+
+- #272 ArcticDEM and #273 REMA, with #274 `source_to_egm2008.py`. Both DEMs are ellipsoidal: ArcticDEM reads Gunnbjørn Fjeld at 3749.8 m against its 3694 m, about +56 m, which is a lot to inherit silently.
+- #287 Dutch AHN 5 m and 0.5 m, #211 Canada 1 m (after #178 was closed), #184 Mexico 15 m, #192 High Mountain Asia 8 m, #320 Iceland 2 m, #223 and #242 Piemonte, Aosta and IGN LiDAR HD entries.
+
+</details>
+
+<details>
+<summary><b>Nothing national in the catalog today</b></summary>
+
+| | Source | Res | Extent | How |
+|---|---|---|---|---|
+| **HTI** | CNIGS / World Bank LiDAR DTM, on [OpenTopography](https://doi.org/10.5069/G9GX48R8) | 1.5 m | National | VRT of GeoTIFFs |
+| **IDN** | [BIG DEMNAS](https://tanahair.indonesia.go.id/demnas/) | ~8 m | National | ImageServer or bulk |
+| **MEX** | [INEGI CEM 3.0](https://www.inegi.org.mx/app/geo2/elevacionesmex/) | 15 m | National | Bulk; #184 open |
+| **IRL** | [GSI Open Topographic LiDAR](https://data.gov.ie/dataset/open-topographic-lidar-data) | 1 m | Partial, growing | Bulk GeoTIFF; the ImageServers are 8-bit hillshade, not elevation |
+| **GBR-NIR** | [OSNI River Basin LiDAR](https://www.opendatani.gov.uk/) | 1 m | River basins | Per-basin zips |
+| **LVA** | [LĢIA classified ALS](https://www.lgia.gov.lv/en/atvertie-dati) | ≥1 m | National | LAS only, needs rasterising; `aalv` is 20 m |
+| **HKG** | [Lands Department DTM](https://data.gov.hk/en-data/dataset/hk-landsd-openmap-5m-grid-dtm) | 5 m | Whole SAR | LERC ImageServer or bulk |
+| **NCL** | [BDALTI-NC](https://sig-public.gouv.nc/plateforme_telechargement/DITTT_BDALTI-NC.zip) | 10 m | Grande Terre, Loyautés | One 10.7 MB zip |
+| **PHL** | [Taal Open LiDAR](https://phillidar-dad.github.io/) | 1 m | 20 km around Taal | Per-tile GeoTIFFs on S3 |
+
+More countries that publish elevation but not in a usable form (auth on every raster byte, hillshade-only services) are listed [here](https://terrain-viewer.iconem.com/docs/features/national-datasets/#surveyed-not-api-usable-possibly-useful-to-mapterhorn).
+
+</details>
+
+<details>
+<summary><b>Merged since the thread opened</b></summary>
+
+Austria 10 m and 1 m (#36, #146) and four Länder; Germany DGM1 in all sixteen Länder, Baden-Württemberg down to 25 cm (#290); France RGE ALTI 5 m, 1 m, then LiDAR HD 0.5 m (#54, #87, #289); Spain 5 m, 2 m, partial 50 cm (#77, #171, #293); Italy TINITALY 10 m (#53) and seven regions; Belgium, the UK nations, the US 1/3″ and 1 m (#150, #208, #209); and one PR each for Czechia, Estonia, Luxembourg, Denmark, Slovenia, Latvia, Romania, Slovakia, Finland, Sweden, the Netherlands, Poland, New Zealand, Cyprus, Iceland, the Faroes, Japan, Svalbard, Norway, Portugal, Madeira, Greenland, Australia, Rwanda, Canada, Zürich, Israel, Taiwan, Tasmania and the Dutch Caribbean.
+
+Two catalog resolutions differ from their PR titles: Slovenia (`si` 1 m, #75 said 0.5 m) and Aosta (`itaosta` 2 m, #69 said 0.5 m; #242 is an open update).
+
+</details>
+
+Happy to split any of these into their own issues.
+
+*(Put together with help from Claude, Anthropic. Every resolution was checked against `metadata.json`, every PR state against the repo and every endpoint against a live request, because my first draft was wrong on the first two.)*
+````
+
+</Accordion>
+<Accordion title="Lars Maxfield (impasto.dev): CORS for the Almond Blossom PMTiles">
+
+A message, not an issue: the host allows only impasto.dev as origin and PMTiles Range requests cannot go through a browser extension, so the library entries need a local proxy until the origin is allowed. Not to be sent yet.
+
+````md
+Subject: Almond Blossom PMTiles in Terrain Viewer — a CORS origin to add?
+
+Hi Lars,
+
+I run Terrain Viewer (https://terrain-viewer.iconem.com), a browser viewer for elevation data: hillshade, slope, curvature, sky-view factor and so on, computed in the browser from height tiles. The Almond Blossom scan on impasto.dev is a wonderful fit: I added its two PMTiles archives to the viewer's library, the height one decoded with your custom RGB factors (R·65536 + G·256 + B, 0.25 µm units) and the colour one draped on top, and the brush relief reads beautifully under a raking light and in sky-view factor.
+
+One thing stands in the way of sharing it: the archives are served with `Access-Control-Allow-Origin` limited to impasto.dev, and PMTiles needs Range requests, whose preflight a browser extension cannot bypass. So today the entries only work through a local proxy.
+
+Would you consider allowing `https://terrain-viewer.iconem.com` as an origin on that host (or `*` for GET/HEAD with Range, which is what PMTiles hosts usually do)? Nothing else is needed on your side; the viewer reads the archives as they are.
+
+A link to see it, once the origin is allowed: https://terrain-viewer.iconem.com/?terrainSourceA=custom-art-impasto-almond-blossom-height&basemapSourceA=custom-art-impasto-almond-blossom-rgb&showHillshade=true&showSvf=true
+
+Thanks for publishing the scans openly,
+Jonathan
+````
+
+</Accordion>
+<Accordion title="geomatico/maplibre-cog-protocol: bilinear option when upsampling">
+
+A new issue. Issue 14 is the nearest thread (nearest resampling called deliberate, 2024-11); no option or PR exists. The repo carries the patch meanwhile.
+
+````md
+Title: Option for bilinear resampling when a tile is upsampled from a coarser overview
+
+**Context.** [Terrain Viewer](https://terrain-viewer.iconem.com) reads elevation COGs in the browser through this protocol and derives hillshade, slope, curvature and more from the tiles. On a 10 cm DSM, every zoom between two overview levels shows visible blocks: the tile is upsampled from the coarser overview with nearest neighbour, and each source pixel becomes a square of 2 to 4 output pixels. The same file through titiler, which resamples bilinearly, looks smooth at every zoom.
+
+**Where it comes from.** `CogReader.ts` reads every tile with `resampleMethod: 'nearest'` (and the typed-array fast path in `readTile.ts` reproduces nearest), whatever the ratio between the pixel window and the output size. #14 touched this: nearest is deliberate for COGs built on the GoogleMapsCompatible tiling scheme, where no resampling is needed. But a COG whose overviews do not line up with the tile grid, which is most DEMs people have, always lands between two levels.
+
+**Proposal.** An option, off by default to keep the current behaviour:
+
+```ts
+cogProtocol({ resampling: 'bilinear' })   // or per-URL: cog://…#bilinear
+```
+
+applied only when the pixel window is smaller than the output (upsampling); same-or-finer reads keep the fast path and nearest, and mask tiles are never interpolated. geotiff.js already implements `bilinear`, so the change is one branch in `readTile`.
+
+**What we run today.** A pnpm patch doing exactly that: https://github.com/jo-chemla/terrain-viewer/blob/main/patches/%40geomatico__maplibre-cog-protocol.patch. It works on the ESM and the bundled build; the one known trade-off is that nodata sentinels bleed one pixel into their neighbours, which is why it should stay opt-in. Happy to turn it into a PR with a test if the direction suits you.
+````
+
+</Accordion>
+</Accordions>
 
 ## Start here
 
