@@ -85,6 +85,7 @@ import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
 import { thresholdProtocol } from '@/lib/threshold-protocol'
+import { parseSourceNames } from '@/lib/portable-share-url'
 import { blobnessProtocol } from '@/lib/blobness-protocol'
 import { svfProtocol } from '@/lib/svf-protocol'
 import { opennessProtocol } from '@/lib/openness-protocol'
@@ -2395,7 +2396,8 @@ export function TerrainViewer() {
     const params = new URLSearchParams(window.location.search)
     const isUrl = (v: string) => /^https?:\/\//i.test(v)
     const cogViaTitiler = ["1", "true"].includes(params.get("viaTitiler") ?? "") ? true : undefined
-    const nameOf = (url: string) => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } }
+    const linkNames = parseSourceNames(params.get("sourceNames"))
+    const nameOf = (url: string) => linkNames.get(url) ?? (() => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } })()
     const terrain = params.getAll("addTerrainUrl").filter(isUrl)
     const basemap = params.getAll("addBasemapUrl").filter(isUrl)
     const overlay = params.getAll("addOverlayUrl").filter(isUrl)
@@ -2445,7 +2447,8 @@ export function TerrainViewer() {
     const isUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//i.test(v)
     const params = new URLSearchParams(window.location.search)
     const cogViaTitiler = ["1", "true"].includes(params.get("viaTitiler") ?? "") ? true : undefined
-    const nameOf = (url: string) => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } }
+    const linkNames = parseSourceNames(params.get("sourceNames"))
+    const nameOf = (url: string) => linkNames.get(url) ?? (() => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } })()
     const terrainUrls = Array.from(new Set(VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]).filter(isUrl)))
     const basemapUrls = Array.from(new Set([state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`])].filter(isUrl)))
     // ?overlayBasemapIds=https://... (the active-overlays state field) can
@@ -3612,7 +3615,10 @@ export function TerrainViewer() {
       // vm(key): does this view draw the mode (lib/viz-views.ts)? Always when
       // modes are synced; otherwise per vizViews.
       const vizMask = parseVizViews(state.vizSync ? "" : state.vizViews)
-      const vm = (key: string) => state.vizSync || viewDrawsMode(vizMask, key, side)
+      // Split off: the one visible view draws every switched-on mode, whatever
+      // vizViews kept from an earlier split (A could stay masked out, so a
+      // checkbox then changed nothing on screen).
+      const vm = (key: string) => !isSplit || state.vizSync || viewDrawsMode(vizMask, key, side)
       // Overlays per view: with per-view basemaps on, views B-H read their own
       // overlayBasemapIds<side>; view A and the single-basemap mode read the
       // plain overlayBasemapIds (basemap-byod-section.tsx's grid toggle writes them).
@@ -4499,12 +4505,20 @@ export function TerrainViewer() {
     : state.showCaptureDatePill
   // With modes per view (vizSync off), the pill names the modes this view
   // draws that not every view draws, so the panes can be told apart.
-  const distinctModesSuffix = (side: ViewId): React.ReactNode => {
+  const distinctModesSuffix = (side: ViewId, leading = true): React.ReactNode => {
     if (state.vizSync !== false || !isSplit) return null
     const names = distinctModeLabels(stateAny, side, activeViewIds)
     // Kept in snapshots: the mode names are what tells the panes apart.
-    return names.length ? <span className="text-muted-foreground"> · {names.join(", ")}</span> : null
+    return names.length ? <span className="text-muted-foreground">{leading ? " · " : ""}{names.join(", ")}</span> : null
   }
+  // In a split, a pill names only what sets its view apart: the terrain
+  // source when the views draw different terrains, the basemap (and date)
+  // when they draw different basemaps. Same source everywhere: the letter
+  // and the distinct modes carry the pill.
+  const terrainIdOf = (side: ViewId): string => stateAny[`source${side}`] ?? state.sourceA
+  const terrainDiffers = isSplit && new Set(activeViewIds.map(terrainIdOf)).size > 1
+  const basemapKeyOf = (side: ViewId): string => { const r = perViewResolved[side]; return r ? `${r.basemapSource}|${r.date ?? ""}` : "" }
+  const basemapDiffers = isSplit && new Set(activeViewIds.map(basemapKeyOf)).size > 1
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
     if (effectiveCaptureDatePill === "off") return null
     // The pill describes the BASEMAP source/date — in terrain mode that layer
@@ -4516,17 +4530,24 @@ export function TerrainViewer() {
     // rather than nothing, fall back to naming the TERRAIN source: basemap
     // label whenever the basemap is actually drawn, terrain label otherwise.
     // Never a date — a DEM has no capture date to show.
-    let baseLabel: string | null
-    if (!isHistoricalMode && !state.showRasterBasemap) {
-      // Terrain is always per-view (sourceA..H, unconditionally), unlike a
-      // basemap, which is only per-view behind basemapPerView — so this is a
-      // plain lookup rather than a viewFieldName() call.
-      const terrainId = stateAny[`source${pane.side}`] ?? state.sourceA
-      if (!terrainId || terrainId === "none") return null
-      baseLabel = terrainShortLabel(terrainId, customTerrainSources)
-    } else {
+    let baseLabel: string | null = null
+    const basemapDrawn = isHistoricalMode || state.showRasterBasemap
+    // Terrain is always per-view (sourceA..H, unconditionally), unlike a
+    // basemap, which is only per-view behind basemapPerView — so this is a
+    // plain lookup rather than a viewFieldName() call.
+    const terrainId = terrainIdOf(pane.side)
+    const terrainLabel = terrainId && terrainId !== "none" ? terrainShortLabel(terrainId, customTerrainSources) : null
     const resolved = perViewResolved[pane.side]
-    if (!resolved || !resolved.basemapSource) return null
+    if (!isSplit) {
+      // Single view: the basemap when drawn, the terrain otherwise.
+      if (!basemapDrawn) { if (!terrainLabel) return null; baseLabel = terrainLabel }
+      else if (!resolved || !resolved.basemapSource) return null
+    } else if (!basemapDrawn || !basemapDiffers || !resolved?.basemapSource) {
+      // Only what differs; the basemap part below is skipped.
+      baseLabel = terrainDiffers ? terrainLabel : null
+      if (!baseLabel && !distinctModeLabels(stateAny, pane.side, activeViewIds).length && state.vizSync !== false) return null
+    }
+    if (baseLabel === null && (!isSplit || basemapDiffers) && resolved?.basemapSource) {
     // A non-historical basemap (Mapbox/HERE/Google Sat/OSM/plain Bing) has no
     // real per-tile capture date to show — rather than hiding the pill
     // entirely (which used to make it look like the feature just stopped
@@ -4552,8 +4573,10 @@ export function TerrainViewer() {
     baseLabel = !hasKnownDate ? sourceShortLabel
       : effectiveCaptureDatePill === "source-date" ? `${sourceShortLabel} · ${dateLabel}`
       : dateLabel
+    if (isSplit && terrainDiffers && terrainLabel) baseLabel = `${terrainLabel} · ${baseLabel}`
     }
-    if (!baseLabel) return null
+    if (!baseLabel && !isSplit) return null
+    baseLabel = baseLabel ?? ""
     // Split views name their pane in the pill itself ("B: Bing · 1999-01-15",
     // the letter being on-screen only: a snapshot shows "Bing · 1999-01-15"),
     // uncoloured. The pill doubles as the view selector for the timeline
@@ -4632,8 +4655,8 @@ export function TerrainViewer() {
             <TooltipTrigger
               render={
                 <span data-snapshot-plain data-timeline-side-select="" onClick={onPillClick} className={cn("cursor-pointer", activeView === pane.side ? "font-bold text-[1.08em]" : selected && "font-bold")}>
-                  {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
-                  {label}{distinctModesSuffix(pane.side)}
+                  {isSplit && <span data-snapshot-ignore>{label ? `${pane.side}: ` : pane.side}</span>}
+                  {label}{distinctModesSuffix(pane.side, !!label)}
                 </span>
               }
             />
@@ -4641,8 +4664,8 @@ export function TerrainViewer() {
           </Tooltip>
         ) : (
           <span data-snapshot-plain className={cn(selected && "font-bold")}>
-            {isSplit && <span data-snapshot-ignore>{pane.side}: </span>}
-            {label}{distinctModesSuffix(pane.side)}
+            {isSplit && <span data-snapshot-ignore>{label ? `${pane.side}: ` : pane.side}</span>}
+            {label}{distinctModesSuffix(pane.side, !!label)}
           </span>
         )}
         {activeView === pane.side && (

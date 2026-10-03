@@ -66,6 +66,16 @@ export function viewDrawsMode(v: VizViews, key: string, side: ViewId): boolean {
   return views == null || views.includes(side)
 }
 
+/** The mode is on AND drawn by at least one view of the current grid: the
+ *  gate for a sub-mode's options, so a mode kept on a view outside a smaller
+ *  grid (matcap on D in a 2x1) does not open its options. */
+export function modeOnVisibleView(state: Record<string, any>, key: string): boolean {
+  if (!state[key]) return false
+  if (state.splitStyle === "off" || state.vizSync !== false) return true
+  const v = parseVizViews(state.vizViews || "")
+  return activeViews(effectiveGridLayout(state)).some((s) => viewDrawsMode(v, key, s))
+}
+
 /** The effective grid in the panel: overlay split is two views side by side. */
 export function effectiveGridLayout(state: { splitStyle?: string; gridLayout?: GridLayoutId }): GridLayoutId {
   return state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")

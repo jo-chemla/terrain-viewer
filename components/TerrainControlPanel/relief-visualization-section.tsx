@@ -1,5 +1,5 @@
 import type React from "react"
-import { perViewProps } from "@/lib/viz-views"
+import { perViewProps, modeOnVisibleView } from "@/lib/viz-views"
 import { useAtom } from "jotai"
 import { Hourglass } from "lucide-react"
 import { Section, CheckboxWithSlider, AdvancedModeToggle } from "./controls-components"
@@ -59,7 +59,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             sliderValue={state.lrmOpacity}
             onSliderChange={(value) => setState({ lrmOpacity: value })}
           />
-          {state.showLrm && advanced && <LrmFields state={state} setState={setState} tileSize={terrainTileSize} />}
+          {modeOnVisibleView(state, "showLrm") && advanced && <LrmFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
 
         {/* Visibility-analysis modes: Sky View Factor, Openness — both built on the
@@ -82,7 +82,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             sliderValue={state.svfOpacity}
             onSliderChange={(value) => setState({ svfOpacity: value })}
           />
-          {state.showSvf && advanced && <SvfFields state={state} setState={setState} tileSize={terrainTileSize} />}
+          {modeOnVisibleView(state, "showSvf") && advanced && <SvfFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
 
         <div className="space-y-2">
@@ -95,7 +95,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             sliderValue={state.opennessOpacity}
             onSliderChange={(value) => setState({ opennessOpacity: value })}
           />
-          {state.showOpenness && advanced && <OpennessFields state={state} setState={setState} tileSize={terrainTileSize} />}
+          {modeOnVisibleView(state, "showOpenness") && advanced && <OpennessFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
 
         <div className="space-y-2">
@@ -108,7 +108,7 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             sliderValue={state.localDominanceOpacity}
             onSliderChange={(value) => setState({ localDominanceOpacity: value })}
           />
-          {state.showLocalDominance && advanced && <LocalDominanceFields state={state} setState={setState} tileSize={terrainTileSize} />}
+          {modeOnVisibleView(state, "showLocalDominance") && advanced && <LocalDominanceFields state={state} setState={setState} tileSize={terrainTileSize} />}
         </div>
       </div>
     </Section>

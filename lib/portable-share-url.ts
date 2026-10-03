@@ -32,6 +32,23 @@ const BASEMAP_EXTRAS = ["maxzoom", "minzoom", "bounds", "coordinates", "georef",
 const inferredTerrainType = (url: string) => (url.includes("{z}") ? "terrarium" : "cog")
 const inferredBasemapType = (url: string) => (url.includes("{z}") ? "tms" : "cog")
 
+/** ?sourceNames=<url>=<name>,<url>=<name> (each part URI-encoded): the
+ *  display names of the sources a link names by URL, read back when the
+ *  recipient's app registers them (TerrainViewer.tsx's URL-source effects). */
+export function parseSourceNames(param: string | null): Map<string, string> {
+  const out = new Map<string, string>()
+  if (!param) return out
+  for (const pair of param.split(",")) {
+    const i = pair.indexOf("=")
+    if (i <= 0) continue
+    try { out.set(decodeURIComponent(pair.slice(0, i)), decodeURIComponent(pair.slice(i + 1))) } catch {}
+  }
+  return out
+}
+function serializeSourceNames(names: Map<string, string>): string {
+  return Array.from(names, ([url, name]) => `${encodeURIComponent(url)}=${encodeURIComponent(name)}`).join(",")
+}
+
 export interface PortableResult {
   url: string
   /** Names of the sources now given by URL. */
@@ -97,10 +114,12 @@ export function makePortableShareUrl(href: string, terrainSources: CustomTerrain
 
   // Pass 2: rewrite.
   const replaced = new Set<string>()
+  const names = new Map<string, string>()
   let viaTitiler = false
   const apply = (c: Candidate | null, ok: Set<Candidate>, fallback: string): string => {
     if (!c || !ok.has(c)) return fallback
     replaced.add(c.name)
+    names.set(c.url, c.name)
     if (c.viaTitiler) viaTitiler = true
     return c.url
   }
@@ -110,5 +129,6 @@ export function makePortableShareUrl(href: string, terrainSources: CustomTerrain
     p.set(key, ids.map((id, i) => apply(cs[i], okBasemap, id)).join(","))
   }
   if (viaTitiler) p.set("viaTitiler", "1")
+  if (names.size) p.set("sourceNames", serializeSourceNames(names)); else p.delete("sourceNames")
   return { url: url.toString(), replaced: Array.from(replaced), kept: Array.from(kept, ([name, reason]) => ({ name, reason })) }
 }

@@ -1,5 +1,5 @@
 import type React from "react"
-import { perViewProps } from "@/lib/viz-views"
+import { perViewProps, modeOnVisibleView } from "@/lib/viz-views"
 import { useState, useCallback } from "react"
 import { useAtom } from "jotai"
 import { ChevronDown, ChevronLeft, ChevronRight, Hourglass } from "lucide-react"
@@ -126,7 +126,7 @@ export const LightingEffectsOptionsSection: React.FC<{
             sliderValue={state.phongOpacity}
             onSliderChange={(value) => setState({ phongOpacity: value })}
           />
-          {state.showPhong && advanced && (
+          {modeOnVisibleView(state, "showPhong") && advanced && (
             <div className="space-y-3 pl-1">
               {/* Renderer: live is the default and the only path offered; the
                   raster ("legacy") pipeline stays reachable through the
@@ -144,7 +144,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                       so the live renderer only; the raster path ignores it. */}
                   <SliderControl label="Fresnel Rim" value={phongFresnelStrength} onChange={setPhongFresnelStrength} min={0} max={1} step={0.05} decimals={2} sliderId="phong-fresnel" />
                   {phongFresnelStrength > 0 && (
-                    <SliderControl label="Rim Falloff" value={phongFresnelPower} onChange={setPhongFresnelPower} min={1} max={8} step={0.5} decimals={1} sliderId="phong-fresnel-power" />
+                    <SliderControl label="Rim Falloff" value={phongFresnelPower} onChange={setPhongFresnelPower} min={1} max={16} step={0.5} decimals={1} sliderId="phong-fresnel-power" />
                   )}
                 </CollapsibleContent>
               </Collapsible>
@@ -201,7 +201,7 @@ export const LightingEffectsOptionsSection: React.FC<{
             sliderValue={state.matcapOpacity}
             onSliderChange={(value) => setState({ matcapOpacity: value })}
           />
-          {state.showMatcap && advanced && (
+          {modeOnVisibleView(state, "showMatcap") && advanced && (
             <div className="space-y-3 pl-1">
               {/* Renderer: live is the default and the only path offered; the
                   raster ("legacy") pipeline stays reachable through the
@@ -301,7 +301,7 @@ export const LightingEffectsOptionsSection: React.FC<{
             sliderValue={state.shadowOpacity}
             onSliderChange={(value) => setState({ shadowOpacity: value })}
           />
-          {state.showShadows && advanced && (
+          {modeOnVisibleView(state, "showShadows") && advanced && (
             <div className="space-y-3 pl-1">
               <SliderControl
                 label="Search Radius (px)"

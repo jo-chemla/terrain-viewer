@@ -200,8 +200,8 @@ const CopyUrlButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
     >
       {copied ? (
         <>
-          <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
-          <span className="text-green-400">URL copied!</span>
+          <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
+          <span className="text-green-600 dark:text-green-400">URL copied!</span>
         </>
       ) : (
         <>
@@ -255,7 +255,7 @@ const IframeSnippet: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
         onClick={handleCopy}
         className="flex items-center justify-center gap-2 w-full rounded-md px-3 py-2 border border-border bg-background hover:bg-muted/40 text-xs font-medium transition-colors duration-150 cursor-pointer"
       >
-        {copied ? <><Check className="h-3.5 w-3.5 text-green-400 shrink-0" /><span className="text-green-400">Iframe copied!</span></> : <><Code className="h-3.5 w-3.5 shrink-0" />Copy iframe code</>}
+        {copied ? <><Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" /><span className="text-green-600 dark:text-green-400">Iframe copied!</span></> : <><Code className="h-3.5 w-3.5 shrink-0" />Copy iframe code</>}
       </button>
     </div>
   )
@@ -311,8 +311,8 @@ const CopyUrlWithPanelsButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => 
     >
       {copied ? (
         <>
-          <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
-          <span className="text-green-400">URL copied!</span>
+          <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
+          <span className="text-green-600 dark:text-green-400">URL copied!</span>
         </>
       ) : (
         <>
@@ -448,11 +448,11 @@ const ShortUrlDisplay: React.FC<{ shortUrl: string }> = ({ shortUrl }) => {
         text-xs font-medium transition-colors duration-150 cursor-pointer
       "
     >
-      <span className="truncate text-green-400 font-mono">{shortUrl}</span>
+      <span className="truncate text-green-600 dark:text-green-400 font-mono">{shortUrl}</span>
       {copied ? (
-        <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
+        <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
       ) : (
-        <Link className="h-3.5 w-3.5 text-green-400 shrink-0" />
+        <Link className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
       )}
     </button>
   )
@@ -787,8 +787,8 @@ const ShareModal: React.FC<{
               </>
             ) : imageCopied ? (
               <>
-                <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
-                <span className="text-green-400">Screenshot copied — paste with Ctrl+V / ⌘V</span>
+                <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
+                <span className="text-green-600 dark:text-green-400">Screenshot copied — paste with Ctrl+V / ⌘V</span>
               </>
             ) : imageError ? (
               <>

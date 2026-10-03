@@ -717,7 +717,9 @@ export const CycleButtonGroup: React.FC<{
   // opts an item out of the default align-items: stretch).
   <div className="flex items-center gap-2">
     <Select value={value} onValueChange={(v) => v && onChange(v)} items={options}>
-      <SelectTrigger className="flex-1 h-8 cursor-pointer"><SelectValue /></SelectTrigger>
+      {/* min-w-0 + truncate: a long label (Duotone NW/NE...) used to widen
+          the trigger and push the chevron pair past the panel's edge. */}
+      <SelectTrigger className="flex-1 min-w-0 h-8 cursor-pointer overflow-hidden [&>span]:truncate"><SelectValue /></SelectTrigger>
       <SelectContent>
         {options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
       </SelectContent>

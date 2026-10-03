@@ -1,5 +1,5 @@
 import type React from "react"
-import { perViewProps } from "@/lib/viz-views"
+import { perViewProps, modeOnVisibleView } from "@/lib/viz-views"
 import { useAtom } from "jotai"
 import { ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -72,7 +72,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.slopeOpacity}
             onSliderChange={(value) => setState({ slopeOpacity: value })}
           />
-          {state.showSlope && advanced && <SlopeFields state={state} setState={setState} />}
+          {modeOnVisibleView(state, "showSlope") && advanced && <SlopeFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -85,7 +85,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.aspectOpacity}
             onSliderChange={(value) => setState({ aspectOpacity: value })}
           />
-          {state.showAspect && advanced && <AspectFields state={state} setState={setState} />}
+          {modeOnVisibleView(state, "showAspect") && advanced && <AspectFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -98,7 +98,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.curvatureOpacity}
             onSliderChange={(value) => setState({ curvatureOpacity: value })}
           />
-          {state.showCurvature && advanced && <CurvatureFields state={state} setState={setState} />}
+          {modeOnVisibleView(state, "showCurvature") && advanced && <CurvatureFields state={state} setState={setState} />}
         </div>
 
         </FoldableGroup>
@@ -114,7 +114,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.tpiOpacity}
             onSliderChange={(value) => setState({ tpiOpacity: value })}
           />
-          {state.showTpi && advanced && <TpiFields state={state} setState={setState} />}
+          {modeOnVisibleView(state, "showTpi") && advanced && <TpiFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -127,7 +127,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.triOpacity}
             onSliderChange={(value) => setState({ triOpacity: value })}
           />
-          {state.showTri && advanced && <TriFields state={state} setState={setState} />}
+          {modeOnVisibleView(state, "showTri") && advanced && <TriFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -140,7 +140,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.roughnessOpacity}
             onSliderChange={(value) => setState({ roughnessOpacity: value })}
           />
-          {state.showRoughness && advanced && <RoughnessFields state={state} setState={setState} />}
+          {modeOnVisibleView(state, "showRoughness") && advanced && <RoughnessFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
@@ -182,7 +182,7 @@ export const TerrainAnalysisOptionsSection: React.FC<{
             sliderValue={state.eigenRatioOpacity}
             onSliderChange={(value) => setState({ eigenRatioOpacity: value })}
           />
-          {state.showEigenRatio && advanced && <EigenRatioFields state={state} setState={setState} />}
+          {modeOnVisibleView(state, "showEigenRatio") && advanced && <EigenRatioFields state={state} setState={setState} />}
         </div>
 
         <div className="space-y-2">
