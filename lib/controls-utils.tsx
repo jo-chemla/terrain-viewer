@@ -436,18 +436,34 @@ export async function captureBookmarkThumbnail(
   maxWidth = 960,
 ): Promise<string | null> {
   if (!mapRef.current) return null
-  try {
-    const canvas = mapRef.current.getMap().getCanvas()
-    const scale = Math.min(1, maxWidth / canvas.clientWidth)
-    const width = Math.round(canvas.clientWidth * scale)
-    const height = Math.round(canvas.clientHeight * scale)
+  const downscale = (source: HTMLCanvasElement, sw: number, sh: number): string | null => {
+    const scale = Math.min(1, maxWidth / sw)
+    const width = Math.round(sw * scale)
+    const height = Math.round(sh * scale)
     const thumbCanvas = document.createElement("canvas")
     thumbCanvas.width = width
     thumbCanvas.height = height
     const ctx = thumbCanvas.getContext("2d")
     if (!ctx) return null
-    ctx.drawImage(canvas, 0, 0, width, height)
+    ctx.drawImage(source, 0, 0, width, height)
     return thumbCanvas.toDataURL("image/jpeg", 0.5)
+  }
+  // Every visible view, composited the way a snapshot is (split, grid and
+  // overlay included; the strips under the sidebar and the timeline cropped
+  // off; no pills or buttons), so the thumbnail shows the whole comparison,
+  // not view A alone.
+  const root = getSnapshotRoot(mapRef)
+  if (root) {
+    try {
+      const composite = await compositeViews(root, false, false)
+      return downscale(composite, composite.width, composite.height)
+    } catch (error) {
+      console.error("Failed to composite the views for the thumbnail, falling back to view A:", error)
+    }
+  }
+  try {
+    const canvas = mapRef.current.getMap().getCanvas()
+    return downscale(canvas, canvas.clientWidth, canvas.clientHeight)
   } catch (error) {
     console.error("Failed to capture bookmark thumbnail:", error)
     return null

@@ -774,7 +774,7 @@ export const BookmarksSection: React.FC<{
           </CollapsibleContent>
         </Collapsible>
 
-        {roots.length > 0 && (
+        {(
           <Collapsible open={isOwnOpen} onOpenChange={setIsOwnOpen}>
             {/* Same header as Featured above, and foldable the same way. */}
             <div className="flex items-center justify-between gap-2 pb-1 pt-0.5">
@@ -786,6 +786,9 @@ export const BookmarksSection: React.FC<{
               </CollapsibleTrigger>
             </div>
             <CollapsibleContent>
+            {roots.length === 0 ? (
+              <p className="px-1 py-3 text-xs text-muted-foreground text-center">Click Save View above to save your first bookmark!</p>
+            ) : (<>
             <div
               ref={listRef}
               className="space-y-1 overflow-y-auto"
@@ -892,6 +895,8 @@ export const BookmarksSection: React.FC<{
               />
               <TooltipContent><p>Drag to resize</p></TooltipContent>
             </Tooltip>
+            </>
+            )}
             </CollapsibleContent>
           </Collapsible>
         )}
