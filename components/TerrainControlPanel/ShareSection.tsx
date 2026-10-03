@@ -330,16 +330,17 @@ const SHORTEN_STORAGE_KEY = "terrain-viewer:shorten-urls"
 const PORTABLE_STORAGE_KEY = "terrain-viewer:share-sources-by-url"
 
 // ── PortableSourcesToggle ─────────────────────────────────────────────────────
-// Shown only when the link names at least one of the user's own sources
-// (otherwise there is nothing to rewrite). Lists what travels by URL and
-// what cannot (local files, entries needing more than a URL and a type).
+// Always shown; the switch is disabled when the link names none of the
+// user's own sources (library entries resolve everywhere). Lists what
+// travels by URL and what cannot (local files, entries needing more than a
+// URL and a type).
 
 const PortableSourcesToggle: React.FC<{
   enabled: boolean
   onChange: (v: boolean) => void
   result: PortableResult
 }> = ({ enabled, onChange, result }) => {
-  if (!result.replaced.length && !result.kept.length) return null
+  const nothingToRewrite = !result.replaced.length && !result.kept.length
   return (
     <div className="rounded-md border border-border bg-muted/20 px-3 py-2 space-y-1">
       <div className="flex items-center justify-between gap-3">
@@ -355,8 +356,11 @@ const PortableSourcesToggle: React.FC<{
             </TooltipContent>
           </Tooltip>
         </div>
-        <Switch id="portable-sources-toggle" checked={enabled} onCheckedChange={onChange} />
+        <Switch id="portable-sources-toggle" checked={enabled} onCheckedChange={onChange} disabled={nothingToRewrite} />
       </div>
+      {nothingToRewrite && (
+        <p className="text-[10px] text-muted-foreground">This link names none of your own sources: library entries resolve for everyone as they are.</p>
+      )}
       {enabled && result.replaced.length > 0 && (
         <p className="text-[10px] text-muted-foreground">By URL: {result.replaced.join(", ")}</p>
       )}
