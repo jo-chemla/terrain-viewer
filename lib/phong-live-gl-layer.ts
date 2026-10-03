@@ -232,6 +232,10 @@ export type PhongLiveOptions = {
   fresnelStrength?: number
   /** Exponent of the rim falloff; higher = thinner rim. */
   fresnelPower?: number
+  /** A dark rim (multiplies the albedo down) instead of a white additive
+   *  one: the opposite of the theme's background, so the rim reads on both
+   *  (black on the light theme, white on the dark one). */
+  fresnelDark?: boolean
   exaggeration: number
   opacity: number
 }
@@ -368,6 +372,7 @@ uniform float u_diffuseStrength;
 uniform float u_specularStrength;
 uniform float u_fresnelStrength;
 uniform float u_fresnelPower;
+uniform float u_fresnelDark; // 1 = darken (multiply), 0 = add white
 uniform vec3 u_viewDir;
 uniform float u_exaggeration;
 uniform float u_opacity;
@@ -410,12 +415,16 @@ void main() {
   // camera in the normals' frame, per frame. Additive and white, so it
   // shares the specular channel.
   float rim = u_fresnelStrength * pow(1.0 - clamp(dot(n, u_viewDir), 0.0, 1.0), u_fresnelPower);
+  // A dark rim goes into the multiplicative channel (the buffer cannot add
+  // a negative), a light one into the additive channel with the specular.
+  vec3 shade = diffuseIntensity * (1.0 - u_fresnelDark * clamp(rim, 0.0, 1.0));
+  float add = specular + (1.0 - u_fresnelDark) * rim;
 
   // Shade-buffer encoding, consumed by COMPOSITE_FRAG: RGB = the
   // multiplicative diffuse factor (1.0 = identity — also the buffer's
   // clear color, so uncovered pixels leave the map untouched), A = the
-  // additive specular (+ rim) term.
-  fragColor = vec4(mix(vec3(1.0), diffuseIntensity, u_opacity), clamp((specular + rim) * u_opacity, 0.0, 1.0));
+  // additive specular (+ light rim) term.
+  fragColor = vec4(mix(vec3(1.0), shade, u_opacity), clamp(add * u_opacity, 0.0, 1.0));
 }
 `
 
@@ -490,6 +499,7 @@ interface ProgramBundle {
   uSpecularStrength: WebGLUniformLocation | null
   uFresnelStrength: WebGLUniformLocation | null
   uFresnelPower: WebGLUniformLocation | null
+  uFresnelDark: WebGLUniformLocation | null
   uViewDir: WebGLUniformLocation | null
   uExaggeration: WebGLUniformLocation | null
   uOpacity: WebGLUniformLocation | null
@@ -715,6 +725,7 @@ export class PhongLiveLayer implements CustomLayerInterface {
       uSpecularStrength: gl.getUniformLocation(program, "u_specularStrength"),
       uFresnelStrength: gl.getUniformLocation(program, "u_fresnelStrength"),
       uFresnelPower: gl.getUniformLocation(program, "u_fresnelPower"),
+      uFresnelDark: gl.getUniformLocation(program, "u_fresnelDark"),
       uViewDir: gl.getUniformLocation(program, "u_viewDir"),
       uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
       uOpacity: gl.getUniformLocation(program, "u_opacity"),
@@ -920,6 +931,7 @@ export class PhongLiveLayer implements CustomLayerInterface {
       // with the x flip into the hornGradient convention.
       gl.uniform1f(bundle.uFresnelStrength, this.options.fresnelStrength ?? 0)
       gl.uniform1f(bundle.uFresnelPower, this.options.fresnelPower ?? 3)
+      gl.uniform1f(bundle.uFresnelDark, this.options.fresnelDark ? 1 : 0)
       gl.uniform3f(bundle.uViewDir, Math.sin(bRad) * Math.sin(pRad), Math.cos(bRad) * Math.sin(pRad), Math.cos(pRad))
       gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)
       gl.uniform1f(bundle.uOpacity, this.options.opacity)
@@ -1025,7 +1037,7 @@ export class PhongLiveLayer implements CustomLayerInterface {
       gl.blendFunc(gl.DST_COLOR, gl.ZERO)
       gl.uniform1i(this.compositeUPass, 0)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
-      if (this.options.specularStrength > 0 || (this.options.fresnelStrength ?? 0) > 0) {
+      if (this.options.specularStrength > 0 || ((this.options.fresnelStrength ?? 0) > 0 && !this.options.fresnelDark)) {
         gl.blendFunc(gl.ONE, gl.ONE)
         gl.uniform1i(this.compositeUPass, 1)
         gl.drawArrays(gl.TRIANGLES, 0, 3)

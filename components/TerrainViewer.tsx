@@ -4069,6 +4069,9 @@ export function TerrainViewer() {
             specularStrength={state.phongSpecularStrength}
             fresnelStrength={state.phongFresnelStrength}
             fresnelPower={state.phongFresnelPower}
+            // The rim is the opposite of the theme's background: dark on the
+            // light theme, white on the dark one.
+            fresnelDark={theme === "light"}
             // Raw compass azimuth + a relative flag: the live layer adds the
             // CURRENT map bearing itself every frame (headlamp that tracks
             // through the whole rotate gesture), instead of us baking in the
