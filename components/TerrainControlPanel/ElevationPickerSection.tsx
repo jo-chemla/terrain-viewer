@@ -127,6 +127,26 @@ export const ElevationPickerSection: React.FC<{
   const { getTilesUrl } = useSourceConfig()
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const markersRef = useRef<maplibregl.Marker[]>([])
+  // The profile sample under the pointer, mirrored as a marker on the map
+  // (straight or routed path alike: the samples are the drawn line's own).
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const hoverMarkerRef = useRef<maplibregl.Marker | null>(null)
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    const p = hoverIndex !== null ? profilePoints[hoverIndex] : undefined
+    if (!map || !p) { hoverMarkerRef.current?.remove(); hoverMarkerRef.current = null; return }
+    if (!hoverMarkerRef.current) {
+      const el = document.createElement("div")
+      el.style.width = "10px"; el.style.height = "10px"; el.style.borderRadius = "50%"
+      el.style.background = "#ffffff"; el.style.border = "2px solid #111827"; el.style.boxShadow = "0 0 4px rgba(0,0,0,0.6)"
+      el.style.pointerEvents = "none"
+      hoverMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map)
+    } else {
+      hoverMarkerRef.current.setLngLat([p.lng, p.lat])
+    }
+    return undefined
+  }, [hoverIndex, profilePoints, mapRef])
+  useEffect(() => () => { hoverMarkerRef.current?.remove(); hoverMarkerRef.current = null }, [])
 
   // TerraDraw's own click handling (placing vertices) would otherwise fight with
   // ours — turn the picker off the moment an actual drawing mode (not just the
@@ -641,7 +661,8 @@ export const ElevationPickerSection: React.FC<{
                 <p className="text-xs text-muted-foreground">Sampling terrain along the line…</p>
               ) : (
                 <>
-                  <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} />
+                  <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} onHover={setHoverIndex} />
+                  <p className="text-[10px] text-muted-foreground">Hover: the point on the map. Wheel zooms, drag pans, double-click resets.</p>
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="pole-height" className="text-sm font-medium">Mast height</Label>
                     <div className="flex items-center gap-1">

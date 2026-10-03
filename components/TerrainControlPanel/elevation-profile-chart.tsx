@@ -1,4 +1,5 @@
 import type React from "react"
+import { useRef, useState } from "react"
 import type { ProfilePoint } from "@/lib/elevation-query"
 
 // Straight line-of-sight between the two endpoints, optionally raised by an equal
@@ -48,13 +49,23 @@ const PAD = { l: 4, r: 4, t: 10, b: 4 }
 export const ElevationProfileChart: React.FC<{
   points: ProfilePoint[]
   poleHeightM: number
-}> = ({ points, poleHeightM }) => {
+  /** The sample under the pointer (an index into `points`), null when the
+   *  pointer leaves: the picker drops a marker on the map at that sample. */
+  onHover?: (index: number | null) => void
+}> = ({ points, poleHeightM, onHover }) => {
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  // Zoomed window along the line, as a fraction of the total distance:
+  // wheel zooms around the cursor, drag pans, double-click resets.
+  const [win, setWin] = useState<[number, number]>([0, 1])
+  const dragRef = useRef<{ x: number; win: [number, number] } | null>(null)
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const valid = points.filter((p) => p.elevation !== null)
   if (valid.length < 2) {
     return <p className="text-xs text-muted-foreground">Not enough terrain data along this line to draw a profile.</p>
   }
 
-  const totalDistanceM = valid[valid.length - 1].distanceM
+  const fullDistanceM = valid[valid.length - 1].distanceM
+  const totalDistanceM = fullDistanceM
   const startElev = (valid[0].elevation as number) + poleHeightM
   const endElev = (valid[valid.length - 1].elevation as number) + poleHeightM
 
@@ -68,7 +79,52 @@ export const ElevationProfileChart: React.FC<{
   minE -= margin
   maxE += margin
 
-  const x = (d: number) => PAD.l + (totalDistanceM > 0 ? d / totalDistanceM : 0) * (W - PAD.l - PAD.r)
+  // Horizontal scale over the zoomed window.
+  const d0 = win[0] * fullDistanceM, d1 = win[1] * fullDistanceM
+  const x = (d: number) => PAD.l + (d1 > d0 ? (d - d0) / (d1 - d0) : 0) * (W - PAD.l - PAD.r)
+  // Pointer x (client) -> distance along the line, through the viewBox scale.
+  const distanceAt = (clientX: number): number => {
+    const svg = svgRef.current
+    if (!svg) return 0
+    const r = svg.getBoundingClientRect()
+    const vx = ((clientX - r.left) / r.width) * W
+    return d0 + Math.min(1, Math.max(0, (vx - PAD.l) / (W - PAD.l - PAD.r))) * (d1 - d0)
+  }
+  const nearestIndex = (d: number): number => {
+    let best = 0, bestDiff = Infinity
+    for (let i = 0; i < points.length; i++) {
+      if (points[i].elevation === null) continue
+      const diff = Math.abs(points[i].distanceM - d)
+      if (diff < bestDiff) { bestDiff = diff; best = i }
+    }
+    return best
+  }
+  const setHover = (i: number | null) => { setHoverIdx(i); onHover?.(i) }
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (dragRef.current) {
+      const svg = svgRef.current!
+      const r = svg.getBoundingClientRect()
+      const dxFrac = ((e.clientX - dragRef.current.x) / r.width) * (dragRef.current.win[1] - dragRef.current.win[0])
+      let a = dragRef.current.win[0] - dxFrac, b = dragRef.current.win[1] - dxFrac
+      if (a < 0) { b -= a; a = 0 }
+      if (b > 1) { a -= b - 1; b = 1 }
+      setWin([a, b])
+      return
+    }
+    setHover(nearestIndex(distanceAt(e.clientX)))
+  }
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault()
+    const d = distanceAt(e.clientX) / (fullDistanceM || 1)
+    const factor = e.deltaY > 0 ? 1.25 : 0.8
+    let a = d - (d - win[0]) * factor, b = d + (win[1] - d) * factor
+    if (b - a > 1) { a = 0; b = 1 }
+    if (b - a < 0.02) return
+    if (a < 0) { b -= a; a = 0 }
+    if (b > 1) { a -= b - 1; b = 1 }
+    setWin([a, b])
+  }
+  const hovered = hoverIdx !== null && points[hoverIdx] && points[hoverIdx].elevation !== null ? points[hoverIdx] : null
   const y = (e: number) => PAD.t + (1 - (e - minE) / (maxE - minE)) * (H - PAD.t - PAD.b)
 
   const terrainPts = valid.map((p) => `${x(p.distanceM).toFixed(1)},${y(p.elevation as number).toFixed(1)}`)
@@ -90,9 +146,14 @@ export const ElevationProfileChart: React.FC<{
   const fmt = (m: number) => (Math.abs(m) >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${Math.round(m)}m`)
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto text-foreground" preserveAspectRatio="none" role="img" aria-label="Terrain elevation profile">
+    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-auto text-foreground cursor-crosshair select-none" preserveAspectRatio="none" role="img" aria-label="Terrain elevation profile"
+      onMouseMove={onMove} onMouseLeave={() => { dragRef.current = null; setHover(null) }} onWheel={onWheel}
+      onMouseDown={(e) => { dragRef.current = { x: e.clientX, win }; }} onMouseUp={() => { dragRef.current = null }}
+      onDoubleClick={() => setWin([0, 1])}>
+      <defs><clipPath id="profile-clip"><rect x={PAD.l} y={PAD.t} width={W - PAD.l - PAD.r} height={H - PAD.t - PAD.b} /></clipPath></defs>
       {/* frame */}
       <rect x={PAD.l} y={PAD.t} width={W - PAD.l - PAD.r} height={H - PAD.t - PAD.b} fill="none" stroke="currentColor" strokeOpacity={0.15} strokeWidth={1} />
+      <g clipPath="url(#profile-clip)">
       {/* terrain */}
       <path d={areaPath} fill="currentColor" fillOpacity={0.12} />
       <polyline points={terrainLine} fill="none" stroke="currentColor" strokeOpacity={0.7} strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
@@ -105,10 +166,21 @@ export const ElevationProfileChart: React.FC<{
       {/* endpoint dots (match the map marker colors) */}
       <circle cx={x(0)} cy={y(valid[0].elevation as number)} r={3} fill="#3b82f6" />
       <circle cx={x(totalDistanceM)} cy={y(valid[valid.length - 1].elevation as number)} r={3} fill="#ef4444" />
+      {/* hover: a vertical rule and the sample, mirrored on the map */}
+      {hovered && (
+        <>
+          <line x1={x(hovered.distanceM)} y1={PAD.t} x2={x(hovered.distanceM)} y2={H - PAD.b} stroke="currentColor" strokeOpacity={0.4} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <circle cx={x(hovered.distanceM)} cy={y(hovered.elevation as number)} r={3.5} fill="#ffffff" stroke="#111827" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+        </>
+      )}
+      </g>
+      {hovered && (
+        <text x={Math.min(W - PAD.r - 2, Math.max(PAD.l + 2, x(hovered.distanceM)))} y={PAD.t + 18} fontSize={9} fill="currentColor" textAnchor={x(hovered.distanceM) > W / 2 ? "end" : "start"}>{Math.round(hovered.elevation as number)} m · {fmt(hovered.distanceM)}</text>
+      )}
       {/* labels */}
       <text x={PAD.l + 2} y={PAD.t + 8} fontSize={9} fill="currentColor" fillOpacity={0.6}>{Math.round(maxE)} m</text>
       <text x={PAD.l + 2} y={H - PAD.b - 2} fontSize={9} fill="currentColor" fillOpacity={0.6}>{Math.round(minE)} m</text>
-      <text x={W - PAD.r - 2} y={H - PAD.b - 2} fontSize={9} fill="currentColor" fillOpacity={0.6} textAnchor="end">{fmt(totalDistanceM)}</text>
+      <text x={W - PAD.r - 2} y={H - PAD.b - 2} fontSize={9} fill="currentColor" fillOpacity={0.6} textAnchor="end">{win[0] > 0 || win[1] < 1 ? `${fmt(d0)} – ${fmt(d1)}` : fmt(totalDistanceM)}</text>
     </svg>
   )
 }

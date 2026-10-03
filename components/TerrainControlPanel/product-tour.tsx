@@ -237,7 +237,7 @@ const TERRAIN_LIBRARY_COVERAGE_IDS: string[] = (customSources.SAMPLE_TERRAIN_SOU
   .filter((s) => s.bounds)
   .map((s) => `lib:${s.id}`)
 
-const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", "georef", "animation", "sourceInfo"] as const
+const TOOL_SECTION_KEYS = ["drawing", "elevationPicker", "sunShadowCalculator", "georef", "animation"] as const
 
 // ─── Where the demos happen ─────────────────────────────────────────────────
 //
@@ -305,13 +305,14 @@ function prepareDataLayers(a: TourActions) {
   a.setDataLayersOpen(true)
 }
 
-// Source Info is a Tools section, so the Tools group has to be open (and the
-// other tool sections closed, as prepareTerrainTools does) before its
+// Sources Coverage sits in the Sources group (under Terrain and Basemap), so
+// that group has to be open, with the two pickers folded, before its
 // coverage picker can be spotlighted. Mapterhorn's own coverage is turned on
 // so the step has something to point at on the map.
 function prepareCoverageOverlays(a: TourActions) {
   prepareTerrainTools(a)
-  a.setSectionOpen((prev) => ({ ...prev, sourceInfo: true, hypsometricTint: false }))
+  a.setMacroGroupOpen((prev) => ({ ...prev, Sources: true }))
+  a.setSectionOpen((prev) => ({ ...prev, sourceInfo: true, terrainSource: false, rasterBasemap: false, hypsometricTint: false }))
   // Mapterhorn's own coverage plus every terrain-library footprint: the two
   // halves of the question "is there better data here than the default?".
   a.setCoverageOverlays(["mapterhorn", ...TERRAIN_LIBRARY_COVERAGE_IDS])
@@ -740,7 +741,7 @@ const TERRAIN_STEPS: TourStepDef[] = [
     title: "Where does a source actually have data?",
     description: (
       <>
-        <p className="pb-2">Source Info → <span className="font-semibold text-foreground">Coverage overlays</span> draws the footprint of any dataset on the map, whether or not it is loaded — so a blank area can be told apart from a slow one before you switch source.</p>
+        <p className="pb-2">Sources Coverage → <span className="font-semibold text-foreground">Coverage overlays</span> draws the footprint of any dataset on the map, whether or not it is loaded — so a blank area can be told apart from a slow one before you switch source.</p>
         <p className="pb-2">Two are on now, and the camera has pulled back to the whole earth so you can see all of them at once. <span className="font-semibold text-foreground">Mapterhorn</span>: each patch is the national dataset the default terrain ingested there, hollow where it falls back to global 30 m. <span className="font-semibold text-foreground">Terrain library</span>: every dataset from the Library you just saw, loaded or not.</p>
         <p className="pb-2">Imagery and hillshade underneath, deliberately: this step is about the footprints drawn <i>on</i> the map, so everything else is turned down out of their way.</p>
         <p>Where they overlap, the library has an alternative to the default — hover for the resolution and producer, click for a link and a "use this source" button. Basemaps and the OpenStreetMap imagery index can be drawn the same way.</p>

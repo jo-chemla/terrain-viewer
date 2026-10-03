@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
-import { Section } from "./controls-components"
+import { Section, GroupHeading } from "./controls-components"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -17,12 +17,13 @@ import { resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { BUILTIN_BASEMAP_OPTIONS } from "./raster-basemap-section"
 import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
-import { useAtomValue, useAtom } from "jotai"
-import { ExternalLink, ChevronDown, X } from "lucide-react"
+import { useAtomValue, useAtom, useSetAtom } from "jotai"
+import { ExternalLink, ChevronDown, X, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { coverageOverlaysAtom, coverageGroups, type EliLike } from "@/lib/coverage-overlays"
+import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
 import { terrainKindOf } from "./sample-sources-modal"
@@ -277,6 +278,11 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
  *  Selected leaves show as pills, one pill per fully selected group. */
 const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ mapRef }) => {
   const [selected, setSelected] = useAtom(coverageOverlaysAtom)
+  // "Add to map": the same request the footprint click modal posts, applied
+  // by the control panel (library entries join the BYOD list, ELI layers
+  // become a basemap, then view A points at the id).
+  const setUseRequest = useSetAtom(coverageUseRequestAtom)
+  const addToMap = (id: string) => setUseRequest({ overlay: id, nonce: Date.now() })
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
   const [eliInView, setEliInView] = useState<EliLike[]>([])
@@ -292,7 +298,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
     import("@osm-editor-kit/maplibre-editor-layer-index").then((eli) => {
       if (cancelled) return
       const rows = eli.layersInViewport(map.getBounds(), { includeWorldwide: false })
-      setEliInView(rows.slice().sort((a, b) => (a.best ? 0 : 1) - (b.best ? 0 : 1) || a.name.localeCompare(b.name)))
+      setEliInView(rows.slice().sort((a, b) => (a.best ? 0 : 1) - (b.best ? 0 : 1) || a.name.localeCompare(b.name)).map((r: any) => ({ ...r, infoUrl: r.attributionUrl || r.url || undefined })))
     }).catch(() => {})
     return () => { cancelled = true }
   }, [open, mapRef])
@@ -369,6 +375,20 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
                                   as subtitle-only. */}
                               <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
                               {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
+                              <span className="ml-auto flex items-center gap-0.5 shrink-0">
+                                {/* The dataset's own page, and "add to map" for
+                                    anything that can become a source here. */}
+                                {l.url && (
+                                  <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground p-0.5" title="Open the dataset's page" aria-label={`Open ${l.label} upstream`}>
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                )}
+                                {coverageUseKind(l.id) && (
+                                  <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5" title={coverageUseKind(l.id) === "terrain" ? "Use as the terrain of view A" : "Use as basemap (or overlay) on view A"} aria-label={`Add ${l.label} to the map`} onClick={() => addToMap(l.id)}>
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -395,7 +415,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
           <button type="button" className="text-[11px] underline text-muted-foreground hover:text-foreground cursor-pointer self-center" onClick={() => setSelected([])}>clear</button>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point, click for their links.</p>
+      <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point, click for their links. In the picker, the arrow opens a dataset's page and + puts it on the map.</p>
     </div>
   )
 }
@@ -406,7 +426,8 @@ export const SourceInfoSection: React.FC<{
   historicalMode?: boolean
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, mapRef, historicalMode = false, isOpen, onOpenChange }) => {
+  withSeparator?: boolean
+}> = ({ state, mapRef, historicalMode = false, isOpen, onOpenChange, withSeparator = true }) => {
   const [isActive, setIsActive] = useState(false)
   const [result, setResult] = useState<ProvenanceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -488,13 +509,21 @@ export const SourceInfoSection: React.FC<{
   }, [])
 
   return (
-    <Section title="Source Info" isOpen={isOpen} onOpenChange={onOpenChange}>
-      {/* Terrain provenance is meaningless in historical mode (no elevation
-          source is shown there) — but a raster basemap can be active in
-          EITHER app mode, so BasemapAttributionList below always renders
-          alongside this, not instead of it. */}
+    <Section title="Sources Coverage" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
+      {/* Two parts: the coverage footprints (terrain and basemaps), then the
+          provenance of what is on screen. Terrain provenance is meaningless
+          in historical mode (no elevation source is shown there) — but a
+          raster basemap can be active in EITHER app mode, so
+          BasemapAttributionList below always renders alongside this, not
+          instead of it. The section is not gated on a queryable source: the
+          picker is useful whatever the terrain. */}
+      <GroupHeading>Coverage overlays (terrain and basemaps)</GroupHeading>
       <CoverageOverlayPicker mapRef={mapRef} />
+      <GroupHeading>Source info</GroupHeading>
       {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}
+      {!historicalMode && !sourceKind && (
+        <p className="text-xs text-muted-foreground">This terrain source publishes no per-location lookup; its page and licence are above, when it has them.</p>
+      )}
       {!historicalMode && sourceKind && (
       <>
       <div className="flex items-center justify-between gap-2">
@@ -560,7 +589,9 @@ export const SourceInfoSection: React.FC<{
       )}
       </>
       )}
-      <BasemapAttributionList state={state} mapRef={mapRef} />
+      {state.showRasterBasemap
+        ? <BasemapAttributionList state={state} mapRef={mapRef} />
+        : <p className="text-xs text-muted-foreground">Raster basemap off: no basemap attribution to show.</p>}
     </Section>
   )
 }

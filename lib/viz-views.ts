@@ -32,6 +32,14 @@ export const VIZ_MODE_LABELS: Record<string, string> = {
 }
 
 /** The modes `side` draws that some other active view does not. */
+/** Every mode and submode a view draws (the pill in "always" mode). */
+export function allModeLabels(state: Record<string, any>, side: ViewId): string[] {
+  const v = parseVizViews(state.vizViews || "")
+  return Object.entries(VIZ_MODE_LABELS)
+    .filter(([key]) => !!state[key] && viewDrawsMode(v, key, side) && (!VIZ_GROUP_OF[key] || (state[VIZ_GROUP_OF[key]] && viewDrawsMode(v, VIZ_GROUP_OF[key], side))))
+    .map(([, label]) => label)
+}
+
 export function distinctModeLabels(state: Record<string, any>, side: ViewId, views: ViewId[]): string[] {
   const v = parseVizViews(state.vizViews || "")
   const drawn = (key: string, s: ViewId) => {

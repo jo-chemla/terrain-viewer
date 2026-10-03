@@ -18,7 +18,7 @@ import NavigationControlThemed from "./MapControls/NavigationControlThemed"
 import FullscreenControlThemed from "./MapControls/FullscreenControlThemed"
 import GeolocateControlThemed from "./MapControls/GeolocateControlThemed"
 import { GEOREF_TYPE_IDS } from "@/lib/georef"
-import { parseVizViews, viewDrawsMode, distinctModeLabels } from "@/lib/viz-views"
+import { parseVizViews, viewDrawsMode, distinctModeLabels, allModeLabels } from "@/lib/viz-views"
 import { COLOR_RAMP_IDS, computePropertyRampExpression, parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS, rampSessionOverridesAtom, type CustomRampStop } from "@/lib/color-ramps"
 import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -339,6 +339,11 @@ export const QUERY_STATE_PARSERS = {
     // resurrected by turning split back on. The sidebar toggle only ever
     // shows/writes the three explicit values (see comparison-mix-section.tsx).
     showCaptureDatePill: parseAsStringLiteral(["auto", "off", "date", "source-date"] as const).withDefault("auto"),
+    // What a view's pill names in a split: "auto" only when the views differ
+    // on it, "always", or "never" (Compare and Blend, Advanced).
+    pillTerrain: parseAsStringLiteral(["auto", "always", "never"] as const).withDefault("auto"),
+    pillBasemap: parseAsStringLiteral(["auto", "always", "never"] as const).withDefault("auto"),
+    pillModes: parseAsStringLiteral(["auto", "always", "never"] as const).withDefault("auto"),
     sourceA: parseAsString.withDefault("mapterhorn"), // can have custom id in addition to @/lib/terrain-sources
     sourceB: parseAsString.withDefault("aws"),   // aws needs no API key, unlike maptiler/mapbox — safe default for a fresh visitor's first split view
     // C-H only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1"/"4x2" — same
@@ -4506,8 +4511,9 @@ export function TerrainViewer() {
   // With modes per view (vizSync off), the pill names the modes this view
   // draws that not every view draws, so the panes can be told apart.
   const distinctModesSuffix = (side: ViewId, leading = true): React.ReactNode => {
-    if (state.vizSync !== false || !isSplit) return null
-    const names = distinctModeLabels(stateAny, side, activeViewIds)
+    if (state.vizSync !== false || !isSplit || state.pillModes === "never") return null
+    // "always": every mode the view draws; "auto": the ones not every view draws.
+    const names = state.pillModes === "always" ? allModeLabels(stateAny, side) : distinctModeLabels(stateAny, side, activeViewIds)
     // Kept in snapshots: the mode names are what tells the panes apart.
     return names.length ? <span className="text-muted-foreground">{leading ? " · " : ""}{names.join(", ")}</span> : null
   }
@@ -4516,9 +4522,9 @@ export function TerrainViewer() {
   // when they draw different basemaps. Same source everywhere: the letter
   // and the distinct modes carry the pill.
   const terrainIdOf = (side: ViewId): string => stateAny[`source${side}`] ?? state.sourceA
-  const terrainDiffers = isSplit && new Set(activeViewIds.map(terrainIdOf)).size > 1
+  const terrainDiffers = isSplit && (state.pillTerrain === "always" || (state.pillTerrain === "auto" && new Set(activeViewIds.map(terrainIdOf)).size > 1))
   const basemapKeyOf = (side: ViewId): string => { const r = perViewResolved[side]; return r ? `${r.basemapSource}|${r.date ?? ""}` : "" }
-  const basemapDiffers = isSplit && new Set(activeViewIds.map(basemapKeyOf)).size > 1
+  const basemapDiffers = isSplit && (state.pillBasemap === "always" || (state.pillBasemap === "auto" && new Set(activeViewIds.map(basemapKeyOf)).size > 1))
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
     if (effectiveCaptureDatePill === "off") return null
     // The pill describes the BASEMAP source/date — in terrain mode that layer
@@ -4545,7 +4551,7 @@ export function TerrainViewer() {
     } else if (!basemapDrawn || !basemapDiffers || !resolved?.basemapSource) {
       // Only what differs; the basemap part below is skipped.
       baseLabel = terrainDiffers ? terrainLabel : null
-      if (!baseLabel && !distinctModeLabels(stateAny, pane.side, activeViewIds).length && state.vizSync !== false) return null
+      if (!baseLabel && !distinctModesSuffix(pane.side) && state.vizSync !== false) return null
     }
     if (baseLabel === null && (!isSplit || basemapDiffers) && resolved?.basemapSource) {
     // A non-historical basemap (Mapbox/HERE/Google Sat/OSM/plain Bing) has no

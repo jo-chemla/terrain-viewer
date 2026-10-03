@@ -348,6 +348,25 @@ export const ComparisonMixSection: React.FC<{
                 ]}
               />
             </div>
+            {/* What each view's pill names: by default only what sets the view
+                apart (its terrain or basemap when the views differ, the modes
+                not every view draws); "always" names it on every pill,
+                "never" leaves it out. */}
+            {([["pillTerrain", "Pill: terrain"], ["pillBasemap", "Pill: basemap"], ["pillModes", "Pill: viz modes"]] as const).map(([key, label]) => (
+              <div key={key} className="flex items-center justify-between gap-2">
+                <Label className="text-sm font-medium">{label}</Label>
+                <SegmentedToggle
+                  className="w-[220px]"
+                  value={state[key] ?? "auto"}
+                  onChange={(value) => setState({ [key]: value })}
+                  options={[
+                    { value: "auto", label: "If differs" },
+                    { value: "always", label: "Always" },
+                    { value: "never", label: "Never" },
+                  ]}
+                />
+              </div>
+            ))}
             <div className="flex items-center justify-between gap-2">
               <Label className="text-sm font-medium">Colorize Map Borders</Label>
               <SegmentedToggle

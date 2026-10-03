@@ -40,7 +40,7 @@ import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
 import { GeorefSection } from "./GeorefSection"
 import { SunShadowCalculatorSection } from "./sun-shadow-calculator-section"
-import { SourceInfoSection, isProvenanceSource } from "./SourceInfoSection"
+import { SourceInfoSection } from "./SourceInfoSection"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
 import { useShiftTapToggle } from '@/lib/use-shift-tap-toggle'
@@ -739,13 +739,23 @@ export function TerrainControlPanel({
             {macroGroupOpen.Sources && (
               <>
                 <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
-                <RasterBasemapSection state={state} setState={setBasemapState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} />
+                <RasterBasemapSection state={state} setState={setBasemapState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={!hiddenSections.includes("sourceInfo")} />
+                {/* Coverage footprints and provenance of what is on screen:
+                    a Sources matter, next to the pickers it informs. */}
+                {!hiddenSections.includes("sourceInfo") && (
+                  <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} withSeparator={false} />
+                )}
               </>
             )}
           </>
         )}
         {!hideSourcePanels && historicalMode && (
-          <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={false} historicalMode />
+          <>
+            <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={!hiddenSections.includes("sourceInfo")} historicalMode />
+            {!hiddenSections.includes("sourceInfo") && (
+              <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} withSeparator={false} />
+            )}
+          </>
         )}
         {/* The whole Options group (contours/hillshade/hypso/relief/terrain
             analysis/lighting/background) is terrain-only — historical mode has
@@ -844,19 +854,9 @@ export function TerrainControlPanel({
                   appState={state}
                   setAppState={setAppState}
                   setAppStateSafe={setAppState}
-                  withSeparator={!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap)}
+                  withSeparator={false}
                 />
                 </div>
-              )}
-              {/* Shows terrain-source provenance (mapterhorn/another DEM,
-                  meaningless in historical mode) AND/OR basemap attribution
-                  (Esri/Wayback/GE Historical dynamic, everything else static)
-                  — a raster basemap can be active in EITHER app mode (it's
-                  just the only thing historical mode shows), so this isn't an
-                  either/or gated on historicalMode; SourceInfoSection renders
-                  whichever of its two blocks actually applies. */}
-              {!hiddenSections.includes("sourceInfo") && (isProvenanceSource(state.sourceA) || state.showRasterBasemap) && (
-                <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} />
               )}
             </>
           )}
