@@ -13,7 +13,13 @@
 //     size follows the zoom; a tick needs a depicted year.
 //   ArcGIS Online search: imagery services whose title names a year, sized to
 //     the zoom (the search ranks world layers first).
-//   Old Maps Online: listed, disabled - no CORS and a Cloudflare challenge.
+//   Wikimaps Warper (warper.wmflabs.org): the same software and API as Map
+//     Warper, over maps on Wikimedia Commons.
+//   USGS historical topographic maps (Esri's ImageServer of the ~180,000
+//     quads since 1884, US only): every edition covering the view centre,
+//     each drawn alone through exportImage with a locked mosaic rule.
+//   Old Maps Online: listed, disabled - no CORS and a Cloudflare challenge
+//     (so are the Georeferencer API, David Rumsey's MapRank and loc.gov).
 import type { CustomBasemapSource } from "./settings-atoms"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
@@ -37,6 +43,8 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-noaa", label: "NOAA emergency response", short: "NOAA", group: "Disaster open data", color: "#bfdbfe", note: "NOAA's aerial imagery after hurricanes, tornadoes and floods, from HOT's STAC API." },
   { id: "cat-planet", label: "Planet disaster data", short: "Planet DD", group: "Disaster open data", color: "#fed7aa", note: "Planet Crisis Response Program releases on Source Cooperative: one tick per pre- or post-event acquisition covering the view." },
   { id: "cat-mapwarper", label: "Map Warper", short: "MapWarper", group: "Old maps", color: "#e9d5ff", note: "Maps georeferenced by volunteers on mapwarper.net, sized to the zoom; only maps with a depicted year get a tick." },
+  { id: "cat-wikimaps", label: "Wikimaps Warper", short: "Wikimaps", group: "Old maps", color: "#ddd6fe", note: "Maps from Wikimedia Commons georeferenced on warper.wmflabs.org, sized to the zoom; only maps with a depicted year get a tick." },
+  { id: "cat-usgs-topo", label: "USGS historical topo maps", short: "USGS topo", group: "Old maps", color: "#d9f99d", note: "Every USGS topographic quad edition covering the view centre since 1884 (US only), from Esri's historical topo image service; dated by imprint year." },
   { id: "cat-oldmapsonline", label: "Old Maps Online", short: "OMO", group: "Old maps", color: "#e5e7eb", note: "Klokan's search engine over library map collections.", disabled: "Its API sends no CORS header and sits behind a Cloudflare challenge, so a browser cannot query it." },
   { id: "cat-agol", label: "ArcGIS Online imagery", short: "ArcGIS", group: "Imagery services", color: "#a7f3d0", note: "Public ArcGIS image and map services found by ArcGIS Online search over the view, whose title names a year (taken as the capture year), sized to the zoom." },
 ]
@@ -178,14 +186,19 @@ async function planetTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTic
   return ticks
 }
 
-// ── Map Warper ────────────────────────────────────────────────────────────
-async function mapWarperTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+// ── Map Warper, Wikimaps Warper ───────────────────────────────────────────
+const WARPERS: Record<string, { host: string; short: string }> = {
+  "cat-mapwarper": { host: "https://mapwarper.net", short: "MapWarper" },
+  "cat-wikimaps": { host: "https://warper.wmflabs.org", short: "Wikimaps" },
+}
+async function mapWarperTicks(catalog: string, bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+  const { host, short } = WARPERS[catalog]
   const w = bbox[2] - bbox[0], h = bbox[3] - bbox[1]
   // Maps WITHIN an area three views wide: city plans zoomed in, regional maps
   // zoomed out, never the world maps an intersects query lists first.
   const region = [Math.max(-180, bbox[0] - w), Math.max(-85, bbox[1] - h), Math.min(180, bbox[2] + w), Math.min(85, bbox[3] + h)]
-  const res = await fetch(`https://mapwarper.net/api/v1/maps?bbox=${region.map((v) => v.toFixed(5)).join(",")}&operation=within&per_page=100`, { signal })
-  if (!res.ok) throw new Error(`Map Warper ${res.status}`)
+  const res = await fetch(`${host}/api/v1/maps?bbox=${region.map((v) => v.toFixed(5)).join(",")}&operation=within&per_page=100`, { signal })
+  if (!res.ok) throw new Error(`${short} ${res.status}`)
   const d = await res.json()
   const ticks: CatalogTick[] = []
   for (const r of d.data ?? []) {
@@ -196,9 +209,47 @@ async function mapWarperTicks(bbox: Bbox, signal?: AbortSignal): Promise<Catalog
     const year = yearOf(a.date_depicted, a.title)
     if (!year) continue
     const dateMs = Date.UTC(year, 0, 1)
-    ticks.push(register("cat-mapwarper", String(r.id), dateMs, `MapWarper · ${a.title} · ${year}`, {
-      name: `${a.title} (${year})`, url: `https://mapwarper.net/maps/tile/${r.id}/{z}/{x}/{y}.png`, type: "tms", role: "basemap", bounds: b,
-      description: `Map Warper map ${r.id}, depicting ${year}`, infoUrl: `https://mapwarper.net/maps/${r.id}`, maxzoom: 20,
+    const title = String(a.title ?? r.id).replace(/^File:/, "").replace(/\.(jpe?g|png|tiff?|gif)$/i, "")
+    ticks.push(register(catalog, String(r.id), dateMs, `${short} · ${title} · ${year}`, {
+      name: `${title} (${year})`, url: `${host}/maps/tile/${r.id}/{z}/{x}/{y}.png`, type: "tms", role: "basemap", bounds: b,
+      description: `${TIMELINE_CATALOG_BY_ID[catalog].label} map ${r.id}, depicting ${year}`, infoUrl: `${host}/maps/${r.id}`, maxzoom: 20,
+    } as Omit<CustomBasemapSource, "id">))
+  }
+  return ticks
+}
+
+// ── USGS historical topographic maps ──────────────────────────────────────
+const USGS_TOPO = "https://historical1.arcgis.com/arcgis/rest/services/USA_Historical_Topographic_Maps/ImageServer"
+async function usgsTopoTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+  // Quads under the view centre (Category 1: primary rasters, not footprints);
+  // a whole-view query over a state would list thousands.
+  const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
+  const q = new URLSearchParams({
+    where: "Category=1", geometry: `${cx.toFixed(5)},${cy.toFixed(5)}`, geometryType: "esriGeometryPoint", inSR: "4326",
+    spatialRel: "esriSpatialRelIntersects", outFields: "OBJECTID,Map_Name,Date_On_Map,Imprint_Year,Map_Scale,State",
+    returnGeometry: "true", outSR: "4326", resultRecordCount: "300", f: "json",
+  })
+  const res = await fetch(`${USGS_TOPO}/query?${q}`, { signal })
+  if (!res.ok) throw new Error(`USGS topo ${res.status}`)
+  const d = await res.json()
+  if (d.error) throw new Error(`USGS topo: ${d.error.message ?? "query failed"}`)
+  const ticks: CatalogTick[] = []
+  for (const f of d.features ?? []) {
+    const a = f.attributes ?? {}
+    // The imprint year dates the edition (photorevisions reprint an old survey).
+    const year = Number(a.Imprint_Year) || Number(a.Date_On_Map)
+    if (!year || year < 1800) continue
+    const pts = (f.geometry?.rings ?? []).flat() as [number, number][]
+    const b: Bbox | undefined = pts.length ? [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))] : undefined
+    const scale = a.Map_Scale ? `1:${Number(a.Map_Scale).toLocaleString("en-US")}` : ""
+    const survey = a.Date_On_Map && Number(a.Date_On_Map) !== year ? `, map dated ${a.Date_On_Map}` : ""
+    const mosaic = encodeURIComponent(JSON.stringify({ mosaicMethod: "esriMosaicLockRaster", lockRasterIds: [a.OBJECTID] }))
+    ticks.push(register("cat-usgs-topo", String(a.OBJECTID), Date.UTC(year, 0, 1), `USGS topo · ${a.Map_Name} ${scale} · ${year}${survey}`, {
+      name: `USGS ${a.Map_Name} ${scale} (${year})`,
+      url: `${USGS_TOPO}/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&format=png&transparent=true&mosaicRule=${mosaic}&f=image`,
+      type: "wms", role: "basemap", bounds: b,
+      description: `USGS historical topographic map, ${a.Map_Name}${a.State ? `, ${a.State}` : ""}, ${scale}, printed ${year}${survey}`,
+      infoUrl: "https://livingatlas.arcgis.com/topomapexplorer/",
     } as Omit<CustomBasemapSource, "id">))
   }
   return ticks
@@ -274,7 +325,8 @@ export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: Abo
   let ticks: CatalogTick[] = []
   if (catalog in HOT_COLLECTION) ticks = await hotStacTicks(catalog, bbox, signal)
   else if (catalog === "cat-planet") ticks = await planetTicks(bbox, signal)
-  else if (catalog === "cat-mapwarper") ticks = await mapWarperTicks(bbox, signal)
+  else if (catalog in WARPERS) ticks = await mapWarperTicks(catalog, bbox, signal)
+  else if (catalog === "cat-usgs-topo") ticks = await usgsTopoTicks(bbox, signal)
   else if (catalog === "cat-agol") ticks = await agolTicks(bbox, signal)
   const used = new Set<number>()
   for (const t of ticks.sort((a, b) => a.dateMs - b.dateMs)) {
