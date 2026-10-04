@@ -39,8 +39,10 @@ export function computeLineOfSight(points: ProfilePoint[], poleHeightM: number):
   return { clear: maxIntrusionM <= 0, maxIntrusionM, totalDistanceM }
 }
 
-const W = 320
-const H = 150
+// Drawing size: the side-panel chart uses the defaults and scales; the
+// docked one passes its real pixel size so text and strokes are not stretched.
+const DEFAULT_W = 320
+const DEFAULT_H = 150
 const PAD = { l: 4, r: 4, t: 10, b: 4 }
 
 // Self-contained inline-SVG elevation profile: filled terrain area + top line,
@@ -52,7 +54,11 @@ export const ElevationProfileChart: React.FC<{
   /** The sample under the pointer (an index into `points`), null when the
    *  pointer leaves: the picker drops a marker on the map at that sample. */
   onHover?: (index: number | null) => void
-}> = ({ points, poleHeightM, onHover }) => {
+  width?: number
+  height?: number
+}> = ({ points, poleHeightM, onHover, width, height }) => {
+  const W = width && width > 40 ? width : DEFAULT_W
+  const H = height && height > 40 ? height : DEFAULT_H
   const svgRef = useRef<SVGSVGElement | null>(null)
   // Zoomed window along the line, as a fraction of the total distance:
   // wheel zooms around the cursor, drag pans, double-click resets.

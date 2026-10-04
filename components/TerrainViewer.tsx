@@ -53,7 +53,7 @@ import { COLOR_SPACES } from "@/lib/histogram-matching";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
 import { ArrowLeftRight, X } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
@@ -1115,6 +1115,9 @@ export function TerrainViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSidebarOpen])
   const historicalTimelinePanelHeightPx = useAtomValue(historicalTimelinePanelHeightAtom)
+  // The docked elevation profile is the lowest bottom panel: it lifts the
+  // timeline and every bottom control by its height (ProfileDock.tsx).
+  const profileDockHeightPx = useAtomValue(profileDockHeightAtom)
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
   const hasAppliedEmbedConfig = useRef(false)
@@ -3146,9 +3149,11 @@ export function TerrainViewer() {
   // measuredPanelClearance below, which feeds the CSS-var minimap/scale
   // offsets instead) since this needs a plain number for `padding`, not a
   // CSS length string, and needs to exist before mapPaddingFor is defined.
+  const profileDockLift = profileDockLiftPx(profileDockHeightPx, isMobile)
   const timelineBottomPaddingPx = historicalTimelineVisible
-    ? Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX)
-    : 0
+    ? Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX + profileDockLift)
+    // Profile alone: its own top edge.
+    : profileDockHeightPx > 0 ? Math.round((isMobile ? 0 : MAP_CTRL_EDGE_MARGIN_PX) + profileDockHeightPx) : 0
 
   // Opening or closing the sidebar / timeline changes the space the grid has
   // to divide up, so every pane rect and the gutter between them jump to new
@@ -4402,22 +4407,22 @@ export function TerrainViewer() {
   // (below) correctly accounts for both its own 56px footprint AND a
   // separate 16px gap on top of that.
   const measuredPanelClearance = historicalTimelinePanelHeightPx > 0
-    ? `${Math.round(historicalTimelinePanelHeightPx + MAP_CTRL_EDGE_MARGIN_PX + PANEL_CLEARANCE_GAP_PX)}px`
-    : "13rem" // panel hasn't reported a real height yet (first paint) — reasonable fallback
+    ? `${Math.round(historicalTimelinePanelHeightPx + MAP_CTRL_EDGE_MARGIN_PX + PANEL_CLEARANCE_GAP_PX + profileDockLift)}px`
+    : `calc(13rem + ${profileDockLift}px)` // panel hasn't reported a real height yet (first paint) — reasonable fallback
   const minimapBottomOffset = !historicalTimelineActive
-    ? `${MAP_CTRL_EDGE_MARGIN_PX}px`
+    ? `${MAP_CTRL_EDGE_MARGIN_PX + profileDockLift}px`
     : state.historicalTimelineCollapsed
       // HistoricalTimelineToggle sits at bottom-4 (16px) with h-10 (40px) —
       // its own top edge is already 56px up from the viewport bottom, so the
       // minimap needs 56px + the same 16px gap every other clearance here
       // uses, not just 56px (which put the minimap flush against the toggle
       // button with zero gap between them).
-      ? "4.5rem"
+      ? `calc(4.5rem + ${profileDockLift}px)`
       : measuredPanelClearance
   // Bottom-right corner (attribution+scale) needs the same historical-panel
   // clearance reasoning as the minimap above, since it also docks off the
   // bottom edge.
-  const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${MAP_CTRL_EDGE_MARGIN_PX + profileDockLift}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
@@ -4605,7 +4610,7 @@ export function TerrainViewer() {
       if (timelineSelectable) setTimelineActiveSide(pane.side)
       setActiveView((cur) => (cur === pane.side ? null : pane.side))
     }
-    const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : "0.5rem"
+    const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : profileDockHeightPx > 0 ? `${timelineBottomPaddingPx + 8}px` : "0.5rem"
     // The rightmost column's own pane DOM box intentionally extends under the
     // floating sidebar (see paneLayouts/mapPaddingFor above) so its VISIBLE
     // portion matches every other pane's — centering on the full (partly
@@ -4870,11 +4875,7 @@ export function TerrainViewer() {
         {paneLayouts.map(datePillFor)}
         {/* The elevation profile, when docked: across the bottom of the map
             area, clear of the left map controls, the sidebar and the timeline. */}
-        <ProfileDock style={{
-          left: 56,
-          right: 8 + ((isSidebarOpen && !isMobile) ? sidebarFootprintPx : 0),
-          bottom: `calc(${historicalTimelineVisible ? measuredPanelClearance : "0.5rem"} + 2.25rem)`,
-        }} />
+        <ProfileDock isMobile={isMobile} rightOffset={isSidebarOpen && !isMobile ? "26rem" : "1rem"} />
         {/* Static (non-interactive) seams between fixed columns/rows — every
             grid layout except 2x1 (which gets the draggable SplitPill
             instead, just below) and overlay (no seam at all, panes fully
@@ -5001,7 +5002,7 @@ export function TerrainViewer() {
       )}
       <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
-        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} />
+        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} bottomPx={MAP_CTRL_EDGE_MARGIN_PX + profileDockLift} />
       )}
       <TerrainControlPanel
         state={state}

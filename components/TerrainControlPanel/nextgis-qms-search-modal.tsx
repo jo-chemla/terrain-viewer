@@ -6,30 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type CustomBasemapSource } from "@/lib/settings-atoms"
 
-const QMS_API = "https://qms.nextgis.com/api/v1/geoservices/"
-
-// Only these QMS service types map onto a maplibre raster source directly.
-const SUPPORTED_TYPES = new Set(["tms", "wms"])
-
-interface QmsSearchResult {
-  id: number
-  name: string
-  desc: string
-  type: string
-  cumulative_status: string
-}
-
-interface QmsDetail extends QmsSearchResult {
-  url: string
-  z_min: number
-  z_max: number
-  y_origin_top: boolean
-  copyright_text?: string
-  copyright_url?: string
-  license_name?: string
-  license_url?: string
-  terms_of_use_url?: string
-}
+import { QMS_API, QMS_SUPPORTED_TYPES as SUPPORTED_TYPES, qmsDetailToBasemap, type QmsSearchResult, type QmsDetail } from "@/lib/qms"
 
 /**
  * Inline search panel for the NextGIS Quick Map Services catalog — embedded inside
@@ -42,7 +19,7 @@ export const NextGisQmsSearchPanel: React.FC<{
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<QmsSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [addingId, setAddingId] = useState<number | null>(null)
+  const [addingId, setAddingId] = useState<number | string | null>(null)
   const [error, setError] = useState("")
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -67,13 +44,6 @@ export const NextGisQmsSearchPanel: React.FC<{
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [query])
 
-  // QMS URLs use a few placeholder conventions maplibre doesn't understand:
-  // - Bing-style quadkey tiles use {q}, maplibre expects {quadkey}
-  // - Leaflet-style subdomain load-balancing ({s}) isn't supported at all — maplibre has no
-  //   equivalent, so pin it to a single subdomain (functional, just no round-robin balancing)
-  const normalizeQmsUrl = (url: string): string =>
-    url.replace(/\{q\}/g, "{quadkey}").replace(/\{s\}/g, "a")
-
   const handleAdd = useCallback(async (result: QmsSearchResult) => {
     setAddingId(result.id)
     setError("")
@@ -81,20 +51,7 @@ export const NextGisQmsSearchPanel: React.FC<{
       const res = await fetch(`${QMS_API}${result.id}/`)
       if (!res.ok) throw new Error(`Failed to fetch service details (${res.status})`)
       const detail: QmsDetail = await res.json()
-      onSave({
-        name: detail.name,
-        url: normalizeQmsUrl(detail.url),
-        type: detail.type === "wms" ? "wms" : "tms",
-        description: [detail.copyright_text, detail.desc].filter(Boolean).join(" — "),
-        scheme: detail.y_origin_top === false ? "tms" : "xyz",
-        minzoom: detail.z_min,
-        maxzoom: detail.z_max,
-        attribution: detail.copyright_text || undefined,
-        licenseName: detail.license_name || undefined,
-        licenseUrl: detail.license_url || detail.terms_of_use_url || detail.copyright_url || undefined,
-        infoUrl: `https://qms.nextgis.com/geoservices/${detail.id}/`,
-        provider: "qms",
-      })
+      onSave(qmsDetailToBasemap(detail))
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add basemap")
     } finally {

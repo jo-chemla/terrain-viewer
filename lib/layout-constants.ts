@@ -72,6 +72,13 @@ export const isComparisonMixAdvancedOpenAtom = atomWithStorage("isComparisonMixA
 // Starts at 0 (panel not mounted yet / collapsed); TerrainViewer's own
 // consumers fall back to a small static button-clearance value in that case.
 export const historicalTimelinePanelHeightAtom = atom(0)
+/** Height of the docked elevation profile (components/ProfileDock.tsx), 0
+ *  when not shown: the lowest panel of the bottom stack, which lifts the
+ *  timeline panel and every bottom control by this much. */
+export const profileDockHeightAtom = atom(0)
+/** How far the docked profile lifts the panels and controls above it. */
+export const profileDockLiftPx = (heightPx: number, isMobile: boolean): number =>
+  heightPx > 0 ? Math.round(heightPx + (isMobile ? 0 : 12)) : 0
 
 // Which view the historical timeline's arrow keys / track clicks act on.
 // Shared (it used to be the panel's own useState) so each map pane's letter

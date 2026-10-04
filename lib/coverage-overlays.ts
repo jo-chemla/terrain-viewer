@@ -3,6 +3,7 @@ import { createParser } from "nuqs"
 import type { FeatureCollection, Feature, Polygon } from "geojson"
 import customSources from "./custom-sources.json"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
+import { QMS_API, QMS_SUPPORTED_TYPES, parseQmsExtent, type QmsSearchResult } from "./qms"
 
 /**
  * Coverage overlays (Source Info section): vector footprints of where a
@@ -50,7 +51,57 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string; /** The dataset's own page (the label links there). */ url?: string }
 export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps"; parent?: string }
 
-export const OVERLAY_COLORS = { allmaps: "#d946ef", mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7", otRaster: "#84cc16", otPointCloud: "#eab308" }
+export const OVERLAY_COLORS = { qms: "#0891b2", allmaps: "#d946ef", mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7", otRaster: "#84cc16", otPointCloud: "#eab308" }
+
+/** NextGIS QMS: the services whose declared extent intersects the view, from
+ *  the list endpoint's `intersects_extent` filter (the view as a WKT
+ *  polygon), working TMS and WMS only. Sized to the zoom like the Allmaps
+ *  outlines: services much smaller than the view are left out when zoomed
+ *  out, continental and worldwide ones when zoomed in (a national basemap
+ *  stays listed over a city). */
+export async function loadQmsCoverage(bounds: { getWest(): number; getSouth(): number; getEast(): number; getNorth(): number }, signal?: AbortSignal): Promise<FeatureCollection> {
+  const w = Math.max(-180, bounds.getWest()), e = Math.min(180, bounds.getEast())
+  const s = Math.max(-85, bounds.getSouth()), n = Math.min(85, bounds.getNorth())
+  const areaM2 = (ws: number, ss: number, es: number, ns: number) => Math.abs((es - ws) * 111320 * Math.cos(((ss + ns) / 2) * Math.PI / 180) * (ns - ss) * 110540)
+  const viewM2 = areaM2(w, s, e, n)
+  const minM2 = viewM2 / 2000, maxM2 = Math.max(viewM2 * 50, 2e12)
+  const poly = `POLYGON((${w} ${s},${e} ${s},${e} ${n},${w} ${n},${w} ${s}))`
+  const features: Feature[] = []
+  let url: string | null = `${QMS_API}?intersects_extent=${encodeURIComponent(poly)}&cumulative_status=works&limit=100`
+  for (let page = 0; url && page < 3 && features.length < 150; page++) {
+    const res: Response = await fetch(url, { signal })
+    if (!res.ok) throw new Error(`QMS ${res.status}`)
+    const data = await res.json() as { next?: string | null; results?: QmsSearchResult[] }
+    for (const r of data.results ?? []) {
+      if (!QMS_SUPPORTED_TYPES.has(r.type)) continue
+      const polys = parseQmsExtent(r.extent)
+      if (!polys?.length) continue
+      const xs = polys.flat(2).map((c) => c[0]), ys = polys.flat(2).map((c) => c[1])
+      const a = areaM2(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys))
+      if (a < minM2 || a > maxM2) continue
+      const km2 = a / 1e6
+      features.push({
+        type: "Feature",
+        geometry: polys.length === 1 ? { type: "Polygon", coordinates: polys[0] } : { type: "MultiPolygon", coordinates: polys },
+        properties: {
+          overlay: `qms:${r.id}`, color: OVERLAY_COLORS.qms, hollow: true, noFill: true, lineWidth: 1, lineOpacity: 0.6,
+          label: r.name, detail: `${r.type.toUpperCase()} · ${km2 >= 100 ? `${Math.round(km2).toLocaleString()} km²` : `${km2.toFixed(1)} km²`} · NextGIS QMS`,
+          url: `https://qms.nextgis.com/geoservices/${r.id}/`, role: "basemap",
+        },
+      })
+    }
+    url = data.next ?? null
+  }
+  return { type: "FeatureCollection", features }
+}
+
+/** Coverage leaves drawn from a per-view query, refetched on moveend
+ *  (CoverageOverlayLayer). */
+export const VIEW_COVERAGE_LEAVES: Record<string, (bounds: { getWest(): number; getSouth(): number; getEast(): number; getNorth(): number }, signal?: AbortSignal) => Promise<FeatureCollection>> = {
+  allmapsAll: (b, sig) => loadAllmapsCoverage("allmapsAll", b, sig),
+  allmapsRumsey: (b, sig) => loadAllmapsCoverage("allmapsRumsey", b, sig),
+  qmsAll: (b, sig) => loadQmsCoverage(b, sig),
+}
 
 const ELI_ID_RE = /OSM Editor Layer Index id (\S+)/
 type Bounded = { id: string; name: string; bounds?: number[]; type?: string; resolutionM?: number; maxzoom?: number; infoUrl?: string }
@@ -164,6 +215,9 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
       ] },
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category, url: l.infoUrl })) },
+    { section: "Basemaps", key: "qms", label: "NextGIS QMS", color: OVERLAY_COLORS.qms,
+      note: "Services from NextGIS Quick Map Services whose declared extent touches the view (working TMS and WMS only), from the catalogue's intersects query, sized to the zoom: tiny services are left out when zoomed out, continental and worldwide ones when zoomed in. Click an outline for its catalogue page and to use it as the basemap.",
+      leaves: [{ id: "qmsAll", label: "QMS services in view", color: OVERLAY_COLORS.qms, detail: "TMS and WMS, sized to the zoom", url: "https://qms.nextgis.com/" }] },
     { section: "Basemaps", key: "allmaps", label: "Old maps (Allmaps)", color: OVERLAY_COLORS.allmaps,
       note: "Georeferenced historical maps from the Allmaps annotations API: every map whose outline touches the view, up to 200, sized to the zoom. David Rumsey's collection is in there too. Click an outline for its page and to drape it as an overlay.",
       leaves: [

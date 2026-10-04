@@ -4,7 +4,7 @@ import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent, ExpressionSpecification } from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue, useSetAtom } from "jotai"
-import { coverageOverlaysAtom, loadCoverageFeatures, loadAllmapsCoverage, ALLMAPS_VIEW_LEAVES, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
+import { coverageOverlaysAtom, loadCoverageFeatures, VIEW_COVERAGE_LEAVES, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
 import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { Button } from "@/components/ui/button"
@@ -98,8 +98,8 @@ export const CoverageOverlayLayer: React.FC = () => {
     return () => { cancelled = true }
   }, [showMapterhorn, mhMeta])
   const geoIds = useMemo(() => ids.filter((id) => id !== "mapterhorn"), [ids])
-  // Leaves drawn from a per-view query (Allmaps): refetched on moveend.
-  const viewIds = useMemo(() => geoIds.filter((id) => id in ALLMAPS_VIEW_LEAVES), [geoIds])
+  // Leaves drawn from a per-view query (Allmaps, QMS): refetched on moveend.
+  const viewIds = useMemo(() => geoIds.filter((id) => id in VIEW_COVERAGE_LEAVES), [geoIds])
   const viewKey = viewIds.join(",")
   useEffect(() => {
     const m = map?.getMap()
@@ -112,7 +112,7 @@ export const CoverageOverlayLayer: React.FC = () => {
       const signal = ctrl.signal
       const bounds = m.getBounds()
       for (const id of viewIds) {
-        loadAllmapsCoverage(id, bounds, signal)
+        VIEW_COVERAGE_LEAVES[id](bounds, signal)
           .then((fc) => { if (!signal.aborted) setCollections((prev) => ({ ...prev, [id]: fc })) })
           .catch(() => {})
       }
@@ -135,7 +135,7 @@ export const CoverageOverlayLayer: React.FC = () => {
   useEffect(() => {
     let cancelled = false
     for (const id of geoIds) {
-      if (collections[id] || id in ALLMAPS_VIEW_LEAVES) continue
+      if (collections[id] || id in VIEW_COVERAGE_LEAVES) continue
       loadCoverageFeatures(id, { terrains, basemaps }).then((fc) => { if (!cancelled) setCollections((prev) => (prev[id] ? prev : { ...prev, [id]: fc })) }).catch(() => {})
     }
     return () => { cancelled = true }

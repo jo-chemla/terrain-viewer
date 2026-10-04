@@ -586,6 +586,22 @@ export function TerrainControlPanel({
     }
   }
 
+  // Phones: a TAP on the map closes the panel; a drag pans the map and leaves
+  // it open. MapLibre's "click" only fires for a tap, so listening to it (on
+  // view A) is the whole rule. No backdrop any more: it covered the map, so a
+  // pan with the panel open was impossible and the tap that closed it never
+  // reached the map. Now that same tap goes on to the map too, so with the
+  // Elevation Picker armed the first tap already places a point. Desktop
+  // never closes the panel on a map click.
+  useEffect(() => {
+    if (!isMobile || !isSidebarOpen) return
+    const map = mapRef?.current?.getMap()
+    if (!map) return
+    const close = () => setIsSidebarOpen(false)
+    map.on("click", close)
+    return () => { map.off("click", close) }
+  }, [isMobile, isSidebarOpen, mapRef, setIsSidebarOpen])
+
   useMemo(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
   }, [theme])
@@ -612,16 +628,7 @@ export function TerrainControlPanel({
           </TooltipContent>
         </Tooltip>
       )}
-      {/* Mobile backdrop — tap outside to close. On click, not pointer-down:
-          removed at pointer-down, the rest of the tap fell through to the
-          map, so the tap that closed the panel also placed an Elevation
-          Picker point (or a drawing vertex) wherever it landed. */}
-      {isMobile && isSidebarOpen &&  (
-        <div
-          className="fixed inset-0 z-40 bg-transparent"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+
       {/* The header (title + fold-all/home/settings/close buttons) lives OUTSIDE
           the scrolling area entirely now, as its own flex sibling — a real,
           non-scrolling element rather than `sticky`. That's what actually fixes

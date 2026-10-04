@@ -1,6 +1,6 @@
 import type React from "react"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useAtom, useSetAtom } from "jotai"
+import { useAtom, useSetAtom, useAtomValue } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide, History, Columns2, Layers2 } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -16,7 +16,7 @@ import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
-import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom } from "@/lib/layout-constants"
+import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -246,6 +246,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const hasPlanetKey = !!planetKey
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
   const isMobile = useIsMobile()
+  const profileDockLift = profileDockLiftPx(useAtomValue(profileDockHeightAtom), isMobile)
 
   // Grid/dual-mode shape — generalizes the old fixed A/B pair to every
   // active view (A-F) in the current gridLayout. "overlay" always compares
@@ -1480,7 +1481,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         "bottom-0 left-0 right-0 rounded-none max-h-[65dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]",
         "sm:bottom-4 sm:left-4 sm:right-[var(--timeline-right-offset)] sm:rounded-xl sm:max-h-none sm:overflow-visible sm:pb-0",
       )}
-      style={{ ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem" }}
+      style={{
+        ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem",
+        // The docked elevation profile is the lowest panel: sit on it.
+        ...(profileDockLift > 0 ? { bottom: (isMobile ? 0 : 16) + profileDockLift } : {}),
+      }}
     >
       {controlsExpanded ? (
         <div className="flex items-center justify-between px-4 pt-3 pb-3 border-b gap-3">

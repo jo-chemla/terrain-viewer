@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { atom, useAtom, useSetAtom } from "jotai"
 import customSources from "./custom-sources.json"
 import { allmapsMeta, ALLMAPS_API } from "./coverage-overlays"
+import { QMS_API, qmsDetailToBasemap, type QmsDetail } from "./qms"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "./settings-atoms"
 
 /**
@@ -17,7 +18,7 @@ export const coverageUseRequestAtom = atom<{ overlay: string; nonce: number } | 
 /** Which side of the app an overlay id selects. */
 export const coverageUseKind = (overlay: string): "terrain" | "basemap" | null =>
   overlay === "mapterhorn" || overlay.startsWith("lib:") || overlay.startsWith("terrain:") ? "terrain"
-  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") ? "basemap"
+  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") ? "basemap"
   : null
 
 /** Overlay-role sources stack on the active basemap (overlayBasemapIds)
@@ -68,6 +69,18 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
       if (!s) return
       setBasemaps((prev) => (prev.some((x) => x.id === key) ? prev : [...prev, s]))
       activateBasemapSource(setState, s)
+      return
+    }
+    if (kind === "qms") {
+      ;(async () => {
+        const res = await fetch(`${QMS_API}${key}/`)
+        if (!res.ok) throw new Error(`QMS service ${key}: ${res.status}`)
+        const detail = (await res.json()) as QmsDetail
+        const id = `custom-basemap-qms-${key}`
+        const source: CustomBasemapSource = { id, ...qmsDetailToBasemap(detail), role: "basemap" }
+        setBasemaps((prev) => (prev.some((x) => x.id === id) ? prev : [...prev, source]))
+        activateBasemapSource(setState, source)
+      })().catch((e) => console.error("[coverage] Use as basemap (QMS) failed:", e))
       return
     }
     if (kind === "allmaps") {
