@@ -40,6 +40,7 @@ import { BUILTIN_BASEMAP_OPTIONS, BASEMAP_SHORT_LABELS } from "./TerrainControlP
 import { terrainShortLabel } from "@/lib/terrain-sources"
 import { HistoricalTimelinePanel, SOURCE_CONFIG } from "./TerrainControlPanel/historical-timeline-panel"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource, TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
+import { isEliBasemapId } from "@/lib/eli-timeline"
 import { useEsriLiveCaptureDate } from "@/lib/wayback"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
@@ -4570,7 +4571,7 @@ export function TerrainViewer() {
     // showing whichever Wayback release is currently newest, so
     // esriLiveDateMs (resolved once, above) stands in for a real per-view
     // date the same way TIMELINE_SOURCE_IDS ones already have.
-    const isHistoricalDate = !!resolved.date && TIMELINE_SOURCE_IDS.has(resolved.basemapSource)
+    const isHistoricalDate = !!resolved.date && (TIMELINE_SOURCE_IDS.has(resolved.basemapSource) || isEliBasemapId(resolved.basemapSource))
     const isEsriLive = resolved.basemapSource === "esri" && !!esriLiveDateMs
     const hasKnownDate = isHistoricalDate || isEsriLive
     const dateLabel = isHistoricalDate ? new Date(resolved.date).toISOString().slice(0, 10)

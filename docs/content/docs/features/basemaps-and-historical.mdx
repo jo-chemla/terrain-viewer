@@ -43,6 +43,7 @@ A 4×2 grid mixing three of the four providers across different capture dates ov
 
 - Each active view gets a draggable handle on the timeline, positioned at its currently selected capture date.
 - Source pills toggle which providers contribute ticks to the shared timeline; resolution-class filters (VHR vs. medium) narrow it further.
+- **OSM ELI** (off by default) adds a tick for every dated layer of the OSM Editor Layer Index whose real coverage touches the view: national and city orthophoto series and historical maps (about 1,300 layers carry a capture date, from the 1840s to today). A layer dated by year alone sits at 1 January, one dated by month at the 1st. Picking a tick makes that layer the view's basemap, and the handle stays on it; the tick's tooltip names the layer and its date span. Over Brussels that is 18 layers, the UrbIS orthophotos from 2004 to 2024 among them.
 - **Zoom**: mouse wheel zooms the timeline in/out around the cursor; a trackpad two-finger swipe pans. The zoom-out limit extends slightly (10% per side) past the oldest/newest real tick, so those extreme marks always have breathing room instead of sitting flush against the track's edge.
 - **Pan gutter**: when zoomed in, a small gutter below the track shows where the current window sits within the full range — drag it, or click it, to jump.
 - An off-screen handle shows a chevron; clicking it nudges the relevant edge of the view window out to reveal it.

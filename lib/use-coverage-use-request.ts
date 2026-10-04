@@ -3,6 +3,7 @@ import { atom, useAtom, useSetAtom } from "jotai"
 import customSources from "./custom-sources.json"
 import { allmapsMeta, ALLMAPS_API } from "./coverage-overlays"
 import { QMS_API, qmsDetailToBasemap, type QmsDetail } from "./qms"
+import { eliLayerAsBasemap } from "./eli-timeline"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "./settings-atoms"
 
 /**
@@ -98,26 +99,12 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
       return
     }
     if (kind === "eli") {
-      ;(async () => {
-        const eli = await import("@osm-editor-kit/maplibre-editor-layer-index")
-        const layer = await eli.getLayerHydrated(key)
-        if (!layer) throw new Error(`ELI layer ${key}: tile URLs could not be loaded`)
-        // The search panel disables these; here the modal already hides the
-        // button (see CoverageOverlayLayer), so this is only a backstop.
-        if (layer.requiresKeys.length > 0) throw new Error(`ELI layer ${key} needs an API key (${layer.requiresKeys.join(", ")})`)
-        const spec = eli.getRasterSourceSpec(layer)
-        if (!spec.tiles.length) throw new Error(`ELI layer ${key} has no tile URL`)
-        const id = `custom-basemap-eli-${key}`
-        const source: CustomBasemapSource = {
-          id, name: layer.name, url: spec.tiles[0], type: "tms", scheme: spec.scheme ?? "xyz",
-          minzoom: spec.minzoom, maxzoom: spec.maxzoom, role: layer.overlay ? "overlay" : "basemap",
-          description: `OSM Editor Layer Index id ${layer.id}`,
-          attribution: layer.attributionText || undefined, licenseUrl: layer.licenseUrl || undefined,
-          infoUrl: layer.attributionUrl || "https://osm-editor-kit.github.io/maplibre-editor-layer-index/", provider: "eli",
-        }
-        setBasemaps((prev) => (prev.some((x) => x.id === id) ? prev : [...prev, source]))
-        activateBasemapSource(setState, source)
-      })().catch((e) => console.error("[coverage] Use as basemap failed:", e))
+      eliLayerAsBasemap(key)
+        .then((source) => {
+          setBasemaps((prev) => (prev.some((x) => x.id === source.id) ? prev : [...prev, source]))
+          activateBasemapSource(setState, source)
+        })
+        .catch((e) => console.error("[coverage] Use as basemap failed:", e))
     }
   }, [request, setRequest, setState, setTerrains, basemaps, setBasemaps])
 }

@@ -1,3 +1,5 @@
+import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayersToTicks, eliLayerAsBasemap, datedEliLayersInView } from "@/lib/eli-timeline"
 import type React from "react"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom, useAtomValue } from "jotai"
@@ -64,6 +66,9 @@ export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; s
   planet: { label: "Planet Monthly", fullLabel: "Planet Global Monthly Basemap", shortLabel: "Planet", color: "#fdba74", resClass: "medium" }, // pastel orange
   "eox-s2": { label: "EOX Sentinel 2", fullLabel: "EOX Sentinel-2 Cloudless (Yearly)", shortLabel: "EOX", color: "#fca5a5", resClass: "medium" }, // pastel red
   hls: { label: "NASA HLS", fullLabel: "NASA Harmonized Landsat Sentinel-2", shortLabel: "NASA", color: "#f9a8d4", resClass: "medium" }, // pastel pink
+  // Dated layers of the OSM Editor Layer Index covering the view (orthophotos
+  // and historical maps): off by default, since it loads the index.
+  eli: { label: "OSM ELI", fullLabel: "OSM Editor Layer Index: dated orthophotos and maps covering the view", shortLabel: "ELI", color: "#99f6e4", resClass: "vhr" }, // pastel teal
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -72,7 +77,8 @@ const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
   { id: "medium", label: "Medium res" },
 ]
 
-type TimelineTick = { source: string; key: number; dateMs: number; label: string }
+// `ref`: for ELI ticks, the layer the tick stands for (several can share a date).
+type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string }
 
 // Zoom-window bounds for the mousewheel handler below — a floor so the
 // visible span never collapses to near-nothing (even Wayback rarely has
@@ -277,7 +283,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     state[viewFieldName(side, "basemapSource", state.basemapPerView)],
     state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)],
   ), [state])
-  const isHistoricalFor = useCallback((side: ViewId) => TIMELINE_SOURCE_IDS.has(activeBasemapSourceFor(side)), [activeBasemapSourceFor])
+  const isHistoricalFor = useCallback((side: ViewId) => { const a = activeBasemapSourceFor(side); return TIMELINE_SOURCE_IDS.has(a) || isEliBasemapId(a) }, [activeBasemapSourceFor])
   // A view only ever gets a handle/pill once it's ACTUALLY on a historical
   // source — a dual-mode view sitting on a plain basemap (e.g. B on Google
   // Hybrid while A is historical) has no real date to show, so it's dropped
@@ -302,6 +308,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // historical" effect below to still have a sensible source to jump to.
   const displaySourceFor = useCallback((side: ViewId) => {
     const active = activeBasemapSourceFor(side)
+    if (isEliBasemapId(active)) return "eli"
     return TIMELINE_SOURCE_IDS.has(active) ? active : state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)]
   }, [activeBasemapSourceFor, state])
   // Sync only ever governs which SOURCE/RESOLUTION PILLS are toggled on
@@ -492,9 +499,55 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => eoxS2CloudlessTicks().map((t) => ({ source: "eox-s2", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
+  // OSM Editor Layer Index: the dated layers covering the view (lib/eli-timeline.ts).
+  // Loaded only when some view wants them: its ELI pill is on, or it already
+  // shows a dated ELI layer. The index is lazy and big, hence off by default.
+  const eliWanted = useMemo(() => {
+    if ((state.timelineSources ?? []).includes("eli")) return true
+    return activeViews.some((side) => (state[viewFieldName(side, "timelineSources", true)] ?? []).includes("eli") || isEliBasemapId(activeBasemapSourceFor(side)))
+  }, [state, activeViews, activeBasemapSourceFor])
+  const [eliTicks, setEliTicks] = useState<TimelineTick[]>([])
+  const [eliLoading, setEliLoading] = useState(false)
+  useEffect(() => {
+    if (!eliWanted) { setEliTicks([]); return }
+    let cancelled = false
+    // The map may not exist yet on the first pass (a link that opens on the
+    // timeline): wait for it rather than bail, since nothing else re-runs
+    // this until the camera moves.
+    let timer: ReturnType<typeof setTimeout>
+    const run = async () => {
+      const map = mapRef.current?.getMap()
+      if (!map) { timer = setTimeout(run, 500); return }
+      setEliLoading(true)
+      try {
+        const b = map.getBounds()
+        const layers = await datedEliLayersInView([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
+        if (!cancelled) setEliTicks(eliLayersToTicks(layers))
+      } catch (e) {
+        console.error("[timeline] ELI layers failed:", e)
+      } finally {
+        if (!cancelled) setEliLoading(false)
+      }
+    }
+    timer = setTimeout(run, 400)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [eliWanted, state.lat, state.lng, state.zoom, mapRef])
+  // A view pointed at a dated ELI layer (a tick pick, a shared link) needs the
+  // layer as a basemap source in this browser's list: hydrated here.
+  const [customBasemaps, setCustomBasemaps] = useAtom(customBasemapSourcesAtom)
+  useEffect(() => {
+    for (const side of activeViews) {
+      const id = activeBasemapSourceFor(side)
+      if (!isEliBasemapId(id) || customBasemaps.some((b) => b.id === id)) continue
+      eliLayerAsBasemap(eliLayerIdOf(id))
+        .then((src) => setCustomBasemaps((prev) => (prev.some((b) => b.id === src.id) ? prev : [...prev, src])))
+        .catch((e) => console.error("[timeline] ELI layer as basemap failed:", e))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeViews.join(","), activeBasemapSourceFor, customBasemaps.length])
   const allTicks = useMemo(
-    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks].sort((a, b) => a.dateMs - b.dateMs),
-    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks],
+    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...eliTicks].sort((a, b) => a.dateMs - b.dateMs),
+    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, eliTicks],
   )
   // NEAREST match, not exact equality — a stored date (state.dateA-F) and a
   // wayback tick's own real.dateMs both ultimately come from Esri's
@@ -526,7 +579,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // off — letting each side aggregate a different subset of sources (e.g.
   // Wayback+GE for view A, HLS+Bing for view B).
   const pillsField = dualUnsynced ? viewFieldName(activeSide, "timelineSources", true) : "timelineSources"
-  const timelineSourcesForPills: string[] = state[pillsField]?.length ? state[pillsField] : visibleSourceIds
+  // Unset means every source but ELI (which loads the whole index on demand).
+  const timelineSourcesForPills: string[] = state[pillsField]?.length ? state[pillsField] : visibleSourceIds.filter((id) => id !== "eli")
   const toggleSource = useCallback((id: string) => {
     const set = new Set(timelineSourcesForPills)
     if (set.has(id)) set.delete(id)
@@ -583,6 +637,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // click.
   const resolveDisplayTick = useCallback((side: ViewId): TimelineTick | null => {
     const source = displaySourceFor(side)
+    // An ELI view shows ITS layer's tick, not whichever layer shares the date.
+    if (source === "eli") {
+      const ref = eliLayerIdOf(activeBasemapSourceFor(side))
+      const own = allTicks.find((t) => t.source === "eli" && t.ref === ref)
+      if (own) return own
+    }
     return findNearestTick(source, dateForSide(side)) ?? newestTickFor(source)
   }, [displaySourceFor, findNearestTick, dateForSide, newestTickFor])
 
@@ -623,6 +683,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const updates: Record<string, any> = { [dateField]: tick.dateMs }
     if (tick.source === "bing") {
       updates[sourceField] = "bing"
+    } else if (tick.source === "eli" && tick.ref) {
+      // The layer itself becomes the view's basemap (hydrated by the effect
+      // above); its date stays the view's date.
+      updates[sourceField] = `${ELI_BASEMAP_PREFIX}${tick.ref}`
     } else {
       updates[sourceField] = "historical"
       updates[viewFieldName(side, "historicalActiveSource", state.basemapPerView)] = tick.source
@@ -1541,6 +1605,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                         {id === "wayback" && waybackDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                         {id === "ge-historical" && geDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                         {id === "bing" && bingLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {id === "eli" && eliLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                       </button>
                     }
                   />
