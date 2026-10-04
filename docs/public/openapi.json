@@ -981,6 +981,21 @@
             "explode": false
           },
           {
+            "name": "timelineCatalogs",
+            "in": "query",
+            "required": false,
+            "description": "State. Catalogues whose items covering the view become timeline ticks (lib/timeline-catalogs.ts), picked from the timeline's Catalogues tree.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
             "name": "timelineSourcesA",
             "in": "query",
             "required": false,

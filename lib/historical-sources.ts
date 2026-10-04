@@ -1,4 +1,5 @@
 import { isEliBasemapId } from "./eli-timeline"
+import { isCatalogBasemapId } from "./timeline-catalogs"
 import { GRID_LAYOUTS, viewFieldName, type GridLayoutId } from "./grid-layouts"
 
 // Shared registry of basemap ids that are "historical" (date-driven, archival)
@@ -39,7 +40,7 @@ export function isHistoricalSourceActive(state: {
   [key: string]: any
 }): boolean {
   // A view on a dated ELI layer picked from the timeline (lib/eli-timeline.ts) counts too.
-  const isActive = (v?: string) => v === "historical" || TIMELINE_SOURCE_IDS.has(v ?? "") || isEliBasemapId(v)
+  const isActive = (v?: string) => v === "historical" || TIMELINE_SOURCE_IDS.has(v ?? "") || isEliBasemapId(v) || isCatalogBasemapId(v)
   const isSplit = state.splitStyle !== "off"
   // Per-view basemap AND split both on ("dual mode", historical-timeline-
   // panel.tsx's own name for this) — the timeline panel's own showFor now

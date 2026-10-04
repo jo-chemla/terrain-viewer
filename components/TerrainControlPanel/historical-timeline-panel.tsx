@@ -1,4 +1,6 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks } from "@/lib/timeline-catalogs"
+import { TimelineCatalogPicker } from "./timeline-catalog-picker"
 import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayersToTicks, eliLayerAsBasemap, datedEliLayersInView } from "@/lib/eli-timeline"
 import type React from "react"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -69,6 +71,9 @@ export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; s
   // Dated layers of the OSM Editor Layer Index covering the view (orthophotos
   // and historical maps): off by default, since it loads the index.
   eli: { label: "OSM ELI", fullLabel: "OSM Editor Layer Index: dated orthophotos and maps covering the view", shortLabel: "ELI", color: "#99f6e4", resClass: "vhr" }, // pastel teal
+  // Catalogue sources (lib/timeline-catalogs.ts): picked from the Catalogues
+  // tree, not the pill row (see visibleSourceIds).
+  ...Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, { label: c.label, fullLabel: c.note, shortLabel: c.short, color: c.color, resClass: "vhr" as const }])),
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 
@@ -283,7 +288,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     state[viewFieldName(side, "basemapSource", state.basemapPerView)],
     state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)],
   ), [state])
-  const isHistoricalFor = useCallback((side: ViewId) => { const a = activeBasemapSourceFor(side); return TIMELINE_SOURCE_IDS.has(a) || isEliBasemapId(a) }, [activeBasemapSourceFor])
+  const isHistoricalFor = useCallback((side: ViewId) => { const a = activeBasemapSourceFor(side); return TIMELINE_SOURCE_IDS.has(a) || isEliBasemapId(a) || isCatalogBasemapId(a) }, [activeBasemapSourceFor])
   // A view only ever gets a handle/pill once it's ACTUALLY on a historical
   // source — a dual-mode view sitting on a plain basemap (e.g. B on Google
   // Hybrid while A is historical) has no real date to show, so it's dropped
@@ -309,6 +314,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const displaySourceFor = useCallback((side: ViewId) => {
     const active = activeBasemapSourceFor(side)
     if (isEliBasemapId(active)) return "eli"
+    if (isCatalogBasemapId(active)) return catalogOfBasemapId(active)
     return TIMELINE_SOURCE_IDS.has(active) ? active : state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)]
   }, [activeBasemapSourceFor, state])
   // Sync only ever governs which SOURCE/RESOLUTION PILLS are toggled on
@@ -545,9 +551,57 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeViews.join(","), activeBasemapSourceFor, customBasemaps.length])
+  // Catalogues (lib/timeline-catalogs.ts): every selected one queried for the
+  // view, debounced, refreshed as the camera settles; a view already on a
+  // catalogue item keeps its catalogue loaded so its handle has a tick.
+  const selectedCatalogs: string[] = state.timelineCatalogs ?? []
+  const catalogsToLoad = useMemo(() => {
+    const ids = new Set(selectedCatalogs.filter((id) => TIMELINE_CATALOG_BY_ID[id] && !TIMELINE_CATALOG_BY_ID[id].disabled))
+    for (const side of activeViews) { const a = activeBasemapSourceFor(side); if (isCatalogBasemapId(a)) ids.add(catalogOfBasemapId(a)) }
+    return [...ids].sort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCatalogs.join(","), activeViews.join(","), activeBasemapSourceFor])
+  const [catalogTicks, setCatalogTicks] = useState<Record<string, TimelineTick[]>>({})
+  const [catalogLoading, setCatalogLoading] = useState<Record<string, boolean>>({})
+  const [catalogErrors, setCatalogErrors] = useState<Record<string, string>>({})
+  const catalogKey = catalogsToLoad.join(",")
+  useEffect(() => {
+    if (!catalogsToLoad.length) { setCatalogTicks({}); return }
+    let cancelled = false
+    const ctrl = new AbortController()
+    let timer: ReturnType<typeof setTimeout>
+    const run = () => {
+      const map = mapRef.current?.getMap()
+      if (!map) { timer = setTimeout(run, 500); return }
+      const b = map.getBounds()
+      const bbox: [number, number, number, number] = [Math.max(-180, b.getWest()), Math.max(-85, b.getSouth()), Math.min(180, b.getEast()), Math.min(85, b.getNorth())]
+      for (const id of catalogsToLoad) {
+        setCatalogLoading((prev) => ({ ...prev, [id]: true }))
+        loadCatalogTicks(id, bbox, ctrl.signal)
+          .then((ticks) => { if (!cancelled) { setCatalogTicks((prev) => ({ ...prev, [id]: ticks })); setCatalogErrors((prev) => { const n = { ...prev }; delete n[id]; return n }) } })
+          .catch((e) => { if (!cancelled && !ctrl.signal.aborted) setCatalogErrors((prev) => ({ ...prev, [id]: String(e?.message ?? e) })) })
+          .finally(() => { if (!cancelled) setCatalogLoading((prev) => ({ ...prev, [id]: false })) })
+      }
+    }
+    timer = setTimeout(run, 500)
+    return () => { cancelled = true; ctrl.abort(); clearTimeout(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogKey, state.lat, state.lng, state.zoom, mapRef])
+  // A view on a catalogue item needs that item as a basemap in this
+  // browser's list: registered when its ticks loaded.
+  useEffect(() => {
+    for (const side of activeViews) {
+      const id = activeBasemapSourceFor(side)
+      if (!isCatalogBasemapId(id) || customBasemaps.some((b) => b.id === id)) continue
+      const src = catalogBasemap(id)
+      if (src) setCustomBasemaps((prev) => (prev.some((b) => b.id === src.id) ? prev : [...prev, src]))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeViews.join(","), activeBasemapSourceFor, customBasemaps.length, catalogTicks])
+  const catalogTickList = useMemo(() => catalogsToLoad.flatMap((id) => catalogTicks[id] ?? []), [catalogsToLoad, catalogTicks])
   const allTicks = useMemo(
-    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...eliTicks].sort((a, b) => a.dateMs - b.dateMs),
-    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, eliTicks],
+    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...eliTicks, ...catalogTickList].sort((a, b) => a.dateMs - b.dateMs),
+    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, eliTicks, catalogTickList],
   )
   // NEAREST match, not exact equality — a stored date (state.dateA-F) and a
   // wayback tick's own real.dateMs both ultimately come from Esri's
@@ -571,7 +625,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return best
   }, [allTicks])
 
-  const visibleSourceIds = useMemo(() => SOURCE_IDS.filter((id) => id !== "planet" || hasPlanetKey), [hasPlanetKey])
+  const visibleSourceIds = useMemo(() => SOURCE_IDS.filter((id) => !(id in TIMELINE_CATALOG_BY_ID) && (id !== "planet" || hasPlanetKey)), [hasPlanetKey])
 
   // Which pill-toggle array the source/resolution chips edit: the shared
   // state.timelineSources when synced (or single-view), or whichever side is
@@ -643,6 +697,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const own = allTicks.find((t) => t.source === "eli" && t.ref === ref)
       if (own) return own
     }
+    if (source in TIMELINE_CATALOG_BY_ID) {
+      const own = allTicks.find((t) => t.ref === activeBasemapSourceFor(side))
+      if (own) return own
+    }
     return findNearestTick(source, dateForSide(side)) ?? newestTickFor(source)
   }, [displaySourceFor, findNearestTick, dateForSide, newestTickFor])
 
@@ -661,13 +719,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // though the caption below was reading the correct tick all along
   // (captions don't depend on this filtered/scaled list).
   const items = useMemo(() => {
-    const filtered = allTicks.filter((t) => timelineSourcesForPills.includes(t.source) && resolutionClasses.includes(SOURCE_CONFIG[t.source]?.resClass))
+    const filtered = allTicks.filter((t) => (t.source in TIMELINE_CATALOG_BY_ID ? selectedCatalogs.includes(t.source) : timelineSourcesForPills.includes(t.source)) && resolutionClasses.includes(SOURCE_CONFIG[t.source]?.resClass))
     const activeTicks = activeViews.filter(showFor).map(resolveDisplayTick).filter((t): t is TimelineTick => !!t)
     const seen = new Set(filtered.map((t) => `${t.source}-${t.key}`))
     const extra = activeTicks.filter((t) => !seen.has(`${t.source}-${t.key}`))
     return extra.length ? [...filtered, ...extra].sort((a, b) => a.dateMs - b.dateMs) : filtered
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTicks, timelineSourcesForPills, resolutionClasses, activeViews.join(","), showFor, resolveDisplayTick])
+  }, [allTicks, timelineSourcesForPills, selectedCatalogs.join(","), resolutionClasses, activeViews.join(","), showFor, resolveDisplayTick])
 
   // A side's basemapSource field is either a normal basemap id or the single
   // combined "historical" entry. Picking a non-Bing tick sets that field to
@@ -683,6 +741,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const updates: Record<string, any> = { [dateField]: tick.dateMs }
     if (tick.source === "bing") {
       updates[sourceField] = "bing"
+    } else if (tick.source in TIMELINE_CATALOG_BY_ID && tick.ref) {
+      // A catalogue item: its registered basemap (lib/timeline-catalogs.ts).
+      updates[sourceField] = tick.ref
     } else if (tick.source === "eli" && tick.ref) {
       // The layer itself becomes the view's basemap (hydrated by the effect
       // above); its date stays the view's date.
@@ -1613,6 +1674,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 </Tooltip>
               )
             })}
+            <TimelineCatalogPicker
+              selected={selectedCatalogs}
+              onChange={(ids) => setState({ timelineCatalogs: ids })}
+              loading={catalogLoading}
+              counts={Object.fromEntries(Object.entries(catalogTicks).map(([k, v]) => [k, v.length]))}
+              errors={catalogErrors}
+            />
             <div className="w-px shrink-0 self-stretch bg-border mx-0.5" />
             {RESOLUTION_CLASSES.map(({ id, label }) => {
               const active = resolutionClasses.includes(id)

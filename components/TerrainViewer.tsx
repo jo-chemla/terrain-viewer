@@ -41,6 +41,7 @@ import { terrainShortLabel } from "@/lib/terrain-sources"
 import { HistoricalTimelinePanel, SOURCE_CONFIG } from "./TerrainControlPanel/historical-timeline-panel"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource, TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
 import { isEliBasemapId } from "@/lib/eli-timeline"
+import { isCatalogBasemapId } from "@/lib/timeline-catalogs"
 import { useEsriLiveCaptureDate } from "@/lib/wayback"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
@@ -425,6 +426,9 @@ export const QUERY_STATE_PARSERS = {
     // lib/hls.ts; EOX is a once-a-year mosaic, coarser than the other three)
     // — both only show up once explicitly toggled on via their own pill.
     timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
+    // Catalogues whose items covering the view become timeline ticks
+    // (lib/timeline-catalogs.ts), picked from the timeline's Catalogues tree.
+    timelineCatalogs: parseAsArrayOf(parseAsString).withDefault([]),
     // Per-side variants of timelineSources above — only meaningful when both
     // basemapPerView AND splitStyle!=="off" are on (dualMode) AND the timeline's
     // sync toggle is off, letting each active view aggregate a different
@@ -4571,7 +4575,7 @@ export function TerrainViewer() {
     // showing whichever Wayback release is currently newest, so
     // esriLiveDateMs (resolved once, above) stands in for a real per-view
     // date the same way TIMELINE_SOURCE_IDS ones already have.
-    const isHistoricalDate = !!resolved.date && (TIMELINE_SOURCE_IDS.has(resolved.basemapSource) || isEliBasemapId(resolved.basemapSource))
+    const isHistoricalDate = !!resolved.date && (TIMELINE_SOURCE_IDS.has(resolved.basemapSource) || isEliBasemapId(resolved.basemapSource) || isCatalogBasemapId(resolved.basemapSource))
     const isEsriLive = resolved.basemapSource === "esri" && !!esriLiveDateMs
     const hasKnownDate = isHistoricalDate || isEsriLive
     const dateLabel = isHistoricalDate ? new Date(resolved.date).toISOString().slice(0, 10)

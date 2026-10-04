@@ -706,6 +706,16 @@
       "note": "Which historical sources' ticks are aggregated onto the shared timeline (pill toggles in historical-timeline-panel.tsx) — independent of which single source is actually \"active\"/rendered on the map."
     },
     {
+      "key": "timelineCatalogs",
+      "stateKey": "timelineCatalogs",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": "Catalogues whose items covering the view become timeline ticks (lib/timeline-catalogs.ts), picked from the timeline's Catalogues tree."
+    },
+    {
       "key": "timelineSourcesA",
       "stateKey": "timelineSourcesA",
       "type": "array",
