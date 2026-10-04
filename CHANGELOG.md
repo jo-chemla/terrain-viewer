@@ -1,3 +1,13 @@
+# Changelog — Old Maps, QMS Coverage, Docked Profile
+
+<!-- released: 2026-10-04 -->
+
+#### TL;DR
+- **Old maps (Allmaps).** A coverage overlay draws every georeferenced historical map in the view (Allmaps, David Rumsey included), and any of them drapes as an overlay, warped from its IIIF Georeference Annotation. The Add Basemap dialog takes such an annotation URL too.
+- **NextGIS QMS coverage.** The catalogue's services whose extent touches the view, sized to the zoom, each one click from being the basemap. The list under a clicked point has a filter.
+- **Elevation profile.** Hover the chart for the point on the map, zoom and pan it, dock it as a bottom panel; the picker now works on phones.
+- **Split pills** name the terrain, basemap or viz modes If differs, Always or Never; **Sources Coverage** sits under Terrain and Basemap; **Fresnel rim** in Phong; **threshold outlines** in contours (beta).
+
 # Changelog — Modes per View, Image Georeferencer, Desktop Apps
 
 <!-- released: 2026-10-02 -->

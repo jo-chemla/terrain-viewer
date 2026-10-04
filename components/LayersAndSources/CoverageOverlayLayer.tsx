@@ -10,6 +10,7 @@ import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 const SOURCE_ID = "coverage-overlays"
 const FILL_ID = "coverage-overlays-fill"
@@ -89,6 +90,16 @@ export const CoverageOverlayLayer: React.FC = () => {
   const [collections, setCollections] = useState<Record<string, FeatureCollection>>({})
   const [hover, setHover] = useState<{ x: number; y: number; hits: Hit[] } | null>(null)
   const [clicked, setClicked] = useState<Hit[] | null>(null)
+  // A filter over the clicked list: a city point can sit under hundreds of
+  // Allmaps maps and dozens of QMS services. Every word must match the
+  // name or the detail line; cleared with each new click.
+  const [filter, setFilter] = useState("")
+  useEffect(() => { setFilter("") }, [clicked])
+  const shown = useMemo(() => {
+    const words = filter.toLowerCase().split(/\s+/).filter(Boolean)
+    if (!clicked || !words.length) return clicked
+    return clicked.filter((h) => { const text = `${h.label} ${h.detail}`.toLowerCase(); return words.every((w) => text.includes(w)) })
+  }, [clicked, filter])
   const showMapterhorn = ids.includes("mapterhorn")
   const [mhMeta, setMhMeta] = useState<Record<string, MapterhornSourceMeta> | null>(null)
   useEffect(() => {
@@ -243,10 +254,14 @@ export const CoverageOverlayLayer: React.FC = () => {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Coverage under the cursor</DialogTitle>
-            <DialogDescription>{clicked?.length ?? 0} source{clicked?.length === 1 ? "" : "s"} declare data here.</DialogDescription>
+            <DialogDescription>{clicked?.length ?? 0} source{clicked?.length === 1 ? "" : "s"} declare data here{filter && shown ? `; ${shown.length} match` : ""}.</DialogDescription>
           </DialogHeader>
+          {(clicked?.length ?? 0) > 5 && (
+            <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by name, collection, type, year…" className="h-8 text-sm" />
+          )}
           <ul className="space-y-2 max-h-80 overflow-y-auto text-sm">
-            {clicked?.map((h, i) => (
+            {shown?.length === 0 && <li className="text-xs text-muted-foreground">Nothing matches.</li>}
+            {shown?.map((h, i) => (
               <li key={i} className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{h.url ? <a href={h.url} target="_blank" rel="noopener noreferrer" className="underline">{h.label}</a> : h.label}</div>
