@@ -186,6 +186,48 @@
       "note": "Compare and Blend's \"Show Capture Date\" toggle — a small per-view pill for whichever views are actually on a dated historical source."
     },
     {
+      "key": "pillTerrain",
+      "stateKey": "pillTerrain",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "auto",
+        "always",
+        "never\" as const"
+      ],
+      "default": "auto",
+      "defaultSource": "\"auto\"",
+      "note": "What a view's pill names in a split: \"auto\" only when the views differ on it, \"always\", or \"never\" (Compare and Blend, Advanced)."
+    },
+    {
+      "key": "pillBasemap",
+      "stateKey": "pillBasemap",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "auto",
+        "always",
+        "never\" as const"
+      ],
+      "default": "auto",
+      "defaultSource": "\"auto\"",
+      "note": ""
+    },
+    {
+      "key": "pillModes",
+      "stateKey": "pillModes",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "auto",
+        "always",
+        "never\" as const"
+      ],
+      "default": "auto",
+      "defaultSource": "\"auto\"",
+      "note": ""
+    },
+    {
       "key": "terrainSourceC",
       "stateKey": "sourceC",
       "type": "string",
@@ -1008,6 +1050,26 @@
       "enum": null,
       "default": 0.2,
       "defaultSource": "0.2",
+      "note": ""
+    },
+    {
+      "key": "phongFresnelStrength",
+      "stateKey": "phongFresnelStrength",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "Fresnel rim on the live Phong renderer: strength 0 = off, power = falloff."
+    },
+    {
+      "key": "phongFresnelPower",
+      "stateKey": "phongFresnelPower",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 3,
+      "defaultSource": "3",
       "note": ""
     },
     {
@@ -2705,6 +2767,16 @@
       "note": "Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't clutter Visualization Modes for everyone by default."
     },
     {
+      "key": "thresholdBeta",
+      "stateKey": "thresholdBeta",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Same opt-in-beta gate, for the threshold outline contour mode."
+    },
+    {
       "key": "sunShadowBeta",
       "stateKey": "sunShadowBeta",
       "type": "boolean",
@@ -3222,11 +3294,22 @@
       "items": null,
       "enum": [
         "absolute",
-        "lrm"
+        "lrm",
+        "threshold\" as const"
       ],
       "default": "absolute",
       "defaultSource": "\"absolute\"",
       "note": "Absolute (\"real altitude\") vs LRM (\"height above/below the local neighborhood mean\") — same reference concept Plane Slicer introduced (PLANE_SLICER_REFERENCE_MODES above), applied to what the contour…"
+    },
+    {
+      "key": "contourThreshold",
+      "stateKey": "contourThreshold",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1.5,
+      "defaultSource": "1.5",
+      "note": ""
     },
     {
       "key": "contourMinor",
@@ -3640,6 +3723,12 @@
       "file": "lib/settings-atoms.ts",
       "key": "savedStacCatalogs",
       "default": "[]",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "profileDocked",
+      "default": "false",
       "note": ""
     },
     {

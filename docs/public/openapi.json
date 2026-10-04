@@ -404,6 +404,51 @@
             }
           },
           {
+            "name": "pillTerrain",
+            "in": "query",
+            "required": false,
+            "description": "State. What a view's pill names in a split: \"auto\" only when the views differ on it, \"always\", or \"never\" (Compare and Blend, Advanced).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "always",
+                "never\" as const"
+              ],
+              "default": "auto"
+            }
+          },
+          {
+            "name": "pillBasemap",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "always",
+                "never\" as const"
+              ],
+              "default": "auto"
+            }
+          },
+          {
+            "name": "pillModes",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "always",
+                "never\" as const"
+              ],
+              "default": "auto"
+            }
+          },
+          {
             "name": "terrainSourceC",
             "in": "query",
             "required": false,
@@ -1337,6 +1382,26 @@
             "schema": {
               "type": "number",
               "default": 0.2
+            }
+          },
+          {
+            "name": "phongFresnelStrength",
+            "in": "query",
+            "required": false,
+            "description": "State. Fresnel rim on the live Phong renderer: strength 0 = off, power = falloff.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "phongFresnelPower",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 3
             }
           },
           {
@@ -3047,6 +3112,16 @@
             }
           },
           {
+            "name": "thresholdBeta",
+            "in": "query",
+            "required": false,
+            "description": "State. Same opt-in-beta gate, for the threshold outline contour mode.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
             "name": "sunShadowBeta",
             "in": "query",
             "required": false,
@@ -3578,9 +3653,20 @@
               "type": "string",
               "enum": [
                 "absolute",
-                "lrm"
+                "lrm",
+                "threshold\" as const"
               ],
               "default": "absolute"
+            }
+          },
+          {
+            "name": "contourThreshold",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1.5
             }
           },
           {
