@@ -1,7 +1,7 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks } from "@/lib/timeline-catalogs"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
-import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayersToTicks, eliLayerAsBasemap, datedEliLayersInView } from "@/lib/eli-timeline"
+import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayerAsBasemap } from "@/lib/eli-timeline"
 import type React from "react"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtom, useSetAtom, useAtomValue } from "jotai"
@@ -70,7 +70,6 @@ export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; s
   hls: { label: "NASA HLS", fullLabel: "NASA Harmonized Landsat Sentinel-2", shortLabel: "NASA", color: "#f9a8d4", resClass: "medium" }, // pastel pink
   // Dated layers of the OSM Editor Layer Index covering the view (orthophotos
   // and historical maps): off by default, since it loads the index.
-  eli: { label: "OSM ELI", fullLabel: "OSM Editor Layer Index: dated orthophotos and maps covering the view", shortLabel: "ELI", color: "#99f6e4", resClass: "vhr" }, // pastel teal
   // Catalogue sources (lib/timeline-catalogs.ts): picked from the Catalogues
   // tree, not the pill row (see visibleSourceIds).
   ...Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, { label: c.label, fullLabel: c.note, shortLabel: c.short, color: c.color, resClass: "vhr" as const }])),
@@ -84,6 +83,22 @@ const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
 
 // `ref`: for ELI ticks, the layer the tick stands for (several can share a date).
 type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string }
+
+// A catalogue or ELI tick stands for one named item: its name, without the
+// "OAM · " prefix the loaders put first. Null for the date-only sources.
+function tickItemName(t: TimelineTick): string | null {
+  if (!(t.source in TIMELINE_CATALOG_BY_ID)) return null
+  const short = SOURCE_CONFIG[t.source]?.shortLabel
+  return short && t.label.startsWith(`${short} · `) ? t.label.slice(short.length + 3) : t.label
+}
+/** "ELI 2020-12", "OAM 2023-04-18": the source and its date, the tick's headline. */
+function tickHeadline(t: TimelineTick): string {
+  const iso = new Date(t.dateMs).toISOString()
+  // Daily captures (drone, disaster) keep the day; yearly series the year.
+  const jan1 = iso.slice(5, 10) === "01-01"
+  const date = t.source in TIMELINE_CATALOG_BY_ID ? (jan1 ? iso.slice(0, 4) : iso.slice(0, 10)) : iso.slice(0, 7)
+  return `${SOURCE_CONFIG[t.source]?.shortLabel ?? t.source} ${date}`
+}
 
 // Zoom-window bounds for the mousewheel handler below — a floor so the
 // visible span never collapses to near-nothing (even Wayback rarely has
@@ -505,39 +520,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => eoxS2CloudlessTicks().map((t) => ({ source: "eox-s2", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
-  // OSM Editor Layer Index: the dated layers covering the view (lib/eli-timeline.ts).
-  // Loaded only when some view wants them: its ELI pill is on, or it already
-  // shows a dated ELI layer. The index is lazy and big, hence off by default.
-  const eliWanted = useMemo(() => {
-    if ((state.timelineSources ?? []).includes("eli")) return true
-    return activeViews.some((side) => (state[viewFieldName(side, "timelineSources", true)] ?? []).includes("eli") || isEliBasemapId(activeBasemapSourceFor(side)))
-  }, [state, activeViews, activeBasemapSourceFor])
-  const [eliTicks, setEliTicks] = useState<TimelineTick[]>([])
-  const [eliLoading, setEliLoading] = useState(false)
-  useEffect(() => {
-    if (!eliWanted) { setEliTicks([]); return }
-    let cancelled = false
-    // The map may not exist yet on the first pass (a link that opens on the
-    // timeline): wait for it rather than bail, since nothing else re-runs
-    // this until the camera moves.
-    let timer: ReturnType<typeof setTimeout>
-    const run = async () => {
-      const map = mapRef.current?.getMap()
-      if (!map) { timer = setTimeout(run, 500); return }
-      setEliLoading(true)
-      try {
-        const b = map.getBounds()
-        const layers = await datedEliLayersInView([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
-        if (!cancelled) setEliTicks(eliLayersToTicks(layers))
-      } catch (e) {
-        console.error("[timeline] ELI layers failed:", e)
-      } finally {
-        if (!cancelled) setEliLoading(false)
-      }
-    }
-    timer = setTimeout(run, 400)
-    return () => { cancelled = true; clearTimeout(timer) }
-  }, [eliWanted, state.lat, state.lng, state.zoom, mapRef])
   // A view pointed at a dated ELI layer (a tick pick, a shared link) needs the
   // layer as a basemap source in this browser's list: hydrated here.
   const [customBasemaps, setCustomBasemaps] = useAtom(customBasemapSourcesAtom)
@@ -554,10 +536,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Catalogues (lib/timeline-catalogs.ts): every selected one queried for the
   // view, debounced, refreshed as the camera settles; a view already on a
   // catalogue item keeps its catalogue loaded so its handle has a tick.
-  const selectedCatalogs: string[] = state.timelineCatalogs ?? []
+  // ELI was a pill before it joined the catalogues: an old link's pill still
+  // selects it.
+  const selectedCatalogs: string[] = useMemo(() => {
+    const ids: string[] = [...(state.timelineCatalogs ?? [])]
+    const legacyEli = (state.timelineSources ?? []).includes("eli") || activeViews.some((side) => (state[viewFieldName(side, "timelineSources", true)] ?? []).includes("eli"))
+    if (legacyEli && !ids.includes("eli")) ids.push("eli")
+    return ids
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(state.timelineCatalogs ?? []).join(","), state, activeViews.join(",")])
   const catalogsToLoad = useMemo(() => {
     const ids = new Set(selectedCatalogs.filter((id) => TIMELINE_CATALOG_BY_ID[id] && !TIMELINE_CATALOG_BY_ID[id].disabled))
-    for (const side of activeViews) { const a = activeBasemapSourceFor(side); if (isCatalogBasemapId(a)) ids.add(catalogOfBasemapId(a)) }
+    for (const side of activeViews) {
+      const a = activeBasemapSourceFor(side)
+      if (isCatalogBasemapId(a)) ids.add(catalogOfBasemapId(a))
+      else if (isEliBasemapId(a)) ids.add("eli")
+    }
     return [...ids].sort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCatalogs.join(","), activeViews.join(","), activeBasemapSourceFor])
@@ -600,8 +594,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   }, [activeViews.join(","), activeBasemapSourceFor, customBasemaps.length, catalogTicks])
   const catalogTickList = useMemo(() => catalogsToLoad.flatMap((id) => catalogTicks[id] ?? []), [catalogsToLoad, catalogTicks])
   const allTicks = useMemo(
-    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...eliTicks, ...catalogTickList].sort((a, b) => a.dateMs - b.dateMs),
-    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, eliTicks, catalogTickList],
+    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...catalogTickList].sort((a, b) => a.dateMs - b.dateMs),
+    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, catalogTickList],
   )
   // NEAREST match, not exact equality — a stored date (state.dateA-F) and a
   // wayback tick's own real.dateMs both ultimately come from Esri's
@@ -741,7 +735,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const updates: Record<string, any> = { [dateField]: tick.dateMs }
     if (tick.source === "bing") {
       updates[sourceField] = "bing"
-    } else if (tick.source in TIMELINE_CATALOG_BY_ID && tick.ref) {
+    } else if (tick.source in TIMELINE_CATALOG_BY_ID && tick.source !== "eli" && tick.ref) {
       // A catalogue item: its registered basemap (lib/timeline-catalogs.ts).
       updates[sourceField] = tick.ref
     } else if (tick.source === "eli" && tick.ref) {
@@ -1376,7 +1370,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     // A wayback tick's own dateMs IS already the real resolved capture date
     // (see waybackTicks above) — no separate lookup needed, unlike before
     // the state.date/dateA-F consolidation.
-    captionBySide[side] = tick.source === "wayback" ? new Date(tick.dateMs).toISOString().slice(0, 10) : tick.label
+    captionBySide[side] = tick.source === "wayback" ? new Date(tick.dateMs).toISOString().slice(0, 10) : (tickItemName(tick) ?? tick.label)
     handleLeftPctBySide[side] = tickLeftPct(tick)
   }
 
@@ -1666,7 +1660,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                         {id === "wayback" && waybackDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                         {id === "ge-historical" && geDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                         {id === "bing" && bingLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-                        {id === "eli" && eliLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                       </button>
                     }
                   />
@@ -1952,8 +1945,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                     {/* Date (yyyy-mm) first, then source, then which view(s)
                         (if any) it's active on. */}
                     <TooltipContent>
-                      <div>{new Date(t.dateMs).toISOString().slice(0, 7)}</div>
-                      <div>{SOURCE_CONFIG[t.source]?.label ?? t.source}</div>
+                      <div className="font-semibold">{tickHeadline(t)}</div>
+                      {tickItemName(t) ? <div className="max-w-72">{tickItemName(t)}</div> : <div>{SOURCE_CONFIG[t.source]?.label ?? t.source}</div>}
+                      {tickItemName(t) && <div className="text-[10px] text-gray-400">{SOURCE_CONFIG[t.source]?.label}</div>}
                       {activeSides.length > 0 && <div className="text-[10px] text-gray-400">Map {activeSides.join(", ")}</div>}
                     </TooltipContent>
                   </Tooltip>

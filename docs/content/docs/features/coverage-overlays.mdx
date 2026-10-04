@@ -59,10 +59,11 @@ The picker is a small tree, independent of what is loaded in your Terrain and Ba
 ## Reading the map
 
 - **Hover** a point to list every overlay covering it in a floating box.
-- **Click** to open the same list as a dialog, with each source's dataset page or catalog record linked.
+- **Click** to open the same list as a dialog, with each source's dataset page or catalog record linked. The list is ranked by how well each footprint matches the view (intersection over union): a city plan comes before the world map that also covers the point, and each row says how much of the view it covers and how much of it is in view.
+- **Live list**: under the picker, the Sources Coverage section lists everything the shown overlays hold for the view, without clicking: one block per group (Mapterhorn, the libraries, 3D and LiDAR, ELI, QMS, Allmaps, your sources), ranked the same way, refreshed as the map settles. **Centre only** keeps what lies under the view's centre. Each row links to its page and has a **Use** button where the source can go on the map.
 - Selected entries show as pills under the picker. A fully selected group is one pill with its count; remove a pill to hide it, or *clear* to hide all.
 
-Overlays are drawn on all views of a split or grid layout. The selection is session-only: it is not saved and not part of the share URL.
+Overlays are drawn on all views of a split or grid layout. The selection travels in the share URL (`coverageOverlays`), folded to group keys where a whole group is on.
 
 ## Where the footprints come from
 

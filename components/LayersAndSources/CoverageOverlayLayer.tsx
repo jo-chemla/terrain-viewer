@@ -2,6 +2,7 @@ import type React from "react"
 import { useEffect, useState, useMemo } from "react"
 import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent, ExpressionSpecification } from "maplibre-gl"
+import type * as maplibregl from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue, useSetAtom } from "jotai"
 import { coverageOverlaysAtom, loadCoverageFeatures, VIEW_COVERAGE_LEAVES, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { coverageInViewAtom, overlapStats, overlapLabel, byOverlap, type OverlapStats, type CoverageInViewItem, type ViewBbox } from "@/lib/coverage-in-view"
 
 const SOURCE_ID = "coverage-overlays"
 const FILL_ID = "coverage-overlays-fill"
@@ -19,7 +21,12 @@ const MH_SOURCE_ID = "mapterhorn-coverage"
 const MH_FILL_ID = "mapterhorn-coverage-fill"
 const MH_LINE_ID = "mapterhorn-coverage-line"
 
-type Hit = { gsdM: number; label: string; detail: string; url?: string; overlay?: string; useAs?: "terrain" | "basemap" | "overlay"; needsKey?: boolean }
+type Hit = { gsdM: number; label: string; detail: string; url?: string; overlay?: string; useAs?: "terrain" | "basemap" | "overlay"; needsKey?: boolean; stats?: OverlapStats | null }
+
+const viewOf = (m: maplibregl.Map): { bbox: ViewBbox; centre: [number, number] } => {
+  const b = m.getBounds(), c = m.getCenter()
+  return { bbox: [Math.max(-180, b.getWest()), Math.max(-85, b.getSouth()), Math.min(180, b.getEast()), Math.min(85, b.getNorth())], centre: [c.lng, c.lat] }
+}
 /** A feature may carry `urlTemplate` instead of a fixed `url`: {lat}/{lng}/{zoom}
  *  are filled from the click, so "open this elsewhere" lands on the place you
  *  clicked rather than on a provider home page. Used by the Bing Maps 3D
@@ -82,7 +89,7 @@ const fillViewport = (tpl: string, lng: number, lat: number, zoom: number, beari
  * under the cursor in a small floating box; clicking opens the same list as
  * a modal with the dataset links.
  */
-export const CoverageOverlayLayer: React.FC = () => {
+export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ publishInView = false }) => {
   const ids = useAtomValue(coverageOverlaysAtom)
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
@@ -158,25 +165,50 @@ export const CoverageOverlayLayer: React.FC = () => {
     features: geoIds.flatMap((id) => collections[id]?.features ?? []),
   }), [geoIds, collections])
 
+  // The whole footprint behind a rendered (tile-cut) feature, for the overlap.
+  const geometryByKey = useMemo(() => {
+    const index = new Map<string, any>()
+    for (const f of data.features) { const p = f.properties as any; index.set(`${p?.label}|${p?.detail}`, f.geometry) }
+    return index
+  }, [data])
+  // Mapterhorn's coverage is vector tiles: its pieces in the loaded tiles,
+  // per national source, stand in for the footprint.
+  const mapterhornPieces = (m: maplibregl.Map) => {
+    const bySource = new Map<string, any[]>()
+    if (!m.getSource(MH_SOURCE_ID)) return bySource
+    for (const f of m.querySourceFeatures(MH_SOURCE_ID, { sourceLayer: MAPTERHORN_COVERAGE_LAYER })) {
+      const src = String((f.properties as any)?.source ?? "")
+      if (!src) continue
+      if (!bySource.has(src)) bySource.set(src, [])
+      const g = f.geometry as any
+      if (g.type === "Polygon") bySource.get(src)!.push(g.coordinates)
+      else if (g.type === "MultiPolygon") bySource.get(src)!.push(...g.coordinates)
+    }
+    return bySource
+  }
+  const mapterhornHit = (src: string, lat: number): Hit => {
+    const meta = mhMeta?.[src]
+    const mhRes = src === "glo30" ? 30 : Number(meta?.resolution)
+    return { gsdM: Number.isFinite(mhRes) ? mhRes : Infinity, useAs: "terrain", label: "Mapterhorn",
+      detail: src === "glo30" ? "Copernicus GLO-30 fallback (30 m)"
+        : meta ? `${meta.resolution} m · ${meta.name} (${meta.producer}) · "${src}"`
+        : `national source "${src}"`,
+      url: `https://mapterhorn.com/attribution/#${src}`, overlay: "mapterhorn" }
+  }
+
   useEffect(() => {
     const m = map?.getMap()
     if (!m || ids.length === 0) return
-    const hitsAt = (e: MapLayerMouseEvent): Hit[] => {
+    const hitsAt = (e: MapLayerMouseEvent, withStats = false): Hit[] => {
       const layers = [FILL_ID, MH_FILL_ID].filter((l) => m.getLayer(l))
       if (!layers.length) return []
       const seen = new Set<string>()
       const out: Hit[] = []
       for (const f of m.queryRenderedFeatures(e.point, { layers })) {
         const p = f.properties as Record<string, any>
-        const meta = mhMeta?.[p.source]
         const gsd = coverageGsd(p, e.lngLat.lat)
-        const mhRes = p.source === "glo30" ? 30 : Number(meta?.resolution)
         const hit: Hit = f.layer.id === MH_FILL_ID
-          ? { gsdM: Number.isFinite(mhRes) ? mhRes : Infinity, useAs: "terrain", label: "Mapterhorn",
-              detail: p.source === "glo30" ? "Copernicus GLO-30 fallback (30 m)"
-                : meta ? `${meta.resolution} m · ${meta.name} (${meta.producer}) · "${p.source}"`
-                : `national source "${p.source}"`,
-              url: `https://mapterhorn.com/attribution/#${p.source}`, overlay: "mapterhorn" }
+          ? mapterhornHit(String(p.source), e.lngLat.lat)
           : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail,
               url: p.urlTemplate
                 ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom(), m.getBearing(), m.getPitch(), {
@@ -189,11 +221,20 @@ export const CoverageOverlayLayer: React.FC = () => {
         const k = `${hit.label}|${hit.detail}`
         if (seen.has(k)) continue
         seen.add(k)
+        if (withStats) {
+          const { bbox, centre } = viewOf(m)
+          if (f.layer.id === MH_FILL_ID) {
+            const pieces = mapterhornPieces(m).get(String(p.source))
+            hit.stats = pieces?.length ? overlapStats({ type: "MultiPolygon", coordinates: pieces }, bbox, centre) : null
+          } else hit.stats = overlapStats(geometryByKey.get(`${p.label}|${p.detail}`), bbox, centre)
+          if (hit.stats) hit.detail = `${hit.detail} · ${overlapLabel(hit.stats)}`
+        }
         out.push(hit)
       }
-      // Finest first; sources with no known resolution last (stable sort
-      // keeps their render order).
-      return out.sort((a, b) => (a.gsdM === b.gsdM ? 0 : a.gsdM - b.gsdM))
+      // The click list: the footprint matching the view best first (a
+      // city plan over a world map when zoomed on the city), then the finest.
+      // The hover box: finest first, no geometry work per mouse move.
+      return withStats ? out.sort(byOverlap) : out.sort((a, b) => (a.gsdM === b.gsdM ? 0 : a.gsdM - b.gsdM))
     }
     let wasHit = false
     const onMove = (e: MapLayerMouseEvent) => {
@@ -204,12 +245,58 @@ export const CoverageOverlayLayer: React.FC = () => {
       setHover(hits.length ? { x: e.point.x, y: e.point.y, hits } : null)
     }
     const onLeave = () => { setHover(null); if (wasHit) { wasHit = false; m.getCanvas().style.cursor = "" } }
-    const onClick = (e: MapLayerMouseEvent) => { const hits = hitsAt(e); if (hits.length) setClicked(hits) }
+    const onClick = (e: MapLayerMouseEvent) => { const hits = hitsAt(e, true); if (hits.length) setClicked(hits) }
     m.on("mousemove", onMove)
     m.on("mouseout", onLeave)
     m.on("click", onClick)
     return () => { m.off("mousemove", onMove); m.off("mouseout", onLeave); m.off("click", onClick); if (wasHit) m.getCanvas().style.cursor = "" }
-  }, [map, ids.length, mhMeta])
+  }, [map, ids.length, mhMeta, geometryByKey])
+
+  // View A lists everything the drawn overlays hold for the view, for the
+  // Sources Coverage section; refreshed as the map settles.
+  const setInView = useSetAtom(coverageInViewAtom)
+  useEffect(() => {
+    const m = map?.getMap()
+    if (!publishInView || !m) return
+    if (!ids.length) { setInView(null); return }
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const publish = () => {
+      const { bbox, centre } = viewOf(m)
+      const lat = centre[1]
+      const items: CoverageInViewItem[] = []
+      const seen = new Set<string>()
+      for (const id of geoIds) {
+        for (const f of collections[id]?.features ?? []) {
+          const p = (f.properties ?? {}) as Record<string, any>
+          const stats = overlapStats(f.geometry, bbox, centre)
+          if (!stats || stats.cover <= 0) continue
+          const key = `${p.label}|${p.detail}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          const gsd = coverageGsd(p, lat)
+          items.push({ leaf: id, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.urlTemplate ? undefined : p.url || undefined,
+            overlay: p.overlay, useAs: p.role === "overlay" ? "overlay" : coverageUseKind(p.overlay) ?? undefined,
+            needsKey: p.needsKey === true || p.needsKey === "true", gsdM: coverageGsdMeters(p, lat) ?? Infinity, stats })
+        }
+      }
+      if (showMapterhorn) {
+        for (const [src, pieces] of mapterhornPieces(m)) {
+          const stats = overlapStats({ type: "MultiPolygon", coordinates: pieces }, bbox, centre)
+          if (!stats || stats.cover <= 0) continue
+          items.push({ leaf: "mapterhorn", ...mapterhornHit(src, lat), stats })
+        }
+      }
+      setInView({ items: items.sort(byOverlap), at: Date.now() })
+    }
+    const schedule = () => { if (timer) clearTimeout(timer); timer = setTimeout(publish, 300) }
+    const onData = (e: any) => { if (e.sourceId === MH_SOURCE_ID && e.isSourceLoaded) schedule() }
+    schedule()
+    m.on("moveend", schedule)
+    m.on("sourcedata", onData)
+    return () => { m.off("moveend", schedule); m.off("sourcedata", onData); if (timer) clearTimeout(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, publishInView, ids.length, geoIds, collections, showMapterhorn, mhMeta])
+  useEffect(() => () => { if (publishInView) setInView(null) }, [publishInView, setInView])
 
   if (ids.length === 0) return null
   const isGlo30: ExpressionSpecification = ["==", ["get", "source"], "glo30"]

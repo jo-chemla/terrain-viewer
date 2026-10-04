@@ -1216,6 +1216,26 @@
       "note": "\"Search Radius\" — same convention as SVF/Openness: how many same-zoom pixels the single ray marches outward looking for an obstruction."
     },
     {
+      "key": "showBuildingShadows",
+      "stateKey": "showBuildingShadows",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Shadows cast by OSM buildings on flat ground at their foot (components/LayersAndSources/BuildingShadowLayer.tsx): heights from OpenFreeMap's building layer, same light as the other shadows."
+    },
+    {
+      "key": "buildingShadowOpacity",
+      "stateKey": "buildingShadowOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.5,
+      "defaultSource": "0.5",
+      "note": ""
+    },
+    {
       "key": "lightUseDatetime",
       "stateKey": "lightUseDatetime",
       "type": "boolean",

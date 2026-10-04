@@ -1,5 +1,6 @@
 "use client"
 
+import { BuildingShadowLayer } from "@/components/LayersAndSources/BuildingShadowLayer"
 import { solarPosition } from "@/lib/solar-position"
 import { utcOffsetHoursAt, utcInstantForDayOfYear } from "@/lib/timezone"
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -584,6 +585,11 @@ export const QUERY_STATE_PARSERS = {
     // "Search Radius" — same convention as SVF/Openness: how many same-zoom
     // pixels the single ray marches outward looking for an obstruction.
     shadowRadiusPx: parseAsFloat.withDefault(32),
+    // Shadows cast by OSM buildings on flat ground at their foot
+    // (components/LayersAndSources/BuildingShadowLayer.tsx): heights from
+    // OpenFreeMap's building layer, same light as the other shadows.
+    showBuildingShadows: parseAsBoolean.withDefault(false),
+    buildingShadowOpacity: parseAsFloat.withDefault(0.5),
     // "Datetime-based" light: when on, illuminationDir/illuminationAlt are
     // driven from a physically-plausible sun position (see lib/solar-position.ts)
     // computed from the viewport-center lat/lng + these day-of-year (1–365) and
@@ -1657,7 +1663,7 @@ export function TerrainViewer() {
       "showLightingEffects", "showReliefVisualization", "showTerrainAnalysis",
     ] as const
     const VIZ_SUBMODES = [
-      "showMatcap", "showPhong", "showShadows",
+      "showMatcap", "showPhong", "showShadows", "showBuildingShadows",
       "showLrm", "showSvf", "showOpenness", "showLocalDominance",
       "showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showShapeIndex",
       "showBlobness", "showEigenRatio", "showOrientation",
@@ -4226,6 +4232,12 @@ export function TerrainViewer() {
             enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && !isHistoricalMode}
             opacity={state.lightingEffectsOpacity * state.shadowOpacity}
           />
+          <BuildingShadowLayer
+            enabled={state.showLightingEffects && vm("showLightingEffects") && state.showBuildingShadows && !isHistoricalMode}
+            opacity={state.lightingEffectsOpacity * state.buildingShadowOpacity}
+            sunAzimuth={shadowLightDir}
+            sunAltitude={shadowLightAlt}
+          />
           <HillshadeLayer
             showHillshade={state.showHillshade && !isHistoricalMode && vm("showHillshade")}
             hillshadePaint={hillshadePaint}
@@ -4254,7 +4266,7 @@ export function TerrainViewer() {
           )}
 
           {/* Coverage footprints picked in Source Info — every view */}
-          <CoverageOverlayLayer />
+          <CoverageOverlayLayer publishInView={isPrimary} />
 
           {/* Terra Draw edits on view A; the other views mirror its features read-only */}
           {!isPrimary && <DrawingMirrorLayer />}

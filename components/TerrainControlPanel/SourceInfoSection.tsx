@@ -17,7 +17,9 @@ import { resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { BUILTIN_BASEMAP_OPTIONS } from "./raster-basemap-section"
 import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
-import { useAtomValue, useAtom } from "jotai"
+import { useAtomValue, useAtom, useSetAtom } from "jotai"
+import { coverageInViewAtom, coverageGroupOfLeaf, overlapLabel } from "@/lib/coverage-in-view"
+import { coverageUseRequestAtom } from "@/lib/use-coverage-use-request"
 import { ExternalLink, ChevronDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -400,6 +402,76 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
   )
 }
 
+/** Everything the drawn coverage overlays hold for the view, live: one block
+ *  per overlay group, best-matching footprint first (intersection over union
+ *  with the view), the whole view or only what lies under its centre. The
+ *  same rows the map's click modal gives, without clicking. */
+const CoverageInViewList: React.FC = () => {
+  const inView = useAtomValue(coverageInViewAtom)
+  const requestUse = useSetAtom(coverageUseRequestAtom)
+  const [centreOnly, setCentreOnly] = useState(false)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  if (!inView) return null
+  const items = centreOnly ? inView.items.filter((i) => i.stats.atCentre) : inView.items
+  const groups: { key: string; label: string; color: string; items: typeof items }[] = []
+  for (const it of items) {
+    const g = coverageGroupOfLeaf(it.leaf)
+    let entry = groups.find((x) => x.key === g.key)
+    if (!entry) { entry = { ...g, items: [] }; groups.push(entry) }
+    entry.items.push(it)
+  }
+  // The overlay tree's order: terrain groups, then basemaps.
+  const ORDER = ["mapterhorn", "library", "yourTerrain", "sources3d", "opentopo", "eli", "qms", "allmaps", "yourBasemaps", "basemapLibrary"]
+  groups.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key))
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="coverage-centre-only" className="text-xs font-medium">
+          {items.length} in {centreOnly ? "the view's centre" : "view"}
+        </Label>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor="coverage-centre-only" className="text-[11px] text-muted-foreground">Centre only</Label>
+          <Switch id="coverage-centre-only" checked={centreOnly} onCheckedChange={setCentreOnly} className="cursor-pointer" />
+        </div>
+      </div>
+      {groups.length === 0 && <p className="text-xs text-muted-foreground">Nothing from the shown overlays {centreOnly ? "under the centre" : "in view"}.</p>}
+      {groups.map((g) => {
+        const isOpen = openGroups[g.key] ?? true
+        return (
+          <div key={g.key} className="space-y-0.5">
+            <button type="button" className="flex w-full items-center gap-1.5 text-xs font-medium cursor-pointer" onClick={() => setOpenGroups((prev) => ({ ...prev, [g.key]: !isOpen }))}>
+              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />
+              <span className="flex-1 text-left truncate">{g.label}</span>
+              <span className="text-[10px] text-muted-foreground tabular-nums">{g.items.length}</span>
+            </button>
+            {isOpen && (
+              <ul className="pl-5 space-y-1 max-h-56 overflow-y-auto">
+                {g.items.slice(0, 100).map((it, i) => (
+                  <li key={`${it.label}-${i}`} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs truncate" title={it.label}>{it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline">{it.label}</a> : it.label}</div>
+                      <div className="text-[10px] text-muted-foreground truncate" title={it.detail}>{overlapLabel(it.stats)} · {it.detail}</div>
+                    </div>
+                    {it.overlay && it.useAs && (
+                      <Button size="sm" variant="outline" className="h-6 px-1.5 text-[10px] cursor-pointer shrink-0" disabled={it.needsKey}
+                        title={it.needsKey ? "Needs an API key: add it from the Editor Layer Index search" : `Use as ${it.useAs}`}
+                        onClick={() => requestUse({ overlay: it.overlay!, nonce: Date.now() })}>
+                        Use
+                      </Button>
+                    )}
+                  </li>
+                ))}
+                {g.items.length > 100 && <li className="text-[10px] text-muted-foreground">+{g.items.length - 100} more</li>}
+              </ul>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export const SourceInfoSection: React.FC<{
   state: any
   mapRef: React.RefObject<MapRef>
@@ -499,6 +571,7 @@ export const SourceInfoSection: React.FC<{
           picker is useful whatever the terrain. */}
       <GroupHeading>Coverage overlays</GroupHeading>
       <CoverageOverlayPicker mapRef={mapRef} />
+      <CoverageInViewList />
       <GroupHeading>Source info</GroupHeading>
       {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}
       {!historicalMode && !sourceKind && (

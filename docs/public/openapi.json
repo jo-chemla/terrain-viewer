@@ -1557,6 +1557,26 @@
             }
           },
           {
+            "name": "showBuildingShadows",
+            "in": "query",
+            "required": false,
+            "description": "State. Shadows cast by OSM buildings on flat ground at their foot (components/LayersAndSources/BuildingShadowLayer.tsx): heights from OpenFreeMap's building layer, same light as the other shadows.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "buildingShadowOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.5
+            }
+          },
+          {
             "name": "lightUseDatetime",
             "in": "query",
             "required": false,

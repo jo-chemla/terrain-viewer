@@ -329,6 +329,15 @@ export const LightingEffectsOptionsSection: React.FC<{
               </Collapsible>
             </div>
           )}
+          <CheckboxWithSlider
+            id="lighting-building-shadows"
+            label="Building shadows (OSM)"
+            tooltip="Shadows cast by OpenStreetMap buildings (heights from OpenFreeMap, from OSM height or levels), drawn on flat ground at each building's foot: fast, recomputed when the map settles, from zoom 13. Draped over 3D terrain but not bent by it. Same light as Shadows (the pad above, or the datetime sun)."
+            checked={state.showBuildingShadows}
+            onCheckedChange={(checked) => setState({ showBuildingShadows: checked, ...(checked && !state.showLightingEffects ? { showLightingEffects: true } : {}) })}
+            sliderValue={state.buildingShadowOpacity}
+            onSliderChange={(value) => setState({ buildingShadowOpacity: value })}
+          />
         </div>
         )}
       </div>

@@ -18,9 +18,14 @@
 //   USGS historical topographic maps (Esri's ImageServer of the ~180,000
 //     quads since 1884, US only): every edition covering the view centre,
 //     each drawn alone through exportImage with a locked mosaic rule.
+//   OSM Editor Layer Index: its dated layers whose coverage polygon touches
+//     the view (lib/eli-timeline.ts); their ids keep ELI's own prefix.
+//   National historical layers: IGN Géoplateforme (WMTS capabilities),
+//     swisstopo time travel (identify at the view centre), Kartverket.
 //   Old Maps Online: listed, disabled - no CORS and a Cloudflare challenge
 //     (so are the Georeferencer API, David Rumsey's MapRank and loc.gov).
 import type { CustomBasemapSource } from "./settings-atoms"
+import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
 
@@ -37,6 +42,11 @@ export interface TimelineCatalog {
 }
 
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
+  { id: "eli", label: "OSM Editor Layer Index (ELI)", short: "ELI", group: "Community indexes", color: "#99f6e4", note: "Dated orthophotos and maps of the OSM Editor Layer Index whose coverage touches the view (about 1,300 layers carry a date); a year-only date sits at 1 January." },
+  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "National historical", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." },
+  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "National historical", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." },
+  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "National historical", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." },
+  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "National historical", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." },
   { id: "cat-oam", label: "OpenAerialMap", short: "OAM", group: "Drone and aerial", color: "#fde68a", note: "Open drone and aerial imagery uploaded to OpenAerialMap, from HOT's STAC API: one tick per upload covering the view, dated by its capture." },
   { id: "cat-maxar", label: "Maxar Open Data", short: "Maxar", group: "Disaster open data", color: "#fecaca", note: "Maxar's pre- and post-event 30-50 cm imagery for disasters (CC BY-NC 4.0), from HOT's STAC API: one tick per acquisition." },
   { id: "cat-vantor", label: "Vantor Open Data", short: "Vantor", group: "Disaster open data", color: "#fbcfe8", note: "Vantor (ex-Maxar) open data programme, 2025 onwards, from HOT's STAC API." },
@@ -255,6 +265,151 @@ async function usgsTopoTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogT
   return ticks
 }
 
+// ── National historical layers ────────────────────────────────────────────
+// Fixed, dated layers from national mapping agencies rather than searchable
+// catalogues: a tick per layer (or per time value) whose extent covers the view.
+
+// IGN Géoplateforme (France): the WMTS capabilities list every dated layer
+// (annual orthophotos since 2000, the 1950-1995 historical aerial mosaics,
+// SPOT and Pléiades years, Cassini, État-major, the 1950 SCAN 50, regional
+// archives); read once per session (250 KB gzipped), filtered by extent.
+type IgnLayer = { id: string; title: string; year: number; span: string; bbox: Bbox; format: string; style: string; tms: string; minzoom: number; maxzoom: number }
+let ignIndex: Promise<IgnLayer[]> | null = null
+const IGN_WMTS = "https://data.geopf.fr/wmts"
+const IGN_UNDATED: Record<string, [number, string]> = { CASSINI: [1756, "1756-1815"] }
+async function loadIgnIndex(): Promise<IgnLayer[]> {
+  const res = await fetch(`${IGN_WMTS}?SERVICE=WMTS&REQUEST=GetCapabilities`)
+  if (!res.ok) throw new Error(`IGN ${res.status}`)
+  const doc = new DOMParser().parseFromString(await res.text(), "application/xml")
+  const out: IgnLayer[] = []
+  const now = new Date().getUTCFullYear()
+  for (const layer of Array.from(doc.getElementsByTagName("Layer"))) {
+    const id = layer.getElementsByTagName("ows:Identifier")[0]?.textContent ?? ""
+    // Imagery and historical maps only: no infrared, admin, cadastre, topo.
+    if (!/^(ORTHOIMAGERY\.ORTHO|orthophoto_|POC_ORTHOS|GEOGRAPHICALGRIDSYSTEMS\.)|CASSINI/.test(id) || /IRC|PLANIGN|\.MAPS$|MAPS\.(BDUNI|OVERVIEW)|SCAN-EXPRESS|SCAN(25|100|OACI|REG)/i.test(id)) continue
+    const title = layer.getElementsByTagName("ows:Title")[0]?.textContent ?? id
+    const m = /\b(1[5-9]\d\d|20\d\d)(?:\s*[-–]\s*(1[5-9]\d\d|20\d\d))?/.exec(`${title} ${id}`)
+    const undated = Object.entries(IGN_UNDATED).find(([k]) => id.includes(k))?.[1]
+    const year = m ? Number(m[1]) : undated?.[0]
+    if (!year || year > now) continue
+    const span = m ? (m[2] ? `${m[1]}-${m[2]}` : m[1]) : undated![1]
+    const lo = layer.getElementsByTagName("ows:LowerCorner")[0]?.textContent?.split(/\s+/).map(Number)
+    const hi = layer.getElementsByTagName("ows:UpperCorner")[0]?.textContent?.split(/\s+/).map(Number)
+    if (!lo || !hi) continue
+    const tms = layer.getElementsByTagName("TileMatrixSet")[0]?.textContent ?? "PM"
+    const z = /_(\d+)_(\d+)$/.exec(tms)
+    const style = layer.getElementsByTagName("Style")[0]?.getElementsByTagName("ows:Identifier")[0]?.textContent ?? "normal"
+    out.push({ id, title, year, span, bbox: [lo[0], lo[1], hi[0], hi[1]], format: layer.getElementsByTagName("Format")[0]?.textContent ?? "image/jpeg", style, tms, minzoom: z ? Number(z[1]) : 0, maxzoom: z ? Number(z[2]) : 19 })
+  }
+  return out
+}
+const ignTileUrl = (l: IgnLayer) =>
+  `${IGN_WMTS}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${encodeURIComponent(l.id)}&STYLE=${encodeURIComponent(l.style)}&FORMAT=${encodeURIComponent(l.format)}&TILEMATRIXSET=${encodeURIComponent(l.tms)}&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`
+const ignProbe = new Map<string, Promise<boolean>>()
+async function ignTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+  if (!ignIndex) ignIndex = loadIgnIndex().catch((e) => { ignIndex = null; throw e })
+  const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
+  // The layer must cover the view centre. Its extent says so for regional
+  // archives; the yearly orthophotos span France but each year flies a third
+  // of the departments, so one z14 tile at the centre is asked for (404 where
+  // that year has no photo), a few at a time, remembered for the session.
+  const candidates = (await ignIndex).filter((l) => containsPt(l.bbox, cx, cy))
+  const z = 14, n = 2 ** z
+  const tx = Math.floor(((cx + 180) / 360) * n)
+  const lat = (cy * Math.PI) / 180
+  const ty = Math.floor(((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2) * n)
+  const covered = new Map<string, boolean>()
+  const queue = [...candidates]
+  await Promise.all(Array.from({ length: 6 }, async () => {
+    for (let l = queue.shift(); l; l = queue.shift()) {
+      if (z < l.minzoom || z > l.maxzoom) { covered.set(l.id, true); continue }
+      const key = `${l.id}/${tx}/${ty}`
+      let p = ignProbe.get(key)
+      if (!p) {
+        p = fetch(ignTileUrl(l).replace("{z}", String(z)).replace("{x}", String(tx)).replace("{y}", String(ty)), { signal }).then((r) => r.ok, () => true)
+        ignProbe.set(key, p)
+      }
+      covered.set(l.id, await p)
+    }
+  }))
+  return candidates.filter((l) => covered.get(l.id)).map((l) =>
+    register("cat-ign", l.id, Date.UTC(l.year, 0, 1), `IGN · ${l.title} · ${l.span}`, {
+      name: `IGN ${l.title}`,
+      url: ignTileUrl(l),
+      type: "tms", role: "basemap", bounds: l.bbox, minzoom: l.minzoom, maxzoom: l.maxzoom,
+      description: `IGN Géoplateforme layer ${l.id}, ${l.span}`, infoUrl: "https://remonterletemps.ign.fr/",
+    } as Omit<CustomBasemapSource, "id">))
+}
+
+// swisstopo (Switzerland): the time-travel WMTS layers take a time value per
+// edition; the geo.admin.ch identify service lists the editions covering a
+// point, so only years with imagery or a map there get a tick.
+const CH_BBOX: Bbox = [5.9, 45.8, 10.5, 47.85]
+async function swisstopoTicks(catalog: "cat-swissimage" | "cat-swiss-maps", bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+  const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
+  if (!containsPt(CH_BBOX, cx, cy)) return []
+  const layer = catalog === "cat-swissimage" ? "ch.swisstopo.swissimage-product.metadata" : "ch.swisstopo.zeitreihen"
+  const identify = async (timeInstant?: number) => {
+    const res = await fetch(`https://api3.geo.admin.ch/rest/services/all/MapServer/identify?layers=all:${layer}&geometry=${cx.toFixed(5)},${cy.toFixed(5)}&geometryType=esriGeometryPoint&sr=4326&returnGeometry=false&tolerance=0&limit=500${timeInstant ? `&timeInstant=${timeInstant}` : ""}`, { signal })
+    if (!res.ok) throw new Error(`swisstopo ${res.status}`)
+    return ((await res.json()).results ?? []) as any[]
+  }
+  // Without a time the map series answers from 1954 on only: the Dufour and
+  // Siegfried editions (1844-1953) are asked for every sixth year.
+  const eras = catalog === "cat-swiss-maps" ? Array.from({ length: 19 }, (_, i) => 1845 + i * 6) : []
+  // One after the other: a burst of parallel calls is queued server-side
+  // (30 s), in sequence each answers in about 0.1 s.
+  const results = await identify()
+  for (const y of eras) results.push(...(await identify(y).catch(() => [])))
+  const d = { results }
+  // Several time values show the same edition (a sheet stays current for
+  // years; a flight year feeds several yearly mosaics): one tick per edition,
+  // drawn at the first time value that shows it.
+  const editions = new Map<number, { time: number; props: any; products: Set<string> }>()
+  for (const r of d.results ?? []) {
+    const p = r.properties ?? r.attributes ?? {}
+    const edition = Number(catalog === "cat-swissimage" ? p.flightyear : p.release_year || p.years)
+    const time = Number(catalog === "cat-swissimage" ? p.bgdi_flugjahr : p.years)
+    if (!edition || !time) continue
+    const e = editions.get(edition) ?? { time, props: p, products: new Set<string>() }
+    if (time < e.time) { e.time = time; e.props = p }
+    if (p.produkt) e.products.add(String(p.produkt).replace(/^lk/i, "LK ").replace(/^ta/i, "Siegfried 1:").replace(/^tk/i, "Dufour 1:").replace(/1:(\d+)$/, (_m, n) => `1:${n}'000`))
+    editions.set(edition, e)
+  }
+  const ticks: CatalogTick[] = []
+  for (const [year, { time, props: p, products }] of editions) {
+    if (catalog === "cat-swissimage") {
+      ticks.push(register(catalog, String(year), Date.UTC(year, 0, 1), `SWISSIMAGE · flown ${year}${p.colormode ? ` · ${p.colormode}` : ""}${p.gsd ? ` · ${p.gsd}` : ""}`, {
+        name: `SWISSIMAGE Zeitreise ${year}`, url: `https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage-product/default/${time}/3857/{z}/{x}/{y}.jpeg`,
+        type: "tms", role: "basemap", bounds: CH_BBOX, maxzoom: 20,
+        description: `swisstopo SWISSIMAGE Zeitreise, flown ${year} (mosaic ${time})`, infoUrl: "https://map.geo.admin.ch/?layers=ch.swisstopo.swissimage-product",
+      } as Omit<CustomBasemapSource, "id">))
+    } else {
+      const series = [...products].sort().join(" / ")
+      ticks.push(register(catalog, String(year), Date.UTC(year, 0, 1), `swisstopo maps · ${series} · ${p.kbbez ?? ""} · edition ${year}`, {
+        name: `swisstopo Zeitreise ${year}`, url: `https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.zeitreihen/default/${time}1231/3857/{z}/{x}/{y}.png`,
+        type: "tms", role: "basemap", bounds: CH_BBOX, maxzoom: 18,
+        description: `swisstopo Zeitreise map series (${series}), sheet ${p.kbbez ?? p.kbnum ?? ""}, edition ${year}; the scale follows the zoom`, infoUrl: "https://map.geo.admin.ch/?layers=ch.swisstopo.zeitreihen",
+      } as Omit<CustomBasemapSource, "id">))
+    }
+  }
+  return ticks
+}
+
+// Kartverket (Norway): the county maps (amtskart, 1826-1916), the one dated
+// layer its historical-maps WMS serves without a map id.
+const NO_BBOX: Bbox = [4.0, 57.9, 31.2, 71.3]
+function kartverketTicks(bbox: Bbox): CatalogTick[] {
+  const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
+  if (!containsPt(NO_BBOX, cx, cy)) return []
+  return [register("cat-kartverket", "amt1", Date.UTC(1826, 0, 1), "Kartverket · Amtskart (county maps) · 1826-1916", {
+    name: "Kartverket Amtskart 1826-1916",
+    url: "https://wms.geonorge.no/skwms1/wms.historiskekart?service=WMS&version=1.3.0&request=GetMap&layers=amt1&styles=&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true",
+    type: "wms", role: "basemap", bounds: NO_BBOX,
+    description: "Kartverket historical county maps (amtskart), the first regular map series of Norway, 1826-1916", infoUrl: "https://data.norge.no/en/datasets/41e7c19b-d3c0-37b1-b773-ebb1c852e19a/historiske-kart",
+  } as Omit<CustomBasemapSource, "id">)]
+}
+
 // ── ArcGIS Online search ──────────────────────────────────────────────────
 async function agolTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
   const q = '(type:"Image Service" OR type:"Map Service") AND (orthophoto OR orthophotos OR orthoimagery OR orthofoto OR orthophotographie OR luchtfoto OR "aerial photography" OR "aerial imagery" OR "historical imagery")'
@@ -323,7 +478,11 @@ function serviceInfo(base: string, signal?: AbortSignal): Promise<any | null> {
  *  (several items can share a date, and the key is the list's React key). */
 export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
   let ticks: CatalogTick[] = []
-  if (catalog in HOT_COLLECTION) ticks = await hotStacTicks(catalog, bbox, signal)
+  if (catalog === "eli") ticks = eliLayersToTicks(await datedEliLayersInView(bbox))
+  else if (catalog in HOT_COLLECTION) ticks = await hotStacTicks(catalog, bbox, signal)
+  else if (catalog === "cat-ign") ticks = await ignTicks(bbox, signal)
+  else if (catalog === "cat-swissimage" || catalog === "cat-swiss-maps") ticks = await swisstopoTicks(catalog, bbox, signal)
+  else if (catalog === "cat-kartverket") ticks = kartverketTicks(bbox)
   else if (catalog === "cat-planet") ticks = await planetTicks(bbox, signal)
   else if (catalog in WARPERS) ticks = await mapWarperTicks(catalog, bbox, signal)
   else if (catalog === "cat-usgs-topo") ticks = await usgsTopoTicks(bbox, signal)
