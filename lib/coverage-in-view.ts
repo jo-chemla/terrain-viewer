@@ -38,7 +38,8 @@ export function overlapStats(geometry: Geometry | null | undefined, view: ViewBb
 /** "covers 80% of the view" / "12% of it in view": the more telling half. */
 export function overlapLabel(s: OverlapStats): string {
   const pct = (v: number) => (v >= 0.995 ? "100%" : v < 0.01 ? "<1%" : `${Math.round(v * 100)}%`)
-  return s.cover >= s.inView ? `covers ${pct(s.cover)} of the view` : `${pct(s.inView)} of it in view, ${pct(s.cover)} of the view`
+  // The ranking key first (intersection over union with the view).
+  return `IoU ${pct(s.iou)} · ${s.cover >= s.inView ? `covers ${pct(s.cover)} of the view` : `${pct(s.inView)} of it in view, ${pct(s.cover)} of the view`}`
 }
 
 export interface CoverageInViewItem {

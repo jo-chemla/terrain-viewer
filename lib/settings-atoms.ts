@@ -101,6 +101,10 @@ export const elevationPickerActiveAtom = atom(false)
 // map, and only items dated within the timeline's window.
 export const timelineFootprintsAtom = atomWithStorage("timelineFootprints", false)
 export const timelineWindowFilterAtom = atomWithStorage("timelineWindowFilter", false)
+// Off: the catalogs are not asked again as the map moves (the ticks stay).
+export const timelineFollowViewportAtom = atomWithStorage("timelineFollowViewport", true)
+// Every coverage overlay hidden at once, the selection kept.
+export const coverageVisibleAtom = atomWithStorage("coverageVisible", true)
 /** The elevation profile docked under the map (components/ProfileDock.tsx)
  *  instead of inside the Elevation Picker section; remembered. */
 export const profileDockedAtom = atomWithStorage("profileDocked", false)
@@ -397,6 +401,9 @@ export interface CustomBasemapSource {
    *  raster-basemap-section.tsx) — only meaningful outside the simplified single-select
    *  basemap mode. Defaults to 'basemap' for sources created before this field existed. */
   role?: "basemap" | "overlay"
+  /** Registered by a timeline catalog pick, not by the user: listed on the
+   *  map and the timeline, not among the user's own sources until kept. */
+  transient?: boolean
   /** Always serve this COG through titiler, whatever the global reader
    *  setting: the in-browser reader only handles EPSG:3857 (STAC search sets
    *  it from the projection extension). */

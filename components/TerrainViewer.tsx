@@ -2801,7 +2801,32 @@ export function TerrainViewer() {
   // disable the rotation handlers imperatively here and snap bearing+pitch to 0
   // on entry. Re-enabled for 3D/globe. Runs on map load too, so a map first
   // constructed in 2D still gets locked.
-  const tiltHintShownRef = useRef(false)
+  const tiltHintShownRef = useRef(0)
+  // Split off: the one visible view's checkboxes take over what the masks
+  // said about view A (a mode on only for B goes off), so the sidebar reads
+  // as the map; the masks stay for the next split.
+  const prevSplitRef = useRef(state.splitStyle)
+  useEffect(() => {
+    const was = prevSplitRef.current
+    prevSplitRef.current = state.splitStyle
+    if (state.splitStyle !== "off" || was === "off" || state.vizSync !== false || !state.vizViews) return
+    const mask = parseVizViews(state.vizViews)
+    const patch: Record<string, boolean> = {}
+    for (const key of Object.keys(mask)) if ((state as any)[key] === true && !viewDrawsMode(mask, key, "A")) patch[key] = false
+    if (Object.keys(patch).length) setState(patch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.splitStyle])
+  // titiler.xyz, the default COG server, is a demo that throttles: say so
+  // once when it does, instead of blank tiles.
+  const titilerToastRef = useRef(0)
+  const onMapError = useCallback((e: any) => {
+    const url: string = e?.error?.url ?? e?.error?.message ?? ""
+    const status = e?.error?.status
+    if (status === 429 && /titiler/i.test(String(url)) && Date.now() - titilerToastRef.current > 60000) {
+      titilerToastRef.current = Date.now()
+      pushToast({ key: "titiler-429", title: "The COG server is rate-limited", body: "titiler.xyz, the default, is Development Seed's public demo and answers 429 when busy. Set your own TiTiler endpoint in Settings → Streaming to draw these tiles.", duration: 12000 })
+    }
+  }, [])
   useEffect(() => {
     const is2d = state.viewMode === "2d"
     const tiltHintOff: (() => void)[] = []
@@ -2816,8 +2841,8 @@ export function TerrainViewer() {
         // A right-drag (or ctrl-drag) is how one tilts a 3D map: in 2D it
         // does nothing, so say why, once per session, with the way out.
         const onDown = (e: maplibregl.MapMouseEvent) => {
-          if (!(e.originalEvent.button === 2 || e.originalEvent.ctrlKey) || tiltHintShownRef.current) return
-          tiltHintShownRef.current = true
+          if (!(e.originalEvent.button === 2 || e.originalEvent.ctrlKey) || Date.now() - tiltHintShownRef.current < 8000) return
+          tiltHintShownRef.current = Date.now()
           pushToast({ key: "2d-tilt", title: "2D mode: the view is locked top-down", body: "Tilt and rotation need 3D (or globe) mode.", duration: 8000,
             action: { label: "Switch to 3D", onClick: () => setState({ viewMode: "3d" }) } })
         }
@@ -3854,6 +3879,7 @@ export function TerrainViewer() {
           // pixelRatio={window.devicePixelRatio * 1.5}  // supersample (default is 1×)
           // pixelRatio={1.}  // supersample (default is 1×)
           pixelRatio={window.devicePixelRatio}  // supersample (default is 1×)
+          onError={onMapError}
           // maxZoom={22}
           // Fixed constants — see applySafeZoomBounds above for why the real
           // effectiveMinZoom/effectiveMaxZoom are applied imperatively instead.

@@ -93,6 +93,7 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
         id, name: meta?.label ?? `Allmaps map ${key}`, url: `${ALLMAPS_API}/maps/${key}`, type: "iiif", role: "overlay", stack: "top",
         description: `Georeferenced IIIF map, Allmaps annotation ${key}${meta ? ` · ${meta.detail}` : ""}`,
         infoUrl: meta?.pageUrl ?? `https://viewer.allmaps.org/?url=${encodeURIComponent(`${ALLMAPS_API}/maps/${key}`)}`, provider: "allmaps",
+        bounds: meta?.bounds,
       }
       setBasemaps((prev) => (prev.some((x) => x.id === id) ? prev : [...prev, source]))
       activateBasemapSource(setState, source)

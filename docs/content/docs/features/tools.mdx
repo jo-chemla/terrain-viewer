@@ -114,7 +114,7 @@ A catalog has to send CORS headers to be usable from a browser at all, regardles
 
 ### Terrain Viewer's own sources, as STAC
 
-The other way round: every source the app knows is published as a static STAC catalog at [`/docs/stac/catalog.json`](/docs/stac/catalog.json), for STAC Browser, [STAC Map](https://developmentseed.org/stac-map/) or any STAC client. Eight collections:
+The other way round: every source the app knows is published as a static STAC catalog at [`/docs/stac/catalog.json`](/docs/stac/catalog.json). Open it in [STAC Map](https://developmentseed.org/stac-map/?href=https://terrain-viewer.iconem.com/docs/stac/catalog.json) or [STAC Browser](https://radiantearth.github.io/stac-browser/#/external/terrain-viewer.iconem.com/docs/stac/catalog.json) (the file is served with CORS, in production by GitHub Pages and in development by the Vite proxy). Eight collections:
 
 - **terrain-builtin**: the global elevation tiles (Mapterhorn, Mapbox, MapTiler, AWS, Esri, Cesium), each link carrying its tile encoding and whether it needs a key.
 - **terrain-library** and **basemap-library**: the libraries, with their declared footprints and native resolution (`gsd`); COGs as assets, tile services as web-map links.

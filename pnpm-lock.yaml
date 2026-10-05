@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  '@allmaps/maplibre@1.0.0-beta.44':
+    hash: a03dab805c30c6a006bbfcccdeb81a424f5cf291491d588c0ba4cf61833c1ed9
+    path: patches/@allmaps__maplibre@1.0.0-beta.44.patch
   '@geomatico/maplibre-cog-protocol':
     hash: c07c101adaf8a2acb03440adbed30aa14468919791fbcd15a1d0c800dbe65587
     path: patches/@geomatico__maplibre-cog-protocol.patch
@@ -18,7 +21,7 @@ importers:
     dependencies:
       '@allmaps/maplibre':
         specifier: 1.0.0-beta.44
-        version: 1.0.0-beta.44(geotiff@2.1.3)
+        version: 1.0.0-beta.44(patch_hash=a03dab805c30c6a006bbfcccdeb81a424f5cf291491d588c0ba4cf61833c1ed9)(geotiff@2.1.3)
       '@allmaps/transform':
         specifier: 1.0.0-beta.53
         version: 1.0.0-beta.53
@@ -5003,7 +5006,7 @@ snapshots:
     dependencies:
       zod: 4.6.5
 
-  '@allmaps/maplibre@1.0.0-beta.44(geotiff@2.1.3)':
+  '@allmaps/maplibre@1.0.0-beta.44(patch_hash=a03dab805c30c6a006bbfcccdeb81a424f5cf291491d588c0ba4cf61833c1ed9)(geotiff@2.1.3)':
     dependencies:
       '@allmaps/bearing': 1.0.0-beta.13(geotiff@2.1.3)
       '@allmaps/project': 1.0.0-beta.10(geotiff@2.1.3)

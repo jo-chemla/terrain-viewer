@@ -11,7 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN } from "./controls-components"
+import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN, SliderControl } from "./controls-components"
+import { allmapsAnnotationBounds } from "@/lib/allmaps-bounds"
 import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
@@ -126,6 +127,11 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       const newSource: CustomBasemapSource = { ...source, id: `custom-basemap-${Date.now()}` } as CustomBasemapSource
       // Functional update: STAC search adds several from one open dialog.
       setCustomBasemapSources((prev) => [...prev, newSource])
+      // A georeferenced IIIF map's extent comes from its annotation's
+      // control points, fetched after the save (zoom-to-fit, coverage).
+      if (newSource.type === "iiif" && !newSource.bounds) {
+        allmapsAnnotationBounds(newSource.url).then((bounds) => { if (bounds) setCustomBasemapSources((prev) => prev.map((s) => (s.id === newSource.id && !s.bounds ? { ...s, bounds } : s))) })
+      }
       // Newly added sources are the ones the user almost always wants to look at
       // immediately — auto-select it as the active basemap. Resolved directly
       // from newSource (see terrain-source-section.tsx's matching comment for
@@ -249,8 +255,9 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // own checkbox list further down.
   const [byodQuery, setByodQuery] = useState("")
   const byodQ = byodQuery.trim().toLowerCase()
-  const basemapRoleSources = customBasemapSources.filter((s) => (s.role ?? "basemap") === "basemap" && matchesByodQuery(s, byodQ))
-  const overlaySources = customBasemapSources.filter((s) => s.role === "overlay" && matchesByodQuery(s, byodQ))
+  // Timeline picks (transient) stay off these lists until kept.
+  const basemapRoleSources = customBasemapSources.filter((s) => !s.transient && (s.role ?? "basemap") === "basemap" && matchesByodQuery(s, byodQ))
+  const overlaySources = customBasemapSources.filter((s) => !s.transient && s.role === "overlay" && matchesByodQuery(s, byodQ))
 
   // Sends a saved picture back to Tools > Georeference Image with its points,
   // so they can be moved and the overlay updated in place.
@@ -401,10 +408,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
           )}
           {state.basemapPerView && overlaySources.length > 0 && (
             <div className="space-y-2 pt-2 mt-2 border-t">
-              <div className="flex items-center justify-between gap-2">
-                <GroupHeading>Overlays</GroupHeading>
-                <OpacityPill value={state.overlaysOpacity ?? 1} onChange={(v) => setState({ overlaysOpacity: Math.round(v * 100) / 100 })} title="Opacity of every overlay" />
-              </div>
+              <GroupHeading>Overlays</GroupHeading>
+              <SliderControl label="Overlays opacity" value={(state.overlaysOpacity ?? 1) * 100} onChange={(v) => setState({ overlaysOpacity: v / 100 })} min={0} max={100} step={1} suffix="%" sliderId="overlays-opacity" />
               {overlaySources.map((source) => (
                 <div key={source.id} className="flex items-center gap-2 min-w-0">
                   {state.basemapPerView && state.splitStyle !== "off" ? (

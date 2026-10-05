@@ -121,7 +121,7 @@ export const ALLMAPS_VIEW_LEAVES: Record<string, { domain?: string }> = {
   allmapsAll: {},
   allmapsRumsey: { domain: "www.davidrumsey.com" },
 }
-export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string }
+export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string; bounds?: [number, number, number, number] }
 const allmapsMetaCache = new Map<string, AllmapsLike>()
 export function allmapsMeta(id: string): AllmapsLike | undefined { return allmapsMetaCache.get(id) }
 const RUMSEY_IIIF_RE = /davidrumsey\.com\/luna\/servlet\/iiif\/([^/]+)/
@@ -166,6 +166,10 @@ export async function loadAllmapsCoverage(leafId: string, bounds: { getWest(): n
   for (const f of fc.features) {
     const meta = allmapsLikeOf((f.properties ?? {}) as Record<string, any>)
     if (!meta.id || !f.geometry) continue
+    const pts: [number, number][] = []
+    const walk = (c: any) => { if (typeof c[0] === "number") pts.push(c as [number, number]); else c.forEach(walk) }
+    walk((f.geometry as any).coordinates)
+    if (pts.length) meta.bounds = [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))]
     allmapsMetaCache.set(meta.id, meta)
     features.push({ type: "Feature", geometry: f.geometry, properties: {
       // Outlines only: a city has hundreds of overlapping maps, and filled
@@ -185,6 +189,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
   // sources now); the library groups keep listing them whether loaded or not.
   for (const t of ctx.terrains) if (t.bounds) yourTerrain.push({ id: `terrain:${t.id}`, label: t.name, color: OVERLAY_COLORS.yours, url: t.infoUrl, bounds: t.bounds })
   for (const b of ctx.basemaps) {
+    if (b.transient) continue
     const eli = b.provider === "eli" && ELI_ID_RE.test(b.description ?? "")
     if (b.bounds || eli) yourBasemaps.push({ id: `basemap:${b.id}`, label: b.name, color: eli ? OVERLAY_COLORS.eli : OVERLAY_COLORS.yourBasemaps, url: b.infoUrl, bounds: b.bounds })
   }

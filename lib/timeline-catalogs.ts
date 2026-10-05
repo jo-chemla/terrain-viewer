@@ -61,6 +61,7 @@ export const CATALOG_ROOTS: Record<string, string> = {
   "Community indexes": "Mapping agencies",
   "Imagery services": "Mapping agencies",
   "National catalogs": "Mapping agencies",
+  "Declassified satellite": "Mapping agencies",
   "Old maps": "Old maps, digitised and warped",
 }
 export const CATALOG_ROOT_ORDER = ["Open data for post-crisis response", "Mapping agencies", "Old maps, digitised and warped"]
@@ -77,6 +78,7 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-slub", label: "SLUB Kartenforum (Germany)", short: "Kartenforum", group: "Old maps", color: "#fde68a", note: "About 9,000 maps georeferenced by the SLUB Dresden Virtuelles Kartenforum (Messtischblätter, topographic maps, city plans), sized to the zoom." },
   { id: "cat-usgs-topo", label: "USGS historical topo maps", short: "USGS topo", group: "Old maps", color: "#d9f99d", note: "Every USGS topographic quad edition covering the view centre since 1884 (US only), from Esri's historical topo image service; dated by imprint year." },
   { id: "cat-oldmapsonline", label: "Old Maps Online", short: "OMO", group: "Old maps", color: "#e5e7eb", note: "Klokan's search engine over library map collections.", disabled: "Its API sends no CORS header and sits behind a Cloudflare challenge, so a browser cannot query it." },
+  { id: "cat-corona", label: "CORONA Atlas (declassified satellite, 1963-72)", short: "CORONA", group: "Declassified satellite", color: "#fef3c7", bbox: [20, 10, 75, 48], note: "The CORONA Atlas of the Middle East (CAST, University of Arkansas): 279 georeferenced KH-4 mosaics 1963-1972 over the Middle East, North Africa and Central Asia, served by CAST's GeoServer.", resClass: "vhr" },
   { id: "cat-agol", label: "ArcGIS Online imagery", short: "ArcGIS", group: "Imagery services", color: "#a7f3d0", note: "Public ArcGIS image and map services found by ArcGIS Online search over the view, whose title names a year (taken as the capture year), sized to the zoom." },
   // National and regional archives, last: IGN, swisstopo and Kartverket, then the generated regional series.
   { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "National catalogs", region: "France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
@@ -92,7 +94,20 @@ export const isCatalogBasemapId = (id: string | undefined | null): boolean => !!
 /** "custom-basemap-cat-cat-oam--<item>" -> "cat-oam". */
 export const catalogOfBasemapId = (id: string): string => id.slice(CATALOG_BASEMAP_PREFIX.length).split("--")[0]
 
-export interface CatalogTick { source: string; key: number; dateMs: number; label: string; ref: string }
+export interface CatalogTick { source: string; key: number; dateMs: number; label: string; ref: string; meta?: TickMeta }
+/** What a catalog knows about an item beyond its date, for the tick card. */
+export interface TickMeta { gsd?: number; date?: string; licence?: string; url?: string; thumb?: string; provider?: string }
+
+/** The timeline panel's loading state, for the trees in both places. */
+export const catalogStatusAtom = atom<{ loading: Record<string, boolean>; counts: Record<string, number>; errors: Record<string, string> }>({ loading: {}, counts: {}, errors: {} })
+
+/** Entries of the historical tree that draw footprints only: their maps
+ *  carry no capture date, so no ticks. Toggled in coverageOverlays. */
+export const COVERAGE_ONLY_ENTRIES: TimelineCatalog[] = [
+  { id: "allmapsAll", label: "Old maps (Allmaps), every collection", short: "Allmaps", group: "Old maps", color: "#d946ef", note: "Georeferenced maps from the Allmaps annotations API: outlines of every map touching the view, no capture dates, click one to drape it." },
+  { id: "allmapsRumsey", label: "David Rumsey Map Collection (Allmaps)", short: "Rumsey", group: "Old maps", color: "#d946ef", note: "David Rumsey's maps in Allmaps: outlines, no capture dates." },
+  { id: "qmsAll", label: "NextGIS QMS services in view", short: "QMS", group: "Community indexes", color: "#0891b2", note: "Services from NextGIS Quick Map Services whose extent touches the view, sized to the zoom; outlines, no dates." },
+]
 type Bbox = [number, number, number, number]
 
 const basemaps = new Map<string, CustomBasemapSource>()
@@ -112,10 +127,10 @@ function yearOf(...texts: (string | undefined | null)[]): number | null {
   return null
 }
 
-function register(catalog: string, itemKey: string, dateMs: number, label: string, source: Omit<CustomBasemapSource, "id">): CatalogTick {
+function register(catalog: string, itemKey: string, dateMs: number, label: string, source: Omit<CustomBasemapSource, "id">, meta?: TickMeta): CatalogTick {
   const id = `${CATALOG_BASEMAP_PREFIX}${catalog}--${itemKey.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 90)}`
-  basemaps.set(id, { ...source, id } as CustomBasemapSource)
-  return { source: catalog, key: dateMs, dateMs, label, ref: id }
+  basemaps.set(id, { ...source, id, transient: true } as CustomBasemapSource)
+  return { source: catalog, key: dateMs, dateMs, label, ref: id, meta: { date: new Date(dateMs).toISOString().slice(0, 10), url: source.infoUrl, ...meta } }
 }
 
 const cogSource = (name: string, href: string, bbox: Bbox | undefined, description: string, infoUrl?: string): Omit<CustomBasemapSource, "id"> =>
@@ -165,7 +180,9 @@ async function hotStacTicks(catalog: string, bbox: Bbox, signal?: AbortSignal, r
     const date = dt.slice(0, 10)
     const label = `${def.short} · ${title} · ${date}${items.length > 1 ? ` · ${items.length} tiles` : ""}`
     const info = catalog === "cat-oam" ? `${HOT_STAC}/collections/${collection}/items/${encodeURIComponent(f.id)}` : `${HOT_STAC}/collections/${collection}/items/${encodeURIComponent(f.id)}`
-    ticks.push(register(catalog, f.id, dateMs, label, cogSource(`${def.label} · ${title} · ${date}`, href, f.bbox, `${def.label}, ${date}${p.gsd ? `, ${Number(p.gsd).toFixed(2)} m` : ""}`, info)))
+    const thumb = f.assets?.thumbnail?.href ?? f.assets?.preview?.href
+    ticks.push(register(catalog, f.id, dateMs, label, cogSource(`${def.label} · ${title} · ${date}`, href, f.bbox, `${def.label}, ${date}${p.gsd ? `, ${Number(p.gsd).toFixed(2)} m` : ""}`, info),
+      { gsd: Number.isFinite(Number(p.gsd)) ? Number(p.gsd) : undefined, thumb, provider: def.label, licence: catalog === "cat-maxar" || catalog === "cat-vantor" ? "CC BY-NC 4.0" : catalog === "cat-oam" ? "CC BY 4.0 (per upload)" : "Public domain (NOAA)" }))
   }
   return ticks
 }
@@ -220,7 +237,9 @@ async function planetTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTic
     const dateMs = Date.parse(c.dt)
     if (!Number.isFinite(dateMs)) continue
     const date = c.dt.slice(0, 10)
-    ticks.push(register("cat-planet", pick.it.id ?? c.url, dateMs, `Planet DD · ${c.title} · ${date}`, cogSource(`Planet · ${c.title} · ${date}`, hrefAbs, pick.it.bbox, `Planet disaster data, ${c.title}, ${date}`, "https://www.planet.com/disasterdata/")))
+    const thumbRel = pick.it.assets?.thumbnail?.href
+    ticks.push(register("cat-planet", pick.it.id ?? c.url, dateMs, `Planet DD · ${c.title} · ${date}`, cogSource(`Planet · ${c.title} · ${date}`, hrefAbs, pick.it.bbox, `Planet disaster data, ${c.title}, ${date}`, "https://www.planet.com/disasterdata/"),
+      { thumb: thumbRel ? new URL(thumbRel, pick.href).href : undefined, provider: "Planet", licence: "CC BY-NC 4.0", gsd: Number(pick.it.properties?.gsd) || undefined }))
   }
   return ticks
 }
@@ -290,7 +309,25 @@ async function slubTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[
       name: `${title} (${year})`, url: `${tms}/{z}/{x}/{y}.png`, type: "tms", scheme: "tms", role: "basemap", bounds: b, maxzoom: 18,
       description: `SLUB Virtuelles Kartenforum, ${p.map_type ?? "map"}${p.map_scale ? ` 1:${Number(p.map_scale).toLocaleString("en-US")}` : ""}, ${year}`,
       infoUrl: p.permalink ?? `https://kartenforum.slub-dresden.de/`,
-    } as Omit<CustomBasemapSource, "id">))
+    } as Omit<CustomBasemapSource, "id">, { thumb: p.thumb_url || undefined, provider: "SLUB Kartenforum", url: p.permalink || undefined }))
+  }
+  return ticks
+}
+
+// ── CORONA Atlas (CAST) ───────────────────────────────────────────────────
+// The block index (dates, extents) is baked in: CAST's own list sends no CORS
+// header; the WMS does.
+import coronaBlocks from "./corona-atlas-blocks.json" with { type: "json" }
+function coronaTicks(bbox: Bbox): CatalogTick[] {
+  const ticks: CatalogTick[] = []
+  for (const b of coronaBlocks as { id: string; date: string | null; bbox: Bbox }[]) {
+    if (!b.date || !intersects(b.bbox, bbox)) continue
+    ticks.push(register("cat-corona", b.id, Date.parse(b.date), `CORONA · ${b.id} · ${b.date}`, {
+      name: `CORONA ${b.id} (${b.date})`,
+      url: `https://geoserve.cast.uark.edu/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=corona:${b.id}&styles=&srs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true`,
+      type: "wms", role: "basemap", bounds: b.bbox, maxzoom: 16,
+      description: `CORONA KH-4 mosaic ${b.id}, ${b.date}, CORONA Atlas of the Middle East (CAST, University of Arkansas)`, infoUrl: "https://corona.cast.uark.edu/",
+    } as Omit<CustomBasemapSource, "id">, { provider: "CORONA Atlas (CAST)", gsd: 2, licence: "CAST terms (USGS public domain imagery)" }))
   }
   return ticks
 }
@@ -544,10 +581,11 @@ async function nationalTicks(src: NatSource, bbox: Bbox, signal?: AbortSignal): 
     const flown = dates?.[l.key]?.[0]
     const dateMs = flown ? Date.parse(flown) : Date.UTC(l.year, 0, 1)
     const when = flown && !flown.endsWith("-01-01") ? flown : l.endYear ? `${l.year}-${l.endYear}` : String(l.year)
+    const gsdM = /(\d+(?:[.,]\d+)?)\s*cm/i.exec(l.label) ? Number(/(\d+(?:[.,]\d+)?)\s*cm/i.exec(l.label)![1].replace(",", ".")) / 100 : /(\d+(?:[.,]\d+)?)\s*m\b/i.exec(l.label) ? Number(/(\d+(?:[.,]\d+)?)\s*m\b/i.exec(l.label)![1].replace(",", ".")) : undefined
     return register(src.id, l.key, dateMs, `${src.short} · ${l.label} · ${when}`, {
       name: `${src.label}: ${l.label}`, url: l.url, type: l.type, role: "basemap", bounds: l.bbox ?? src.bbox, maxzoom: l.maxzoom, minzoom: l.minzoom,
       description: `${src.label}, ${l.label}${flown ? `, flown ${flown}` : ""}. ${src.licence}.`, infoUrl: src.infoUrl,
-    } as Omit<CustomBasemapSource, "id">)
+    } as Omit<CustomBasemapSource, "id">, { licence: src.licence, provider: src.label, gsd: gsdM, date: flown })
   })
 }
 
@@ -643,6 +681,7 @@ export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: Abo
   else if (catalog in WARPERS) ticks = await mapWarperTicks(catalog, bbox, signal)
   else if (catalog === "cat-usgs-topo") ticks = await usgsTopoTicks(bbox, signal)
   else if (catalog === "cat-slub") ticks = await slubTicks(bbox, signal)
+  else if (catalog === "cat-corona") ticks = coronaTicks(bbox)
   else if (catalog === "cat-agol") ticks = await agolTicks(bbox, signal)
   // The timeline's window, when the picker asks for it (STAC searches
   // already asked the server; the rest is filtered here).

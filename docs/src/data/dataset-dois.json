@@ -293,7 +293,7 @@
   "mirror_doi": null,
   "mirror_publisher": null,
   "citation": "Resilience Academy (2020). Msimbazi Digital Elevation Model_ LiDAR 0.50m 2019. Aerial survey data, Resilience Academy",
-  "program_page": "https://crd.resilienceacademy.ac.tz/catalogue/#/dataset/880",
+  "program_page": "https://crd.resilienceacademy.ac.tz/catalog/#/dataset/880",
   "licence": "CC BY 4.0"
  },
  "custom-tz-msimbazi-uav-dsm05": {
@@ -302,7 +302,7 @@
   "mirror_doi": null,
   "mirror_publisher": null,
   "citation": "Resilience Academy (2020). Msimbazi Digital Elevation Model_ UAV 2019. Aerial survey data, Resilience Academy",
-  "program_page": "https://crd.resilienceacademy.ac.tz/catalogue/#/dataset/882",
+  "program_page": "https://crd.resilienceacademy.ac.tz/catalog/#/dataset/882",
   "licence": "CC BY 4.0"
  },
  "custom-global-aw3d30": {

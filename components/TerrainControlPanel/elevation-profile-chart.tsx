@@ -1,5 +1,5 @@
 import type React from "react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ProfilePoint } from "@/lib/elevation-query"
 
 // Straight line-of-sight between the two endpoints, optionally raised by an equal
@@ -122,8 +122,16 @@ export const ElevationProfileChart: React.FC<{
     }
     setHover(nearestIndex(distanceAt(e.clientX)))
   }
+  // React's wheel listener is passive, so preventDefault there cannot keep
+  // the sidebar from scrolling: a native, non-passive one on the SVG does.
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const stop = (e: WheelEvent) => { e.preventDefault(); e.stopPropagation() }
+    svg.addEventListener("wheel", stop, { passive: false })
+    return () => svg.removeEventListener("wheel", stop)
+  }, [])
   const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault()
     const d = distanceAt(e.clientX) / (fullDistanceM || 1)
     const factor = e.deltaY > 0 ? 1.25 : 0.8
     let a = d - (d - win[0]) * factor, b = d + (win[1] - d) * factor

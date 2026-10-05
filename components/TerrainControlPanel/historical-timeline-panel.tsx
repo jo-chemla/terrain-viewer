@@ -1,6 +1,7 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
-import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom } from "@/lib/timeline-catalogs"
-import { timelineFootprintsAtom, timelineWindowFilterAtom } from "@/lib/settings-atoms"
+import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom } from "@/lib/timeline-catalogs"
+import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom } from "@/lib/settings-atoms"
+import { TickCard } from "./tick-card"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
 import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayerAsBasemap } from "@/lib/eli-timeline"
 import type React from "react"
@@ -83,7 +84,7 @@ const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
 ]
 
 // `ref`: for ELI ticks, the layer the tick stands for (several can share a date).
-type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string }
+type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string; meta?: import("@/lib/timeline-catalogs").TickMeta }
 
 // A catalog or ELI tick stands for one named item: its name, without the
 // "OAM · " prefix the loaders put first. Null for the date-only sources.
@@ -560,8 +561,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const [catalogLoading, setCatalogLoading] = useState<Record<string, boolean>>({})
   const [catalogErrors, setCatalogErrors] = useState<Record<string, string>>({})
   const catalogKey = catalogsToLoad.join(",")
-  const [footprintsOn, setFootprintsOn] = useAtom(timelineFootprintsAtom)
-  const [windowFilterOn, setWindowFilterOn] = useAtom(timelineWindowFilterAtom)
+  const footprintsOn = useAtomValue(timelineFootprintsAtom)
+  const windowFilterOn = useAtomValue(timelineWindowFilterAtom)
+  const followViewport = useAtomValue(timelineFollowViewportAtom)
+  // The trees (here and in Sources Coverage) read the loading state.
+  const setCatalogStatus = useSetAtom(catalogStatusAtom)
+  useEffect(() => { setCatalogStatus({ loading: catalogLoading, counts: Object.fromEntries(Object.entries(catalogTicks).map(([k, v]) => [k, v.length])), errors: catalogErrors }) }, [catalogLoading, catalogTicks, catalogErrors, setCatalogStatus])
   const windowRange: [number, number] | undefined = windowFilterOn && viewWindow ? [viewWindow.min, viewWindow.max] : undefined
   const windowKey = windowRange ? `${Math.round(windowRange[0] / 864e5)}-${Math.round(windowRange[1] / 864e5)}` : ""
   useEffect(() => {
@@ -585,7 +590,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     timer = setTimeout(run, 500)
     return () => { cancelled = true; ctrl.abort(); clearTimeout(timer) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogKey, state.lat, state.lng, state.zoom, mapRef, windowKey])
+    // Follow the view off: the ticks stay as they are while the map moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogKey, followViewport ? state.lat : 0, followViewport ? state.lng : 0, followViewport ? state.zoom : 0, mapRef, windowKey])
   // The items' footprints for the map (CatalogFootprintsLayer), when asked.
   const setFootprints = useSetAtom(catalogFootprintsAtom)
   useEffect(() => {
@@ -667,7 +674,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     setSyncEnabled(!syncEnabled)
   }, [syncEnabled, timelineSourcesForPills, setState, setSyncEnabled])
 
-  const resolutionClasses: string[] = state.resolutionClasses?.length ? state.resolutionClasses : ["vhr", "medium"]
+  // Unset means VHR only: the medium-resolution series (HLS, Sentinel-2,
+  // Planet monthly, Landsat) need the Medium res pill.
+  const resolutionClasses: string[] = state.resolutionClasses?.length ? state.resolutionClasses : ["vhr"]
   const toggleResolutionClass = useCallback((id: string) => {
     const set = new Set(resolutionClasses)
     if (set.has(id)) set.delete(id)
@@ -1153,6 +1162,38 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       if (inside && small) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 })
     }
   }, [resolveSide, setTickForSide, maybeRecenterWindow, mapRef])
+
+  // The tick card: hovering a tick shows what it is and the buttons to put
+  // it on a view (as basemap or overlay) or keep it among the user's sources.
+  const [tickCard, setTickCard] = useState<{ tick: TimelineTick; left: number; top: number } | null>(null)
+  const tickCardTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showTickCard = useCallback((tick: TimelineTick, el: HTMLElement) => {
+    if (tickCardTimer.current) { clearTimeout(tickCardTimer.current); tickCardTimer.current = null }
+    const r = el.getBoundingClientRect()
+    setTickCard({ tick, left: r.left + r.width / 2, top: r.top })
+  }, [])
+  const hideTickCardSoon = useCallback(() => {
+    if (tickCardTimer.current) clearTimeout(tickCardTimer.current)
+    tickCardTimer.current = setTimeout(() => setTickCard(null), 250)
+  }, [])
+  const keepTickCard = useCallback(() => { if (tickCardTimer.current) { clearTimeout(tickCardTimer.current); tickCardTimer.current = null } }, [])
+  // The item onto a view: as its basemap (the tick's own behaviour), or as
+  // an overlay added to that view's stack. Catalog items are registered as
+  // transient basemaps; "keep" makes one a plain source of the user's.
+  const sendTickTo = useCallback((tick: TimelineTick, side: ViewId, as: "basemap" | "overlay") => {
+    if (as === "basemap") { setTickForSide(side, tick); return }
+    if (!tick.ref) return
+    const src = catalogBasemap(tick.ref)
+    if (src) setCustomBasemaps((prev) => (prev.some((b) => b.id === src.id) ? prev : [...prev, { ...src, role: "overlay" as const }]))
+    const field = side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`
+    const current: string[] = state[field] || []
+    setState({ [field]: current.includes(tick.ref) ? current : [...current, tick.ref], ...(state.showRasterBasemap ? {} : { showRasterBasemap: true }) })
+  }, [setTickForSide, setCustomBasemaps, state, setState])
+  const keepTick = useCallback((tick: TimelineTick) => {
+    if (!tick.ref) return
+    const src = catalogBasemap(tick.ref)
+    setCustomBasemaps((prev) => (prev.some((b) => b.id === tick.ref) ? prev.map((b) => (b.id === tick.ref ? { ...b, transient: false } : b)) : src ? [...prev, { ...src, transient: false }] : prev))
+  }, [setCustomBasemaps])
 
   const scrubTo = useCallback((which: ViewId, clientX: number) => {
     const tick = nearestTickForClientX(clientX)
@@ -1696,14 +1737,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             <TimelineCatalogPicker
               selected={selectedCatalogs}
               onChange={(ids) => setState({ timelineCatalogs: ids })}
-              loading={catalogLoading}
-              counts={Object.fromEntries(Object.entries(catalogTicks).map(([k, v]) => [k, v.length]))}
-              errors={catalogErrors}
               center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined}
-              footprints={footprintsOn}
-              onFootprints={setFootprintsOn}
-              windowFilter={windowFilterOn}
-              onWindowFilter={setWindowFilterOn}
             />
             <div className="w-px shrink-0 self-stretch bg-border mx-0.5" />
             {RESOLUTION_CLASSES.map(({ id, label }) => {
@@ -1954,34 +1988,23 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 return t.source === "wayback" ? (
                   <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} activeSides={activeSides} onSelect={() => applyTick(t)} />
                 ) : (
-                  <Tooltip key={`${t.source}-${t.key}`}>
-                    <TooltipTrigger
-                      render={
-                        <div
-                          // See WaybackTickMark's own comment — stopPropagation
-                          // here so clicking this exact mark always picks THIS
-                          // source's tick, not whichever tied source sorts
-                          // earlier under the track's nearest-pixel fallback.
-                          onPointerDown={(e) => { e.stopPropagation(); applyTick(t) }}
-                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer"
-                          style={{ left: `${tickLeftPct(t)}%` }}
-                        >
-                          <div
-                            className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
-                            style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.85 }}
-                          />
-                        </div>
-                      }
+                  <div
+                    key={`${t.source}-${t.key}`}
+                    // See WaybackTickMark's own comment — stopPropagation
+                    // here so clicking this exact mark always picks THIS
+                    // source's tick, not whichever tied source sorts
+                    // earlier under the track's nearest-pixel fallback.
+                    onPointerDown={(e) => { e.stopPropagation(); applyTick(t) }}
+                    onPointerEnter={(e) => { if (e.pointerType !== "touch") showTickCard(t, e.currentTarget as HTMLElement) }}
+                    onPointerLeave={(e) => { if (e.pointerType !== "touch") hideTickCardSoon() }}
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer"
+                    style={{ left: `${tickLeftPct(t)}%` }}
+                  >
+                    <div
+                      className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
+                      style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.85 }}
                     />
-                    {/* Date (yyyy-mm) first, then source, then which view(s)
-                        (if any) it's active on. */}
-                    <TooltipContent>
-                      <div className="font-semibold">{tickHeadline(t)}</div>
-                      {tickItemName(t) ? <div className="max-w-72">{tickItemName(t)}</div> : <div>{SOURCE_CONFIG[t.source]?.label ?? t.source}</div>}
-                      {tickItemName(t) && <div className="text-[10px] text-gray-400">{SOURCE_CONFIG[t.source]?.label}</div>}
-                      {activeSides.length > 0 && <div className="text-[10px] text-gray-400">Map {activeSides.join(", ")}</div>}
-                    </TooltipContent>
-                  </Tooltip>
+                  </div>
                 )
               })}
             </div>
@@ -2102,6 +2125,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             (comparison-mix-section.tsx, both app modes), since this row
             (and the whole timeline panel it's part of) only shows once a
             historical basemap is actually active and expanded. */}
+        {tickCard && (
+          <TickCard
+            tick={tickCard.tick} left={tickCard.left} top={tickCard.top}
+            sourceLabel={SOURCE_CONFIG[tickCard.tick.source]?.label ?? tickCard.tick.source}
+            headline={tickHeadline(tickCard.tick)} itemName={tickItemName(tickCard.tick)}
+            activeSides={showingViews.filter((s) => tickBySide[s]?.source === tickCard.tick.source && tickBySide[s]?.key === tickCard.tick.key)}
+            views={showingViews}
+            kept={!!tickCard.tick.ref && customBasemaps.some((b) => b.id === tickCard.tick.ref && !b.transient)}
+            onSend={(side, as) => sendTickTo(tickCard.tick, side, as)}
+            onKeep={() => keepTick(tickCard.tick)}
+            onEnter={keepTickCard} onLeave={hideTickCardSoon}
+          />
+        )}
         {dualMode && gridLayoutForTimeline === "2x1" && (
           <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums mx-2">
             {(["A", "B"] as const).map((side, idx) => (

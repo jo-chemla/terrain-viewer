@@ -748,7 +748,7 @@ export function TerrainControlPanel({
                 {/* Coverage footprints and provenance of what is on screen:
                     a Sources matter, next to the pickers it informs. */}
                 {!hiddenSections.includes("sourceInfo") && (
-                  <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} withSeparator={false} />
+                  <SourceInfoSection state={state} setState={setState} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} withSeparator={false} />
                 )}
               </>
             )}
@@ -758,7 +758,7 @@ export function TerrainControlPanel({
           <>
             <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={!hiddenSections.includes("sourceInfo")} historicalMode />
             {!hiddenSections.includes("sourceInfo") && (
-              <SourceInfoSection state={state} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} withSeparator={false} />
+              <SourceInfoSection state={state} setState={setState} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} withSeparator={false} />
             )}
           </>
         )}

@@ -832,7 +832,7 @@ const UNUSABLE: {
   { iso: "DNK", country: "Denmark", product: "Dataforsyningen DHM", served: "WCS",
     reason: "GetCapabilities is open, but GetCoverage returns 403 'User not authorized' — token required at the data step." },
   { iso: "GRC", country: "Greece", product: "Hellenic Cadastre DEM 5 m", served: "Offline / licensed",
-    reason: "Never published as INSPIRE Elevation — the national catalogue's 147 records contain zero elevation entries. geodata.gov.gr is unreachable." },
+    reason: "Never published as INSPIRE Elevation — the national catalog's 147 records contain zero elevation entries. geodata.gov.gr is unreachable." },
   { iso: "HRV", country: "Croatia", product: "DGU DMR", served: "WMS",
     reason: "Advertises image/geotiff but returns a 3-band RGB hillshade, and sends no CORS header." },
   { iso: "JPN", country: "Japan", product: "GSI 標高タイル (1 / 5 / 10 m)", served: "XYZ PNG tiles",

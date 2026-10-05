@@ -6,7 +6,7 @@ import type * as maplibregl from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue, useSetAtom } from "jotai"
 import { coverageOverlaysAtom, loadCoverageFeatures, VIEW_COVERAGE_LEAVES, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
-import { customBasemapSourcesAtom, customTerrainSourcesAtom, elevationPickerActiveAtom, sunShadowActiveAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, customTerrainSourcesAtom, elevationPickerActiveAtom, sunShadowActiveAtom, coverageVisibleAtom } from "@/lib/settings-atoms"
 import { activeDrawModeAtom } from "@/components/TerrainControlPanel/TerraDrawSystem"
 import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { Button } from "@/components/ui/button"
@@ -91,7 +91,10 @@ const fillViewport = (tpl: string, lng: number, lat: number, zoom: number, beari
  * a modal with the dataset links.
  */
 export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ publishInView = false }) => {
-  const ids = useAtomValue(coverageOverlaysAtom)
+  const allIds = useAtomValue(coverageOverlaysAtom)
+  const coverageVisible = useAtomValue(coverageVisibleAtom)
+  // The master switch hides every overlay, the selection kept.
+  const ids = useMemo(() => (coverageVisible ? allIds : []), [allIds, coverageVisible])
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
   const { current: map } = useMap()

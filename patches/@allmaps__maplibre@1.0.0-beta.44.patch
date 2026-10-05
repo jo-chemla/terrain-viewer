@@ -1,0 +1,13 @@
+diff --git a/dist/WarpedMapLayer.js b/dist/WarpedMapLayer.js
+index 5ada020d4181e3931581495f7d820a6c873855fd..0b8aed636d88c28e238f84bdf643cc3915e53190 100644
+--- a/dist/WarpedMapLayer.js
++++ b/dist/WarpedMapLayer.js
+@@ -174,7 +174,7 @@ var WarpedMapLayer = class extends BaseWarpedMapLayer {
+ 		if (!this.renderer) return;
+ 		const canvas = this.map.getCanvas();
+ 		const viewportSize = [canvas.offsetWidth, canvas.offsetHeight];
+-		const geoCenterAsLngLat = this.map.getCenter();
++		const geoCenterAsLngLat = this.map.unproject([viewportSize[0] / 2, viewportSize[1] / 2]);
+ 		const projectedGeoCenter = lonLatToWebMercator([geoCenterAsLngLat.lng, geoCenterAsLngLat.lat]);
+ 		const geoLowerLeftAsLngLat = this.map.unproject([0, viewportSize[1]]);
+ 		const geoLowerRightAsLngLat = this.map.unproject([viewportSize[0], viewportSize[1]]);

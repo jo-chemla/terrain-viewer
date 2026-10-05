@@ -108,6 +108,9 @@ export default defineConfig({
         // actually live on disk and let Vite's own static middleware serve
         // them. Not imported through Vite instead because the folder is 36 MB
         // — bundling it would double every screenshot into dist/assets.
+        // The STAC catalog under /docs/stac is read by STAC Map and STAC
+        // Browser from their own origins (GitHub Pages sends this in prod).
+        configure: (proxy) => { proxy.on("proxyRes", (proxyRes) => { proxyRes.headers["access-control-allow-origin"] = "*" }) },
         bypass: (req) =>
           req.url?.startsWith("/docs/content/")
             ? req.url

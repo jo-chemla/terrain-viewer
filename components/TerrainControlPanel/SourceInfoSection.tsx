@@ -25,6 +25,8 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { coverageOverlaysAtom, coverageGroups, type EliLike } from "@/lib/coverage-overlays"
+import { HistoricalCatalogTree } from "./historical-catalog-tree"
+import { coverageVisibleAtom } from "@/lib/settings-atoms"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
 import { terrainKindOf } from "./sample-sources-modal"
@@ -271,23 +273,25 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   )
 }
 
-/** Tree of coverage footprints to draw on the map (see
- *  lib/coverage-overlays.ts): Mapterhorn's coverage tiles, the whole terrain
- *  and basemap libraries, the Editor Layer Index layers covering the view,
- *  and loaded custom sources. A group checkbox takes the whole group;
- *  expanding it (collapsed by default) refines to a handful of leaves.
- *  Selected leaves show as pills, one pill per fully selected group. */
-const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ mapRef }) => {
+/** The coverage tree, always open: Terrain (Mapterhorn, the library, your
+ *  sources, 3D and LiDAR), Basemaps · Static (the Editor Layer Index
+ *  footprints, the library, your basemaps) and Basemaps · Historical, the
+ *  timeline's catalogs tree (historical-catalog-tree.tsx, the same one the
+ *  timeline's Catalogs select shows). A group checkbox takes the whole group;
+ *  a master switch hides every footprint at once, the selection kept. */
+const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: any; setState?: (u: any) => void }> = ({ mapRef, state, setState }) => {
   const [selected, setSelected] = useAtom(coverageOverlaysAtom)
+  const [visible, setVisible] = useAtom(coverageVisibleAtom)
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
   const [eliInView, setEliInView] = useState<EliLike[]>([])
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [open, setOpen] = useState(false)
-  // ELI leaves follow the view at the moment the picker opens (the package is
-  // lazy: 14 MB of index chunks only load once someone asks for it).
+  const [sectionOpen, setSectionOpenState] = useState<Record<string, boolean>>({ Terrain: true, Static: true, Historical: true })
+  // ELI leaves follow the view (the package is lazy: 14 MB of index chunks
+  // only load once the group is opened).
+  const eliWanted = expanded.eli === true
   useEffect(() => {
-    if (!open) return
+    if (!eliWanted) return
     const map = mapRef.current?.getMap()
     if (!map) return
     let cancelled = false
@@ -297,7 +301,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
       setEliInView(rows.slice().sort((a, b) => (a.best ? 0 : 1) - (b.best ? 0 : 1) || a.name.localeCompare(b.name)).map((r: any) => ({ ...r, infoUrl: r.attributionUrl || r.url || undefined })))
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [open, mapRef])
+  }, [eliWanted, mapRef, state.lat, state.lng, state.zoom])
   const groups = useMemo(() => coverageGroups({ terrains, basemaps, eliInView }), [terrains, basemaps, eliInView])
   const set = new Set(selected)
   const setMany = (ids: string[], on: boolean) => setSelected((prev) => {
@@ -305,102 +309,79 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
     for (const id of ids) on ? next.add(id) : next.delete(id)
     return [...next]
   })
-  const pills: { key: string; label: string; color: string; ids: string[] }[] = []
-  for (const g of groups) {
-    const on = g.leaves.filter((l) => set.has(l.id))
-    if (!on.length) continue
-    if (on.length === g.leaves.length && g.leaves.length > 1) pills.push({ key: g.key, label: `${g.label} (${on.length})`, color: g.color, ids: on.map((l) => l.id) })
-    else for (const l of on) pills.push({ key: l.id, label: l.label, color: l.color, ids: [l.id] })
+  // QMS and Allmaps live in the historical tree (footprint-only entries).
+  const leavesOf = (g: (typeof groups)[number]): (typeof g.leaves) => [...g.leaves, ...groups.filter((c) => c.parent === g.key).flatMap(leavesOf)]
+  const renderGroup = (g: (typeof groups)[number], depth: number) => {
+    const leaves = leavesOf(g)
+    const on = leaves.filter((l) => set.has(l.id)).length
+    const all = on === leaves.length
+    const isOpen = expanded[g.key] ?? false
+    const mixed = g.leaves.some((l) => l.color !== g.color)
+    const children = groups.filter((c) => c.parent === g.key)
+    return (
+      <div key={g.key} className={depth ? "pl-[21px]" : undefined}>
+        <div className="flex items-center gap-1.5 py-0.5">
+          <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpen ? "Collapse" : "Expand"}
+            onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+          </button>
+          <Checkbox id={`cov-g-${g.key}`} checked={all && leaves.length > 0} indeterminate={!all && on > 0} disabled={leaves.length === 0} onCheckedChange={(v) => setMany(leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
+          {!mixed && !children.length && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />}
+          <Label htmlFor={`cov-g-${g.key}`} className="text-[10px] uppercase tracking-wide text-muted-foreground cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
+          <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{leaves.length}</span>
+        </div>
+        {isOpen && (
+          <>
+            <div className="pl-[42px] space-y-0.5 max-h-48 overflow-y-auto">
+              {leaves.length === 0 && <p className="text-xs text-muted-foreground italic">None</p>}
+              {g.leaves.map((l) => (
+                <div key={l.id} className="flex items-center gap-1.5">
+                  <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
+                  {(mixed || children.length > 0) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: l.color }} />}
+                  <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
+                  {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
+                  {l.bounds && (
+                    <button type="button" className="cursor-pointer ml-auto shrink-0 text-muted-foreground hover:text-foreground" title="Zoom to its extent"
+                      onClick={() => { const b = l.bounds!; mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}>
+                      <Maximize2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {children.map((c) => renderGroup(c, depth + 1))}
+          </>
+        )}
+      </div>
+    )
   }
-  // Leaves selected earlier that no longer have a leaf (ELI view changed) stay
-  // selected and drawn; they only lose their pill label.
+  const sectionHeader = (key: string, label: string) => (
+    <button type="button" className="flex w-full items-center gap-1 py-0.5 cursor-pointer" onClick={() => setSectionOpenState((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }))}>
+      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${(sectionOpen[key] ?? true) ? "" : "-rotate-90"}`} />
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/80">{label}</span>
+    </button>
+  )
+  const terrainGroups = groups.filter((g) => g.section === "Terrain" && !g.parent)
+  const staticGroups = groups.filter((g) => g.section === "Basemaps" && !g.parent && g.key !== "qms" && g.key !== "allmaps")
+  const timelineCatalogs: string[] = state.timelineCatalogs ?? []
   return (
     <div id="tour-coverage-overlays" className="space-y-1.5 scroll-mt-[100px]">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-sm font-medium">Coverage overlays</Label>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger render={
-            <Button variant="outline" size="sm" className="cursor-pointer font-normal h-7">
-              {selected.length ? `${selected.length} shown` : "None"} <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
-          } />
-          <PopoverContent align="end" className="w-80 p-2 max-h-96 overflow-y-auto space-y-1">
-            {(() => {
-              // Groups nest one level (`parent`): the OpenTopography group
-              // sits inside 3D and LiDAR coverage. A parent's checkbox and
-              // count take in its children's leaves.
-              const leavesOf = (g: (typeof groups)[number]): (typeof g.leaves) => [...g.leaves, ...groups.filter((c) => c.parent === g.key).flatMap(leavesOf)]
-              const top = groups.filter((g) => !g.parent)
-              const renderGroup = (g: (typeof groups)[number], gi: number, depth: number) => {
-                const leaves = leavesOf(g)
-                const on = leaves.filter((l) => set.has(l.id)).length
-                const all = on === leaves.length
-                const isOpen = expanded[g.key] ?? false
-                const newSection = depth === 0 && (gi === 0 || top[gi - 1].section !== g.section)
-                const mixed = g.leaves.some((l) => l.color !== g.color)
-                const children = groups.filter((c) => c.parent === g.key)
-                return (
-                  <div key={g.key} className={depth ? "pl-[21px]" : undefined}>
-                    {newSection && (
-                      <div className={`text-[10px] uppercase tracking-wide text-muted-foreground px-0.5 ${gi === 0 ? "pb-0.5" : "pt-2 pb-0.5 border-t mt-1"}`}>{g.section}</div>
-                    )}
-                    <div className="flex items-center gap-1.5 py-0.5">
-                      <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpen ? "Collapse" : "Expand"}
-                        onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
-                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
-                      </button>
-                      <Checkbox id={`cov-g-${g.key}`} checked={all && leaves.length > 0} indeterminate={!all && on > 0} disabled={leaves.length === 0} onCheckedChange={(v) => setMany(leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
-                      {/* One swatch for the group when its leaves share a
-                          colour; otherwise each leaf carries its own below
-                          (3D and LiDAR: one colour per provider). */}
-                      {!mixed && !children.length && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />}
-                      <Label htmlFor={`cov-g-${g.key}`} className="text-xs font-medium cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
-                      <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{leaves.length}</span>
-                    </div>
-                    {isOpen && (
-                      <>
-                        <div className="pl-[42px] space-y-0.5 max-h-48 overflow-y-auto">
-                          {leaves.length === 0 && <p className="text-xs text-muted-foreground italic">None</p>}
-                          {g.leaves.map((l) => (
-                            <div key={l.id} className="flex items-center gap-1.5">
-                              <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
-                              {(mixed || children.length > 0) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: l.color }} />}
-                              {/* The label wins the width fight: `detail` used to be
-                                  shrink-0, so a long one (the Esri leaf's) pushed the
-                                  layer's own NAME down to zero width and the row read
-                                  as subtitle-only. */}
-                              <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
-                              {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
-                              {l.bounds && (
-                                <button type="button" className="cursor-pointer ml-auto shrink-0 text-muted-foreground hover:text-foreground" title="Zoom to its extent"
-                                  onClick={() => { const b = l.bounds!; mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}>
-                                  <Maximize2 className="h-3 w-3" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        {children.map((c) => renderGroup(c, 0, depth + 1))}
-                      </>
-                    )}
-                  </div>
-                )
-              }
-              return top.map((g, gi) => renderGroup(g, gi, 0))
-            })()}
-          </PopoverContent>
-        </Popover>
+        <Label htmlFor="coverage-visible" className="text-sm font-medium">Coverage overlays</Label>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground tabular-nums">{selected.length ? `${selected.length} shown` : "none"}</span>
+          {selected.length > 0 && <button type="button" className="text-[11px] underline text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setSelected([])}>clear</button>}
+          <Switch id="coverage-visible" checked={visible} onCheckedChange={setVisible} className="cursor-pointer" title="Show or hide every coverage overlay" />
+        </div>
       </div>
-      {pills.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {pills.slice(0, 16).map((p) => (
-            <span key={p.key} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] max-w-full" style={{ borderColor: p.color }}>
-              <span className="truncate max-w-[180px]" title={p.label}>{p.label}</span>
-              <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={() => setMany(p.ids, false)} aria-label={`Hide ${p.label}`}><X className="h-3 w-3" /></button>
-            </span>
-          ))}
-          {pills.length > 16 && <span className="text-[11px] text-muted-foreground self-center">+{pills.length - 16} more</span>}
-          <button type="button" className="text-[11px] underline text-muted-foreground hover:text-foreground cursor-pointer self-center" onClick={() => setSelected([])}>clear</button>
+      {sectionHeader("Terrain", "Terrain")}
+      {(sectionOpen.Terrain ?? true) && <div className="pl-1">{terrainGroups.map((g) => renderGroup(g, 0))}</div>}
+      {sectionHeader("Static", "Basemaps · Static")}
+      {(sectionOpen.Static ?? true) && <div className="pl-1">{staticGroups.map((g) => renderGroup(g, 0))}</div>}
+      {sectionHeader("Historical", "Basemaps · Historical")}
+      {(sectionOpen.Historical ?? true) && (
+        <div className="pl-1">
+          <HistoricalCatalogTree selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined} />
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point; click a footprint for the dataset's page and to put it on the map.</p>
@@ -480,12 +461,13 @@ const CoverageInViewList: React.FC = () => {
 
 export const SourceInfoSection: React.FC<{
   state: any
+  setState?: (updates: any) => void
   mapRef: React.RefObject<MapRef>
   historicalMode?: boolean
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean
-}> = ({ state, mapRef, historicalMode = false, isOpen, onOpenChange, withSeparator = true }) => {
+}> = ({ state, setState, mapRef, historicalMode = false, isOpen, onOpenChange, withSeparator = true }) => {
   const [isActive, setIsActive] = useState(false)
   const [result, setResult] = useState<ProvenanceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -576,7 +558,7 @@ export const SourceInfoSection: React.FC<{
           instead of it. The section is not gated on a queryable source: the
           picker is useful whatever the terrain. */}
       <GroupHeading>Coverage overlays</GroupHeading>
-      <CoverageOverlayPicker mapRef={mapRef} />
+      <CoverageOverlayPicker mapRef={mapRef} state={state} setState={setState} />
       <CoverageInViewList />
       <GroupHeading>Source info</GroupHeading>
       {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}

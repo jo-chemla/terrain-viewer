@@ -3779,6 +3779,18 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "timelineFollowViewport",
+      "default": "true",
+      "note": "Off: the catalogs are not asked again as the map moves (the ticks stay)."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "coverageVisible",
+      "default": "true",
+      "note": "Every coverage overlay hidden at once, the selection kept."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "profileDocked",
       "default": "false",
       "note": ""
