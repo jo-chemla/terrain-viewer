@@ -72,15 +72,16 @@ export const TickCard: React.FC<{
             ) : (
               <button type="button" className={cn("cursor-pointer rounded border px-2 text-[10px] leading-5", isOn(views[0]) ? "bg-primary text-primary-foreground" : "hover:bg-accent")} onClick={() => onSend(views[0])}>{isOn(views[0]) ? "on" : "put"}</button>
             )}
-            {bounds && onFit && (
-              <Button size="icon" variant="ghost" className="ml-auto h-6 w-6 cursor-pointer" title="Frame its extent" onClick={onFit}>
-                <Maximize2 className="h-3.5 w-3.5" />
-              </Button>
-            )}
           </div>
-          <Button size="sm" variant={kept ? "outline" : "default"} className="h-6 w-full cursor-pointer text-[11px]" disabled={kept} onClick={onKeep}>
-            {kept ? "In your sources" : "Keep in my sources"}
-          </Button>
+          <div className="flex gap-1">
+            <Button size="sm" variant="outline" className="h-6 flex-1 cursor-pointer text-[11px]" disabled={!bounds || !onFit} title="Frame its extent" onClick={onFit}>
+              <Maximize2 className="h-3 w-3 mr-1" />Fit
+            </Button>
+            {/* Keep: the item joins the sources, and goes on the view if it is on none. */}
+            <Button size="sm" variant={kept ? "outline" : "default"} className="h-6 flex-1 cursor-pointer text-[11px]" disabled={kept} onClick={onKeep}>
+              {kept ? "In your sources" : "Keep in my sources"}
+            </Button>
+          </div>
         </div>
       )}
     </div>,

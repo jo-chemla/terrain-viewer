@@ -60,10 +60,11 @@ function buildNodes(roots: string[], bare = false): Node[] {
         node.children.push(cn)
       }
     } else {
-      // Rows right under the root: the footprint-only ones first, then by name.
-      // Bare (the community indexes inside the static tree): the footprint
-      // rows (QMS) are that tree's own leaves already.
-      node.rows = cats.filter((c) => !(bare && c.coverageOnly)).sort((a, b) => Number(!!b.coverageOnly) - Number(!!a.coverageOnly) || byLabel(a, b))
+      // Rows right under the root: the footprint-only ones first, then by
+      // name; the community indexes in a fixed order (the Editor Layer
+      // Index, ArcGIS Online, QMS).
+      const fixed = root === CATALOG_ROOT_ORDER[1] ? ["eli", "cat-agol", "qmsAll"] : null
+      node.rows = cats.filter((c) => !(bare && c.coverageOnly)).sort((a, b) => fixed ? fixed.indexOf(a.id) - fixed.indexOf(b.id) : Number(!!b.coverageOnly) - Number(!!a.coverageOnly) || byLabel(a, b))
     }
     return node
   })

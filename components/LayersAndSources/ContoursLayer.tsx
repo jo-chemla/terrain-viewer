@@ -154,7 +154,7 @@ function buildTileUrl(
       return {
         tileUrl: upstream.template,
         encoding: upstream.encoding,
-        maxzoom: Math.min(upstream.maxzoom ?? 14, 16),
+        maxzoom: Math.min(upstream.maxzoom ?? (upstream.template.startsWith("float32dem") ? 18 : 14), 19),
         tileSize: upstream.tileSize,
       }
     }
@@ -463,6 +463,9 @@ export function ContoursLayer({
   // (no DemSource instance — see initCogLocalSource below) — read by the
   // threshold-update effect to know which URL builder to re-invoke.
   const isCogLocalRef = useRef(false)
+  // The contour vector source's maxzoom: the DEM's own (at least 15), so a
+  // fine DEM is not overzoomed from z15 tiles.
+  const vectorMaxzoomRef = useRef(15)
 
   // A "cog-local" source's File only lives in this session's in-memory
   // local-file-store once (re-)picked or hydrated from OPFS — re-run init
@@ -553,7 +556,9 @@ export function ContoursLayer({
       }
 
       const resolved = dem
-        ? { tileUrl: dem.template, encoding: dem.encoding, maxzoom: Math.min(dem.maxzoom ?? 14, 16), tileSize: dem.tileSize }
+        // A WMS (no fixed pyramid) serves any zoom: 19 keeps a LiDAR DSM
+        // as sharp in the lines as in the shading.
+        ? { tileUrl: dem.template, encoding: dem.encoding, maxzoom: Math.min(dem.maxzoom ?? 19, 19), tileSize: dem.tileSize }
         : buildTileUrl(
         sourceId,
         customTerrainSources,
@@ -604,10 +609,11 @@ export function ContoursLayer({
 
         const { contourMinor: minor, contourMajor: major } = thresholdsRef.current
 
+        vectorMaxzoomRef.current = Math.max(15, Math.min(resolved.maxzoom, 19))
         map.addSource(`${idPrefix}-source`, {
           type: "vector",
           tiles: [buildContourProtocolUrl(demSource, minor, major)],
-          maxzoom: 15,
+          maxzoom: vectorMaxzoomRef.current,
         })
 
         // Layers are rendered declaratively via <Layer> below once initialized.
@@ -652,7 +658,7 @@ export function ContoursLayer({
       map.addSource(`${idPrefix}-source`, {
         type: "vector",
         tiles: [buildContourProtocolUrl(demSourceRef.current, contourMinor, contourMajor)],
-        maxzoom: 15,
+        maxzoom: vectorMaxzoomRef.current,
       })
     }
 

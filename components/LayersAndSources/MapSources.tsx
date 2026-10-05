@@ -811,6 +811,9 @@ export interface LightingParams {
     matcapRotationDeg: number
     phongDiffuse: number
     phongSpecular: number
+    phongFresnelStrength?: number
+    phongFresnelPower?: number
+    phongFresnelDark?: boolean
     lightDir: number
     lightAlt: number
     exaggeration: number
@@ -823,7 +826,7 @@ export interface LightingParams {
 export function lightingTemplate(kind: "matcap" | "phong" | "shadow", up: ClientDemUpstream, p: LightingParams): { template: string; tileSize: number; maxzoom?: number } {
     const t = up.template, e = up.encoding, n = up.tileSize
     const template = kind === "matcap" ? buildMatcapProtocolUrl(p.matcapUrl, p.matcapRotationDeg, p.exaggeration, t, e, n)
-        : kind === "phong" ? buildPhongProtocolUrl(p.phongDiffuse, p.phongSpecular, p.lightDir, p.lightAlt, p.exaggeration, t, e, n)
+        : kind === "phong" ? buildPhongProtocolUrl(p.phongDiffuse, p.phongSpecular, p.lightDir, p.lightAlt, p.exaggeration, t, e, n, { strength: p.phongFresnelStrength ?? 0, power: p.phongFresnelPower ?? 3, dark: p.phongFresnelDark ?? false })
         : buildShadowProtocolUrl(p.lightDir, p.lightAlt, p.shadowRadiusPx, t, e, n)
     return { template, tileSize: n, maxzoom: up.maxzoom }
 }
@@ -1357,12 +1360,15 @@ export const MatcapSource = memo(({
 MatcapSource.displayName = "MatcapSource"
 
 export const PhongSource = memo(({
-    enabled, diffuseStrength, specularStrength, lightDir, lightAlt, exaggeration,
+    enabled, diffuseStrength, specularStrength, fresnelStrength = 0, fresnelPower = 3, fresnelDark = false, lightDir, lightAlt, exaggeration,
     terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
 }: {
     enabled: boolean
     diffuseStrength: number
     specularStrength: number
+    fresnelStrength?: number
+    fresnelPower?: number
+    fresnelDark?: boolean
     lightDir: number
     lightAlt: number
     exaggeration: number
@@ -1374,7 +1380,7 @@ export const PhongSource = memo(({
 }) => {
     const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
     if (!enabled || !clientUpstream) return null
-    const url = buildPhongProtocolUrl(diffuseStrength, specularStrength, lightDir, lightAlt, exaggeration, clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize)
+    const url = buildPhongProtocolUrl(diffuseStrength, specularStrength, lightDir, lightAlt, exaggeration, clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize, { strength: fresnelStrength, power: fresnelPower, dark: fresnelDark })
     return (
         <Source
             id="phongSource"

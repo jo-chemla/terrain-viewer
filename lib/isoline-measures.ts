@@ -5,14 +5,15 @@
 // slider's range and how the number the user types maps to the value the
 // tiles carry (slope in degrees as is, curvature ×100, the sky-view factor
 // 0–1 ×100, …), so the threshold and the contour interval are typed in the
-// mode's own units.
+// mode's own units. The horizon modes (sky-view factor, openness, local
+// dominance) are left out: minutes per view at the zooms a line needs.
 import type { ClientDemUpstream, DerivedModeParams, LightingParams } from "@/components/LayersAndSources/MapSources"
 import { derivedModeTemplate, lightingTemplate } from "@/components/LayersAndSources/MapSources"
 import { buildLumaProtocolUrl } from "./threshold-protocol"
 
 export const ISOLINE_MEASURE_IDS = [
   "elevation", "slope", "aspect", "tri", "tpi", "roughness", "curvature", "shapeIndex",
-  "blobness", "eigenRatio", "orientation", "lrm", "svf", "openness", "localDominance",
+  "blobness", "eigenRatio", "orientation", "lrm",
   "phong", "matcap", "shadow",
 ] as const
 export type IsolineMeasureId = (typeof ISOLINE_MEASURE_IDS)[number]
@@ -51,15 +52,14 @@ export const ISOLINE_MEASURES: IsolineMeasure[] = [
   { id: "eigenRatio", label: "Eigen ratio", group: "Terrain analysis", unit: "%", min: 0, max: 100, step: 1, defaultValue: 50, defaultInterval: 10, scale: one, sourceId: "eigenRatioSource" },
   { id: "orientation", label: "Orientation", group: "Terrain analysis", unit: "°", min: -90, max: 90, step: 1, defaultValue: 0, defaultInterval: 15, scale: one, sourceId: "orientationSource" },
   { id: "lrm", label: "Local relief (LRM)", group: "Relief visualization", unit: "m", min: -50, max: 50, step: 0.1, defaultValue: 0, defaultInterval: 2, scale: one, sourceId: "lrmSource" },
-  { id: "svf", label: "Sky-view factor", group: "Relief visualization", unit: "", min: 0, max: 1, step: 0.01, defaultValue: 0.9, defaultInterval: 0.05, scale: hundred, sourceId: "svfSource" },
-  { id: "openness", label: "Openness", group: "Relief visualization", unit: "°", min: 0, max: 100, step: 1, defaultValue: 80, defaultInterval: 5, scale: one, sourceId: "opennessSource" },
-  { id: "localDominance", label: "Local dominance", group: "Relief visualization", unit: "°", min: -30, max: 30, step: 0.5, defaultValue: 0, defaultInterval: 2, scale: one, sourceId: "localDominanceSource" },
   { id: "phong", label: "Phong shading (128 neutral)", group: "Lighting", unit: "", min: 0, max: 255, step: 1, defaultValue: 128, defaultInterval: 32, scale: one, light: "phong" },
   { id: "matcap", label: "Matcap shading", group: "Lighting", unit: "", min: 0, max: 255, step: 1, defaultValue: 128, defaultInterval: 32, scale: one, light: "matcap" },
   { id: "shadow", label: "Hard shadow (0 shaded, 128 lit)", group: "Lighting", unit: "", min: 0, max: 128, step: 1, defaultValue: 64, defaultInterval: 64, scale: one, light: "shadow" },
 ]
 
 export const ISOLINE_MEASURE_GROUPS = ["Terrain", "Terrain analysis", "Relief visualization", "Lighting"] as const
+/** For the Select: value → label. */
+export const ISOLINE_MEASURE_LABELS: Record<string, string> = Object.fromEntries(ISOLINE_MEASURES.map((m) => [m.id, m.label]))
 
 export const isolineMeasure = (id: string): IsolineMeasure => ISOLINE_MEASURES.find((m) => m.id === id) ?? ISOLINE_MEASURES[0]
 

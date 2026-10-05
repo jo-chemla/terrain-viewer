@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ISOLINE_MEASURES, ISOLINE_MEASURE_GROUPS, isolineMeasure, formatIsolineValue } from "@/lib/isoline-measures"
+import { ISOLINE_MEASURES, ISOLINE_MEASURE_GROUPS, ISOLINE_MEASURE_LABELS, isolineMeasure, formatIsolineValue } from "@/lib/isoline-measures"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Section, SliderControl, CheckboxWithSlider, GroupHeading } from "./controls-components"
 import { ElevationReferenceToggle } from "./elevation-reference-toggle"
@@ -247,7 +247,7 @@ export const ContourOptionsSection: React.FC<{
               <>
                 <div className="flex items-center justify-between gap-2">
                   <Label className="text-sm font-medium">Measure</Label>
-                  <Select value={state.isolineMeasure} onValueChange={(v) => { if (!v) return; const next = isolineMeasure(v); setState({ isolineMeasure: v, isolineValue: next.defaultValue, isolineInterval: next.defaultInterval }) }}>
+                  <Select value={state.isolineMeasure} items={ISOLINE_MEASURE_LABELS} onValueChange={(v) => { if (!v) return; const next = isolineMeasure(v); setState({ isolineMeasure: v, isolineValue: next.defaultValue, isolineInterval: next.defaultInterval }) }}>
                     <SelectTrigger className="h-7 w-[180px] text-xs cursor-pointer"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {ISOLINE_MEASURE_GROUPS.map((g) => (
@@ -264,7 +264,7 @@ export const ContourOptionsSection: React.FC<{
                   <ToggleGroup value={[atValue ? "value" : "interval"]} onValueChange={(v: string[]) => { if (v[0] === "value" || v[0] === "interval") setState({ isolineMode: v[0] }) }} className="border rounded-md w-[180px]">
                     <Tooltip>
                       <TooltipTrigger render={<ToggleGroupItem value="value" className="flex-1 text-xs cursor-pointer">At a value</ToggleGroupItem>} />
-                      <TooltipContent><p>One line where the measure crosses the value, and a fill of the area above.</p></TooltipContent>
+                      <TooltipContent><p>One line where the measure crosses the value, and a fill of the area above: both from one set of polygons, so the fill stops on the line.</p></TooltipContent>
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger render={<ToggleGroupItem value="interval" className="flex-1 text-xs cursor-pointer">Every interval</ToggleGroupItem>} />
@@ -278,7 +278,7 @@ export const ContourOptionsSection: React.FC<{
                     <Label htmlFor="isoline-value" className="text-sm font-medium">Exact value{unit}</Label>
                     <Input id="isoline-value" type="number" step={m.step} value={state.isolineValue} onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) setState({ isolineValue: v }) }} className="h-7 w-24 text-xs" />
                   </div>
-                  <CheckboxWithSlider id="isolineFill" label="Fill the area above" tooltip="The area above the value painted in the line's colour, as a raster from the same tiles the line comes from, so it stops at the line" checked={state.isolineFill} onCheckedChange={(checked) => setState({ isolineFill: checked })} sliderValue={state.isolineFillOpacity} onSliderChange={(value) => setState({ isolineFillOpacity: value })} />
+                  <CheckboxWithSlider id="isolineFill" label="Fill the area above" tooltip="The area above the value painted in the line's colour: the polygons whose boundary the line is, so the fill stops exactly on it" checked={state.isolineFill} onCheckedChange={(checked) => setState({ isolineFill: checked })} sliderValue={state.isolineFillOpacity} onSliderChange={(value) => setState({ isolineFillOpacity: value })} />
                 </>) : (
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="isoline-interval" className="text-sm font-medium">Interval{unit}</Label>

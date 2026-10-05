@@ -1,6 +1,6 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, type CatalogItem } from "@/lib/timeline-catalogs"
-import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom } from "@/lib/settings-atoms"
+import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom, tickPicksKeepAtom } from "@/lib/settings-atoms"
 import { TickCard } from "./tick-card"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
 import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayerAsBasemap } from "@/lib/eli-timeline"
@@ -597,7 +597,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const setFootprints = useSetAtom(catalogFootprintsAtom)
   const setCatalogItems = useSetAtom(catalogItemsAtom)
   const catalogItems = useMemo<CatalogItem[]>(() => catalogsToLoad.flatMap((id) => (catalogTicks[id] ?? []).flatMap((t) => {
-    const b = t.ref ? catalogBasemap(t.ref)?.bounds : undefined
+    const b = (t.ref ? catalogBasemap(t.ref)?.bounds : undefined) ?? t.meta?.bounds
     return b && t.ref ? [{ source: t.source, label: t.label, ref: t.ref, dateMs: t.dateMs, bounds: b, meta: t.meta }] : []
   })), [catalogsToLoad, catalogTicks])
   // The Sources Coverage search results list the items with their extents.
@@ -1161,11 +1161,17 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // pointer event targeting a specific handle, or resolved from context for
   // a keyboard step/background click). Sync never affects this — see the
   // dualUnsynced comment above.
+  const picksKeep = useAtomValue(tickPicksKeepAtom)
   const applyTick = useCallback((tick: TimelineTick, explicitSide?: ViewId) => {
     const which = explicitSide ?? resolveSide()
     setActiveSide(which)
     setTickForSide(which, tick)
     maybeRecenterWindow(tick.dateMs)
+    // The picker's switch: a pick also joins the user's sources.
+    if (picksKeep && tick.ref) {
+      const src = catalogBasemap(tick.ref)
+      if (src) setCustomBasemaps((prev) => (prev.some((b) => b.id === tick.ref) ? prev.map((b) => (b.id === tick.ref ? { ...b, transient: false } : b)) : [...prev, { ...src, transient: false }]))
+    }
     // A catalog item much smaller than the view (a city plan, one flight)
     // and wholly inside it: frame it, so the pick shows something.
     const b = tick.ref && tick.source in TIMELINE_CATALOG_BY_ID ? catalogBasemap(tick.ref)?.bounds : undefined
@@ -1176,7 +1182,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const small = (b[2] - b[0]) < 0.5 * (v.getEast() - v.getWest()) || (b[3] - b[1]) < 0.5 * (v.getNorth() - v.getSouth())
       if (inside && small) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 })
     }
-  }, [resolveSide, setTickForSide, maybeRecenterWindow, mapRef])
+  }, [resolveSide, setTickForSide, maybeRecenterWindow, mapRef, picksKeep, setCustomBasemaps])
 
   // The tick card: hovering a tick shows what it is and the buttons to put
   // it on a view (as basemap or overlay) or keep it among the user's sources.
@@ -2179,7 +2185,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             bounds={tickCard.tick.ref ? catalogBasemap(tickCard.tick.ref)?.bounds : undefined}
             onFit={() => { const b = tickCard.tick.ref ? catalogBasemap(tickCard.tick.ref)?.bounds : undefined; if (b) mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}
             onSend={(side) => sendTickTo(tickCard.tick, side, catalogBasemap(tickCard.tick.ref!)?.role === "overlay" ? "overlay" : "basemap")}
-            onKeep={() => keepTick(tickCard.tick)}
+            onKeep={() => { keepTick(tickCard.tick); if (!showingViews.some((s) => tickBySide[s]?.source === tickCard.tick.source && tickBySide[s]?.key === tickCard.tick.key)) sendTickTo(tickCard.tick, resolveSide(), catalogBasemap(tickCard.tick.ref!)?.role === "overlay" ? "overlay" : "basemap") }}
             onEnter={keepTickCard} onLeave={hideTickCardSoon}
           />
         )}

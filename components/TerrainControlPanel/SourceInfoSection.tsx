@@ -26,7 +26,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { coverageOverlaysAtom, coverageGroups, type EliLike } from "@/lib/coverage-overlays"
 import { HistoricalCatalogTree, catalogTreeKeys } from "./historical-catalog-tree"
 import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
-import { coverageVisibleAtom, coverageOutlineOnlyAtom, timelineFootprintsAtom, timelineFollowViewportAtom, timelineWindowFilterAtom, coverageFoldsAtom } from "@/lib/settings-atoms"
+import { coverageVisibleAtom, coverageOutlineOnlyAtom, timelineFootprintsAtom, timelineFollowViewportAtom, timelineWindowFilterAtom, coverageFoldsAtom, tickPicksKeepAtom, activeExtentsAtom, activeExtentIdsAtom } from "@/lib/settings-atoms"
+import { sourceFieldName } from "@/lib/grid-layouts"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
@@ -305,9 +306,47 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
   const [follow, setFollow] = useAtom(timelineFollowViewportAtom)
   const [windowFilter, setWindowFilter] = useAtom(timelineWindowFilterAtom)
   const [folds, setFolds] = useAtom(coverageFoldsAtom)
+  const [picksKeep, setPicksKeep] = useAtom(tickPicksKeepAtom)
+  const [activeExtents, setActiveExtents] = useAtom(activeExtentsAtom)
+  const setActiveExtentIds = useSetAtom(activeExtentIdsAtom)
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
   const [eliInView, setEliInView] = useState<EliLike[]>([])
+  // The active views' sources' declared extents: their coverage leaves,
+  // selected while the switch is on (and dashed on the map), released after.
+  const effectiveGridLayout: GridLayoutId = state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")
+  const activeViews: ViewId[] = state.splitStyle !== "off" ? GRID_LAYOUTS[effectiveGridLayout].grid.flat() : ["A"]
+  const activeIds = useMemo(() => {
+    if (!activeExtents) return [] as string[]
+    const ids = new Set<string>()
+    for (const side of activeViews) {
+      const t = terrains.find((x) => x.id === state[sourceFieldName(side)])
+      if (t?.bounds) ids.add(`terrain:${t.id}`)
+      const bid = resolveActiveHistoricalSource(state[viewFieldName(side, "basemapSource", state.basemapPerView)], state[viewFieldName(side, "historicalActiveSource", state.basemapPerView)])
+      const b = basemaps.find((x) => x.id === bid)
+      if (b?.bounds) ids.add(`basemap:${b.id}`)
+      for (const oid of (state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []) {
+        const o = basemaps.find((x) => x.id === oid)
+        if (o?.bounds) ids.add(`basemap:${o.id}`)
+      }
+    }
+    return [...ids].sort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeExtents, activeViews.join(","), terrains, basemaps, state])
+  const activeKey = activeIds.join(",")
+  const prevActiveRef = useRef<string[]>([])
+  useEffect(() => {
+    const prev = prevActiveRef.current
+    prevActiveRef.current = activeIds
+    setActiveExtentIds(activeIds)
+    const gone = prev.filter((id) => !activeIds.includes(id))
+    setSelected((cur) => {
+      const next = cur.filter((id) => !gone.includes(id))
+      for (const id of activeIds) if (!next.includes(id)) next.push(id)
+      return next.length === cur.length && next.every((id, i) => id === cur[i]) ? cur : next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey])
   const isOpenKey = (key: string, fallback = false) => folds[key] ?? fallback
   // ELI leaves follow the view (the package is lazy: 14 MB of index chunks
   // only load once the group is opened).
@@ -374,13 +413,6 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
             )}
             {g.leaves.length === 0 && children.length === 0 && <p className="pl-[42px] text-xs text-muted-foreground italic">None</p>}
             {children.map((c) => renderGroup(c, depth + 1))}
-            {/* The dated catalogs of the same indexes (ELI's dated layers,
-                ArcGIS Online imagery) as rows of this group. */}
-            {g.key === "community" && (
-              <div className="pl-[42px]">
-                <HistoricalCatalogTree compact bare roots={["Community indexes"]} selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined} />
-              </div>
-            )}
           </>
         )}
       </div>
@@ -393,7 +425,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
     </button>
   )
   const terrainGroups = groups.filter((g) => g.section === "Terrain" && !g.parent)
-  const staticGroups = groups.filter((g) => g.section === "Basemaps" && !g.parent && g.key !== "allmaps")
+  const staticGroups = groups.filter((g) => g.section === "Basemaps" && !g.parent && g.key !== "allmaps" && g.key !== "qms")
   // Expand or fold every group of the three sections at once.
   const allKeys = [...groups.map((g) => `cov:${g.key}`), ...catalogTreeKeys()]
   const allOpen = allKeys.every((k) => folds[k] === true)
@@ -428,6 +460,14 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
         <Tooltip>
           <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={windowFilter} onCheckedChange={setWindowFilter} className="cursor-pointer scale-75 origin-left" />Within the timeline window</label>} />
           <TooltipContent><p>Only items dated within the timeline's current window (STAC searches pass it to the server); the catalogs are asked again when this changes</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={activeExtents} onCheckedChange={setActiveExtents} className="cursor-pointer scale-75 origin-left" />Active sources' extents</label>} />
+          <TooltipContent><p>The declared extents of the sources on the views (terrain, basemap, overlays), dashed; a source row shows z≥N while the view is below the zoom it serves</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={picksKeep} onCheckedChange={setPicksKeep} className="cursor-pointer scale-75 origin-left" />Picks join my sources</label>} />
+          <TooltipContent><p>On: a timeline pick is added to your basemaps as well as set on the view. Off: it only becomes the view's basemap, listed nowhere else</p></TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger render={

@@ -229,13 +229,9 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     { section: "Terrain", key: "library", label: "Terrain library", color: OVERLAY_COLORS.library, note: "Declared bounds of every library dataset, loaded or not.",
       leaves: TERRAIN_LIB.filter((s) => s.bounds).map((s) => ({ id: `lib:${s.id}`, label: s.name, color: OVERLAY_COLORS.library, url: s.infoUrl, bounds: s.bounds as [number, number, number, number] })) },
     { section: "Terrain", key: "yourTerrain", label: "Your terrain sources", color: OVERLAY_COLORS.yours, note: "Every loaded terrain source that declares bounds, library entries included.", leaves: yourTerrain },
-    // Indexes kept by communities, not by one provider: the Editor Layer
-    // Index, NextGIS QMS, ArcGIS Online (the dated catalogs of the three sit
-    // in the same group of the tree, see historical-catalog-tree.tsx).
-    { section: "Basemaps", key: "community", label: "Community indexes", color: OVERLAY_COLORS.eli, note: "Layer indexes kept by communities: the OSM Editor Layer Index, NextGIS QMS and ArcGIS Online.", leaves: [] },
-    { section: "Basemaps", key: "eli", parent: "community", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
+    { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index footprints", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out). The index's dated layers, NextGIS QMS and ArcGIS Online are the Community indexes of the historical tree.",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category, url: l.infoUrl })) },
-    { section: "Basemaps", key: "qms", parent: "community", label: "NextGIS QMS", color: OVERLAY_COLORS.qms,
+    { section: "Basemaps", key: "qms", label: "NextGIS QMS", color: OVERLAY_COLORS.qms,
       note: "Services from NextGIS Quick Map Services whose declared extent touches the view (working TMS and WMS only), from the catalog's intersects query, sized to the zoom: tiny services are left out when zoomed out, continental and worldwide ones when zoomed in. Click an outline for its catalog page and to use it as the basemap.",
       leaves: [{ id: "qmsAll", label: "QMS services in view", color: OVERLAY_COLORS.qms, detail: "TMS and WMS, sized to the zoom", url: "https://qms.nextgis.com/" }] },
     { section: "Basemaps", key: "allmaps", label: "Old maps (Allmaps)", color: OVERLAY_COLORS.allmaps,
@@ -249,7 +245,8 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
       leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary, url: s.infoUrl, bounds: s.bounds as [number, number, number, number] })) },
   ]
   // "Your …" groups stay listed even when empty (the tree shows "None").
-  return groups.filter((g) => g.leaves.length > 0 || g.key.startsWith("your") || g.key === "community")
+  // The ELI group stays listed empty: its leaves only load once it is opened.
+  return groups.filter((g) => g.leaves.length > 0 || g.key.startsWith("your") || g.key === "eli")
 }
 
 /** The groups whose membership is fixed at build time, so a pure parser can

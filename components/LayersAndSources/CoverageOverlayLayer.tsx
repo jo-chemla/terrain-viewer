@@ -14,7 +14,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Maximize2 } from "lucide-react"
-import { coverageInViewAtom, overlapStats, overlapLabel, byOverlap, type OverlapStats, type CoverageInViewItem, type ViewBbox } from "@/lib/coverage-in-view"
+import { coverageInViewAtom, overlapStats, overlapLabel, byOverlap, coverageSourcePrefix, type OverlapStats, type CoverageInViewItem, type ViewBbox } from "@/lib/coverage-in-view"
+import { activeExtentIdsAtom } from "@/lib/settings-atoms"
 import { catalogFootprintsAtom } from "@/lib/timeline-catalogs"
 import { CATALOG_FOOTPRINTS_FILL_ID } from "./CatalogFootprintsLayer"
 
@@ -108,6 +109,7 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
   // The historical catalogs' item footprints (CatalogFootprintsLayer) are
   // listed and clicked like the overlays: a click puts the item on the view.
   const catalogFc = useAtomValue(catalogFootprintsAtom)
+  const activeExtentIds = useAtomValue(activeExtentIdsAtom)
   const catalogOn = coverageVisible && !!catalogFc?.features.length
   // A filter over the clicked list: a city point can sit under hundreds of
   // Allmaps maps and dozens of QMS services. Every word must match the
@@ -229,7 +231,7 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
           : f.layer.id === CATALOG_FOOTPRINTS_FILL_ID
           ? { gsdM: Number.isFinite(Number(p.gsd)) && Number(p.gsd) > 0 ? Number(p.gsd) : Infinity, label: p.label, detail: p.detail ?? "", url: p.url || undefined, overlay: `catalog:${p.ref}`, useAs: "basemap",
               bounds: [Number(p.b0), Number(p.b1), Number(p.b2), Number(p.b3)] }
-          : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail,
+          : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: `${coverageSourcePrefix(p.overlay, String(p.label ?? ""))}${p.label}`, detail: gsd ? `${gsd} · ${p.detail}` : p.detail,
               url: p.urlTemplate
                 ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom(), m.getBearing(), m.getPitch(), {
                     viewportW: m.getContainer().clientWidth, viewportH: m.getContainer().clientHeight,
@@ -303,7 +305,7 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
           if (seen.has(key)) continue
           seen.add(key)
           const gsd = coverageGsd(p, lat)
-          items.push({ leaf: id, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.urlTemplate ? undefined : p.url || undefined,
+          items.push({ leaf: id, label: `${coverageSourcePrefix(p.overlay, String(p.label ?? ""))}${p.label}`, detail: gsd ? `${gsd} · ${p.detail}` : p.detail, url: p.urlTemplate ? undefined : p.url || undefined,
             overlay: p.overlay, useAs: p.role === "overlay" ? "overlay" : coverageUseKind(p.overlay) ?? undefined,
             needsKey: p.needsKey === true || p.needsKey === "true", gsdM: coverageGsdMeters(p, lat) ?? Infinity, stats })
         }
@@ -357,6 +359,12 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
             "line-width": outlineOnly ? ["*", 2, ["coalesce", ["get", "lineWidth"], 1.5]] : ["coalesce", ["get", "lineWidth"], 1.5],
             "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.9],
           }} />
+          {/* The active views' sources' extents, dashed and bolder, over the rest. */}
+          {activeExtentIds.length > 0 && (
+            <Layer id={`${LINE_ID}-active`} type="line" filter={["in", ["get", "overlay"], ["literal", activeExtentIds]]} paint={{
+              "line-color": ["get", "color"], "line-width": 2.5, "line-dasharray": [2, 1.5], "line-opacity": 0.95,
+            }} />
+          )}
         </Source>
       )}
       {hover && (

@@ -14,7 +14,24 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN, SliderControl } from "./controls-components"
+import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN, SliderControl, CheckboxWithSlider } from "./controls-components"
+import { ColorAlphaSwatch } from "./color-picker"
+import { allmapsRemoveColorAtom } from "@/lib/settings-atoms"
+
+/** Allmaps' "remove background": the warped maps' paper colour turns
+ *  transparent, so a city plan sits on the imagery instead of on a sheet. */
+const AllmapsBackgroundControl: React.FC = () => {
+  const [rc, setRc] = useAtom(allmapsRemoveColorAtom)
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0">
+        <CheckboxWithSlider id="allmaps-remove-bg" label="Remove the maps' paper (Allmaps)" tooltip="Pixels within the threshold of the colour turn transparent, like the Allmaps viewer's magic wand; the slider is the threshold"
+          checked={rc.enabled} onCheckedChange={(v) => setRc({ ...rc, enabled: v })} sliderValue={rc.threshold} onSliderChange={(v) => setRc({ ...rc, threshold: v })} />
+      </div>
+      <ColorAlphaSwatch title="Paper colour" color={rc.color} onChange={(hex) => setRc({ ...rc, color: hex })} className="rounded shrink-0" />
+    </div>
+  )
+}
 import { allmapsAnnotationBounds } from "@/lib/allmaps-bounds"
 import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import {
@@ -433,6 +450,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             <div className="space-y-2 pt-2 mt-2 border-t">
               <GroupHeading>Overlays</GroupHeading>
               <SliderControl label="Overlays opacity" value={(state.overlaysOpacity ?? 1) * 100} onChange={(v) => setState({ overlaysOpacity: v / 100 })} min={0} max={100} step={1} suffix="%" sliderId="overlays-opacity" />
+              {overlaySources.some((s) => s.type === "iiif") && <AllmapsBackgroundControl />}
               {overlaySources.map((source) => (
                 <div key={source.id} className="flex items-center gap-2 min-w-0">
                   {state.basemapPerView && state.splitStyle !== "off" ? (

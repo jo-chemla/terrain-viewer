@@ -89,6 +89,7 @@ import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
 import { thresholdProtocol, lumaProtocol } from '@/lib/threshold-protocol'
+import { isobandProtocol } from '@/lib/isoband-protocol'
 import { ISOLINE_MEASURE_IDS } from '@/lib/isoline-measures'
 import { IsolineLayers } from './LayersAndSources/IsolineLayers'
 import { parseSourceNames } from '@/lib/portable-share-url'
@@ -1821,6 +1822,7 @@ export function TerrainViewer() {
     registerProtocol('lrm', withTileResultCache(lrmProtocol))
     registerProtocol('threshold', withTileResultCache(thresholdProtocol))
     registerProtocol('luma', withTileResultCache(lumaProtocol))
+    registerProtocol('isoband', withTileResultCache(isobandProtocol))
     registerProtocol('roughness', withTileResultCache(roughnessProtocol))
     registerProtocol('blobness', withTileResultCache(blobnessProtocol))
     // withSlowTileStats composes INSIDE withTileResultCache so it measures the
@@ -3648,9 +3650,10 @@ export function TerrainViewer() {
     matcapUrl: (MATCAP_TEXTURES.find((t) => t.id === state.matcapTextureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url,
     matcapRotationDeg: state.matcapRotationDeg,
     phongDiffuse: state.phongDiffuseStrength, phongSpecular: state.phongSpecularStrength,
+    phongFresnelStrength: state.phongFresnelStrength, phongFresnelPower: state.phongFresnelPower, phongFresnelDark: theme === "light",
     lightDir: shadowLightDir, lightAlt: shadowLightAlt,
     exaggeration: state.exaggeration, shadowRadiusPx: state.shadowRadiusPx,
-  }), [state.matcapTextureId, state.matcapRotationDeg, state.phongDiffuseStrength, state.phongSpecularStrength, shadowLightDir, shadowLightAlt, state.exaggeration, state.shadowRadiusPx])
+  }), [state.matcapTextureId, state.matcapRotationDeg, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongFresnelStrength, state.phongFresnelPower, theme, shadowLightDir, shadowLightAlt, state.exaggeration, state.shadowRadiusPx])
 
   // Same read-side debounce, for the global "Terrain Exaggeration" slider —
   // also baked directly into the matcap:// / phong:// tile URL (see
@@ -4140,6 +4143,9 @@ export function TerrainViewer() {
             enabled={state.showLightingEffects && vm("showLightingEffects") && state.showPhong && vm("showPhong") && effectivePhongRenderer === "raster" && !isHistoricalMode}
             diffuseStrength={phongRasterDiffuseStrength}
             specularStrength={phongRasterSpecularStrength}
+            fresnelStrength={state.phongFresnelStrength}
+            fresnelPower={state.phongFresnelPower}
+            fresnelDark={theme === "light"}
             // 3D Slow (raster) is always ABSOLUTE — a per-frame camera headlamp
             // isn't possible here (it would bake the settled bearing into every
             // tile URL and re-fetch on each rotate, not a real headlamp), so the

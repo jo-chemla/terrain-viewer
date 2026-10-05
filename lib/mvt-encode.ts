@@ -56,12 +56,35 @@ function zigzag(n: number): number {
   return (n << 1) ^ (n >> 31)
 }
 
-function encodeLineGeometry(parts: number[][]): number[] {
+// Surveyor's formula over a flat ring, in tile space (y down): the spec
+// wants an exterior ring's area positive and a hole's negative.
+function signedArea(part: number[]): number {
+  let a = 0
+  for (let i = 0, m = part.length; i < m; i += 2) {
+    const j = (i + 2) % m
+    a += part[i] * part[j + 1] - part[j] * part[i + 1]
+  }
+  return a / 2
+}
+
+function encodeLineGeometry(parts: number[][], polygon = false): number[] {
   const commands: number[] = []
   let x = 0
   let y = 0
-  for (const part of parts) {
-    if (part.length < 4) continue // fewer than 2 points isn't a line
+  parts.forEach((input, ringIndex) => {
+    let part = input
+    if (polygon) {
+      // A closed ring repeats its first point: MVT closes with ClosePath.
+      if (part.length >= 4 && part[0] === part[part.length - 2] && part[1] === part[part.length - 1]) part = part.slice(0, -2)
+      if (part.length < 6) return
+      const area = signedArea(part)
+      const wantPositive = ringIndex === 0
+      if ((area > 0) !== wantPositive) {
+        const rev: number[] = []
+        for (let i = part.length - 2; i >= 0; i -= 2) rev.push(part[i], part[i + 1])
+        part = rev
+      }
+    } else if (part.length < 4) return // fewer than 2 points isn't a line
     const dx0 = Math.round(part[0]) - x
     const dy0 = Math.round(part[1]) - y
     x += dx0
@@ -76,7 +99,8 @@ function encodeLineGeometry(parts: number[][]): number[] {
       y += dy
       commands.push(zigzag(dx), zigzag(dy))
     }
-  }
+    if (polygon) commands.push((7 & 0x7) | (1 << 3)) // ClosePath
+  })
   return commands
 }
 
@@ -111,7 +135,7 @@ function writeFeatureMessage(
     tags.push(ki, vi)
   }
   pbf.writePackedVarint(2, tags)
-  pbf.writePackedVarint(4, encodeLineGeometry(feature.geometry))
+  pbf.writePackedVarint(4, encodeLineGeometry(feature.geometry, feature.type === GeomType.POLYGON))
 }
 
 function writeLayerMessage(ctx: { name: string; layer: VectorTileLayer; defaultExtent: number }, pbf: Pbf) {

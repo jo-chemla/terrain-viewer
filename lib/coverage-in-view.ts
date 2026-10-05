@@ -72,6 +72,21 @@ export function coverageGroupOfLeaf(leaf: string): { key: string; label: string;
   return { key: "sources3d", label: "3D and LiDAR coverage", color: OVERLAY_COLORS.bing3d }
 }
 
+/** A short prefix naming the index or library a hit comes from, for the
+ *  hover box, the click list and the search results ("FLAI · …",
+ *  "Terrain library · …"); empty when the label names it already. */
+export function coverageSourcePrefix(overlay: string | undefined, label: string): string {
+  if (!overlay) return ""
+  const p = overlay === "mapterhorn" ? "Mapterhorn"
+    : overlay.startsWith("lib:") ? "Terrain library" : overlay.startsWith("blib:") ? "Basemap library"
+    : overlay.startsWith("terrain:") ? "Your terrain" : overlay.startsWith("basemap:") ? "Your basemaps"
+    : overlay.startsWith("eli:") ? "ELI" : overlay.startsWith("qms:") ? "QMS" : overlay.startsWith("allmaps:") ? "Allmaps"
+    : overlay === "flai" ? "FLAI" : overlay === "bing3d" ? "Bing 3D" : overlay === "google3d" ? "Google 3D" : overlay === "esri3d" ? "Esri mesh"
+    : overlay === "otRaster" || overlay === "otPointCloud" ? "OpenTopography" : ""
+  if (!p || label.toLowerCase().startsWith(p.toLowerCase())) return ""
+  return `${p} · `
+}
+
 /** Highest overlap first; resolution breaks ties, finest first. */
 export const byOverlap = (a: { stats?: OverlapStats | null; gsdM: number }, b: { stats?: OverlapStats | null; gsdM: number }) =>
   (b.stats?.iou ?? -1) - (a.stats?.iou ?? -1) || (a.gsdM === b.gsdM ? 0 : a.gsdM - b.gsdM)

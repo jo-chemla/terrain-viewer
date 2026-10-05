@@ -29,6 +29,7 @@ import type { FeatureCollection } from "geojson"
 import type { CustomBasemapSource } from "./settings-atoms"
 import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
 import { loadAllmapsCoverage, allmapsMeta } from "./coverage-overlays"
+import { gsdFromZoom } from "./gsd"
 import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, loadNationalLayers, type NatLayer, type NatSource } from "./national-historical"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
@@ -118,7 +119,7 @@ export const CATALOG_ROOTS: Record<string, string> = {
 }
 /** The roots the Sources Coverage section shows under Basemaps · Historical;
  *  Community indexes (ELI, QMS, ArcGIS Online) sit under Basemaps · Static. */
-export const HISTORICAL_TREE_ROOTS = ["Open data for post-crisis response", "Mapping agencies national catalogs", "Old maps, digitised and warped"]
+export const HISTORICAL_TREE_ROOTS = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped"]
 export const CATALOG_ROOT_ORDER = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped"]
 
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
@@ -142,7 +143,7 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Mapping agencies national catalogs", region: "Norway", continent: "Europe", iso3: "NOR", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
   // Regional series (lib/national-historical.ts).
   ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "Mapping agencies national catalogs", region: s.group.replace(/^Historical · /, ""), ...natPlace(s), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
-  { id: "cat-allmaps", label: "Allmaps, dated maps in view", short: "Allmaps", group: "Old maps", color: "#d946ef", note: "Georeferenced IIIF maps from the Allmaps annotations API whose title names a year, or whose IIIF manifest carries a date (one manifest read per undated map in view, up to 40): one tick per map, draped as an overlay when picked." },
+  { id: "cat-allmaps", label: "Allmaps, dated maps in view", short: "Allmaps", group: "Old maps", color: "#d946ef", note: "Georeferenced IIIF maps from the Allmaps annotations API dated by the archive's own record: the IIIF manifest's date (one read per map in view, up to 40), else a historical year in the title; the georeferencing date is never used. One tick per map, draped as an overlay when picked." },
 ]
 export const TIMELINE_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>
 
@@ -152,7 +153,7 @@ export const catalogOfBasemapId = (id: string): string => id.slice(CATALOG_BASEM
 
 export interface CatalogTick { source: string; key: number; dateMs: number; label: string; ref: string; meta?: TickMeta }
 /** What a catalog knows about an item beyond its date, for the tick card. */
-export interface TickMeta { gsd?: number; date?: string; licence?: string; url?: string; thumb?: string; provider?: string }
+export interface TickMeta { gsd?: number; date?: string; licence?: string; url?: string; thumb?: string; provider?: string; /** The item's extent when it is not a registered basemap's (ELI). */ bounds?: [number, number, number, number] }
 
 /** The timeline panel's loading state, for the trees in both places. */
 export const catalogStatusAtom = atom<{ loading: Record<string, boolean>; counts: Record<string, number>; errors: Record<string, string> }>({ loading: {}, counts: {}, errors: {} })
@@ -186,7 +187,10 @@ function yearOf(...texts: (string | undefined | null)[]): number | null {
 function register(catalog: string, itemKey: string, dateMs: number, label: string, source: Omit<CustomBasemapSource, "id">, meta?: TickMeta): CatalogTick {
   const id = `${CATALOG_BASEMAP_PREFIX}${catalog}--${itemKey.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 90)}`
   basemaps.set(id, { ...source, id, transient: true } as CustomBasemapSource)
-  return { source: catalog, key: dateMs, dateMs, label, ref: id, meta: { date: new Date(dateMs).toISOString().slice(0, 10), url: source.infoUrl, ...meta } }
+  // No declared resolution: one pixel at the source's max zoom, at its extent's latitude.
+  const lat = source.bounds ? (source.bounds[1] + source.bounds[3]) / 2 : 0
+  const gsd = meta?.gsd ?? (source.maxzoom ? gsdFromZoom(source.maxzoom, lat, 256) : undefined)
+  return { source: catalog, key: dateMs, dateMs, label, ref: id, meta: { date: new Date(dateMs).toISOString().slice(0, 10), url: source.infoUrl, ...meta, gsd } }
 }
 
 const cogSource = (name: string, href: string, bbox: Bbox | undefined, description: string, infoUrl?: string): Omit<CustomBasemapSource, "id"> =>
@@ -743,11 +747,13 @@ function manifestYear(url: string, signal?: AbortSignal): Promise<number | null>
       if (typeof m.navDate === "string") texts.push(m.navDate)
       for (const row of m.metadata ?? []) {
         const label = typeof row.label === "string" ? row.label : Object.values(row.label ?? {}).flat().join(" ")
-        if (!/date|année|annee|year|jahr|datum|publi|created|dat[ae]/i.test(String(label))) continue
+        if (!/\bdate\b|année|annee|\byear\b|jahr|datum|pub\.? date|publication|publié|erschienen/i.test(String(label))) continue
         const value = typeof row.value === "string" ? row.value : Object.values(row.value ?? {}).flat().join(" ")
         texts.push(String(value).replace(/<[^>]+>/g, " "))
       }
-      return yearOf(...texts)
+      // The earliest plausible year named ("1850 [reprint 1920]" is 1850).
+      const years = texts.flatMap((t) => [...String(t).matchAll(/\b(1[4-9]\d\d|20\d\d)\b/g)].map((m) => Number(m[1]))).filter((y) => y <= new Date().getUTCFullYear())
+      return years.length ? Math.min(...years) : null
     }).catch(() => null)
     manifestYearCache.set(url, p)
   }
@@ -762,8 +768,13 @@ async function allmapsTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTi
     const id = String((f.properties as any)?.overlay ?? "").replace(/^allmaps:/, "")
     const meta = allmapsMeta(id)
     if (!meta) return
-    let year = meta.year ?? null
-    if (!year && meta.manifest && reads < 40) { reads += 1; year = await manifestYear(meta.manifest, signal) }
+    // The archive's own date, never the georeferencing's: the IIIF manifest
+    // first (BnF's "Date", Rumsey's "Pub Date", a navDate), then a year in
+    // the title when it is plainly historical (before 1950; a later year in
+    // a title is as often the scan's or the edition's).
+    let year: number | null = null
+    if (meta.manifest && reads < 40) { reads += 1; year = await manifestYear(meta.manifest, signal) }
+    if (!year && meta.year && meta.year < 1950) year = meta.year
     if (!year) return
     ticks.push(register("cat-allmaps", id, Date.UTC(year, 0, 1), `Allmaps · ${meta.title ?? meta.label} · ${year}`, {
       name: meta.title ?? meta.label, url: meta.annotationUrl, type: "iiif", role: "overlay", stack: "top",

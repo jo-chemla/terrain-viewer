@@ -20,6 +20,17 @@ engine on the measure template directly, with `interval × scale`.
 or white with alpha as strength; shadow: black alpha 255 where shaded), so
 `luma://` composites over grey 128 before taking the luminance: 128 neutral.
 
+**Second pass (same day):** "at a value" is no longer the raster threshold
+plus the contour engine: `isoband://` (lib/isoband-protocol.ts) runs d3-contour
+on the padded measure grid and emits polygons + boundary lines in one vector
+tile (mvt-encode gained POLYGON/ClosePath), so the fill is exactly the line.
+d3 puts pixel i at i+0.5 and closes rings along the grid edge; those border
+runs are dropped from the "isoline" layer. The horizon modes are out of the
+measure list (too slow). Phong raster tiles carry the Fresnel rim now
+(`?f=&p=&d=` on phong://, uniforms in gpu-phong-compute); with diffuse 0 and a
+dark rim the luma range is 0–45, so a Phong threshold must be low.
+The contour vector source's maxzoom follows the DEM (15..19; WMS = 19).
+
 **Why:** the user wanted thresholding on every viz mode and sub-mode, not only
 elevation and slope, and the fill to match the polylines exactly.
 
@@ -33,6 +44,11 @@ to `ISOLINE_MEASURES` (its `sourceId` for derivedModeTemplate, unit, range,
 scale). Headless checks: `.cache/pw/isoline3.mjs "<query>"` prints the
 contour feature count and the `ele` values; `.cache/pw/lumatest.mjs` histograms
 a luma/threshold tile over a Phong tile.
+
+**Allmaps "remove paper":** per-map render options `removeColor`,
+`removeColorColor` (hex), `removeColorThreshold`, `removeColorHardness` via
+`layer.setMapsOptions(() => opts)` (@allmaps/render WebGL2WarpedMap options,
+not in the d.ts of @allmaps/maplibre); `allmapsRemoveColorAtom`.
 
 **Coverage tree:** `coverageFoldsAtom` (storage "coverageTreeOpen") holds
 open-state by key: `cov:<group>` (picker groups), `cat:<root>/<continent>/<iso3>`

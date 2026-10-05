@@ -111,6 +111,17 @@ export const coverageOutlineOnlyAtom = atomWithStorage("coverageOutlineOnly", fa
  *  Catalogs picker shows the same tree with the same state); a group not in
  *  here is folded, only the three level-1 sections start open. */
 export const coverageFoldsAtom = atomWithStorage<Record<string, boolean>>("coverageTreeOpen", {}, undefined, { getOnInit: true })
+/** A timeline pick also joins the user's sources (off: the item stays a
+ *  transient basemap of the view, listed nowhere else). */
+export const tickPicksKeepAtom = atomWithStorage("tickPicksKeep", false)
+/** Draw the active views' terrain and basemap sources' declared extents as
+ *  dashed outlines (their coverage leaves, selected for you). */
+export const activeExtentsAtom = atomWithStorage("coverageActiveExtents", false)
+/** The overlay ids those extents are (set by the picker, read by the map). */
+export const activeExtentIdsAtom = atom<string[]>([])
+/** Allmaps warped maps: drop the paper's background colour (the viewer's
+ *  "remove background"), a distance threshold and an edge hardness. */
+export const allmapsRemoveColorAtom = atomWithStorage("allmapsRemoveColor", { enabled: false, color: "#ffffff", threshold: 0.3, hardness: 0.7 }, undefined, { getOnInit: true })
 // The source lists' edit mode: off, rows show info, fit and opacity only;
 // on, the batch-edit JSON button and each row's edit and delete.
 export const sourcesEditModeAtom = atom(false)

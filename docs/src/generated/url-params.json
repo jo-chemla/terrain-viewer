@@ -3869,6 +3869,24 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "tickPicksKeep",
+      "default": "false",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "coverageActiveExtents",
+      "default": "false",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "allmapsRemoveColor",
+      "default": "{ enabled: false, color: \"#ffffff\", threshold: 0.3, hardnes…",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "profileDocked",
       "default": "false",
       "note": ""

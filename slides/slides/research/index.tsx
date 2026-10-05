@@ -15,28 +15,61 @@ import terrainAnalysis from '@assets/screenshots/terrain-analysis-full.jpg';
 import coverage3d from '@assets/screenshots/coverage-3d-lidar-europe.jpg';
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
+// The look of open-slide's stock getting-started deck: white, Geist, hairline
+// rules, soft panels, one restrained accent (HeritageWatch AI blue).
 
 export const design: DesignSystem = {
-  palette: { bg: '#0c1322', text: '#eef2f8', accent: '#f5b84a' },
+  palette: { bg: '#ffffff', text: '#0a0a0a', accent: '#1A237E' },
   fonts: {
-    display: 'Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
-    body: 'Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+    display:
+      '"Geist Variable", Geist, -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif',
+    body: '"Geist Variable", Geist, -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif',
   },
-  typeScale: { hero: 132, body: 32 },
-  radius: 14,
+  typeScale: { hero: 152, body: 32 },
+  radius: 12,
 };
 
 const DECK = 'Research';
-const muted = '#93a4bd';
-const dim = '#5f6f88';
-const teal = '#4fd1c5';
-const rose = '#f472b6';
-const rule = 'rgba(255,255,255,0.10)';
-const panel = 'rgba(255,255,255,0.045)';
-const mono = '"JetBrains Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, monospace';
+const FOOT = 'terrain viewer · research · terrain-viewer.iconem.com/docs';
 
-const PAD_X = 110;
-const PAD_TOP = 84;
+const ink = {
+  text: '#0a0a0a',
+  soft: '#404040',
+  muted: '#6b6b6b',
+  dim: '#a3a3a3',
+  rule: '#e4e4e4',
+  hairline: '#ececec',
+  panel: '#f7f7f7',
+  muted2: '#efefef',
+  accent: '#1A237E',
+  accentLight: '#3F51B5',
+  accentSoft: 'rgba(26, 35, 126, 0.08)',
+  red: '#FF1D23',
+  mint: '#1f9e6e',
+  violet: '#7c6fcd',
+};
+
+const font = {
+  sans: 'var(--osd-font-body)',
+  display: 'var(--osd-font-display)',
+  mono: '"Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+};
+
+const shadow = {
+  edge: '0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(0, 0, 0, 0.025)',
+  window:
+    '0 0 0 1px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px -12px rgba(0, 0, 0, 0.12)',
+};
+
+// Names the pages use.
+const muted = ink.muted;
+const dim = ink.dim;
+const teal = ink.mint;
+const rose = ink.red;
+const mono = font.mono;
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+const PAD_X = 120;
 
 const fill: CSSProperties = {
   width: '100%',
@@ -46,8 +79,23 @@ const fill: CSSProperties = {
   background: 'var(--osd-bg)',
   color: 'var(--osd-text)',
   fontFamily: 'var(--osd-font-body)',
+  letterSpacing: '-0.01em',
   WebkitFontSmoothing: 'antialiased',
 };
+
+const Mark = () => (
+  <div
+    style={{
+      position: 'absolute',
+      left: PAD_X,
+      top: 101,
+      width: 16,
+      height: 16,
+      borderRadius: 4,
+      background: 'var(--osd-accent)',
+    }}
+  />
+);
 
 const Footer = () => {
   const { current, total } = useSlidePageNumber();
@@ -60,57 +108,84 @@ const Footer = () => {
         bottom: 44,
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        fontFamily: font.mono,
         fontSize: 20,
-        color: dim,
-        letterSpacing: '0.02em',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        color: ink.muted,
       }}
     >
+      <span>{FOOT}</span>
       <span>
-        <span style={{ color: 'var(--osd-accent)' }}>▲</span> Terrain Viewer · {DECK} · terrain-viewer.iconem.com/docs/resources/research-references
-      </span>
-      <span style={{ fontFamily: mono }}>
-        {String(current).padStart(2, '0')} / {String(total).padStart(2, '0')}
+        {pad2(current)} / {pad2(total)}
       </span>
     </div>
   );
 };
 
+const Eyebrow = ({ children }: { children: ReactNode }) => (
+  <div
+    style={{
+      position: 'absolute',
+      left: PAD_X + 28,
+      top: 96,
+      fontSize: 22,
+      lineHeight: '26px',
+      fontWeight: 500,
+      color: 'var(--osd-accent)',
+    }}
+  >
+    {children}
+  </div>
+);
+
 const Frame = ({ eyebrow, title, children }: { eyebrow: string; title: ReactNode; children: ReactNode }) => (
-  <div style={{ ...fill, padding: `${PAD_TOP}px ${PAD_X}px 0` }}>
-    <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--osd-accent)', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-      {eyebrow}
-    </div>
+  <div style={fill}>
+    <Mark />
+    <Eyebrow>{eyebrow}</Eyebrow>
     <h2
       style={{
-        fontFamily: 'var(--osd-font-display)',
-        fontSize: 62,
-        fontWeight: 800,
-        letterSpacing: '-0.02em',
-        lineHeight: 1.12,
-        margin: '14px 0 36px',
+        position: 'absolute',
+        left: PAD_X,
+        right: PAD_X,
+        top: 138,
+        margin: 0,
+        fontFamily: font.display,
+        fontSize: 60,
+        fontWeight: 500,
+        letterSpacing: '-0.03em',
+        lineHeight: 1.06,
+        whiteSpace: 'nowrap',
       }}
     >
       {title}
     </h2>
-    <div style={{ height: 790, position: 'relative' }}>{children}</div>
+    <div style={{ position: 'absolute', left: PAD_X, right: PAD_X, top: 250, bottom: 84 }}>{children}</div>
     <Footer />
   </div>
 );
 
-const Bullets = ({ children, size = 31 }: { children: ReactNode; size?: number }) => (
-  <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 16, fontSize: size, lineHeight: 1.4 }}>
+const Bullets = ({ children, size = 28 }: { children: ReactNode; size?: number }) => (
+  <ul
+    style={{
+      listStyle: 'none',
+      margin: 0,
+      padding: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      fontSize: size,
+      lineHeight: 1.38,
+      borderBottom: `1px solid ${ink.rule}`,
+    }}
+  >
     {children}
   </ul>
 );
 
 const Li = ({ children, k }: { children: ReactNode; k?: ReactNode }) => (
-  <li style={{ display: 'flex', gap: 18, alignItems: 'baseline' }}>
-    <span style={{ color: 'var(--osd-accent)', fontSize: 20, flex: 'none', transform: 'translateY(-4px)' }}>◆</span>
-    <span>
-      {k ? <b style={{ color: '#fff', fontWeight: 700 }}>{k} </b> : null}
-      <span style={{ color: k ? muted : 'var(--osd-text)' }}>{children}</span>
-    </span>
+  <li style={{ padding: '11px 0', borderTop: `1px solid ${ink.rule}` }}>
+    {k ? <span style={{ fontWeight: 500, color: ink.text }}>{k} </span> : null}
+    <span style={{ color: k ? ink.soft : ink.text }}>{children}</span>
   </li>
 );
 
@@ -137,110 +212,218 @@ const Shot = ({
         height: height ?? Math.round(width * 0.5625),
         objectFit: fit,
         objectPosition: position,
-        borderRadius: 'var(--osd-radius)',
-        border: `1px solid ${rule}`,
-        boxShadow: '0 24px 60px -24px rgba(0,0,0,0.8)',
+        borderRadius: 12,
+        boxShadow: shadow.window,
         display: 'block',
-        background: '#000',
+        background: ink.panel,
       }}
     />
-    {caption ? <figcaption style={{ fontSize: 21, color: dim, marginTop: 14, lineHeight: 1.35 }}>{caption}</figcaption> : null}
+    {caption ? (
+      <figcaption style={{ fontSize: 20, color: ink.muted, marginTop: 14, lineHeight: 1.35 }}>{caption}</figcaption>
+    ) : null}
   </figure>
 );
 
 const TwoCol = ({ left, right, leftWidth = 740 }: { left: ReactNode; right: ReactNode; leftWidth?: number }) => (
-  <div style={{ display: 'flex', gap: 60, alignItems: 'flex-start' }}>
+  <div style={{ display: 'flex', gap: 48, alignItems: 'flex-start' }}>
     <div style={{ width: leftWidth, flex: 'none' }}>{left}</div>
     <div style={{ flex: 1, minWidth: 0 }}>{right}</div>
   </div>
 );
 
+const Tile = ({ src, label, sub }: { src: string; label: string; sub?: string }) => (
+  <div style={{ width: 390 }}>
+    <img
+      src={src}
+      style={{ width: 390, height: 196, objectFit: 'cover', borderRadius: 10, boxShadow: shadow.edge, display: 'block' }}
+    />
+    <div style={{ marginTop: 10, fontSize: 22, fontWeight: 500, lineHeight: 1.2 }}>
+      {label} {sub ? <span style={{ color: ink.muted, fontWeight: 400, fontSize: 19 }}>{sub}</span> : null}
+    </div>
+  </div>
+);
+
 const Card = ({ title, children, accent = 'var(--osd-accent)' }: { title: ReactNode; children: ReactNode; accent?: string }) => (
-  <div
+  <div style={{ background: ink.panel, borderRadius: 12, padding: '24px 28px', flex: 1, minWidth: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 10 }}>
+      <span style={{ width: 10, height: 10, borderRadius: 3, background: accent, flex: 'none' }} />
+      <span>{title}</span>
+    </div>
+    <div style={{ fontSize: 22, lineHeight: 1.42, color: ink.soft }}>{children}</div>
+  </div>
+);
+
+const Code = ({ children, size = 22 }: { children: ReactNode; size?: number }) => (
+  <pre
     style={{
-      background: panel,
-      border: `1px solid ${rule}`,
-      borderTop: `4px solid ${accent}`,
-      borderRadius: 'var(--osd-radius)',
-      padding: '26px 30px',
-      flex: 1,
-      minWidth: 0,
+      margin: 0,
+      fontFamily: font.mono,
+      fontSize: size,
+      lineHeight: 1.5,
+      background: ink.panel,
+      borderRadius: 12,
+      padding: '20px 26px',
+      color: ink.soft,
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
     }}
   >
-    <div style={{ fontSize: 30, fontWeight: 700, marginBottom: 14 }}>{title}</div>
-    <div style={{ fontSize: 25, lineHeight: 1.45, color: muted }}>{children}</div>
+    {children}
+  </pre>
+);
+
+const Row = ({ k, v }: { k: ReactNode; v: ReactNode }) => (
+  <div style={{ display: 'flex', gap: 24, padding: '12px 0', borderTop: `1px solid ${ink.rule}`, fontSize: 23, lineHeight: 1.35 }}>
+    <span style={{ width: 190, flex: 'none', fontWeight: 500, color: ink.text }}>{k}</span>
+    <span style={{ color: ink.soft }}>{v}</span>
+  </div>
+);
+
+const Stat = ({ n, label }: { n: ReactNode; label: ReactNode }) => (
+  <div style={{ flex: 1, minWidth: 0, borderTop: `1px solid ${ink.rule}`, paddingTop: 20 }}>
+    <div style={{ fontSize: 56, fontWeight: 500, letterSpacing: '-0.035em', lineHeight: 1, color: ink.text }}>{n}</div>
+    <div style={{ marginTop: 12, fontSize: 20, color: ink.muted, lineHeight: 1.3 }}>{label}</div>
   </div>
 );
 
 const Ref = ({ who, year, what, where }: { who: string; year: string; what: string; where: string }) => (
-  <div style={{ padding: '12px 0', borderBottom: `1px solid ${rule}`, fontSize: 24, lineHeight: 1.35 }}>
-    <span style={{ fontWeight: 700 }}>{who}</span> <span style={{ fontFamily: mono, color: 'var(--osd-accent)' }}>{year}</span>
-    <span style={{ color: muted }}> · {what}</span> <span style={{ color: dim }}>· {where}</span>
+  <div style={{ display: 'flex', gap: 20, alignItems: 'baseline', padding: '9px 0', borderTop: `1px solid ${ink.rule}`, fontSize: 21, lineHeight: 1.3 }}>
+    <span style={{ fontFamily: font.mono, fontSize: 18, color: 'var(--osd-accent)', flex: 'none', width: 60 }}>{year}</span>
+    <span>
+      <span style={{ fontWeight: 500, color: ink.text }}>{who}</span> <span style={{ color: ink.soft }}>{what}</span>{' '}
+      <span style={{ color: ink.dim }}>· {where}</span>
+    </span>
   </div>
 );
 
-const Formula = ({ children }: { children: ReactNode }) => (
+const Formula = ({ label, children }: { label?: ReactNode; children: ReactNode }) => (
+  <div style={{ marginBottom: 18 }}>
+    {label ? (
+      <div style={{ fontFamily: font.mono, fontSize: 17, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--osd-accent)', marginBottom: 8 }}>
+        {label}
+      </div>
+    ) : null}
+    <div
+      style={{
+        fontFamily: font.mono,
+        fontSize: 25,
+        background: ink.panel,
+        borderRadius: 12,
+        padding: '14px 22px',
+        color: ink.text,
+        lineHeight: 1.5,
+        whiteSpace: 'pre-wrap',
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+const Scheme = ({ s, what, accent = 'var(--osd-accent)' }: { s: string; what: ReactNode; accent?: string }) => (
+  <div style={{ display: 'flex', gap: 22, alignItems: 'baseline', padding: '9px 0', borderTop: `1px solid ${ink.rule}` }}>
+    <span style={{ fontFamily: font.mono, fontSize: 22, color: accent, width: 330, flex: 'none' }}>{s}</span>
+    <span style={{ fontSize: 22, color: ink.soft, lineHeight: 1.3 }}>{what}</span>
+  </div>
+);
+
+const Box = ({ children, accent = 'var(--osd-accent)', w = 300 }: { children: ReactNode; accent?: string; w?: number }) => (
   <div
     style={{
-      fontFamily: mono,
-      fontSize: 30,
-      background: 'rgba(0,0,0,0.35)',
-      border: `1px solid ${rule}`,
+      width: w,
+      flex: 'none',
+      background: '#fff',
+      boxShadow: shadow.edge,
+      borderTop: `3px solid ${accent}`,
       borderRadius: 12,
-      padding: '18px 26px',
-      color: '#dbe4f3',
-      lineHeight: 1.5,
-      whiteSpace: 'pre-wrap',
+      padding: '18px 20px',
+      fontSize: 22,
+      lineHeight: 1.35,
+      textAlign: 'center',
     }}
   >
     {children}
   </div>
 );
 
+const Arrow = () => <div style={{ color: ink.dim, fontSize: 32, alignSelf: 'center', flex: 'none' }}>→</div>;
+
 const Cover = ({ bg, eyebrow, title, subtitle }: { bg: string; eyebrow: string; title: ReactNode; subtitle: ReactNode }) => (
   <div style={fill}>
-    <img src={bg} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'linear-gradient(90deg, rgba(12,19,34,0.96) 0%, rgba(12,19,34,0.85) 45%, rgba(12,19,34,0.25) 100%)',
-      }}
-    />
-    <div style={{ position: 'absolute', left: PAD_X, right: PAD_X, top: 300 }}>
-      <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--osd-accent)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>{eyebrow}</div>
+    <Mark />
+    <Eyebrow>{eyebrow}</Eyebrow>
+    <div style={{ position: 'absolute', left: PAD_X, top: 300, width: 900 }}>
       <h1
         style={{
-          fontFamily: 'var(--osd-font-display)',
-          fontSize: 'var(--osd-size-hero)',
-          fontWeight: 900,
-          letterSpacing: '-0.035em',
-          lineHeight: 1.0,
-          margin: '28px 0 36px',
-          maxWidth: 1300,
+          fontFamily: font.display,
+          fontSize: 120,
+          fontWeight: 500,
+          letterSpacing: '-0.04em',
+          lineHeight: 1,
+          margin: 0,
         }}
       >
         {title}
       </h1>
-      <p style={{ fontSize: 36, color: muted, margin: 0, maxWidth: 1100, lineHeight: 1.4 }}>{subtitle}</p>
+      <p style={{ fontSize: 30, color: ink.soft, margin: '40px 0 0', maxWidth: 820, lineHeight: 1.45 }}>{subtitle}</p>
     </div>
-    <div style={{ position: 'absolute', left: PAD_X, bottom: 56, fontSize: 24, color: muted, fontFamily: mono }}>
-      terrain-viewer.iconem.com/docs/resources/research-references
-    </div>
+    <img
+      src={bg}
+      style={{
+        position: 'absolute',
+        left: 1120,
+        top: 200,
+        width: 680,
+        height: 640,
+        objectFit: 'cover',
+        borderRadius: 12,
+        boxShadow: shadow.window,
+        display: 'block',
+        background: ink.panel,
+      }}
+    />
+    <Footer />
   </div>
 );
 
 const Closing = ({ title, lines }: { title: ReactNode; lines: ReactNode[] }) => (
-  <div style={{ ...fill, padding: `${PAD_TOP}px ${PAD_X}px 0` }}>
-    <div style={{ position: 'absolute', left: PAD_X, right: PAD_X, top: 260 }}>
-      <h1 style={{ fontFamily: 'var(--osd-font-display)', fontSize: 104, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.02, margin: '0 0 56px' }}>
-        {title}
-      </h1>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 22, fontSize: 32, fontFamily: mono, color: muted }}>
-        {lines.map((l, i) => (
-          <div key={i}>{l}</div>
-        ))}
-      </div>
+  <div style={fill}>
+    <Mark />
+    <Eyebrow>{DECK}</Eyebrow>
+    <h1
+      style={{
+        position: 'absolute',
+        left: PAD_X,
+        top: 220,
+        margin: 0,
+        fontFamily: font.display,
+        fontSize: 120,
+        fontWeight: 500,
+        letterSpacing: '-0.04em',
+        lineHeight: 1,
+      }}
+    >
+      {title}
+    </h1>
+    <div style={{ position: 'absolute', left: PAD_X, right: PAD_X, top: 560, borderBottom: `1px solid ${ink.rule}` }}>
+      {lines.map((l, i) => (
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            gap: 40,
+            alignItems: 'baseline',
+            padding: '18px 0',
+            borderTop: `1px solid ${ink.rule}`,
+            fontFamily: font.mono,
+            fontSize: 26,
+            color: ink.soft,
+          }}
+        >
+          <span style={{ fontSize: 20, color: 'var(--osd-accent)', letterSpacing: '0.08em' }}>{pad2(i + 1)}</span>
+          <span>{l}</span>
+        </div>
+      ))}
     </div>
     <Footer />
   </div>
@@ -327,7 +510,7 @@ const P5Tells: Page = () => (
       leftWidth={820}
       left={
         <>
-          <Bullets size={27}>
+          <Bullets size={24}>
             <Li k="Tells detector (beta)">Difference-of-Gaussians of the LRM, non-maximum suppression at the tell size, three vetoes: blobness, plan curvature, det-Hessian.</Li>
             <Li k="Resolution is the limit">Bronze and Iron Age mounds run 50-300 m across, 3-20 m tall; a 30 m DEM misses the small end. LiDAR finds it.</Li>
             <Li k="Iterate">import an inventory, step through sites with → and N, delete with D.</Li>
@@ -342,7 +525,7 @@ const P5Tells: Page = () => (
       }
       right={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <Shot src={terrainAnalysis} caption="Terrain analysis submodes, with per-tile provenance" width={860} height={440} />
+          <Shot src={terrainAnalysis} caption="Terrain analysis submodes, with per-tile provenance" width={860} height={360} />
           <Card title="Heritage Quest" accent={teal}>Citizen science on AHN LiDAR for barrows and Celtic fields (Zooniverse). The viewer with AHN and the mound detector is the same question put to a browser.</Card>
         </div>
       }

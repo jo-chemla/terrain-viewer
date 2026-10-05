@@ -22,9 +22,9 @@ export function eliDateMs(s?: string | null): number | null {
   return Number.isFinite(t) ? t : null
 }
 
-export interface EliTick { source: "eli"; key: number; dateMs: number; label: string; ref: string; meta?: { gsd?: number; provider?: string; url?: string; licence?: string; date?: string } }
+export interface EliTick { source: "eli"; key: number; dateMs: number; label: string; ref: string; meta?: { gsd?: number; provider?: string; url?: string; licence?: string; date?: string; bounds?: [number, number, number, number] } }
 
-type DatedLayer = { id: string; name: string; category?: string; requiresKeys: string[]; tiles?: string[]; startDate?: string; endDate?: string; maxzoom?: number; attributionUrl?: string; url?: string; licenseUrl?: string }
+type DatedLayer = { id: string; name: string; category?: string; requiresKeys: string[]; tiles?: string[]; startDate?: string; endDate?: string; maxzoom?: number; attributionUrl?: string; url?: string; licenseUrl?: string; bounds?: [number, number, number, number] }
 
 /** Imagery and maps only (not QA or OSM-derived styles), keyless, with a
  *  tile URL and a start date. Ticks keep a unique key: several layers can
@@ -44,7 +44,7 @@ export function eliLayersToTicks(layers: DatedLayer[]): EliTick[] {
     // One pixel at the layer's max zoom (equator; a per-layer latitude
     // would need its polygon), the only resolution the index carries.
     const gsd = l.maxzoom ? 40075016.686 / (256 * 2 ** l.maxzoom) : undefined
-    rows.push({ source: "eli", key, dateMs, label: `${l.name} · ${span}`, ref: l.id, meta: { gsd, provider: "OSM Editor Layer Index", url: l.attributionUrl || l.url || undefined, licence: l.licenseUrl || undefined, date: l.startDate || undefined } })
+    rows.push({ source: "eli", key, dateMs, label: `${l.name} · ${span}`, ref: l.id, meta: { gsd, provider: "OSM Editor Layer Index", url: l.attributionUrl || l.url || undefined, licence: l.licenseUrl || undefined, date: l.startDate || undefined, bounds: l.bounds } })
   }
   return rows.sort((a, b) => a.dateMs - b.dateMs)
 }
@@ -66,7 +66,17 @@ export async function datedEliLayersInView(bbox: [number, number, number, number
   }
   // A layer with no polygon at all (none in the shard) keeps its box match.
   const withPolygon = new Set(fc.features.map((f) => String((f.properties as any)?.id)))
-  return layers.filter((l) => touching.has(l.id) || !withPolygon.has(l.id))
+  // Each layer's polygon box: its footprint on the map and its extent in the lists.
+  const boxes = new Map<string, [number, number, number, number]>()
+  for (const f of fc.features) {
+    if (!f.geometry) continue
+    const id = String((f.properties as any)?.id)
+    const b = boxes.get(id) ?? [Infinity, Infinity, -Infinity, -Infinity]
+    const walk = (c: any) => { if (typeof c[0] === "number") { if (c[0] < b[0]) b[0] = c[0]; if (c[1] < b[1]) b[1] = c[1]; if (c[0] > b[2]) b[2] = c[0]; if (c[1] > b[3]) b[3] = c[1] } else c.forEach(walk) }
+    walk((f.geometry as any).coordinates)
+    boxes.set(id, b)
+  }
+  return layers.filter((l) => touching.has(l.id) || !withPolygon.has(l.id)).map((l) => ({ ...l, bounds: boxes.get(l.id) }))
 }
 
 /** One ELI layer as a basemap source (the coverage modal's "Use as

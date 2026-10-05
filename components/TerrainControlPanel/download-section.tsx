@@ -584,6 +584,7 @@ export const DownloadSection: React.FC<{
             matcapUrl: (MATCAP_TEXTURES.find((t) => t.id === state.matcapTextureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url,
             matcapRotationDeg: state.matcapRotationDeg,
             phongDiffuse: state.phongDiffuseStrength, phongSpecular: state.phongSpecularStrength,
+            phongFresnelStrength: state.phongFresnelStrength, phongFresnelPower: state.phongFresnelPower,
             lightDir: state.illuminationDir, lightAlt: state.illuminationAlt,
             exaggeration: state.exaggeration, shadowRadiusPx: state.shadowRadiusPx,
           },

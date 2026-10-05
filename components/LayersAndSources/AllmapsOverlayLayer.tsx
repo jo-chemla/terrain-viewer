@@ -9,11 +9,22 @@
 import { useEffect, useRef } from "react"
 import { useMap } from "react-map-gl/maplibre"
 import type { CustomLayerInterface } from "maplibre-gl"
+import { useAtomValue } from "jotai"
+import { allmapsRemoveColorAtom } from "@/lib/settings-atoms"
+
+/** The warped maps' per-map render options for the background removal
+ *  (Allmaps' own "remove background colour": pixels within `threshold` of
+ *  the colour turn transparent, `hardness` the edge's sharpness). */
+const removeColorOptions = (o: { enabled: boolean; color: string; threshold: number; hardness: number }) =>
+  ({ removeColor: o.enabled, removeColorColor: o.color, removeColorThreshold: o.threshold, removeColorHardness: o.hardness })
 
 export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { id: string; annotationUrl: string; opacity: number; beforeId: string }) {
   const { current: mapRef } = useMap()
   const layerRef = useRef<any>(null)
   const layerId = `overlay-basemap-${id}`
+  const removeColor = useAtomValue(allmapsRemoveColorAtom)
+  const removeColorRef = useRef(removeColor)
+  removeColorRef.current = removeColor
 
   useEffect(() => {
     const map = mapRef?.getMap()
@@ -32,7 +43,9 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
         if (map.getLayer(beforeId)) {
           map.addLayer(layer as CustomLayerInterface, beforeId)
           layer.setOpacity(opacity)
-          layer.addGeoreferenceAnnotationByUrl(annotationUrl).catch((e: unknown) => console.error("[allmaps] annotation failed:", annotationUrl, e))
+          layer.addGeoreferenceAnnotationByUrl(annotationUrl)
+            .then(() => { try { layer.setMapsOptions(() => removeColorOptions(removeColorRef.current)) } catch {} })
+            .catch((e: unknown) => console.error("[allmaps] annotation failed:", annotationUrl, e))
           return
         }
         raf = requestAnimationFrame(tryAdd)
@@ -56,6 +69,9 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
   useEffect(() => {
     try { layerRef.current?.setOpacity(opacity) } catch {}
   }, [opacity])
+  useEffect(() => {
+    try { layerRef.current?.setMapsOptions(() => removeColorOptions(removeColor)) } catch {}
+  }, [removeColor])
 
   return null
 }

@@ -44,6 +44,7 @@ export const CustomSourceDetails: React.FC<{
   const editMode = useAtomValue(sourcesEditModeAtom)
   const viewportCenter = useAtomValue(viewportCenterAtom)
   const gsd = sourceGsd(source, viewportCenter?.lat ?? 0)
+  const belowMinZoom = typeof source.minzoom === "number" && viewportCenter != null && viewportCenter.zoom < source.minzoom - 0.01
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // The File behind a "cog-local" source only lives in this tab's memory — after
@@ -169,6 +170,7 @@ export const CustomSourceDetails: React.FC<{
             >
             <span className="truncate min-w-0">{source.name}</span>
             {gsd && <span className="ml-1 text-[10px] text-muted-foreground tabular-nums shrink-0">{gsd.estimated ? "~" : ""}{gsdLabel(gsd.m)}</span>}
+            {belowMinZoom && <span className="ml-1 rounded bg-amber-500/15 px-1 text-[10px] text-amber-700 dark:text-amber-300 shrink-0" title={`Nothing is served below zoom ${source.minzoom}; zoom in`}>z≥{source.minzoom}</span>}
           </Label>
         }
       />

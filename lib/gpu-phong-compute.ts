@@ -29,6 +29,9 @@ let uDiffuseStrength: WebGLUniformLocation | null = null
 let uSpecularStrength: WebGLUniformLocation | null = null
 let uExaggeration: WebGLUniformLocation | null = null
 let uLightDir: WebGLUniformLocation | null = null
+let uFresnelStrength: WebGLUniformLocation | null = null
+let uFresnelPower: WebGLUniformLocation | null = null
+let uFresnelDark: WebGLUniformLocation | null = null
 let currentSize = 0
 
 const VERTEX_SHADER = `#version 300 es
@@ -45,6 +48,9 @@ uniform float u_diffuseStrength;
 uniform float u_specularStrength;
 uniform float u_exaggeration;
 uniform vec3 u_lightDir;
+uniform float u_fresnelStrength;
+uniform float u_fresnelPower;
+uniform float u_fresnelDark;
 out vec4 fragColor;
 
 const float AMBIENT = 0.35;
@@ -69,7 +75,10 @@ void main() {
     float diffuseIntensity = clamp(AMBIENT + diffuse, 0.0, 1.0);
     float specDot = max(dot(n, H), 0.0);
     float specular = u_specularStrength * pow(specDot, SHININESS);
-    float total = diffuseIntensity + specular;
+    // Schlick rim (the live renderer's), the viewer straight above.
+    float rim = u_fresnelStrength * pow(1.0 - clamp(dot(n, V), 0.0, 1.0), u_fresnelPower);
+    diffuseIntensity *= 1.0 - u_fresnelDark * clamp(rim, 0.0, 1.0);
+    float total = diffuseIntensity + specular + (1.0 - u_fresnelDark) * rim;
 
     // Same two-regime multiply-darken/screen-brighten encoding as the CPU
     // version — see lib/phong-protocol.ts's header for the full rationale.
@@ -139,6 +148,9 @@ function ensureContext(n: number): boolean {
     uSpecularStrength = gl.getUniformLocation(program, "u_specularStrength")
     uExaggeration = gl.getUniformLocation(program, "u_exaggeration")
     uLightDir = gl.getUniformLocation(program, "u_lightDir")
+    uFresnelStrength = gl.getUniformLocation(program, "u_fresnelStrength")
+    uFresnelPower = gl.getUniformLocation(program, "u_fresnelPower")
+    uFresnelDark = gl.getUniformLocation(program, "u_fresnelDark")
   }
   if (currentSize !== n) {
     canvas!.width = n
@@ -153,6 +165,7 @@ function ensureContext(n: number): boolean {
 export function computePhongPixelsGPU(
   normalPixels: Uint8ClampedArray, n: number,
   diffuseStrength: number, specularStrength: number, lightDir: [number, number, number], exaggeration: number,
+  fresnel: { strength: number; power: number; dark: boolean } = { strength: 0, power: 3, dark: false },
 ): Uint8ClampedArray | null {
   if (!ensureContext(n)) return null
   const ctx = gl!
@@ -181,6 +194,9 @@ export function computePhongPixelsGPU(
   ctx.uniform1f(uSpecularStrength, specularStrength)
   ctx.uniform1f(uExaggeration, exaggeration)
   ctx.uniform3f(uLightDir, lightDir[0], lightDir[1], lightDir[2])
+  ctx.uniform1f(uFresnelStrength, fresnel.strength)
+  ctx.uniform1f(uFresnelPower, fresnel.power)
+  ctx.uniform1f(uFresnelDark, fresnel.dark ? 1 : 0)
 
   ctx.drawArrays(ctx.TRIANGLE_STRIP, 0, 4)
 

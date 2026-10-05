@@ -25,14 +25,19 @@ import { buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./norm
 import { computePhongPixelsGPU } from "./gpu-phong-compute"
 import { toTileImage, type TileImage } from "./tile-image"
 
-const PHONG_URL_RE = /^phong:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
+const PHONG_URL_RE = /^phong:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)(?:\?f=(-?[\d.]+)&p=(-?[\d.]+)&d=([01]))?$/
+
+/** The Fresnel rim the live renderer draws (strength, falloff exponent,
+ *  dark or white rim), for the raster tiles too. */
+export interface PhongFresnel { strength: number; power: number; dark: boolean }
 
 export function buildPhongProtocolUrl(
   diffuseStrength: number, specularStrength: number, lightDir: number, lightAlt: number, exaggeration: number,
-  upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number,
+  upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number, fresnel?: PhongFresnel,
 ): string {
   const base = buildProtocolUrl("phong", upstreamTileTemplate, encoding, tileSize)
-  return base.replace("phong://", `phong://${formatUrlNumber(diffuseStrength)}/${formatUrlNumber(specularStrength)}/${formatUrlNumber(lightDir)}/${formatUrlNumber(lightAlt)}/${formatUrlNumber(exaggeration)}/`)
+  const f = fresnel && fresnel.strength > 0 ? `?f=${formatUrlNumber(fresnel.strength)}&p=${formatUrlNumber(fresnel.power)}&d=${fresnel.dark ? 1 : 0}` : ""
+  return base.replace("phong://", `phong://${formatUrlNumber(diffuseStrength)}/${formatUrlNumber(specularStrength)}/${formatUrlNumber(lightDir)}/${formatUrlNumber(lightAlt)}/${formatUrlNumber(exaggeration)}/`) + f
 }
 
 const AMBIENT = 0.35
@@ -70,6 +75,7 @@ let __currentParamsKey = ""
 function shadePhongCPU(
   normalPixels: Uint8ClampedArray, n: number,
   diffuseStrength: number, specularStrength: number, lightDir: [number, number, number], exaggeration: number,
+  fresnel: PhongFresnel = { strength: 0, power: 3, dark: false },
 ): Uint8ClampedArray {
   const [lx, ly, lz] = lightDir
   const vx = 0, vy = 0, vz = 1
@@ -94,11 +100,14 @@ function shadePhongCPU(
     }
 
     const diffuse = diffuseStrength * Math.max(nx * lx + ny * ly + nz * lz, 0)
-    const diffuseIntensity = Math.min(Math.max(AMBIENT + diffuse, 0), 1)
+    let diffuseIntensity = Math.min(Math.max(AMBIENT + diffuse, 0), 1)
 
     const specDot = Math.max(nx * hx + ny * hy + nz * hz, 0)
     const specular = specularStrength * Math.pow(specDot, SHININESS)
-    const total = diffuseIntensity + specular
+    // Schlick rim, the viewer straight above: (1 - n.v)^p with n.v = nz.
+    const rim = fresnel.strength > 0 ? fresnel.strength * Math.pow(1 - Math.min(Math.max(nz, 0), 1), fresnel.power) : 0
+    if (fresnel.dark) diffuseIntensity *= 1 - Math.min(rim, 1)
+    const total = diffuseIntensity + specular + (fresnel.dark ? 0 : rim)
 
     if (total <= 1) {
       const alpha = Math.round((1 - total) * 255)
@@ -123,7 +132,8 @@ export async function phongProtocol(
 ): Promise<{ data: TileImage }> {
   const match = params.url.match(PHONG_URL_RE)
   if (!match) throw new Error(`Invalid phong protocol URL: ${params.url}`)
-  const [, diffuseStr, specularStr, lightDirStr, lightAltStr, exaggerationStr, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
+  const [, diffuseStr, specularStr, lightDirStr, lightAltStr, exaggerationStr, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, fresnelStr, fresnelPowStr, fresnelDarkStr] = match
+  const fresnel: PhongFresnel = { strength: fresnelStr ? parseFloat(fresnelStr) : 0, power: fresnelPowStr ? parseFloat(fresnelPowStr) : 3, dark: fresnelDarkStr === "1" }
   const diffuseStrength = parseFloat(diffuseStr)
   const specularStrength = parseFloat(specularStr)
   const lightDir = parseFloat(lightDirStr)
@@ -137,7 +147,7 @@ export async function phongProtocol(
   // This call's own params tuple, captured now — the shared "latest" tracker
   // may move on to a NEWER tuple while this call is still in flight, but this
   // constant never changes for the lifetime of this call.
-  const myParamsKey = `${diffuseStr}|${specularStr}|${lightDirStr}|${lightAltStr}|${exaggerationStr}`
+  const myParamsKey = `${diffuseStr}|${specularStr}|${lightDirStr}|${lightAltStr}|${exaggerationStr}|${fresnelStr ?? ""}|${fresnelPowStr ?? ""}|${fresnelDarkStr ?? ""}`
   __currentParamsKey = myParamsKey
 
   const { pixels: normalPixels } = await computeNormalPixels(upstreamTemplate, encoding, z, x, y, n, abortController.signal)
@@ -182,8 +192,8 @@ export async function phongProtocol(
   // stay in the ordinary shadow/neutral range and only sharp glints whiten.
   // (See gpu-phong-compute.ts's fragment shader for the GPU version of this
   // exact same encoding.)
-  const out = computePhongPixelsGPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration)
-    ?? shadePhongCPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration)
+  const out = computePhongPixelsGPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration, fresnel)
+    ?? shadePhongCPU(normalPixels, n, diffuseStrength, specularStrength, lightVec, exaggeration, fresnel)
   if (abortController.signal.aborted || myParamsKey !== __currentParamsKey) throw new DOMException("Aborted", "AbortError")
 
   const image = await toTileImage(out as unknown as Uint8ClampedArray<ArrayBuffer>, n)
