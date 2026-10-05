@@ -112,6 +112,19 @@ Your last catalog, collection and filters are remembered per target, so reopenin
 A catalog has to send CORS headers to be usable from a browser at all, regardless of how open its licence is. CNES GEODES, for example, answers 200 with 66 collections and no `Access-Control-Allow-Origin` — unreachable from any client-side app.
 </Callout>
 
+### Terrain Viewer's own sources, as STAC
+
+The other way round: every source the app knows is published as a static STAC catalogue at [`/docs/stac/catalog.json`](/docs/stac/catalog.json), for STAC Browser, [STAC Map](https://developmentseed.org/stac-map/) or any STAC client. Seven collections:
+
+- **terrain-builtin**: the global elevation tiles (Mapterhorn, Mapbox, MapTiler, AWS, Esri, Cesium), each link carrying its tile encoding and whether it needs a key.
+- **terrain-library** and **basemap-library**: the libraries, with their declared footprints and native resolution (`gsd`); COGs as assets, tile services as web-map links.
+- **historical-imagery**: the timeline's own sources (Wayback, Google Earth Historical, Bing, Planet, EOX, HLS), one item each spanning its archive.
+- **eli**: every layer of the OSM Editor Layer Index (about 1,750) with its coverage polygon and capture dates where it has them.
+- **ign-historical**: every dated IGN Géoplateforme layer (about 140), with WMTS and tile links.
+- **timeline-catalogues**: the catalogues searched per view (HOT STAC, Planet disaster data, Map Warper, Wikimaps, USGS topo, ArcGIS Online, swisstopo, QMS, Allmaps), linked rather than copied; the two STAC ones are children a client can follow.
+
+Tile services use the [web-map-links](https://github.com/stac-extensions/web-map-links) extension (`xyz`, `wms`, `wmts`); each item also links back to the app at its place. Items without a date carry an open time range and `terrain-viewer:undated`. The catalogue is rebuilt by the docs build (`pnpm run stac` by hand). QMS and Allmaps could later be served as live STAC through a small proxy that turns a STAC search into their own queries.
+
 ## Basemap catalog search
 
 Two more tabs in the **Add Basemap** dialog, for imagery rather than elevation.

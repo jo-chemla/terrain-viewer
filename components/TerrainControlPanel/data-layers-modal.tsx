@@ -119,6 +119,7 @@ const GROUPS: Group[] = [
       { key: "showMatcap", master: "showLightingEffects", label: "Matcap", image: "viz-modes/matcap.jpg", blurb: "Colour looked up from a pre-lit sphere by surface normal. Stylised, no light direction." },
       { key: "showPhong", master: "showLightingEffects", label: "Phong", image: "viz-modes/phong.jpg", blurb: "Ambient, diffuse and specular from a compass-fixed light. Live on the GPU." },
       { key: "showShadows", label: "Hard shadows", image: "viz-modes/hard-shadows.jpg", blurb: "Cast shadows from the sun's actual position, for a date and time." },
+      { key: "showBuildingShadows", master: "showLightingEffects", label: "Building shadows", image: "viz-modes/building-shadows.jpg", blurb: "Shadows of OpenStreetMap buildings from their heights, on flat ground. Fast, from zoom 13." },
     ],
   },
 ]
@@ -130,7 +131,7 @@ const GROUPS: Group[] = [
 const MASTER_MEMBERS: Record<string, string[]> = {
   showTerrainAnalysis: ["showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showShapeIndex", "showBlobness", "showEigenRatio", "showOrientation"],
   showReliefVisualization: ["showLrm", "showSvf", "showOpenness", "showLocalDominance"],
-  showLightingEffects: ["showMatcap", "showPhong", "showShadows"],
+  showLightingEffects: ["showMatcap", "showPhong", "showShadows", "showBuildingShadows"],
   showContoursAndGraticules: ["showContours", "showGraticules"],
 }
 

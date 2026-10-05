@@ -18,7 +18,7 @@ export const VIZ_GROUP_OF: Record<string, string> = {
   showTpi: "showTerrainAnalysis", showRoughness: "showTerrainAnalysis", showShapeIndex: "showTerrainAnalysis", showBlobness: "showTerrainAnalysis",
   showEigenRatio: "showTerrainAnalysis", showOrientation: "showTerrainAnalysis",
   showLrm: "showReliefVisualization", showSvf: "showReliefVisualization", showOpenness: "showReliefVisualization", showLocalDominance: "showReliefVisualization",
-  showPhong: "showLightingEffects", showMatcap: "showLightingEffects", showShadows: "showLightingEffects",
+  showPhong: "showLightingEffects", showMatcap: "showLightingEffects", showShadows: "showLightingEffects", showBuildingShadows: "showLightingEffects",
 }
 
 /** Short names for the pill under each view. Groups are not listed: their
@@ -28,7 +28,7 @@ export const VIZ_MODE_LABELS: Record<string, string> = {
   showSlope: "Slope", showAspect: "Aspect", showTri: "TRI", showCurvature: "Curvature", showTpi: "TPI", showRoughness: "Roughness",
   showShapeIndex: "Shape index", showBlobness: "Blobness", showEigenRatio: "Eigen ratio", showOrientation: "Orientation",
   showLrm: "LRM", showSvf: "SVF", showOpenness: "Openness", showLocalDominance: "Local dominance",
-  showPhong: "Phong", showMatcap: "Matcap", showShadows: "Shadows",
+  showPhong: "Phong", showMatcap: "Matcap", showShadows: "Shadows", showBuildingShadows: "Building shadows",
 }
 
 /** The modes `side` draws that some other active view does not. */

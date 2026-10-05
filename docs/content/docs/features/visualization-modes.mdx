@@ -142,8 +142,9 @@ See [Lighting Effects](/dev/lighting-effects) for how these differ from the terr
 
 - **Matcap** — material-capture-style shading looked up by surface normal, independent of any real light direction
 - **Phong** — ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light, sharing the "hold L, drag" on-map light control
-- **Hard Shadows** — cast shadows from a single ray marched toward the sun's actual azimuth/altitude
-- **Building shadows (OSM)** — shadows of OpenStreetMap buildings, heights from OpenFreeMap's building layer (OSM height or levels), swept away from the same sun and drawn on flat ground at each building's foot. Fast: computed once per settled view from zoom 13, rasterised into one image (overlaps never darken twice, roofs stay lit, courtyards get their walls' shadows), draped over 3D terrain but not bent by it. Off by default (`showBuildingShadows=true`, `buildingShadowOpacity`).
+- **Shadows**, two kinds sharing one light (the same pad, or the datetime sun):
+  - **Terrain** (hard shadows) — cast shadows from a single ray marched toward the sun's actual azimuth/altitude
+  - **Buildings (OSM)** — shadows of OpenStreetMap buildings, heights from OpenFreeMap's building layer (OSM height or levels), swept away from the same sun and drawn on flat ground at each building's foot. Fast: computed once per settled view from zoom 13, rasterised into one image (overlaps never darken twice, roofs stay lit, courtyards get their walls' shadows), draped over 3D terrain but not bent by it. Off by default (`showBuildingShadows=true`, `buildingShadowOpacity`).
 
 ![Phong lighting over Hillshade, with the Lighting Effects controls panel open](/screenshots/viz-modes/phong.jpg)
 

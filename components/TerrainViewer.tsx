@@ -4233,7 +4233,7 @@ export function TerrainViewer() {
             opacity={state.lightingEffectsOpacity * state.shadowOpacity}
           />
           <BuildingShadowLayer
-            enabled={state.showLightingEffects && vm("showLightingEffects") && state.showBuildingShadows && !isHistoricalMode}
+            enabled={state.showLightingEffects && vm("showLightingEffects") && state.showBuildingShadows && vm("showBuildingShadows") && !isHistoricalMode}
             opacity={state.lightingEffectsOpacity * state.buildingShadowOpacity}
             sunAzimuth={shadowLightDir}
             sunAltitude={shadowLightAlt}

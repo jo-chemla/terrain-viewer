@@ -3,7 +3,7 @@
   "version": "0.0.14",
   "private": true,
   "scripts": {
-    "build": "node scripts/build-url-params.mjs && next build",
+    "build": "node scripts/build-url-params.mjs && node scripts/build-stac-catalog.mjs && next build",
     "dev": "node scripts/build-url-params.mjs && next dev -p 3100",
     "start": "serve out -l 3100",
     "types:check": "next typegen && tsc --noEmit",

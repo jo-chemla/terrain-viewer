@@ -282,16 +282,17 @@ export const LightingEffectsOptionsSection: React.FC<{
           )}
         </div>
 
-        {/* ─── Shadows sub-mode ─── */}
+        {/* ─── Shadows sub-group: terrain and buildings ─── */}
         {!hideShadows && (
         <div className="space-y-2">
+          <div className={cn("text-[10px] uppercase tracking-wide text-muted-foreground", dimWhenSliding)}>Shadows</div>
           <CheckboxWithSlider perView={perViewFor("showShadows")}
             id="lighting-shadows"
             label={
               // Hourglass = "slow to compute" hint, same monochrome inline-icon
               // convention as Relief Visualization's SlowModeLabel.
               <span className="inline-flex items-center gap-1">
-                Shadows
+                Terrain
                 <Hourglass className="h-3 w-3 shrink-0" />
               </span>
             }
@@ -310,34 +311,35 @@ export const LightingEffectsOptionsSection: React.FC<{
                 min={2} max={64} step={1}
                 sliderId="shadow-radius"
               />
-              {/* Same shared illuminationDir/illuminationAlt pad Phong shows
-                  — surfaced here too (was a "go open Phong" helper note) so
-                  Shadows is usable standalone. Raster-recompute per change,
-                  hence the 150ms debounce regardless of Phong's renderer. */}
-              <Collapsible open={isShadowLightDirOpen} onOpenChange={setIsShadowLightDirOpen}>
-                <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
-                  Light Direction (shared with Phong/Hillshade)<ChevronDown className={`h-4 w-4 transition-transform ${isShadowLightDirOpen ? "rotate-180" : ""}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-1 overflow-visible">
-                  <LightDirectionControl
-                    state={state}
-                    setState={setState}
-                    sliderId="shadow-light"
-                    debounceMs={150}
-                  />
-                </CollapsibleContent>
-              </Collapsible>
             </div>
           )}
-          <CheckboxWithSlider
+          <CheckboxWithSlider perView={perViewFor("showBuildingShadows")}
             id="lighting-building-shadows"
-            label="Building shadows (OSM)"
-            tooltip="Shadows cast by OpenStreetMap buildings (heights from OpenFreeMap, from OSM height or levels), drawn on flat ground at each building's foot: fast, recomputed when the map settles, from zoom 13. Draped over 3D terrain but not bent by it. Same light as Shadows (the pad above, or the datetime sun)."
+            label="Buildings (OSM)"
+            tooltip="Shadows cast by OpenStreetMap buildings (heights from OpenFreeMap, from OSM height or levels), drawn on flat ground at each building's foot: fast, recomputed when the map settles, from zoom 13. Draped over 3D terrain but not bent by it. Same light as terrain shadows."
             checked={state.showBuildingShadows}
-            onCheckedChange={(checked) => setState({ showBuildingShadows: checked, ...(checked && !state.showLightingEffects ? { showLightingEffects: true } : {}) })}
+            onCheckedChange={(checked) => setState({ showBuildingShadows: checked })}
             sliderValue={state.buildingShadowOpacity}
             onSliderChange={(value) => setState({ buildingShadowOpacity: value })}
           />
+          {/* Same shared illuminationDir/illuminationAlt pad Phong shows,
+              for both kinds of shadow, so either works standalone. Debounced
+              150 ms: terrain shadows recompute tiles per change. */}
+          {(modeOnVisibleView(state, "showShadows") || modeOnVisibleView(state, "showBuildingShadows")) && advanced && (
+            <Collapsible open={isShadowLightDirOpen} onOpenChange={setIsShadowLightDirOpen}>
+              <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
+                Light Direction (shared with Phong/Hillshade)<ChevronDown className={`h-4 w-4 transition-transform ${isShadowLightDirOpen ? "rotate-180" : ""}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-1 overflow-visible">
+                <LightDirectionControl
+                  state={state}
+                  setState={setState}
+                  sliderId="shadow-light"
+                  debounceMs={150}
+                />
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
         )}
       </div>
