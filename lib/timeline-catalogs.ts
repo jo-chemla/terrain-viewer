@@ -54,6 +54,17 @@ export interface TimelineCatalog {
   region?: string
 }
 
+/** The picker's three root groups, by sub-group. */
+export const CATALOG_ROOTS: Record<string, string> = {
+  "Drone and aerial": "Open data for post-crisis response",
+  "Disaster open data": "Open data for post-crisis response",
+  "Community indexes": "Mapping agencies",
+  "Imagery services": "Mapping agencies",
+  "National catalogs": "Mapping agencies",
+  "Old maps": "Old maps, digitised and warped",
+}
+export const CATALOG_ROOT_ORDER = ["Open data for post-crisis response", "Mapping agencies", "Old maps, digitised and warped"]
+
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "eli", label: "OSM Editor Layer Index (ELI)", short: "ELI", group: "Community indexes", color: "#99f6e4", note: "Dated orthophotos and maps of the OSM Editor Layer Index whose coverage touches the view (about 1,300 layers carry a date); a year-only date sits at 1 January." },
   { id: "cat-oam", label: "OpenAerialMap", short: "OAM", group: "Drone and aerial", color: "#fde68a", note: "Open drone and aerial imagery uploaded to OpenAerialMap, from HOT's STAC API: one tick per upload covering the view, dated by its capture." },
@@ -68,12 +79,12 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-oldmapsonline", label: "Old Maps Online", short: "OMO", group: "Old maps", color: "#e5e7eb", note: "Klokan's search engine over library map collections.", disabled: "Its API sends no CORS header and sits behind a Cloudflare challenge, so a browser cannot query it." },
   { id: "cat-agol", label: "ArcGIS Online imagery", short: "ArcGIS", group: "Imagery services", color: "#a7f3d0", note: "Public ArcGIS image and map services found by ArcGIS Online search over the view, whose title names a year (taken as the capture year), sized to the zoom." },
   // National and regional archives, last: IGN, swisstopo and Kartverket, then the generated regional series.
-  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "Historical · National catalogs", region: "France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
-  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "Historical · National catalogs", region: "Switzerland", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
-  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "Historical · National catalogs", region: "Switzerland", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
-  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Historical · National catalogs", region: "Norway", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
+  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "National catalogs", region: "France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
+  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "National catalogs", region: "Switzerland", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "National catalogs", region: "Switzerland", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "National catalogs", region: "Norway", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
   // Regional series (lib/national-historical.ts).
-  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "Historical · National catalogs", region: s.group.replace(/^Historical · /, ""), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
+  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "National catalogs", region: s.group.replace(/^Historical · /, ""), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
 ]
 export const TIMELINE_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>
 
