@@ -1,9 +1,9 @@
 ---
 title: Slide decks
-description: Five presentations of Terrain Viewer, live and as PDFs, built from the open-slide decks in the repository
+description: Five presentations of Terrain Viewer, live with a presenter view, and as PDFs, built from the open-slide decks in the repository
 ---
 
-Five decks, written as React pages with [open-slide](https://open-slide.dev) in the repository's `slides/` workspace, published by the docs deploy both live (with their transitions and speaker notes, [all decks](../../slides/)) and as PDFs, also attached to the [slide decks release](https://github.com/Iconem/terrain-viewer/releases/tag/slides-2026-10-05). Light docs: ideas, bullets, screenshots, the numbers.
+Five decks, written as React pages with [open-slide](https://open-slide.dev) in the repository's `slides/` workspace. The docs deploy publishes them live, with their transitions, speaker notes and presenter view ([all decks](../../slides/)), and as PDFs, below and on the [slide decks release](https://github.com/Iconem/terrain-viewer/releases/tag/slides-2026-10-05). Light docs: ideas, bullets, screenshots, the numbers.
 
 | Deck | What it covers | Live | PDF |
 | --- | --- | --- | --- |
@@ -13,13 +13,51 @@ Five decks, written as React pages with [open-slide](https://open-slide.dev) in 
 | **Research themes** | Landscape archaeology and earth processes: what the modes show and the papers behind them | [present](../../slides/s/research/) | [research.pdf](../../slides/pdf/research.pdf) |
 | **Under the hood** | The equations, the client-side tile protocols, the registry, what runs where | [present](../../slides/s/under-the-hood/) | [under-the-hood.pdf](../../slides/pdf/under-the-hood.pdf) |
 
-To work on them locally:
+## Presenting
+
+Open a deck, then **F** for full screen and **P** for the presenter window: the current slide, the next one, the speaker notes, a timer and a page jump, kept in step with the audience window (both in the same browser). Arrows, Space or Page Down move on; **O** shows every page, **B** and **W** blank the screen, **L** is a laser pointer, **?** lists the keys. The PDF, PowerPoint and HTML exports are in the deck's toolbar too.
+
+The online decks are read-only: the inspector, its comments and the inline text edits write back to the slide sources, so they only run with `pnpm slides` on a checkout.
+
+## All the PDFs
+
+Each opens in place; a deck is 12 to 23 MB.
+
+<details>
+  <summary><strong>Terrain Viewer</strong> (12 pages)</summary>
+  <iframe loading="lazy" src="../../slides/pdf/terrain-viewer.pdf" title="Terrain Viewer deck" style={{ width: "100%", aspectRatio: "16 / 9.6", border: 0, marginTop: 12 }} />
+</details>
+
+<details>
+  <summary><strong>Historical imagery</strong> (13 pages)</summary>
+  <iframe loading="lazy" src="../../slides/pdf/historical.pdf" title="Historical imagery deck" style={{ width: "100%", aspectRatio: "16 / 9.6", border: 0, marginTop: 12 }} />
+</details>
+
+<details>
+  <summary><strong>Tools</strong> (14 pages)</summary>
+  <iframe loading="lazy" src="../../slides/pdf/tools.pdf" title="Tools deck" style={{ width: "100%", aspectRatio: "16 / 9.6", border: 0, marginTop: 12 }} />
+</details>
+
+<details>
+  <summary><strong>Research themes</strong> (12 pages)</summary>
+  <iframe loading="lazy" src="../../slides/pdf/research.pdf" title="Research themes deck" style={{ width: "100%", aspectRatio: "16 / 9.6", border: 0, marginTop: 12 }} />
+</details>
+
+<details>
+  <summary><strong>Under the hood</strong> (13 pages)</summary>
+  <iframe loading="lazy" src="../../slides/pdf/under-the-hood.pdf" title="Under the hood deck" style={{ width: "100%", aspectRatio: "16 / 9.6", border: 0, marginTop: 12 }} />
+</details>
+
+## Working on them
+
+From the repository root:
 
 ```bash
-cd slides
-pnpm install --ignore-workspace
-pnpm dev          # http://localhost:5173/s/terrain-viewer, /s/historical, /s/tools, /s/research, /s/under-the-hood
-pnpm pdf          # the PDFs, from a running dev or preview server (CHROME_PATH to a Chromium)
+pnpm slides:install   # once: the workspace has its own install
+pnpm slides           # dev server with the inspector, http://localhost:3200
+pnpm slides:static    # the static site as it will be online, http://localhost:4180/docs/slides/
+pnpm slides:pdf       # the static site and the five PDFs, in .cache/slides-site/
+pnpm dev:all          # app, docs and slides together
 ```
 
-The decks' screenshots are the docs site's own (`docs/public/screenshots`), copied in before a build, so the repository holds each picture once.
+The decks' screenshots are the docs site's own (`docs/public/screenshots`), copied in before a build, so the repository holds each picture once; the built site and the PDFs are never committed.

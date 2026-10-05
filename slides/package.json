@@ -9,7 +9,8 @@
     "build": "node scripts/sync-assets.mjs && open-slide build",
     "preview": "open-slide preview",
     "sync:skills": "open-slide sync:skills",
-    "pdf": "node scripts/export-pdf.mjs"
+    "pdf": "node scripts/publish.mjs --pdf",
+    "static": "node scripts/publish.mjs --serve"
   },
   "dependencies": {
     "@open-slide/core": "^2.0.0",

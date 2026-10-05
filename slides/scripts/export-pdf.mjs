@@ -14,7 +14,8 @@ const outDir = process.argv[3] ?? join(root, "dist")
 mkdirSync(outDir, { recursive: true })
 const decks = readdirSync(join(root, "slides")).filter((d) => d !== "getting-started" && existsSync(join(root, "slides", d, "index.tsx")))
 
-const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, channel: process.env.CHROME_PATH ? undefined : "chromium" })
+// CHROME_PATH (the deploy installs a Chromium), else the system's Chrome.
+const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: "chrome" })
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } })
 for (const deck of decks) {
   await page.goto(`${base}/s/${deck}`, { waitUntil: "load" })
