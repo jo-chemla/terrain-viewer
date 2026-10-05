@@ -9,14 +9,23 @@
 import { useEffect, useRef } from "react"
 import { useMap } from "react-map-gl/maplibre"
 import type { CustomLayerInterface } from "maplibre-gl"
-import { useAtomValue } from "jotai"
-import { allmapsRemoveColorAtom } from "@/lib/settings-atoms"
+import { useAtomValue, useSetAtom } from "jotai"
+import { allmapsRemoveColorAtom, allmapsPaperAtom, type AllmapsRemoveColor } from "@/lib/settings-atoms"
+import { estimatePaper, type PaperEstimate } from "@/lib/allmaps-paper"
 
 /** The warped maps' per-map render options for the background removal
  *  (Allmaps' own "remove background colour": pixels within `threshold` of
- *  the colour turn transparent, `hardness` the edge's sharpness). */
-const removeColorOptions = (o: { enabled: boolean; color: string; threshold: number; hardness: number }) =>
-  ({ removeColor: o.enabled, removeColorColor: o.color, removeColorThreshold: o.threshold, removeColorHardness: o.hardness })
+ *  the colour turn transparent, `hardness` the edge's sharpness). In auto
+ *  mode the map's own detected paper and threshold, scaled by the gain;
+ *  until the estimate lands, nothing is removed. */
+const removeColorOptions = (o: AllmapsRemoveColor, paper: PaperEstimate | null) => {
+  const auto = o.auto ?? true
+  // No estimate yet, or a map with no paper to speak of: nothing removed.
+  if (!o.enabled || (auto && !paper?.confident)) return { removeColor: false }
+  const color = auto ? paper!.color : o.color
+  const threshold = auto ? paper!.threshold * (0.5 + (o.autoGain ?? 0.5)) : o.threshold
+  return { removeColor: true, removeColorColor: color, removeColorThreshold: threshold, removeColorHardness: o.hardness }
+}
 
 export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { id: string; annotationUrl: string; opacity: number; beforeId: string }) {
   const { current: mapRef } = useMap()
@@ -25,6 +34,9 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
   const removeColor = useAtomValue(allmapsRemoveColorAtom)
   const removeColorRef = useRef(removeColor)
   removeColorRef.current = removeColor
+  const setPapers = useSetAtom(allmapsPaperAtom)
+  const paperRef = useRef<PaperEstimate | null>(null)
+  const apply = () => { try { layerRef.current?.setMapsOptions(() => removeColorOptions(removeColorRef.current, paperRef.current)) } catch {} }
 
   useEffect(() => {
     const map = mapRef?.getMap()
@@ -44,7 +56,7 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
           map.addLayer(layer as CustomLayerInterface, beforeId)
           layer.setOpacity(opacity)
           layer.addGeoreferenceAnnotationByUrl(annotationUrl)
-            .then(() => { try { layer.setMapsOptions(() => removeColorOptions(removeColorRef.current)) } catch {} })
+            .then(() => apply())
             .catch((e: unknown) => console.error("[allmaps] annotation failed:", annotationUrl, e))
           return
         }
@@ -69,9 +81,22 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
   useEffect(() => {
     try { layerRef.current?.setOpacity(opacity) } catch {}
   }, [opacity])
+  // The map's own paper, estimated once per annotation (cached) when the
+  // removal is on in auto mode.
+  const wantsEstimate = removeColor.enabled && (removeColor.auto ?? true)
   useEffect(() => {
-    try { layerRef.current?.setMapsOptions(() => removeColorOptions(removeColor)) } catch {}
-  }, [removeColor])
+    if (!wantsEstimate) return
+    let cancelled = false
+    estimatePaper(annotationUrl).then((p) => {
+      if (cancelled) return
+      paperRef.current = p
+      setPapers((prev) => ({ ...prev, [annotationUrl]: p ? { color: p.color, threshold: p.threshold, modes: p.modes, paperShare: p.paperShare, confident: p.confident } : null }))
+      apply()
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsEstimate, annotationUrl])
+  useEffect(() => { apply() }, [removeColor]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return null
 }

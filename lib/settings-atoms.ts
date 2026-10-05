@@ -120,8 +120,14 @@ export const activeExtentsAtom = atomWithStorage("coverageActiveExtents", false)
 /** The overlay ids those extents are (set by the picker, read by the map). */
 export const activeExtentIdsAtom = atom<string[]>([])
 /** Allmaps warped maps: drop the paper's background colour (the viewer's
- *  "remove background"), a distance threshold and an edge hardness. */
-export const allmapsRemoveColorAtom = atomWithStorage("allmapsRemoveColor", { enabled: false, color: "#ffffff", threshold: 0.3, hardness: 0.7 }, undefined, { getOnInit: true })
+ *  "remove background"), a distance threshold and an edge hardness. Auto:
+ *  each map's own paper colour and threshold from its image's luminance
+ *  histogram (lib/allmaps-paper.ts), `autoGain` scaling the threshold
+ *  (0.5 = as detected, 0 = half, 1 = one and a half). */
+export interface AllmapsRemoveColor { enabled: boolean; auto?: boolean; autoGain?: number; color: string; threshold: number; hardness: number }
+export const allmapsRemoveColorAtom = atomWithStorage<AllmapsRemoveColor>("allmapsRemoveColor", { enabled: false, auto: true, autoGain: 0.5, color: "#ffffff", threshold: 0.3, hardness: 0.7 }, undefined, { getOnInit: true })
+/** Each warped map's detected paper, by annotation URL (for the sidebar). */
+export const allmapsPaperAtom = atom<Record<string, { color: string; threshold: number; modes: number[]; paperShare: number; confident: boolean } | null>>({})
 // The source lists' edit mode: off, rows show info, fit and opacity only;
 // on, the batch-edit JSON button and each row's edit and delete.
 export const sourcesEditModeAtom = atom(false)
