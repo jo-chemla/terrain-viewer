@@ -1,16 +1,22 @@
 import type React from "react"
 import { useRef } from "react"
 import { useSetAtom, useAtomValue } from "jotai"
-import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink, LibraryBig } from "lucide-react"
+import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink, LibraryBig, Info } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { registerLocalFileAtom, resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
+import { sourcesEditModeAtom } from "@/lib/settings-atoms"
 
 export const CustomSourceDetails: React.FC<{
   source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any
   /** Rendered right after the name, before the fit / edit / delete buttons. */
   extraActions?: React.ReactNode
+  /** Rendered last, right-most (an overlay's opacity pill). */
+  trailingActions?: React.ReactNode
+  /** Edit mode off (sourcesEditModeAtom): the row shows info, fit and the
+   *  trailing actions, no edit or delete. */
+  onInfo?: (id: string) => void
   /** Called with source.id when the label is clicked, e.g. setState({ sourceA: id }) or
    *  setState({ basemapSource: id }) — the caller decides which state key to write.
    *  Omit in contexts (e.g. split-screen A/B) where a separate control already handles
@@ -31,7 +37,8 @@ export const CustomSourceDetails: React.FC<{
   libraryIds?: Set<string>
   /** Adds the given library entries to the user's sources. */
   onLoadFromLibrary?: (ids: string[]) => void
-}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds, libraryIds, onLoadFromLibrary, extraActions }) => {
+}> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds, libraryIds, onLoadFromLibrary, extraActions, trailingActions, onInfo }) => {
+  const editMode = useAtomValue(sourcesEditModeAtom)
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // The File behind a "cog-local" source only lives in this tab's memory — after
@@ -198,26 +205,40 @@ export const CustomSourceDetails: React.FC<{
         <TooltipContent><p>Fit to bounds</p></TooltipContent>
       </Tooltip>
     )}
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleEditSource(source.id)}>
-            <Edit className="h-4 w-4" />
-          </Button>
-        }
-      />
-      <TooltipContent><p>Edit</p></TooltipContent>
-    </Tooltip>
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        }
-      />
-      <TooltipContent><p>Delete</p></TooltipContent>
-    </Tooltip>
+    {editMode ? (<>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleEditSource(source.id)}>
+              <Edit className="h-4 w-4" />
+            </Button>
+          }
+        />
+        <TooltipContent><p>Edit</p></TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => handleDeleteCustomSource(source.id)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          }
+        />
+        <TooltipContent><p>Delete</p></TooltipContent>
+      </Tooltip>
+    </>) : onInfo ? (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={() => onInfo(source.id)}>
+              <Info className="h-4 w-4" />
+            </Button>
+          }
+        />
+        <TooltipContent><p>Details</p></TooltipContent>
+      </Tooltip>
+    ) : null}
+    {trailingActions}
     </>
   )
 }

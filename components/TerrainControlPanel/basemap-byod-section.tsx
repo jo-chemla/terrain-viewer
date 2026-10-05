@@ -1,8 +1,11 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown, Plus, Edit, Library, Crosshair } from "lucide-react"
+import { ChevronDown, Plus, Edit, Library, Crosshair, Braces } from "lucide-react"
+import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
+import { sourcesEditModeAtom } from "@/lib/settings-atoms"
 import { OpacityPill } from "@/components/ui/opacity-pill"
+import { cn } from "@/lib/utils"
 import { georefImageAtom, georefEditingIdAtom, georefActiveAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { sectionOpenAtom } from "./TerrainControlPanel"
 import { pushToast } from "@/components/ui/toast"
@@ -42,6 +45,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const stacSearchBeta = useAtomValue(stacSearchBetaEnabledAtom)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
+  const [editMode, setEditMode] = useAtom(sourcesEditModeAtom)
+  const { infoId, open: openInfo, close: closeInfo } = useSourceInfoDialog()
   const [isSampleModalOpen, setIsSampleModalOpen] = useAtom(basemapLibraryOpenAtom)
   // Handing off from the Library to the Add dialog's catalog tab is done
   // SEQUENTIALLY rather than by opening the second while the first is still
@@ -326,16 +331,31 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 tooltip="Pick from the library of sample basemaps"
                 onClick={handleLoadSample}
               />
+              {/* Edit mode: on, each row shows edit and delete and the
+                  batch JSON editor is offered; off, rows show info, fit and
+                  the overlay's opacity only. Shared with the terrain list. */}
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2" onClick={() => setIsBatchEditModalOpen(true)}>
+                    <Button variant={editMode ? "default" : "outline"} size="sm" className={cn("cursor-pointer shrink-0 px-2", !editMode && "bg-transparent")} onClick={() => setEditMode(!editMode)}>
                       <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
                   }
                 />
-                <TooltipContent><p>Batch edit all sources as JSON</p></TooltipContent>
+                <TooltipContent><p>{editMode ? "Done editing" : "Edit the sources"}</p></TooltipContent>
               </Tooltip>
+              {editMode && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2 text-xs" onClick={() => setIsBatchEditModalOpen(true)}>
+                        <Braces className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />Batch edit
+                      </Button>
+                    }
+                  />
+                  <TooltipContent><p>Every source as JSON, Ctrl+Enter saves</p></TooltipContent>
+                </Tooltip>
+              )}
             </div>
           </TooltipProvider>
           {basemapRoleSources.length > 0 && (
@@ -352,6 +372,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                         onSelect={(side: ViewId) => selectBasemapSide(side, source.id)}
                       />
                       <CustomSourceDetails
+                        onInfo={openInfo}
                         source={source}
                         handleFitToBounds={handleFitToBounds}
                         handleEditSource={handleEditBasemap}
@@ -372,6 +393,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                         className="cursor-pointer shrink-0"
                       />
                       <CustomSourceDetails
+                        onInfo={openInfo}
                         source={source}
                         handleFitToBounds={handleFitToBounds}
                         handleEditSource={handleEditBasemap}
@@ -393,6 +415,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                       className="cursor-pointer shrink-0"
                     />
                     <CustomSourceDetails
+                      onInfo={openInfo}
                       source={source}
                       handleFitToBounds={handleFitToBounds}
                       handleEditSource={handleEditBasemap}
@@ -428,19 +451,18 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                   />
                   )}
                   <CustomSourceDetails
+                    onInfo={openInfo}
                     source={source}
                     handleFitToBounds={handleFitToBounds}
                     handleEditSource={handleEditBasemap}
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
                     onSelect={(id) => (state.basemapPerView && state.splitStyle !== "off") ? toggleOverlayAll(id) : handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
-                    extraActions={<>
-                      <OpacityPill value={(source.opacity ?? 100) / 100} onChange={(v) => setCustomBasemapSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, opacity: Math.round(v * 100) } : s)))} title="This overlay's opacity" />
-                      {(source.type === "image" || source.type === "image-local") && source.georef ? (
-                        <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "bg-primary/15 text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
-                          <Crosshair className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                    </>}
+                    trailingActions={<OpacityPill value={(source.opacity ?? 100) / 100} onChange={(v) => setCustomBasemapSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, opacity: Math.round(v * 100) } : s)))} title="This overlay's opacity" />}
+                    extraActions={(source.type === "image" || source.type === "image-local") && source.georef ? (
+                      <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "bg-primary/15 text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
+                        <Crosshair className="h-4 w-4" />
+                      </Button>
+                    ) : undefined}
                   />
                 </div>
               ))}
@@ -494,6 +516,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
           setCustomBasemapSources(next)
         }}
       />
+      <SourceMetadataDialog source={infoId ? customBasemapSources.find((s) => s.id === infoId) ?? null : null} onClose={closeInfo} onFit={(s) => handleFitToBounds(s, true)} />
       <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} onLiveOpacityChange={handleLiveOpacityChange} mapRef={mapRef} />
       <BasemapBatchEditModal
         isOpen={isBatchEditModalOpen}

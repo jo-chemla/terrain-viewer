@@ -18,10 +18,18 @@ import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2 } from "lucide-rea
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { TIMELINE_CATALOGS, CATALOG_ROOTS, CATALOG_ROOT_ORDER, COVERAGE_ONLY_ENTRIES, catalogStatusAtom, type TimelineCatalog } from "@/lib/timeline-catalogs"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom } from "@/lib/settings-atoms"
+
+const SwitchRow: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string; tip: string }> = ({ checked, onChange, label, tip }) => (
+  <Tooltip>
+    <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={checked} onCheckedChange={onChange} className="cursor-pointer scale-75 origin-left" />{label}</label>} />
+    <TooltipContent><p>{tip}</p></TooltipContent>
+  </Tooltip>
+)
 
 const covers = (c: { bbox?: [number, number, number, number] }, center?: [number, number]) =>
   !c.bbox || !center || (center[0] >= c.bbox[0] && center[0] <= c.bbox[2] && center[1] >= c.bbox[1] && center[1] <= c.bbox[3])
@@ -35,9 +43,11 @@ export const HistoricalCatalogTree: React.FC<{
   onChange: (ids: string[]) => void
   /** The view centre [lng, lat], to tell which regional sources cover it. */
   center?: [number, number]
-  /** The timeline select shows the switches; the coverage section too. */
+  /** In the coverage section: no explanation, and only the switch that is
+   *  the timeline's (within its window); the others sit above the tree. */
+  compact?: boolean
   className?: string
-}> = ({ selected, onChange, center, className }) => {
+}> = ({ selected, onChange, center, compact = false, className }) => {
   const { loading, counts, errors } = useAtomValue(catalogStatusAtom)
   const [coverage, setCoverage] = useAtom(coverageOverlaysAtom)
   const [footprints, setFootprints] = useAtom(timelineFootprintsAtom)
@@ -64,6 +74,7 @@ export const HistoricalCatalogTree: React.FC<{
   const foldAll = (fold: boolean) => setFolded(Object.fromEntries(keys.map((k) => [k, fold])))
   const toggleFold = (key: string, openNow: boolean) => setFolded((prev) => ({ ...prev, [key]: openNow }))
 
+  const loadingHere = (cats: Entry[]) => cats.some((c) => isOn(c) && loading[c.id])
   const groupHeader = (key: string, label: string, cats: Entry[], openNow: boolean, depth: number) => {
     const usable = cats.filter((c) => !c.disabled)
     const on = usable.filter(isOn).length
@@ -74,6 +85,7 @@ export const HistoricalCatalogTree: React.FC<{
         <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={openNow ? "Collapse" : "Expand"} onClick={() => toggleFold(key, openNow)}>
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openNow ? "" : "-rotate-90"}`} />
         </button>
+        {loadingHere(cats) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
         <Checkbox id={`tlcat-g-${key}`} checked={on === usable.length && usable.length > 0} indeterminate={on > 0 && on < usable.length} disabled={!usable.length}
           onCheckedChange={(v) => setMany(usable, v === true)} className="cursor-pointer" />
         <Label htmlFor={`tlcat-g-${key}`} className={cn("cursor-pointer flex-1 uppercase tracking-wide text-muted-foreground", depth ? "text-[10px]" : "text-[11px] font-semibold text-foreground/80")}>{label}</Label>
@@ -86,10 +98,13 @@ export const HistoricalCatalogTree: React.FC<{
     const away = !covers(c, center)
     const on = isOn(c)
     return (
-      <div key={c.id} className={cn("flex items-center gap-1.5", (c.disabled || away) && "opacity-50")} title={c.disabled ?? (away ? `${c.note} (nothing at the view centre)` : c.note)}>
+      <div key={c.id} className={cn("flex items-center gap-1.5", (c.disabled || away) && "opacity-50")}>
         <Checkbox id={`tlcat-${c.id}`} checked={on} disabled={!!c.disabled} onCheckedChange={(v) => setMany([c], v === true)} className="cursor-pointer" />
         <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: c.color }} />
-        <Label htmlFor={`tlcat-${c.id}`} className="text-xs cursor-pointer truncate flex-1">{c.label}</Label>
+        <Tooltip>
+          <TooltipTrigger render={<Label htmlFor={`tlcat-${c.id}`} className="text-xs cursor-pointer truncate flex-1">{c.label}</Label>} />
+          <TooltipContent className="max-w-80"><p>{c.disabled ?? c.note}{away && !c.disabled ? " (nothing at the view centre)" : ""}</p></TooltipContent>
+        </Tooltip>
         {c.coverageOnly && <span className="text-[10px] text-muted-foreground">footprints</span>}
         {on && !c.coverageOnly && (loading[c.id]
           ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
@@ -102,15 +117,22 @@ export const HistoricalCatalogTree: React.FC<{
   return (
     <div className={cn("space-y-1", className)}>
       <div className="flex items-start gap-2 px-0.5 pb-1">
-        <p className="text-[11px] text-muted-foreground flex-1">Items covering the view become ticks; picking one makes it the view's basemap. Refreshed as you move. Dimmed sources have nothing here.</p>
-        <button type="button" className="cursor-pointer shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1" onClick={() => foldAll(allOpen)} title={allOpen ? "Fold every group" : "Expand every group"}>
-          {allOpen ? <ChevronsDownUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3" />}{allOpen ? "Fold all" : "Expand all"}
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-0.5 pb-1 text-[11px]">
-        <label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={footprints} onCheckedChange={setFootprints} className="cursor-pointer scale-75 origin-left" />Footprints on the map</label>
-        <label className="flex items-center gap-1.5 cursor-pointer" title="Only items dated within the timeline's current window"><Switch checked={windowFilter} onCheckedChange={setWindowFilter} className="cursor-pointer scale-75 origin-left" />Within the timeline window</label>
-        <label className="flex items-center gap-1.5 cursor-pointer" title="Off: the catalogs are not asked again as the map moves, so the ticks stay as they are"><Switch checked={follow} onCheckedChange={setFollow} className="cursor-pointer scale-75 origin-left" />Follow the view</label>
+        {!compact && <p className="text-[11px] text-muted-foreground flex-1">Items covering the view become ticks; picking one makes it the view's basemap. Refreshed as you move. Dimmed sources have nothing here.</p>}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] flex-1">
+          {!compact && (<>
+            <SwitchRow checked={footprints} onChange={setFootprints} label="Footprints on the map" tip="Every item found drawn as an outline in its catalog's colour" />
+            <SwitchRow checked={follow} onChange={setFollow} label="Follow the view" tip="Off: the catalogs are not asked again as the map moves, so the ticks stay as they are" />
+          </>)}
+          <SwitchRow checked={windowFilter} onChange={setWindowFilter} label="Within the timeline window" tip="Only items dated within the timeline's current window (STAC searches pass it to the server)" />
+        </div>
+        <Tooltip>
+          <TooltipTrigger render={
+            <button type="button" className="cursor-pointer shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1" onClick={() => foldAll(allOpen)}>
+              {allOpen ? <ChevronsDownUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3" />}{allOpen ? "Fold all" : "Expand all"}
+            </button>
+          } />
+          <TooltipContent><p>{allOpen ? "Fold every group" : "Expand every group"}</p></TooltipContent>
+        </Tooltip>
       </div>
       {roots.map(({ root, groups }, ri) => {
         const rootCats = groups.flatMap(catsOf)
@@ -120,22 +142,25 @@ export const HistoricalCatalogTree: React.FC<{
             {groupHeader(root, root, rootCats, rootOpen, 0)}
             {rootOpen && groups.map((g) => {
               const cats = catsOf(g)
+              const regions = Array.from(new Set(cats.map((c) => c.region ?? "")))
+              const rows = (
+                <div className="pl-[42px] space-y-0.5">
+                  {regions.map((r) => (
+                    <div key={r || "_"} className="space-y-0.5">
+                      {r && <div className="text-[10px] text-muted-foreground/80 pt-1">{r}</div>}
+                      {cats.filter((c) => (c.region ?? "") === r).map(row)}
+                    </div>
+                  ))}
+                </div>
+              )
+              // The group is the root itself: its rows sit right under it.
+              if (g === root || CATALOG_ROOTS[g] === g) return <div key={g}>{rows}</div>
               const key = `${root}/${g}`
               const openG = isOpen(key, cats)
-              const regions = Array.from(new Set(cats.map((c) => c.region ?? "")))
               return (
                 <div key={g} className="pl-[21px]">
                   {groupHeader(key, g, cats, openG, 1)}
-                  {openG && (
-                    <div className="pl-[42px] space-y-0.5">
-                      {regions.map((r) => (
-                        <div key={r || "_"} className="space-y-0.5">
-                          {r && <div className="text-[10px] text-muted-foreground/80 pt-1">{r}</div>}
-                          {cats.filter((c) => (c.region ?? "") === r).map(row)}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {openG && rows}
                 </div>
               )
             })}

@@ -56,37 +56,34 @@ export interface TimelineCatalog {
 
 /** The picker's three root groups, by sub-group. */
 export const CATALOG_ROOTS: Record<string, string> = {
-  "Drone and aerial": "Open data for post-crisis response",
-  "Disaster open data": "Open data for post-crisis response",
-  "Community indexes": "Mapping agencies",
-  "Imagery services": "Mapping agencies",
-  "National catalogs": "Mapping agencies",
-  "Declassified satellite": "Mapping agencies",
+  "Open data for post-crisis response": "Open data for post-crisis response",
+  "Community indexes": "Community indexes",
+  "Mapping agencies national catalogs": "Mapping agencies national catalogs",
   "Old maps": "Old maps, digitised and warped",
 }
-export const CATALOG_ROOT_ORDER = ["Open data for post-crisis response", "Mapping agencies", "Old maps, digitised and warped"]
+export const CATALOG_ROOT_ORDER = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped"]
 
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "eli", label: "OSM Editor Layer Index (ELI)", short: "ELI", group: "Community indexes", color: "#99f6e4", note: "Dated orthophotos and maps of the OSM Editor Layer Index whose coverage touches the view (about 1,300 layers carry a date); a year-only date sits at 1 January." },
-  { id: "cat-oam", label: "OpenAerialMap", short: "OAM", group: "Drone and aerial", color: "#fde68a", note: "Open drone and aerial imagery uploaded to OpenAerialMap, from HOT's STAC API: one tick per upload covering the view, dated by its capture." },
-  { id: "cat-maxar", label: "Maxar Open Data", short: "Maxar", group: "Disaster open data", color: "#fecaca", note: "Maxar's pre- and post-event 30-50 cm imagery for disasters (CC BY-NC 4.0), from HOT's STAC API: one tick per acquisition." },
-  { id: "cat-vantor", label: "Vantor Open Data", short: "Vantor", group: "Disaster open data", color: "#fbcfe8", note: "Vantor (ex-Maxar) open data programme, 2025 onwards, from HOT's STAC API." },
-  { id: "cat-noaa", label: "NOAA emergency response", short: "NOAA", group: "Disaster open data", color: "#bfdbfe", note: "NOAA's aerial imagery after hurricanes, tornadoes and floods, from HOT's STAC API." },
-  { id: "cat-planet", label: "Planet disaster data", short: "Planet DD", group: "Disaster open data", color: "#fed7aa", note: "Planet Crisis Response Program releases on Source Cooperative: one tick per pre- or post-event acquisition covering the view." },
+  { id: "cat-oam", label: "OpenAerialMap", short: "OAM", group: "Open data for post-crisis response", color: "#fde68a", note: "Open drone and aerial imagery uploaded to OpenAerialMap, from HOT's STAC API: one tick per upload covering the view, dated by its capture." },
+  { id: "cat-maxar", label: "Maxar Open Data", short: "Maxar", group: "Open data for post-crisis response", color: "#fecaca", note: "Maxar's pre- and post-event 30-50 cm imagery for disasters (CC BY-NC 4.0), from HOT's STAC API: one tick per acquisition." },
+  { id: "cat-vantor", label: "Vantor Open Data", short: "Vantor", group: "Open data for post-crisis response", color: "#fbcfe8", note: "Vantor (ex-Maxar) open data programme, 2025 onwards, from HOT's STAC API." },
+  { id: "cat-noaa", label: "NOAA emergency response", short: "NOAA", group: "Open data for post-crisis response", color: "#bfdbfe", note: "NOAA's aerial imagery after hurricanes, tornadoes and floods, from HOT's STAC API." },
+  { id: "cat-planet", label: "Planet disaster data", short: "Planet DD", group: "Open data for post-crisis response", color: "#fed7aa", note: "Planet Crisis Response Program releases on Source Cooperative: one tick per pre- or post-event acquisition covering the view." },
   { id: "cat-mapwarper", label: "Map Warper", short: "MapWarper", group: "Old maps", color: "#e9d5ff", note: "Maps georeferenced by volunteers on mapwarper.net, sized to the zoom; only maps with a depicted year get a tick." },
   { id: "cat-wikimaps", label: "Wikimaps Warper", short: "Wikimaps", group: "Old maps", color: "#ddd6fe", note: "Maps from Wikimedia Commons georeferenced on warper.wmflabs.org, sized to the zoom; only maps with a depicted year get a tick." },
   { id: "cat-slub", label: "SLUB Kartenforum (Germany)", short: "Kartenforum", group: "Old maps", color: "#fde68a", note: "About 9,000 maps georeferenced by the SLUB Dresden Virtuelles Kartenforum (Messtischblätter, topographic maps, city plans), sized to the zoom." },
   { id: "cat-usgs-topo", label: "USGS historical topo maps", short: "USGS topo", group: "Old maps", color: "#d9f99d", note: "Every USGS topographic quad edition covering the view centre since 1884 (US only), from Esri's historical topo image service; dated by imprint year." },
   { id: "cat-oldmapsonline", label: "Old Maps Online", short: "OMO", group: "Old maps", color: "#e5e7eb", note: "Klokan's search engine over library map collections.", disabled: "Its API sends no CORS header and sits behind a Cloudflare challenge, so a browser cannot query it." },
-  { id: "cat-corona", label: "CORONA Atlas (declassified satellite, 1963-72)", short: "CORONA", group: "Declassified satellite", color: "#fef3c7", bbox: [20, 10, 75, 48], note: "The CORONA Atlas of the Middle East (CAST, University of Arkansas): 279 georeferenced KH-4 mosaics 1963-1972 over the Middle East, North Africa and Central Asia, served by CAST's GeoServer.", resClass: "vhr" },
-  { id: "cat-agol", label: "ArcGIS Online imagery", short: "ArcGIS", group: "Imagery services", color: "#a7f3d0", note: "Public ArcGIS image and map services found by ArcGIS Online search over the view, whose title names a year (taken as the capture year), sized to the zoom." },
+  { id: "cat-corona", label: "CORONA Atlas (declassified satellite, 1963-72)", short: "CORONA", group: "Community indexes", color: "#fef3c7", bbox: [20, 10, 75, 48], note: "The CORONA Atlas of the Middle East (CAST, University of Arkansas): 279 georeferenced KH-4 mosaics 1963-1972 over the Middle East, North Africa and Central Asia, served by CAST's GeoServer.", resClass: "vhr" },
+  { id: "cat-agol", label: "ArcGIS Online imagery", short: "ArcGIS", group: "Community indexes", color: "#a7f3d0", note: "Public ArcGIS image and map services found by ArcGIS Online search over the view, whose title names a year (taken as the capture year), sized to the zoom." },
   // National and regional archives, last: IGN, swisstopo and Kartverket, then the generated regional series.
-  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "National catalogs", region: "France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
-  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "National catalogs", region: "Switzerland", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
-  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "National catalogs", region: "Switzerland", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
-  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "National catalogs", region: "Norway", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
+  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "Mapping agencies national catalogs", region: "France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
+  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "Mapping agencies national catalogs", region: "Switzerland", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "Mapping agencies national catalogs", region: "Switzerland", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Mapping agencies national catalogs", region: "Norway", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
   // Regional series (lib/national-historical.ts).
-  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "National catalogs", region: s.group.replace(/^Historical · /, ""), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
+  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "Mapping agencies national catalogs", region: s.group.replace(/^Historical · /, ""), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
 ]
 export const TIMELINE_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>
 
@@ -647,10 +644,15 @@ async function agolTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[
     else if (tilesOnly) return
     else if (isImage) { url = `${base}/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&format=jpgpng&f=image`; type = "wms" }
     else { url = `${base}/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&format=png32&transparent=true&f=image`; type = "wms" }
+    // Resolution: the finest cache level's, or the image service's pixel size.
+    const lods: any[] = info.tileInfo?.lods ?? []
+    const finest = lods.length ? Math.min(...lods.map((l: any) => Number(l.resolution)).filter(Number.isFinite)) : undefined
+    const px = Number(info.pixelSizeX)
+    const gsd = finest ?? (Number.isFinite(px) && px > 0 ? px : undefined)
     ticks.push(register("cat-agol", r.id, Date.UTC(year, 0, 1), `ArcGIS · ${r.title} · ${year} · ${r.owner}`, {
       name: `${r.title}`, url, type, role: "basemap", bounds: b,
       description: `ArcGIS Online ${r.type}, ${r.owner}, title year ${year}`, infoUrl: `https://www.arcgis.com/home/item.html?id=${r.id}`,
-    } as Omit<CustomBasemapSource, "id">))
+    } as Omit<CustomBasemapSource, "id">, { gsd, provider: `ArcGIS Online (${r.owner})`, licence: r.licenseInfo ? String(r.licenseInfo).replace(/<[^>]+>/g, "").slice(0, 120) : undefined }))
   }))
   return ticks
 }

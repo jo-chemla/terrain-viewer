@@ -26,7 +26,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { coverageOverlaysAtom, coverageGroups, type EliLike } from "@/lib/coverage-overlays"
 import { HistoricalCatalogTree } from "./historical-catalog-tree"
-import { coverageVisibleAtom } from "@/lib/settings-atoms"
+import { SourceMetadataRows } from "./source-metadata"
+import { coverageVisibleAtom, coverageOutlineOnlyAtom, timelineFootprintsAtom, timelineFollowViewportAtom } from "@/lib/settings-atoms"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
 import { terrainKindOf } from "./sample-sources-modal"
@@ -269,6 +272,14 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
         Basemap attribution — Esri/Wayback, Google Earth, and Bing resolve live for the current view; every other source is fixed.
       </p>
       {grouped.map((g) => row(g.source, g.ge, g.wayback, activeViews.length > 1 ? `${g.ids.join("/")}: ` : ""))}
+      {/* A custom basemap (library, BYOD, a timeline pick) carries more than
+          an attribution line: everything it has, like the terrain above. */}
+      {grouped.map((g) => { const b = customBasemapById(g.source); return b ? (
+        <details key={`meta-${g.source}`} className="rounded border px-2 py-1">
+          <summary className="cursor-pointer text-xs font-medium truncate">{activeViews.length > 1 ? `${g.ids.join("/")}: ` : ""}{b.name}: all metadata</summary>
+          <SourceMetadataRows source={b} className="mt-1 grid grid-cols-[minmax(5rem,max-content)_1fr] gap-x-2 gap-y-0.5 text-[11px]" />
+        </details>
+      ) : null })}
     </div>
   )
 }
@@ -282,6 +293,9 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
 const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: any; setState?: (u: any) => void }> = ({ mapRef, state, setState }) => {
   const [selected, setSelected] = useAtom(coverageOverlaysAtom)
   const [visible, setVisible] = useAtom(coverageVisibleAtom)
+  const [outlineOnly, setOutlineOnly] = useAtom(coverageOutlineOnlyAtom)
+  const [footprints, setFootprints] = useAtom(timelineFootprintsAtom)
+  const [follow, setFollow] = useAtom(timelineFollowViewportAtom)
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
   const [eliInView, setEliInView] = useState<EliLike[]>([])
@@ -367,12 +381,30 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
   return (
     <div id="tour-coverage-overlays" className="space-y-1.5 scroll-mt-[100px]">
       <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="coverage-visible" className="text-sm font-medium">Coverage overlays</Label>
+        <Label htmlFor="coverage-visible" className="text-sm font-medium">Show on the map</Label>
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground tabular-nums">{selected.length ? `${selected.length} shown` : "none"}</span>
           {selected.length > 0 && <button type="button" className="text-[11px] underline text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setSelected([])}>clear</button>}
-          <Switch id="coverage-visible" checked={visible} onCheckedChange={setVisible} className="cursor-pointer" title="Show or hide every coverage overlay" />
+          <Tooltip>
+            <TooltipTrigger render={<Switch id="coverage-visible" checked={visible} onCheckedChange={setVisible} className="cursor-pointer" />} />
+            <TooltipContent><p>Show or hide every coverage footprint at once, the selection kept</p></TooltipContent>
+          </Tooltip>
         </div>
+      </div>
+      {/* The switches that apply to every footprint, above the tree. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+        <Tooltip>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={outlineOnly} onCheckedChange={setOutlineOnly} className="cursor-pointer scale-75 origin-left" />Outlines only</label>} />
+          <TooltipContent><p>No fill, borders twice as bold</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={footprints} onCheckedChange={setFootprints} className="cursor-pointer scale-75 origin-left" />Historical items' footprints</label>} />
+          <TooltipContent><p>Every item the historical catalogs found for the view, drawn as an outline in its catalog's colour</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={follow} onCheckedChange={setFollow} className="cursor-pointer scale-75 origin-left" />Follow the view</label>} />
+          <TooltipContent><p>Off: the catalogs are not asked again as the map moves, so the historical items stay as they are</p></TooltipContent>
+        </Tooltip>
       </div>
       {sectionHeader("Terrain", "Terrain")}
       {(sectionOpen.Terrain ?? true) && <div className="pl-1">{terrainGroups.map((g) => renderGroup(g, 0))}</div>}
@@ -381,7 +413,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
       {sectionHeader("Historical", "Basemaps · Historical")}
       {(sectionOpen.Historical ?? true) && (
         <div className="pl-1">
-          <HistoricalCatalogTree selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined} />
+          <HistoricalCatalogTree compact selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined} />
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point; click a footprint for the dataset's page and to put it on the map.</p>
@@ -478,6 +510,8 @@ export const SourceInfoSection: React.FC<{
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const sourceKind = sourceKindOf(state.sourceA)
+  const [coverageOpen, setCoverageOpen] = useState(true)
+  const [infoOpen, setInfoOpen] = useState(true)
   const customTerrainSources = useAtomValue(customTerrainSourcesAtom)
   const customTerrain = customTerrainSources.find((t) => t.id === state.sourceA)
 
@@ -557,10 +591,22 @@ export const SourceInfoSection: React.FC<{
           BasemapAttributionList below always renders alongside this, not
           instead of it. The section is not gated on a queryable source: the
           picker is useful whatever the terrain. */}
-      <GroupHeading>Coverage overlays</GroupHeading>
-      <CoverageOverlayPicker mapRef={mapRef} state={state} setState={setState} />
-      <CoverageInViewList />
-      <GroupHeading>Source info</GroupHeading>
+      <Collapsible open={coverageOpen} onOpenChange={setCoverageOpen}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
+          <GroupHeading>Coverage overlays</GroupHeading>
+          <ChevronDown className={`h-4 w-4 transition-transform ${coverageOpen ? "rotate-180" : ""}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2">
+          <CoverageOverlayPicker mapRef={mapRef} state={state} setState={setState} />
+          <CoverageInViewList />
+        </CollapsibleContent>
+      </Collapsible>
+      <Collapsible open={infoOpen} onOpenChange={setInfoOpen}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
+          <GroupHeading>Source info</GroupHeading>
+          <ChevronDown className={`h-4 w-4 transition-transform ${infoOpen ? "rotate-180" : ""}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2">
       {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}
       {!historicalMode && !sourceKind && (
         <p className="text-xs text-muted-foreground">This terrain source publishes no per-location lookup; its page and licence are above, when it has them.</p>
@@ -633,6 +679,8 @@ export const SourceInfoSection: React.FC<{
       {state.showRasterBasemap
         ? <BasemapAttributionList state={state} mapRef={mapRef} />
         : <p className="text-xs text-muted-foreground">Raster basemap off: no basemap attribution to show.</p>}
+        </CollapsibleContent>
+      </Collapsible>
     </Section>
   )
 }

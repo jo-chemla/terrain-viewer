@@ -7,14 +7,17 @@ import { Source, Layer } from "react-map-gl/maplibre"
 import { useAtomValue } from "jotai"
 import { catalogFootprintsAtom } from "@/lib/timeline-catalogs"
 import { LAYER_SLOTS } from "./MapLayers"
+import { coverageVisibleAtom, coverageOutlineOnlyAtom } from "@/lib/settings-atoms"
 
 export const CatalogFootprintsLayer: React.FC = () => {
   const fc = useAtomValue(catalogFootprintsAtom)
-  if (!fc || !fc.features.length) return null
+  const visible = useAtomValue(coverageVisibleAtom)
+  const outlineOnly = useAtomValue(coverageOutlineOnlyAtom)
+  if (!fc || !fc.features.length || !visible) return null
   return (
     <Source id="catalog-footprints" type="geojson" data={fc}>
-      <Layer id="catalog-footprints-fill" type="fill" beforeId={LAYER_SLOTS.CONTOURS} paint={{ "fill-color": ["get", "color"], "fill-opacity": 0.02 }} />
-      <Layer id="catalog-footprints-line" type="line" beforeId={LAYER_SLOTS.CONTOURS} paint={{ "line-color": ["get", "color"], "line-width": 1, "line-opacity": 0.35 }} />
+      <Layer id="catalog-footprints-fill" type="fill" beforeId={LAYER_SLOTS.CONTOURS} paint={{ "fill-color": ["get", "color"], "fill-opacity": outlineOnly ? 0 : 0.02 }} />
+      <Layer id="catalog-footprints-line" type="line" beforeId={LAYER_SLOTS.CONTOURS} paint={{ "line-color": ["get", "color"], "line-width": outlineOnly ? 2 : 1, "line-opacity": outlineOnly ? 0.6 : 0.35 }} />
     </Source>
   )
 }

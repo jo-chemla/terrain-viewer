@@ -111,6 +111,48 @@ export const ContourOptionsSection: React.FC<{
       <div className="space-y-4">
 
         <div className="space-y-2">
+          {/* ── Iso-line (beta): one line where a measure crosses a value ── */}
+          {state.thresholdBeta && (
+            <div className="space-y-2 pb-2 mb-2 border-b">
+              <Tooltip>
+                <TooltipTrigger render={<div className="inline-flex items-center gap-1 cursor-help"><GroupHeading>Iso-line</GroupHeading><Info className="h-3 w-3 text-muted-foreground" /></div>} />
+                <TooltipContent className="max-w-72"><p>One vector line where the measure crosses the value: an iso-slope at 30° for avalanche terrain or 80° for cliffs, a lake or flood level, canopy on an nDSM at 1.5 m. Exports as GeoJSON like the contours. The fill paints the area above, as a raster.</p></TooltipContent>
+              </Tooltip>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox id="showIsoline" checked={state.showIsoline} onCheckedChange={(checked) => setState({ showIsoline: checked })} className="cursor-pointer" />
+                  <Label htmlFor="showIsoline" className="text-sm cursor-pointer">Show Iso-line</Label>
+                </div>
+                <ToggleGroup value={[String(Number(state.isolineWeight) || 2)]} onValueChange={([value]) => value && setState({ isolineWeight: Number(value) })} disabled={!state.showIsoline} className="border rounded-md">
+                  <ToggleGroupItem value="1" className={WEIGHT_TOGGLE_ITEM_CLASS}>1×</ToggleGroupItem>
+                  <ToggleGroupItem value="2" className={WEIGHT_TOGGLE_ITEM_CLASS}>2×</ToggleGroupItem>
+                  <ToggleGroupItem value="4" className={WEIGHT_TOGGLE_ITEM_CLASS}>4×</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              {state.showIsoline && (() => {
+                const slope = state.isolineMeasure === "slope"
+                const [lo, hi, step] = slope ? [0, 90, 1] : [-500, 9000, 1]
+                return (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-sm font-medium">Measure</Label>
+                      <ToggleGroup value={[state.isolineMeasure]} onValueChange={(v: string[]) => { const m = v[0]; if (m === "elevation" || m === "slope") setState({ isolineMeasure: m, isolineValue: m === "slope" ? (state.isolineValue >= 0 && state.isolineValue <= 90 ? state.isolineValue : 30) : state.isolineValue }) }} className="border rounded-md w-[180px]">
+                        <ToggleGroupItem value="elevation" className="flex-1 text-xs cursor-pointer">Elevation</ToggleGroupItem>
+                        <ToggleGroupItem value="slope" className="flex-1 text-xs cursor-pointer">Slope</ToggleGroupItem>
+                      </ToggleGroup>
+                    </div>
+                    <SliderControl label={`Line at ${state.isolineValue}${slope ? "°" : " m"}`} value={Math.max(lo, Math.min(hi, state.isolineValue))} onChange={(v) => setState({ isolineValue: v })} min={lo} max={hi} step={step} hideValue sliderId="isoline-value" />
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="isoline-value" className="text-sm font-medium">Exact value ({slope ? "°" : "m"})</Label>
+                      <Input id="isoline-value" type="number" step={slope ? 1 : 0.1} value={state.isolineValue} onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) setState({ isolineValue: v }) }} className="h-7 w-24 text-xs" />
+                    </div>
+                    <CheckboxWithSlider id="isolineFill" label="Fill the area above" tooltip="The area above the value painted in the line's colour, as a raster from the same tiles (no seams between tiles)" checked={state.isolineFill} onCheckedChange={(checked) => setState({ isolineFill: checked })} sliderValue={state.isolineFillOpacity} onSliderChange={(value) => setState({ isolineFillOpacity: value })} />
+                    {colorRow("Line Color", "isolineColor")}
+                  </>
+                )
+              })()}
+            </div>
+          )}
           {/* ── Contour Lines ──────────────────────────────────────────── */}
           <Tooltip>
             <TooltipTrigger
@@ -163,7 +205,6 @@ export const ContourOptionsSection: React.FC<{
               <ElevationReferenceToggle
                 value={state.contourReferenceMode}
                 onChange={(v) => setState({ contourReferenceMode: v })}
-                threshold={state.thresholdBeta}
               />
               {isThreshold ? (<>
                 {/* What crosses the value: the elevation, or the slope (an

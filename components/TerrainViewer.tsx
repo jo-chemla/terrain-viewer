@@ -101,7 +101,7 @@ import { phongProtocol } from '@/lib/phong-protocol'
 import { shadowProtocol } from '@/lib/shadow-protocol'
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource, IsolineFillSource } from "./LayersAndSources/MapSources"
 import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
 import { ProfileDock } from "./ProfileDock"
 import { MatcapLiveGlLayer } from "./LayersAndSources/MatcapLiveGlLayer"
@@ -109,6 +109,7 @@ import {
   LayerOrderSlots,
   RasterLayer,
   OverlayBasemapLayers,
+  IsolineFillLayer,
   BackgroundLayer,
   HillshadeLayer,
   MatcapRasterLayer,
@@ -925,6 +926,16 @@ export const QUERY_STATE_PARSERS = {
     // What the outline measures: the elevation (m) or the slope in degrees
     // (an iso-slope line: 30° for avalanche terrain, 80° for cliffs).
     contourThresholdMeasure: parseAsStringLiteral(["elevation", "slope"] as const).withDefault("elevation"),
+    // The Iso-line (Contours & GeoGrid): one vector line where a measure
+    // crosses a value, independent of the contours, with a raster fill of
+    // the area above (threshold:// with a colour).
+    showIsoline: parseAsBoolean.withDefault(false),
+    isolineMeasure: parseAsStringLiteral(["elevation", "slope"] as const).withDefault("slope"),
+    isolineValue: parseAsFloat.withDefault(30),
+    isolineFill: parseAsBoolean.withDefault(false),
+    isolineFillOpacity: parseAsFloat.withDefault(0.35),
+    isolineWeight: parseAsFloat.withDefault(2),
+    isolineColor: parseAsString.withDefault("#ef4444"),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
     // Absolute and LRM keep independent interval values, same reasoning as
@@ -4164,6 +4175,18 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
+          <IsolineFillSource
+            enabled={state.showContoursAndGraticules && vm("showContoursAndGraticules") && state.showIsoline && state.isolineFill && !isHistoricalMode}
+            value={state.isolineValue}
+            measure={state.isolineMeasure}
+            color={state.isolineColor || "#ef4444"}
+            opacity={state.isolineFillOpacity}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           <ShadowSource
             enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && !isHistoricalMode}
             lightDir={shadowLightDir}
@@ -4290,6 +4313,29 @@ export function TerrainViewer() {
             showHillshade={state.showHillshade && !isHistoricalMode && vm("showHillshade")}
             hillshadePaint={hillshadePaint}
           />
+
+          {/* The iso-line: a second contour engine on the threshold tiles. */}
+          <ContoursLayer
+            idPrefix="isoline"
+            showContours={state.showContoursAndGraticules && vm("showContoursAndGraticules") && state.showIsoline && !isHistoricalMode}
+            showContourLabels={false}
+            sourceId={source}
+            referenceMode="threshold"
+            thresholdValue={state.isolineValue}
+            thresholdMeasure={state.isolineMeasure}
+            lrmRadius={state.lrmRadius}
+            contourMinor={1000}
+            contourMajor={1000}
+            contourWeight={state.isolineWeight}
+            contourColor={state.isolineColor || undefined}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            customTerrainSources={customTerrainSources}
+            titilerEndpoint={titilerEndpoint}
+            mapLoaded={!!mapLoaded[side]}
+            theme={theme}
+          />
+          <IsolineFillLayer enabled={state.showContoursAndGraticules && vm("showContoursAndGraticules") && state.showIsoline && state.isolineFill && !isHistoricalMode} />
 
           {/* Contours — self-contained, primary map only */}
           {(

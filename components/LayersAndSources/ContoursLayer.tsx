@@ -22,6 +22,7 @@ import {LAYER_SLOTS} from "./MapLayers"
 // ─── Layer definitions (moved here from MapLayers.tsx) ───────────────────────
 
 const contourLinesLayerDef = (
+  prefix: string,
   showContours: boolean,
   theme: string,
   // Multiplies both major (1px) and minor (0.5px) widths, keeping their ratio —
@@ -31,9 +32,9 @@ const contourLinesLayerDef = (
   // the theme-adaptive translucent black/white default.
   contourColor?: string,
 ): LayerSpecification => ({
-  id: "contour-lines",
+  id: `${prefix}-lines`,
   type: "line",
-  source: "contour-source",
+  source: `${prefix}-source`,
   "source-layer": "contours",
   paint: {
     "line-color":
@@ -46,12 +47,13 @@ const contourLinesLayerDef = (
 })
 
 const contourLabelsLayerDef = (
+  prefix: string,
   showContours: boolean,
   theme: string,
 ): LayerSpecification => ({
-  id: "contour-labels",
+  id: `${prefix}-labels`,
   type: "symbol",
-  source: "contour-source",
+  source: `${prefix}-source`,
   "source-layer": "contours",
   filter: [">", ["get", "level"], 0],
   paint: {
@@ -76,7 +78,7 @@ function styleJsonLoaded(map: maplibregl.Map): boolean {
   return !!(map as unknown as { style?: { _loaded?: boolean } }).style?._loaded
 }
 
-function removeLayers(map: maplibregl.Map | undefined | null) {
+function removeLayers(map: maplibregl.Map | undefined | null, prefix = "contour") {
   // `map` itself can be a live (non-null) object whose internal `.style` has
   // already been torn down by `map.remove()` — react-map-gl's own Map cleanup
   // runs in the same unmount pass as this component's, and effect cleanup
@@ -89,9 +91,9 @@ function removeLayers(map: maplibregl.Map | undefined | null) {
   // crashing the whole map tree over an unmount that's already in progress.
   if (!map) return
   try {
-    if (map.getLayer("contour-labels")) map.removeLayer("contour-labels")
-    if (map.getLayer("contour-lines")) map.removeLayer("contour-lines")
-    if (map.getSource("contour-source")) map.removeSource("contour-source")
+    if (map.getLayer(`${prefix}-labels`)) map.removeLayer(`${prefix}-labels`)
+    if (map.getLayer(`${prefix}-lines`)) map.removeLayer(`${prefix}-lines`)
+    if (map.getSource(`${prefix}-source`)) map.removeSource(`${prefix}-source`)
   } catch {
     // Map already torn down — nothing left to clean up.
   }
@@ -382,6 +384,9 @@ export interface ContoursLayerProps {
   thresholdValue?: number
   /** What the threshold outline measures: the elevation (m) or the slope (°). */
   thresholdMeasure?: "elevation" | "slope"
+  /** Source and layer ids: "contour" (the contours) or "isoline" (the
+   *  iso-line, a second instance beside them). */
+  idPrefix?: string
   /** LRM smoothing radius, only read when referenceMode is "lrm" — same
    *  shared control Relief Visualization/Plane Slicer's own LRM use (state.lrmRadius). */
   lrmRadius: number
@@ -411,6 +416,7 @@ export function ContoursLayer({
   referenceMode,
   thresholdValue = 1.5,
   thresholdMeasure = "elevation",
+  idPrefix = "contour",
   lrmRadius,
   contourMinor: contourMinorProp,
   contourMajor: contourMajorProp,
@@ -479,7 +485,7 @@ export function ContoursLayer({
       if (!mapRef) return
       const map = mapRef.getMap()
       if (!map) return  // Add this check
-      removeLayers(map)
+      removeLayers(map, idPrefix)
       demSourceRef.current = null
       initializedRef.current = false
     }
@@ -563,9 +569,9 @@ export function ContoursLayer({
           return
         }
 
-        removeLayers(map)
+        removeLayers(map, idPrefix)
         const { contourMinor: minor, contourMajor: major } = thresholdsRef.current
-        map.addSource("contour-source", {
+        map.addSource(`${idPrefix}-source`, {
           type: "vector",
           tiles: [buildCogLocalContourUrl(blobUrl, minor, major)],
           maxzoom: 15,
@@ -626,11 +632,11 @@ export function ContoursLayer({
         isCogLocalRef.current = false
 
         // Clean up any stale layers/source before adding fresh ones
-        removeLayers(map)
+        removeLayers(map, idPrefix)
 
         const { contourMinor: minor, contourMajor: major } = thresholdsRef.current
 
-        map.addSource("contour-source", {
+        map.addSource(`${idPrefix}-source`, {
           type: "vector",
           tiles: [buildContourProtocolUrl(dem, minor, major)],
           maxzoom: 15,
@@ -663,19 +669,19 @@ export function ContoursLayer({
     const map = mapRef.getMap()
     if (!styleJsonLoaded(map)) return
 
-    removeLayers(map)
+    removeLayers(map, idPrefix)
 
     if (isCogLocalRef.current) {
       const customSource = customTerrainSources.find((s) => s.id === sourceId)
       const blobUrl = customSource?.type === "cog-local" ? resolveLocalFileUrl(localFileId(customSource.url)) : null
       if (!blobUrl) return
-      map.addSource("contour-source", {
+      map.addSource(`${idPrefix}-source`, {
         type: "vector",
         tiles: [buildCogLocalContourUrl(blobUrl, contourMinor, contourMajor)],
         maxzoom: 15,
       })
     } else {
-      map.addSource("contour-source", {
+      map.addSource(`${idPrefix}-source`, {
         type: "vector",
         tiles: [buildContourProtocolUrl(demSourceRef.current, contourMinor, contourMajor)],
         maxzoom: 15,
@@ -684,8 +690,8 @@ export function ContoursLayer({
 
     // Re-add layers imperatively so they exist before the declarative <Layer>
     // elements re-mount (avoids a flash where source exists but layers don't).
-    map.addLayer(contourLinesLayerDef(showContours, theme, contourWeight, contourColor) as any)
-    map.addLayer(contourLabelsLayerDef(showContours && showContourLabels, theme) as any)
+    map.addLayer(contourLinesLayerDef(idPrefix, showContours, theme, contourWeight, contourColor) as any)
+    map.addLayer(contourLabelsLayerDef(idPrefix, showContours && showContourLabels, theme) as any)
   }, [contourMinor, contourMajor]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Cleanup on unmount ─────────────────────────────────────────────────────
@@ -693,7 +699,7 @@ export function ContoursLayer({
     return () => {
       if (!mapRef) return
       const map = mapRef.getMap()
-      removeLayers(map)
+      removeLayers(map, idPrefix)
       demSourceRef.current = null
       initializedRef.current = false
     }
@@ -712,12 +718,12 @@ export function ContoursLayer({
     <>
       <Layer
         beforeId={LAYER_SLOTS.CONTOURS}
-        {...contourLinesLayerDef(showContours, theme, contourWeight, contourColor)}
+        {...contourLinesLayerDef(idPrefix, showContours, theme, contourWeight, contourColor)}
         key={"contour-lines-" + theme}
       />
       <Layer
         beforeId={LAYER_SLOTS.CONTOURS}
-        {...contourLabelsLayerDef(showContours && showContourLabels, theme)}
+        {...contourLabelsLayerDef(idPrefix, showContours && showContourLabels, theme)}
         key={"contour-labels-" + theme}
       />
     </>

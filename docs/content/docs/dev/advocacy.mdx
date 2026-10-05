@@ -30,6 +30,33 @@ Terrain Viewer streams national LiDAR and elevation datasets that each have thei
 The drafts behind the list above, as Markdown ready to paste. Each fold is one post; the intro line says where it goes and what state it is in.
 
 <Accordions type="single">
+<Accordion title="@allmaps/maplibre: a padded camera shifts every warped map">
+
+Feature request for [allmaps/allmaps](https://github.com/allmaps/allmaps/issues) (packages/maplibre). Terrain Viewer carries the fix as a pnpm patch (`patches/@allmaps__maplibre@1.0.0-beta.44.patch`).
+
+````md
+**WarpedMapLayer draws every map offset when the MapLibre camera has padding**
+
+`WarpedMapLayer.render()` builds its viewport from `map.getCenter()`:
+
+```js
+const geoCenterAsLngLat = this.map.getCenter();
+```
+
+With `map.setPadding()` (or `padding` in `easeTo`/`fitBounds`), MapLibre's centre is the *padded* centre, not the canvas centre: the point `getCenter()` returns sits some pixels away from the middle of the canvas. The viewport's size and scale still come from the canvas corners (`map.unproject([0, 0])` and friends), so the warped image is drawn around the wrong point: a constant pixel offset on screen, which grows in ground terms as you zoom out. Every map is affected (BnF, David Rumsey, any annotation); it looked like a projection bug until the padding was found.
+
+Taking the canvas centre instead fixes it, and is equivalent when there is no padding:
+
+```js
+const geoCenterAsLngLat = this.map.unproject([viewportSize[0] / 2, viewportSize[1] / 2]);
+```
+
+Apps pad the camera to keep a sidebar or a bottom panel from hiding the point of interest (MapLibre's own `fitBounds` padding does it), so this bites any app with a sidebar. Happy to open a PR with that one-line change if you'd take it.
+
+Seen with maplibre-gl 6.11 and @allmaps/maplibre 1.0.0-beta.44, in https://terrain-viewer.iconem.com (sidebar padding).
+````
+
+</Accordion>
 <Accordion title="maplibre-contour issue 434: main-thread fetch for custom protocols">
 
 Comment on [onthegomap/maplibre-contour#434](https://github.com/onthegomap/maplibre-contour/issues/434).

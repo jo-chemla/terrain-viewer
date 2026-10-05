@@ -61,6 +61,21 @@ The picker is a small tree, independent of what is loaded in your Terrain and Ba
 - **Hover** a point to list every overlay covering it in a floating box.
 - **Click** to open the same list as a dialog, with each source's dataset page or catalog record linked. The list is ranked by how well each footprint matches the view (intersection over union): a city plan comes before the world map that also covers the point, and each row says how much of the view it covers and how much of it is in view.
 - **The tree** is always open in the Sources Coverage section, in three parts: **Terrain** (Mapterhorn, the terrain library, your sources, 3D and LiDAR coverage), **Basemaps · Static** (the Editor Layer Index footprints, the basemap library, your basemaps) and **Basemaps · Historical**, which is the timeline's catalogs tree itself (the same tree the timeline's Catalogs select opens, with its switches: footprints on the map, within the timeline window, and **Follow the view**, off to stop re-asking the catalogs as the map moves). The Allmaps and NextGIS QMS entries sit in that historical tree as footprint-only rows, since their maps carry no capture date. A switch at the top hides every footprint at once, the selection kept.
+- **What each catalog can tell about an item** (the tick card and the lists show what exists):
+
+  | Catalog | Resolution | Date | Licence | Page | Thumbnail |
+  |---|---|---|---|---|---|
+  | OpenAerialMap, Maxar, Vantor, NOAA (HOT STAC) | gsd | yes | collection's | item | yes |
+  | Planet disaster data | often | yes | CC BY-NC | item | yes |
+  | SLUB Kartenforum | scale | yes | no | yes | yes |
+  | Map Warper, Wikimaps Warper | no (no scale field in the API) | year | no | yes | yes |
+  | USGS historical topo | scale | yes | public domain | generic | no |
+  | ArcGIS Online | from the tile cache's finest level or the image's pixel size | title year | item's licence text | yes | no |
+  | OSM Editor Layer Index | from the max zoom (equator) | yes | licence URL | yes | no |
+  | National and regional archives | parsed from the label where stated; exact flight dates for NRW, Bavaria, Tyrol | yes | per source | source page | no |
+  | IGN, swisstopo, Kartverket, CORONA | layer-level | yes | yes | source page | no |
+  | Allmaps, QMS | no | none in the annotations (a map's IIIF manifest may hold one) | no | yes | derivable (IIIF) |
+
 - **Live list**: under the picker, the Sources Coverage section lists everything the shown overlays hold for the view, without clicking: one block per group (Mapterhorn, the libraries, 3D and LiDAR, ELI, QMS, Allmaps, your sources), ranked the same way, refreshed as the map settles. **Centre only** keeps what lies under the view's centre. Each row links to its page and has a **Use** button where the source can go on the map.
 - Leaves with a known extent (your sources, the libraries, every catalog item picked on the timeline) have a zoom-to-fit button.
 - A map click while the elevation picker, the sun calculator or a drawing tool is active goes to that tool: no coverage list opens.

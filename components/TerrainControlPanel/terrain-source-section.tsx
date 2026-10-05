@@ -1,9 +1,12 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown, Plus, Edit, Library, RotateCcw, Lightbulb } from "lucide-react"
+import { ChevronDown, Plus, Edit, Library, RotateCcw, Lightbulb, Braces } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
+import { sourcesEditModeAtom } from "@/lib/settings-atoms"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -49,6 +52,8 @@ export const TerrainSourceSection: React.FC<{
   const stacSearchBeta = useAtomValue(stacSearchBetaEnabledAtom)
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
+  const [editMode, setEditMode] = useAtom(sourcesEditModeAtom)
+  const { infoId, open: openInfo, close: closeInfo } = useSourceInfoDialog()
   const [isSampleModalOpen, setIsSampleModalOpen] = useAtom(terrainLibraryOpenAtom)
   // Handing off from the Library to the Add dialog's catalog tab is done
   // SEQUENTIALLY rather than by opening the second while the first is still
@@ -412,13 +417,25 @@ export const TerrainSourceSection: React.FC<{
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2" onClick={handleOpenBatchEdit}>
+                      <Button variant={editMode ? "default" : "outline"} size="sm" className={cn("cursor-pointer shrink-0 px-2", !editMode && "bg-transparent")} onClick={() => setEditMode(!editMode)}>
                         <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                     }
                   />
-                  <TooltipContent><p>Batch edit all sources as JSON</p></TooltipContent>
+                  <TooltipContent><p>{editMode ? "Done editing" : "Edit the sources"}</p></TooltipContent>
                 </Tooltip>
+                {editMode && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2 text-xs" onClick={handleOpenBatchEdit}>
+                          <Braces className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />Batch edit
+                        </Button>
+                      }
+                    />
+                    <TooltipContent><p>Every source as JSON, Ctrl+Enter saves</p></TooltipContent>
+                  </Tooltip>
+                )}
               </div>
             </TooltipProvider>
 
@@ -440,7 +457,7 @@ export const TerrainSourceSection: React.FC<{
                   ) : (
                     <RadioGroupItem value={source.id} id={`source-${source.id}`} className="cursor-pointer shrink-0" />
                   )}
-                  <CustomSourceDetails liveSourceIds={liveTerrainSourceIds} libraryIds={libraryTerrainIds} onLoadFromLibrary={loadLibrarySourcesById} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: isSplit ? selectTerrainAll : selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
+                  <CustomSourceDetails onInfo={openInfo} liveSourceIds={liveTerrainSourceIds} libraryIds={libraryTerrainIds} onLoadFromLibrary={loadLibrarySourcesById} {...{ source, handleFitToBounds, handleEditSource: (id: string) => { setEditingSource(source); setIsAddSourceModalOpen(true) }, handleDeleteCustomSource, onSelect: isSplit ? selectTerrainAll : selectTerrainA, linkedSourceName: linkedBasemapName(source) }} />
                 </div>
               )
               const body = (
@@ -508,6 +525,7 @@ export const TerrainSourceSection: React.FC<{
         }}
         compareToMapterhorn
       />
+      <SourceMetadataDialog source={infoId ? customTerrainSources.find((t) => t.id === infoId) ?? null : null} onClose={closeInfo} onFit={(t) => handleFitToBounds(t, true)} />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
           <DialogHeader>

@@ -73,7 +73,8 @@ export const BasemapBatchEditModal: React.FC<{
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
+      <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}
+        onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleSave() } }}>
         <DialogHeader>
           <DialogTitle>Batch Edit Basemaps</DialogTitle>
           <DialogDescription>

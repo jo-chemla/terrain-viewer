@@ -3365,6 +3365,79 @@
       "note": "What the outline measures: the elevation (m) or the slope in degrees (an iso-slope line: 30° for avalanche terrain, 80° for cliffs)."
     },
     {
+      "key": "showIsoline",
+      "stateKey": "showIsoline",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "The Iso-line (Contours & GeoGrid): one vector line where a measure crosses a value, independent of the contours, with a raster fill of the area above (threshold:// with a colour)."
+    },
+    {
+      "key": "isolineMeasure",
+      "stateKey": "isolineMeasure",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "elevation",
+        "slope\" as const"
+      ],
+      "default": "slope",
+      "defaultSource": "\"slope\"",
+      "note": ""
+    },
+    {
+      "key": "isolineValue",
+      "stateKey": "isolineValue",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 30,
+      "defaultSource": "30",
+      "note": ""
+    },
+    {
+      "key": "isolineFill",
+      "stateKey": "isolineFill",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "isolineFillOpacity",
+      "stateKey": "isolineFillOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.35,
+      "defaultSource": "0.35",
+      "note": ""
+    },
+    {
+      "key": "isolineWeight",
+      "stateKey": "isolineWeight",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 2,
+      "defaultSource": "2",
+      "note": ""
+    },
+    {
+      "key": "isolineColor",
+      "stateKey": "isolineColor",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "#ef4444",
+      "defaultSource": "\"#ef4444\"",
+      "note": ""
+    },
+    {
       "key": "contourMinor",
       "stateKey": "contourMinor",
       "type": "number",
@@ -3801,6 +3874,12 @@
       "key": "coverageVisible",
       "default": "true",
       "note": "Every coverage overlay hidden at once, the selection kept."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "coverageOutlineOnly",
+      "default": "false",
+      "note": "Coverage footprints as outlines only, twice as bold, no fill."
     },
     {
       "file": "lib/settings-atoms.ts",

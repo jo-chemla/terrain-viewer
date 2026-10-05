@@ -15,7 +15,7 @@ import { elevationToTerrarium } from "./elevation-encoding"
 import { sharedTileCache, fetchDecodedTile, buildProtocolUrl, fetchPaddedElevationGrid, groundResolutionM, tileRowToLatRad, RAD_TO_DEG, type UpstreamEncoding } from "./normal-derived-protocol"
 import { toTileImage, type TileImage } from "./tile-image"
 
-const THRESHOLD_URL_RE = /^threshold:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?v=(-?[\d.]+)(?:&m=(slope))?$/
+const THRESHOLD_URL_RE = /^threshold:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?v=(-?[\d.]+)(?:&m=(slope))?(?:&fill=([0-9a-f]{6})&a=([\d.]+))?$/
 export type ThresholdMeasure = "elevation" | "slope"
 
 /** The contour interval that puts the only isoline between the two plateaus. */
@@ -25,8 +25,12 @@ const ABOVE = 1500
 
 export function buildThresholdProtocolUrl(
   upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number, value: number, measure: ThresholdMeasure = "elevation",
+  /** A colour and opacity: the tile becomes a fill (the area above the
+   *  value in that colour, clear elsewhere) instead of the two plateaus. */
+  fill?: { color: string; opacity: number },
 ): string {
-  return `${buildProtocolUrl("threshold", upstreamTileTemplate, encoding, tileSize)}?v=${Number.isFinite(value) ? value : 0}${measure === "slope" ? "&m=slope" : ""}`
+  const f = fill ? `&fill=${fill.color.replace("#", "").toLowerCase().padEnd(6, "0").slice(0, 6)}&a=${fill.opacity.toFixed(2)}` : ""
+  return `${buildProtocolUrl("threshold", upstreamTileTemplate, encoding, tileSize)}?v=${Number.isFinite(value) ? value : 0}${measure === "slope" ? "&m=slope" : ""}${f}`
 }
 
 export async function thresholdProtocol(
@@ -35,12 +39,15 @@ export async function thresholdProtocol(
 ): Promise<{ data: TileImage }> {
   const match = params.url.match(THRESHOLD_URL_RE)
   if (!match) throw new Error(`Invalid threshold protocol URL: ${params.url}`)
-  const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, vStr, measure] = match
+  const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, vStr, measure, fillHex, fillA] = match
   const encoding = encodingRaw as UpstreamEncoding
   const n = parseInt(tileSizeStr, 10)
   const value = parseFloat(vStr)
-  const [r0, g0, b0] = elevationToTerrarium(BELOW)
-  const [r1, g1, b1] = elevationToTerrarium(ABOVE)
+  // The two plateaus for the contour engine, or a fill: clear below, the
+  // colour above.
+  const fill = fillHex ? { r: parseInt(fillHex.slice(0, 2), 16), g: parseInt(fillHex.slice(2, 4), 16), b: parseInt(fillHex.slice(4, 6), 16), a: Math.round(Math.max(0, Math.min(1, parseFloat(fillA))) * 255) } : null
+  const [r0, g0, b0, a0] = fill ? [0, 0, 0, 0] : [...elevationToTerrarium(BELOW), 255]
+  const [r1, g1, b1, a1] = fill ? [fill.r, fill.g, fill.b, fill.a] : [...elevationToTerrarium(ABOVE), 255]
   const out = new Uint8ClampedArray(n * n * 4)
   if (measure === "slope") {
     // Slope in degrees from the padded grid (the tile and its neighbours),
@@ -63,7 +70,7 @@ export async function thresholdProtocol(
         const ok = !valid || valid[pr * stride + pc] !== 0
         const above = ok && slope >= value
         const o = (row * n + col) * 4
-        out[o] = above ? r1 : r0; out[o + 1] = above ? g1 : g0; out[o + 2] = above ? b1 : b0; out[o + 3] = 255
+        out[o] = above ? r1 : r0; out[o + 1] = above ? g1 : g0; out[o + 2] = above ? b1 : b0; out[o + 3] = above ? a1 : a0
       }
     }
     return { data: await toTileImage(out, n) }
@@ -81,7 +88,7 @@ export async function thresholdProtocol(
       above = Number.isFinite(e) && (!tile.valid || tile.valid[j] !== 0) && e >= value
     }
     const o = i * 4
-    out[o] = above ? r1 : r0; out[o + 1] = above ? g1 : g0; out[o + 2] = above ? b1 : b0; out[o + 3] = 255
+    out[o] = above ? r1 : r0; out[o + 1] = above ? g1 : g0; out[o + 2] = above ? b1 : b0; out[o + 3] = above ? a1 : a0
   }
   return { data: await toTileImage(out, n) }
 }

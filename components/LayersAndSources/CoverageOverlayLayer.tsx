@@ -6,13 +6,14 @@ import type * as maplibregl from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue, useSetAtom } from "jotai"
 import { coverageOverlaysAtom, loadCoverageFeatures, VIEW_COVERAGE_LEAVES, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
-import { customBasemapSourcesAtom, customTerrainSourcesAtom, elevationPickerActiveAtom, sunShadowActiveAtom, coverageVisibleAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, customTerrainSourcesAtom, elevationPickerActiveAtom, sunShadowActiveAtom, coverageVisibleAtom, coverageOutlineOnlyAtom } from "@/lib/settings-atoms"
 import { activeDrawModeAtom } from "@/components/TerrainControlPanel/TerraDrawSystem"
 import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Maximize2 } from "lucide-react"
 import { coverageInViewAtom, overlapStats, overlapLabel, byOverlap, type OverlapStats, type CoverageInViewItem, type ViewBbox } from "@/lib/coverage-in-view"
 
 const SOURCE_ID = "coverage-overlays"
@@ -22,7 +23,7 @@ const MH_SOURCE_ID = "mapterhorn-coverage"
 const MH_FILL_ID = "mapterhorn-coverage-fill"
 const MH_LINE_ID = "mapterhorn-coverage-line"
 
-type Hit = { gsdM: number; label: string; detail: string; url?: string; overlay?: string; useAs?: "terrain" | "basemap" | "overlay"; needsKey?: boolean; stats?: OverlapStats | null }
+type Hit = { gsdM: number; label: string; detail: string; url?: string; overlay?: string; useAs?: "terrain" | "basemap" | "overlay"; needsKey?: boolean; stats?: OverlapStats | null; bounds?: [number, number, number, number] }
 
 const viewOf = (m: maplibregl.Map): { bbox: ViewBbox; centre: [number, number] } => {
   const b = m.getBounds(), c = m.getCenter()
@@ -93,6 +94,7 @@ const fillViewport = (tpl: string, lng: number, lat: number, zoom: number, beari
 export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ publishInView = false }) => {
   const allIds = useAtomValue(coverageOverlaysAtom)
   const coverageVisible = useAtomValue(coverageVisibleAtom)
+  const outlineOnly = useAtomValue(coverageOutlineOnlyAtom)
   // The master switch hides every overlay, the selection kept.
   const ids = useMemo(() => (coverageVisible ? allIds : []), [allIds, coverageVisible])
   const terrains = useAtomValue(customTerrainSourcesAtom)
@@ -235,7 +237,11 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
           if (f.layer.id === MH_FILL_ID) {
             const pieces = mapterhornPieces(m).get(String(p.source))
             hit.stats = pieces?.length ? overlapStats({ type: "MultiPolygon", coordinates: pieces }, bbox, centre) : null
-          } else hit.stats = overlapStats(geometryByKey.get(`${p.label}|${p.detail}`), bbox, centre)
+          } else {
+            const geom = geometryByKey.get(`${p.label}|${p.detail}`)
+            hit.stats = overlapStats(geom, bbox, centre)
+            if (geom) { const pts: [number, number][] = []; const walk = (c: any) => { if (typeof c[0] === "number") pts.push(c as [number, number]); else c.forEach(walk) }; walk(geom.coordinates); if (pts.length) hit.bounds = [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))] }
+          }
           if (hit.stats) hit.detail = `${hit.detail} · ${overlapLabel(hit.stats)}`
         }
         out.push(hit)
@@ -317,11 +323,11 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
         <Source id={MH_SOURCE_ID} type="vector" tiles={[MAPTERHORN_COVERAGE_TILES]} minzoom={0} maxzoom={14}>
           <Layer id={MH_FILL_ID} type="fill" source-layer={MAPTERHORN_COVERAGE_LAYER} paint={{
             "fill-color": OVERLAY_COLORS.mapterhorn,
-            "fill-opacity": ["case", isGlo30, 0.03, 0.22],
+            "fill-opacity": outlineOnly ? 0 : ["case", isGlo30, 0.03, 0.22],
           }} />
           <Layer id={MH_LINE_ID} type="line" source-layer={MAPTERHORN_COVERAGE_LAYER} paint={{
             "line-color": OVERLAY_COLORS.mapterhorn,
-            "line-width": ["case", isGlo30, 0.4, 1.2],
+            "line-width": outlineOnly ? ["case", isGlo30, 0.8, 2.4] : ["case", isGlo30, 0.4, 1.2],
             "line-opacity": ["case", isGlo30, 0.4, 0.9],
           }} />
         </Source>
@@ -332,11 +338,11 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
             "fill-color": ["get", "color"],
             // noFill: outline-only sets (Allmaps: hundreds of overlapping maps
             // per city). The fill stays for hit-testing, at zero opacity.
-            "fill-opacity": ["case", ["boolean", ["get", "noFill"], false], 0, ["boolean", ["get", "hollow"], false], 0.04, ["coalesce", ["get", "opacity"], 0.2]],
+            "fill-opacity": outlineOnly ? 0 : ["case", ["boolean", ["get", "noFill"], false], 0, ["boolean", ["get", "hollow"], false], 0.04, ["coalesce", ["get", "opacity"], 0.2]],
           }} />
           <Layer id={LINE_ID} type="line" paint={{
             "line-color": ["get", "color"],
-            "line-width": ["coalesce", ["get", "lineWidth"], 1.5],
+            "line-width": outlineOnly ? ["*", 2, ["coalesce", ["get", "lineWidth"], 1.5]] : ["coalesce", ["get", "lineWidth"], 1.5],
             "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.9],
           }} />
         </Source>
@@ -365,6 +371,16 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
                   <div className="font-medium truncate">{h.url ? <a href={h.url} target="_blank" rel="noopener noreferrer" className="underline">{h.label}</a> : h.label}</div>
                   <div className="text-xs text-muted-foreground">{h.detail}</div>
                 </div>
+                {h.bounds && (
+                  <Tooltip>
+                    <TooltipTrigger render={
+                      <Button size="icon" variant="ghost" className="h-7 w-7 cursor-pointer shrink-0" onClick={() => { const b = h.bounds!; map?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }); setClicked(null) }}>
+                        <Maximize2 className="h-3.5 w-3.5" />
+                      </Button>
+                    } />
+                    <TooltipContent><p>Zoom to its extent</p></TooltipContent>
+                  </Tooltip>
+                )}
                 {h.overlay && h.useAs && (
                   <Tooltip>
                     <TooltipTrigger

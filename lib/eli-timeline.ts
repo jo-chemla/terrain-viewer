@@ -22,9 +22,9 @@ export function eliDateMs(s?: string | null): number | null {
   return Number.isFinite(t) ? t : null
 }
 
-export interface EliTick { source: "eli"; key: number; dateMs: number; label: string; ref: string }
+export interface EliTick { source: "eli"; key: number; dateMs: number; label: string; ref: string; meta?: { gsd?: number; provider?: string; url?: string; licence?: string; date?: string } }
 
-type DatedLayer = { id: string; name: string; category?: string; requiresKeys: string[]; tiles?: string[]; startDate?: string; endDate?: string }
+type DatedLayer = { id: string; name: string; category?: string; requiresKeys: string[]; tiles?: string[]; startDate?: string; endDate?: string; maxzoom?: number; attributionUrl?: string; url?: string; licenseUrl?: string }
 
 /** Imagery and maps only (not QA or OSM-derived styles), keyless, with a
  *  tile URL and a start date. Ticks keep a unique key: several layers can
@@ -41,7 +41,10 @@ export function eliLayersToTicks(layers: DatedLayer[]): EliTick[] {
     while (used.has(key)) key += 1
     used.add(key)
     const span = l.endDate && l.endDate !== l.startDate ? `${l.startDate}–${l.endDate}` : l.startDate
-    rows.push({ source: "eli", key, dateMs, label: `${l.name} · ${span}`, ref: l.id })
+    // One pixel at the layer's max zoom (equator; a per-layer latitude
+    // would need its polygon), the only resolution the index carries.
+    const gsd = l.maxzoom ? 40075016.686 / (256 * 2 ** l.maxzoom) : undefined
+    rows.push({ source: "eli", key, dateMs, label: `${l.name} · ${span}`, ref: l.id, meta: { gsd, provider: "OSM Editor Layer Index", url: l.attributionUrl || l.url || undefined, licence: l.licenseUrl || undefined, date: l.startDate || undefined } })
   }
   return rows.sort((a, b) => a.dateMs - b.dateMs)
 }

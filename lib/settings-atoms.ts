@@ -105,6 +105,11 @@ export const timelineWindowFilterAtom = atomWithStorage("timelineWindowFilter", 
 export const timelineFollowViewportAtom = atomWithStorage("timelineFollowViewport", true)
 // Every coverage overlay hidden at once, the selection kept.
 export const coverageVisibleAtom = atomWithStorage("coverageVisible", true)
+// Coverage footprints as outlines only, twice as bold, no fill.
+export const coverageOutlineOnlyAtom = atomWithStorage("coverageOutlineOnly", false)
+// The source lists' edit mode: off, rows show info, fit and opacity only;
+// on, the batch-edit JSON button and each row's edit and delete.
+export const sourcesEditModeAtom = atom(false)
 /** The elevation profile docked under the map (components/ProfileDock.tsx)
  *  instead of inside the Elevation Picker section; remembered. */
 export const profileDockedAtom = atomWithStorage("profileDocked", false)

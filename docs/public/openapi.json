@@ -3729,6 +3729,80 @@
             }
           },
           {
+            "name": "showIsoline",
+            "in": "query",
+            "required": false,
+            "description": "State. The Iso-line (Contours & GeoGrid): one vector line where a measure crosses a value, independent of the contours, with a raster fill of the area above (threshold:// with a colour).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "isolineMeasure",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "elevation",
+                "slope\" as const"
+              ],
+              "default": "slope"
+            }
+          },
+          {
+            "name": "isolineValue",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 30
+            }
+          },
+          {
+            "name": "isolineFill",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "isolineFillOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0.35
+            }
+          },
+          {
+            "name": "isolineWeight",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 2
+            }
+          },
+          {
+            "name": "isolineColor",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "#ef4444"
+            }
+          },
+          {
             "name": "contourMinor",
             "in": "query",
             "required": false,

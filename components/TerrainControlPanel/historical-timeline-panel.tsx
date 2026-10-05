@@ -1183,11 +1183,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const sendTickTo = useCallback((tick: TimelineTick, side: ViewId, as: "basemap" | "overlay") => {
     if (as === "basemap") { setTickForSide(side, tick); return }
     if (!tick.ref) return
+    // An overlay is the user's: kept in the list, not transient.
     const src = catalogBasemap(tick.ref)
-    if (src) setCustomBasemaps((prev) => (prev.some((b) => b.id === src.id) ? prev : [...prev, { ...src, role: "overlay" as const }]))
+    if (src) setCustomBasemaps((prev) => (prev.some((b) => b.id === src.id) ? prev.map((b) => (b.id === src.id ? { ...b, role: "overlay" as const, transient: false } : b)) : [...prev, { ...src, role: "overlay" as const, transient: false }]))
     const field = side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`
     const current: string[] = state[field] || []
-    setState({ [field]: current.includes(tick.ref) ? current : [...current, tick.ref], ...(state.showRasterBasemap ? {} : { showRasterBasemap: true }) })
+    // A second press on the same view takes the overlay off it.
+    setState({ [field]: current.includes(tick.ref) ? current.filter((x) => x !== tick.ref) : [...current, tick.ref], ...(state.showRasterBasemap ? {} : { showRasterBasemap: true }) })
   }, [setTickForSide, setCustomBasemaps, state, setState])
   const keepTick = useCallback((tick: TimelineTick) => {
     if (!tick.ref) return
@@ -2132,6 +2134,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             headline={tickHeadline(tickCard.tick)} itemName={tickItemName(tickCard.tick)}
             activeSides={showingViews.filter((s) => tickBySide[s]?.source === tickCard.tick.source && tickBySide[s]?.key === tickCard.tick.key)}
             views={showingViews}
+            gridLayout={gridLayoutForTimeline}
+            isOn={(side, as) => !!tickCard.tick.ref && (as === "basemap" ? activeBasemapSourceFor(side) === tickCard.tick.ref : ((state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []).includes(tickCard.tick.ref))}
             kept={!!tickCard.tick.ref && customBasemaps.some((b) => b.id === tickCard.tick.ref && !b.transient)}
             onSend={(side, as) => sendTickTo(tickCard.tick, side, as)}
             onKeep={() => keepTick(tickCard.tick)}
