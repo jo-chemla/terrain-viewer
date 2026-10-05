@@ -1,12 +1,13 @@
 import type React from "react"
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent, ExpressionSpecification } from "maplibre-gl"
 import type * as maplibregl from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import { useAtomValue, useSetAtom } from "jotai"
 import { coverageOverlaysAtom, loadCoverageFeatures, VIEW_COVERAGE_LEAVES, getMapterhornSourceMeta, coverageGsd, coverageGsdMeters, MAPTERHORN_COVERAGE_TILES, MAPTERHORN_COVERAGE_LAYER, OVERLAY_COLORS, type MapterhornSourceMeta } from "@/lib/coverage-overlays"
-import { customBasemapSourcesAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, customTerrainSourcesAtom, elevationPickerActiveAtom, sunShadowActiveAtom } from "@/lib/settings-atoms"
+import { activeDrawModeAtom } from "@/components/TerrainControlPanel/TerraDrawSystem"
 import { coverageUseRequestAtom, coverageUseKind } from "@/lib/use-coverage-use-request"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -144,6 +145,11 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
   // A deleted custom source takes its overlay with it.
   const setIds = useSetAtom(coverageOverlaysAtom)
   const requestUse = useSetAtom(coverageUseRequestAtom)
+  const pickerActive = useAtomValue(elevationPickerActiveAtom)
+  const sunActive = useAtomValue(sunShadowActiveAtom)
+  const drawMode = useAtomValue(activeDrawModeAtom)
+  const toolActiveRef = useRef(false)
+  toolActiveRef.current = pickerActive || sunActive || drawMode !== "select"
   useEffect(() => {
     const live = new Set([...terrains.map((t) => `terrain:${t.id}`), ...basemaps.map((b) => `basemap:${b.id}`)])
     const stale = ids.filter((id) => (id.startsWith("terrain:") || id.startsWith("basemap:")) && !live.has(id))
@@ -245,7 +251,9 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
       setHover(hits.length ? { x: e.point.x, y: e.point.y, hits } : null)
     }
     const onLeave = () => { setHover(null); if (wasHit) { wasHit = false; m.getCanvas().style.cursor = "" } }
-    const onClick = (e: MapLayerMouseEvent) => { const hits = hitsAt(e, true); if (hits.length) setClicked(hits) }
+    // A map click belongs to the elevation picker, the sun calculator or a
+    // drawing tool while one is active: no coverage modal then.
+    const onClick = (e: MapLayerMouseEvent) => { if (toolActiveRef.current) return; const hits = hitsAt(e, true); if (hits.length) setClicked(hits) }
     m.on("mousemove", onMove)
     m.on("mouseout", onLeave)
     m.on("click", onClick)

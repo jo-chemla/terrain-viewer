@@ -20,7 +20,7 @@ import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "@/l
 import { useAtomValue, useAtom, useSetAtom } from "jotai"
 import { coverageInViewAtom, coverageGroupOfLeaf, overlapLabel } from "@/lib/coverage-in-view"
 import { coverageUseRequestAtom } from "@/lib/use-coverage-use-request"
-import { ExternalLink, ChevronDown, X } from "lucide-react"
+import { ExternalLink, ChevronDown, X, Maximize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -371,6 +371,12 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef> }> = ({ 
                                   as subtitle-only. */}
                               <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
                               {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
+                              {l.bounds && (
+                                <button type="button" className="cursor-pointer ml-auto shrink-0 text-muted-foreground hover:text-foreground" title="Zoom to its extent"
+                                  onClick={() => { const b = l.bounds!; mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}>
+                                  <Maximize2 className="h-3 w-3" />
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>

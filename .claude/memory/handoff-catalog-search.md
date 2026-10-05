@@ -1,5 +1,5 @@
 ---
-name: handoff-catalogue-search
+name: handoff-catalog-search
 description: Handoff after the 2026-09-14..16 sprint (library, coverage overlays, STAC search, ELI/QMS search, OpenFreeMap Liberty) — what shipped, what is unverified in a real browser, what was deliberately deferred
 metadata:
   type: project
@@ -23,13 +23,13 @@ Tree clean, no temp files, `tsc` and `vite build` green for app and docs.
   `components/TerrainControlPanel/stac-search-panel.tsx` — presets, API /
   static crawl / federated discovery, titiler pin for declared non-3857
   assets, cloud cover, xyz web-map-links at collection level.
-- Basemap catalogue search: `nextgis-qms-search-modal.tsx`, `eli-search-panel.tsx`
+- Basemap catalog search: `nextgis-qms-search-modal.tsx`, `eli-search-panel.tsx`
   (`@osm-editor-kit/maplibre-editor-layer-index`, bumped weekly by
   `.github/dependabot.yml` — merge those PRs).
 - OSM basemap = OpenFreeMap Liberty: `components/LayersAndSources/VectorBasemapLayer.tsx`
   (installs glyphs/sprite, layers at `LAYER_SLOTS.BASEMAP`, 3D toggle
   `osmBuildings3dAtom`, follows basemap visibility/opacity).
-- Docs: `docs/content/docs/features/coverage-overlays.mdx`, catalogue section
+- Docs: `docs/content/docs/features/coverage-overlays.mdx`, catalog section
   in `byod.mdx`, changelog page ToC built from CHANGELOG.md
   (`changelogToc()` in `docs/src/components/changelog-list.tsx`).
 
@@ -59,7 +59,7 @@ Tree clean, no temp files, `tsc` and `vite build` green for app and docs.
   `DrawingMirrorLayer.tsx`).
 - Reusing an existing React STAC browser instead of growing
   `stac-search-panel.tsx` (~560 lines) — see [[stac-browser-components]].
-- Registry-fed catalogue lists (stacindex / Portolan) for the STAC panel.
+- Registry-fed catalog lists (stacindex / Portolan) for the STAC panel.
 
 ## Gotchas learned this sprint
 

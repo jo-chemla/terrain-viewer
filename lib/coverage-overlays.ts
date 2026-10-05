@@ -48,7 +48,7 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
   return mapterhornMeta
 }
 
-export interface CoverageLeaf { id: string; label: string; color: string; detail?: string; /** The dataset's own page (the label links there). */ url?: string }
+export interface CoverageLeaf { id: string; label: string; color: string; detail?: string; /** The dataset's own page (the label links there). */ url?: string; /** [west, south, east, north], for the zoom-to-fit button. */ bounds?: [number, number, number, number] }
 export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps"; parent?: string }
 
 export const OVERLAY_COLORS = { qms: "#0891b2", allmaps: "#d946ef", mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7", otRaster: "#84cc16", otPointCloud: "#eab308" }
@@ -183,16 +183,16 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
   const yourBasemaps: CoverageLeaf[] = []
   // Loaded library entries are listed here as well (they are the user's
   // sources now); the library groups keep listing them whether loaded or not.
-  for (const t of ctx.terrains) if (t.bounds) yourTerrain.push({ id: `terrain:${t.id}`, label: t.name, color: OVERLAY_COLORS.yours, url: t.infoUrl })
+  for (const t of ctx.terrains) if (t.bounds) yourTerrain.push({ id: `terrain:${t.id}`, label: t.name, color: OVERLAY_COLORS.yours, url: t.infoUrl, bounds: t.bounds })
   for (const b of ctx.basemaps) {
     const eli = b.provider === "eli" && ELI_ID_RE.test(b.description ?? "")
-    if (b.bounds || eli) yourBasemaps.push({ id: `basemap:${b.id}`, label: b.name, color: eli ? OVERLAY_COLORS.eli : OVERLAY_COLORS.yourBasemaps, url: b.infoUrl })
+    if (b.bounds || eli) yourBasemaps.push({ id: `basemap:${b.id}`, label: b.name, color: eli ? OVERLAY_COLORS.eli : OVERLAY_COLORS.yourBasemaps, url: b.infoUrl, bounds: b.bounds })
   }
   const groups: CoverageGroup[] = [
     { section: "Terrain", key: "mapterhorn", label: "Mapterhorn", color: OVERLAY_COLORS.mapterhorn, note: "Mapterhorn's own coverage tiles: which national source covers each area, hollow where it falls back to Copernicus GLO-30.",
       leaves: [{ id: "mapterhorn", label: "Mapterhorn coverage", color: OVERLAY_COLORS.mapterhorn, url: "https://mapterhorn.com/" }] },
     { section: "Terrain", key: "library", label: "Terrain library", color: OVERLAY_COLORS.library, note: "Declared bounds of every library dataset, loaded or not.",
-      leaves: TERRAIN_LIB.filter((s) => s.bounds).map((s) => ({ id: `lib:${s.id}`, label: s.name, color: OVERLAY_COLORS.library, url: s.infoUrl })) },
+      leaves: TERRAIN_LIB.filter((s) => s.bounds).map((s) => ({ id: `lib:${s.id}`, label: s.name, color: OVERLAY_COLORS.library, url: s.infoUrl, bounds: s.bounds as [number, number, number, number] })) },
     { section: "Terrain", key: "yourTerrain", label: "Your terrain sources", color: OVERLAY_COLORS.yours, note: "Every loaded terrain source that declares bounds, library entries included.", leaves: yourTerrain },
     // One group, because they answer one question: "is there something better
     // than a global DEM here, and of what kind?" Three very different reads
@@ -216,7 +216,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category, url: l.infoUrl })) },
     { section: "Basemaps", key: "qms", label: "NextGIS QMS", color: OVERLAY_COLORS.qms,
-      note: "Services from NextGIS Quick Map Services whose declared extent touches the view (working TMS and WMS only), from the catalogue's intersects query, sized to the zoom: tiny services are left out when zoomed out, continental and worldwide ones when zoomed in. Click an outline for its catalogue page and to use it as the basemap.",
+      note: "Services from NextGIS Quick Map Services whose declared extent touches the view (working TMS and WMS only), from the catalog's intersects query, sized to the zoom: tiny services are left out when zoomed out, continental and worldwide ones when zoomed in. Click an outline for its catalog page and to use it as the basemap.",
       leaves: [{ id: "qmsAll", label: "QMS services in view", color: OVERLAY_COLORS.qms, detail: "TMS and WMS, sized to the zoom", url: "https://qms.nextgis.com/" }] },
     { section: "Basemaps", key: "allmaps", label: "Old maps (Allmaps)", color: OVERLAY_COLORS.allmaps,
       note: "Georeferenced historical maps from the Allmaps annotations API: every map whose outline touches the view, up to 200, sized to the zoom. David Rumsey's collection is in there too. Click an outline for its page and to drape it as an overlay.",
@@ -226,7 +226,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
       ] },
     { section: "Basemaps", key: "yourBasemaps", label: "Your basemaps", color: OVERLAY_COLORS.yourBasemaps, note: "Every loaded basemap that declares bounds or came from the index, library entries included.", leaves: yourBasemaps },
     { section: "Basemaps", key: "basemapLibrary", label: "Basemap library", color: OVERLAY_COLORS.basemapLibrary,
-      leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary, url: s.infoUrl })) },
+      leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary, url: s.infoUrl, bounds: s.bounds as [number, number, number, number] })) },
   ]
   // "Your …" groups stay listed even when empty (the tree shows "None").
   return groups.filter((g) => g.leaves.length > 0 || g.key.startsWith("your"))

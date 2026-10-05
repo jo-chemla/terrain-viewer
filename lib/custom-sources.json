@@ -403,7 +403,7 @@
             "bounds": [39.25, -6.83, 39.29, -6.79],
             "resolutionM": 0.5,
             "description": "The Tanzania Urban Resilience Programme's 2019 LiDAR bare earth over the lower Msimbazi valley in Dar es Salaam, on the Resilience Academy GeoNode as GeoServer WCS 1.0.0 with CORS *. CC BY 4.0. Only ~3.6 x 3.6 km, but the sole open sub-metre elevation on the continent that answers a browser request; the rest of Africa is 30 m SRTM repackaged.",
-            "infoUrl": "https://crd.resilienceacademy.ac.tz/catalogue/#/dataset/880"
+            "infoUrl": "https://crd.resilienceacademy.ac.tz/catalog/#/dataset/880"
         },
         {
             "id": "custom-tz-msimbazi-uav-dsm05",
@@ -416,7 +416,7 @@
             "bounds": [39.25, -6.83, 39.29, -6.79],
             "resolutionM": 0.5,
             "description": "A 2019 drone photogrammetry surface model over the same footprint as the LiDAR DTM, same server and licence. Pair it with the DTM for building and canopy height over an informal-settlement floodplain.",
-            "infoUrl": "https://crd.resilienceacademy.ac.tz/catalogue/#/dataset/882"
+            "infoUrl": "https://crd.resilienceacademy.ac.tz/catalog/#/dataset/882"
         },
         {
             "id": "custom-tz-msimbazi-ndsm",
@@ -429,7 +429,7 @@
             "bounds": [39.25, -6.83, 39.29, -6.79],
             "resolutionM": 0.5,
             "description": "Building and canopy height over the Msimbazi floodplain: the drone surface minus the LiDAR ground. Two different sensors and campaigns, so use the auto-offset in the hypsometric section to re-centre bare ground on zero first.",
-            "infoUrl": "https://crd.resilienceacademy.ac.tz/catalogue/#/dataset/880"
+            "infoUrl": "https://crd.resilienceacademy.ac.tz/catalog/#/dataset/880"
         },
         {
             "id": "custom-global-aw3d30",
@@ -1529,6 +1529,28 @@
             "bounds": [14.1, 49.0, 24.2, 54.9],
             "infoUrl": "https://www.geoportal.gov.pl/",
             "description": "GUGiK current orthophoto of Poland, 25 cm and better. The dated series (1995-2025, a WMS TIME dimension) is EPSG:2180/4326 only, so not on the timeline yet. Checked 2026-10-05."
+        },
+        {
+            "id": "basemap-sinica-corona-1966",
+            "name": "TWN - Corona satellite imagery 1966 (Academia Sinica)",
+            "url": "https://gis.sinica.edu.tw/tileserver/file-exists.php?img=Taiwan_Corona_1966-png-{z}-{x}-{y}",
+            "type": "tms",
+            "maxzoom": 17,
+            "loadWithSamples": false,
+            "bounds": [118.0, 21.8, 122.1, 26.4],
+            "infoUrl": "https://gis.sinica.edu.tw/",
+            "description": "Declassified US CORONA reconnaissance satellite photographs of Taiwan, 1966, georeferenced by the Academia Sinica Center for GIS. Also a tick on the historical timeline (Taiwan historical maps). Checked 2026-10-05."
+        },
+        {
+            "id": "basemap-sinica-corona-1969",
+            "name": "TWN - Corona satellite imagery 1969 (Academia Sinica)",
+            "url": "https://gis.sinica.edu.tw/tileserver/file-exists.php?img=Taiwan_Corona_1969-png-{z}-{x}-{y}",
+            "type": "tms",
+            "maxzoom": 17,
+            "loadWithSamples": false,
+            "bounds": [118.0, 21.8, 122.1, 26.4],
+            "infoUrl": "https://gis.sinica.edu.tw/",
+            "description": "Declassified US CORONA reconnaissance satellite photographs of Taiwan, 1969, georeferenced by the Academia Sinica Center for GIS. Checked 2026-10-05."
         }
     ]
 }

@@ -2,6 +2,7 @@ import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Plus, Edit, Library, Crosshair } from "lucide-react"
+import { OpacityPill } from "@/components/ui/opacity-pill"
 import { georefImageAtom, georefEditingIdAtom, georefActiveAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { sectionOpenAtom } from "./TerrainControlPanel"
 import { pushToast } from "@/components/ui/toast"
@@ -400,7 +401,10 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
           )}
           {state.basemapPerView && overlaySources.length > 0 && (
             <div className="space-y-2 pt-2 mt-2 border-t">
-              <GroupHeading>Overlays</GroupHeading>
+              <div className="flex items-center justify-between gap-2">
+                <GroupHeading>Overlays</GroupHeading>
+                <OpacityPill value={state.overlaysOpacity ?? 1} onChange={(v) => setState({ overlaysOpacity: Math.round(v * 100) / 100 })} title="Opacity of every overlay" />
+              </div>
               {overlaySources.map((source) => (
                 <div key={source.id} className="flex items-center gap-2 min-w-0">
                   {state.basemapPerView && state.splitStyle !== "off" ? (
@@ -424,11 +428,14 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     handleEditSource={handleEditBasemap}
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
                     onSelect={(id) => (state.basemapPerView && state.splitStyle !== "off") ? toggleOverlayAll(id) : handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
-                    extraActions={(source.type === "image" || source.type === "image-local") && source.georef ? (
-                      <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "bg-primary/15 text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
-                        <Crosshair className="h-4 w-4" />
-                      </Button>
-                    ) : undefined}
+                    extraActions={<>
+                      <OpacityPill value={(source.opacity ?? 100) / 100} onChange={(v) => setCustomBasemapSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, opacity: Math.round(v * 100) } : s)))} title="This overlay's opacity" />
+                      {(source.type === "image" || source.type === "image-local") && source.georef ? (
+                        <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "bg-primary/15 text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
+                          <Crosshair className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </>}
                   />
                 </div>
               ))}

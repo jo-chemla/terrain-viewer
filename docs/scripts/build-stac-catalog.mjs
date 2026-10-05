@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Writes a static STAC catalogue (STAC 1.1) of every source Terrain Viewer
+// Writes a static STAC catalog (STAC 1.1) of every source Terrain Viewer
 // knows, to docs/public/stac/, served next to the docs at /docs/stac/catalog.json
 // so STAC Browser, STAC Map or any STAC client can open it:
 //
@@ -12,7 +12,7 @@
 //   ign-historical      every dated IGN Géoplateforme layer (WMTS capabilities)
 //   national-historical the regional year series of lib/national-historical.ts
 //                       (Catalonia, Spain, NRW, Wallonia, Flanders, PDOK...)
-//   timeline-catalogues the searchable catalogues the timeline queries per view
+//   timeline-catalogs the searchable catalogs the timeline queries per view
 //                       (HOT STAC, Planet, Map Warper, ArcGIS...): links only
 //
 // Tile services are described with the web-map-links extension (xyz, wms,
@@ -291,7 +291,7 @@ if (!OFFLINE) {
   collection("national-historical", { title: "National and regional historical imagery", description: "Year series of orthophotos and historical maps from about 70 national, regional and city mapping agencies, browser-friendly (CORS, Web Mercator, no key), as on Terrain Viewer's timeline: Spain and its regions, Portugal, France's regions, Italy's regions, Germany's Länder, Austria, Switzerland, Belgium, the Netherlands, Luxembourg, Slovenia, Lithuania, Cyprus, Slovakia, Canada, the United States, Australia, Taiwan, Japan, Brazil and Landsat WELD. A year's layer may cover only part of the extent.", items, keywords: ["historical", "orthophoto", "aerial"] })
 }
 
-// ── Catalogues searched per view (links only) ──────────────────────────────
+// ── Catalogs searched per view (links only) ──────────────────────────────
 {
   const C = [
     ["hot-stac", "HOT STAC API (OpenAerialMap, Maxar and Vantor Open Data, NOAA)", "https://api.imagery.hotosm.org/stac", "STAC API"],
@@ -304,17 +304,17 @@ if (!OFFLINE) {
     ["qms", "NextGIS Quick Map Services", "https://qms.nextgis.com/api/v1/geoservices/", "JSON API, extent search"],
     ["allmaps", "Allmaps georeferenced maps", "https://annotations.allmaps.org/maps.geojson", "GeoJSON, bbox search"],
   ]
-  const items = C.map(([id, title, href, kind]) => item("timeline-catalogues", id, {
+  const items = C.map(([id, title, href, kind]) => item("timeline-catalogs", id, {
     title, description: `Searched by Terrain Viewer for the current view (${kind}); not copied here.`,
     links: [{ rel: kind.startsWith("STAC") || kind.startsWith("static STAC") ? "child" : "via", href, type: "application/json", title }],
-    props: { "terrain-viewer:kind": "catalogue" },
+    props: { "terrain-viewer:kind": "catalog" },
   }))
-  collection("timeline-catalogues", { title: "Catalogues searched per view", description: "The imagery and old-map catalogues Terrain Viewer queries for the view (historical timeline Catalogues tree, coverage overlays). Live searches, so only linked: the two STAC ones are children a STAC client can follow.", items, keywords: ["catalogue", "search"] })
+  collection("timeline-catalogs", { title: "Catalogs searched per view", description: "The imagery and old-map catalogs Terrain Viewer queries for the view (historical timeline Catalogs tree, coverage overlays). Live searches, so only linked: the two STAC ones are children a STAC client can follow.", items, keywords: ["catalog", "search"] })
 }
 
 write("catalog.json", {
   type: "Catalog", stac_version: STAC_VERSION, id: "terrain-viewer", title: "Terrain Viewer sources",
-  description: `Every elevation, basemap, historical and catalogue source Terrain Viewer knows, as STAC. Generated ${NOW.slice(0, 10)} by docs/scripts/build-stac-catalog.mjs.`,
+  description: `Every elevation, basemap, historical and catalog source Terrain Viewer knows, as STAC. Generated ${NOW.slice(0, 10)} by docs/scripts/build-stac-catalog.mjs.`,
   links: [
     { rel: "root", href: "./catalog.json", type: "application/json" },
     { rel: "self", href: "./catalog.json", type: "application/json" },

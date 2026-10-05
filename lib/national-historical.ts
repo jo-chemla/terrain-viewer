@@ -1,5 +1,5 @@
 // National and regional historical imagery series for the timeline's
-// "National historical" catalogues: one source per agency, one layer per
+// "National historical" catalogs: one source per agency, one layer per
 // flight year or period, all browser-friendly (CORS, Web Mercator, no key),
 // checked 2026-10-05. A source only lists layers where it covers the view's
 // centre, decided the cheapest way it allows:
@@ -10,7 +10,7 @@
 //     when missing or blank. Services answer a blank image rather than an
 //     error where a year has no photo (a constant 667-byte PNG, a white
 //     JPEG), so the probe decodes the tile and drops uniform ones.
-// lib/timeline-catalogs.ts turns them into catalogues and ticks; the STAC
+// lib/timeline-catalogs.ts turns them into catalogs and ticks; the STAC
 // build lists them as collections.
 //
 // Two kinds of entries: the ones written out below (with flight-index
@@ -40,7 +40,7 @@ export interface NatLayer {
 
 export interface NatSource {
   id: string
-  /** The Catalogues tree's heading ("Historical · Germany"). */
+  /** The Catalogs tree's heading ("Historical · Germany"). */
   group: string
   label: string
   short: string

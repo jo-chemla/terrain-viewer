@@ -1,9 +1,9 @@
-// Imagery and old-map catalogues on the historical timeline, picked from the
-// panel's "Catalogues" tree rather than one pill each. Every loader takes the
+// Imagery and old-map catalogs on the historical timeline, picked from the
+// panel's "Catalogs" tree rather than one pill each. Every loader takes the
 // view's bbox and returns dated ticks; each tick stands for one basemap (a
 // COG through titiler, a tile template or an ArcGIS export), registered here
 // under an id with a fixed prefix so the timeline knows a view sitting on it
-// is on a catalogue item and keeps its handle (historical-timeline-panel.tsx).
+// is on a catalog item and keeps its handle (historical-timeline-panel.tsx).
 //
 //   HOT STAC (api.imagery.hotosm.org/stac, CORS-open): OpenAerialMap, Maxar
 //     and Vantor open data, NOAA emergency response, one search per view.
@@ -24,11 +24,17 @@
 //     swisstopo time travel (identify at the view centre), Kartverket.
 //   Old Maps Online: listed, disabled - no CORS and a Cloudflare challenge
 //     (so are the Georeferencer API, David Rumsey's MapRank and loc.gov).
+import { atom } from "jotai"
+import type { FeatureCollection } from "geojson"
 import type { CustomBasemapSource } from "./settings-atoms"
 import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
 import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, loadNationalLayers, type NatLayer, type NatSource } from "./national-historical"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
+
+/** The footprints of the items the timeline found for the view, for
+ *  CatalogFootprintsLayer; null when the picker's footprints switch is off. */
+export const catalogFootprintsAtom = atom<FeatureCollection | null>(null)
 
 export interface TimelineCatalog {
   id: string
@@ -44,16 +50,12 @@ export interface TimelineCatalog {
   resClass?: "vhr" | "medium"
   /** Where it has anything: the tree dims it elsewhere. */
   bbox?: [number, number, number, number]
+  /** A sub-heading inside the group (the country, for the national archives). */
+  region?: string
 }
 
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "eli", label: "OSM Editor Layer Index (ELI)", short: "ELI", group: "Community indexes", color: "#99f6e4", note: "Dated orthophotos and maps of the OSM Editor Layer Index whose coverage touches the view (about 1,300 layers carry a date); a year-only date sits at 1 January." },
-  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "Historical · France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
-  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "Historical · Switzerland", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
-  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "Historical · Switzerland", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
-  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Historical · Norway", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
-  // Regional series (lib/national-historical.ts).
-  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: s.group, color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
   { id: "cat-oam", label: "OpenAerialMap", short: "OAM", group: "Drone and aerial", color: "#fde68a", note: "Open drone and aerial imagery uploaded to OpenAerialMap, from HOT's STAC API: one tick per upload covering the view, dated by its capture." },
   { id: "cat-maxar", label: "Maxar Open Data", short: "Maxar", group: "Disaster open data", color: "#fecaca", note: "Maxar's pre- and post-event 30-50 cm imagery for disasters (CC BY-NC 4.0), from HOT's STAC API: one tick per acquisition." },
   { id: "cat-vantor", label: "Vantor Open Data", short: "Vantor", group: "Disaster open data", color: "#fbcfe8", note: "Vantor (ex-Maxar) open data programme, 2025 onwards, from HOT's STAC API." },
@@ -65,14 +67,14 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-usgs-topo", label: "USGS historical topo maps", short: "USGS topo", group: "Old maps", color: "#d9f99d", note: "Every USGS topographic quad edition covering the view centre since 1884 (US only), from Esri's historical topo image service; dated by imprint year." },
   { id: "cat-oldmapsonline", label: "Old Maps Online", short: "OMO", group: "Old maps", color: "#e5e7eb", note: "Klokan's search engine over library map collections.", disabled: "Its API sends no CORS header and sits behind a Cloudflare challenge, so a browser cannot query it." },
   { id: "cat-agol", label: "ArcGIS Online imagery", short: "ArcGIS", group: "Imagery services", color: "#a7f3d0", note: "Public ArcGIS image and map services found by ArcGIS Online search over the view, whose title names a year (taken as the capture year), sized to the zoom." },
+  // National and regional archives, last: IGN, swisstopo and Kartverket, then the generated regional series.
+  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "Historical · National catalogs", region: "France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
+  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "Historical · National catalogs", region: "Switzerland", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "Historical · National catalogs", region: "Switzerland", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Historical · National catalogs", region: "Norway", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
+  // Regional series (lib/national-historical.ts).
+  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "Historical · National catalogs", region: s.group.replace(/^Historical · /, ""), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
 ]
-// Historical groups together and alphabetical, after the community index.
-{
-  const rank = (g: string) => (g === "Community indexes" ? 0 : g.startsWith("Historical") ? 1 : 2)
-  const first = new Map<string, number>()
-  TIMELINE_CATALOGS.forEach((c, i) => { if (!first.has(c.group)) first.set(c.group, i) })
-  TIMELINE_CATALOGS.sort((a, b) => rank(a.group) - rank(b.group) || (rank(a.group) === 1 ? a.group.localeCompare(b.group) : first.get(a.group)! - first.get(b.group)!))
-}
 export const TIMELINE_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>
 
 export const isCatalogBasemapId = (id: string | undefined | null): boolean => !!id && id.startsWith(CATALOG_BASEMAP_PREFIX)
@@ -83,7 +85,7 @@ export interface CatalogTick { source: string; key: number; dateMs: number; labe
 type Bbox = [number, number, number, number]
 
 const basemaps = new Map<string, CustomBasemapSource>()
-/** The basemap a catalogue tick stands for (filled while ticks load). */
+/** The basemap a catalog tick stands for (filled while ticks load). */
 export const catalogBasemap = (id: string): CustomBasemapSource | undefined => basemaps.get(id)
 
 const intersects = (a: Bbox, b: Bbox) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1]
@@ -106,7 +108,7 @@ function register(catalog: string, itemKey: string, dateMs: number, label: strin
 }
 
 const cogSource = (name: string, href: string, bbox: Bbox | undefined, description: string, infoUrl?: string): Omit<CustomBasemapSource, "id"> =>
-  // Catalogue COGs are mostly in UTM: titiler reprojects them.
+  // Catalog COGs are mostly in UTM: titiler reprojects them.
   ({ name, url: href, type: "cog", cogViaTitiler: true, role: "basemap", bounds: bbox, description, infoUrl, maxzoom: 21 } as Omit<CustomBasemapSource, "id">)
 
 function cogAssetHref(assets: Record<string, any> | undefined, prefer: string[]): string | null {
@@ -120,9 +122,10 @@ function cogAssetHref(assets: Record<string, any> | undefined, prefer: string[])
 const HOT_STAC = "https://api.imagery.hotosm.org/stac"
 const HOT_COLLECTION: Record<string, string> = { "cat-oam": "openaerialmap", "cat-maxar": "maxar-opendata", "cat-vantor": "vantor-opendata", "cat-noaa": "noaa-emergency-response" }
 
-async function hotStacTicks(catalog: string, bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+async function hotStacTicks(catalog: string, bbox: Bbox, signal?: AbortSignal, range?: [number, number]): Promise<CatalogTick[]> {
   const collection = HOT_COLLECTION[catalog]
-  const res = await fetch(`${HOT_STAC}/search?collections=${collection}&bbox=${bbox.map((v) => v.toFixed(5)).join(",")}&limit=200`, { signal })
+  const datetime = range ? `&datetime=${new Date(range[0]).toISOString()}/${new Date(range[1]).toISOString()}` : ""
+  const res = await fetch(`${HOT_STAC}/search?collections=${collection}&bbox=${bbox.map((v) => v.toFixed(5)).join(",")}&limit=200${datetime}`, { signal })
   if (!res.ok) throw new Error(`HOT STAC ${res.status}`)
   const d = await res.json()
   const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
@@ -320,7 +323,7 @@ async function usgsTopoTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogT
 
 // ── National historical layers ────────────────────────────────────────────
 // Fixed, dated layers from national mapping agencies rather than searchable
-// catalogues: a tick per layer (or per time value) whose extent covers the view.
+// catalogs: a tick per layer (or per time value) whose extent covers the view.
 
 // IGN Géoplateforme (France): the WMTS capabilities list every dated layer
 // (annual orthophotos since 2000, the 1950-1995 historical aerial mosaics,
@@ -615,12 +618,12 @@ function serviceInfo(base: string, signal?: AbortSignal): Promise<any | null> {
   return p
 }
 
-/** Ticks for one catalogue over the view; keys made unique per catalogue
+/** Ticks for one catalog over the view; keys made unique per catalog
  *  (several items can share a date, and the key is the list's React key). */
-export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: AbortSignal, range?: [number, number]): Promise<CatalogTick[]> {
   let ticks: CatalogTick[] = []
   if (catalog === "eli") ticks = eliLayersToTicks(await datedEliLayersInView(bbox))
-  else if (catalog in HOT_COLLECTION) ticks = await hotStacTicks(catalog, bbox, signal)
+  else if (catalog in HOT_COLLECTION) ticks = await hotStacTicks(catalog, bbox, signal, range)
   else if (catalog === "cat-ign") ticks = await ignTicks(bbox, signal)
   else if (catalog === "cat-swissimage" || catalog === "cat-swiss-maps") ticks = await swisstopoTicks(catalog, bbox, signal)
   else if (catalog === "cat-kartverket") ticks = kartverketTicks(bbox)
@@ -630,6 +633,9 @@ export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: Abo
   else if (catalog === "cat-usgs-topo") ticks = await usgsTopoTicks(bbox, signal)
   else if (catalog === "cat-slub") ticks = await slubTicks(bbox, signal)
   else if (catalog === "cat-agol") ticks = await agolTicks(bbox, signal)
+  // The timeline's window, when the picker asks for it (STAC searches
+  // already asked the server; the rest is filtered here).
+  if (range) ticks = ticks.filter((t) => t.dateMs >= range[0] && t.dateMs <= range[1])
   const used = new Set<number>()
   for (const t of ticks.sort((a, b) => a.dateMs - b.dateMs)) {
     while (used.has(t.key)) t.key += 1

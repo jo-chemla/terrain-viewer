@@ -9,7 +9,7 @@
 - [National terrain sources](national-terrain-sources.md) — verification rule, sentinel/ImageServer/WCS2 traps, non-3857 COGs via titiler, bounds+underzoom behaviour, what was rejected and why
 - [Git remotes](git-remotes.md) — main is mirrored at jo-chemla and Iconem; origin has two push URLs so one push lands in both
 - [STAC browser components](stac-browser-components.md) — reuse stac-map / GeoLibre browser components before growing the STAC panel further
-- [Catalogue-search sprint handoff](handoff-catalogue-search.md) — state after the 2026-09 library / coverage / STAC / Liberty sprint: what is unverified in a real browser and what was deferred
+- [Catalog-search sprint handoff](handoff-catalog-search.md) — state after the 2026-09 library / coverage / STAC / Liberty sprint: what is unverified in a real browser and what was deferred
 - [URL-loaded data and split-view helpers](url-loaded-data.md) — URL-as-source-id on any view, drawingUrl, remote vector parsing, permuteViewsUpdates, timelineActiveSideAtom; unverified in a browser
 - [Titiler DEM gotchas](titiler-dem-gotchas.md) — pass the file nodata, reproject=bilinear for the warp, maxzoom decides who upsamples; how the DSM − DTM derived source (demdiff://) is wired
 - [Sprint handoff 2026-09-19](handoff-2026-09-19.md) — snapshot compositing, URL API and docs generators, derived terrain (dem-diff), titiler DEM fixes, Bhotekoshi on NextGIS: shipped, unverified, deferred, gotchas

@@ -74,7 +74,7 @@ const SEARCH = "https://www.arcgis.com/sharing/rest/search"
 // A capture is at most a couple of degrees across; anything bigger is a
 // global or regional index item wearing the same type keyword.
 const MAX_SPAN_DEG = 4
-// ...and a floor, because the long tail of this catalogue is one drone flight
+// ...and a floor, because the long tail of this catalog is one drone flight
 // over one building site. Those are real photogrammetry, but at a coverage
 // overlay's zoom they are a speck you cannot click, and they were most of the
 // 10 887. 5 km2 of declared extent is roughly a 2.2 km square - a district,

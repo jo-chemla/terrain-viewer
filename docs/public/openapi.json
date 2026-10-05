@@ -984,7 +984,7 @@
             "name": "timelineCatalogs",
             "in": "query",
             "required": false,
-            "description": "State. Catalogues whose items covering the view become timeline ticks (lib/timeline-catalogs.ts), picked from the timeline's Catalogues tree.",
+            "description": "State. Catalogs whose items covering the view become timeline ticks (lib/timeline-catalogs.ts), picked from the timeline's Catalogs tree.",
             "schema": {
               "type": "array",
               "items": {
@@ -3532,6 +3532,16 @@
             "in": "query",
             "required": false,
             "description": "State. Basemap-solo opacity (the \"Basemap Opacity\" slider inside the Basemap Source section) — only affects the single/split basemap layer, not overlays.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "overlaysOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State. Every overlay basemap at once (the Overlays heading's pill); each overlay's own opacity (its pill) is the source's `opacity` in local storage.",
             "schema": {
               "type": "number",
               "default": 1

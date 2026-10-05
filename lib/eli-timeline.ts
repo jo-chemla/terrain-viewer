@@ -76,7 +76,17 @@ export async function eliLayerAsBasemap(layerId: string): Promise<CustomBasemapS
   const spec = eli.getRasterSourceSpec(layer)
   if (!spec.tiles.length) throw new Error(`ELI layer ${layerId} has no tile URL`)
   const dates = layer.startDate ? ` · ${layer.endDate && layer.endDate !== layer.startDate ? `${layer.startDate}–${layer.endDate}` : layer.startDate}` : ""
+  // Its coverage polygon's box, for the coverage tree's zoom-to-fit.
+  let bounds: [number, number, number, number] | undefined
+  try {
+    const fc = await eli.loadCoverageFeatures([layer])
+    const pts: [number, number][] = []
+    const walk = (c: any) => { if (typeof c[0] === "number") pts.push(c as [number, number]); else c.forEach(walk) }
+    for (const f of fc.features) if (f.geometry) walk((f.geometry as any).coordinates)
+    if (pts.length) bounds = [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))]
+  } catch { /* worldwide or no polygon */ }
   return {
+    bounds,
     id: `${ELI_BASEMAP_PREFIX}${layerId}`, name: layer.name, url: spec.tiles[0], type: "tms", scheme: spec.scheme ?? "xyz",
     minzoom: spec.minzoom, maxzoom: spec.maxzoom, role: layer.overlay ? "overlay" : "basemap",
     description: `OSM Editor Layer Index id ${layer.id}${dates}`,

@@ -1,6 +1,7 @@
 "use client"
 
 import { BuildingShadowLayer } from "@/components/LayersAndSources/BuildingShadowLayer"
+import { CatalogFootprintsLayer } from "@/components/LayersAndSources/CatalogFootprintsLayer"
 import { solarPosition } from "@/lib/solar-position"
 import { utcOffsetHoursAt, utcInstantForDayOfYear } from "@/lib/timezone"
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -427,8 +428,8 @@ export const QUERY_STATE_PARSERS = {
     // lib/hls.ts; EOX is a once-a-year mosaic, coarser than the other three)
     // — both only show up once explicitly toggled on via their own pill.
     timelineSources: parseAsArrayOf(parseAsString).withDefault(["wayback", "ge-historical", "bing"]),
-    // Catalogues whose items covering the view become timeline ticks
-    // (lib/timeline-catalogs.ts), picked from the timeline's Catalogues tree.
+    // Catalogs whose items covering the view become timeline ticks
+    // (lib/timeline-catalogs.ts), picked from the timeline's Catalogs tree.
     timelineCatalogs: parseAsArrayOf(parseAsString).withDefault([]),
     // Per-side variants of timelineSources above — only meaningful when both
     // basemapPerView AND splitStyle!=="off" are on (dualMode) AND the timeline's
@@ -883,6 +884,10 @@ export const QUERY_STATE_PARSERS = {
     // Basemap-solo opacity (the "Basemap Opacity" slider inside the Basemap Source
     // section) — only affects the single/split basemap layer, not overlays.
     basemapSourceOpacity: parseAsFloat.withDefault(1.0),
+    // Every overlay basemap at once (the Overlays heading's pill); each
+    // overlay's own opacity (its pill) is the source's `opacity` in local
+    // storage. Not overlayOpacity above, which is the compare-blend fade.
+    overlaysOpacity: parseAsFloat.withDefault(1.0),
     exaggeration: parseAsFloat.withDefault(1),
     // Whole-earth start, the same view handleGoHome resets to and historical
     // mode already used. The old Matterhorn start looked good but dropped a
@@ -2796,8 +2801,10 @@ export function TerrainViewer() {
   // disable the rotation handlers imperatively here and snap bearing+pitch to 0
   // on entry. Re-enabled for 3D/globe. Runs on map load too, so a map first
   // constructed in 2D still gets locked.
+  const tiltHintShownRef = useRef(false)
   useEffect(() => {
     const is2d = state.viewMode === "2d"
+    const tiltHintOff: (() => void)[] = []
     const apply = (side: ViewId) => {
       const map = mapRefs[side].current?.getMap()
       if (!map) return
@@ -2806,6 +2813,16 @@ export function TerrainViewer() {
         map.touchZoomRotate.disableRotation()
         ;(map.keyboard as any)?.disableRotation?.()
         map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
+        // A right-drag (or ctrl-drag) is how one tilts a 3D map: in 2D it
+        // does nothing, so say why, once per session, with the way out.
+        const onDown = (e: maplibregl.MapMouseEvent) => {
+          if (!(e.originalEvent.button === 2 || e.originalEvent.ctrlKey) || tiltHintShownRef.current) return
+          tiltHintShownRef.current = true
+          pushToast({ key: "2d-tilt", title: "2D mode: the view is locked top-down", body: "Tilt and rotation need 3D (or globe) mode.", duration: 8000,
+            action: { label: "Switch to 3D", onClick: () => setState({ viewMode: "3d" }) } })
+        }
+        map.on("mousedown", onDown)
+        tiltHintOff.push(() => map.off("mousedown", onDown))
       } else {
         map.dragRotate.enable()
         map.touchZoomRotate.enableRotation()
@@ -2813,6 +2830,7 @@ export function TerrainViewer() {
       }
     }
     activeViewIds.forEach(apply)
+    return () => { for (const off of tiltHintOff) off() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.viewMode, activeViewIds.join(","), mapLoaded])
 
@@ -4175,8 +4193,9 @@ export function TerrainViewer() {
             rasterBasemapOpacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.basemapSourceOpacity}
           />
           {state.basemapPerView && state.showRasterBasemap && vm("showRasterBasemap") && (
-            <OverlayBasemapLayers overlayIds={overlayIdsForView(side)} opacity={isHistoricalMode ? 1 : state.rasterBasemapOpacity} customBasemapSources={customBasemapSources} />
+            <OverlayBasemapLayers overlayIds={overlayIdsForView(side)} opacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.overlaysOpacity} customBasemapSources={customBasemapSources} />
           )}
+          <CatalogFootprintsLayer />
           <ColorReliefLayer
             showColorRelief={state.showColorRelief && !isHistoricalMode && vm("showColorRelief")}
             colorReliefPaint={colorReliefPaint}

@@ -11,12 +11,12 @@ Parked 2026-09-19 at the user's request ("keep this idea for later"). Not built.
 
 A Library entry today is a URL that becomes a source. Some datasets cannot be
 that: **EarthDEM** has no mosaic, only per-scene strips, so the only sensible
-"add" is *browse the catalogue over your area*. The same is true of ArcticDEM
+"add" is *browse the catalog over your area*. The same is true of ArcticDEM
 and REMA strips, OpenTopography's 283 rasters, and LINZ's per-tile elevation.
 
 So: let a Library entry carry `stac?: { preset: string; collection?: string }`.
 Its button reads **Browse** rather than Add, and opens the Add-source modal on
-the STAC tab with that catalogue and collection preselected.
+the STAC tab with that catalog and collection preselected.
 
 The user's framing is broader than STAC: *"would probably group the STAC
 endpoints we carry, as well as other customizable additions"* — i.e. the

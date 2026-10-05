@@ -713,7 +713,7 @@
       "enum": null,
       "default": [],
       "defaultSource": "[]",
-      "note": "Catalogues whose items covering the view become timeline ticks (lib/timeline-catalogs.ts), picked from the timeline's Catalogues tree."
+      "note": "Catalogs whose items covering the view become timeline ticks (lib/timeline-catalogs.ts), picked from the timeline's Catalogs tree."
     },
     {
       "key": "timelineSourcesA",
@@ -3180,6 +3180,16 @@
       "note": "Basemap-solo opacity (the \"Basemap Opacity\" slider inside the Basemap Source section) — only affects the single/split basemap layer, not overlays."
     },
     {
+      "key": "overlaysOpacity",
+      "stateKey": "overlaysOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": "Every overlay basemap at once (the Overlays heading's pill); each overlay's own opacity (its pill) is the source's `opacity` in local storage."
+    },
+    {
       "key": "exaggeration",
       "stateKey": "exaggeration",
       "type": "number",
@@ -3753,6 +3763,18 @@
       "file": "lib/settings-atoms.ts",
       "key": "savedStacCatalogs",
       "default": "[]",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "timelineFootprints",
+      "default": "false",
+      "note": "The timeline's Catalogs picker switches: item footprints drawn on the map, and only items dated within the timeline's window."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "timelineWindowFilter",
+      "default": "false",
       "note": ""
     },
     {

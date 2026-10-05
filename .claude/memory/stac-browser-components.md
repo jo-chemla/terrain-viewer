@@ -20,7 +20,7 @@ rather than keep growing this panel. Candidates:
   panel at rather than UI to embed.
 - Radiant Earth stac-browser is Vue, not React - link target only.
 
-**Why:** the panel already duplicates catalogue browsing that these
+**Why:** the panel already duplicates catalog browsing that these
 projects maintain; the value here is what happens after an asset is picked
 (titiler pin, terrain vs basemap, coverage overlays), not the tree.
 

@@ -1,10 +1,29 @@
+# Changelog — Catalogs on the Timeline, Building Shadows, National Archives
+
+<!-- released: 2026-10-05 -->
+
+#### TL;DR
+- **Catalogs on the historical timeline.** A tree next to the source pills: OSM Editor Layer Index, OpenAerialMap, Maxar and Vantor Open Data, NOAA, Planet disaster data (HOT STAC and source.coop), Map Warper, Wikimaps Warper, SLUB Kartenforum, USGS historical topo maps, ArcGIS Online, and about seventy national, regional and city archives (IGN Remonter le temps, swisstopo, Catalonia, Spain, the German Länder, Austria, Swiss cantons, Belgium's NGI maps 1860-1994, Slovenia, Italian and Spanish regions, Toronto, Ottawa, Seattle, Washington DC, New South Wales, Taiwan...). Items covering the view become ticks; picking one makes it the view's basemap and keeps its handle.
+- **Building shadows** (Lighting Effects → Shadows → Buildings): OpenStreetMap buildings' shadows swept on flat ground on the GPU, live with the sun.
+- **Sources Coverage** lists live what the shown overlays hold for the view, ranked by overlap; the click list is ranked the same way.
+- **STAC catalog of every source** at `/docs/stac/catalog.json` (eight collections, about 3,500 items).
+
+### Features
+- Catalogs picker: fold or expand all, item footprints on the map, a filter by the timeline's window; a national group that opens by itself where its sources cover the view, sources that miss the view dimmed; tick tooltips name the source, its date and the item.
+- Every source pill can be off, leaving the catalogs alone; a catalog item much smaller than the view is framed when picked; every item picked joins Your basemaps in the coverage tree with a zoom-to-fit button.
+- Basemap library: Esri World Imagery Clarity, basemap.at, ČÚZK and Geoportal.gov.pl current orthophotos, the 1966 and 1969 CORONA satellite photographs of Taiwan.
+- Overlays: an opacity pill per overlay and one for all (a vertical slider opens on the pill).
+- 2D mode: a right-drag shows why the view does not tilt, with a Switch to 3D button.
+- A map click while the elevation picker, the sun calculator or a drawing tool is active no longer opens the coverage list.
+- Docs: which services can be added and which cannot, with the reason; the advocacy page gains the communities beyond OSM and GIS, the FATMAP alternatives and a #30DayMapChallenge plan.
+
 # Changelog — Old Maps, QMS Coverage, Docked Profile
 
 <!-- released: 2026-10-04 -->
 
 #### TL;DR
 - **Old maps (Allmaps).** A coverage overlay draws every georeferenced historical map in the view (Allmaps, David Rumsey included), and any of them drapes as an overlay, warped from its IIIF Georeference Annotation. The Add Basemap dialog takes such an annotation URL too.
-- **NextGIS QMS coverage.** The catalogue's services whose extent touches the view, sized to the zoom, each one click from being the basemap. The list under a clicked point has a filter.
+- **NextGIS QMS coverage.** The catalog's services whose extent touches the view, sized to the zoom, each one click from being the basemap. The list under a clicked point has a filter.
 - **Elevation profile.** Hover the chart for the point on the map, zoom and pan it, dock it as a bottom panel; the picker now works on phones.
 - **Split pills** name the terrain, basemap or viz modes If differs, Always or Never; **Sources Coverage** sits under Terrain and Basemap; **Fresnel rim** in Phong; **threshold outlines** in contours (beta).
 

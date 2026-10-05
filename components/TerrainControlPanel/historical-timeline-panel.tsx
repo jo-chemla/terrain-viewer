@@ -1,5 +1,6 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
-import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks } from "@/lib/timeline-catalogs"
+import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom } from "@/lib/timeline-catalogs"
+import { timelineFootprintsAtom, timelineWindowFilterAtom } from "@/lib/settings-atoms"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
 import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayerAsBasemap } from "@/lib/eli-timeline"
 import type React from "react"
@@ -70,7 +71,7 @@ export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; s
   hls: { label: "NASA HLS", fullLabel: "NASA Harmonized Landsat Sentinel-2", shortLabel: "NASA", color: "#f9a8d4", resClass: "medium" }, // pastel pink
   // Dated layers of the OSM Editor Layer Index covering the view (orthophotos
   // and historical maps): off by default, since it loads the index.
-  // Catalogue sources (lib/timeline-catalogs.ts): picked from the Catalogues
+  // Catalog sources (lib/timeline-catalogs.ts): picked from the Catalogs
   // tree, not the pill row (see visibleSourceIds).
   ...Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, { label: c.label, fullLabel: c.note, shortLabel: c.short, color: c.color, resClass: c.resClass ?? ("vhr" as const) }])),
 }
@@ -84,7 +85,7 @@ const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
 // `ref`: for ELI ticks, the layer the tick stands for (several can share a date).
 type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string }
 
-// A catalogue or ELI tick stands for one named item: its name, without the
+// A catalog or ELI tick stands for one named item: its name, without the
 // "OAM · " prefix the loaders put first. Null for the date-only sources.
 function tickItemName(t: TimelineTick): string | null {
   if (!(t.source in TIMELINE_CATALOG_BY_ID)) return null
@@ -533,10 +534,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeViews.join(","), activeBasemapSourceFor, customBasemaps.length])
-  // Catalogues (lib/timeline-catalogs.ts): every selected one queried for the
+  // Catalogs (lib/timeline-catalogs.ts): every selected one queried for the
   // view, debounced, refreshed as the camera settles; a view already on a
-  // catalogue item keeps its catalogue loaded so its handle has a tick.
-  // ELI was a pill before it joined the catalogues: an old link's pill still
+  // catalog item keeps its catalog loaded so its handle has a tick.
+  // ELI was a pill before it joined the catalogs: an old link's pill still
   // selects it.
   const selectedCatalogs: string[] = useMemo(() => {
     const ids: string[] = [...(state.timelineCatalogs ?? [])]
@@ -559,6 +560,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const [catalogLoading, setCatalogLoading] = useState<Record<string, boolean>>({})
   const [catalogErrors, setCatalogErrors] = useState<Record<string, string>>({})
   const catalogKey = catalogsToLoad.join(",")
+  const [footprintsOn, setFootprintsOn] = useAtom(timelineFootprintsAtom)
+  const [windowFilterOn, setWindowFilterOn] = useAtom(timelineWindowFilterAtom)
+  const windowRange: [number, number] | undefined = windowFilterOn && viewWindow ? [viewWindow.min, viewWindow.max] : undefined
+  const windowKey = windowRange ? `${Math.round(windowRange[0] / 864e5)}-${Math.round(windowRange[1] / 864e5)}` : ""
   useEffect(() => {
     if (!catalogsToLoad.length) { setCatalogTicks({}); return }
     let cancelled = false
@@ -571,7 +576,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const bbox: [number, number, number, number] = [Math.max(-180, b.getWest()), Math.max(-85, b.getSouth()), Math.min(180, b.getEast()), Math.min(85, b.getNorth())]
       for (const id of catalogsToLoad) {
         setCatalogLoading((prev) => ({ ...prev, [id]: true }))
-        loadCatalogTicks(id, bbox, ctrl.signal)
+        loadCatalogTicks(id, bbox, ctrl.signal, windowRange)
           .then((ticks) => { if (!cancelled) { setCatalogTicks((prev) => ({ ...prev, [id]: ticks })); setCatalogErrors((prev) => { const n = { ...prev }; delete n[id]; return n }) } })
           .catch((e) => { if (!cancelled && !ctrl.signal.aborted) setCatalogErrors((prev) => ({ ...prev, [id]: String(e?.message ?? e) })) })
           .finally(() => { if (!cancelled) setCatalogLoading((prev) => ({ ...prev, [id]: false })) })
@@ -580,8 +585,20 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     timer = setTimeout(run, 500)
     return () => { cancelled = true; ctrl.abort(); clearTimeout(timer) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogKey, state.lat, state.lng, state.zoom, mapRef])
-  // A view on a catalogue item needs that item as a basemap in this
+  }, [catalogKey, state.lat, state.lng, state.zoom, mapRef, windowKey])
+  // The items' footprints for the map (CatalogFootprintsLayer), when asked.
+  const setFootprints = useSetAtom(catalogFootprintsAtom)
+  useEffect(() => {
+    if (!footprintsOn) { setFootprints(null); return }
+    const features = catalogsToLoad.flatMap((id) => (catalogTicks[id] ?? []).flatMap((t) => {
+      const b = t.ref ? catalogBasemap(t.ref)?.bounds : undefined
+      if (!b) return []
+      return [{ type: "Feature" as const, properties: { color: SOURCE_CONFIG[t.source]?.color ?? "#888", label: t.label }, geometry: { type: "Polygon" as const, coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] } }]
+    }))
+    setFootprints({ type: "FeatureCollection", features })
+  }, [footprintsOn, catalogsToLoad, catalogTicks, setFootprints])
+  useEffect(() => () => setFootprints(null), [setFootprints])
+  // A view on a catalog item needs that item as a basemap in this
   // browser's list: registered when its ticks loaded.
   useEffect(() => {
     for (const side of activeViews) {
@@ -628,15 +645,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Wayback+GE for view A, HLS+Bing for view B).
   const pillsField = dualUnsynced ? viewFieldName(activeSide, "timelineSources", true) : "timelineSources"
   // Unset means every source but ELI (which loads the whole index on demand).
-  const timelineSourcesForPills: string[] = state[pillsField]?.length ? state[pillsField] : visibleSourceIds.filter((id) => id !== "eli")
+  // Unset means every source; "none" means no pill (the catalogs alone).
+  const timelineSourcesForPills: string[] = state[pillsField]?.length ? (state[pillsField] as string[]).filter((id) => id !== "none") : visibleSourceIds.filter((id) => id !== "eli")
   const toggleSource = useCallback((id: string) => {
     const set = new Set(timelineSourcesForPills)
     if (set.has(id)) set.delete(id)
     else set.add(id)
     track("historical-sources", { source: id, enabled: set.has(id) })
-    // Never allow zero sources selected — collapsing to none would make the
-    // timeline unusable with no way back in through the UI.
-    setState({ [pillsField]: set.size ? Array.from(set) : [id] })
+    setState({ [pillsField]: set.size ? Array.from(set) : ["none"] })
   }, [timelineSourcesForPills, pillsField, setState])
 
   // Re-enabling sync switches the pill row's source back to the shared
@@ -736,7 +752,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     if (tick.source === "bing") {
       updates[sourceField] = "bing"
     } else if (tick.source in TIMELINE_CATALOG_BY_ID && tick.source !== "eli" && tick.ref) {
-      // A catalogue item: its registered basemap (lib/timeline-catalogs.ts).
+      // A catalog item: its registered basemap (lib/timeline-catalogs.ts).
       updates[sourceField] = tick.ref
     } else if (tick.source === "eli" && tick.ref) {
       // The layer itself becomes the view's basemap (hydrated by the effect
@@ -1126,7 +1142,17 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     setActiveSide(which)
     setTickForSide(which, tick)
     maybeRecenterWindow(tick.dateMs)
-  }, [resolveSide, setTickForSide, maybeRecenterWindow])
+    // A catalog item much smaller than the view (a city plan, one flight)
+    // and wholly inside it: frame it, so the pick shows something.
+    const b = tick.ref && tick.source in TIMELINE_CATALOG_BY_ID ? catalogBasemap(tick.ref)?.bounds : undefined
+    const map = mapRef.current?.getMap()
+    if (b && map) {
+      const v = map.getBounds()
+      const inside = b[0] >= v.getWest() && b[2] <= v.getEast() && b[1] >= v.getSouth() && b[3] <= v.getNorth()
+      const small = (b[2] - b[0]) < 0.5 * (v.getEast() - v.getWest()) || (b[3] - b[1]) < 0.5 * (v.getNorth() - v.getSouth())
+      if (inside && small) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 })
+    }
+  }, [resolveSide, setTickForSide, maybeRecenterWindow, mapRef])
 
   const scrubTo = useCallback((which: ViewId, clientX: number) => {
     const tick = nearestTickForClientX(clientX)
@@ -1674,6 +1700,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               counts={Object.fromEntries(Object.entries(catalogTicks).map(([k, v]) => [k, v.length]))}
               errors={catalogErrors}
               center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined}
+              footprints={footprintsOn}
+              onFootprints={setFootprintsOn}
+              windowFilter={windowFilterOn}
+              onWindowFilter={setWindowFilterOn}
             />
             <div className="w-px shrink-0 self-stretch bg-border mx-0.5" />
             {RESOLUTION_CLASSES.map(({ id, label }) => {

@@ -97,6 +97,10 @@ export const sunShadowPicksAtom = atom<{ base: PickedLngLat | null; tip: PickedL
 // Whether each tool is armed for picking. Lifted for the same reason as the
 // picks themselves: a walkthrough step has to be able to switch the tool on.
 export const elevationPickerActiveAtom = atom(false)
+// The timeline's Catalogs picker switches: item footprints drawn on the
+// map, and only items dated within the timeline's window.
+export const timelineFootprintsAtom = atomWithStorage("timelineFootprints", false)
+export const timelineWindowFilterAtom = atomWithStorage("timelineWindowFilter", false)
 /** The elevation profile docked under the map (components/ProfileDock.tsx)
  *  instead of inside the Elevation Picker section; remembered. */
 export const profileDockedAtom = atomWithStorage("profileDocked", false)
