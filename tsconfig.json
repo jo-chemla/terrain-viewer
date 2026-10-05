@@ -38,7 +38,9 @@
   ],
   "exclude": ["desktop", 
     "node_modules",
-    "docs"
+    "docs",
+    "slides",
+    "video"
   ],
 }
 
