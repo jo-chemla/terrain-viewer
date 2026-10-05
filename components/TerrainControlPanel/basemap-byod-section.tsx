@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Plus, Edit, Library, Crosshair, Braces } from "lucide-react"
 import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
@@ -16,22 +16,23 @@ import { Button } from "@/components/ui/button"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN, SliderControl, CheckboxWithSlider } from "./controls-components"
 import { ColorAlphaSwatch } from "./color-picker"
-import { allmapsRemoveColorAtom, allmapsPaperAtom } from "@/lib/settings-atoms"
+import { allmapsRemoveColorAtom } from "@/lib/settings-atoms"
+import { paperEstimateStore } from "@/lib/allmaps-paper"
 
 /** Allmaps' "remove background": the warped maps' paper colour turns
  *  transparent, so a city plan sits on the imagery instead of on a sheet. */
-const AllmapsBackgroundControl: React.FC<{ maps: { id: string; name: string; url: string }[] }> = ({ maps }) => {
+const PaperControl: React.FC<{ maps: { id: string; name: string; key: string }[] }> = ({ maps }) => {
   const [rc, setRc] = useAtom(allmapsRemoveColorAtom)
-  const papers = useAtomValue(allmapsPaperAtom)
+  const papers = useSyncExternalStore(paperEstimateStore.subscribe, paperEstimateStore.getSnapshot)
   const auto = rc.auto ?? true
   const gain = rc.autoGain ?? 0.5
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
-          <CheckboxWithSlider id="allmaps-remove-bg" label="Remove the maps' paper (Allmaps)"
+          <CheckboxWithSlider id="allmaps-remove-bg" label="Remove paper"
             tooltip={auto
-              ? "Each map's paper colour and threshold come from its own image: the luminance histogram's two bells, paper and ink, split by Otsu's method. The slider widens or narrows every map's detected threshold (middle = as detected)"
+              ? "The scanned sheets' paper turns transparent, warped (Allmaps) and tiled maps alike. Auto: each map's paper colour and threshold come from its own image, the luminance histogram's paper bell split from the ink by Otsu's method; the slider widens or narrows every detected threshold (middle = as detected)"
               : "Pixels within the threshold of the colour turn transparent, like the Allmaps viewer's magic wand; the slider is the threshold"}
             checked={rc.enabled} onCheckedChange={(v) => setRc({ ...rc, enabled: v })}
             sliderValue={auto ? gain : rc.threshold} onSliderChange={(v) => setRc(auto ? { ...rc, autoGain: v } : { ...rc, threshold: v })} />
@@ -44,14 +45,14 @@ const AllmapsBackgroundControl: React.FC<{ maps: { id: string; name: string; url
         </Tooltip>
         {!auto && <ColorAlphaSwatch title="Paper colour" color={rc.color} onChange={(hex) => setRc({ ...rc, color: hex })} className="rounded shrink-0" />}
       </div>
-      {/* What auto found, per map: the paper colour, the threshold in use, the bells. */}
+      {/* What auto found, per map: the paper colour, the threshold in use, the paper's share. */}
       {rc.enabled && auto && maps.map((m) => {
-        const p = papers[m.url]
+        const p = papers[m.key]
         return (
           <div key={m.id} className="flex items-center gap-1.5 pl-6 text-[10px] text-muted-foreground">
             <span className="h-3 w-3 rounded-sm border shrink-0" style={{ background: p?.color ?? "transparent" }} />
             <span className="truncate flex-1" title={m.name}>{m.name}</span>
-            <span className="tabular-nums shrink-0" title={p ? `Luminance modes ${p.modes.map((x) => x.toFixed(2)).join(", ")}; ${Math.round(p.paperShare * 100)}% of the map within the threshold of the paper colour${p.confident ? "" : ". Left as it is: the drawing fills the sheet (no light paper making up at least 40% of it)"}` : undefined}>
+            <span className="tabular-nums shrink-0" title={p ? `Luminance modes ${p.modes.map((x: number) => x.toFixed(2)).join(", ")}; ${Math.round(p.paperShare * 100)}% of the map within the threshold of the paper colour${p.confident ? "" : ". Left as it is: the drawing fills the sheet (no light paper making up at least 40% of it)"}` : undefined}>
               {p === undefined ? "…" : p === null ? "no image" : p.confident ? `${p.color} · ${(p.threshold * (0.5 + gain)).toFixed(2)} · ${Math.round(p.paperShare * 100)}%` : "no paper, kept"}
             </span>
           </div>
@@ -308,6 +309,18 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // Timeline picks (transient) stay off these lists until kept.
   const basemapRoleSources = customBasemapSources.filter((s) => !s.transient && (s.role ?? "basemap") === "basemap" && matchesByodQuery(s, byodQ))
   const overlaySources = customBasemapSources.filter((s) => !s.transient && s.role === "overlay" && matchesByodQuery(s, byodQ))
+  // The scanned maps on the views, for the paper removal: warped (Allmaps,
+  // keyed by annotation URL) and tiled old maps (keyed by their template),
+  // as overlays or as a view's basemap (a catalog pick).
+  const scannedMaps = (() => {
+    const onViews = new Set<string>()
+    for (const side of VIEW_IDS) {
+      for (const oid of (state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []) onViews.add(oid)
+      const bid = state[viewFieldName(side, "basemapSource", state.basemapPerView)]
+      if (typeof bid === "string") onViews.add(bid)
+    }
+    return customBasemapSources.filter((s) => onViews.has(s.id) && (s.type === "iiif" || s.oldMap)).map((s) => ({ id: s.id, name: s.name, key: s.url }))
+  })()
 
   // Sends a saved picture back to Tools > Georeference Image with its points,
   // so they can be moved and the overlay updated in place.
@@ -478,7 +491,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             <div className="space-y-2 pt-2 mt-2 border-t">
               <GroupHeading>Overlays</GroupHeading>
               <SliderControl label="Overlays opacity" value={(state.overlaysOpacity ?? 1) * 100} onChange={(v) => setState({ overlaysOpacity: v / 100 })} min={0} max={100} step={1} suffix="%" sliderId="overlays-opacity" />
-              {overlaySources.some((s) => s.type === "iiif") && <AllmapsBackgroundControl maps={overlaySources.filter((s) => s.type === "iiif" && (state.overlayBasemapIds || []).includes(s.id)).map((s) => ({ id: s.id, name: s.name, url: s.url }))} />}
+              {scannedMaps.length > 0 && <PaperControl maps={scannedMaps} />}
               {overlaySources.map((source) => (
                 <div key={source.id} className="flex items-center gap-2 min-w-0">
                   {state.basemapPerView && state.splitStyle !== "off" ? (

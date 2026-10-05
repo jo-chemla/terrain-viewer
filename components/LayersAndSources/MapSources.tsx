@@ -4,7 +4,17 @@ import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
-import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, allmapsRemoveColorAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
+import { buildUnpaperUrl, sampleTileFor } from "@/lib/unpaper-protocol"
+
+/** A scanned map's tile template through unpaper:// when the paper removal
+ *  is on (Allmaps' option, applied to tiled old maps too); anything else
+ *  unchanged. Only {z}/{x}/{y} and WMS bbox templates: not a COG or TileJSON. */
+function withPaperRemoval(built: { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" }, source: { oldMap?: boolean; bounds?: [number, number, number, number]; minzoom?: number }, rc: AllmapsRemoveColor) {
+    if (!rc.enabled || !source.oldMap || !("tiles" in built) || built.tiles.length !== 1 || /^[a-z0-9-]+:\/\//.test(built.tiles[0]) && !/^https?:/.test(built.tiles[0])) return built
+    const auto = rc.auto ?? true
+    return { ...built, tiles: [buildUnpaperUrl(built.tiles[0], { color: auto ? "auto" : rc.color, threshold: rc.threshold, hardness: rc.hardness, gain: rc.autoGain ?? 0.5, sample: sampleTileFor(source.bounds, source.minzoom) })] }
+}
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { probeMaxZoomAt, probeWorthwhile } from "@/lib/tile-max-zoom"
 import { pushToast } from "@/components/ui/toast"
@@ -504,18 +514,19 @@ export const RasterBasemapSource = memo(({
         ? (customBasemap ? resolveLocalFileUrl(localFileId(customBasemap.url)) : null)
         : null
 
+    const removeColor = useAtomValue(allmapsRemoveColorAtom)
     const sourceProps = useMemo(() => {
         // "None": overlays only, no base imagery underneath.
         if (basemapSource === "none") return null
         if (customBasemap) {
             if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
-            return buildRasterTileSource({
+            return withPaperRemoval(buildRasterTileSource({
                 url: isCogLocal ? resolvedCogUrl! : customBasemap.url,
                 type: isCogLocal ? "cog" : customBasemap.type,
                 useCogProtocol: isCogLocal ? true : useCogProtocol && !customBasemap.cogViaTitiler,
                 titilerEndpoint,
                 scheme: customBasemap.scheme,
-            })
+            }), customBasemap, removeColor)
         }
 
         if (HISTORICAL_BASEMAP_IDS.has(basemapSource) && !historicalBeta) return null
@@ -575,7 +586,7 @@ export const RasterBasemapSource = memo(({
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemapSource] }
-    }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl])
+    }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl, removeColor])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
@@ -639,6 +650,7 @@ export const OverlayBasemapSources = memo(({
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const cesiumDetailOffset = useAtomValue(cesiumDetailOffsetAtom)
+    const removeColor = useAtomValue(allmapsRemoveColorAtom)
     // Unused directly — read so this component re-renders when a local COG file
     // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
     useAtomValue(localFileVersionAtom)
@@ -664,7 +676,7 @@ export const OverlayBasemapSources = memo(({
                 const isCogLocal = source.type === "cog-local"
                 const resolvedCogUrl = isCogLocal ? resolveLocalFileUrl(localFileId(source.url)) : null
                 if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
-                const sourceProps = buildRasterTileSource({
+                const sourceProps = withPaperRemoval(buildRasterTileSource({
                     url: isCogLocal ? resolvedCogUrl! : source.url,
                     type: isCogLocal ? "cog" : source.type,
                     // Same per-source titiler pin as the main basemap path -
@@ -672,7 +684,7 @@ export const OverlayBasemapSources = memo(({
                     useCogProtocol: isCogLocal ? true : useCogProtocol && !source.cogViaTitiler,
                     titilerEndpoint,
                     scheme: source.scheme,
-                })
+                }), source, removeColor)
                 return (
                     <Source
                         // resolvedCogUrl in the key: see the matching comment on

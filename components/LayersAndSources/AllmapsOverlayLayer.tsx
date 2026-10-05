@@ -9,8 +9,8 @@
 import { useEffect, useRef } from "react"
 import { useMap } from "react-map-gl/maplibre"
 import type { CustomLayerInterface } from "maplibre-gl"
-import { useAtomValue, useSetAtom } from "jotai"
-import { allmapsRemoveColorAtom, allmapsPaperAtom, type AllmapsRemoveColor } from "@/lib/settings-atoms"
+import { useAtomValue } from "jotai"
+import { allmapsRemoveColorAtom, type AllmapsRemoveColor } from "@/lib/settings-atoms"
 import { estimatePaper, type PaperEstimate } from "@/lib/allmaps-paper"
 
 /** The warped maps' per-map render options for the background removal
@@ -34,7 +34,6 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
   const removeColor = useAtomValue(allmapsRemoveColorAtom)
   const removeColorRef = useRef(removeColor)
   removeColorRef.current = removeColor
-  const setPapers = useSetAtom(allmapsPaperAtom)
   const paperRef = useRef<PaperEstimate | null>(null)
   const apply = () => { try { layerRef.current?.setMapsOptions(() => removeColorOptions(removeColorRef.current, paperRef.current)) } catch {} }
 
@@ -90,7 +89,6 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
     estimatePaper(annotationUrl).then((p) => {
       if (cancelled) return
       paperRef.current = p
-      setPapers((prev) => ({ ...prev, [annotationUrl]: p ? { color: p.color, threshold: p.threshold, modes: p.modes, paperShare: p.paperShare, confident: p.confident } : null }))
       apply()
     })
     return () => { cancelled = true }

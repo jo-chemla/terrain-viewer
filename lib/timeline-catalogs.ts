@@ -184,9 +184,12 @@ function yearOf(...texts: (string | undefined | null)[]): number | null {
   return null
 }
 
+/** Catalogs whose items are scanned map sheets: the paper removal applies. */
+const SCANNED_MAP_CATALOGS = new Set(["cat-mapwarper", "cat-wikimaps", "cat-slub", "cat-usgs-topo", "cat-swiss-maps", "cat-kartverket", "cat-nat-ngi", "cat-nat-slovensko", "cat-nat-sinica"])
+
 function register(catalog: string, itemKey: string, dateMs: number, label: string, source: Omit<CustomBasemapSource, "id">, meta?: TickMeta): CatalogTick {
   const id = `${CATALOG_BASEMAP_PREFIX}${catalog}--${itemKey.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 90)}`
-  basemaps.set(id, { ...source, id, transient: true } as CustomBasemapSource)
+  basemaps.set(id, { ...source, id, transient: true, ...(SCANNED_MAP_CATALOGS.has(catalog) || source.type === "iiif" ? { oldMap: true } : {}) } as CustomBasemapSource)
   // No declared resolution: one pixel at the source's max zoom, at its extent's latitude.
   const lat = source.bounds ? (source.bounds[1] + source.bounds[3]) / 2 : 0
   const gsd = meta?.gsd ?? (source.maxzoom ? gsdFromZoom(source.maxzoom, lat, 256) : undefined)

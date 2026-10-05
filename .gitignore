@@ -48,6 +48,8 @@ docs/public/eli-contribution/
 slides/node_modules/
 slides/dist/
 slides/.open-slide/
+# copied from docs/public/screenshots by slides/scripts/sync-assets.mjs
+slides/assets/screenshots/
 # Remotion workspace (video/): its own install; recordings and renders are local
 video/node_modules/
 video/out/

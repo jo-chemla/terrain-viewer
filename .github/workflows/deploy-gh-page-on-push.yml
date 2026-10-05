@@ -36,6 +36,7 @@ jobs:
           cache-dependency-path: |
             pnpm-lock.yaml
             docs/pnpm-lock.yaml
+            slides/pnpm-lock.yaml
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Install docs
@@ -75,6 +76,23 @@ jobs:
           # subdirectory.
           mkdir -p dist/docs
           cp -r docs/out/. dist/docs/
+      - name: Slide decks as PDFs
+        # slides/ is the open-slide workspace (its own install, like docs/).
+        # The decks are React pages; the deploy publishes them as PDFs under
+        # /docs/slides/ (the SPA's absolute /assets paths and /s/<deck>
+        # routes do not survive a sub-path on Pages, the PDFs do). Built
+        # site, previewed locally, printed page by page with Chromium.
+        shell: bash
+        run: |
+          pnpm --dir slides install --frozen-lockfile
+          pnpm --dir slides build
+          (cd slides && npx open-slide preview --port 4173 > /tmp/slides-preview.log 2>&1 &)
+          npx --yes playwright@1.63.0 install --with-deps chromium
+          CHROME=$(ls -d ~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome | head -1)
+          for i in $(seq 1 30); do curl -sf http://localhost:4173/ > /dev/null && break; sleep 1; done
+          mkdir -p dist/docs/slides
+          CHROME_PATH="$CHROME" node slides/scripts/export-pdf.mjs http://localhost:4173 dist/docs/slides
+          ls -la dist/docs/slides
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

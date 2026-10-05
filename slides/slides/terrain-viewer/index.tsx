@@ -223,16 +223,7 @@ const Shot = ({
   <figure style={{ margin: 0, width, flex: 'none' }}>
     <img
       src={src}
-      style={{
-        width,
-        height: height ?? Math.round(width * 0.5625),
-        objectFit: fit,
-        objectPosition: position,
-        borderRadius: 12,
-        boxShadow: shadow.window,
-        display: 'block',
-        background: ink.panel,
-      }}
+      style={{ width: width, height: height ?? Math.round(width * 0.5625), objectFit: 'cover', objectPosition: '100% 50%', borderRadius: 12, boxShadow: shadow.window, display: 'block', background: ink.panel, }}
     />
     {caption ? (
       <figcaption style={{ fontSize: 20, color: ink.muted, marginTop: 14, lineHeight: 1.35 }}>{caption}</figcaption>
@@ -251,7 +242,7 @@ const Tile = ({ src, label, sub }: { src: string; label: string; sub?: string })
   <div style={{ width: 390 }}>
     <img
       src={src}
-      style={{ width: 390, height: 196, objectFit: 'cover', borderRadius: 10, boxShadow: shadow.edge, display: 'block' }}
+      style={{ width: 390, height: 196, objectFit: 'cover', objectPosition: '100% 50%', borderRadius: 10, boxShadow: shadow.edge, display: 'block' }}
     />
     <div style={{ marginTop: 10, fontSize: 22, fontWeight: 500, lineHeight: 1.2 }}>
       {label} {sub ? <span style={{ color: ink.muted, fontWeight: 400, fontSize: 19 }}>{sub}</span> : null}
@@ -392,6 +383,7 @@ const Cover = ({ bg, eyebrow, title, subtitle }: { bg: string; eyebrow: string; 
         width: 680,
         height: 640,
         objectFit: 'cover',
+        objectPosition: '100% 50%',
         borderRadius: 12,
         boxShadow: shadow.window,
         display: 'block',

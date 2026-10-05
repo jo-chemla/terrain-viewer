@@ -90,6 +90,7 @@ import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
 import { thresholdProtocol, lumaProtocol } from '@/lib/threshold-protocol'
 import { isobandProtocol } from '@/lib/isoband-protocol'
+import { unpaperProtocol } from '@/lib/unpaper-protocol'
 import { ISOLINE_MEASURE_IDS } from '@/lib/isoline-measures'
 import { IsolineLayers } from './LayersAndSources/IsolineLayers'
 import { parseSourceNames } from '@/lib/portable-share-url'
@@ -1823,6 +1824,7 @@ export function TerrainViewer() {
     registerProtocol('threshold', withTileResultCache(thresholdProtocol))
     registerProtocol('luma', withTileResultCache(lumaProtocol))
     registerProtocol('isoband', withTileResultCache(isobandProtocol))
+    registerProtocol('unpaper', withTileResultCache(unpaperProtocol))
     registerProtocol('roughness', withTileResultCache(roughnessProtocol))
     registerProtocol('blobness', withTileResultCache(blobnessProtocol))
     // withSlowTileStats composes INSIDE withTileResultCache so it measures the

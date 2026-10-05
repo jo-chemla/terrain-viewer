@@ -4,10 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "open-slide dev",
-    "build": "open-slide build",
+    "sync:assets": "node scripts/sync-assets.mjs",
+    "dev": "node scripts/sync-assets.mjs && open-slide dev",
+    "build": "node scripts/sync-assets.mjs && open-slide build",
     "preview": "open-slide preview",
-    "sync:skills": "open-slide sync:skills"
+    "sync:skills": "open-slide sync:skills",
+    "pdf": "node scripts/export-pdf.mjs"
   },
   "dependencies": {
     "@open-slide/core": "^2.0.0",
@@ -16,6 +18,8 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5"
+    "@types/react-dom": "^19.2.5",
+    "pdf-lib": "1.17.1",
+    "playwright-core": "1.63.0"
   }
 }

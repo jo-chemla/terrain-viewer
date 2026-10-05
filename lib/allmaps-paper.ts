@@ -14,6 +14,22 @@
 // quarter, so lines and lettering stay.
 const cache = new Map<string, Promise<PaperEstimate | null>>()
 
+// Every estimate made this session, by the source's key (an annotation URL,
+// a tile template), for the sidebar: a plain store the control reads with
+// useSyncExternalStore, because the unpaper protocol runs outside React.
+const estimates = new Map<string, PaperEstimate | null>()
+const listeners = new Set<() => void>()
+let snapshot: Record<string, PaperEstimate | null> = {}
+export function publishEstimate(key: string, e: PaperEstimate | null) {
+  estimates.set(key, e)
+  snapshot = Object.fromEntries(estimates)
+  for (const l of listeners) l()
+}
+export const paperEstimateStore = {
+  subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } },
+  getSnapshot: () => snapshot,
+}
+
 export interface PaperEstimate {
   /** "#rrggbb" */
   color: string
@@ -57,7 +73,7 @@ async function imageAndMask(annotationUrl: string, signal?: AbortSignal): Promis
 export function estimatePaper(annotationUrl: string, signal?: AbortSignal): Promise<PaperEstimate | null> {
   let p = cache.get(annotationUrl)
   if (!p) {
-    p = run(annotationUrl, signal).catch(() => null)
+    p = run(annotationUrl, signal).catch(() => null).then((e) => { publishEstimate(annotationUrl, e); return e })
     cache.set(annotationUrl, p)
   }
   return p

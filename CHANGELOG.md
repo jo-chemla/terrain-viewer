@@ -1,3 +1,20 @@
+# Changelog — The Weekend: Historical Catalogs, National Archives, Old Maps
+
+<!-- released: 2026-10-05 -->
+
+Everything added between Friday 2 and Sunday 5 October 2026, in short. The entries below have the details.
+
+- **Historical catalogs on the timeline.** Checked catalogs are searched for the view as the camera settles; every item is a tick, a pick becomes the view's basemap, the hover card shows what it is (date, resolution, licence, thumbnail, page), puts it on any view, frames it or keeps it. Four root groups:
+  - **Open data for post-crisis response**: OpenAerialMap, Maxar and Vantor Open Data, NOAA emergency imagery (the HOT STAC API), Planet disaster data.
+  - **Community indexes**: the OSM Editor Layer Index's dated layers, ArcGIS Online imagery, NextGIS QMS.
+  - **Mapping agencies' national catalogs**, about seventy, under a continent and a country: IGN Remonter le temps, swisstopo, Kartverket, the Spanish and Italian regions, the German and Austrian Länder, the Swiss cantons, Belgium (NGI maps 1860-1994, Flanders, Wallonia), the Netherlands and Luxembourg, Slovenia, Lithuania, Cyprus, Slovakia, Japan, Taiwan, New South Wales, São Paulo, and the North American cities and states.
+  - **Old maps, digitised and warped**: Allmaps (every collection, David Rumsey's, and a dated catalog read from the archives' IIIF records), Map Warper, Wikimaps Warper (Wikimedia Commons), SLUB Kartenforum, the USGS topo quads, the CORONA Atlas of the Middle East.
+- **Remove paper**: the scanned sheets turn transparent over the imagery, paper colour and threshold found per map from its own histogram.
+- **Sources Coverage**: one tree (terrain, static basemaps, the historical catalogs), footprints on the map, search results ranked by overlap, hover and click lists, every item's resolution.
+- **Iso-line**: a line from any measure (elevation, every terrain and relief mode, the Phong shading) at a value, with an exact fill, or every interval.
+- **Building shadows** from OpenStreetMap on the GPU; **Phong Fresnel rim**; **modes per view** with pill selection; **Image Georeferencer**; share your sources by URL; the **STAC catalog** of every source; desktop builds with an updater.
+- Docs: a research page, the national datasets and catalogs tables, five slide decks (`/slides`).
+
 # Changelog — Catalogs on the Timeline, Building Shadows, National Archives
 
 <!-- released: 2026-10-05 -->
@@ -26,7 +43,7 @@
 - Batch edit is a braces button left of the pencil; the overlay opacity pill sits right after the view buttons, rounder and taller.
 - Iso-line, second pass: the fill and the line are one set of polygons (marching squares on the measure tiles, `isoband://`), so the fill stops exactly on the line; the tiles follow the terrain source's zoom (a WMS DSM to zoom 19, as sharp as the shading); the measure menu shows names; the Phong measure takes the sidebar's strengths and Fresnel rim (the raster Phong tiles draw the rim now too); the slow horizon modes are out.
 - Historical tree: Community indexes (the Editor Layer Index first, ArcGIS Online, NextGIS QMS) are one root shared by the sidebar and the timeline's select; the ELI footprints group is back under Basemaps · Static; ELI items have footprints on the map.
-- **Remove the maps' paper, automatically**: each warped map's paper colour and threshold come from its own IIIF thumbnail (masked luminance histogram, Otsu split, the paper peak in Allmaps' colour-distance space); maps without light paper are left alone; the slider scales every detected threshold.
+- **Remove paper**: a scanned map's paper turns transparent, warped Allmaps maps and tiled old maps alike (`unpaper://` on Map Warper, Wikimaps, SLUB, USGS and the national map series); each map's paper colour and threshold come from its own image (masked luminance histogram, Otsu split, the paper peak in colour-distance space); maps without light paper are left alone; the slider scales every detected threshold.
 - Allmaps dated maps: the archive's own date (IIIF manifest first, a pre-1950 title year else), never the georeferencing's; **Remove the maps' paper** turns a warped map's background transparent (threshold, colour).
 - Tick card: Fit and Keep side by side, Keep also puts the item on the view; **Picks join my sources** switch (off by default); **Active sources' extents** draws the sources on the views as dashed outlines and the rows show z≥N below their min zoom; every list and card prefixes where an item comes from (FLAI, OpenTopography, the libraries, QMS…) and shows its resolution, estimated from the max zoom when not declared.
 - CORONA Atlas of the Middle East (CAST, 1963-1972) on the timeline; resolution pills default to VHR; the per-overlay opacity pill drags from the first press; the elevation profile's wheel no longer scrolls the sidebar; the coverage tree's rows and Allmaps maps have extents for zoom-to-fit; the IoU shown in the coverage lists.
