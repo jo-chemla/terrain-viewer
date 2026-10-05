@@ -42,6 +42,7 @@ const WORLD = [-180, -85.0511, 180, 85.0511]
 const sources = JSON.parse(fs.readFileSync(path.join(ROOT, "lib/custom-sources.json"), "utf8"))
 const { terrainSources } = await import(pathToUrl(path.join(ROOT, "lib/terrain-sources.ts")))
 const { NATIONAL_SOURCES } = await import(pathToUrl(path.join(ROOT, "lib/national-historical.ts")))
+const NATIONAL_LAYERS = JSON.parse(fs.readFileSync(path.join(ROOT, "lib/national-historical-layers.json"), "utf8"))
 function pathToUrl(p) { return new URL(`file:///${p.replace(/\\/g, "/")}`).href }
 
 fs.rmSync(OUT, { recursive: true, force: true })
@@ -96,14 +97,21 @@ function tileLinks(url, type, extra = {}) {
   return []
 }
 
-function item(collection, id, { title, description, bbox, geometry, datetime = null, start = null, end = null, links = [], assets = {}, props = {} }) {
+// Item ids are unique per collection: a slug that collides gets a suffix.
+const usedIds = new Map()
+function item(collection, rawId, { title, description, bbox, geometry, datetime = null, start = null, end = null, links = [], assets = {}, props = {} }) {
+  const used = usedIds.get(collection) ?? new Set()
+  usedIds.set(collection, used)
+  let id = slug(rawId)
+  for (let n = 2; used.has(id); n++) id = `${slug(rawId)}-${n}`
+  used.add(id)
   const b = bbox ?? (geometry ? bboxOf(geometry) : WORLD)
   const time = datetime || start || end ? { datetime, start_datetime: start ?? undefined, end_datetime: end ?? undefined }
     // Undated: STAC needs a time, so an open range, flagged.
     : { datetime: null, start_datetime: "1800-01-01T00:00:00Z", end_datetime: NOW, "terrain-viewer:undated": true }
   const it = {
     type: "Feature", stac_version: STAC_VERSION, stac_extensions: links.some((l) => ["xyz", "wms", "wmts", "tilejson"].includes(l.rel)) ? [WEB_MAP_LINKS] : [],
-    id: slug(id), collection, bbox: b, geometry: geometry ?? bboxPolygon(b),
+    id, collection, bbox: b, geometry: geometry ?? bboxPolygon(b),
     properties: { title: title || undefined, description: description || undefined, ...time, ...props },
     links: [
       { rel: "root", href: "../../catalog.json", type: "application/json" },
@@ -262,7 +270,7 @@ if (!OFFLINE) {
 {
   const items = []
   for (const src of NATIONAL_SOURCES) {
-    for (const l of src.layers) {
+    for (const l of src.lazy ? NATIONAL_LAYERS[src.id] ?? [] : src.layers) {
       const end = l.endYear && l.endYear !== l.year ? `${l.endYear}-12-31T23:59:59Z` : null
       items.push(item("national-historical", `${src.id.replace(/^cat-nat-/, "")}-${l.key}`, {
         title: `${src.label}: ${l.label}`, description: `${src.note} Licence: ${src.licence}.`, bbox: l.bbox ?? src.bbox,
@@ -280,7 +288,7 @@ if (!OFFLINE) {
       }))
     }
   }
-  collection("national-historical", { title: "National and regional historical imagery", description: "Year series of orthophotos and historical maps from mapping agencies, browser-friendly (CORS, Web Mercator, no key), as on Terrain Viewer's timeline: Catalonia, Spain, North Rhine-Westphalia, Wallonia, Flanders, the Netherlands, Vienna, Luxembourg, Hamburg, Bavaria, Tyrol, Japan, New York City, the 1953 East German flights and Landsat WELD. A year's layer may cover only part of the extent.", items, keywords: ["historical", "orthophoto", "aerial"] })
+  collection("national-historical", { title: "National and regional historical imagery", description: "Year series of orthophotos and historical maps from about 70 national, regional and city mapping agencies, browser-friendly (CORS, Web Mercator, no key), as on Terrain Viewer's timeline: Spain and its regions, Portugal, France's regions, Italy's regions, Germany's Länder, Austria, Switzerland, Belgium, the Netherlands, Luxembourg, Slovenia, Lithuania, Cyprus, Slovakia, Canada, the United States, Australia, Taiwan, Japan, Brazil and Landsat WELD. A year's layer may cover only part of the extent.", items, keywords: ["historical", "orthophoto", "aerial"] })
 }
 
 // ── Catalogues searched per view (links only) ──────────────────────────────

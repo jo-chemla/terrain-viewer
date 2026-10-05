@@ -1673,6 +1673,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               loading={catalogLoading}
               counts={Object.fromEntries(Object.entries(catalogTicks).map(([k, v]) => [k, v.length]))}
               errors={catalogErrors}
+              center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined}
             />
             <div className="w-px shrink-0 self-stretch bg-border mx-0.5" />
             {RESOLUTION_CLASSES.map(({ id, label }) => {

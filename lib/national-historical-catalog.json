@@ -1,0 +1,866 @@
+[
+ {
+  "id": "cat-nat-sachsen",
+  "label": "Saxony (GeoSN historical DOP)",
+  "short": "Sachsen",
+  "group": "Historical · Germany",
+  "color": "#fbcfe8",
+  "bbox": [
+   11.87,
+   50.17,
+   15.04,
+   51.69
+  ],
+  "note": "Staatsbetrieb Geobasisinformation Sachsen: historical orthophotos 1995-2020 in flight periods, and the Messtischblatt (before 1945), GDR and 1990s topographic maps.",
+  "infoUrl": "https://www.landesvermessung.sachsen.de/historische-luftbilder-digitale-orthophotos-8794.html",
+  "licence": "DL-DE BY 2.0"
+ },
+ {
+  "id": "cat-nat-niedersachsen",
+  "label": "Lower Saxony (LGLN historical DOP)",
+  "short": "Niedersachsen",
+  "group": "Historical · Germany",
+  "color": "#fde68a",
+  "bbox": [
+   6.65,
+   51.29,
+   11.6,
+   53.9
+  ],
+  "note": "LGLN historical orthophotos 2005 (40 cm) and 2008-2024 (20 cm), each year a set of flight blocks.",
+  "infoUrl": "https://opendata.lgln.niedersachsen.de/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-bw",
+  "label": "Baden-Württemberg (LGL historical DOP)",
+  "short": "BW",
+  "group": "Historical · Germany",
+  "color": "#bbf7d0",
+  "bbox": [
+   7.5,
+   47.53,
+   10.5,
+   49.8
+  ],
+  "note": "LGL Baden-Württemberg historical orthophotos 1960-2025, still being digitised: each year covers part of the state.",
+  "infoUrl": "https://www.lgl-bw.de/",
+  "licence": "DL-DE BY 2.0"
+ },
+ {
+  "id": "cat-nat-rlp",
+  "label": "Rhineland-Palatinate (historical DOP)",
+  "short": "RLP",
+  "group": "Historical · Germany",
+  "color": "#fecaca",
+  "bbox": [
+   6.11,
+   48.97,
+   8.51,
+   50.94
+  ],
+  "note": "LVermGeo Rheinland-Pfalz historical orthophotos 1994-2025.",
+  "infoUrl": "https://lvermgeo.rlp.de/",
+  "licence": "DL-DE BY 2.0"
+ },
+ {
+  "id": "cat-nat-berlin",
+  "label": "Berlin (orthophotos)",
+  "short": "Berlin",
+  "group": "Historical · Germany",
+  "color": "#fef08a",
+  "bbox": [
+   13.08,
+   52.33,
+   13.77,
+   52.68
+  ],
+  "note": "Senate of Berlin orthophotos: 1953, then 2002-2026, true orthophotos from 2022.",
+  "infoUrl": "https://gdi.berlin.de/",
+  "licence": "DL-DE Zero 2.0"
+ },
+ {
+  "id": "cat-nat-bremen",
+  "label": "Bremen and Bremerhaven (aerial photos)",
+  "short": "Bremen",
+  "group": "Historical · Germany",
+  "color": "#fed7aa",
+  "bbox": [
+   8.48,
+   53.01,
+   8.99,
+   53.61
+  ],
+  "note": "GeoInformation Bremen: aerial photos of Bremen 1951-1997 and Bremerhaven 1937-2000, orthophotos since 2002.",
+  "infoUrl": "https://geodienste.bremen.de/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-vorarlberg",
+  "label": "Vorarlberg (VoGIS aerial photos)",
+  "short": "Vorarlberg",
+  "group": "Historical · Austria",
+  "color": "#e9d5ff",
+  "bbox": [
+   9.53,
+   46.84,
+   10.24,
+   47.6
+  ],
+  "note": "Land Vorarlberg aerial photo mosaics by decade from the 1930s, then flights since 2001.",
+  "infoUrl": "https://vogis.cnv.at/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-salzburg",
+  "label": "Salzburg (SAGIS historical orthophotos)",
+  "short": "Salzburg",
+  "group": "Historical · Austria",
+  "color": "#bfdbfe",
+  "bbox": [
+   12.07,
+   46.94,
+   13.99,
+   48.04
+  ],
+  "note": "Land Salzburg historical orthophotos: 1945, 1952-54, the 1970s and 1980s, then nearly every year.",
+  "infoUrl": "https://www.salzburg.gv.at/themen/salzburg/sagis/luftbildarchiv",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-steiermark",
+  "label": "Styria (orthophotos)",
+  "short": "Steiermark",
+  "group": "Historical · Austria",
+  "color": "#a5f3fc",
+  "bbox": [
+   13.56,
+   46.61,
+   16.17,
+   47.83
+  ],
+  "note": "Land Steiermark orthophotos: black and white 1994-2001, then flight periods 2003-2024.",
+  "infoUrl": "https://www.landesentwicklung.steiermark.at/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-geneve",
+  "label": "Geneva (SITG orthophotos and maps)",
+  "short": "Genève",
+  "group": "Historical · Switzerland",
+  "color": "#c7d2fe",
+  "bbox": [
+   5.95,
+   46.12,
+   6.31,
+   46.37
+  ],
+  "note": "SITG Geneva: orthophotos from 1932 to 2024, Dufour and Siegfried maps.",
+  "infoUrl": "https://ge.ch/sitg/",
+  "licence": "SITG open data"
+ },
+ {
+  "id": "cat-nat-zuerich",
+  "label": "Canton of Zürich (orthophotos and maps)",
+  "short": "ZH",
+  "group": "Historical · Switzerland",
+  "color": "#d9f99d",
+  "bbox": [
+   8.35,
+   47.15,
+   8.99,
+   47.7
+  ],
+  "note": "Canton of Zürich: orthophoto 1981, SWISSIMAGE and cantonal flights 1998-2025, and the Wild, Dufour, Siegfried and 1956 maps.",
+  "infoUrl": "https://www.zh.ch/de/planen-bauen/geoinformation.html",
+  "licence": "OGD Kanton Zürich"
+ },
+ {
+  "id": "cat-nat-stadt-zuerich",
+  "label": "City of Zürich (orthophotos 1975-2013)",
+  "short": "Stadt ZH",
+  "group": "Historical · Switzerland",
+  "color": "#fecdd3",
+  "bbox": [
+   8.44,
+   47.32,
+   8.63,
+   47.44
+  ],
+  "note": "Stadt Zürich orthophotos 1975-76 to 2013.",
+  "infoUrl": "https://data.stadt-zuerich.ch/",
+  "licence": "CC0"
+ },
+ {
+  "id": "cat-nat-basel",
+  "label": "Basel-Stadt (orthophotos and historical plans)",
+  "short": "Basel",
+  "group": "Historical · Switzerland",
+  "color": "#fde2e4",
+  "bbox": [
+   7.55,
+   47.52,
+   7.7,
+   47.6
+  ],
+  "note": "Kanton Basel-Stadt: orthophotos 1926, 1933, 1979-2023, Siegfried maps 1880-1945 and historical plans from 1615.",
+  "infoUrl": "https://www.geo.bs.ch/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-ngi",
+  "label": "Belgium (NGI topographic maps 1860-1994)",
+  "short": "NGI",
+  "group": "Historical · Belgium",
+  "color": "#e7e5e4",
+  "bbox": [
+   2.5,
+   49.49,
+   6.41,
+   51.51
+  ],
+  "note": "NGI-IGN seamless topographic maps, one edition per year 1860-1994: the sheets as they stood that year.",
+  "infoUrl": "https://www.ngi.be/",
+  "licence": "© NGI-IGN"
+ },
+ {
+  "id": "cat-nat-slovenija",
+  "label": "Slovenia (GURS orthophotos 1990-2025)",
+  "short": "GURS",
+  "group": "Historical · Central and Eastern Europe",
+  "color": "#ddd6fe",
+  "bbox": [
+   13.37,
+   45.42,
+   16.6,
+   46.88
+  ],
+  "note": "GURS digital orthophotos at 50 cm, each place flown every three to six years since 1990.",
+  "infoUrl": "https://www.e-prostor.gov.si/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-lietuva",
+  "label": "Lithuania (geoportal.lt orthophotos)",
+  "short": "LT",
+  "group": "Historical · Central and Eastern Europe",
+  "color": "#99f6e4",
+  "bbox": [
+   20.9,
+   53.89,
+   26.84,
+   56.45
+  ],
+  "note": "Lithuania: the 1944 aerial photos, then ORT10LT orthophotos 2005-2023 (ask geoportal.lt before reuse in other systems).",
+  "infoUrl": "https://www.geoportal.lt/",
+  "licence": "geoportal.lt terms"
+ },
+ {
+  "id": "cat-nat-cyprus",
+  "label": "Cyprus (DLS orthophotos)",
+  "short": "DLS",
+  "group": "Historical · Central and Eastern Europe",
+  "color": "#fbd5b5",
+  "bbox": [
+   32.2,
+   34.5,
+   34.65,
+   35.75
+  ],
+  "note": "Cyprus Department of Lands and Surveys: orthophotos 1963, 1993, satellite 2009-2013, 2014 (10 cm), 2019.",
+  "infoUrl": "https://portal.dls.moi.gov.cy/",
+  "licence": "DLS terms"
+ },
+ {
+  "id": "cat-nat-slovensko",
+  "label": "Slovakia (3rd military survey)",
+  "short": "GKÚ",
+  "group": "Historical · Central and Eastern Europe",
+  "color": "#cffafe",
+  "bbox": [
+   16.83,
+   47.73,
+   22.57,
+   49.62
+  ],
+  "note": "GKÚ Bratislava: the third Austro-Hungarian military survey of the 1870s-80s.",
+  "infoUrl": "https://www.skgeodesy.sk/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-suedtirol",
+  "label": "South Tyrol (aerial photos and maps)",
+  "short": "BZ",
+  "group": "Historical · Italy",
+  "color": "#f5d0fe",
+  "bbox": [
+   10.38,
+   46.22,
+   12.48,
+   47.09
+  ],
+  "note": "Provincia autonoma di Bolzano: aerial photos 1982-2024, the 1858 cadastre and topographic maps 1995 and 2007.",
+  "infoUrl": "https://geoservices.buergernetz.bz.it/",
+  "licence": "CC0"
+ },
+ {
+  "id": "cat-nat-sardegna",
+  "label": "Sardinia (orthophotos 1940-2019)",
+  "short": "Sardegna",
+  "group": "Historical · Italy",
+  "color": "#dcfce7",
+  "bbox": [
+   8.1,
+   38.85,
+   9.85,
+   41.32
+  ],
+  "note": "Regione Sardegna orthophotos: 1940-45, 1954-55, 1968, 1977-78, then 1997-2019.",
+  "infoUrl": "https://www.sardegnageoportale.it/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-toscana",
+  "label": "Tuscany (orthophotos 1954-2013)",
+  "short": "Toscana",
+  "group": "Historical · Italy",
+  "color": "#fbcfe8",
+  "bbox": [
+   9.68,
+   42.23,
+   12.38,
+   44.48
+  ],
+  "note": "Regione Toscana orthophotos at 1:10,000: 1954, 1963-1978, 1988, 1996, then 1999-2013.",
+  "infoUrl": "https://www.regione.toscana.it/-/geoscopio",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-lombardia",
+  "label": "Lombardy (GAI 1954, 1975)",
+  "short": "Lombardia",
+  "group": "Historical · Italy",
+  "color": "#fde68a",
+  "bbox": [
+   8.49,
+   44.68,
+   11.43,
+   46.64
+  ],
+  "note": "Regione Lombardia: the 1954 GAI flight and the 1975 orthophoto.",
+  "infoUrl": "https://www.geoportale.regione.lombardia.it/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-emilia",
+  "label": "Emilia-Romagna (1976-78)",
+  "short": "ER",
+  "group": "Historical · Italy",
+  "color": "#bbf7d0",
+  "bbox": [
+   9.19,
+   43.73,
+   12.76,
+   45.14
+  ],
+  "note": "Regione Emilia-Romagna orthophoto of 1976-78.",
+  "infoUrl": "https://geoportale.regione.emilia-romagna.it/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-piemonte",
+  "label": "Piedmont (orthophotos and IGM maps)",
+  "short": "Piemonte",
+  "group": "Historical · Italy",
+  "color": "#fecaca",
+  "bbox": [
+   6.62,
+   44.06,
+   9.21,
+   46.47
+  ],
+  "note": "Regione Piemonte: orthophoto 1980-90, Turin 1979, IGM 1:25,000 maps of 1882, 1934 and 1969, the 1852 Stati Sardi map.",
+  "infoUrl": "https://www.geoportale.piemonte.it/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-liguria",
+  "label": "Liguria (1986)",
+  "short": "Liguria",
+  "group": "Historical · Italy",
+  "color": "#fef08a",
+  "bbox": [
+   7.49,
+   43.75,
+   10.07,
+   44.68
+  ],
+  "note": "Regione Liguria black-and-white orthophoto of 1986.",
+  "infoUrl": "https://geoportal.regione.liguria.it/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-navarra",
+  "label": "Navarre (orthophotos 1929-2025)",
+  "short": "Navarra",
+  "group": "Historical · Spain and Portugal",
+  "color": "#fed7aa",
+  "bbox": [
+   -2.5,
+   41.9,
+   -0.72,
+   43.32
+  ],
+  "note": "Gobierno de Navarra orthophotos: 1929, 1945, 1957, 1966, the 1980s and 1990s, then nearly every year.",
+  "infoUrl": "https://idena.navarra.es/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-balears",
+  "label": "Balearic Islands (orthophotos 1956-2021)",
+  "short": "IDEIB",
+  "group": "Historical · Spain and Portugal",
+  "color": "#e9d5ff",
+  "bbox": [
+   1.15,
+   38.6,
+   4.35,
+   40.1
+  ],
+  "note": "Govern de les Illes Balears orthophotos: 1956, 1984, 1989, then 2002-2021.",
+  "infoUrl": "https://ideib.caib.es/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-madrid",
+  "label": "Madrid region (historical aerial photos)",
+  "short": "Madrid",
+  "group": "Historical · Spain and Portugal",
+  "color": "#bfdbfe",
+  "bbox": [
+   -4.58,
+   39.88,
+   -3.05,
+   41.17
+  ],
+  "note": "Comunidad de Madrid: the 1927 city photomap, 1933, 1946, 1956, 1975 and later mosaics, and about 180 local flights of the 1940s-70s.",
+  "infoUrl": "https://idem.comunidad.madrid/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-euskadi",
+  "label": "Basque Country (orthophotos 1945-2025)",
+  "short": "Euskadi",
+  "group": "Historical · Spain and Portugal",
+  "color": "#a5f3fc",
+  "bbox": [
+   -3.45,
+   42.47,
+   -1.72,
+   43.46
+  ],
+  "note": "Gobierno Vasco orthophotos: the 1945-46 and 1956-57 American flights, 1977-78, the 1980s and 1990s, then every year.",
+  "infoUrl": "https://www.geo.euskadi.eus/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-andalucia",
+  "label": "Andalusia (1956-57)",
+  "short": "Andalucía",
+  "group": "Historical · Spain and Portugal",
+  "color": "#c7d2fe",
+  "bbox": [
+   -7.53,
+   35.93,
+   -1.62,
+   38.73
+  ],
+  "note": "IDEAndalucía: the 1956-57 American flight orthophoto.",
+  "infoUrl": "https://www.ideandalucia.es/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-canarias",
+  "label": "Canary Islands (1964, 1987)",
+  "short": "GRAFCAN",
+  "group": "Historical · Spain and Portugal",
+  "color": "#d9f99d",
+  "bbox": [
+   -18.2,
+   27.6,
+   -13.4,
+   29.45
+  ],
+  "note": "GRAFCAN historical orthophotos of 1964 (western islands) and 1987.",
+  "infoUrl": "https://www.grafcan.es/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-valencia",
+  "label": "Valencian Community (1956-57)",
+  "short": "ICV",
+  "group": "Historical · Spain and Portugal",
+  "color": "#fecdd3",
+  "bbox": [
+   -1.53,
+   37.84,
+   0.69,
+   40.79
+  ],
+  "note": "Institut Cartogràfic Valencià: the 1956-57 American flight.",
+  "infoUrl": "https://icv.gva.es/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-galicia",
+  "label": "Galicia (1956-57)",
+  "short": "Galicia",
+  "group": "Historical · Spain and Portugal",
+  "color": "#fde2e4",
+  "bbox": [
+   -9.3,
+   41.8,
+   -6.73,
+   43.8
+  ],
+  "note": "Xunta de Galicia: the 1956-57 American flight orthophoto.",
+  "infoUrl": "https://mapas.xunta.gal/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-cantabria",
+  "label": "Cantabria (orthophotos 1945-2025)",
+  "short": "Cantabria",
+  "group": "Historical · Spain and Portugal",
+  "color": "#e7e5e4",
+  "bbox": [
+   -4.86,
+   42.75,
+   -3.14,
+   43.52
+  ],
+  "note": "Gobierno de Cantabria orthophotos: 1945-46, 1956-57, 1977-86, 1980-90, then 2001-2025.",
+  "infoUrl": "https://mapas.cantabria.es/",
+  "licence": "CECAF-IGN-Gobierno de Cantabria"
+ },
+ {
+  "id": "cat-nat-asturias",
+  "label": "Asturias (1956, 1970, 1996)",
+  "short": "Asturias",
+  "group": "Historical · Spain and Portugal",
+  "color": "#ddd6fe",
+  "bbox": [
+   -7.19,
+   42.88,
+   -4.51,
+   43.67
+  ],
+  "note": "Principado de Asturias orthophotos of 1956, 1970 and 1996.",
+  "infoUrl": "https://www.asturias.es/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-aragon",
+  "label": "Aragon (1956)",
+  "short": "Aragón",
+  "group": "Historical · Spain and Portugal",
+  "color": "#99f6e4",
+  "bbox": [
+   -2.18,
+   39.84,
+   0.78,
+   42.93
+  ],
+  "note": "Gobierno de Aragón: the 1956 CECAF orthophoto.",
+  "infoUrl": "https://icearagon.aragon.es/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-portugal",
+  "label": "Portugal (DGT orthophotos)",
+  "short": "DGT",
+  "group": "Historical · Spain and Portugal",
+  "color": "#fbd5b5",
+  "bbox": [
+   -9.55,
+   36.95,
+   -6.18,
+   42.16
+  ],
+  "note": "Direção-Geral do Território orthophotos of mainland Portugal: 1995 (false colour), 2007, 2010, 2015, 2018, 2021.",
+  "infoUrl": "https://www.dgterritorio.gov.pt/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-craig",
+  "label": "Auvergne-Rhône-Alpes (CRAIG)",
+  "short": "CRAIG",
+  "group": "Historical · France",
+  "color": "#cffafe",
+  "bbox": [
+   2.06,
+   44.11,
+   7.19,
+   46.81
+  ],
+  "note": "CRAIG: the 1948-54 historical orthophoto and orthophotos by département since 1998.",
+  "infoUrl": "https://www.craig.fr/",
+  "licence": "Licence ouverte"
+ },
+ {
+  "id": "cat-nat-strasbourg",
+  "label": "Strasbourg and Alsace (DataGrandEst)",
+  "short": "Strasbourg",
+  "group": "Historical · France",
+  "color": "#f5d0fe",
+  "bbox": [
+   6.84,
+   47.42,
+   8.23,
+   49.08
+  ],
+  "note": "Eurométropole de Strasbourg orthophotos 1932-2022 and city maps 1942-2010, Cassini and État-major, Alsace 1950-51.",
+  "infoUrl": "https://www.datagrandest.fr/",
+  "licence": "Licence ouverte"
+ },
+ {
+  "id": "cat-nat-toronto",
+  "label": "Toronto (aerial photos 1931-2025)",
+  "short": "Toronto",
+  "group": "Historical · North America",
+  "color": "#dcfce7",
+  "bbox": [
+   -79.64,
+   43.58,
+   -79.11,
+   43.86
+  ],
+  "note": "City of Toronto: historical aerials 1931-1978 and orthophotos 1999-2025.",
+  "infoUrl": "https://open.toronto.ca/",
+  "licence": "Open Government Licence - Toronto"
+ },
+ {
+  "id": "cat-nat-ottawa",
+  "label": "Ottawa (aerial photos 1928-2022)",
+  "short": "Ottawa",
+  "group": "Historical · North America",
+  "color": "#fbcfe8",
+  "bbox": [
+   -76.36,
+   44.96,
+   -75.24,
+   45.54
+  ],
+  "note": "City of Ottawa: aerial imagery 1928, 1958, 1965, 1976, 1991, then 1999-2022.",
+  "infoUrl": "https://open.ottawa.ca/",
+  "licence": "Open Government Licence - Ottawa"
+ },
+ {
+  "id": "cat-nat-kingcounty",
+  "label": "King County / Seattle (aerial photos 1936-2025)",
+  "short": "King Co",
+  "group": "Historical · North America",
+  "color": "#fde68a",
+  "bbox": [
+   -122.54,
+   47.08,
+   -121.06,
+   47.78
+  ],
+  "note": "King County aerial imagery: 1936, then 1998-2025 every two years.",
+  "infoUrl": "https://gis-kingcounty.opendata.arcgis.com/",
+  "licence": "King County terms"
+ },
+ {
+  "id": "cat-nat-dc",
+  "label": "Washington DC (orthophotos and historical maps)",
+  "short": "DC",
+  "group": "Historical · North America",
+  "color": "#bbf7d0",
+  "bbox": [
+   -77.12,
+   38.79,
+   -76.91,
+   38.996
+  ],
+  "note": "DC GIS orthophotos 2010-2026 and the historical maps: L'Enfant 1791, Ellicott 1792, the 1892 survey, Sanborn and others.",
+  "infoUrl": "https://opendata.dc.gov/",
+  "licence": "DC open data"
+ },
+ {
+  "id": "cat-nat-massgis",
+  "label": "Massachusetts (MassGIS orthophotos)",
+  "short": "MassGIS",
+  "group": "Historical · North America",
+  "color": "#fecaca",
+  "bbox": [
+   -73.51,
+   41.23,
+   -69.86,
+   42.89
+  ],
+  "note": "MassGIS statewide orthophotos: 1990s black and white, 2001, 2005, 2011-12, 2013-14, 2015, 2019, 2021, 2023, 2025.",
+  "infoUrl": "https://www.mass.gov/orgs/massgis-bureau-of-geographic-information",
+  "licence": "MassGIS terms"
+ },
+ {
+  "id": "cat-nat-ctecco",
+  "label": "Connecticut (CT ECO, 1934-2023)",
+  "short": "CT ECO",
+  "group": "Historical · North America",
+  "color": "#fef08a",
+  "bbox": [
+   -73.73,
+   40.98,
+   -71.78,
+   42.05
+  ],
+  "note": "CT ECO / UConn MAGIC: the statewide 1934 mosaic, orthophotos 1990-2023 and NAIP.",
+  "infoUrl": "https://cteco.uconn.edu/",
+  "licence": "CT ECO terms"
+ },
+ {
+  "id": "cat-nat-iowa",
+  "label": "Iowa (statewide by decade, 1930s-2025)",
+  "short": "Iowa",
+  "group": "Historical · North America",
+  "color": "#fed7aa",
+  "bbox": [
+   -96.64,
+   40.37,
+   -90.14,
+   43.5
+  ],
+  "note": "Iowa State University statewide orthophotos by decade: 1930s, 1950s, 1960s, 1970s, 1980s, 1990s, then 2002-2025.",
+  "infoUrl": "https://geodata.iowa.gov/",
+  "licence": "ISU GIS terms"
+ },
+ {
+  "id": "cat-nat-chicagoland",
+  "label": "Chicagoland 1938-39 (Field Museum)",
+  "short": "Field Museum",
+  "group": "Historical · North America",
+  "color": "#e9d5ff",
+  "bbox": [
+   -88.71,
+   41.2,
+   -87.52,
+   42.5
+  ],
+  "note": "Field Museum and ISGS: the 1938-39 aerial survey of the collar counties of Chicago.",
+  "infoUrl": "https://www.fieldmuseum.org/",
+  "licence": "Field Museum terms"
+ },
+ {
+  "id": "cat-nat-minnesota",
+  "label": "Minnesota (MnGeo, 1938-2025)",
+  "short": "MnGeo",
+  "group": "Historical · North America",
+  "color": "#bfdbfe",
+  "bbox": [
+   -97.24,
+   43.5,
+   -89.49,
+   49.38
+  ],
+  "note": "MnGeo image server: the 1938 Lyon County mosaic, 1991 DOQs, 1997 and 2000 black and white, FSA/NAIP 2008-2025.",
+  "infoUrl": "https://www.mngeo.state.mn.us/",
+  "licence": "MnGeo terms"
+ },
+ {
+  "id": "cat-nat-chatham",
+  "label": "Chatham County, NC (1938-2023)",
+  "short": "Chatham",
+  "group": "Historical · North America",
+  "color": "#a5f3fc",
+  "bbox": [
+   -79.56,
+   35.5,
+   -78.9,
+   35.87
+  ],
+  "note": "Chatham County aerial imagery: 1938, 1955, 1966, 1979, 1983, then many years.",
+  "infoUrl": "https://www.chathamcountync.gov/",
+  "licence": "County terms"
+ },
+ {
+  "id": "cat-nat-florida1940",
+  "label": "Florida 1940s (FDEP)",
+  "short": "FDEP",
+  "group": "Historical · North America",
+  "color": "#c7d2fe",
+  "bbox": [
+   -87.64,
+   24.4,
+   -80.03,
+   31
+  ],
+  "note": "Florida DEP: 1940s aerial photos of about 40 counties.",
+  "infoUrl": "https://floridadep.gov/",
+  "licence": "FDEP terms"
+ },
+ {
+  "id": "cat-nat-nsw",
+  "label": "New South Wales (historical imagery 1943-2013)",
+  "short": "NSW",
+  "group": "Historical · Asia and Oceania",
+  "color": "#d9f99d",
+  "bbox": [
+   140.99,
+   -37.51,
+   153.64,
+   -28.15
+  ],
+  "note": "NSW Spatial Services historical imagery mosaics 1943-2013, each year covering some places.",
+  "infoUrl": "https://www.spatial.nsw.gov.au/",
+  "licence": "CC BY 4.0"
+ },
+ {
+  "id": "cat-nat-sinica",
+  "label": "Taiwan historical maps (Academia Sinica)",
+  "short": "Sinica",
+  "group": "Historical · Asia and Oceania",
+  "color": "#fecdd3",
+  "bbox": [
+   118,
+   21.8,
+   122.1,
+   26.4
+  ],
+  "note": "Academia Sinica Center for GIS: Japanese-era maps from 1897, US Army maps of 1944, ROC topographic series and the 1966 and 1969 Corona satellite photos.",
+  "infoUrl": "https://gis.sinica.edu.tw/",
+  "licence": "Academia Sinica terms"
+ },
+ {
+  "id": "cat-nat-nlsc",
+  "label": "Taiwan (NLSC orthophotos 2014-2025)",
+  "short": "NLSC",
+  "group": "Historical · Asia and Oceania",
+  "color": "#fde2e4",
+  "bbox": [
+   118,
+   21.8,
+   122.1,
+   26.4
+  ],
+  "note": "National Land Surveying and Mapping Center yearly orthophotos.",
+  "infoUrl": "https://maps.nlsc.gov.tw/",
+  "licence": "Open Government Data License"
+ },
+ {
+  "id": "cat-nat-saopaulo",
+  "label": "São Paulo (GeoSampa)",
+  "short": "GeoSampa",
+  "group": "Historical · South America",
+  "color": "#e7e5e4",
+  "bbox": [
+   -46.83,
+   -24.01,
+   -46.36,
+   -23.36
+  ],
+  "note": "Prefeitura de São Paulo: the 1930 SARA Brasil map, the 1954 VASP Cruzeiro sheets, orthophotos 2004, 2017 and 2020.",
+  "infoUrl": "https://geosampa.prefeitura.sp.gov.br/",
+  "licence": "CC BY 4.0"
+ }
+]

@@ -12,6 +12,15 @@
 //     JPEG), so the probe decodes the tile and drops uniform ones.
 // lib/timeline-catalogs.ts turns them into catalogues and ticks; the STAC
 // build lists them as collections.
+//
+// Two kinds of entries: the ones written out below (with flight-index
+// lookups where the agency has one), and about fifty more read from
+// national-historical-catalog.json (names, extents) and
+// national-historical-layers.json (layer lists, 1,100+ layers, loaded on first
+// use). Those two files were generated 2026-10-05 from each service's
+// capabilities, and every layer answered an image with CORS for a tile in its
+// area; services that failed are listed in the docs (Basemaps and Historical).
+import catalogJson from "./national-historical-catalog.json" with { type: "json" }
 
 export type Bbox = [number, number, number, number]
 
@@ -31,6 +40,8 @@ export interface NatLayer {
 
 export interface NatSource {
   id: string
+  /** The Catalogues tree's heading ("Historical · Germany"). */
+  group: string
   label: string
   short: string
   color: string
@@ -40,6 +51,8 @@ export interface NatSource {
   licence: string
   resClass?: "vhr" | "medium"
   layers: NatLayer[]
+  /** Layers kept in national-historical-layers.json, fetched on first use. */
+  lazy?: boolean
   /** Flight dates at a point, per layer key (exact, from the agency's index). */
   dates?: (lng: number, lat: number, signal?: AbortSignal) => Promise<Record<string, string[]>>
 }
@@ -135,17 +148,17 @@ const WELD_YEARS = [1983, 1984, 1985, 1988, 1989, 1990, 1998, 1999, 2000]
 
 export const NATIONAL_SOURCES: NatSource[] = [
   {
-    id: "cat-nat-icgc", label: "Catalonia (ICGC)", short: "ICGC", color: "#fbcfe8", bbox: [0.15, 40.5, 3.35, 42.9],
+    id: "cat-nat-icgc", group: "Historical · Spain and Portugal", label: "Catalonia (ICGC)", short: "ICGC", color: "#fbcfe8", bbox: [0.15, 40.5, 3.35, 42.9],
     note: "ICGC orthophotos of Catalonia: 1945-46, 1956-57, 1970s and 1980s flights, then every year 2008-2025.", infoUrl: "https://www.icgc.cat/", licence: "CC BY 4.0",
     layers: ICGC_LAYERS.map(([key, y, e]) => ({ key, year: y, endYear: e, label: key.replace(/^ortofoto_/, "").replace(/_/g, " "), url: wms(ICGC, key), type: "wms" as const, maxzoom: 20 })),
   },
   {
-    id: "cat-nat-pnoa", label: "Spain (IGN PNOA histórico)", short: "PNOA", color: "#fde68a", bbox: [-18.2, 27.6, 4.4, 43.9],
+    id: "cat-nat-pnoa", group: "Historical · Spain and Portugal", label: "Spain (IGN PNOA histórico)", short: "PNOA", color: "#fde68a", bbox: [-18.2, 27.6, 4.4, 43.9],
     note: "IGN Spain: the 1956-57 American flight, the 1973-86 interministerial and national flights, OLISTAT, SIGPAC, then PNOA every year 2004-2024 (each year flies some regions).", infoUrl: "https://pnoa.ign.es/", licence: "CC BY 4.0",
     layers: PNOA_LAYERS.map(([key, label, y, e]) => ({ key, year: y, endYear: e, label, url: wms(PNOA, key), type: "wms" as const, maxzoom: 20 })),
   },
   {
-    id: "cat-nat-nrw", label: "North Rhine-Westphalia (historische DOP)", short: "NRW", color: "#bbf7d0", bbox: [5.85, 50.32, 9.47, 52.54],
+    id: "cat-nat-nrw", group: "Historical · Germany", label: "North Rhine-Westphalia (historische DOP)", short: "NRW", color: "#bbf7d0", bbox: [5.85, 50.32, 9.47, 52.54],
     note: "Geobasis NRW: historical orthophotos 1951-2024, dated by the flight under the view centre.", infoUrl: "https://www.bezreg-koeln.nrw.de/geobasis-nrw/produkte-und-dienste/luftbild-und-satellitenbildinformationen/aktuelle-luftbild-und-0", licence: "DL-DE Zero 2.0",
     layers: NRW_YEARS.map((y) => ({ key: `nw_hist_dop_${y}`, year: y, label: `Historische DOP ${y}`, url: wms(NRW, `nw_hist_dop_${y}`), type: "wms" as const, maxzoom: 20 })),
     dates: async (lng, lat, signal) => {
@@ -156,33 +169,33 @@ export const NATIONAL_SOURCES: NatSource[] = [
     },
   },
   {
-    id: "cat-nat-spw", label: "Wallonia (SPW)", short: "SPW", color: "#fecaca", bbox: [2.8, 49.45, 6.45, 50.82],
+    id: "cat-nat-spw", group: "Historical · Belgium", label: "Wallonia (SPW)", short: "SPW", color: "#fecaca", bbox: [2.8, 49.45, 6.45, 50.82],
     note: "Service public de Wallonie orthophotos: 1971, 1978-90, 1994-2000, 2001-03, 2006-07, 2009-10, 2012-13, then every year since 2015.", infoUrl: "https://geoportail.wallonie.be/", licence: "SPW free licence",
     layers: SPW_PERIODS.map(([p, y, e]) => ({ key: `ORTHO_${p}`, year: y, endYear: e, label: `Orthophotos ${p.replace(/_/g, " ").toLowerCase()}`, url: `${SPW}/ORTHO_${p}/MapServer/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&format=jpg&f=image`, type: "wms" as const, maxzoom: 20 })),
   },
   {
-    id: "cat-nat-vlaanderen", label: "Flanders (Digitaal Vlaanderen)", short: "Vlaanderen", color: "#fef08a", bbox: [2.5, 50.67, 5.92, 51.51],
+    id: "cat-nat-vlaanderen", group: "Historical · Belgium", label: "Flanders (Digitaal Vlaanderen)", short: "Vlaanderen", color: "#fef08a", bbox: [2.5, 50.67, 5.92, 51.51],
     note: "Digitaal Vlaanderen: historical maps (Pourbus 1571, Fricx 1712, Ferraris 1777, Atlas der Buurtwegen, Popp, Vandermaelen) and orthophoto mosaics 1971, 1979-90, 2000-11 and every winter since 2012.", infoUrl: "https://www.vlaanderen.be/digitaal-vlaanderen", licence: "Modellicentie gratis hergebruik",
     layers: VL_LAYERS.map(([service, key, label, y, e]) => ({ key, year: y, endYear: e, label, url: vlTile(service, key), type: "tms" as const, maxzoom: service === "HISTCART" ? 18 : 21 })),
   },
   {
-    id: "cat-nat-pdok", label: "Netherlands (PDOK Luchtfoto)", short: "PDOK", color: "#fed7aa", bbox: [3.2, 50.7, 7.3, 53.6],
+    id: "cat-nat-pdok", group: "Historical · Netherlands and Luxembourg", label: "Netherlands (PDOK Luchtfoto)", short: "PDOK", color: "#fed7aa", bbox: [3.2, 50.7, 7.3, 53.6],
     note: "PDOK aerial photos every year since 2016: 25 cm, and 7.5 cm (HR) since 2021.", infoUrl: "https://www.pdok.nl/", licence: "CC BY 4.0",
     layers: PDOK_LAYERS.map(([key, y]) => ({ key, year: y, label: `Luchtfoto ${y} ${key.endsWith("HR") ? "7.5 cm" : "25 cm"}`, url: `${PDOK}/${key}/EPSG:3857/{z}/{x}/{y}.jpeg`, type: "tms" as const, maxzoom: key.endsWith("HR") ? 21 : 19 })),
   },
   {
-    id: "cat-nat-wien", label: "Vienna (Luftbildpläne)", short: "Wien", color: "#e9d5ff", bbox: [16.17, 48.1, 16.58, 48.33],
+    id: "cat-nat-wien", group: "Historical · Austria", label: "Vienna (Luftbildpläne)", short: "Wien", color: "#e9d5ff", bbox: [16.17, 48.1, 16.58, 48.33],
     note: "Stadt Wien aerial maps: 1938, 1956, 1961, 1971-1992 and every year since 2014.", infoUrl: "https://www.wien.gv.at/", licence: "CC BY 4.0",
     layers: [...WIEN_YEARS.map(([y, style]) => ({ key: `lb${y}`, year: y, label: `Luftbild ${y}`, url: `https://mapsneu.wien.gv.at/wmts/lb${y}/${style}/google3857/{z}/{y}/{x}.jpeg`, type: "tms" as const, maxzoom: 21 })),
       { key: "lb", year: 2025, label: "Luftbild 2025", url: "https://mapsneu.wien.gv.at/wmts/lb/farbe/google3857/{z}/{y}/{x}.jpeg", type: "tms" as const, maxzoom: 21 }],
   },
   {
-    id: "cat-nat-lu", label: "Luxembourg (geoportail.lu)", short: "LU", color: "#bfdbfe", bbox: [5.73, 49.44, 6.53, 50.19],
+    id: "cat-nat-lu", group: "Historical · Netherlands and Luxembourg", label: "Luxembourg (geoportail.lu)", short: "LU", color: "#bfdbfe", bbox: [5.73, 49.44, 6.53, 50.19],
     note: "Orthophotos of Luxembourg: 1967, 2001-2013 every three years, then yearly.", infoUrl: "https://data.public.lu/", licence: "CC0",
     layers: LU_YEARS.map((y) => ({ key: `ortho_${y}`, year: y, label: `Orthophoto ${y}`, url: `https://wmts1.geoportail.lu/opendata/wmts/ortho_${y}/GLOBAL_WEBMERCATOR_4_V3/{z}/{x}/{y}.jpeg`, type: "tms" as const, maxzoom: 21 })),
   },
   {
-    id: "cat-nat-hamburg", label: "Hamburg (DOP Zeitreihe)", short: "Hamburg", color: "#a5f3fc", bbox: [9.7, 53.39, 10.33, 53.74],
+    id: "cat-nat-hamburg", group: "Historical · Germany", label: "Hamburg (DOP Zeitreihe)", short: "Hamburg", color: "#a5f3fc", bbox: [9.7, 53.39, 10.33, 53.74],
     note: "Hamburg orthophotos every year: leafless (spring) 2001-2026, leafy (summer) 2005-2024.", infoUrl: "https://geoportal-hamburg.de/", licence: "DL-DE BY 2.0",
     layers: [
       ...range(2001, 2026).map((y) => ({ key: `unbelaubt-${y}`, year: y, label: `DOP ${y} leafless`, url: wms("https://geodienste.hamburg.de/wms_dop_zeitreihe_unbelaubt", "dop_zeitreihe_unbelaubt", "image/jpeg", `&TIME=${y}`), type: "wms" as const, maxzoom: 21 })),
@@ -190,7 +203,7 @@ export const NATIONAL_SOURCES: NatSource[] = [
     ],
   },
   {
-    id: "cat-nat-bayern", label: "Bavaria (historische DOP)", short: "Bayern", color: "#c7d2fe", bbox: [8.97, 47.27, 13.84, 50.56],
+    id: "cat-nat-bayern", group: "Historical · Germany", label: "Bavaria (historische DOP)", short: "Bayern", color: "#c7d2fe", bbox: [8.97, 47.27, 13.84, 50.56],
     note: "Bayerische Vermessungsverwaltung orthophotos 2003-2025, flown every other year: dated by the flight under the view centre.", infoUrl: "https://geodaten.bayern.de/opengeodata/", licence: "CC BY 4.0",
     layers: BY_YEARS.map((y) => ({ key: `by_dop_${y}_h`, year: y, label: `DOP ${y}`, url: wms(BY, `by_dop_${y}_h`), type: "wms" as const, maxzoom: 20 })),
     dates: async (lng, lat, signal) => {
@@ -204,7 +217,7 @@ export const NATIONAL_SOURCES: NatSource[] = [
     },
   },
   {
-    id: "cat-nat-tirol", label: "Tyrol (Land Tirol)", short: "Tirol", color: "#d9f99d", bbox: [10.09, 46.65, 12.97, 47.75],
+    id: "cat-nat-tirol", group: "Historical · Austria", label: "Tyrol (Land Tirol)", short: "Tirol", color: "#d9f99d", bbox: [10.09, 46.65, 12.97, 47.75],
     note: "Land Tirol orthophotos: 1940, 1949-54, 1970-82, then periods of three to five years; the flight year under the view centre dates each tick.", infoUrl: "https://www.tirol.gv.at/sicherheit/geoinformation/", licence: "Land Tirol OGD (CC BY 4.0)",
     layers: TIROL_PERIODS.map(([p, y, e]) => ({ key: `Image_${p}`, year: y, endYear: e, label: `Orthofoto ${p.replace("_", "-")}`, url: wms(TIROL, `Image_${p}`), type: "wms" as const, maxzoom: 20 })),
     dates: async (lng, lat, signal) => {
@@ -218,17 +231,17 @@ export const NATIONAL_SOURCES: NatSource[] = [
     },
   },
   {
-    id: "cat-nat-gsi", label: "Japan (GSI aerial photos)", short: "GSI", color: "#fecdd3", bbox: [122, 24, 154, 46],
+    id: "cat-nat-gsi", group: "Historical · Asia and Oceania", label: "Japan (GSI aerial photos)", short: "GSI", color: "#fecdd3", bbox: [122, 24, 154, 46],
     note: "Geospatial Information Authority of Japan: army aerial photos 1936-42, US Army 1945-50, 1961-69, and the 1974-1990 national series.", infoUrl: "https://maps.gsi.go.jp/development/ichiran.html", licence: "GSI terms (attribution)",
     layers: GSI_LAYERS.map(([key, label, y, e, ext]) => ({ key, year: y, endYear: e, label: `${label} ${y}-${e}`, url: `https://cyberjapandata.gsi.go.jp/xyz/${key}/{z}/{x}/{y}.${ext}`, type: "tms" as const, maxzoom: 17 })),
   },
   {
-    id: "cat-nat-nyc", label: "New York City (NYC orthos)", short: "NYC", color: "#fde2e4", bbox: [-74.26, 40.49, -73.7, 40.92],
+    id: "cat-nat-nyc", group: "Historical · North America", label: "New York City (NYC orthos)", short: "NYC", color: "#fde2e4", bbox: [-74.26, 40.49, -73.7, 40.92],
     note: "NYC aerial orthophotos: 1924, 1951, then 1996-2018.", infoUrl: "https://maps.nyc.gov/", licence: "NYC Open Data",
     layers: NYC_YEARS.map((y) => ({ key: `photo-${y}`, year: y, label: `NYC ${y}`, url: `https://maps.nyc.gov/xyz/1.0.0/photo/${y}/{z}/{x}/{y}.png8`, type: "tms" as const, maxzoom: 21 })),
   },
   {
-    id: "cat-nat-dop1953", label: "Mecklenburg-Vorpommern and Brandenburg 1953", short: "DOP 1953", color: "#e7e5e4", bbox: [11.2, 51.35, 14.8, 54.7],
+    id: "cat-nat-dop1953", group: "Historical · Germany", label: "Mecklenburg-Vorpommern and Brandenburg 1953", short: "DOP 1953", color: "#e7e5e4", bbox: [11.2, 51.35, 14.8, 54.7],
     note: "The 1953 black-and-white orthophotos of Mecklenburg-Vorpommern and Brandenburg.", infoUrl: "https://www.laiv-mv.de/Geoinformation/Geobasisdaten/", licence: "DL-DE BY 2.0",
     layers: [
       { key: "mv_dop1953", year: 1953, label: "Mecklenburg-Vorpommern 1953", url: wms("https://www.geodaten-mv.de/dienste/dop1953_wms", "mv_dop1953"), type: "wms" as const, maxzoom: 19, bbox: [10.55, 53.1, 14.45, 54.7] },
@@ -236,9 +249,19 @@ export const NATIONAL_SOURCES: NatSource[] = [
     ],
   },
   {
-    id: "cat-nat-weld", label: "Landsat WELD annual (NASA GIBS)", short: "WELD", color: "#ddd6fe", bbox: [-180, -85, 180, 85], resClass: "medium",
+    id: "cat-nat-weld", group: "Historical · Global", label: "Landsat WELD annual (NASA GIBS)", short: "WELD", color: "#ddd6fe", bbox: [-180, -85, 180, 85], resClass: "medium",
     note: "NASA's Web-Enabled Landsat Data annual mosaics, 30 m: the years before Sentinel-2 and HLS.", infoUrl: "https://worldview.earthdata.nasa.gov/", licence: "NASA open data",
     layers: WELD_YEARS.map((y) => ({ key: `weld-${y}`, year: y, label: `Landsat WELD ${y}`, url: `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/Landsat_WELD_CorrectedReflectance_TrueColor_Global_Annual/default/${y}-12-01/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpg`, type: "tms" as const, maxzoom: 12 })),
   },
 ]
+// Generated sources: their layers arrive with loadNationalLayers().
+NATIONAL_SOURCES.push(...(catalogJson as Omit<NatSource, "layers">[]).map((c) => ({ ...c, bbox: c.bbox as Bbox, layers: [], lazy: true })))
 export const NATIONAL_SOURCE_BY_ID = Object.fromEntries(NATIONAL_SOURCES.map((s) => [s.id, s])) as Record<string, NatSource>
+
+let layersJson: Promise<Record<string, NatLayer[]>> | null = null
+/** A source's layers, the generated ones fetched once (a separate chunk). */
+export async function loadNationalLayers(src: NatSource): Promise<NatLayer[]> {
+  if (!src.lazy) return src.layers
+  if (!layersJson) layersJson = import("./national-historical-layers.json").then((m) => (m.default ?? m) as unknown as Record<string, NatLayer[]>)
+  return (await layersJson)[src.id] ?? []
+}

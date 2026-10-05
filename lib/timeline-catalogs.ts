@@ -26,7 +26,7 @@
 //     (so are the Georeferencer API, David Rumsey's MapRank and loc.gov).
 import type { CustomBasemapSource } from "./settings-atoms"
 import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
-import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, type NatLayer, type NatSource } from "./national-historical"
+import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, loadNationalLayers, type NatLayer, type NatSource } from "./national-historical"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
 
@@ -42,16 +42,18 @@ export interface TimelineCatalog {
   disabled?: string
   /** The timeline's resolution filter; "vhr" when absent. */
   resClass?: "vhr" | "medium"
+  /** Where it has anything: the tree dims it elsewhere. */
+  bbox?: [number, number, number, number]
 }
 
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "eli", label: "OSM Editor Layer Index (ELI)", short: "ELI", group: "Community indexes", color: "#99f6e4", note: "Dated orthophotos and maps of the OSM Editor Layer Index whose coverage touches the view (about 1,300 layers carry a date); a year-only date sits at 1 January." },
-  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "National historical", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." },
-  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "National historical", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." },
-  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "National historical", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." },
-  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "National historical", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." },
+  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "Historical · France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
+  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "Historical · Switzerland", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "Historical · Switzerland", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Historical · Norway", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
   // Regional series (lib/national-historical.ts).
-  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "National historical", color: s.color, note: s.note, resClass: s.resClass })),
+  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: s.group, color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
   { id: "cat-oam", label: "OpenAerialMap", short: "OAM", group: "Drone and aerial", color: "#fde68a", note: "Open drone and aerial imagery uploaded to OpenAerialMap, from HOT's STAC API: one tick per upload covering the view, dated by its capture." },
   { id: "cat-maxar", label: "Maxar Open Data", short: "Maxar", group: "Disaster open data", color: "#fecaca", note: "Maxar's pre- and post-event 30-50 cm imagery for disasters (CC BY-NC 4.0), from HOT's STAC API: one tick per acquisition." },
   { id: "cat-vantor", label: "Vantor Open Data", short: "Vantor", group: "Disaster open data", color: "#fbcfe8", note: "Vantor (ex-Maxar) open data programme, 2025 onwards, from HOT's STAC API." },
@@ -59,10 +61,18 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-planet", label: "Planet disaster data", short: "Planet DD", group: "Disaster open data", color: "#fed7aa", note: "Planet Crisis Response Program releases on Source Cooperative: one tick per pre- or post-event acquisition covering the view." },
   { id: "cat-mapwarper", label: "Map Warper", short: "MapWarper", group: "Old maps", color: "#e9d5ff", note: "Maps georeferenced by volunteers on mapwarper.net, sized to the zoom; only maps with a depicted year get a tick." },
   { id: "cat-wikimaps", label: "Wikimaps Warper", short: "Wikimaps", group: "Old maps", color: "#ddd6fe", note: "Maps from Wikimedia Commons georeferenced on warper.wmflabs.org, sized to the zoom; only maps with a depicted year get a tick." },
+  { id: "cat-slub", label: "SLUB Kartenforum (Germany)", short: "Kartenforum", group: "Old maps", color: "#fde68a", note: "About 9,000 maps georeferenced by the SLUB Dresden Virtuelles Kartenforum (Messtischblätter, topographic maps, city plans), sized to the zoom." },
   { id: "cat-usgs-topo", label: "USGS historical topo maps", short: "USGS topo", group: "Old maps", color: "#d9f99d", note: "Every USGS topographic quad edition covering the view centre since 1884 (US only), from Esri's historical topo image service; dated by imprint year." },
   { id: "cat-oldmapsonline", label: "Old Maps Online", short: "OMO", group: "Old maps", color: "#e5e7eb", note: "Klokan's search engine over library map collections.", disabled: "Its API sends no CORS header and sits behind a Cloudflare challenge, so a browser cannot query it." },
   { id: "cat-agol", label: "ArcGIS Online imagery", short: "ArcGIS", group: "Imagery services", color: "#a7f3d0", note: "Public ArcGIS image and map services found by ArcGIS Online search over the view, whose title names a year (taken as the capture year), sized to the zoom." },
 ]
+// Historical groups together and alphabetical, after the community index.
+{
+  const rank = (g: string) => (g === "Community indexes" ? 0 : g.startsWith("Historical") ? 1 : 2)
+  const first = new Map<string, number>()
+  TIMELINE_CATALOGS.forEach((c, i) => { if (!first.has(c.group)) first.set(c.group, i) })
+  TIMELINE_CATALOGS.sort((a, b) => rank(a.group) - rank(b.group) || (rank(a.group) === 1 ? a.group.localeCompare(b.group) : first.get(a.group)! - first.get(b.group)!))
+}
 export const TIMELINE_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>
 
 export const isCatalogBasemapId = (id: string | undefined | null): boolean => !!id && id.startsWith(CATALOG_BASEMAP_PREFIX)
@@ -228,6 +238,44 @@ async function mapWarperTicks(catalog: string, bbox: Bbox, signal?: AbortSignal)
     ticks.push(register(catalog, String(r.id), dateMs, `${short} · ${title} · ${year}`, {
       name: `${title} (${year})`, url: `${host}/maps/tile/${r.id}/{z}/{x}/{y}.png`, type: "tms", role: "basemap", bounds: b,
       description: `${TIMELINE_CATALOG_BY_ID[catalog].label} map ${r.id}, depicting ${year}`, infoUrl: `${host}/maps/${r.id}`, maxzoom: 20,
+    } as Omit<CustomBasemapSource, "id">))
+  }
+  return ticks
+}
+
+// ── SLUB Virtuelles Kartenforum ───────────────────────────────────────────
+async function slubTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+  const w = bbox[2] - bbox[0], h = bbox[3] - bbox[1]
+  // Maps within an area three views wide, like Map Warper: sheets at street
+  // zoom, regional maps zoomed out.
+  const region = [Math.max(-180, bbox[0] - w), Math.max(-85, bbox[1] - h), Math.min(180, bbox[2] + w), Math.min(85, bbox[3] + h)]
+  const res = await fetch("https://search.kartenforum.slub-dresden.de/vk20/_search", {
+    method: "POST", signal, headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ size: 150, query: { bool: { filter: [
+      { term: { has_georeference: true } },
+      { geo_shape: { geometry: { shape: { type: "envelope", coordinates: [[region[0], region[3]], [region[2], region[1]]] }, relation: "within" } } },
+    ] } } }),
+  })
+  if (!res.ok) throw new Error(`Kartenforum ${res.status}`)
+  const d = await res.json()
+  const ticks: CatalogTick[] = []
+  for (const hit of d.hits?.hits ?? []) {
+    const p = hit._source ?? {}
+    const tms = p.tms_urls?.[0]
+    const when = p.time_published ?? p.time_period_start
+    const dateMs = when ? Date.parse(when) : NaN
+    if (!tms || !Number.isFinite(dateMs) || !p.geometry) continue
+    const pts = (p.geometry.coordinates?.[0] ?? []) as [number, number][]
+    const b: Bbox | undefined = pts.length ? [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))] : undefined
+    if (b && !intersects(b, bbox)) continue
+    const year = String(when).slice(0, 4)
+    const title = String(p.title_long ?? p.title ?? p.map_id).replace(/\s+/g, " ").slice(0, 140)
+    const id = String(p.map_id ?? p.file_name).split(":").pop()!
+    ticks.push(register("cat-slub", id, dateMs, `Kartenforum · ${title} · ${year}`, {
+      // TMS tiles: y counted from the south.
+      name: `${title} (${year})`, url: `${tms}/{z}/{x}/{y}.png`, type: "tms", scheme: "tms", role: "basemap", bounds: b, maxzoom: 18,
+      description: `SLUB Virtuelles Kartenforum, ${p.map_type ?? "map"}${p.map_scale ? ` 1:${Number(p.map_scale).toLocaleString("en-US")}` : ""}, ${year}`,
+      infoUrl: p.permalink ?? `https://kartenforum.slub-dresden.de/`,
     } as Omit<CustomBasemapSource, "id">))
   }
   return ticks
@@ -411,8 +459,9 @@ function natTileAt(l: NatLayer, lng: number, lat: number): string {
   const y = Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n)
   if (l.type === "tms") return l.url.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
   const size = 40075016.686 / n, minX = -20037508.34 + x * size, maxY = 20037508.34 - y * size
-  // A small image is enough to tell a photo from a blank.
-  return l.url.replace("{bbox-epsg-3857}", `${minX},${maxY - size},${minX + size},${maxY}`).replace("WIDTH=256&HEIGHT=256", "WIDTH=64&HEIGHT=64").replace("size=256,256", "size=64,64")
+  // The tile as drawn: a smaller image would ask for a smaller scale, and
+  // scale-limited WMS layers answer those blank.
+  return l.url.replace("{bbox-epsg-3857}", `${minX},${maxY - size},${minX + size},${maxY}`)
 }
 /** True when the tile holds a picture: not an error, not one flat colour. */
 /** The tile's picture, summarised: null when missing or one flat colour,
@@ -448,7 +497,7 @@ async function tilePicture(url: string, signal?: AbortSignal): Promise<string | 
 async function nationalTicks(src: NatSource, bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
   const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
   if (!containsPt(src.bbox, cx, cy)) return []
-  const candidates = src.layers.filter((l) => !l.bbox || containsPt(l.bbox, cx, cy))
+  const candidates = (await loadNationalLayers(src)).filter((l) => !l.bbox || containsPt(l.bbox, cx, cy))
   // Exact flight dates per layer, when the agency publishes a flight index.
   let dates: Record<string, string[]> | null = null
   if (src.dates) dates = await src.dates(cx, cy, signal).catch(() => null)
@@ -465,11 +514,17 @@ async function nationalTicks(src: NatSource, bbox: Bbox, signal?: AbortSignal): 
         picture.set(l.key, await p)
       }
     }))
-    // A time-enabled WMS answers a year it lacks with a fallback mosaic
-    // (Hamburg): the same picture for three years or more is that fallback.
-    const seen = new Map<string, number>()
-    for (const f of picture.values()) if (f) seen.set(f, (seen.get(f) ?? 0) + 1)
-    kept = candidates.filter((l) => { const f = picture.get(l.key); return !!f && (seen.get(f) ?? 0) < 3 })
+    // The same picture under several layers is one capture: a map sheet that
+    // did not change between editions (NGI), or a time-enabled WMS showing the
+    // latest flight up to the year asked (Baden-Württemberg, Hamburg). Only
+    // the earliest layer showing it is kept.
+    const firstOf = new Set<string>()
+    kept = [...candidates].sort((x, y) => x.year - y.year).filter((l) => {
+      const f = picture.get(l.key)
+      if (!f || firstOf.has(f)) return false
+      firstOf.add(f)
+      return true
+    })
   }
   return kept.map((l) => {
     const flown = dates?.[l.key]?.[0]
@@ -573,6 +628,7 @@ export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: Abo
   else if (catalog === "cat-planet") ticks = await planetTicks(bbox, signal)
   else if (catalog in WARPERS) ticks = await mapWarperTicks(catalog, bbox, signal)
   else if (catalog === "cat-usgs-topo") ticks = await usgsTopoTicks(bbox, signal)
+  else if (catalog === "cat-slub") ticks = await slubTicks(bbox, signal)
   else if (catalog === "cat-agol") ticks = await agolTicks(bbox, signal)
   const used = new Set<number>()
   for (const t of ticks.sort((a, b) => a.dateMs - b.dateMs)) {
