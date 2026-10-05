@@ -627,8 +627,8 @@ const P10Iso: Page = () => (
         <Bullets size={29}>
           <Li k="Contours">minor and major interval, maplibre-contour; reference absolute or LRM.</Li>
           <Li k="Iso-line">over any measure: the elevation (a lake level, canopy at 1.5 m on an nDSM), slope (30° avalanche terrain, 80° cliffs) and every terrain-analysis and relief mode, or a light's brightness (Phong, Matcap, shadow) through luma://.</Li>
-          <Li k="At a value, or every interval">one line where the measure crosses the value, or the contours of the measure itself (slope every 10°, SVF every 0.05).</Li>
-          <Li k="Fill above">a raster from the same threshold:// tiles, so no seams.</Li>
+          <Li k="At a value, or every interval">one line where the measure crosses the value, or the contours of the measure itself (slope every 10°, a curvature every 1).</Li>
+          <Li k="Fill above">the polygons whose boundary is the line (isoband://), so the fill stops exactly on it.</Li>
           <Li k="Export">GeoJSON, segments stitched across tile edges.</Li>
           <Li k="Graticule">lat/lng grid with labels.</Li>
         </Bullets>

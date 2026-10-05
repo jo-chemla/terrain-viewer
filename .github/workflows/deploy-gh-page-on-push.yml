@@ -76,23 +76,26 @@ jobs:
           # subdirectory.
           mkdir -p dist/docs
           cp -r docs/out/. dist/docs/
-      - name: Slide decks as PDFs
+      - name: Slide decks (live and PDF)
         # slides/ is the open-slide workspace (its own install, like docs/).
-        # The decks are React pages; the deploy publishes them as PDFs under
-        # /docs/slides/ (the SPA's absolute /assets paths and /s/<deck>
-        # routes do not survive a sub-path on Pages, the PDFs do). Built
-        # site, previewed locally, printed page by page with Chromium.
+        # Built for the sub-path it is served from (open-slide's `base`,
+        # SLIDES_BASE), each deck's index.html copied to s/<deck>/ since
+        # Pages has no rewrite to the single-page app, then printed to PDF
+        # from that same layout, served statically. Published in the Pages
+        # artifact only: nothing of it is committed.
         shell: bash
         run: |
           pnpm --dir slides install --frozen-lockfile
-          pnpm --dir slides build
-          (cd slides && npx open-slide preview --port 4173 > /tmp/slides-preview.log 2>&1 &)
+          SLIDES_BASE=/docs/slides/ pnpm --dir slides build
+          mkdir -p dist/docs/slides
+          cp -r slides/dist/. dist/docs/slides/
+          node slides/scripts/static-routes.mjs dist/docs/slides
+          (cd dist && python3 -m http.server 4180 > /tmp/slides-static.log 2>&1 &)
           npx --yes playwright@1.63.0 install --with-deps chromium
           CHROME=$(ls -d ~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome | head -1)
-          for i in $(seq 1 30); do curl -sf http://localhost:4173/ > /dev/null && break; sleep 1; done
-          mkdir -p dist/docs/slides
-          CHROME_PATH="$CHROME" node slides/scripts/export-pdf.mjs http://localhost:4173 dist/docs/slides
-          ls -la dist/docs/slides
+          for i in $(seq 1 30); do curl -sf http://localhost:4180/docs/slides/ > /dev/null && break; sleep 1; done
+          CHROME_PATH="$CHROME" node slides/scripts/export-pdf.mjs http://localhost:4180/docs/slides dist/docs/slides/pdf
+          ls -la dist/docs/slides/pdf
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

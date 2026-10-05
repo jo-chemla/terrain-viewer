@@ -2,18 +2,18 @@
 
 <!-- released: 2026-10-05 -->
 
-Everything added between Friday 2 and Sunday 5 October 2026, in short. The entries below have the details.
+New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 
-- **Historical catalogs on the timeline.** Checked catalogs are searched for the view as the camera settles; every item is a tick, a pick becomes the view's basemap, the hover card shows what it is (date, resolution, licence, thumbnail, page), puts it on any view, frames it or keeps it. Four root groups:
-  - **Open data for post-crisis response**: OpenAerialMap, Maxar and Vantor Open Data, NOAA emergency imagery (the HOT STAC API), Planet disaster data.
-  - **Community indexes**: the OSM Editor Layer Index's dated layers, ArcGIS Online imagery, NextGIS QMS.
-  - **Mapping agencies' national catalogs**, about seventy, under a continent and a country: IGN Remonter le temps, swisstopo, Kartverket, the Spanish and Italian regions, the German and Austrian Länder, the Swiss cantons, Belgium (NGI maps 1860-1994, Flanders, Wallonia), the Netherlands and Luxembourg, Slovenia, Lithuania, Cyprus, Slovakia, Japan, Taiwan, New South Wales, São Paulo, and the North American cities and states.
-  - **Old maps, digitised and warped**: Allmaps (every collection, David Rumsey's, and a dated catalog read from the archives' IIIF records), Map Warper, Wikimaps Warper (Wikimedia Commons), SLUB Kartenforum, the USGS topo quads, the CORONA Atlas of the Middle East.
-- **Remove paper**: the scanned sheets turn transparent over the imagery, paper colour and threshold found per map from its own histogram.
-- **Sources Coverage**: one tree (terrain, static basemaps, the historical catalogs), footprints on the map, search results ranked by overlap, hover and click lists, every item's resolution.
-- **Iso-line**: a line from any measure (elevation, every terrain and relief mode, the Phong shading) at a value, with an exact fill, or every interval.
-- **Building shadows** from OpenStreetMap on the GPU; **Phong Fresnel rim**; **modes per view** with pill selection; **Image Georeferencer**; share your sources by URL; the **STAC catalog** of every source; desktop builds with an updater.
-- Docs: a research page, the national datasets and catalogs tables, five slide decks (`/slides`).
+- **Historical catalogs on the timeline**: every item covering the view becomes a tick; pick it as the view's basemap, or keep it.
+  - **Post-crisis open data**: OpenAerialMap, Maxar and Vantor, NOAA, Planet.
+  - **Community indexes**: OSM Editor Layer Index, ArcGIS Online, NextGIS QMS.
+  - **National mapping agencies**: about 70 archives by continent and country (IGN, swisstopo, Kartverket, German and Austrian Länder, Spanish and Italian regions…).
+  - **Old maps**: Allmaps, David Rumsey, Wikimaps, Map Warper, SLUB, USGS topo, CORONA.
+- **Remove paper**: scanned maps lose their sheet, colour detected per map.
+- **Sources Coverage**: one tree, footprints on the map, results ranked by overlap.
+- **Iso-line** on any measure, with an exact fill.
+- **Building shadows**, **modes per view**, **Image Georeferencer**, a **STAC catalog** of every source.
+- **Slide decks**: five presentations, live and as PDFs.
 
 # Changelog — Catalogs on the Timeline, Building Shadows, National Archives
 

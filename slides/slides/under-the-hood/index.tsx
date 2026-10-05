@@ -647,7 +647,7 @@ const P9VizProtocols: Page = () => (
           <Scheme s="svf:// openness:// local-dominance://" what="ray-marched horizon, wrapped in withSlowTileStats" />
           <Scheme s="lrm://" what="ancestor-tile low-pass" />
           <Scheme s="normals:// matcap:// phong:// shadow://" what="a real normal (WebGL2), shading, single-ray shadows" accent={rose} />
-          <Scheme s="tells:// threshold://" what="mound candidates as vector tiles; iso-line and fill" accent={rose} />
+          <Scheme s="tells:// isoband:// unpaper://" what="mound candidates and iso-line polygons as vector tiles; old maps without their paper" accent={rose} />
           <Scheme s="cog-contour://" what="contours from a COG in a worker" accent={rose} />
         </>
       }
