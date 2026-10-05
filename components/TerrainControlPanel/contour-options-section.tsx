@@ -165,19 +165,30 @@ export const ContourOptionsSection: React.FC<{
                 onChange={(v) => setState({ contourReferenceMode: v })}
                 threshold={state.thresholdBeta}
               />
-              {isThreshold ? (
+              {isThreshold ? (<>
+                {/* What crosses the value: the elevation, or the slope (an
+                    iso-slope line, 30° for avalanche terrain, 80° for cliffs). */}
                 <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="contour-threshold" className="text-sm font-medium">Outline at (m)</Label>
+                  <Label className="text-sm font-medium">Measure</Label>
+                  <ToggleGroup value={[state.contourThresholdMeasure ?? "elevation"]} onValueChange={(v: string[]) => { const m = v[0]; if (m === "elevation" || m === "slope") setState({ contourThresholdMeasure: m, contourThreshold: m === "slope" ? (state.contourThreshold > 90 || state.contourThreshold < 5 ? 30 : state.contourThreshold) : state.contourThreshold }) }} className="border rounded-md w-[180px]">
+                    <ToggleGroupItem value="elevation" className="flex-1 text-xs cursor-pointer">Elevation</ToggleGroupItem>
+                    <ToggleGroupItem value="slope" className="flex-1 text-xs cursor-pointer">Slope</ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="contour-threshold" className="text-sm font-medium">Outline at ({state.contourThresholdMeasure === "slope" ? "°" : "m"})</Label>
                   <Input
                     id="contour-threshold"
                     type="number"
-                    step={0.1}
+                    step={state.contourThresholdMeasure === "slope" ? 1 : 0.1}
+                    min={state.contourThresholdMeasure === "slope" ? 0 : undefined}
+                    max={state.contourThresholdMeasure === "slope" ? 90 : undefined}
                     value={state.contourThreshold}
                     onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) setState({ contourThreshold: v }) }}
                     className="h-7 w-24 text-xs"
                   />
                 </div>
-              ) : (<>
+              </>) : (<>
               <SliderControl
                 label={`Minor: ${snappedMinor}m`}
                 value={minorIndex}

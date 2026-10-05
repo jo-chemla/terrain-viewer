@@ -922,6 +922,9 @@ export const QUERY_STATE_PARSERS = {
     // crosses contourThreshold: canopy or buildings on an nDSM at 1.5 m.
     contourReferenceMode: parseAsStringLiteral(["absolute", "lrm", "threshold"] as const).withDefault("absolute"),
     contourThreshold: parseAsFloat.withDefault(1.5),
+    // What the outline measures: the elevation (m) or the slope in degrees
+    // (an iso-slope line: 30° for avalanche terrain, 80° for cliffs).
+    contourThresholdMeasure: parseAsStringLiteral(["elevation", "slope"] as const).withDefault("elevation"),
     contourMinor: parseAsFloat.withDefault(50),
     contourMajor: parseAsFloat.withDefault(200),
     // Absolute and LRM keep independent interval values, same reasoning as
@@ -4296,6 +4299,7 @@ export function TerrainViewer() {
               sourceId={source}
               referenceMode={state.contourReferenceMode}
               thresholdValue={state.contourThreshold}
+              thresholdMeasure={state.contourThresholdMeasure}
               lrmRadius={state.lrmRadius}
               contourMinor={state.contourReferenceMode === "lrm" ? state.contourMinorLrm : state.contourMinor}
               contourMajor={state.contourReferenceMode === "lrm" ? state.contourMajorLrm : state.contourMajor}

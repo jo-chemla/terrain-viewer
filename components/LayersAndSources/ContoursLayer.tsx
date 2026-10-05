@@ -241,8 +241,9 @@ function buildThresholdDemSource(
   LocalDemManagerClass: any,
   resolved: { tileUrl: string; encoding: string; maxzoom: number; tileSize: number },
   value: number,
+  measure: "elevation" | "slope",
 ): any {
-  const demUrlPattern = buildThresholdProtocolUrl(resolved.tileUrl, resolved.encoding as UpstreamEncoding, resolved.tileSize, value)
+  const demUrlPattern = buildThresholdProtocolUrl(resolved.tileUrl, resolved.encoding as UpstreamEncoding, resolved.tileSize, value, measure)
   const dem = new DemSourceClass({
     url: demUrlPattern,
     encoding: "terrarium",
@@ -379,6 +380,8 @@ export interface ContoursLayerProps {
   /** The outline level, only read when referenceMode is "threshold"
    *  (lib/threshold-protocol.ts); minor/major are ignored then. */
   thresholdValue?: number
+  /** What the threshold outline measures: the elevation (m) or the slope (°). */
+  thresholdMeasure?: "elevation" | "slope"
   /** LRM smoothing radius, only read when referenceMode is "lrm" — same
    *  shared control Relief Visualization/Plane Slicer's own LRM use (state.lrmRadius). */
   lrmRadius: number
@@ -407,6 +410,7 @@ export function ContoursLayer({
   sourceId,
   referenceMode,
   thresholdValue = 1.5,
+  thresholdMeasure = "elevation",
   lrmRadius,
   contourMinor: contourMinorProp,
   contourMajor: contourMajorProp,
@@ -511,7 +515,7 @@ export function ContoursLayer({
     // after the first init, and the client-COG toggle swaps the whole path:
     // both need the init to run again from scratch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceId, localFileVersion, referenceMode, lrmRadius, thresholdValue, clientUpstreamTemplate, useCogClient])
+  }, [sourceId, localFileVersion, referenceMode, lrmRadius, thresholdValue, thresholdMeasure, clientUpstreamTemplate, useCogClient])
 
   // ── Init: register DemSource (or the cog-local path) + add contour-source ──
   useEffect(() => {
@@ -605,7 +609,7 @@ export function ContoursLayer({
         const dem = referenceMode === "lrm"
           ? buildLrmDemSource(DemSource, LocalDemManager, resolved, lrmRadius)
           : referenceMode === "threshold"
-          ? buildThresholdDemSource(DemSource, LocalDemManager, resolved, thresholdValue)
+          ? buildThresholdDemSource(DemSource, LocalDemManager, resolved, thresholdValue, thresholdMeasure)
           : customScheme(resolved.tileUrl)
           ? buildRegistryDemSource(DemSource, LocalDemManager, decodeParsedImage, resolved)
           : new DemSource({
@@ -650,7 +654,7 @@ export function ContoursLayer({
 
     const timer = setTimeout(tryInit, 1000)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion, referenceMode, lrmRadius, thresholdValue, useCogClient, clientUpstreamTemplate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion, referenceMode, lrmRadius, thresholdValue, thresholdMeasure, useCogClient, clientUpstreamTemplate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Update thresholds when contourMinor/contourMajor change ───────────────
   useEffect(() => {

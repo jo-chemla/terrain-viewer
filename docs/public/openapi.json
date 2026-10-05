@@ -3715,6 +3715,20 @@
             }
           },
           {
+            "name": "contourThresholdMeasure",
+            "in": "query",
+            "required": false,
+            "description": "State. What the outline measures: the elevation (m) or the slope in degrees (an iso-slope line: 30° for avalanche terrain, 80° for cliffs).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "elevation",
+                "slope\" as const"
+              ],
+              "default": "elevation"
+            }
+          },
+          {
             "name": "contourMinor",
             "in": "query",
             "required": false,
