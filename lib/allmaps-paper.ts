@@ -150,7 +150,9 @@ export function estimateFromPixels(data: Uint8ClampedArray): PaperEstimate | nul
     if (ds[j] < ds[pk] / 2 && ds[j] <= ds[j + 1] && ds[j + 2] > ds[j] * 1.15) break
     j++
   }
-  const threshold = Math.max(0.04, Math.min(0.6, (j + 0.5) * binW))
+  // Capped at 0.2: an aged, low-contrast sheet has a broad paper peak that
+  // would otherwise take its colour washes too (the slider widens it).
+  const threshold = Math.max(0.04, Math.min(0.2, (j + 0.5) * binW))
   let within = 0
   for (let i = 0; i < n; i++) if (dists[i] < threshold) within++
   const paperMass = within / n
@@ -159,8 +161,10 @@ export function estimateFromPixels(data: Uint8ClampedArray): PaperEstimate | nul
   return {
     color: `#${hex(pr)}${hex(pg)}${hex(pb)}`, threshold: +threshold.toFixed(3), modes, split: +splitLum.toFixed(3),
     paperShare: +paperMass.toFixed(3), separability: +separability.toFixed(3),
-    // A light paper holding a good part of the sheet; a drawing that fills
-    // the sheet (an engraving, a grey bird's-eye view) has none to remove.
-    confident: paperMass >= MIN_PAPER_SHARE && paperLum >= 0.78 && paperShare >= MIN_PAPER_SHARE,
+    // A light paper holding a good part of the sheet, or an aged, darker
+    // one that clearly dominates it (three quarters or more); a drawing that
+    // fills the sheet (an engraving, a grey bird's-eye view: 57% "paper" at
+    // luminance 0.73) has none to remove.
+    confident: paperShare >= MIN_PAPER_SHARE && paperMass >= MIN_PAPER_SHARE && (paperLum >= 0.78 || paperMass >= 0.75),
   }
 }
