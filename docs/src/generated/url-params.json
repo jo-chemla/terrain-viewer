@@ -3882,7 +3882,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "allmapsRemoveColor",
-      "default": "{ enabled: false, color: \"#ffffff\", threshold: 0.3, hardnes…",
+      "default": "{ enabled: false, auto: true, autoGain: 0.5, color: \"#fffff…",
       "note": ""
     },
     {

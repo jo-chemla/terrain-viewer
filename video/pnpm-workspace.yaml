@@ -1,0 +1,3 @@
+# A workspace root of its own (its own install and lockfile), outside the
+# app's pnpm workspace, like docs/: `pnpm --dir video install` stays here.
+packages: []
