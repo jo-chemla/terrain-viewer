@@ -1,0 +1,25 @@
+{
+  "name": "terrain-viewer-video",
+  "private": true,
+  "description": "Motion design for Terrain Viewer demo videos: Remotion compositions, Remocn components, clips recorded with agent-browser.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Demo out/terrain-viewer-demo.mp4",
+    "record": "bash scripts/record.sh",
+    "clips": "node scripts/prepare-clips.mjs"
+  },
+  "dependencies": {
+    "@paper-design/shaders-react": "^0.0.81",
+    "@remotion/cli": "4.0.533",
+    "@remotion/transitions": "4.0.533",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.533"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.0",
+    "agent-browser": "0.38.2",
+    "typescript": "5.8.3",
+    "ws": "8.21.0"
+  }
+}

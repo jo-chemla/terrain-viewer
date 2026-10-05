@@ -26,3 +26,4 @@
 - [Sprint handoff 2026-09-29](handoff-2026-09-29.md) — research references and tables, datasets page, nDSM/3D/Wayback/IGN fixes; 4 local unpushed commits; every GitHub post still to make, with draft paths
 - [Desktop Electrobun gotchas](desktop-electrobun-gotchas.md) — Windows WebView2 has no new-window handler (route window.open through host-message), driving the installed app over CDP, updater.log, shortcut-name collision between the two variants
 - [Iso-line over any measure, coverage tree plumbing](isoline-and-coverage-tree.md) — measures table and scales, luma:// over grey, the fill-alpha shadowing bug, fold atom keys, catalog pick/tickByRef plumbing, Allmaps dating
+- [Recording demos with agent-browser](agent-browser-recording.md) — `record` drops map takes (encoder lag); CDP screencast capture instead; GPU flags, storage, Git Bash and IIIF-host traps; Remocn/Remotion notes
