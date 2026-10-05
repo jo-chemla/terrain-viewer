@@ -1,4 +1,16 @@
 {
-  "folders": [],
-  "assignments": {}
+  "folders": [
+    {
+      "id": "f-7e2a9c41",
+      "name": "Terrain Viewer",
+      "icon": { "type": "emoji", "value": "⛰️" }
+    }
+  ],
+  "assignments": {
+    "terrain-viewer": "f-7e2a9c41",
+    "historical": "f-7e2a9c41",
+    "tools": "f-7e2a9c41",
+    "research": "f-7e2a9c41",
+    "under-the-hood": "f-7e2a9c41"
+  }
 }

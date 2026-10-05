@@ -1,18 +1,19 @@
 // The card over a hovered timeline tick: what the item is (source and date,
 // name, catalog, resolution, licence, thumbnail when the catalog has one),
-// which views show it, and buttons to put it on a view as its basemap or as
-// an overlay, or to keep it among the user's own sources. Stays while the
-// pointer is on it (the panel's hide timer is cancelled on enter).
+// which views show it, one view grid to put it on a view (as the view's
+// basemap, or in its overlay stack when the item is an overlay such as a
+// warped IIIF map), a button to frame its extent, and one to keep it among
+// the user's own sources. Stays while the pointer is on it (the panel's
+// hide timer is cancelled on enter).
 import type React from "react"
 import { createPortal } from "react-dom"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, Maximize2 } from "lucide-react"
 import type { ViewId, GridLayoutId } from "@/lib/grid-layouts"
 import { Button } from "@/components/ui/button"
 import { SourceGridToggle } from "./controls-components"
 import { cn } from "@/lib/utils"
 import type { TickMeta } from "@/lib/timeline-catalogs"
-
-const gsdLabel = (g: number) => (g < 1 ? `${Math.round(g * 100)} cm` : `${g % 1 ? g.toFixed(1) : g} m`)
+import { gsdLabel } from "@/lib/gsd"
 
 export const TickCard: React.FC<{
   tick: { source: string; dateMs: number; label: string; ref?: string; meta?: TickMeta }
@@ -24,14 +25,19 @@ export const TickCard: React.FC<{
   activeSides: ViewId[]
   views: ViewId[]
   gridLayout: GridLayoutId
-  /** Whether the item is that view's basemap, or in its overlay stack. */
-  isOn: (side: ViewId, as: "basemap" | "overlay") => boolean
+  /** The item is an overlay (stacks on the basemap) rather than a basemap. */
+  asOverlay: boolean
+  /** Whether the view shows the item. */
+  isOn: (side: ViewId) => boolean
   kept: boolean
-  onSend: (side: ViewId, as: "basemap" | "overlay") => void
+  /** The item's extent, for the frame button. */
+  bounds?: [number, number, number, number]
+  onSend: (side: ViewId) => void
+  onFit?: () => void
   onKeep: () => void
   onEnter: () => void
   onLeave: () => void
-}> = ({ tick, left, top, sourceLabel, headline, itemName, activeSides, views, gridLayout, isOn, kept, onSend, onKeep, onEnter, onLeave }) => {
+}> = ({ tick, left, top, sourceLabel, headline, itemName, activeSides, views, gridLayout, asOverlay, isOn, kept, bounds, onSend, onFit, onKeep, onEnter, onLeave }) => {
   const m = tick.meta
   const catalogItem = !!tick.ref
   return createPortal(
@@ -46,7 +52,9 @@ export const TickCard: React.FC<{
       {m && (m.gsd || m.licence || m.provider) && (
         <div className="text-[10px] text-muted-foreground mt-0.5">
           {m.gsd ? <span>{gsdLabel(m.gsd)}/px</span> : null}
-          {m.gsd && m.licence ? " · " : null}
+          {m.gsd && (m.provider || m.licence) ? " · " : null}
+          {m.provider ? <span>{m.provider}</span> : null}
+          {m.provider && m.licence ? " · " : null}
           {m.licence ? <span>{m.licence}</span> : null}
         </div>
       )}
@@ -55,17 +63,21 @@ export const TickCard: React.FC<{
       {activeSides.length > 0 && <div className="text-[10px] text-muted-foreground">On map {activeSides.join(", ")}</div>}
       {catalogItem && (
         <div className="mt-1.5 space-y-1">
-          {(["basemap", "overlay"] as const).map((as) => (
-            <div key={as} className="flex items-center gap-2">
-              <span className="w-16 text-[10px] text-muted-foreground">as {as}</span>
-              {/* The view grid, like the sidebar's: a lit view holds the item. */}
-              {views.length > 1 ? (
-                <SourceGridToggle gridLayout={gridLayout} isActive={(side) => isOn(side, as)} onSelect={(side) => onSend(side, as)} allowUnpress={as === "overlay"} />
-              ) : (
-                <button type="button" className={cn("cursor-pointer rounded border px-2 text-[10px] leading-5", isOn(views[0], as) ? "bg-primary text-primary-foreground" : "hover:bg-accent")} onClick={() => onSend(views[0], as)}>{isOn(views[0], as) ? "on" : "put"}</button>
-              )}
-            </div>
-          ))}
+          <div className="flex items-center gap-2">
+            <span className="w-16 text-[10px] text-muted-foreground">{asOverlay ? "overlay on" : "basemap of"}</span>
+            {/* The view grid, like the sidebar's: a lit view holds the item;
+                an overlay comes off a view with a second press. */}
+            {views.length > 1 ? (
+              <SourceGridToggle gridLayout={gridLayout} isActive={isOn} onSelect={onSend} allowUnpress={asOverlay} />
+            ) : (
+              <button type="button" className={cn("cursor-pointer rounded border px-2 text-[10px] leading-5", isOn(views[0]) ? "bg-primary text-primary-foreground" : "hover:bg-accent")} onClick={() => onSend(views[0])}>{isOn(views[0]) ? "on" : "put"}</button>
+            )}
+            {bounds && onFit && (
+              <Button size="icon" variant="ghost" className="ml-auto h-6 w-6 cursor-pointer" title="Frame its extent" onClick={onFit}>
+                <Maximize2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
           <Button size="sm" variant={kept ? "outline" : "default"} className="h-6 w-full cursor-pointer text-[11px]" disabled={kept} onClick={onKeep}>
             {kept ? "In your sources" : "Keep in my sources"}
           </Button>

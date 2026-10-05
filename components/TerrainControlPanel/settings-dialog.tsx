@@ -925,25 +925,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </p>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h4 className="text-sm font-semibold">Threshold Outlines</h4>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="threshold-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
-                  <Switch
-                    id="threshold-beta"
-                    checked={state.thresholdBeta}
-                    className="cursor-pointer"
-                    onCheckedChange={(checked) => setState({ thresholdBeta: checked })}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                A third contour reference: one outline where the terrain crosses a
-                value you set, drawn as vector lines by the contour engine. On an
-                nDSM, 1.5 m traces canopy and buildings; on a DEM, a flood level.
-              </p>
-            </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">

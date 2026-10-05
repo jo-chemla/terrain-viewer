@@ -26,7 +26,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom, thresholdBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -88,7 +88,9 @@ import { curvatureProtocol, CURVATURE_ENCODE_SCALE } from '@/lib/curvature-proto
 import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
-import { thresholdProtocol } from '@/lib/threshold-protocol'
+import { thresholdProtocol, lumaProtocol } from '@/lib/threshold-protocol'
+import { ISOLINE_MEASURE_IDS } from '@/lib/isoline-measures'
+import { IsolineLayers } from './LayersAndSources/IsolineLayers'
 import { parseSourceNames } from '@/lib/portable-share-url'
 import { blobnessProtocol } from '@/lib/blobness-protocol'
 import { svfProtocol } from '@/lib/svf-protocol'
@@ -101,7 +103,7 @@ import { phongProtocol } from '@/lib/phong-protocol'
 import { shadowProtocol } from '@/lib/shadow-protocol'
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource, IsolineFillSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource } from "./LayersAndSources/MapSources"
 import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
 import { ProfileDock } from "./ProfileDock"
 import { MatcapLiveGlLayer } from "./LayersAndSources/MatcapLiveGlLayer"
@@ -109,7 +111,6 @@ import {
   LayerOrderSlots,
   RasterLayer,
   OverlayBasemapLayers,
-  IsolineFillLayer,
   BackgroundLayer,
   HillshadeLayer,
   MatcapRasterLayer,
@@ -806,8 +807,6 @@ export const QUERY_STATE_PARSERS = {
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
-    // Same opt-in-beta gate, for the threshold outline contour mode.
-    thresholdBeta: parseAsBoolean.withDefault(false),
     // Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator.
     // Default true so the URL stays clean when the feature is on (the atom
     // default is also true); `?sunShadowBeta=false` disables it explicitly.
@@ -919,19 +918,16 @@ export const QUERY_STATE_PARSERS = {
     // (PLANE_SLICER_REFERENCE_MODES above), applied to what the contour LINES
     // themselves trace: iso-altitude lines vs iso-relief lines. See
     // ContoursLayer.tsx for how LRM mode swaps the DEM source it contours.
-    // "threshold" (beta, thresholdBeta) traces one outline where the DEM
-    // crosses contourThreshold: canopy or buildings on an nDSM at 1.5 m.
-    contourReferenceMode: parseAsStringLiteral(["absolute", "lrm", "threshold"] as const).withDefault("absolute"),
-    contourThreshold: parseAsFloat.withDefault(1.5),
-    // What the outline measures: the elevation (m) or the slope in degrees
-    // (an iso-slope line: 30° for avalanche terrain, 80° for cliffs).
-    contourThresholdMeasure: parseAsStringLiteral(["elevation", "slope"] as const).withDefault("elevation"),
-    // The Iso-line (Contours & GeoGrid): one vector line where a measure
-    // crosses a value, independent of the contours, with a raster fill of
-    // the area above (threshold:// with a colour).
+    contourReferenceMode: parseAsStringLiteral(["absolute", "lrm"] as const).withDefault("absolute"),
+    // The Iso-line (Contours & GeoGrid): a line where a measure (the
+    // elevation, any derived mode, a light's shading) crosses a value, with
+    // a raster fill of the area above, or a line every interval of the
+    // measure; independent of the contours (lib/isoline-measures.ts).
     showIsoline: parseAsBoolean.withDefault(false),
-    isolineMeasure: parseAsStringLiteral(["elevation", "slope"] as const).withDefault("slope"),
+    isolineMeasure: parseAsStringLiteral(ISOLINE_MEASURE_IDS).withDefault("slope"),
+    isolineMode: parseAsStringLiteral(["value", "interval"] as const).withDefault("value"),
     isolineValue: parseAsFloat.withDefault(30),
+    isolineInterval: parseAsFloat.withDefault(10),
     isolineFill: parseAsBoolean.withDefault(false),
     isolineFillOpacity: parseAsFloat.withDefault(0.35),
     isolineWeight: parseAsFloat.withDefault(2),
@@ -1824,6 +1820,7 @@ export function TerrainViewer() {
     registerProtocol('tpi', withTileResultCache(tpiProtocol))
     registerProtocol('lrm', withTileResultCache(lrmProtocol))
     registerProtocol('threshold', withTileResultCache(thresholdProtocol))
+    registerProtocol('luma', withTileResultCache(lumaProtocol))
     registerProtocol('roughness', withTileResultCache(roughnessProtocol))
     registerProtocol('blobness', withTileResultCache(blobnessProtocol))
     // withSlowTileStats composes INSIDE withTileResultCache so it measures the
@@ -1918,10 +1915,6 @@ export function TerrainViewer() {
   useEffect(() => {
     setGeorefBetaEnabled(state.georefBeta)
   }, [state.georefBeta, setGeorefBetaEnabled])
-  const [thresholdBetaEnabled, setThresholdBetaEnabled] = useAtom(thresholdBetaEnabledAtom)
-  useEffect(() => {
-    setThresholdBetaEnabled(state.thresholdBeta)
-  }, [state.thresholdBeta, setThresholdBetaEnabled])
   useEffect(() => {
     setHistoricalBetaEnabled(state.historicalBeta)
   }, [state.historicalBeta, setHistoricalBetaEnabled])
@@ -1954,7 +1947,6 @@ export function TerrainViewer() {
     // Restore the beta gates from their persisted last value, unless the URL
     // itself already carries an explicit override.
     if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
-    if (!searchParams.has("thresholdBeta") && thresholdBetaEnabled) stateOverrides.thresholdBeta = true
     if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
     if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
     if (!searchParams.has("appMode")) {
@@ -3644,6 +3636,21 @@ export function TerrainViewer() {
   // phongRenderer happens to be set to.
   const shadowLightDir = useDebouncedValue(state.illuminationDir, 150)
   const shadowLightAlt = useDebouncedValue(state.illuminationAlt, 150)
+  // The Iso-line's measure tiles take the same settings as the mounted
+  // derived and lighting sources (lib/isoline-measures.ts).
+  const isolineDerivedParams = useMemo(() => ({
+    curvatureMode: state.curvatureMode, lrmRadius: state.lrmRadius,
+    svfRadius: state.svfRadius, svfPrecision: state.svfPrecision,
+    opennessRadius: state.opennessRadius, opennessMode: state.opennessMode, opennessPrecision: state.opennessPrecision,
+    localDominanceMinRadius: state.localDominanceMinRadius, localDominanceMaxRadius: state.localDominanceMaxRadius,
+  }), [state.curvatureMode, state.lrmRadius, state.svfRadius, state.svfPrecision, state.opennessRadius, state.opennessMode, state.opennessPrecision, state.localDominanceMinRadius, state.localDominanceMaxRadius])
+  const isolineLightingParams = useMemo(() => ({
+    matcapUrl: (MATCAP_TEXTURES.find((t) => t.id === state.matcapTextureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url,
+    matcapRotationDeg: state.matcapRotationDeg,
+    phongDiffuse: state.phongDiffuseStrength, phongSpecular: state.phongSpecularStrength,
+    lightDir: shadowLightDir, lightAlt: shadowLightAlt,
+    exaggeration: state.exaggeration, shadowRadiusPx: state.shadowRadiusPx,
+  }), [state.matcapTextureId, state.matcapRotationDeg, state.phongDiffuseStrength, state.phongSpecularStrength, shadowLightDir, shadowLightAlt, state.exaggeration, state.shadowRadiusPx])
 
   // Same read-side debounce, for the global "Terrain Exaggeration" slider —
   // also baked directly into the matcap:// / phong:// tile URL (see
@@ -4175,18 +4182,6 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
-          <IsolineFillSource
-            enabled={state.showContoursAndGraticules && vm("showContoursAndGraticules") && state.showIsoline && state.isolineFill && !isHistoricalMode}
-            value={state.isolineValue}
-            measure={state.isolineMeasure}
-            color={state.isolineColor || "#ef4444"}
-            opacity={state.isolineFillOpacity}
-            terrainSource={source}
-            customTerrainSources={customTerrainSources}
-            mapboxKey={mapboxKey}
-            maptilerKey={maptilerKey}
-            titilerEndpoint={titilerEndpoint}
-          />
           <ShadowSource
             enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && !isHistoricalMode}
             lightDir={shadowLightDir}
@@ -4314,28 +4309,27 @@ export function TerrainViewer() {
             hillshadePaint={hillshadePaint}
           />
 
-          {/* The iso-line: a second contour engine on the threshold tiles. */}
-          <ContoursLayer
-            idPrefix="isoline"
-            showContours={state.showContoursAndGraticules && vm("showContoursAndGraticules") && state.showIsoline && !isHistoricalMode}
-            showContourLabels={false}
-            sourceId={source}
-            referenceMode="threshold"
-            thresholdValue={state.isolineValue}
-            thresholdMeasure={state.isolineMeasure}
-            lrmRadius={state.lrmRadius}
-            contourMinor={1000}
-            contourMajor={1000}
-            contourWeight={state.isolineWeight}
-            contourColor={state.isolineColor || undefined}
+          {/* The iso-line: a second contour engine over any measure's tiles. */}
+          <IsolineLayers
+            enabled={state.showContoursAndGraticules && vm("showContoursAndGraticules") && state.showIsoline && !isHistoricalMode}
+            mode={state.isolineMode}
+            measure={state.isolineMeasure}
+            value={state.isolineValue}
+            interval={state.isolineInterval}
+            fill={state.isolineFill}
+            fillOpacity={state.isolineFillOpacity}
+            color={state.isolineColor || "#ef4444"}
+            weight={state.isolineWeight}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
             mapboxKey={mapboxKey}
             maptilerKey={maptilerKey}
-            customTerrainSources={customTerrainSources}
             titilerEndpoint={titilerEndpoint}
+            derived={isolineDerivedParams}
+            lighting={isolineLightingParams}
             mapLoaded={!!mapLoaded[side]}
             theme={theme}
           />
-          <IsolineFillLayer enabled={state.showContoursAndGraticules && vm("showContoursAndGraticules") && state.showIsoline && state.isolineFill && !isHistoricalMode} />
 
           {/* Contours — self-contained, primary map only */}
           {(
@@ -4344,8 +4338,6 @@ export function TerrainViewer() {
               showContourLabels={state.showContourLabels}
               sourceId={source}
               referenceMode={state.contourReferenceMode}
-              thresholdValue={state.contourThreshold}
-              thresholdMeasure={state.contourThresholdMeasure}
               lrmRadius={state.lrmRadius}
               contourMinor={state.contourReferenceMode === "lrm" ? state.contourMinorLrm : state.contourMinor}
               contourMajor={state.contourReferenceMode === "lrm" ? state.contourMajorLrm : state.contourMajor}

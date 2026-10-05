@@ -267,21 +267,6 @@ export const ShadowRasterLayer = memo(({ enabled, opacity }: { enabled: boolean;
 })
 ShadowRasterLayer.displayName = "ShadowRasterLayer"
 
-// The iso-line's fill (IsolineFillSource), under the contour lines.
-export const IsolineFillLayer = memo(({ enabled }: { enabled: boolean }) => {
-  if (!enabled) return null
-  return (
-    <Layer
-      beforeId={LAYER_SLOTS.CONTOURS}
-      id="isoline-fill"
-      type="raster"
-      source="isolineFillSource"
-      paint={{ "raster-opacity": 1, "raster-resampling": "linear", "raster-fade-duration": 0 }}
-    />
-  )
-})
-IsolineFillLayer.displayName = "IsolineFillLayer"
-
 // Color Relief Layer — Hypsometric Tint
 export const ColorReliefLayer = memo(
   ({

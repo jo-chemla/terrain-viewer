@@ -10,15 +10,11 @@ const ELEVATION_REFERENCE_TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer text-muted-
 // Contours and the Elevation Picker: all three ultimately read elevation off
 // one of the same two references — real altitude from the terrain source, or
 // LRM's height above/below the local neighborhood mean (lib/lrm-protocol.ts).
-// Contours add a third reference behind a beta flag: "threshold", one
-// outline where the DEM crosses a value (lib/threshold-protocol.ts).
-export function ElevationReferenceToggle<T extends string = "absolute" | "lrm">({ value, onChange, label = "Reference", className, threshold = false }: {
+export function ElevationReferenceToggle<T extends string = "absolute" | "lrm">({ value, onChange, label = "Reference", className }: {
   value: T
   onChange: (v: T) => void
   label?: string
   className?: string
-  /** Show the Threshold item (contours only). */
-  threshold?: boolean
 }) {
   return (
   <div className="flex items-center justify-between gap-2">
@@ -26,7 +22,7 @@ export function ElevationReferenceToggle<T extends string = "absolute" | "lrm">(
     <ToggleGroup
       value={[value]}
       onValueChange={([v]) => v && onChange(v as T)}
-      className={cn("border rounded-md", threshold ? "w-[240px]" : "w-[180px]", className)}
+      className={cn("border rounded-md w-[180px]", className)}
     >
       {/* Tooltip via render={<ToggleGroupItem/>} merges the trigger props onto
           the item itself, so the ToggleGroup still sees its items as direct
@@ -39,12 +35,6 @@ export function ElevationReferenceToggle<T extends string = "absolute" | "lrm">(
         <TooltipTrigger render={<ToggleGroupItem value="lrm" className={ELEVATION_REFERENCE_TOGGLE_ITEM_CLASS}>LRM</ToggleGroupItem>} />
         <TooltipContent><p>Reference is height above/below the local neighborhood mean (Local Relief Model).</p></TooltipContent>
       </Tooltip>
-      {threshold && (
-        <Tooltip>
-          <TooltipTrigger render={<ToggleGroupItem value="threshold" className={ELEVATION_REFERENCE_TOGGLE_ITEM_CLASS}>Threshold</ToggleGroupItem>} />
-          <TooltipContent><p>One outline where the terrain crosses the value below (beta): canopy or buildings on an nDSM, a flood level on a DEM.</p></TooltipContent>
-        </Tooltip>
-      )}
     </ToggleGroup>
   </div>
   )

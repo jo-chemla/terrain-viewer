@@ -334,6 +334,18 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               {/* Edit mode: on, each row shows edit and delete and the
                   batch JSON editor is offered; off, rows show info, fit and
                   the overlay's opacity only. Shared with the terrain list. */}
+              {editMode && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2" aria-label="Batch edit" onClick={() => setIsBatchEditModalOpen(true)}>
+                        <Braces className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent><p>Batch edit: every source as JSON, Ctrl+Enter saves</p></TooltipContent>
+                </Tooltip>
+              )}
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -344,18 +356,6 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                 />
                 <TooltipContent><p>{editMode ? "Done editing" : "Edit the sources"}</p></TooltipContent>
               </Tooltip>
-              {editMode && (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2 text-xs" onClick={() => setIsBatchEditModalOpen(true)}>
-                        <Braces className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />Batch edit
-                      </Button>
-                    }
-                  />
-                  <TooltipContent><p>Every source as JSON, Ctrl+Enter saves</p></TooltipContent>
-                </Tooltip>
-              )}
             </div>
           </TooltipProvider>
           {basemapRoleSources.length > 0 && (
@@ -450,6 +450,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     className="cursor-pointer shrink-0"
                   />
                   )}
+                  {/* The overlay's opacity, right after the view buttons. */}
+                  <OpacityPill value={(source.opacity ?? 100) / 100} onChange={(v) => setCustomBasemapSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, opacity: Math.round(v * 100) } : s)))} title="This overlay's opacity" />
                   <CustomSourceDetails
                     onInfo={openInfo}
                     source={source}
@@ -457,7 +459,6 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                     handleEditSource={handleEditBasemap}
                     handleDeleteCustomSource={handleDeleteCustomBasemap}
                     onSelect={(id) => (state.basemapPerView && state.splitStyle !== "off") ? toggleOverlayAll(id) : handleToggleOverlay(id, !(state.overlayBasemapIds || []).includes(id))}
-                    trailingActions={<OpacityPill value={(source.opacity ?? 100) / 100} onChange={(v) => setCustomBasemapSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, opacity: Math.round(v * 100) } : s)))} title="This overlay's opacity" />}
                     extraActions={(source.type === "image" || source.type === "image-local") && source.georef ? (
                       <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${georefEditingId === source.id ? "bg-primary/15 text-primary" : ""}`} title={georefEditingId === source.id ? "Close the Image Georeferencer" : "Edit the control points in Tools > Image Georeferencer"} onClick={() => reopenGeoref(source)}>
                         <Crosshair className="h-4 w-4" />

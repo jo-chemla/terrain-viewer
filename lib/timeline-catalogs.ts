@@ -28,6 +28,7 @@ import { atom } from "jotai"
 import type { FeatureCollection } from "geojson"
 import type { CustomBasemapSource } from "./settings-atoms"
 import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
+import { loadAllmapsCoverage, allmapsMeta } from "./coverage-overlays"
 import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, loadNationalLayers, type NatLayer, type NatSource } from "./national-historical"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
@@ -35,6 +36,13 @@ export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
 /** The footprints of the items the timeline found for the view, for
  *  CatalogFootprintsLayer; null when the picker's footprints switch is off. */
 export const catalogFootprintsAtom = atom<FeatureCollection | null>(null)
+/** Every catalog item the timeline holds for the view, with its extent,
+ *  for the Sources Coverage search results (published by the panel). */
+export interface CatalogItem { source: string; label: string; ref: string; dateMs: number; bounds: [number, number, number, number]; meta?: TickMeta }
+export const catalogItemsAtom = atom<CatalogItem[]>([])
+/** "Put this catalog item on the view" from the map's footprint click or
+ *  the search results: the timeline panel owns the ticks and applies it. */
+export const catalogPickRequestAtom = atom<{ ref: string; nonce: number } | null>(null)
 
 export interface TimelineCatalog {
   id: string
@@ -52,6 +60,53 @@ export interface TimelineCatalog {
   bbox?: [number, number, number, number]
   /** A sub-heading inside the group (the country, for the national archives). */
   region?: string
+  /** The national archives' tree: continent, then the country (ISO 3166-1 alpha-3). */
+  continent?: string
+  iso3?: string
+}
+
+/** Country names for the national archives' headings, by ISO alpha-3. */
+export const ISO3_NAMES: Record<string, string> = {
+  AUT: "Austria", BEL: "Belgium", CHE: "Switzerland", DEU: "Germany", ESP: "Spain", FRA: "France", JPN: "Japan", LUX: "Luxembourg",
+  NLD: "Netherlands", NOR: "Norway", PRT: "Portugal", USA: "United States", CAN: "Canada", AUS: "Australia", TWN: "Taiwan", ITA: "Italy", SVN: "Slovenia",
+  LTU: "Lithuania", CYP: "Cyprus", SVK: "Slovakia", BRA: "Brazil",
+}
+const NAT_PLACE: Record<string, [string, string]> = {
+  // Europe
+  "cat-nat-icgc": ["Europe", "ESP"], "cat-nat-pnoa": ["Europe", "ESP"], "cat-nat-navarra": ["Europe", "ESP"], "cat-nat-balears": ["Europe", "ESP"], "cat-nat-madrid": ["Europe", "ESP"],
+  "cat-nat-euskadi": ["Europe", "ESP"], "cat-nat-andalucia": ["Europe", "ESP"], "cat-nat-canarias": ["Europe", "ESP"], "cat-nat-valencia": ["Europe", "ESP"], "cat-nat-galicia": ["Europe", "ESP"],
+  "cat-nat-cantabria": ["Europe", "ESP"], "cat-nat-asturias": ["Europe", "ESP"], "cat-nat-aragon": ["Europe", "ESP"], "cat-nat-portugal": ["Europe", "PRT"],
+  "cat-nat-nrw": ["Europe", "DEU"], "cat-nat-hamburg": ["Europe", "DEU"], "cat-nat-bayern": ["Europe", "DEU"], "cat-nat-dop1953": ["Europe", "DEU"], "cat-nat-sachsen": ["Europe", "DEU"],
+  "cat-nat-niedersachsen": ["Europe", "DEU"], "cat-nat-bw": ["Europe", "DEU"], "cat-nat-rlp": ["Europe", "DEU"], "cat-nat-berlin": ["Europe", "DEU"], "cat-nat-bremen": ["Europe", "DEU"],
+  "cat-nat-spw": ["Europe", "BEL"], "cat-nat-vlaanderen": ["Europe", "BEL"], "cat-nat-ngi": ["Europe", "BEL"],
+  "cat-nat-pdok": ["Europe", "NLD"], "cat-nat-lu": ["Europe", "LUX"],
+  "cat-nat-wien": ["Europe", "AUT"], "cat-nat-tirol": ["Europe", "AUT"], "cat-nat-vorarlberg": ["Europe", "AUT"], "cat-nat-salzburg": ["Europe", "AUT"], "cat-nat-steiermark": ["Europe", "AUT"],
+  "cat-nat-geneve": ["Europe", "CHE"], "cat-nat-zuerich": ["Europe", "CHE"], "cat-nat-stadt-zuerich": ["Europe", "CHE"], "cat-nat-basel": ["Europe", "CHE"],
+  "cat-nat-slovenija": ["Europe", "SVN"], "cat-nat-lietuva": ["Europe", "LTU"], "cat-nat-cyprus": ["Europe", "CYP"], "cat-nat-slovensko": ["Europe", "SVK"],
+  "cat-nat-suedtirol": ["Europe", "ITA"], "cat-nat-sardegna": ["Europe", "ITA"], "cat-nat-toscana": ["Europe", "ITA"], "cat-nat-lombardia": ["Europe", "ITA"], "cat-nat-emilia": ["Europe", "ITA"],
+  "cat-nat-piemonte": ["Europe", "ITA"], "cat-nat-liguria": ["Europe", "ITA"],
+  "cat-nat-craig": ["Europe", "FRA"], "cat-nat-strasbourg": ["Europe", "FRA"],
+  // Elsewhere
+  "cat-nat-gsi": ["Asia and Oceania", "JPN"], "cat-nat-nsw": ["Asia and Oceania", "AUS"], "cat-nat-sinica": ["Asia and Oceania", "TWN"], "cat-nat-nlsc": ["Asia and Oceania", "TWN"],
+  "cat-nat-nyc": ["North America", "USA"], "cat-nat-toronto": ["North America", "CAN"], "cat-nat-ottawa": ["North America", "CAN"], "cat-nat-kingcounty": ["North America", "USA"],
+  "cat-nat-dc": ["North America", "USA"], "cat-nat-massgis": ["North America", "USA"], "cat-nat-ctecco": ["North America", "USA"], "cat-nat-iowa": ["North America", "USA"],
+  "cat-nat-chicagoland": ["North America", "USA"], "cat-nat-minnesota": ["North America", "USA"], "cat-nat-chatham": ["North America", "USA"], "cat-nat-florida1940": ["North America", "USA"],
+  "cat-nat-saopaulo": ["South America", "BRA"],
+  "cat-nat-weld": ["World", "WLD"],
+}
+const COUNTRY_ISO: Record<string, string> = { Austria: "AUT", Belgium: "BEL", Germany: "DEU", Italy: "ITA", France: "FRA", Switzerland: "CHE", Netherlands: "NLD", Luxembourg: "LUX", Spain: "ESP", Portugal: "PRT", Norway: "NOR", Japan: "JPN", Taiwan: "TWN", Australia: "AUS", Canada: "CAN", Brazil: "BRA", Slovenia: "SVN", Lithuania: "LTU", Cyprus: "CYP", Slovakia: "SVK" }
+const natPlace = (s: { id: string; group: string }): { continent: string; iso3: string } => {
+  const p = NAT_PLACE[s.id]
+  if (p) return { continent: p[0], iso3: p[1] }
+  // A source added after this table: its group names the country or the
+  // continent; an unknown one lands under its group's name.
+  const g = s.group.replace(/^Historical · /, "")
+  if (COUNTRY_ISO[g]) return { continent: /Japan|Taiwan|Australia/.test(g) ? "Asia and Oceania" : /Canada/.test(g) ? "North America" : /Brazil/.test(g) ? "South America" : "Europe", iso3: COUNTRY_ISO[g] }
+  if (/Asia|Oceania/.test(g)) return { continent: "Asia and Oceania", iso3: "" }
+  if (/North America/.test(g)) return { continent: "North America", iso3: "" }
+  if (/South America/.test(g)) return { continent: "South America", iso3: "" }
+  if (/Global|World/.test(g)) return { continent: "World", iso3: "WLD" }
+  return { continent: "Europe", iso3: "" }
 }
 
 /** The picker's three root groups, by sub-group. */
@@ -61,6 +116,9 @@ export const CATALOG_ROOTS: Record<string, string> = {
   "Mapping agencies national catalogs": "Mapping agencies national catalogs",
   "Old maps": "Old maps, digitised and warped",
 }
+/** The roots the Sources Coverage section shows under Basemaps · Historical;
+ *  Community indexes (ELI, QMS, ArcGIS Online) sit under Basemaps · Static. */
+export const HISTORICAL_TREE_ROOTS = ["Open data for post-crisis response", "Mapping agencies national catalogs", "Old maps, digitised and warped"]
 export const CATALOG_ROOT_ORDER = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped"]
 
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
@@ -75,15 +133,16 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-slub", label: "SLUB Kartenforum (Germany)", short: "Kartenforum", group: "Old maps", color: "#fde68a", note: "About 9,000 maps georeferenced by the SLUB Dresden Virtuelles Kartenforum (Messtischblätter, topographic maps, city plans), sized to the zoom." },
   { id: "cat-usgs-topo", label: "USGS historical topo maps", short: "USGS topo", group: "Old maps", color: "#d9f99d", note: "Every USGS topographic quad edition covering the view centre since 1884 (US only), from Esri's historical topo image service; dated by imprint year." },
   { id: "cat-oldmapsonline", label: "Old Maps Online", short: "OMO", group: "Old maps", color: "#e5e7eb", note: "Klokan's search engine over library map collections.", disabled: "Its API sends no CORS header and sits behind a Cloudflare challenge, so a browser cannot query it." },
-  { id: "cat-corona", label: "CORONA Atlas (declassified satellite, 1963-72)", short: "CORONA", group: "Community indexes", color: "#fef3c7", bbox: [20, 10, 75, 48], note: "The CORONA Atlas of the Middle East (CAST, University of Arkansas): 279 georeferenced KH-4 mosaics 1963-1972 over the Middle East, North Africa and Central Asia, served by CAST's GeoServer.", resClass: "vhr" },
+  { id: "cat-corona", label: "CORONA Atlas (declassified satellite, 1963-72)", short: "CORONA", group: "Old maps", color: "#fef3c7", bbox: [20, 10, 75, 48], note: "The CORONA Atlas of the Middle East (CAST, University of Arkansas): 279 georeferenced KH-4 mosaics 1963-1972 over the Middle East, North Africa and Central Asia, served by CAST's GeoServer.", resClass: "vhr" },
   { id: "cat-agol", label: "ArcGIS Online imagery", short: "ArcGIS", group: "Community indexes", color: "#a7f3d0", note: "Public ArcGIS image and map services found by ArcGIS Online search over the view, whose title names a year (taken as the capture year), sized to the zoom." },
   // National and regional archives, last: IGN, swisstopo and Kartverket, then the generated regional series.
-  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "Mapping agencies national catalogs", region: "France", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
-  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "Mapping agencies national catalogs", region: "Switzerland", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
-  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "Mapping agencies national catalogs", region: "Switzerland", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
-  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Mapping agencies national catalogs", region: "Norway", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
+  { id: "cat-ign", label: "IGN Remonter le temps (France)", short: "IGN", group: "Mapping agencies national catalogs", region: "France", continent: "Europe", iso3: "FRA", color: "#c7d2fe", note: "IGN Géoplateforme's dated layers covering the view centre: aerial photos 1950-1995 and every year since 2000, SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives." , bbox: [-5.2, 41.3, 9.6, 51.1] },
+  { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "Mapping agencies national catalogs", region: "Switzerland", continent: "Europe", iso3: "CHE", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "Mapping agencies national catalogs", region: "Switzerland", continent: "Europe", iso3: "CHE", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." , bbox: [5.9, 45.8, 10.5, 47.85] },
+  { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Mapping agencies national catalogs", region: "Norway", continent: "Europe", iso3: "NOR", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
   // Regional series (lib/national-historical.ts).
-  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "Mapping agencies national catalogs", region: s.group.replace(/^Historical · /, ""), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
+  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "Mapping agencies national catalogs", region: s.group.replace(/^Historical · /, ""), ...natPlace(s), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
+  { id: "cat-allmaps", label: "Allmaps, dated maps in view", short: "Allmaps", group: "Old maps", color: "#d946ef", note: "Georeferenced IIIF maps from the Allmaps annotations API whose title names a year, or whose IIIF manifest carries a date (one manifest read per undated map in view, up to 40): one tick per map, draped as an overlay when picked." },
 ]
 export const TIMELINE_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>
 
@@ -669,6 +728,51 @@ function serviceInfo(base: string, signal?: AbortSignal): Promise<any | null> {
   return p
 }
 
+// ── Allmaps: dated maps ──────────────────────────────────────────────────
+// The annotations API has no dates; the map's title often names a year, and
+// the IIIF manifest it comes from (resource.partOf) may carry one in its
+// metadata (BnF's "Date", Rumsey's "Pub Date") or a navDate. One manifest
+// read per undated map in view, cached, at most 40 per load.
+const manifestYearCache = new Map<string, Promise<number | null>>()
+function manifestYear(url: string, signal?: AbortSignal): Promise<number | null> {
+  let p = manifestYearCache.get(url)
+  if (!p) {
+    p = fetch(url, { signal }).then((r) => (r.ok ? r.json() : null)).then((m) => {
+      if (!m) return null
+      const texts: string[] = []
+      if (typeof m.navDate === "string") texts.push(m.navDate)
+      for (const row of m.metadata ?? []) {
+        const label = typeof row.label === "string" ? row.label : Object.values(row.label ?? {}).flat().join(" ")
+        if (!/date|année|annee|year|jahr|datum|publi|created|dat[ae]/i.test(String(label))) continue
+        const value = typeof row.value === "string" ? row.value : Object.values(row.value ?? {}).flat().join(" ")
+        texts.push(String(value).replace(/<[^>]+>/g, " "))
+      }
+      return yearOf(...texts)
+    }).catch(() => null)
+    manifestYearCache.set(url, p)
+  }
+  return p
+}
+async function allmapsTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+  const bounds = { getWest: () => bbox[0], getSouth: () => bbox[1], getEast: () => bbox[2], getNorth: () => bbox[3] }
+  const fc = await loadAllmapsCoverage("allmapsAll", bounds, signal)
+  const ticks: CatalogTick[] = []
+  let reads = 0
+  await Promise.all(fc.features.map(async (f) => {
+    const id = String((f.properties as any)?.overlay ?? "").replace(/^allmaps:/, "")
+    const meta = allmapsMeta(id)
+    if (!meta) return
+    let year = meta.year ?? null
+    if (!year && meta.manifest && reads < 40) { reads += 1; year = await manifestYear(meta.manifest, signal) }
+    if (!year) return
+    ticks.push(register("cat-allmaps", id, Date.UTC(year, 0, 1), `Allmaps · ${meta.title ?? meta.label} · ${year}`, {
+      name: meta.title ?? meta.label, url: meta.annotationUrl, type: "iiif", role: "overlay", stack: "top",
+      description: `Georeferenced IIIF map, Allmaps annotation ${id} · ${meta.detail}`, infoUrl: meta.pageUrl, provider: "allmaps", bounds: meta.bounds,
+    } as Omit<CustomBasemapSource, "id">, { provider: meta.providerLabel ?? "Allmaps", url: meta.pageUrl }))
+  }))
+  return ticks
+}
+
 /** Ticks for one catalog over the view; keys made unique per catalog
  *  (several items can share a date, and the key is the list's React key). */
 export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: AbortSignal, range?: [number, number]): Promise<CatalogTick[]> {
@@ -685,6 +789,7 @@ export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: Abo
   else if (catalog === "cat-slub") ticks = await slubTicks(bbox, signal)
   else if (catalog === "cat-corona") ticks = coronaTicks(bbox)
   else if (catalog === "cat-agol") ticks = await agolTicks(bbox, signal)
+  else if (catalog === "cat-allmaps") ticks = await allmapsTicks(bbox, signal)
   // The timeline's window, when the picker asks for it (STAC searches
   // already asked the server; the rest is filtered here).
   if (range) ticks = ticks.filter((t) => t.dateMs >= range[0] && t.dateMs <= range[1])

@@ -30,7 +30,7 @@ export const OpacityPill: React.FC<{
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
       <button type="button" title={title ?? "Opacity: press and drag up or down"}
-        className={cn("cursor-ns-resize rounded-full border w-11 text-center text-[10px] leading-4 tabular-nums text-muted-foreground hover:bg-accent hover:text-accent-foreground touch-none select-none", open && "invisible")}
+        className={cn("cursor-ns-resize rounded-full border h-7 w-11 inline-flex items-center justify-center text-[10px] leading-none tabular-nums text-muted-foreground hover:bg-accent hover:text-accent-foreground touch-none select-none", open && "invisible")}
         onPointerDown={(e) => {
           e.preventDefault()
           // The gutter's point for the current value lands under the pointer.

@@ -6,6 +6,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { MapPin } from "lucide-react"
+import { sourceGsd, gsdText } from "@/lib/gsd"
 
 const LABELS: Record<string, string> = {
   name: "Name", type: "Type", url: "URL", description: "Description", role: "Role", stack: "Stack", provider: "Provider",
@@ -20,15 +21,22 @@ const isUrl = (v: unknown) => typeof v === "string" && /^https?:\/\//.test(v)
 
 export const SourceMetadataRows: React.FC<{ source: Record<string, any>; className?: string }> = ({ source, className }) => {
   const keys = Object.keys(source).filter((k) => !SKIP.has(k) && source[k] !== undefined && source[k] !== null && source[k] !== "")
+  const gsd = sourceGsd(source)
   return (
-    <dl className={className ?? "grid grid-cols-[minmax(6rem,max-content)_1fr] gap-x-3 gap-y-1 text-xs"}>
+    <dl className={className ?? "grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs"}>
+      {gsd && (
+        <div className="contents">
+          <dt className="text-muted-foreground">Ground resolution</dt>
+          <dd className="min-w-0 break-words">{gsdText(gsd)}{gsd.estimated ? " — estimated from the max zoom" : ""}</dd>
+        </div>
+      )}
       {keys.map((k) => {
         const v = source[k]
         const text = Array.isArray(v) ? v.map((x) => (typeof x === "number" ? +x.toFixed(5) : x)).join(", ") : typeof v === "object" ? JSON.stringify(v) : String(v)
         return (
           <div key={k} className="contents">
             <dt className="text-muted-foreground">{LABELS[k] ?? k}</dt>
-            <dd className="min-w-0 break-words">{isUrl(v) ? <a href={v} target="_blank" rel="noopener noreferrer" className="underline break-all">{v}</a> : text}</dd>
+            <dd className="min-w-0 break-all">{isUrl(v) ? <a href={v} target="_blank" rel="noopener noreferrer" className="underline">{v}</a> : text}</dd>
           </div>
         )
       })}
@@ -43,7 +51,7 @@ export const SourceMetadataDialog: React.FC<{
   onFit?: (source: any) => void
 }> = ({ source, onClose, onFit }) => (
   <Dialog open={!!source} onOpenChange={(o) => { if (!o) onClose() }}>
-    <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+    <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto overflow-x-hidden">
       <DialogHeader>
         <DialogTitle className="truncate">{source?.name ?? "Source"}</DialogTitle>
         <DialogDescription>Everything this source carries. Switch the sources' edit mode on to change it.</DialogDescription>

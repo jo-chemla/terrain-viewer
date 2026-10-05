@@ -107,6 +107,10 @@ export const timelineFollowViewportAtom = atomWithStorage("timelineFollowViewpor
 export const coverageVisibleAtom = atomWithStorage("coverageVisible", true)
 // Coverage footprints as outlines only, twice as bold, no fill.
 export const coverageOutlineOnlyAtom = atomWithStorage("coverageOutlineOnly", false)
+/** Which groups of the Sources Coverage tree are open (the timeline's
+ *  Catalogs picker shows the same tree with the same state); a group not in
+ *  here is folded, only the three level-1 sections start open. */
+export const coverageFoldsAtom = atomWithStorage<Record<string, boolean>>("coverageTreeOpen", {}, undefined, { getOnInit: true })
 // The source lists' edit mode: off, rows show info, fit and opacity only;
 // on, the batch-edit JSON button and each row's edit and delete.
 export const sourcesEditModeAtom = atom(false)
@@ -648,15 +652,13 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true, stacSearch: false, georef: false, threshold: false }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true, stacSearch: false, georef: false }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
 export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
 export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")
 /** STAC catalog search in the Add Dataset / Add Basemap modals (no URL param: local only). */
 export const stacSearchBetaEnabledAtom = booleanField(betaEnabledAtom, "stacSearch")
 export const georefBetaEnabledAtom = booleanField(betaEnabledAtom, "georef")
-/** Contours: the threshold outline mode (one isoline where the DEM crosses a value). */
-export const thresholdBetaEnabledAtom = booleanField(betaEnabledAtom, "threshold")
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one
 // continuous grid (each card's label prefixed with its project name) so

@@ -414,6 +414,18 @@ export const TerrainSourceSection: React.FC<{
                   tooltip="Pick from the library of national and global terrain datasets"
                   onClick={handleLoadSample}
                 />
+                {editMode && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2" aria-label="Batch edit" onClick={handleOpenBatchEdit}>
+                          <Braces className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent><p>Batch edit: every source as JSON, Ctrl+Enter saves</p></TooltipContent>
+                  </Tooltip>
+                )}
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -424,18 +436,6 @@ export const TerrainSourceSection: React.FC<{
                   />
                   <TooltipContent><p>{editMode ? "Done editing" : "Edit the sources"}</p></TooltipContent>
                 </Tooltip>
-                {editMode && (
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button variant="outline" size="sm" className="cursor-pointer bg-transparent shrink-0 px-2 text-xs" onClick={handleOpenBatchEdit}>
-                          <Braces className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />Batch edit
-                        </Button>
-                      }
-                    />
-                    <TooltipContent><p>Every source as JSON, Ctrl+Enter saves</p></TooltipContent>
-                  </Tooltip>
-                )}
               </div>
             </TooltipProvider>
 

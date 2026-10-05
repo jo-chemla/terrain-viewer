@@ -121,7 +121,7 @@ export const ALLMAPS_VIEW_LEAVES: Record<string, { domain?: string }> = {
   allmapsAll: {},
   allmapsRumsey: { domain: "www.davidrumsey.com" },
 }
-export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string; bounds?: [number, number, number, number] }
+export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string; bounds?: [number, number, number, number]; /** The IIIF canvas or manifest label. */ title?: string; /** The IIIF manifest it comes from. */ manifest?: string; providerLabel?: string; /** A year in the title. */ year?: number }
 const allmapsMetaCache = new Map<string, AllmapsLike>()
 export function allmapsMeta(id: string): AllmapsLike | undefined { return allmapsMetaCache.get(id) }
 const RUMSEY_IIIF_RE = /davidrumsey\.com\/luna\/servlet\/iiif\/([^/]+)/
@@ -143,11 +143,22 @@ function allmapsLikeOf(p: Record<string, any>): AllmapsLike {
   // Rumsey's LUNA detail page), otherwise the map in the Allmaps viewer.
   const rumsey = resourceId.match(RUMSEY_IIIF_RE)
   const pageUrl = rumsey ? `https://www.davidrumsey.com/luna/servlet/detail/${rumsey[1]}` : `https://viewer.allmaps.org/?url=${encodeURIComponent(annotationUrl)}`
-  return { id, label, detail, annotationUrl, pageUrl }
+  // The canvas and the manifest the image belongs to: a title, and where a date may be.
+  const firstLabel = (l: any): string | undefined => (l && typeof l === "object" ? (Object.values(l as Record<string, string[]>)[0] ?? [])[0] : typeof l === "string" ? l : undefined)
+  const canvas = p.resource?.partOf?.[0]
+  const manifestEntry = canvas?.type === "Manifest" ? canvas : canvas?.partOf?.find?.((x: any) => x?.type === "Manifest")
+  const title = firstLabel(canvas?.label) ?? firstLabel(manifestEntry?.label)
+  const manifest: string | undefined = manifestEntry?.id
+  const now = new Date().getUTCFullYear()
+  const ym = title ? /\b(1[4-9]\d\d|20\d\d)\b/.exec(title) : null
+  const year = ym && Number(ym[1]) <= now ? Number(ym[1]) : undefined
+  return { id, label: title ? (providerLabel ? `${providerLabel} · ${title}` : title) : label, detail, annotationUrl, pageUrl, title, manifest, providerLabel, year }
 }
 /** Every map outline in the view, as coverage features. The area window
  *  keeps the 200 that matter at this scale: city plans when zoomed in,
- *  regional maps when zoomed out, and no world map tinting a street view. */
+ *  regional maps when zoomed out, and no world map tinting a street view.
+ *  The upper bound never drops below 2,000 km²: zoomed into a street, the
+ *  city plans (Paris is 105 km²) must stay. */
 export async function loadAllmapsCoverage(leafId: string, bounds: { getWest(): number; getSouth(): number; getEast(): number; getNorth(): number }, signal?: AbortSignal): Promise<FeatureCollection> {
   const w = Math.max(-180, bounds.getWest()), e = Math.min(180, bounds.getEast())
   const s = Math.max(-85, bounds.getSouth()), n = Math.min(85, bounds.getNorth())
@@ -156,7 +167,7 @@ export async function loadAllmapsCoverage(leafId: string, bounds: { getWest(): n
   // Latitude first: the API reads the box as minLat,minLng,maxLat,maxLng (a
   // longitude-first box lands somewhere else entirely and returns only the
   // world maps that happen to cover both places).
-  const q = new URLSearchParams({ intersects: [s, w, n, e].map((v) => v.toFixed(4)).join(","), limit: "200", minArea: String(Math.round(viewM2 / 500)), maxArea: String(Math.round(viewM2 * 200)) })
+  const q = new URLSearchParams({ intersects: [s, w, n, e].map((v) => v.toFixed(4)).join(","), limit: "200", minArea: String(Math.round(viewM2 / 500)), maxArea: String(Math.round(Math.max(viewM2 * 200, 2e9))) })
   const domain = ALLMAPS_VIEW_LEAVES[leafId]?.domain
   if (domain) q.set("imageServiceDomain", domain)
   const res = await fetch(`${ALLMAPS_API}/maps.geojson?${q}`, { signal })
@@ -196,9 +207,6 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
   const groups: CoverageGroup[] = [
     { section: "Terrain", key: "mapterhorn", label: "Mapterhorn", color: OVERLAY_COLORS.mapterhorn, note: "Mapterhorn's own coverage tiles: which national source covers each area, hollow where it falls back to Copernicus GLO-30.",
       leaves: [{ id: "mapterhorn", label: "Mapterhorn coverage", color: OVERLAY_COLORS.mapterhorn, url: "https://mapterhorn.com/" }] },
-    { section: "Terrain", key: "library", label: "Terrain library", color: OVERLAY_COLORS.library, note: "Declared bounds of every library dataset, loaded or not.",
-      leaves: TERRAIN_LIB.filter((s) => s.bounds).map((s) => ({ id: `lib:${s.id}`, label: s.name, color: OVERLAY_COLORS.library, url: s.infoUrl, bounds: s.bounds as [number, number, number, number] })) },
-    { section: "Terrain", key: "yourTerrain", label: "Your terrain sources", color: OVERLAY_COLORS.yours, note: "Every loaded terrain source that declares bounds, library entries included.", leaves: yourTerrain },
     // One group, because they answer one question: "is there something better
     // than a global DEM here, and of what kind?" Three very different reads
     // underneath - Bing's own availability bitstream, Google's published
@@ -218,9 +226,16 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
         { id: "otRaster", label: "Rasters (DEMs)", color: OVERLAY_COLORS.otRaster, detail: "hosted, ~675 datasets" },
         { id: "otPointCloud", label: "Point clouds", color: OVERLAY_COLORS.otPointCloud, detail: "hosted LiDAR, 841 datasets" },
       ] },
-    { section: "Basemaps", key: "eli", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
+    { section: "Terrain", key: "library", label: "Terrain library", color: OVERLAY_COLORS.library, note: "Declared bounds of every library dataset, loaded or not.",
+      leaves: TERRAIN_LIB.filter((s) => s.bounds).map((s) => ({ id: `lib:${s.id}`, label: s.name, color: OVERLAY_COLORS.library, url: s.infoUrl, bounds: s.bounds as [number, number, number, number] })) },
+    { section: "Terrain", key: "yourTerrain", label: "Your terrain sources", color: OVERLAY_COLORS.yours, note: "Every loaded terrain source that declares bounds, library entries included.", leaves: yourTerrain },
+    // Indexes kept by communities, not by one provider: the Editor Layer
+    // Index, NextGIS QMS, ArcGIS Online (the dated catalogs of the three sit
+    // in the same group of the tree, see historical-catalog-tree.tsx).
+    { section: "Basemaps", key: "community", label: "Community indexes", color: OVERLAY_COLORS.eli, note: "Layer indexes kept by communities: the OSM Editor Layer Index, NextGIS QMS and ArcGIS Online.", leaves: [] },
+    { section: "Basemaps", key: "eli", parent: "community", label: "OSM Editor Layer Index", color: OVERLAY_COLORS.eli, note: "Layers whose index footprint touches the current view (worldwide layers have no footprint and are left out).",
       leaves: ctx.eliInView.filter((l) => l.countryCodes.length > 0).map((l) => ({ id: `eli:${l.id}`, label: l.name, color: OVERLAY_COLORS.eli, detail: l.category, url: l.infoUrl })) },
-    { section: "Basemaps", key: "qms", label: "NextGIS QMS", color: OVERLAY_COLORS.qms,
+    { section: "Basemaps", key: "qms", parent: "community", label: "NextGIS QMS", color: OVERLAY_COLORS.qms,
       note: "Services from NextGIS Quick Map Services whose declared extent touches the view (working TMS and WMS only), from the catalog's intersects query, sized to the zoom: tiny services are left out when zoomed out, continental and worldwide ones when zoomed in. Click an outline for its catalog page and to use it as the basemap.",
       leaves: [{ id: "qmsAll", label: "QMS services in view", color: OVERLAY_COLORS.qms, detail: "TMS and WMS, sized to the zoom", url: "https://qms.nextgis.com/" }] },
     { section: "Basemaps", key: "allmaps", label: "Old maps (Allmaps)", color: OVERLAY_COLORS.allmaps,
@@ -234,7 +249,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
       leaves: BASEMAP_LIB.filter((s) => s.bounds).map((s) => ({ id: `blib:${s.id}`, label: s.name, color: OVERLAY_COLORS.basemapLibrary, url: s.infoUrl, bounds: s.bounds as [number, number, number, number] })) },
   ]
   // "Your …" groups stay listed even when empty (the tree shows "None").
-  return groups.filter((g) => g.leaves.length > 0 || g.key.startsWith("your"))
+  return groups.filter((g) => g.leaves.length > 0 || g.key.startsWith("your") || g.key === "community")
 }
 
 /** The groups whose membership is fixed at build time, so a pure parser can

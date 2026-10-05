@@ -25,3 +25,4 @@
 - [WMS nodata: two paths](wms-nodata-two-paths.md) — wms-raw is built for display and for client readers; both need the nodata markers; holes are a mask (alpha 254), no smear band needed
 - [Sprint handoff 2026-09-29](handoff-2026-09-29.md) — research references and tables, datasets page, nDSM/3D/Wayback/IGN fixes; 4 local unpushed commits; every GitHub post still to make, with draft paths
 - [Desktop Electrobun gotchas](desktop-electrobun-gotchas.md) — Windows WebView2 has no new-window handler (route window.open through host-message), driving the installed app over CDP, updater.log, shortcut-name collision between the two variants
+- [Iso-line over any measure, coverage tree plumbing](isoline-and-coverage-tree.md) — measures table and scales, luma:// over grey, the fill-alpha shadowing bug, fold atom keys, catalog pick/tickByRef plumbing, Allmaps dating

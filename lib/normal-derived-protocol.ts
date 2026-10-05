@@ -120,7 +120,11 @@ async function loadPmtilesBitmap(url: string): Promise<ImageBitmap | null> {
   return createImageBitmap(new Blob([tile.data]))
 }
 
-async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBitmap | null> {
+/** Any upstream tile URL as a bitmap: pmtiles:// and the float32dem-bbox://
+ *  pseudo-scheme handled here, every registered scheme through the registry,
+ *  the rest fetched. Exported for the contour engine's DEM source over a
+ *  measure template (ContoursLayer's registry path). */
+export async function loadTileBitmap(url: string, signal: AbortSignal): Promise<ImageBitmap | null> {
   if (url.startsWith("pmtiles://")) return loadPmtilesBitmap(url)
   if (url.startsWith("float32dem-bbox://")) {
     const match = url.match(/^float32dem-bbox:\/\/(.+)\/(\d+)\/(\d+)\/(\d+)$/)

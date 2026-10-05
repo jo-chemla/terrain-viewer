@@ -2797,16 +2797,6 @@
       "note": "Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't clutter Visualization Modes for everyone by default."
     },
     {
-      "key": "thresholdBeta",
-      "stateKey": "thresholdBeta",
-      "type": "boolean",
-      "items": null,
-      "enum": null,
-      "default": false,
-      "defaultSource": "false",
-      "note": "Same opt-in-beta gate, for the threshold outline contour mode."
-    },
-    {
       "key": "sunShadowBeta",
       "stateKey": "sunShadowBeta",
       "type": "boolean",
@@ -3334,35 +3324,11 @@
       "items": null,
       "enum": [
         "absolute",
-        "lrm",
-        "threshold\" as const"
+        "lrm\" as const"
       ],
       "default": "absolute",
       "defaultSource": "\"absolute\"",
       "note": "Absolute (\"real altitude\") vs LRM (\"height above/below the local neighborhood mean\") — same reference concept Plane Slicer introduced (PLANE_SLICER_REFERENCE_MODES above), applied to what the contour…"
-    },
-    {
-      "key": "contourThreshold",
-      "stateKey": "contourThreshold",
-      "type": "number",
-      "items": null,
-      "enum": null,
-      "default": 1.5,
-      "defaultSource": "1.5",
-      "note": ""
-    },
-    {
-      "key": "contourThresholdMeasure",
-      "stateKey": "contourThresholdMeasure",
-      "type": "enum",
-      "items": null,
-      "enum": [
-        "elevation",
-        "slope\" as const"
-      ],
-      "default": "elevation",
-      "defaultSource": "\"elevation\"",
-      "note": "What the outline measures: the elevation (m) or the slope in degrees (an iso-slope line: 30° for avalanche terrain, 80° for cliffs)."
     },
     {
       "key": "showIsoline",
@@ -3372,19 +3338,29 @@
       "enum": null,
       "default": false,
       "defaultSource": "false",
-      "note": "The Iso-line (Contours & GeoGrid): one vector line where a measure crosses a value, independent of the contours, with a raster fill of the area above (threshold:// with a colour)."
+      "note": "The Iso-line (Contours & GeoGrid): a line where a measure (the elevation, any derived mode, a light's shading) crosses a value, with a raster fill of the area above, or a line every interval of the m…"
     },
     {
       "key": "isolineMeasure",
       "stateKey": "isolineMeasure",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "slope",
+      "defaultSource": "\"slope\"",
+      "note": ""
+    },
+    {
+      "key": "isolineMode",
+      "stateKey": "isolineMode",
       "type": "enum",
       "items": null,
       "enum": [
-        "elevation",
-        "slope\" as const"
+        "value",
+        "interval\" as const"
       ],
-      "default": "slope",
-      "defaultSource": "\"slope\"",
+      "default": "value",
+      "defaultSource": "\"value\"",
       "note": ""
     },
     {
@@ -3395,6 +3371,16 @@
       "enum": null,
       "default": 30,
       "defaultSource": "30",
+      "note": ""
+    },
+    {
+      "key": "isolineInterval",
+      "stateKey": "isolineInterval",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 10,
+      "defaultSource": "10",
       "note": ""
     },
     {

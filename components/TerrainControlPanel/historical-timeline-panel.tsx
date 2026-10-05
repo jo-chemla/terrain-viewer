@@ -1,5 +1,5 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
-import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom } from "@/lib/timeline-catalogs"
+import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, type CatalogItem } from "@/lib/timeline-catalogs"
 import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom } from "@/lib/settings-atoms"
 import { TickCard } from "./tick-card"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
@@ -592,19 +592,32 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // Follow the view off: the ticks stay as they are while the map moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogKey, followViewport ? state.lat : 0, followViewport ? state.lng : 0, followViewport ? state.zoom : 0, mapRef, windowKey])
+  }, [catalogKey, followViewport, followViewport ? state.lat : 0, followViewport ? state.lng : 0, followViewport ? state.zoom : 0, mapRef, windowKey])
   // The items' footprints for the map (CatalogFootprintsLayer), when asked.
   const setFootprints = useSetAtom(catalogFootprintsAtom)
+  const setCatalogItems = useSetAtom(catalogItemsAtom)
+  const catalogItems = useMemo<CatalogItem[]>(() => catalogsToLoad.flatMap((id) => (catalogTicks[id] ?? []).flatMap((t) => {
+    const b = t.ref ? catalogBasemap(t.ref)?.bounds : undefined
+    return b && t.ref ? [{ source: t.source, label: t.label, ref: t.ref, dateMs: t.dateMs, bounds: b, meta: t.meta }] : []
+  })), [catalogsToLoad, catalogTicks])
+  // The Sources Coverage search results list the items with their extents.
+  useEffect(() => { setCatalogItems(catalogItems) }, [catalogItems, setCatalogItems])
   useEffect(() => {
     if (!footprintsOn) { setFootprints(null); return }
-    const features = catalogsToLoad.flatMap((id) => (catalogTicks[id] ?? []).flatMap((t) => {
-      const b = t.ref ? catalogBasemap(t.ref)?.bounds : undefined
-      if (!b) return []
-      return [{ type: "Feature" as const, properties: { color: SOURCE_CONFIG[t.source]?.color ?? "#888", label: t.label }, geometry: { type: "Polygon" as const, coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] } }]
-    }))
+    // The properties the map's hover box and click list read (CoverageOverlayLayer).
+    const features = catalogItems.map((it) => {
+      const b = it.bounds
+      const detail = [SOURCE_CONFIG[it.source]?.label ?? it.source, it.meta?.date, it.meta?.gsd ? `${it.meta.gsd < 1 ? `${Math.round(it.meta.gsd * 100)} cm` : `${+it.meta.gsd.toFixed(1)} m`}/px` : null].filter(Boolean).join(" · ")
+      return { type: "Feature" as const, properties: { color: SOURCE_CONFIG[it.source]?.color ?? "#888", label: it.label, detail, url: it.meta?.url ?? "", ref: it.ref, source: it.source, gsd: it.meta?.gsd ?? 0, b0: b[0], b1: b[1], b2: b[2], b3: b[3] }, geometry: { type: "Polygon" as const, coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] } }
+    })
     setFootprints({ type: "FeatureCollection", features })
-  }, [footprintsOn, catalogsToLoad, catalogTicks, setFootprints])
-  useEffect(() => () => setFootprints(null), [setFootprints])
+  }, [footprintsOn, catalogItems, setFootprints])
+  useEffect(() => () => { setFootprints(null); setCatalogItems([]) }, [setFootprints, setCatalogItems])
+  // Every catalog tick ever loaded this session, by its basemap id: a view
+  // keeps its item (its tick stays on the axis, the arrows still find it)
+  // after the catalogs' answer for a new view no longer lists it.
+  const tickByRef = useRef(new Map<string, TimelineTick>())
+  for (const list of Object.values(catalogTicks)) for (const t of list) if (t.ref) tickByRef.current.set(t.ref, t)
   // A view on a catalog item needs that item as a basemap in this
   // browser's list: registered when its ticks loaded.
   useEffect(() => {
@@ -717,11 +730,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       if (own) return own
     }
     if (source in TIMELINE_CATALOG_BY_ID) {
-      const own = allTicks.find((t) => t.ref === activeBasemapSourceFor(side))
+      const ref = activeBasemapSourceFor(side)
+      const own = allTicks.find((t) => t.ref === ref) ?? tickByRef.current.get(ref)
       if (own) return own
     }
     return findNearestTick(source, dateForSide(side)) ?? newestTickFor(source)
-  }, [displaySourceFor, findNearestTick, dateForSide, newestTickFor])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displaySourceFor, findNearestTick, dateForSide, newestTickFor, activeBasemapSourceFor, allTicks])
 
   // Ticks/gridlines show sources currently toggled on via the pill row (both
   // the source pills and the VHR/Medium res chips). When unsynced in dual
@@ -1204,14 +1219,37 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   const step = useCallback((direction: number) => {
     const which = resolveSide()
+    // The tick the view shows (a catalog item by its id, a date otherwise),
+    // then the next one on the axis whatever its source: the arrows walk
+    // every tick of the pills and catalogs that are on, in date order.
+    const cur = resolveDisplayTick(which)
     const source = displaySourceFor(which)
     const key = dateForSide(which)
-    const idx = items.findIndex((t) => t.source === source && t.key === key)
-    if (idx === -1) return
+    let idx = cur ? items.findIndex((t) => t === cur || (t.source === cur.source && t.key === cur.key)) : -1
+    if (idx === -1) idx = items.findIndex((t) => t.source === source && t.key === key)
+    if (idx === -1) {
+      // Not on the axis: the nearest tick in that direction.
+      const date = cur?.dateMs ?? key
+      idx = direction > 0 ? items.findIndex((t) => t.dateMs > date) : (() => { let i = -1; items.forEach((t, j) => { if (t.dateMs < date) i = j }); return i })()
+      if (idx === -1) return
+      applyTick(items[idx])
+      return
+    }
     const newIdx = idx + direction
     if (newIdx < 0 || newIdx >= items.length) return
     applyTick(items[newIdx])
-  }, [resolveSide, displaySourceFor, dateForSide, items, applyTick])
+  }, [resolveSide, resolveDisplayTick, displaySourceFor, dateForSide, items, applyTick])
+  // A pick from the map (a footprint click) or the search results.
+  const [pickRequest, setPickRequest] = useAtom(catalogPickRequestAtom)
+  useEffect(() => {
+    if (!pickRequest) return
+    setPickRequest(null)
+    const tick = tickByRef.current.get(pickRequest.ref)
+    if (!tick) return
+    const side = resolveSide()
+    if (catalogBasemap(pickRequest.ref)?.role === "overlay") sendTickTo(tick, side, "overlay")
+    else applyTick(tick, side)
+  }, [pickRequest, setPickRequest, resolveSide, applyTick, sendTickTo])
 
   // In terrain mode the whole panel additionally requires the Raster
   // Basemap viz mode to be ON (mirrors TerrainViewer.tsx's
@@ -2135,9 +2173,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             activeSides={showingViews.filter((s) => tickBySide[s]?.source === tickCard.tick.source && tickBySide[s]?.key === tickCard.tick.key)}
             views={showingViews}
             gridLayout={gridLayoutForTimeline}
-            isOn={(side, as) => !!tickCard.tick.ref && (as === "basemap" ? activeBasemapSourceFor(side) === tickCard.tick.ref : ((state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []).includes(tickCard.tick.ref))}
+            asOverlay={!!tickCard.tick.ref && catalogBasemap(tickCard.tick.ref)?.role === "overlay"}
+            isOn={(side) => !!tickCard.tick.ref && (catalogBasemap(tickCard.tick.ref)?.role === "overlay" ? ((state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []).includes(tickCard.tick.ref) : activeBasemapSourceFor(side) === tickCard.tick.ref)}
             kept={!!tickCard.tick.ref && customBasemaps.some((b) => b.id === tickCard.tick.ref && !b.transient)}
-            onSend={(side, as) => sendTickTo(tickCard.tick, side, as)}
+            bounds={tickCard.tick.ref ? catalogBasemap(tickCard.tick.ref)?.bounds : undefined}
+            onFit={() => { const b = tickCard.tick.ref ? catalogBasemap(tickCard.tick.ref)?.bounds : undefined; if (b) mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}
+            onSend={(side) => sendTickTo(tickCard.tick, side, catalogBasemap(tickCard.tick.ref!)?.role === "overlay" ? "overlay" : "basemap")}
             onKeep={() => keepTick(tickCard.tick)}
             onEnter={keepTickCard} onLeave={hideTickCardSoon}
           />

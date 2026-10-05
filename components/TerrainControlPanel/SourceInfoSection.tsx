@@ -18,20 +18,21 @@ import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { BUILTIN_BASEMAP_OPTIONS } from "./raster-basemap-section"
 import { GRID_LAYOUTS, viewFieldName, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { useAtomValue, useAtom, useSetAtom } from "jotai"
-import { coverageInViewAtom, coverageGroupOfLeaf, overlapLabel } from "@/lib/coverage-in-view"
+import { coverageInViewAtom, coverageGroupOfLeaf, overlapLabel, overlapStats, byOverlap, type OverlapStats } from "@/lib/coverage-in-view"
 import { coverageUseRequestAtom } from "@/lib/use-coverage-use-request"
-import { ExternalLink, ChevronDown, X, Maximize2 } from "lucide-react"
+import { ExternalLink, ChevronDown, Maximize2, Info, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { coverageOverlaysAtom, coverageGroups, type EliLike } from "@/lib/coverage-overlays"
-import { HistoricalCatalogTree } from "./historical-catalog-tree"
-import { SourceMetadataRows } from "./source-metadata"
-import { coverageVisibleAtom, coverageOutlineOnlyAtom, timelineFootprintsAtom, timelineFollowViewportAtom } from "@/lib/settings-atoms"
+import { HistoricalCatalogTree, catalogTreeKeys } from "./historical-catalog-tree"
+import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
+import { coverageVisibleAtom, coverageOutlineOnlyAtom, timelineFootprintsAtom, timelineFollowViewportAtom, timelineWindowFilterAtom, coverageFoldsAtom } from "@/lib/settings-atoms"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
+import { catalogItemsAtom, catalogPickRequestAtom, HISTORICAL_TREE_ROOTS, type CatalogItem } from "@/lib/timeline-catalogs"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
+import { sourceGsd, gsdText } from "@/lib/gsd"
 import { terrainKindOf } from "./sample-sources-modal"
 import customSources from "@/lib/custom-sources.json"
 
@@ -44,6 +45,7 @@ const TERRAIN_SERVING: Record<string, string> = {
   "cog-local": "Local COG file", vrt: "VRT via titiler", tilejson: "TileJSON", stac: "STAC", mosaicjson: "MosaicJSON",
 }
 const hostOf = (u: string) => u.replace(/^[a-z]+:\/\/\/vsicurl\//i, "").replace(/^WMS:/i, "").replace(/^https?:\/\//, "").split(/[/?]/)[0]
+const PROVIDER_SHORT: Record<string, string> = { qms: "QMS", eli: "ELI", allmaps: "Allmaps" }
 
 /** What we know about a custom terrain source — for the shipped national
  *  datasets that is a lot more than an id: grid, DTM/DSM, how it compares to
@@ -58,13 +60,14 @@ const CustomTerrainInfo: React.FC<{ source: CustomTerrainSource }> = ({ source }
   const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
     <div className="flex items-start justify-between gap-3 text-xs"><span className="text-muted-foreground shrink-0">{k}</span><span className="text-right min-w-0 break-words">{v}</span></div>
   )
+  const gsd = sourceGsd(merged)
   return (
     <div className="px-2 py-1.5 rounded bg-muted/50 space-y-1">
       <div className="text-xs font-medium break-words">{merged.name}</div>
       {kind && <Row k="Model" v={`${kind.label} — ${kind.title.split(":")[1]?.trim() ?? kind.title}`} />}
-      {merged.resolutionM !== undefined && (
+      {merged.resolutionM !== undefined ? (
         <Row k="Resolution" v={cmp ? `${formatRes(cmp.ours)}${cmp.verdict === "same" ? "" : ` vs ${formatRes(cmp.theirs)}`} · ${VERDICT[cmp.verdict]}` : formatRes(merged.resolutionM)} />
-      )}
+      ) : gsd ? <Row k="Resolution" v={`${gsdText(gsd)}, from the max zoom`} /> : null}
       <Row k="Served as" v={TERRAIN_SERVING[merged.type] ?? merged.type} />
       {(merged.minzoom !== undefined || merged.maxzoom !== undefined) && <Row k="Zoom" v={`${merged.minzoom ?? 0} – ${merged.maxzoom ?? "native"}`} />}
       {merged.bounds && <Row k="Extent" v={merged.bounds.map((b) => b.toFixed(1)).join(", ")} />}
@@ -116,6 +119,7 @@ const MOVE_DEBOUNCE_MS = 400
 const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<MapRef> }> = ({ state, mapRef }) => {
   const customBasemaps = useAtomValue(customBasemapSourcesAtom)
   const customBasemapById = (id: string): CustomBasemapSource | undefined => customBasemaps.find((b) => b.id === id)
+  const info = useSourceInfoDialog()
   // Every active view (A-F), not just A/B — generalizes the old fixed pair
   // the same way TerrainViewer.tsx's own perViewResolved does. "overlay"
   // always compares exactly 2 views regardless of state.gridLayout's own
@@ -207,7 +211,7 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
     map.fire("sourcedata", { dataType: "source", sourceId: "raster-basemap-source", sourceDataType: "metadata", isSourceLoaded: true })
   }, [mapRef, activeA, textA])
 
-  if (!state.showRasterBasemap) return null
+  if (!state.showRasterBasemap) return <p className="text-xs text-muted-foreground">Raster basemap off: no basemap attribution to show.</p>
 
   // The dynamic hooks' own return values are self-contained strings meant to
   // stand alone (e.g. the map corner, with no adjacent label) — "Esri - Vantor",
@@ -219,24 +223,35 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
 
   const row = (id: string, geAttribution: string, waybackAttribution: { srcDesc: string; niceDesc: string }, prefix: string) => {
     const custom = customBasemapById(id)
+    // A provider prefix on the left: the index it came from (QMS, ELI,
+    // Allmaps) or a library name's "FRA - IGN …" country code.
+    const fullName = custom?.name ?? basemapLabel(id)
+    const codeMatch = !custom?.provider ? fullName.match(/^([A-Z]{2,4}) - (.+)$/) : null
+    const providerShort = custom?.provider ? PROVIDER_SHORT[custom.provider] ?? custom.provider : codeMatch ? codeMatch[1] : null
+    const name = codeMatch ? codeMatch[2] : fullName
+    const gsd = custom ? sourceGsd(custom, state.lat) : null
     return (
       <div key={prefix || "single"} className="px-2 py-1.5 rounded bg-muted/50 text-xs space-y-0.5">
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0">{prefix}{custom?.name ?? basemapLabel(id)}</span>
-          <span className="text-muted-foreground text-right">{stripSourcePrefix(textFor(id, geAttribution, waybackAttribution))}</span>
+        <div className="flex items-start gap-2">
+          <span className="min-w-0 truncate" title={fullName}>{prefix}{providerShort && <span className="text-muted-foreground">{providerShort} · </span>}{name}</span>
+          <span className="text-muted-foreground text-right flex-1 min-w-0 truncate">{stripSourcePrefix(textFor(id, geAttribution, waybackAttribution))}</span>
+          {custom && (
+            <Tooltip>
+              <TooltipTrigger render={<Button size="icon" variant="ghost" className="h-5 w-5 shrink-0 cursor-pointer -my-0.5" onClick={() => info.open(custom.id)}><Info className="h-3.5 w-3.5" /></Button>} />
+              <TooltipContent><p>Every field this source carries</p></TooltipContent>
+            </Tooltip>
+          )}
         </div>
-        {custom && (custom.provider || custom.licenseName || custom.licenseUrl || custom.infoUrl) && (
-          // Catalog provenance for sources added through NextGIS QMS or the
-          // OSM Editor Layer Index: where it came from, and under what licence.
+        {custom && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-            {custom.provider && <span>via {custom.provider === "qms" ? "NextGIS QMS" : "OSM Editor Layer Index"}</span>}
+            <span>{custom.type}{custom.role === "overlay" ? " overlay" : ""}</span>
+            {gsd && <span>{gsdText(gsd)}</span>}
             {(custom.licenseName || custom.licenseUrl) && (
               custom.licenseUrl
                 ? <a href={custom.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline">{custom.licenseName || "licence"}</a>
                 : <span>{custom.licenseName}</span>
             )}
-            {custom.infoUrl && <a href={custom.infoUrl} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">record <ExternalLink className="h-3 w-3" /></a>}
-            {!custom.provider && <span>{TERRAIN_SERVING[custom.type] ?? custom.type}</span>}
+            {custom.infoUrl && <a href={custom.infoUrl} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">page <ExternalLink className="h-3 w-3" /></a>}
           </div>
         )}
       </div>
@@ -247,14 +262,10 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   // the exact same resolved attribution TEXT (e.g. a 3x1 grid where B and C
   // both happen to be on plain ESRI World Imagery) — no reason to repeat an
   // identical attribution row per letter; the surviving row's prefix lists
-  // every letter it covers instead of just one. Matching on id alone used to
-  // merge e.g. two GE Historical views into ONE row keyed off only the
-  // FIRST one's ge/text value — silently dropping the other's, even though
-  // GE Historical's real attribution (Airbus vs. Maxar, etc.) varies by
-  // capture DATE, i.e. by which specific tile/layer that view is actually
-  // showing, not just by which source it's on. Comparing the resolved text
+  // every letter it covers instead of just one. Comparing the resolved text
   // itself means two views only ever collapse into one row when they'd
-  // genuinely show the same line anyway.
+  // genuinely show the same line anyway (GE Historical's attribution varies
+  // by capture date).
   const grouped: { ids: ViewId[]; source: string; ge: string; wayback: { srcDesc: string; niceDesc: string }; text: string }[] = []
   for (const side of activeViews) {
     const source = activeSourceFor(side)
@@ -265,45 +276,42 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
     if (last && last.source === source && last.text === text) last.ids.push(side)
     else grouped.push({ ids: [side], source, ge, wayback, text })
   }
+  const infoSource = info.infoId ? customBasemapById(info.infoId) ?? null : null
 
   return (
     <div className="space-y-1.5">
       <p className="text-xs text-muted-foreground">
-        Basemap attribution — Esri/Wayback, Google Earth, and Bing resolve live for the current view; every other source is fixed.
+        Esri/Wayback, Google Earth and Bing resolve live for the current view; every other source is fixed. The info button opens every field a source carries.
       </p>
       {grouped.map((g) => row(g.source, g.ge, g.wayback, activeViews.length > 1 ? `${g.ids.join("/")}: ` : ""))}
-      {/* A custom basemap (library, BYOD, a timeline pick) carries more than
-          an attribution line: everything it has, like the terrain above. */}
-      {grouped.map((g) => { const b = customBasemapById(g.source); return b ? (
-        <details key={`meta-${g.source}`} className="rounded border px-2 py-1">
-          <summary className="cursor-pointer text-xs font-medium truncate">{activeViews.length > 1 ? `${g.ids.join("/")}: ` : ""}{b.name}: all metadata</summary>
-          <SourceMetadataRows source={b} className="mt-1 grid grid-cols-[minmax(5rem,max-content)_1fr] gap-x-2 gap-y-0.5 text-[11px]" />
-        </details>
-      ) : null })}
+      <SourceMetadataDialog source={infoSource} onClose={info.close} onFit={(s) => { const b = s.bounds; if (b) mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }} />
     </div>
   )
 }
 
-/** The coverage tree, always open: Terrain (Mapterhorn, the library, your
- *  sources, 3D and LiDAR), Basemaps · Static (the Editor Layer Index
- *  footprints, the library, your basemaps) and Basemaps · Historical, the
- *  timeline's catalogs tree (historical-catalog-tree.tsx, the same one the
- *  timeline's Catalogs select shows). A group checkbox takes the whole group;
- *  a master switch hides every footprint at once, the selection kept. */
+/** The coverage tree, always open: Terrain (Mapterhorn, 3D and LiDAR, the
+ *  library, your sources), Basemaps · Static (the community indexes: the
+ *  Editor Layer Index, QMS, ArcGIS Online; the library, your basemaps) and
+ *  Basemaps · Historical, the timeline's catalogs tree (historical-catalog-
+ *  tree.tsx, the same one the timeline's Catalogs select shows). A group
+ *  checkbox takes the whole group; a master switch hides every footprint at
+ *  once, the selection kept. Every group starts folded; what the user opens
+ *  is kept across sessions (coverageFoldsAtom). */
 const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: any; setState?: (u: any) => void }> = ({ mapRef, state, setState }) => {
   const [selected, setSelected] = useAtom(coverageOverlaysAtom)
   const [visible, setVisible] = useAtom(coverageVisibleAtom)
   const [outlineOnly, setOutlineOnly] = useAtom(coverageOutlineOnlyAtom)
   const [footprints, setFootprints] = useAtom(timelineFootprintsAtom)
   const [follow, setFollow] = useAtom(timelineFollowViewportAtom)
+  const [windowFilter, setWindowFilter] = useAtom(timelineWindowFilterAtom)
+  const [folds, setFolds] = useAtom(coverageFoldsAtom)
   const terrains = useAtomValue(customTerrainSourcesAtom)
   const basemaps = useAtomValue(customBasemapSourcesAtom)
   const [eliInView, setEliInView] = useState<EliLike[]>([])
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [sectionOpen, setSectionOpenState] = useState<Record<string, boolean>>({ Terrain: true, Static: true, Historical: true })
+  const isOpenKey = (key: string, fallback = false) => folds[key] ?? fallback
   // ELI leaves follow the view (the package is lazy: 14 MB of index chunks
   // only load once the group is opened).
-  const eliWanted = expanded.eli === true
+  const eliWanted = isOpenKey("cov:eli")
   useEffect(() => {
     if (!eliWanted) return
     const map = mapRef.current?.getMap()
@@ -323,61 +331,73 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
     for (const id of ids) on ? next.add(id) : next.delete(id)
     return [...next]
   })
-  // QMS and Allmaps live in the historical tree (footprint-only entries).
+  const timelineCatalogs: string[] = state.timelineCatalogs ?? []
   const leavesOf = (g: (typeof groups)[number]): (typeof g.leaves) => [...g.leaves, ...groups.filter((c) => c.parent === g.key).flatMap(leavesOf)]
   const renderGroup = (g: (typeof groups)[number], depth: number) => {
     const leaves = leavesOf(g)
     const on = leaves.filter((l) => set.has(l.id)).length
     const all = on === leaves.length
-    const isOpen = expanded[g.key] ?? false
+    const isOpen = isOpenKey(`cov:${g.key}`)
     const mixed = g.leaves.some((l) => l.color !== g.color)
     const children = groups.filter((c) => c.parent === g.key)
     return (
       <div key={g.key} className={depth ? "pl-[21px]" : undefined}>
         <div className="flex items-center gap-1.5 py-0.5">
           <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpen ? "Collapse" : "Expand"}
-            onClick={() => setExpanded((prev) => ({ ...prev, [g.key]: !isOpen }))}>
+            onClick={() => setFolds((prev) => ({ ...prev, [`cov:${g.key}`]: !isOpen }))}>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
           </button>
           <Checkbox id={`cov-g-${g.key}`} checked={all && leaves.length > 0} indeterminate={!all && on > 0} disabled={leaves.length === 0} onCheckedChange={(v) => setMany(leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
           {!mixed && !children.length && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />}
           <Label htmlFor={`cov-g-${g.key}`} className="text-[10px] uppercase tracking-wide text-muted-foreground cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
-          <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{leaves.length}</span>
+          {leaves.length > 0 && <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{leaves.length}</span>}
         </div>
         {isOpen && (
           <>
-            <div className="pl-[42px] space-y-0.5 max-h-48 overflow-y-auto">
-              {leaves.length === 0 && <p className="text-xs text-muted-foreground italic">None</p>}
-              {g.leaves.map((l) => (
-                <div key={l.id} className="flex items-center gap-1.5">
-                  <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
-                  {(mixed || children.length > 0) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: l.color }} />}
-                  <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
-                  {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
-                  {l.bounds && (
-                    <button type="button" className="cursor-pointer ml-auto shrink-0 text-muted-foreground hover:text-foreground" title="Zoom to its extent"
-                      onClick={() => { const b = l.bounds!; mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}>
-                      <Maximize2 className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+            {g.leaves.length > 0 && (
+              <div className="pl-[42px] space-y-0.5">
+                {g.leaves.map((l) => (
+                  <div key={l.id} className="flex items-center gap-1.5">
+                    <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
+                    {(mixed || children.length > 0) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: l.color }} />}
+                    <Label htmlFor={`cov-${l.id}`} className="text-xs cursor-pointer truncate shrink-0 max-w-full" title={l.label}>{l.label}</Label>
+                    {l.detail && <span className="text-[10px] text-muted-foreground truncate min-w-0" title={l.detail}>{l.detail}</span>}
+                    {l.bounds && (
+                      <button type="button" className="cursor-pointer ml-auto shrink-0 text-muted-foreground hover:text-foreground" title="Zoom to its extent"
+                        onClick={() => { const b = l.bounds!; mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}>
+                        <Maximize2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {g.leaves.length === 0 && children.length === 0 && <p className="pl-[42px] text-xs text-muted-foreground italic">None</p>}
             {children.map((c) => renderGroup(c, depth + 1))}
+            {/* The dated catalogs of the same indexes (ELI's dated layers,
+                ArcGIS Online imagery) as rows of this group. */}
+            {g.key === "community" && (
+              <div className="pl-[42px]">
+                <HistoricalCatalogTree compact bare roots={["Community indexes"]} selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined} />
+              </div>
+            )}
           </>
         )}
       </div>
     )
   }
   const sectionHeader = (key: string, label: string) => (
-    <button type="button" className="flex w-full items-center gap-1 py-0.5 cursor-pointer" onClick={() => setSectionOpenState((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }))}>
-      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${(sectionOpen[key] ?? true) ? "" : "-rotate-90"}`} />
+    <button type="button" className="flex w-full items-center gap-1 py-0.5 cursor-pointer" onClick={() => setFolds((prev) => ({ ...prev, [`sec:${key}`]: !(prev[`sec:${key}`] ?? true) }))}>
+      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpenKey(`sec:${key}`, true) ? "" : "-rotate-90"}`} />
       <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/80">{label}</span>
     </button>
   )
   const terrainGroups = groups.filter((g) => g.section === "Terrain" && !g.parent)
-  const staticGroups = groups.filter((g) => g.section === "Basemaps" && !g.parent && g.key !== "qms" && g.key !== "allmaps")
-  const timelineCatalogs: string[] = state.timelineCatalogs ?? []
+  const staticGroups = groups.filter((g) => g.section === "Basemaps" && !g.parent && g.key !== "allmaps")
+  // Expand or fold every group of the three sections at once.
+  const allKeys = [...groups.map((g) => `cov:${g.key}`), ...catalogTreeKeys()]
+  const allOpen = allKeys.every((k) => folds[k] === true)
+  const foldAll = (fold: boolean) => setFolds((prev) => ({ ...prev, ...Object.fromEntries(allKeys.map((k) => [k, !fold])) }))
   return (
     <div id="tour-coverage-overlays" className="space-y-1.5 scroll-mt-[100px]">
       <div className="flex items-center justify-between gap-2">
@@ -391,29 +411,41 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
           </Tooltip>
         </div>
       </div>
-      {/* The switches that apply to every footprint, above the tree. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+      {/* The switches that apply to every footprint and every catalog, above the tree. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
         <Tooltip>
           <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={outlineOnly} onCheckedChange={setOutlineOnly} className="cursor-pointer scale-75 origin-left" />Outlines only</label>} />
           <TooltipContent><p>No fill, borders twice as bold</p></TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={footprints} onCheckedChange={setFootprints} className="cursor-pointer scale-75 origin-left" />Historical items' footprints</label>} />
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={footprints} onCheckedChange={setFootprints} className="cursor-pointer scale-75 origin-left" />Items' footprints</label>} />
           <TooltipContent><p>Every item the historical catalogs found for the view, drawn as an outline in its catalog's colour</p></TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={follow} onCheckedChange={setFollow} className="cursor-pointer scale-75 origin-left" />Follow the view</label>} />
-          <TooltipContent><p>Off: the catalogs are not asked again as the map moves, so the historical items stay as they are</p></TooltipContent>
+          <TooltipContent><p>Off: the catalogs are not asked again as the map moves, so the historical items stay as they are; on again asks them for the current view</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={windowFilter} onCheckedChange={setWindowFilter} className="cursor-pointer scale-75 origin-left" />Within the timeline window</label>} />
+          <TooltipContent><p>Only items dated within the timeline's current window (STAC searches pass it to the server); the catalogs are asked again when this changes</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={
+            <button type="button" className="cursor-pointer ml-auto shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1" onClick={() => foldAll(allOpen)}>
+              {allOpen ? <ChevronsDownUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3" />}{allOpen ? "Fold all" : "Expand all"}
+            </button>
+          } />
+          <TooltipContent><p>{allOpen ? "Fold every group of the tree" : "Expand every group of the tree"}</p></TooltipContent>
         </Tooltip>
       </div>
       {sectionHeader("Terrain", "Terrain")}
-      {(sectionOpen.Terrain ?? true) && <div className="pl-1">{terrainGroups.map((g) => renderGroup(g, 0))}</div>}
+      {isOpenKey("sec:Terrain", true) && <div className="pl-1">{terrainGroups.map((g) => renderGroup(g, 0))}</div>}
       {sectionHeader("Static", "Basemaps · Static")}
-      {(sectionOpen.Static ?? true) && <div className="pl-1">{staticGroups.map((g) => renderGroup(g, 0))}</div>}
+      {isOpenKey("sec:Static", true) && <div className="pl-1">{staticGroups.map((g) => renderGroup(g, 0))}</div>}
       {sectionHeader("Historical", "Basemaps · Historical")}
-      {(sectionOpen.Historical ?? true) && (
+      {isOpenKey("sec:Historical", true) && (
         <div className="pl-1">
-          <HistoricalCatalogTree compact selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined} />
+          <HistoricalCatalogTree compact roots={HISTORICAL_TREE_ROOTS} selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined} />
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point; click a footprint for the dataset's page and to put it on the map.</p>
@@ -421,72 +453,108 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
   )
 }
 
-/** Everything the drawn coverage overlays hold for the view, live: one block
- *  per overlay group, best-matching footprint first (intersection over union
- *  with the view), the whole view or only what lies under its centre. The
- *  same rows the map's click modal gives, without clicking. */
-const CoverageInViewList: React.FC = () => {
+/** Everything the shown overlays and the checked catalogs hold for the
+ *  view, live, as one tree: a block per group, best-matching footprint first
+ *  (intersection over union with the view), the whole view or only what
+ *  lies under its centre. The same rows the map's click modal gives,
+ *  without clicking; one scroll for the whole list. */
+const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any }> = ({ mapRef, state }) => {
   const inView = useAtomValue(coverageInViewAtom)
+  const catalogItems = useAtomValue(catalogItemsAtom)
   const requestUse = useSetAtom(coverageUseRequestAtom)
+  const requestPick = useSetAtom(catalogPickRequestAtom)
   const [centreOnly, setCentreOnly] = useState(false)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
-  if (!inView) return null
-  const items = centreOnly ? inView.items.filter((i) => i.stats.atCentre) : inView.items
-  const groups: { key: string; label: string; color: string; items: typeof items }[] = []
-  for (const it of items) {
-    const g = coverageGroupOfLeaf(it.leaf)
+  const [folds, setFolds] = useAtom(coverageFoldsAtom)
+  // The catalog items' overlap with the view, from their extents.
+  const catalogRows = useMemo(() => {
+    const m = mapRef.current?.getMap()
+    if (!m || !catalogItems.length) return []
+    const b = m.getBounds(), c = m.getCenter()
+    const view: [number, number, number, number] = [Math.max(-180, b.getWest()), Math.max(-85, b.getSouth()), Math.min(180, b.getEast()), Math.min(85, b.getNorth())]
+    const rows: { item: CatalogItem; stats: OverlapStats; gsdM: number }[] = []
+    for (const item of catalogItems) {
+      const [w, s, e, n] = item.bounds
+      const stats = overlapStats({ type: "Polygon", coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] }, view, [c.lng, c.lat])
+      if (!stats || stats.cover <= 0) continue
+      rows.push({ item, stats, gsdM: item.meta?.gsd ?? Infinity })
+    }
+    return rows.sort(byOverlap)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogItems, state.lat, state.lng, state.zoom, mapRef])
+  if (!inView && !catalogRows.length) return null
+  type Row = { key: string; label: string; detail: string; url?: string; stats: OverlapStats; use?: () => void; useLabel?: string; needsKey?: boolean }
+  const groups: { key: string; label: string; color: string; rows: Row[] }[] = []
+  const push = (g: { key: string; label: string; color: string }, r: Row) => {
     let entry = groups.find((x) => x.key === g.key)
-    if (!entry) { entry = { ...g, items: [] }; groups.push(entry) }
-    entry.items.push(it)
+    if (!entry) { entry = { ...g, rows: [] }; groups.push(entry) }
+    entry.rows.push(r)
   }
-  // The overlay tree's order: terrain groups, then basemaps.
-  const ORDER = ["mapterhorn", "library", "yourTerrain", "sources3d", "opentopo", "eli", "qms", "allmaps", "yourBasemaps", "basemapLibrary"]
-  groups.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key))
+  for (const it of (centreOnly ? (inView?.items ?? []).filter((i) => i.stats.atCentre) : inView?.items ?? [])) {
+    push(coverageGroupOfLeaf(it.leaf), { key: `${it.leaf}|${it.label}|${it.detail}`, label: it.label, detail: it.detail, url: it.url, stats: it.stats, needsKey: it.needsKey,
+      use: it.overlay && it.useAs ? () => requestUse({ overlay: it.overlay!, nonce: Date.now() }) : undefined, useLabel: it.useAs ? `Use as ${it.useAs}` : undefined })
+  }
+  for (const { item, stats } of catalogRows) {
+    if (centreOnly && !stats.atCentre) continue
+    const cfg = SOURCE_CONFIG[item.source]
+    push({ key: `cat:${item.source}`, label: cfg?.label ?? item.source, color: cfg?.color ?? "#888" }, {
+      key: item.ref, label: item.label, detail: [item.meta?.date, item.meta?.gsd ? `${item.meta.gsd < 1 ? `${Math.round(item.meta.gsd * 100)} cm` : `${+item.meta.gsd.toFixed(1)} m`}/px` : null].filter(Boolean).join(" · "),
+      url: item.meta?.url, stats, use: () => requestPick({ ref: item.ref, nonce: Date.now() }), useLabel: "Put on the view",
+    })
+  }
+  // The overlay tree's order: terrain groups, then basemaps, then the catalogs.
+  const ORDER = ["mapterhorn", "sources3d", "opentopo", "library", "yourTerrain", "eli", "qms", "allmaps", "yourBasemaps", "basemapLibrary"]
+  groups.sort((a, b) => (ORDER.indexOf(a.key) === -1 ? 99 : ORDER.indexOf(a.key)) - (ORDER.indexOf(b.key) === -1 ? 99 : ORDER.indexOf(b.key)))
+  const total = groups.reduce((n, g) => n + g.rows.length, 0)
+  const open = folds["sec:results"] ?? true
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="coverage-centre-only" className="text-xs font-medium">
-          {items.length} in {centreOnly ? "the view's centre" : "view"}
-        </Label>
+        <button type="button" className="flex items-center gap-1 cursor-pointer text-xs font-medium" onClick={() => setFolds((prev) => ({ ...prev, "sec:results": !open }))}>
+          <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+          Search results · {total} in {centreOnly ? "the view's centre" : "view"}
+        </button>
         <div className="flex items-center gap-1.5">
           <Label htmlFor="coverage-centre-only" className="text-[11px] text-muted-foreground">Centre only</Label>
           <Switch id="coverage-centre-only" checked={centreOnly} onCheckedChange={setCentreOnly} className="cursor-pointer" />
         </div>
       </div>
-      {groups.length === 0 && <p className="text-xs text-muted-foreground">Nothing from the shown overlays {centreOnly ? "under the centre" : "in view"}.</p>}
-      {groups.map((g) => {
-        const isOpen = openGroups[g.key] ?? true
-        return (
-          <div key={g.key} className="space-y-0.5">
-            <button type="button" className="flex w-full items-center gap-1.5 text-xs font-medium cursor-pointer" onClick={() => setOpenGroups((prev) => ({ ...prev, [g.key]: !isOpen }))}>
-              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
-              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />
-              <span className="flex-1 text-left truncate">{g.label}</span>
-              <span className="text-[10px] text-muted-foreground tabular-nums">{g.items.length}</span>
-            </button>
-            {isOpen && (
-              <ul className="pl-5 space-y-1 max-h-56 overflow-y-auto">
-                {g.items.slice(0, 100).map((it, i) => (
-                  <li key={`${it.label}-${i}`} className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs truncate" title={it.label}>{it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline">{it.label}</a> : it.label}</div>
-                      <div className="text-[10px] text-muted-foreground truncate" title={it.detail}>{overlapLabel(it.stats)} · {it.detail}</div>
-                    </div>
-                    {it.overlay && it.useAs && (
-                      <Button size="sm" variant="outline" className="h-6 px-1.5 text-[10px] cursor-pointer shrink-0" disabled={it.needsKey}
-                        title={it.needsKey ? "Needs an API key: add it from the Editor Layer Index search" : `Use as ${it.useAs}`}
-                        onClick={() => requestUse({ overlay: it.overlay!, nonce: Date.now() })}>
-                        Use
-                      </Button>
-                    )}
-                  </li>
-                ))}
-                {g.items.length > 100 && <li className="text-[10px] text-muted-foreground">+{g.items.length - 100} more</li>}
-              </ul>
-            )}
-          </div>
-        )
-      })}
+      {open && groups.length === 0 && <p className="text-xs text-muted-foreground">Nothing from the shown overlays or the checked catalogs {centreOnly ? "under the centre" : "in view"}.</p>}
+      {open && groups.length > 0 && (
+        <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
+          {groups.map((g) => {
+            const isOpen = folds[`res:${g.key}`] ?? true
+            return (
+              <div key={g.key} className="space-y-0.5">
+                <button type="button" className="flex w-full items-center gap-1.5 text-xs font-medium cursor-pointer" onClick={() => setFolds((prev) => ({ ...prev, [`res:${g.key}`]: !isOpen }))}>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />
+                  <span className="flex-1 text-left truncate">{g.label}</span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">{g.rows.length}</span>
+                </button>
+                {isOpen && (
+                  <ul className="pl-5 space-y-1">
+                    {g.rows.slice(0, 100).map((it) => (
+                      <li key={it.key} className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs truncate" title={it.label}>{it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline">{it.label}</a> : it.label}</div>
+                          <div className="text-[10px] text-muted-foreground truncate" title={it.detail}>{overlapLabel(it.stats)}{it.detail ? ` · ${it.detail}` : ""}</div>
+                        </div>
+                        {it.use && (
+                          <Button size="sm" variant="outline" className="h-6 px-1.5 text-[10px] cursor-pointer shrink-0" disabled={it.needsKey}
+                            title={it.needsKey ? "Needs an API key: add it from the Editor Layer Index search" : it.useLabel} onClick={it.use}>
+                            Use
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                    {g.rows.length > 100 && <li className="text-[10px] text-muted-foreground">+{g.rows.length - 100} more</li>}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -510,8 +578,9 @@ export const SourceInfoSection: React.FC<{
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const sourceKind = sourceKindOf(state.sourceA)
-  const [coverageOpen, setCoverageOpen] = useState(true)
-  const [infoOpen, setInfoOpen] = useState(true)
+  const [folds, setFolds] = useAtom(coverageFoldsAtom)
+  const part = (key: string, fallback = true) => folds[`sec:${key}`] ?? fallback
+  const setPart = (key: string, open: boolean) => setFolds((prev) => ({ ...prev, [`sec:${key}`]: open }))
   const customTerrainSources = useAtomValue(customTerrainSourcesAtom)
   const customTerrain = customTerrainSources.find((t) => t.id === state.sourceA)
 
@@ -582,103 +651,117 @@ export const SourceInfoSection: React.FC<{
     }
   }, [])
 
+  const subHeader = (key: string, label: string) => (
+    <CollapsibleTrigger className="flex items-center gap-1 w-full py-0.5 cursor-pointer">
+      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${part(key) ? "" : "-rotate-90"}`} />
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/80">{label}</span>
+    </CollapsibleTrigger>
+  )
+
   return (
     <Section title="Sources Coverage" isOpen={isOpen} onOpenChange={onOpenChange} withSeparator={withSeparator}>
-      {/* Two parts: the coverage footprints (terrain and basemaps), then the
-          provenance of what is on screen. Terrain provenance is meaningless
-          in historical mode (no elevation source is shown there) — but a
-          raster basemap can be active in EITHER app mode, so
-          BasemapAttributionList below always renders alongside this, not
-          instead of it. The section is not gated on a queryable source: the
-          picker is useful whatever the terrain. */}
-      <Collapsible open={coverageOpen} onOpenChange={setCoverageOpen}>
+      {/* Two parts: the coverage footprints (terrain and basemaps) with the
+          search results, then the provenance of what is on screen, the
+          basemap first, then the terrain (meaningless in historical mode,
+          where no elevation source is shown). The section is not gated on a
+          queryable source: the picker is useful whatever the terrain. */}
+      <Collapsible open={part("coverage")} onOpenChange={(o) => setPart("coverage", o)}>
         <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
           <GroupHeading>Coverage overlays</GroupHeading>
-          <ChevronDown className={`h-4 w-4 transition-transform ${coverageOpen ? "rotate-180" : ""}`} />
+          <ChevronDown className={`h-4 w-4 transition-transform ${part("coverage") ? "rotate-180" : ""}`} />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2">
           <CoverageOverlayPicker mapRef={mapRef} state={state} setState={setState} />
-          <CoverageInViewList />
+          <CoverageInViewList mapRef={mapRef} state={state} />
         </CollapsibleContent>
       </Collapsible>
-      <Collapsible open={infoOpen} onOpenChange={setInfoOpen}>
+      <Collapsible open={part("info")} onOpenChange={(o) => setPart("info", o)}>
         <CollapsibleTrigger className="flex items-center justify-between w-full py-1 cursor-pointer">
           <GroupHeading>Source info</GroupHeading>
-          <ChevronDown className={`h-4 w-4 transition-transform ${infoOpen ? "rotate-180" : ""}`} />
+          <ChevronDown className={`h-4 w-4 transition-transform ${part("info") ? "rotate-180" : ""}`} />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-2">
-      {!historicalMode && customTerrain && <CustomTerrainInfo source={customTerrain} />}
-      {!historicalMode && !sourceKind && (
-        <p className="text-xs text-muted-foreground">This terrain source publishes no per-location lookup; its page and licence are above, when it has them.</p>
-      )}
-      {!historicalMode && sourceKind && (
-      <>
-      <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="source-info-toggle" className="text-sm font-medium">
-          Show data provenance at map center
-        </Label>
-        <Switch
-          id="source-info-toggle"
-          checked={isActive}
-          onCheckedChange={handleToggle}
-          className="cursor-pointer"
-        />
-      </div>
+        <CollapsibleContent className="space-y-1.5 pl-1">
+          <Collapsible open={part("basemap")} onOpenChange={(o) => setPart("basemap", o)}>
+            {subHeader("basemap", "Basemap")}
+            <CollapsibleContent className="space-y-2">
+              <BasemapAttributionList state={state} mapRef={mapRef} />
+            </CollapsibleContent>
+          </Collapsible>
+          {!historicalMode && (
+            <Collapsible open={part("terrain")} onOpenChange={(o) => setPart("terrain", o)}>
+              {subHeader("terrain", "Terrain")}
+              <CollapsibleContent className="space-y-2">
+                {customTerrain && <CustomTerrainInfo source={customTerrain} />}
+                {!sourceKind && (
+                  <p className="text-xs text-muted-foreground">This terrain source publishes no per-location lookup; its page and licence are above, when it has them.</p>
+                )}
+                {sourceKind && (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="source-info-toggle" className="text-sm font-medium">
+                        Show data provenance at map center
+                      </Label>
+                      <Switch
+                        id="source-info-toggle"
+                        checked={isActive}
+                        onCheckedChange={handleToggle}
+                        className="cursor-pointer"
+                      />
+                    </div>
+                    {isActive && (
+                      <div className="space-y-2">
+                        {loading && <p className="text-xs text-muted-foreground">Looking up…</p>}
+                        {error && <p className="text-xs text-destructive">{error}</p>}
+                        {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
 
-      {isActive && sourceKind && (
-        <div className="space-y-2">
-          {loading && <p className="text-xs text-muted-foreground">Looking up…</p>}
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
+                        {result?.kind === "aws" && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                              Tile z{result.tile.z}/{result.tile.x}/{result.tile.y} — dataset(s) mosaicked into this tile:
+                            </p>
+                            {result.sources.length === 0 && (
+                              <p className="text-xs text-muted-foreground">No imagery-sources metadata on this tile.</p>
+                            )}
+                            {result.sources.map(({ name, resolutionM }) => (
+                              <div key={name} className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted/50 text-xs">
+                                <span>{name}</span>
+                                {resolutionM !== null && <span className="font-mono">{resolutionM}m</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
-          {result?.kind === "aws" && (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">
-                Tile z{result.tile.z}/{result.tile.x}/{result.tile.y} — dataset(s) mosaicked into this tile:
-              </p>
-              {result.sources.length === 0 && (
-                <p className="text-xs text-muted-foreground">No imagery-sources metadata on this tile.</p>
-              )}
-              {result.sources.map(({ name, resolutionM }) => (
-                <div key={name} className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-muted/50 text-xs">
-                  <span>{name}</span>
-                  {resolutionM !== null && <span className="font-mono">{resolutionM}m</span>}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {result?.kind === "mapterhorn" && (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">
-                Tile z{result.tile.z}/{result.tile.x}/{result.tile.y} — dataset(s) covering this area:
-              </p>
-              {result.sources.length === 0 && (
-                <p className="text-xs text-muted-foreground">No coverage data at this tile.</p>
-              )}
-              {result.sources.map(({ code, attribution }) => (
-                <div key={code} className="px-2 py-1.5 rounded bg-muted/50 text-xs space-y-0.5">
-                  <div className="font-medium">{attribution?.name ?? code}</div>
-                  {attribution && (
-                    <>
-                      <div className="text-muted-foreground">{attribution.producer}</div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">{attribution.license}</span>
-                        <span className="font-mono">{attribution.resolution}m</span>
+                        {result?.kind === "mapterhorn" && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                              Tile z{result.tile.z}/{result.tile.x}/{result.tile.y} — dataset(s) covering this area:
+                            </p>
+                            {result.sources.length === 0 && (
+                              <p className="text-xs text-muted-foreground">No coverage data at this tile.</p>
+                            )}
+                            {result.sources.map(({ code, attribution }) => (
+                              <div key={code} className="px-2 py-1.5 rounded bg-muted/50 text-xs space-y-0.5">
+                                <div className="font-medium">{attribution?.name ?? code}</div>
+                                {attribution && (
+                                  <>
+                                    <div className="text-muted-foreground">{attribution.producer}</div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-muted-foreground">{attribution.license}</span>
+                                      <span className="font-mono">{attribution.resolution}m</span>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
+                    )}
+                  </>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           )}
-        </div>
-      )}
-      </>
-      )}
-      {state.showRasterBasemap
-        ? <BasemapAttributionList state={state} mapRef={mapRef} />
-        : <p className="text-xs text-muted-foreground">Raster basemap off: no basemap attribution to show.</p>}
         </CollapsibleContent>
       </Collapsible>
     </Section>

@@ -6,7 +6,10 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { registerLocalFileAtom, resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
-import { sourcesEditModeAtom } from "@/lib/settings-atoms"
+import { sourcesEditModeAtom, viewportCenterAtom } from "@/lib/settings-atoms"
+import { sourceGsd, gsdLabel, gsdText } from "@/lib/gsd"
+
+const providerName = (p?: string) => (p === "qms" ? "NextGIS QMS" : p === "eli" ? "OSM Editor Layer Index" : p === "allmaps" ? "Allmaps" : p || null)
 
 export const CustomSourceDetails: React.FC<{
   source: any; handleFitToBounds: any; handleEditSource: any; handleDeleteCustomSource: any
@@ -39,6 +42,8 @@ export const CustomSourceDetails: React.FC<{
   onLoadFromLibrary?: (ids: string[]) => void
 }> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds, libraryIds, onLoadFromLibrary, extraActions, trailingActions, onInfo }) => {
   const editMode = useAtomValue(sourcesEditModeAtom)
+  const viewportCenter = useAtomValue(viewportCenterAtom)
+  const gsd = sourceGsd(source, viewportCenter?.lat ?? 0)
   const registerLocalFile = useSetAtom(registerLocalFileAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // The File behind a "cog-local" source only lives in this tab's memory — after
@@ -163,15 +168,26 @@ export const CustomSourceDetails: React.FC<{
             }}
             >
             <span className="truncate min-w-0">{source.name}</span>
+            {gsd && <span className="ml-1 text-[10px] text-muted-foreground tabular-nums shrink-0">{gsd.estimated ? "~" : ""}{gsdLabel(gsd.m)}</span>}
           </Label>
         }
       />
-      <TooltipContent>
-        <p>{isOrphanedDiff
-          ? (restorable.length
+      <TooltipContent className="max-w-80">
+        {isOrphanedDiff ? (
+          <p>{restorable.length
               ? `This difference needs ${missingOperands.length === 2 ? "both of its sources" : "a source"}, and the library has ${missingOperands.length === 2 ? "them" : "it"} — use the button on the right to load ${missingOperands.length === 2 ? "them" : "it"}.`
-              : `This difference needs ${missingOperands.length === 2 ? "both of its sources" : "a source"} that ${missingOperands.length === 2 ? "have" : "has"} been deleted — edit it to pick ${missingOperands.length === 2 ? "new ones" : "another"}, or delete it.`)
-          : source.name}</p>
+              : `This difference needs ${missingOperands.length === 2 ? "both of its sources" : "a source"} that ${missingOperands.length === 2 ? "have" : "has"} been deleted — edit it to pick ${missingOperands.length === 2 ? "new ones" : "another"}, or delete it.`}</p>
+        ) : (
+          // What the source is, before clicking: its type, where it comes
+          // from, its ground resolution (declared or from the max zoom),
+          // attribution and description. The info button has every field.
+          <div className="space-y-0.5">
+            <p className="font-medium">{source.name}</p>
+            <p className="text-muted-foreground">{[source.type, providerName(source.provider), gsd ? gsdText(gsd) : null, source.role === "overlay" ? "overlay" : null].filter(Boolean).join(" · ")}</p>
+            {source.attribution && <p className="text-muted-foreground">{source.attribution}</p>}
+            {source.description && <p className="text-muted-foreground line-clamp-4">{source.description}</p>}
+          </div>
+        )}
       </TooltipContent>
     </Tooltip>
 

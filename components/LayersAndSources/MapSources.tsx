@@ -34,7 +34,6 @@ import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
 import { buildMatcapProtocolUrl } from "@/lib/matcap-protocol"
 import { buildPhongProtocolUrl } from "@/lib/phong-protocol"
 import { buildShadowProtocolUrl } from "@/lib/shadow-protocol"
-import { buildThresholdProtocolUrl } from "@/lib/threshold-protocol"
 import { useResolvedWaybackRelease, waybackTileUrl } from "@/lib/wayback"
 import { hlsTileUrl } from "@/lib/hls"
 import { geHistoricalTileSource } from "@/lib/ge-historical"
@@ -1390,39 +1389,6 @@ export const PhongSource = memo(({
     )
 })
 PhongSource.displayName = "PhongSource"
-
-// The iso-line's fill: the area above the threshold, from the same
-// threshold:// tiles the outline comes from, as a raster (no polygonising,
-// so no tile-edge seams).
-export const IsolineFillSource = memo(({
-    enabled, value, measure, color, opacity, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
-}: {
-    enabled: boolean
-    value: number
-    measure: "elevation" | "slope"
-    color: string
-    opacity: number
-    terrainSource: TerrainSource | string
-    customTerrainSources: CustomTerrainSource[]
-    mapboxKey: string
-    maptilerKey: string
-    titilerEndpoint: string
-}) => {
-    const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
-    if (!enabled || !clientUpstream) return null
-    const url = buildThresholdProtocolUrl(clientUpstream.template, clientUpstream.encoding, clientUpstream.tileSize, value, measure, { color, opacity })
-    return (
-        <Source
-            id="isolineFillSource"
-            key={`isolineFillSource-${terrainSource}-${clientUpstream.template}-z${clientUpstream.maxzoom}`}
-            type="raster"
-            tiles={[url]}
-            tileSize={clientUpstream.tileSize}
-            maxzoom={clientUpstream.maxzoom}
-        />
-    )
-})
-IsolineFillSource.displayName = "IsolineFillSource"
 
 export const ShadowSource = memo(({
     enabled, lightDir, lightAlt, radiusPx, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,

@@ -4,6 +4,7 @@ import customSources from "./custom-sources.json"
 import { allmapsMeta, ALLMAPS_API } from "./coverage-overlays"
 import { QMS_API, qmsDetailToBasemap, type QmsDetail } from "./qms"
 import { eliLayerAsBasemap } from "./eli-timeline"
+import { catalogPickRequestAtom } from "./timeline-catalogs"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "./settings-atoms"
 
 /**
@@ -19,7 +20,7 @@ export const coverageUseRequestAtom = atom<{ overlay: string; nonce: number } | 
 /** Which side of the app an overlay id selects. */
 export const coverageUseKind = (overlay: string): "terrain" | "basemap" | null =>
   overlay === "mapterhorn" || overlay.startsWith("lib:") || overlay.startsWith("terrain:") ? "terrain"
-  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") ? "basemap"
+  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") || overlay.startsWith("catalog:") ? "basemap"
   : null
 
 /** Overlay-role sources stack on the active basemap (overlayBasemapIds)
@@ -43,6 +44,7 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
   const [request, setRequest] = useAtom(coverageUseRequestAtom)
   const setTerrains = useSetAtom(customTerrainSourcesAtom)
   const [basemaps, setBasemaps] = useAtom(customBasemapSourcesAtom)
+  const setCatalogPick = useSetAtom(catalogPickRequestAtom)
 
   useEffect(() => {
     if (!request) return
@@ -52,6 +54,9 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
     const key = rest.join(":")
 
     if (overlay === "mapterhorn") { setState({ sourceA: "mapterhorn" }); return }
+    // A historical catalog item (its footprint on the map): the timeline
+    // panel holds the tick and puts it on the view.
+    if (kind === "catalog") { setCatalogPick({ ref: key, nonce: Date.now() }); return }
     if (kind === "terrain") { setState({ sourceA: key }); return }
     if (kind === "basemap") {
       // Built-in ids (esri, google, ...) are not in the custom list: plain basemaps.
@@ -107,5 +112,5 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
         })
         .catch((e) => console.error("[coverage] Use as basemap failed:", e))
     }
-  }, [request, setRequest, setState, setTerrains, basemaps, setBasemaps])
+  }, [request, setRequest, setState, setTerrains, basemaps, setBasemaps, setCatalogPick])
 }

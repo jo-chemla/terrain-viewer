@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input"
 import { Maximize2 } from "lucide-react"
 import { coverageInViewAtom, overlapStats, overlapLabel, byOverlap, type OverlapStats, type CoverageInViewItem, type ViewBbox } from "@/lib/coverage-in-view"
+import { catalogFootprintsAtom } from "@/lib/timeline-catalogs"
+import { CATALOG_FOOTPRINTS_FILL_ID } from "./CatalogFootprintsLayer"
 
 const SOURCE_ID = "coverage-overlays"
 const FILL_ID = "coverage-overlays-fill"
@@ -103,6 +105,10 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
   const [collections, setCollections] = useState<Record<string, FeatureCollection>>({})
   const [hover, setHover] = useState<{ x: number; y: number; hits: Hit[] } | null>(null)
   const [clicked, setClicked] = useState<Hit[] | null>(null)
+  // The historical catalogs' item footprints (CatalogFootprintsLayer) are
+  // listed and clicked like the overlays: a click puts the item on the view.
+  const catalogFc = useAtomValue(catalogFootprintsAtom)
+  const catalogOn = coverageVisible && !!catalogFc?.features.length
   // A filter over the clicked list: a city point can sit under hundreds of
   // Allmaps maps and dozens of QMS services. Every word must match the
   // name or the detail line; cleared with each new click.
@@ -209,9 +215,9 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
 
   useEffect(() => {
     const m = map?.getMap()
-    if (!m || ids.length === 0) return
+    if (!m || (ids.length === 0 && !catalogOn)) return
     const hitsAt = (e: MapLayerMouseEvent, withStats = false): Hit[] => {
-      const layers = [FILL_ID, MH_FILL_ID].filter((l) => m.getLayer(l))
+      const layers = [FILL_ID, MH_FILL_ID, CATALOG_FOOTPRINTS_FILL_ID].filter((l) => m.getLayer(l))
       if (!layers.length) return []
       const seen = new Set<string>()
       const out: Hit[] = []
@@ -220,6 +226,9 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
         const gsd = coverageGsd(p, e.lngLat.lat)
         const hit: Hit = f.layer.id === MH_FILL_ID
           ? mapterhornHit(String(p.source), e.lngLat.lat)
+          : f.layer.id === CATALOG_FOOTPRINTS_FILL_ID
+          ? { gsdM: Number.isFinite(Number(p.gsd)) && Number(p.gsd) > 0 ? Number(p.gsd) : Infinity, label: p.label, detail: p.detail ?? "", url: p.url || undefined, overlay: `catalog:${p.ref}`, useAs: "basemap",
+              bounds: [Number(p.b0), Number(p.b1), Number(p.b2), Number(p.b3)] }
           : { gsdM: coverageGsdMeters(p, e.lngLat.lat) ?? Infinity, label: p.label, detail: gsd ? `${gsd} · ${p.detail}` : p.detail,
               url: p.urlTemplate
                 ? fillViewport(p.urlTemplate, e.lngLat.lng, e.lngLat.lat, m.getZoom(), m.getBearing(), m.getPitch(), {
@@ -237,6 +246,9 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
           if (f.layer.id === MH_FILL_ID) {
             const pieces = mapterhornPieces(m).get(String(p.source))
             hit.stats = pieces?.length ? overlapStats({ type: "MultiPolygon", coordinates: pieces }, bbox, centre) : null
+          } else if (f.layer.id === CATALOG_FOOTPRINTS_FILL_ID) {
+            const [w, so, ea, n] = hit.bounds!
+            hit.stats = overlapStats({ type: "Polygon", coordinates: [[[w, so], [ea, so], [ea, n], [w, n], [w, so]]] }, bbox, centre)
           } else {
             const geom = geometryByKey.get(`${p.label}|${p.detail}`)
             hit.stats = overlapStats(geom, bbox, centre)
@@ -267,7 +279,7 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
     m.on("mouseout", onLeave)
     m.on("click", onClick)
     return () => { m.off("mousemove", onMove); m.off("mouseout", onLeave); m.off("click", onClick); if (wasHit) m.getCanvas().style.cursor = "" }
-  }, [map, ids.length, mhMeta, geometryByKey])
+  }, [map, ids.length, catalogOn, mhMeta, geometryByKey])
 
   // View A lists everything the drawn overlays hold for the view, for the
   // Sources Coverage section; refreshed as the map settles.
@@ -315,7 +327,7 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
   }, [map, publishInView, ids.length, geoIds, collections, showMapterhorn, mhMeta])
   useEffect(() => () => { if (publishInView) setInView(null) }, [publishInView, setInView])
 
-  if (ids.length === 0) return null
+  if (ids.length === 0 && !catalogOn) return null
   const isGlo30: ExpressionSpecification = ["==", ["get", "source"], "glo30"]
   return (
     <>

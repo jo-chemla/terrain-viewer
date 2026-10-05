@@ -3147,16 +3147,6 @@
             }
           },
           {
-            "name": "thresholdBeta",
-            "in": "query",
-            "required": false,
-            "description": "State. Same opt-in-beta gate, for the threshold outline contour mode.",
-            "schema": {
-              "type": "boolean",
-              "default": false
-            }
-          },
-          {
             "name": "sunShadowBeta",
             "in": "query",
             "required": false,
@@ -3698,41 +3688,16 @@
               "type": "string",
               "enum": [
                 "absolute",
-                "lrm",
-                "threshold\" as const"
+                "lrm\" as const"
               ],
               "default": "absolute"
-            }
-          },
-          {
-            "name": "contourThreshold",
-            "in": "query",
-            "required": false,
-            "description": "State.",
-            "schema": {
-              "type": "number",
-              "default": 1.5
-            }
-          },
-          {
-            "name": "contourThresholdMeasure",
-            "in": "query",
-            "required": false,
-            "description": "State. What the outline measures: the elevation (m) or the slope in degrees (an iso-slope line: 30° for avalanche terrain, 80° for cliffs).",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "elevation",
-                "slope\" as const"
-              ],
-              "default": "elevation"
             }
           },
           {
             "name": "showIsoline",
             "in": "query",
             "required": false,
-            "description": "State. The Iso-line (Contours & GeoGrid): one vector line where a measure crosses a value, independent of the contours, with a raster fill of the area above (threshold:// with a colour).",
+            "description": "State. The Iso-line (Contours & GeoGrid): a line where a measure (the elevation, any derived mode, a light's shading) crosses a value, with a raster fill of the area above, or a line every interval of the m…",
             "schema": {
               "type": "boolean",
               "default": false
@@ -3745,11 +3710,21 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "elevation",
-                "slope\" as const"
-              ],
               "default": "slope"
+            }
+          },
+          {
+            "name": "isolineMode",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "value",
+                "interval\" as const"
+              ],
+              "default": "value"
             }
           },
           {
@@ -3760,6 +3735,16 @@
             "schema": {
               "type": "number",
               "default": 30
+            }
+          },
+          {
+            "name": "isolineInterval",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 10
             }
           },
           {
