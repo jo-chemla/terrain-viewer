@@ -18,6 +18,47 @@ In **split view** (grid layouts up to 4×2 / 8 views, labeled A–H), each basem
 
 <p className="text-sm text-fd-muted-foreground italic">Basemap comparison, Side grid mode</p>
 
+### Which services can be added, and which cannot
+
+A browser-only app can draw a tile service when it sends CORS headers, is served over HTTPS, offers Web Mercator (EPSG:3857 tiles, or a WMS answering in EPSG:3857) and needs no secret. Checked 2026-10-05:
+
+**Added** as timeline catalogues (above) or to the basemap library:
+
+| Service | What | Where it is |
+|---|---|---|
+| [ICGC](https://www.icgc.cat/) | Catalonia orthophotos 1945-2025 | Timeline, National historical |
+| [IGN PNOA histórico](https://pnoa.ign.es/) | Spain 1956-2024 | Timeline |
+| [Geobasis NRW](https://www.wms.nrw.de/geobasis/wms_nw_hist_dop) | NRW historical DOP 1951-2024 | Timeline |
+| [SPW](https://geoportail.wallonie.be/) | Wallonia 1971-2026 | Timeline |
+| [Digitaal Vlaanderen](https://www.vlaanderen.be/digitaal-vlaanderen) | Flanders orthophotos and historical maps | Timeline |
+| [PDOK Luchtfoto](https://www.pdok.nl/) | Netherlands 2016-2026 | Timeline |
+| [Stadt Wien](https://www.wien.gv.at/) | Vienna 1938-2025 | Timeline |
+| [geoportail.lu](https://data.public.lu/) | Luxembourg 1967-2025 | Timeline |
+| [Hamburg DOP Zeitreihe](https://geoportal-hamburg.de/) | Hamburg 2001-2026 | Timeline |
+| [Bayern DOP historisch](https://geodaten.bayern.de/opengeodata/) | Bavaria 2003-2025 | Timeline |
+| [Land Tirol](https://www.tirol.gv.at/sicherheit/geoinformation/) | Tyrol 1940-2022 | Timeline |
+| [GSI](https://maps.gsi.go.jp/development/ichiran.html) | Japan 1936-1990 | Timeline |
+| [NYC](https://maps.nyc.gov/) | New York City 1924-2018 | Timeline |
+| [LAiV MV](https://www.laiv-mv.de/Geoinformation/Geobasisdaten/), [LGB Brandenburg](https://geobasis-bb.de/) | 1953 orthophotos | Timeline |
+| [NASA GIBS](https://worldview.earthdata.nasa.gov/) | Landsat WELD annual 1983-2000 | Timeline |
+| [IGN Géoplateforme](https://remonterletemps.ign.fr/), [swisstopo](https://map.geo.admin.ch/), [Kartverket](https://data.norge.no/en/datasets/41e7c19b-d3c0-37b1-b773-ebb1c852e19a/historiske-kart) | France, Switzerland, Norway | Timeline |
+| [Esri World Imagery Clarity](https://www.arcgis.com/home/item.html?id=ab399b847323487dba26809bf11ea91a), [basemap.at](https://basemap.at/), [ČÚZK](https://geoportal.cuzk.cz/), [Geoportal.gov.pl](https://www.geoportal.gov.pl/) | Current HD orthophotos | Basemap library |
+
+The historical OS maps of the [National Library of Scotland](https://maps.nls.uk/) are already in the OSM Editor Layer Index with their dates (about 150 layers), so they come through the ELI catalogue.
+
+**Not addable from a browser**, and why:
+
+| Service | Why |
+|---|---|
+| [Dataforsyningen](https://dataforsyningen.dk/) (Denmark), [NLS Finland](https://www.maanmittauslaitos.fi/en), [LINZ Basemaps](https://basemaps.linz.govt.nz/) (New Zealand) | A key is required (free). They could join with a key field in Settings, like Planet. |
+| [Lantmäteriet historical orthophotos](https://geotorget.lantmateriet.se/) (Sweden), [Norge i bilder](https://norgeibilder.no/) (Norway) | A login or open-data token is required. |
+| [Geoportal.gov.pl dated series](https://www.geoportal.gov.pl/) (Poland 1995-2025), [CENIA historical orthophoto](https://micka.cenia.cz/record/full/50210752-9d9c-4f47-956b-1951c0a80137) (Czechia, 1950s) | No Web Mercator (EPSG:2180, 4326 or 5514 only); would need reprojection in the browser. |
+| [Geoportale Nazionale](http://www.pcn.minambiente.it/) (Italy) | HTTPS redirects to plain HTTP, which an HTTPS page may not load. |
+| [Old Maps Online](https://www.oldmapsonline.org/), [Library of Congress](https://www.loc.gov/maps/), [David Rumsey MapRank](https://www.davidrumsey.com/) | No CORS, Cloudflare challenge; their maps reach the app through Allmaps where georeferenced. |
+| [NYPL Map Warper](https://maps.nypl.org/warper) | Archived since 2021. |
+| [Mapire](https://mapire.eu/) | Paid WMTS. |
+| [Brussels UrbIS](https://datastore.brussels/), [Berlin aerial 1928](https://daten.berlin.de/datensaetze/luftbilder-1928-massstab-1-4-000-wms-bed1a566) | Web Mercator requests fail or come back blank; not resolved. |
+
 ## Historical Imagery mode
 
 "Historical Imagery" is a single combined basemap entry covering four underlying providers:
@@ -50,6 +91,7 @@ A 4×2 grid mixing three of the four providers across different capture dates ov
     - **swisstopo SWISSIMAGE Zeitreise**: Swiss aerial imagery since 1926, a tick per flight year with imagery at the centre (from geo.admin.ch's identify service).
     - **swisstopo Zeitreise maps**: Dufour, Siegfried and Landeskarte editions of the sheet at the centre since 1844.
     - **Kartverket Amtskart** (Norway): the county maps of 1826-1916.
+    - **Regional year series** (`lib/national-historical.ts`), one catalogue each: Catalonia (ICGC, 1945 to 2025), Spain (IGN PNOA histórico: the 1956 American flight, 1973-86, then yearly 2004-2024), North Rhine-Westphalia (1951-2024), Wallonia (SPW, 1971 onwards), Flanders (orthophotos 1971 onwards and the Pourbus, Fricx, Ferraris, Popp and Vandermaelen maps), the Netherlands (PDOK 2016-2026), Vienna (1938 onwards), Luxembourg (1967 onwards), Hamburg (2001-2026, leafless and leafy), Bavaria (2003-2025), Tyrol (1940 onwards), Japan (GSI, 1936-1990), New York City (1924-2018), Mecklenburg-Vorpommern and Brandenburg 1953, and Landsat WELD annual mosaics (1983-2000, 30 m, worldwide). Where the agency publishes a flight index (NRW, Bavaria, Tyrol), one request gives the years flown at the view's centre with their real dates; elsewhere one small tile per year is fetched at the centre and years answering an error, a flat blank or the service's fallback image are dropped.
   - **OpenAerialMap**, **Maxar Open Data**, **Vantor Open Data**, **NOAA Emergency Response**: the HOT STAC API (`api.imagery.hotosm.org/stac`), searched with the view's bbox. Items of one date and one acquisition are grouped into a tick; the tile shown is the one containing the view's centre, its COG drawn through TiTiler.
   - **Planet disaster data**: Planet's open static STAC catalogue on source.coop (events, pre/post event, acquisitions). It has no search API, so the first use builds an index of every acquisition's extent for the session (about 10 s), then filters it by the view.
   - **Map Warper**: maps rectified on mapwarper.net, searched with the view's bbox; only maps with a year in their depicted date (1400 to today) get a tick, at 1 January.

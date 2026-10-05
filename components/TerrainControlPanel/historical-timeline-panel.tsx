@@ -72,7 +72,7 @@ export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; s
   // and historical maps): off by default, since it loads the index.
   // Catalogue sources (lib/timeline-catalogs.ts): picked from the Catalogues
   // tree, not the pill row (see visibleSourceIds).
-  ...Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, { label: c.label, fullLabel: c.note, shortLabel: c.short, color: c.color, resClass: "vhr" as const }])),
+  ...Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, { label: c.label, fullLabel: c.note, shortLabel: c.short, color: c.color, resClass: c.resClass ?? ("vhr" as const) }])),
 }
 const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
 

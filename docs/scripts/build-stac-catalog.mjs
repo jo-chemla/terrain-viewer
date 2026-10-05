@@ -10,6 +10,8 @@
 //   eli                 every OSM Editor Layer Index layer, with its footprint
 //                       and dates (from the index's imagery.geojson)
 //   ign-historical      every dated IGN Géoplateforme layer (WMTS capabilities)
+//   national-historical the regional year series of lib/national-historical.ts
+//                       (Catalonia, Spain, NRW, Wallonia, Flanders, PDOK...)
 //   timeline-catalogues the searchable catalogues the timeline queries per view
 //                       (HOT STAC, Planet, Map Warper, ArcGIS...): links only
 //
@@ -39,6 +41,7 @@ const WORLD = [-180, -85.0511, 180, 85.0511]
 
 const sources = JSON.parse(fs.readFileSync(path.join(ROOT, "lib/custom-sources.json"), "utf8"))
 const { terrainSources } = await import(pathToUrl(path.join(ROOT, "lib/terrain-sources.ts")))
+const { NATIONAL_SOURCES } = await import(pathToUrl(path.join(ROOT, "lib/national-historical.ts")))
 function pathToUrl(p) { return new URL(`file:///${p.replace(/\\/g, "/")}`).href }
 
 fs.rmSync(OUT, { recursive: true, force: true })
@@ -253,6 +256,31 @@ if (!OFFLINE) {
     }
     collection("ign-historical", { title: "IGN Remonter le temps (France)", description: "Every dated layer of IGN's Géoplateforme WMTS: historical aerial mosaics 1950-1995, yearly orthophotos since 2000 (each year covers part of France; the extent is the layer's declared one), SPOT and Pléiades years, Cassini, État-major, the 1950 map, departmental archives.", items, keywords: ["france", "historical", "orthophoto"], license: "etalab-2.0" })
   } catch (e) { console.warn("  ign-historical skipped:", e.message) }
+}
+
+// ── Regional historical series (lib/national-historical.ts) ───────────────
+{
+  const items = []
+  for (const src of NATIONAL_SOURCES) {
+    for (const l of src.layers) {
+      const end = l.endYear && l.endYear !== l.year ? `${l.endYear}-12-31T23:59:59Z` : null
+      items.push(item("national-historical", `${src.id.replace(/^cat-nat-/, "")}-${l.key}`, {
+        title: `${src.label}: ${l.label}`, description: `${src.note} Licence: ${src.licence}.`, bbox: l.bbox ?? src.bbox,
+        ...(end ? { start: isoYear(l.year), end } : { datetime: isoYear(l.year) }),
+        links: [
+          ...(() => {
+            const wml = tileLinks(l.url, l.type, { title: l.label, "terrain-viewer:maxzoom": l.maxzoom })
+            // The WMS link drops what it cannot express (TIME, the exact
+            // request): the ready tile template rides along.
+            return wml.some((k) => k.rel === "wms") ? [...wml, { rel: "related", type: "image/jpeg", href: l.url, title: "Tile template ({bbox-epsg-3857})" }] : wml
+          })(),
+          { rel: "about", type: "text/html", href: src.infoUrl, title: src.label },
+        ],
+        props: { "terrain-viewer:kind": "historical", "terrain-viewer:catalog": src.id, "terrain-viewer:licence": src.licence },
+      }))
+    }
+  }
+  collection("national-historical", { title: "National and regional historical imagery", description: "Year series of orthophotos and historical maps from mapping agencies, browser-friendly (CORS, Web Mercator, no key), as on Terrain Viewer's timeline: Catalonia, Spain, North Rhine-Westphalia, Wallonia, Flanders, the Netherlands, Vienna, Luxembourg, Hamburg, Bavaria, Tyrol, Japan, New York City, the 1953 East German flights and Landsat WELD. A year's layer may cover only part of the extent.", items, keywords: ["historical", "orthophoto", "aerial"] })
 }
 
 // ── Catalogues searched per view (links only) ──────────────────────────────

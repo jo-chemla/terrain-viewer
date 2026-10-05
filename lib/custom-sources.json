@@ -1486,6 +1486,49 @@
             "maxzoom": 6,
             "role": "overlay",
             "description": "Global surface wind speed (not direction), monthly-averaged from NASA's MERRA-2 reanalysis, served as standard WMTS-as-XYZ tiles by NASA GIBS — no API key. The 'default/default' time segment always resolves to GIBS's current default month, so this never goes stale like a fixed-timestamp overlay. Coarse (max zoom 6, ~a few hundred km/px) since it's a monthly global composite, not a live forecast — no open, no-key GFS-derived live wind-direction raster tile service was found (Windy/OpenWeatherMap's wind layers require a paid key; MapTiler's is a proprietary particle-field renderer, not tiles)."
+        },
+        {
+            "id": "basemap-esri-clarity",
+            "name": "Global - Esri World Imagery (Clarity beta)",
+            "url": "https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "maxzoom": 20,
+            "loadWithSamples": false,
+            "infoUrl": "https://www.arcgis.com/home/item.html?id=ab399b847323487dba26809bf11ea91a",
+            "description": "Esri World Imagery served from the Clarity endpoint: the same mosaic as World Imagery, often a newer or sharper capture where Esri has refreshed it. Checked 2026-10-05 (CORS open, no key)."
+        },
+        {
+            "id": "basemap-at-orthofoto",
+            "name": "AUT - basemap.at Orthofoto 30 cm",
+            "url": "https://mapsneu.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{z}/{y}/{x}.jpeg",
+            "type": "tms",
+            "maxzoom": 20,
+            "loadWithSamples": false,
+            "bounds": [9.5, 46.35, 17.2, 49.05],
+            "infoUrl": "https://basemap.at/",
+            "description": "basemap.at orthophoto mosaic of Austria at 30 cm (CC BY 4.0, basemap.at). Checked 2026-10-05."
+        },
+        {
+            "id": "basemap-cz-cuzk-ortofoto",
+            "name": "CZE - ČÚZK Ortofoto (Web Mercator)",
+            "url": "https://ags.cuzk.gov.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "maxzoom": 20,
+            "loadWithSamples": false,
+            "bounds": [12.0, 48.5, 18.9, 51.1],
+            "infoUrl": "https://geoportal.cuzk.cz/",
+            "description": "ČÚZK national orthophoto of Czechia, 12.5-25 cm, Web Mercator tile cache. Current only (CENIA's 1950s orthophoto is EPSG:5514 only). Checked 2026-10-05."
+        },
+        {
+            "id": "basemap-pl-ortofotomapa",
+            "name": "POL - Geoportal Ortofotomapa (current)",
+            "url": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTOFOTOMAPA&STYLE=default&FORMAT=image/jpeg&TILEMATRIXSET=EPSG:3857&TILEMATRIX=EPSG:3857:{z}&TILEROW={y}&TILECOL={x}",
+            "type": "tms",
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [14.1, 49.0, 24.2, 54.9],
+            "infoUrl": "https://www.geoportal.gov.pl/",
+            "description": "GUGiK current orthophoto of Poland, 25 cm and better. The dated series (1995-2025, a WMS TIME dimension) is EPSG:2180/4326 only, so not on the timeline yet. Checked 2026-10-05."
         }
     ]
 }

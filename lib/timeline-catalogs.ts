@@ -26,6 +26,7 @@
 //     (so are the Georeferencer API, David Rumsey's MapRank and loc.gov).
 import type { CustomBasemapSource } from "./settings-atoms"
 import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
+import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, type NatLayer, type NatSource } from "./national-historical"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
 
@@ -39,6 +40,8 @@ export interface TimelineCatalog {
   note: string
   /** Why it cannot be queried from a browser, when it cannot. */
   disabled?: string
+  /** The timeline's resolution filter; "vhr" when absent. */
+  resClass?: "vhr" | "medium"
 }
 
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
@@ -47,6 +50,8 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-swissimage", label: "swisstopo SWISSIMAGE Zeitreise", short: "SWISSIMAGE", group: "National historical", color: "#fecdd3", note: "Swiss aerial imagery since 1926: one tick per flight year with imagery at the view centre." },
   { id: "cat-swiss-maps", label: "swisstopo Zeitreise maps", short: "swisstopo maps", group: "National historical", color: "#fde2e4", note: "Swiss national maps since 1844 (Dufour, Siegfried, Landeskarte): one tick per edition of the sheet at the view centre." },
   { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "National historical", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." },
+  // Regional series (lib/national-historical.ts).
+  ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "National historical", color: s.color, note: s.note, resClass: s.resClass })),
   { id: "cat-oam", label: "OpenAerialMap", short: "OAM", group: "Drone and aerial", color: "#fde68a", note: "Open drone and aerial imagery uploaded to OpenAerialMap, from HOT's STAC API: one tick per upload covering the view, dated by its capture." },
   { id: "cat-maxar", label: "Maxar Open Data", short: "Maxar", group: "Disaster open data", color: "#fecaca", note: "Maxar's pre- and post-event 30-50 cm imagery for disasters (CC BY-NC 4.0), from HOT's STAC API: one tick per acquisition." },
   { id: "cat-vantor", label: "Vantor Open Data", short: "Vantor", group: "Disaster open data", color: "#fbcfe8", note: "Vantor (ex-Maxar) open data programme, 2025 onwards, from HOT's STAC API." },
@@ -396,6 +401,87 @@ async function swisstopoTicks(catalog: "cat-swissimage" | "cat-swiss-maps", bbox
   return ticks
 }
 
+// Regional series (lib/national-historical.ts): layers whose extent holds
+// the view centre, then the agency's flight index or a tile probe.
+const natProbe = new Map<string, Promise<string | null>>()
+function natTileAt(l: NatLayer, lng: number, lat: number): string {
+  const z = Math.min(l.maxzoom ?? 18, 15), n = 2 ** z
+  const x = Math.floor(((lng + 180) / 360) * n)
+  const r = (lat * Math.PI) / 180
+  const y = Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n)
+  if (l.type === "tms") return l.url.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
+  const size = 40075016.686 / n, minX = -20037508.34 + x * size, maxY = 20037508.34 - y * size
+  // A small image is enough to tell a photo from a blank.
+  return l.url.replace("{bbox-epsg-3857}", `${minX},${maxY - size},${minX + size},${maxY}`).replace("WIDTH=256&HEIGHT=256", "WIDTH=64&HEIGHT=64").replace("size=256,256", "size=64,64")
+}
+/** True when the tile holds a picture: not an error, not one flat colour. */
+/** The tile's picture, summarised: null when missing or one flat colour,
+ *  else a fingerprint (two layers giving the same one show the same image). */
+async function tilePicture(url: string, signal?: AbortSignal): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    if (!blob.type.startsWith("image/") || blob.size < 200) return null
+    const bmp = await createImageBitmap(blob)
+    const c = new OffscreenCanvas(16, 16)
+    const ctx = c.getContext("2d")!
+    ctx.drawImage(bmp, 0, 0, 16, 16)
+    const d = ctx.getImageData(0, 0, 16, 16).data
+    // Sums of three channels, so 0..765.
+    let lo = 765, hi = 0, opaque = 0
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 8) continue
+      opaque++
+      const v = d[i] + d[i + 1] + d[i + 2]
+      lo = Math.min(lo, v); hi = Math.max(hi, v)
+    }
+    if (opaque <= 8 || hi - lo <= 6) return null
+    let sum = 0
+    for (let i = 0; i < d.length; i++) sum = (sum * 31 + d[i]) >>> 0
+    return `${blob.size}:${sum}`
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") throw e
+    return null
+  }
+}
+async function nationalTicks(src: NatSource, bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+  const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
+  if (!containsPt(src.bbox, cx, cy)) return []
+  const candidates = src.layers.filter((l) => !l.bbox || containsPt(l.bbox, cx, cy))
+  // Exact flight dates per layer, when the agency publishes a flight index.
+  let dates: Record<string, string[]> | null = null
+  if (src.dates) dates = await src.dates(cx, cy, signal).catch(() => null)
+  let kept: NatLayer[]
+  if (dates) kept = candidates.filter((l) => dates![l.key]?.length)
+  else {
+    const picture = new Map<string, string | null>()
+    const queue = [...candidates]
+    await Promise.all(Array.from({ length: 6 }, async () => {
+      for (let l = queue.shift(); l; l = queue.shift()) {
+        const url = natTileAt(l, cx, cy)
+        let p = natProbe.get(url)
+        if (!p) { p = tilePicture(url, signal); natProbe.set(url, p); p.catch(() => natProbe.delete(url)) }
+        picture.set(l.key, await p)
+      }
+    }))
+    // A time-enabled WMS answers a year it lacks with a fallback mosaic
+    // (Hamburg): the same picture for three years or more is that fallback.
+    const seen = new Map<string, number>()
+    for (const f of picture.values()) if (f) seen.set(f, (seen.get(f) ?? 0) + 1)
+    kept = candidates.filter((l) => { const f = picture.get(l.key); return !!f && (seen.get(f) ?? 0) < 3 })
+  }
+  return kept.map((l) => {
+    const flown = dates?.[l.key]?.[0]
+    const dateMs = flown ? Date.parse(flown) : Date.UTC(l.year, 0, 1)
+    const when = flown && !flown.endsWith("-01-01") ? flown : l.endYear ? `${l.year}-${l.endYear}` : String(l.year)
+    return register(src.id, l.key, dateMs, `${src.short} · ${l.label} · ${when}`, {
+      name: `${src.label}: ${l.label}`, url: l.url, type: l.type, role: "basemap", bounds: l.bbox ?? src.bbox, maxzoom: l.maxzoom, minzoom: l.minzoom,
+      description: `${src.label}, ${l.label}${flown ? `, flown ${flown}` : ""}. ${src.licence}.`, infoUrl: src.infoUrl,
+    } as Omit<CustomBasemapSource, "id">)
+  })
+}
+
 // Kartverket (Norway): the county maps (amtskart, 1826-1916), the one dated
 // layer its historical-maps WMS serves without a map id.
 const NO_BBOX: Bbox = [4.0, 57.9, 31.2, 71.3]
@@ -483,6 +569,7 @@ export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: Abo
   else if (catalog === "cat-ign") ticks = await ignTicks(bbox, signal)
   else if (catalog === "cat-swissimage" || catalog === "cat-swiss-maps") ticks = await swisstopoTicks(catalog, bbox, signal)
   else if (catalog === "cat-kartverket") ticks = kartverketTicks(bbox)
+  else if (catalog in NATIONAL_SOURCE_BY_ID) ticks = await nationalTicks(NATIONAL_SOURCE_BY_ID[catalog], bbox, signal)
   else if (catalog === "cat-planet") ticks = await planetTicks(bbox, signal)
   else if (catalog in WARPERS) ticks = await mapWarperTicks(catalog, bbox, signal)
   else if (catalog === "cat-usgs-topo") ticks = await usgsTopoTicks(bbox, signal)
