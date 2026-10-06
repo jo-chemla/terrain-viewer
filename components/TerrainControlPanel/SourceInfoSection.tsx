@@ -451,8 +451,10 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
       </div>
     )
   }
-  // Expand or fold every group of the three sections at once.
-  const allKeys = [...groups.map((g) => `cov:${g.key}`), ...catalogTreeKeys()]
+  // Expand or fold the three sections at once: the groups of Terrain and
+  // Basemaps · Static, the roots and continents of the historical tree
+  // (the countries stay folded: 70 archives would be a wall).
+  const allKeys = [...groups.filter((g) => !g.parent).map((g) => `cov:${g.key}`), ...catalogTreeKeys(HISTORICAL_TREE_ROOTS, 1)]
   const allOpen = allKeys.every((k) => folds[k] === true)
   const foldAll = (fold: boolean) => setFolds((prev) => ({ ...prev, ...Object.fromEntries(allKeys.map((k) => [k, !fold])) }))
   // Two folds of their own: the controls (the master switch and the flags),
@@ -514,7 +516,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
               {allOpen ? <ChevronsDownUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3" />}{allOpen ? "Fold all" : "Expand all"}
             </button>
           } />
-          <TooltipContent><p>{allOpen ? "Fold every group of the tree" : "Expand every group of the tree"}</p></TooltipContent>
+          <TooltipContent><p>{allOpen ? "Fold the three sections' groups" : "Open the groups of Terrain and Basemaps · Static, and the historical tree down to the continents"}</p></TooltipContent>
         </Tooltip>
       ))}
       {isOpenKey("sec:catalogs", true) && <div className="pl-1 space-y-0.5">

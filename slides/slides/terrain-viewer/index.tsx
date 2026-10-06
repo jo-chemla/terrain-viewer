@@ -210,8 +210,9 @@ const Shot = ({
   caption,
   width = 900,
   height,
-  // Whole screenshots by default; a crop (fit="cover") keeps the right edge.
-  fit = 'contain',
+  // The frame is filled; a 16:9 frame shows a screenshot whole, any other
+  // ratio crops from the left so the side panel and its padding stay.
+  fit = 'cover',
   position = '100% 50%',
 }: {
   src: string;

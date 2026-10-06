@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { STAC_PRESETS, remembered, type StacPreset } from "@/lib/stac-presets"
 import { getDefaultStore } from "jotai"
-import { planetKeyAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, planetAccessTokenAtom } from "@/lib/settings-atoms"
 import { useAtomValue, useAtom } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom, type SavedStacCatalog } from "@/lib/settings-atoms"
 import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays } from "lucide-react"
@@ -86,12 +86,12 @@ const looksLikeDem = (it: StacItem, key: string, a: StacAsset) => {
 function authHeaders(url: string): Record<string, string> {
   const preset = STAC_PRESETS.find((p) => p.auth && url.startsWith(p.url))
   if (preset?.auth === "planet") {
-    const key = getDefaultStore().get(planetKeyAtom).trim()
-    if (!key) throw new Error("Planet's STAC needs a token: Settings → API Keys → Planet")
     // api.planet.com/x/data only lists an OpenID scheme: it takes the access
     // token of `planet auth print-access-token` (a JWT) as a Bearer; a PLAK…
     // API key answers 401 there (it still works on the legacy Data API v1).
-    return { Authorization: key.startsWith("eyJ") ? `Bearer ${key}` : `api-key ${key}` }
+    const token = getDefaultStore().get(planetAccessTokenAtom).trim()
+    if (!token) throw new Error("Planet's STAC needs an access token: Settings → API Keys → Planet access token (planet auth print-access-token)")
+    return { Authorization: `Bearer ${token}` }
   }
   return {}
 }
@@ -316,6 +316,7 @@ export const StacSearchPanel: React.FC<{
    *  page yields something this target can actually add, or the cap is hit -
    *  which is the difference between "this catalog has no DEMs" and "the DEMs
    *  are on page 4". */
+  const planetTilesRef = useRef(false)
   const loadMore = useCallback(async (untilUsable = false) => {
     setPaging(true)
     try {
@@ -330,7 +331,7 @@ export const StacSearchPanel: React.FC<{
         link = data.links?.find((l) => l.rel === "next") ?? null
         setNextPage(link)
         if (!untilUsable) break
-        if (fresh.some((it) => cogAssetsRef.current(it).length)) break
+        if (planetTilesRef.current || fresh.some((it) => cogAssetsRef.current(it).length)) break
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -392,6 +393,11 @@ export const StacSearchPanel: React.FC<{
   // Held in a ref so the pager below can ask "was this page usable" without
   // depending on a function that is redefined every render.
   const cogAssetsRef = useRef<(it: StacItem) => [string, StacAsset][]>(() => [])
+  // Planet's items carry a thumbnail only; the scene is served as XYZ tiles
+  // by tiles.planet.com, signed with the API key (not the access token).
+  const planetTiles = catalog.auth === "planet" && target === "basemap"
+  planetTilesRef.current = planetTiles
+  const planetTileUrl = (it: StacItem) => `https://tiles.planet.com/data/v1/${it.collection}/${it.id}/{z}/{x}/{y}.png?api_key=${getDefaultStore().get(planetKeyAtom).trim()}`
   const cogAssets = (it: StacItem) => {
     let assets = Object.entries(it.assets ?? {}).filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
     if (target === "terrain") {
@@ -585,7 +591,7 @@ export const StacSearchPanel: React.FC<{
 
       <div ref={resultsRef} className="max-h-[65vh] overflow-y-auto overflow-x-hidden space-y-1 scroll-mt-2">
         {!loading && items.length === 0 && !error && <p className="text-sm text-muted-foreground py-3 text-center">No results yet.</p>}
-        {!loading && items.length > 0 && ordered.every((it) => !cogAssets(it).length) && (
+        {!loading && items.length > 0 && !planetTiles && ordered.every((it) => !cogAssets(it).length) && (
           <p className="text-sm text-muted-foreground py-3 text-center">
             {items.length} items, none with a {target === "terrain" ? "single-band elevation" : "COG"} asset.
             {target === "terrain" && (
@@ -662,7 +668,7 @@ export const StacSearchPanel: React.FC<{
         )}
         {ordered.map((it) => {
           const assets = cogAssets(it)
-          if (!assets.length) return null
+          if (!assets.length && !planetTiles) return null
           const p = it.properties ?? {}
           const dateOf = (k: string) => (typeof p[k] === "string" ? (p[k] as string).slice(0, 10) : "")
           const when = dateOf("datetime") || dateOf("start_datetime")
@@ -675,8 +681,26 @@ export const StacSearchPanel: React.FC<{
           return (
             <div key={it.id} className="p-2 rounded-md hover:bg-muted/60 space-y-1">
               <div className="text-sm truncate" title={it.id}>{title}</div>
-              <div className="text-[11px] text-muted-foreground truncate">{[it.collection, when, gsd, cloud, producer].filter(Boolean).join(" · ")} · {assets.length} COG asset{assets.length === 1 ? "" : "s"}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{[it.collection, when, gsd, cloud, producer].filter(Boolean).join(" · ")} · {planetTiles && !assets.length ? "tiles from tiles.planet.com" : `${assets.length} COG asset${assets.length === 1 ? "" : "s"}`}</div>
               <div className="flex flex-wrap gap-1">
+                {planetTiles && !assets.length && (() => {
+                  const href = planetTileUrl(it)
+                  const hasKey = !!getDefaultStore().get(planetKeyAtom).trim()
+                  const isAdded = added.has(href)
+                  return (
+                    <Button size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs max-w-full min-w-0 justify-start" disabled={isAdded || !hasKey}
+                      title={hasKey ? "XYZ tiles of this scene from tiles.planet.com, signed with your Planet API key" : "Needs your Planet API key (Settings → API Keys): the tiles are signed with it"}
+                      onClick={() => { setAdded((s) => new Set(s).add(href)); onSave({
+                        name: `${when ? `${when} ` : ""}${title}`, url: href, type: "tms",
+                        description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""} · tiles.planet.com, API key in the URL`,
+                        bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
+                        role,
+                      }) }}>
+                      {isAdded ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}
+                      <span className="truncate min-w-0">Scene tiles</span>
+                    </Button>
+                  )
+                })()}
                 {assets.slice(0, 12).map(([key, a]) => {
                   const epsg = epsgOf(it, a)
                   // Opt-in: only an asset whose catalog DECLARES another

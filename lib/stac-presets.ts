@@ -55,7 +55,7 @@ export const STAC_PRESETS: StacPreset[] = [
   { id: "lidarbc", name: "LidarBC elevation (New Graph Environment)", url: "https://images.a11s.one", kind: "api", target: "terrain", group: "Elevation",
     note: "British Columbia's open LidarBC DEMs and DSMs as COGs - 102,000+ tiles in collection stac-elevation-bc, CC BY 4.0, updated monthly. A community catalog, not the province's own; Mapterhorn has only Canada's national 2 m here." },
   { id: "planet-stac", name: "Planet Data API (STAC)", url: "https://api.planet.com/x/data", kind: "api", target: "basemap", group: "Imagery", auth: "planet",
-    note: "Planet's own STAC API over its archive (PlanetScope, SkySat...). It only accepts an OpenID access token: run `planet auth login` then `planet auth print-access-token` and paste the token (eyJ…) in Settings → API Keys → Planet; it is sent as a Bearer. A PLAK… API key answers 401 on this endpoint. Tokens expire after a while: paste a fresh one. CORS is open." },
+    note: "Planet's own STAC API over its archive (PlanetScope, SkySat...). Needs two things from Settings → API Keys: the access token (planet auth print-access-token, about 2 h 20 of validity) to search, and the API key to show a scene, since items carry only a thumbnail and the imagery comes as XYZ tiles from tiles.planet.com signed with the key. What a search returns depends on the account's plan." },
   // Disaster imagery
   { id: "maxar-opendata", name: "Maxar Open Data - disaster events", url: "https://maxar-opendata.s3.dualstack.us-west-2.amazonaws.com/events/catalog.json", kind: "static", target: "basemap", group: "Imagery",
     note: "Pre/post-event 30-50 cm ARD COGs per event (CC BY-NC 4.0). Static catalog: pick an event, items are crawled." },

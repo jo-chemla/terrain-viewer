@@ -17,11 +17,13 @@ Seventeen presets ship, grouped by what they hold:
 | Group | Catalogs |
 |---|---|
 | **Mixed** | OpenAerialMap, Earth Search (AWS/Element 84), eoAPI demo, NASA VEDA, swisstopo |
-| **Imagery** | LINZ New Zealand, Maxar and Vantor open-data disaster events, Planet disaster releases, Umbra and Capella open SAR, Lower Saxony orthophotos, SPOT Canada |
+| **Imagery** | LINZ New Zealand, Maxar and Vantor open-data disaster events, Planet disaster releases, Planet Data API (your account), Umbra and Capella open SAR, Lower Saxony orthophotos, SPOT Canada |
 | **Elevation** | OpenTopography raster DEMs, LINZ elevation, Polar Geospatial Center (ArcticDEM, REMA, EarthDEM) |
 | **Registries** | federated collection discovery (MAAP) |
 
 Or paste any catalog URL: a `.json` is crawled as a static catalog, anything else is treated as a STAC API.
+
+**Planet Data API** is the one catalog behind a login. Its STAC (`api.planet.com/x/data`) takes an OpenID access token, not the API key: `pip install planet`, `planet auth login`, then paste the output of `planet auth print-access-token` under Settings → API Keys → Planet access token (it lasts about 2 h 20). Planet's items carry only a thumbnail, so a scene is added as XYZ tiles from `tiles.planet.com`, signed with your Planet API key (the other field). What a search returns depends on the account's plan.
 
 The same list is also in the **Library**, under **Catalogs** — a catalog cannot be "added" the way a single dataset URL can, so its row offers **Browse**, which closes the Library and opens this tab with that endpoint already selected. That is the entry point worth remembering: the Library is where you look for data, and per-scene DEMs (EarthDEM strips, ArcticDEM strips, OpenTopography's rasters) only exist behind a search.
 

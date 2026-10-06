@@ -17,7 +17,7 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - The timeline's **Catalogs** picker opens on its four groups.
 - **Auto** in Add Basemap and Add Terrain: paste any URL (tiles, WMS, COG, STAC, Allmaps, IIIF…), the type is found and filled in.
   - Allmaps viewer links, signed URLs (`.tif?sig=…`), and URLs without an extension (headers, then the first bytes; never the whole file); a map pasted in Add Terrain offers to open Add Basemap with it.
-- **STAC**: Planet's Data API as a catalog (an OpenID access token as Bearer; a PLAK key answers 401 there); static catalogs filtered by the date range too. A dev page on the search internals and why it uses no client library.
+- **STAC**: Planet's Data API as a catalog: the access token (Settings → API Keys) to search, and each scene added as XYZ tiles from tiles.planet.com signed with the API key (items carry only a thumbnail); static catalogs filtered by the date range too. A dev page on the search internals and why it uses no client library.
 - **Auto** also takes links to pages about the data: Source Cooperative repositories, stac-map and STAC Browser links.
 - **About**: the version answer scrolls into view. **Slides**: screenshots are no longer cropped (a cropped one keeps the side panel); on localhost the Slide decks page links the editor too.
 - **Docs**: Tools, Embedding / iframe, nDSM / Comparison renamed; the Dev group starts folded; the embed example on Mapterhorn; no redirect pages for old addresses.

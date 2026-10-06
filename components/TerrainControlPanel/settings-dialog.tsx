@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
   customThemesAtom,
@@ -313,6 +313,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [maptilerKey, setMaptilerKey] = useAtom(maptilerKeyAtom)
   const [hereKey, setHereKey] = useAtom(hereKeyAtom)
   const [planetKey, setPlanetKey] = useAtom(planetKeyAtom)
+  const [planetAccessToken, setPlanetAccessToken] = useAtom(planetAccessTokenAtom)
   const [cesiumIonKey, setCesiumIonKey] = useAtom(cesiumIonKeyAtom)
   const [cesiumDetailOffset, setCesiumDetailOffset] = useAtom(cesiumDetailOffsetAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
@@ -1044,7 +1045,20 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     className="cursor-text"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Unlocks Planet Monthly Mosaics as a historical Basemap option — hidden until set.
+                    Unlocks Planet Monthly Mosaics as a historical Basemap option — hidden until set. Also signs the per-scene tiles of the Planet STAC search.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="planet-access-token">Planet access token (STAC search)</Label>
+                  <PasswordInput
+                    id="planet-access-token"
+                    value={planetAccessToken}
+                    onChange={(e: any) => setPlanetAccessToken(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Planet's STAC API (api.planet.com/x/data) only takes an OpenID token, not the API key: <code>pip install planet</code>, <code>planet auth login</code>, then paste the output of <code>planet auth print-access-token</code> (eyJ…). It expires after about 2 h 20; paste a fresh one then.
                   </p>
                 </div>
 

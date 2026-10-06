@@ -73,8 +73,12 @@ function buildNodes(roots: string[], bare = false): Node[] {
 }
 const nodeCats = (n: Node): Entry[] => [...n.rows, ...n.children.flatMap(nodeCats)]
 const nodeKeys = (n: Node): string[] => [n.key, ...n.children.flatMap(nodeKeys)]
-/** Every foldable key of the tree, for the picker's expand/fold all. */
-export const catalogTreeKeys = (roots: string[] = CATALOG_ROOT_ORDER): string[] => buildNodes(roots).flatMap(nodeKeys).map((k) => `cat:${k}`)
+/** Every foldable key of the tree, for the picker's expand/fold all; down
+ *  to `maxDepth` (0 the roots, 1 the continents) when given. */
+export const catalogTreeKeys = (roots: string[] = CATALOG_ROOT_ORDER, maxDepth = Infinity): string[] => {
+  const walk = (n: Node): string[] => (n.depth > maxDepth ? [] : [n.key, ...n.children.flatMap(walk)])
+  return buildNodes(roots).flatMap(walk).map((k) => `cat:${k}`)
+}
 
 export const HistoricalCatalogTree: React.FC<{
   /** The timeline catalogs on (state.timelineCatalogs). */
