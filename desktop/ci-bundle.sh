@@ -127,9 +127,11 @@ for f in artifacts/*; do
   case "$name" in
     *.tar.zst|*update.json)
       # The updater feed: names must stay exactly as Hutch wrote them
-      # (stable-<platform>-update.json points at the .tar.zst by name), and
-      # only the full build has a feed (gen-config.mjs).
-      if [ "$docs" = "bundled" ]; then mv "$f" "out/$name"; fi
+      # (stable-<platform>-update.json points at the .tar.zst by name). The
+      # full build's feed goes to the desktop-latest release, the light
+      # build's to desktop-latest-light (gen-config.mjs): kept apart here
+      # so the workflow can upload each to its release.
+      if [ "$docs" = "bundled" ]; then mv "$f" "out/$name"; else mkdir -p out/light-feed; mv "$f" "out/light-feed/$name"; fi
       continue ;;
     portable.zip) kind=Portable; ext=zip ;;
     Setup.exe)    kind=Setup; ext=exe ;;

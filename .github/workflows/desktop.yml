@@ -118,10 +118,13 @@ jobs:
         with:
           path: bundles
       - name: Collect assets
+        # The light build's updater feed (out/light-feed/) has the same file
+        # names as the full build's: it goes to its own release below.
         run: |
-          mkdir -p assets
-          find bundles -type f -exec cp {} assets/ \;
-          ls -la assets
+          mkdir -p assets assets-light
+          find bundles -type f -not -path '*/light-feed/*' -exec cp {} assets/ \;
+          find bundles -type f -path '*/light-feed/*' -exec cp {} assets-light/ \;
+          ls -la assets assets-light
           [ -n "$(ls -A assets)" ] || { echo "no bundle built on any platform"; exit 1; }
       - name: Rolling release desktop-latest
         # The release is kept and only the assets of the platforms built in
@@ -144,3 +147,22 @@ jobs:
           done
           gh release upload desktop-latest assets/* --clobber
           gh release edit desktop-latest --title "Desktop bundles ($date)" --notes "$notes" --latest
+      - name: Rolling release desktop-latest-light (the light build's updater feed)
+        # Only the feed lives here (the installers are on desktop-latest):
+        # the light build's release.baseUrl points at this tag.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -n "$(ls -A assets-light)" ] || { echo "no light feed built"; exit 0; }
+          sha=$(git rev-parse --short HEAD)
+          date=$(date -u +%Y-%m-%d)
+          notes="Updater feed of the light desktop build (light-online-docs), built on $date from \`$sha\`. Nothing to download here by hand: the installers are on the desktop-latest release; an installed light build reads this feed at launch and updates itself."
+          if ! gh release view desktop-latest-light >/dev/null 2>&1; then
+            gh release create desktop-latest-light --title "Light desktop build, updater feed ($date)" --notes "$notes" --prerelease
+          fi
+          built=$(ls assets-light | grep -o -E 'win-x64|macos-arm64|linux-x64' | sort -u)
+          for plat in $built; do
+            gh release view desktop-latest-light --json assets -q '.assets[].name' | grep -- "$plat" | while read -r a; do gh release delete-asset desktop-latest-light "$a" --yes || true; done
+          done
+          gh release upload desktop-latest-light assets-light/* --clobber
+          gh release edit desktop-latest-light --title "Light desktop build, updater feed ($date)" --notes "$notes" --prerelease

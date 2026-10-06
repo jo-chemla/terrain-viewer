@@ -451,12 +451,13 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
       </div>
     )
   }
-  // Expand or fold the three sections at once: the groups of Terrain and
-  // Basemaps · Static, the roots and continents of the historical tree
-  // (the countries stay folded: 70 archives would be a wall).
-  const allKeys = [...groups.filter((g) => !g.parent).map((g) => `cov:${g.key}`), ...catalogTreeKeys(HISTORICAL_TREE_ROOTS, 1)]
-  const allOpen = allKeys.every((k) => folds[k] === true)
-  const foldAll = (fold: boolean) => setFolds((prev) => ({ ...prev, ...Object.fromEntries(allKeys.map((k) => [k, !fold])) }))
+  // Expand all: the three sections and the four historical roots open,
+  // every group and continent under them folded (one screen, not a wall).
+  // Fold all: everything folded, the sections included.
+  const expandKeys = ["sec:Terrain", "sec:Static", "sec:Historical", ...catalogTreeKeys(HISTORICAL_TREE_ROOTS, 0)]
+  const deeperKeys = [...groups.map((g) => `cov:${g.key}`), ...catalogTreeKeys(HISTORICAL_TREE_ROOTS).filter((k) => !expandKeys.includes(k))]
+  const allOpen = expandKeys.every((k) => (folds[k] ?? k.startsWith("sec:")) === true)
+  const foldAll = (fold: boolean) => setFolds((prev) => ({ ...prev, ...Object.fromEntries(expandKeys.map((k) => [k, !fold])), ...Object.fromEntries(deeperKeys.map((k) => [k, false])) }))
   // Two folds of their own: the controls (the master switch and the flags),
   // then the catalogs (the three trees); Search results below is the third.
   const partHeader = (key: string, label: string, right?: React.ReactNode) => (
@@ -516,7 +517,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
               {allOpen ? <ChevronsDownUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3" />}{allOpen ? "Fold all" : "Expand all"}
             </button>
           } />
-          <TooltipContent><p>{allOpen ? "Fold the three sections' groups" : "Open the groups of Terrain and Basemaps · Static, and the historical tree down to the continents"}</p></TooltipContent>
+          <TooltipContent><p>{allOpen ? "Fold the three sections" : "Open Terrain, Basemaps · Static and the historical tree's four groups, everything under them folded"}</p></TooltipContent>
         </Tooltip>
       ))}
       {isOpenKey("sec:catalogs", true) && <div className="pl-1 space-y-0.5">

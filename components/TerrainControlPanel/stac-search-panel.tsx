@@ -215,6 +215,8 @@ export interface StacSaveSource {
   cogViaTitiler?: boolean
   /** Basemap target only: stack as an overlay instead of replacing the basemap. */
   role?: "basemap" | "overlay"
+  /** The service's native maximum zoom (tiles beyond it are overzoomed). */
+  maxzoom?: number
 }
 
 export const StacSearchPanel: React.FC<{
@@ -694,6 +696,10 @@ export const StacSearchPanel: React.FC<{
                         name: `${when ? `${when} ` : ""}${title}`, url: href, type: "tms",
                         description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""} · tiles.planet.com, API key in the URL`,
                         bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
+                        // The Tile Service serves a compressed visual preview, to
+                        // z17 for SkySat and z15 for the rest; beyond, the tile is
+                        // overzoomed rather than asked for.
+                        maxzoom: /skysat/i.test(it.collection ?? "") ? 17 : 15,
                         role,
                       }) }}>
                       {isAdded ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}

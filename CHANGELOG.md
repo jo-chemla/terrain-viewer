@@ -19,7 +19,7 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
   - Allmaps viewer links, signed URLs (`.tif?sig=…`), and URLs without an extension (headers, then the first bytes; never the whole file); a map pasted in Add Terrain offers to open Add Basemap with it.
 - **STAC**: Planet's Data API as a catalog: the access token (Settings → API Keys) to search, and each scene added as XYZ tiles from tiles.planet.com signed with the API key (items carry only a thumbnail); static catalogs filtered by the date range too. A dev page on the search internals and why it uses no client library.
 - **Auto** also takes links to pages about the data: Source Cooperative repositories, stac-map and STAC Browser links.
-- **About**: the version answer scrolls into view. **Slides**: screenshots are no longer cropped (a cropped one keeps the side panel); on localhost the Slide decks page links the editor too.
+- **Desktop**: the light build updates itself too, from its own `desktop-latest-light` feed (the two builds could not share one release). **About**: the version answer scrolls into view. **Slides**: screenshots are no longer cropped (a cropped one keeps the side panel); on localhost the Slide decks page links the editor too.
 - **Docs**: Tools, Embedding / iframe, nDSM / Comparison renamed; the Dev group starts folded; the embed example on Mapterhorn; no redirect pages for old addresses.
 - **Sources Coverage**: Controls, Catalogs and Search results as three folds; a box on Terrain, Basemaps · Static and Basemaps · Historical takes the whole section; a row with a thumbnail shows it on hover.
 - **Iso-line** on any measure, with an exact fill.
