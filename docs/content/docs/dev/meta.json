@@ -31,8 +31,6 @@
     "camera-sync",
     "map-bounds-and-underzoom",
     "product-tour",
-    "layer-order",
-    "---Desktop---",
-    "desktop"
+    "layer-order"
   ]
 }

@@ -8,7 +8,7 @@
 //
 // The links are plain anchors, not Next links: /docs/slides/ is a separate
 // static site, so Next must not prefetch or route it. They are relative to
-// this page (/docs/resources/slides/), which keeps the /docs base path out of
+// this page (/docs/features/slide-decks/), which keeps the /docs base path out of
 // them (a "/docs/..." href would get the base path a second time).
 import { useState } from "react";
 

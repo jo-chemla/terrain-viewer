@@ -92,7 +92,7 @@ PY
   else
     printf '@echo off\r\nstart "" "%%~dp0bin\\launcher.exe" %%*\r\n' > "$app/Terrain Viewer.cmd"
   fi
-  printf 'Terrain Viewer, portable: no installation. Start it with "Terrain Viewer.cmd" (Windows) or ./terrain-viewer (Linux); the program itself is bin/launcher.\nUnzip the whole folder first: starting it from inside the zip viewer runs it without its files.\nhttps://terrain-viewer.iconem.com/docs/dev/desktop/\n' > "$app/README.txt"
+  printf 'Terrain Viewer, portable: no installation. Start it with "Terrain Viewer.cmd" (Windows) or ./terrain-viewer (Linux); the program itself is bin/launcher.\nUnzip the whole folder first: starting it from inside the zip viewer runs it without its files.\nhttps://terrain-viewer.iconem.com/docs/features/advanced/desktop/\n' > "$app/README.txt"
   out="$PWD/artifacts/portable.zip"
   ( cd "$(dirname "$app")"
     if command -v zip >/dev/null; then zip -qr "$out" "$(basename "$app")"; else 7z a -tzip -bso0 "$out" "$(basename "$app")"; fi )
