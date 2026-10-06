@@ -1,0 +1,11 @@
+---
+title: Research References Table (tablecn)
+icon: Table2
+description: Terrain Viewer's research references as one tablecn data table in client mode, the same data as the Research References Table, for a side-by-side comparison of the two table implementations
+---
+
+import { ReferencesTablecn } from "@/components/research-references-tablecn";
+
+The same data as [Research References Table](/resources/research-references-table), rendered with [tablecn](https://tablecn.com)'s data table (shadcn/ui on Base UI, TanStack Table v9) in its client mode, `useDataTable({ mode: "client" })`, for comparison. One table holds every section: **Section** and **Group** are faceted filters, the yes/no questions (opens in the app, free copy, elevation change, DOI, cites RVT, GLO-30 or WhiteboxTools) are Yes / No filters, **Year** is a range, and the search box looks through titles and authors. Column headers sort and hide; **View** picks the columns, including Data, Modes and the citation flags, which start hidden. Sort, filters and page live in the address bar, **Show all** replaces the pages with one, and **Export CSV** saves the rows shown.
+
+<ReferencesTablecn />

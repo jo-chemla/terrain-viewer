@@ -2,6 +2,10 @@
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 @import 'katex/dist/katex.min.css';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 html {
   scrollbar-gutter: stable;
@@ -20,4 +24,60 @@ html > body[data-scroll-locked] {
 }
 #nd-docs-layout:has(.tv-wide) #nd-page {
   max-width: none;
+}
+
+/* shadcn tokens (shadcn init, for tablecn's data table on the Research
+   References Table (tablecn) page): every colour points at the fumadocs theme
+   above, so the shadcn primitives follow the site's light and dark palettes.
+   The default body, html and `*` rules of the init are left out on purpose,
+   they would restyle the whole site. */
+@theme inline {
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root,
+.dark {
+  --background: var(--color-fd-background);
+  --foreground: var(--color-fd-foreground);
+  --card: var(--color-fd-card);
+  --card-foreground: var(--color-fd-card-foreground);
+  --popover: var(--color-fd-popover);
+  --popover-foreground: var(--color-fd-popover-foreground);
+  --primary: var(--color-fd-primary);
+  --primary-foreground: var(--color-fd-primary-foreground);
+  --secondary: var(--color-fd-secondary);
+  --secondary-foreground: var(--color-fd-secondary-foreground);
+  --muted: var(--color-fd-muted);
+  --muted-foreground: var(--color-fd-muted-foreground);
+  --accent: var(--color-fd-accent);
+  --accent-foreground: var(--color-fd-accent-foreground);
+  --destructive: var(--color-fd-error);
+  --border: var(--color-fd-border);
+  --input: var(--color-fd-border);
+  --ring: var(--color-fd-ring);
+  --radius: 0.5rem;
 }
