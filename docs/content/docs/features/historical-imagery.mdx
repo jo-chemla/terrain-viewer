@@ -56,9 +56,10 @@ How to use it:
 
 Hovering a catalog tick opens its card: the source and date, the item's name and catalog, its resolution and licence when the catalog states them (see [what each catalog can tell](/features/historical-sources#what-each-catalog-can-tell-about-an-item)), a thumbnail where one exists (OpenAerialMap, Maxar, Vantor, NOAA, Planet, SLUB) and a link to the item's page.
 
-- The view grid puts the item on any visible view (as the view's basemap, or in its overlay stack for a warped IIIF map; a second press takes an overlay off).
+- The view grid puts the item on any visible view: as an overlay over its basemap while **Picks join my sources** is on (the default; a second press takes it off), as the view's basemap when it is off.
 - **Fit** frames its extent.
-- **Keep in my sources** keeps it, and also puts it on the view when it is on none. A picked item is otherwise transient: shown on the map and the timeline, listed nowhere else (unless **Picks join my sources** is on in Sources Coverage).
+- **Keep in my sources** keeps it as an overlay and puts it on the view. With **Picks join my sources** off (Sources Coverage), a picked item is transient instead: the view's basemap, listed nowhere else.
+- A catalog item on a view as an overlay shows a grey mark on its tick; the views' coloured handles are their basemaps.
 - The ← and → keys step through every tick on the axis, whatever its source, starting from the one the view shows.
 - A view keeps its item when the map moves somewhere the catalog no longer lists it.
 

@@ -72,7 +72,7 @@ The dated historical catalogs (post-crisis imagery, the national archives, the o
 The tree is always open at the top of the Sources Coverage section. It has three parts:
 
 - **Terrain**: Mapterhorn, 3D and LiDAR coverage (Bing, Google, Esri, FLAI, OpenTopography), the terrain library, your terrain sources.
-- **Basemaps · Static**: the Editor Layer Index footprints, your basemaps, the basemap library.
+- **Basemaps · Static**: the ELI coverage (the Editor Layer Index footprints), your basemaps, the basemap library.
 - **Basemaps · Historical**: the timeline's catalogs tree itself, the same tree the timeline's **Catalogs** select opens (see [Historical Imagery Timeline](/features/historical-imagery#the-catalogs-picker)). Its four roots are **Open data for post-crisis response**, **Community indexes** (the Editor Layer Index's dated layers, ArcGIS Online, NextGIS QMS), **Mapping agencies national catalogs** (a continent, then a country with its ISO alpha-3 code) and **Old maps, digitised and warped** (Allmaps and David Rumsey first, as footprint-only rows since those annotations carry no date, then Allmaps' dated maps, the CORONA Atlas, Map Warper, Wikimaps Warper, SLUB, the USGS topo maps).
 
 A checkbox draws a group or a single entry; the chevron on the left opens it. A row shows how many of its items cover the view ("1 on · 2 here"), and a catalog that has nothing here is dimmed. Every group starts folded except the three parts; what you open is kept across sessions, here and in the timeline's Catalogs select alike.
@@ -87,7 +87,7 @@ The switches above the tree:
 | **Follow the view** | On (the default), the catalogs are asked again as the map moves. Off, the results stay as they are; switching it on again asks for the current view. |
 | **Within the timeline window** | Asks the catalogs only for items dated inside the timeline's current window. Changing it asks them again. |
 | **Active sources' extents** | Draws the declared extents of the sources on the views (terrain, basemap and overlays) as dashed outlines; a source row shows z≥N while the view is below the zoom it serves. |
-| **Picks join my sources** | Off by default: an item picked on the timeline only becomes the view's basemap. On, it also joins Your basemaps. |
+| **Picks join my sources** | On by default: an item picked on the timeline, or put on a view from Search results, joins your overlays and goes on the view as one, over its basemap. Off, it becomes the view's transient basemap, listed nowhere else. Scrubbing a handle or stepping with the arrow keys always swaps the basemap. |
 | **Expand all / Fold all** | Opens or folds the whole tree. |
 
 Leaves with a known extent (your sources, the libraries, the Allmaps maps, every catalog item picked on the timeline) have a zoom-to-fit button.

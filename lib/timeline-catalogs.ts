@@ -24,6 +24,7 @@
 //     swisstopo time travel (identify at the view centre), Kartverket.
 //   Old Maps Online: listed, disabled - no CORS and a Cloudflare challenge
 //     (so are the Georeferencer API, David Rumsey's MapRank and loc.gov).
+import type { ViewId } from "./grid-layouts"
 import { atom } from "jotai"
 import type { FeatureCollection } from "geojson"
 import type { CustomBasemapSource } from "./settings-atoms"
@@ -45,7 +46,7 @@ export interface CatalogItem { source: string; label: string; ref: string; dateM
 export const catalogItemsAtom = atom<CatalogItem[]>([])
 /** "Put this catalog item on the view" from the map's footprint click or
  *  the search results: the timeline panel owns the ticks and applies it. */
-export const catalogPickRequestAtom = atom<{ ref: string; nonce: number } | null>(null)
+export const catalogPickRequestAtom = atom<{ ref: string; nonce: number; side?: ViewId } | null>(null)
 
 export interface TimelineCatalog {
   id: string
@@ -196,6 +197,10 @@ function registerUndated(catalog: string, itemKey: string, source: Omit<CustomBa
   basemaps.set(id, { ...source, id, transient: true, ...(SCANNED_MAP_CATALOGS.has(catalog) || source.type === "iiif" ? { oldMap: true } : {}) } as CustomBasemapSource)
   return id
 }
+
+/** Whether resolveCatalogSourceId can rebuild this id on its own. */
+export const isRebuildableCatalogId = (id: string) =>
+  /^custom-basemap-allmaps-[0-9a-f]{16}$/.test(id) || /^custom-basemap-cat-cat-allmaps--(rumsey-RUMSEY_[0-9_]+|[0-9a-f]{16})$/.test(id) || /^custom-basemap-cat-(cat-mapwarper|cat-wikimaps)--\d+$/.test(id)
 
 /** A catalog source named in a link but not in this browser's list: its
  *  id says enough to rebuild it for the catalogs whose items are addressed

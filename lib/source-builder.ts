@@ -4,6 +4,7 @@
 // COG-vs-titiler branch duplicated in RasterBasemapSource.
 import { appendNodataMarkers, type NodataConfig } from "./nodata"
 import { buildVrtUrl } from "./vrt-protocol"
+import { fillKeyPlaceholders } from "./key-placeholders"
 
 // titiler's terrainrgb algorithm can encode masked (nodata) pixels as a
 // chosen height instead of leaving them transparent - a transparent pixel is
@@ -56,7 +57,8 @@ export function buildRasterTileSource(params: {
    *  See TITILER_FLAT_NODATA. */
   forClientDecode?: boolean
 }): { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" } {
-  const { url, type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata, titilerNodata, forClientDecode } = params
+  const { type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata, titilerNodata, forClientDecode } = params
+  const url = fillKeyPlaceholders(params.url)
 
   switch (type) {
     case "tilejson":

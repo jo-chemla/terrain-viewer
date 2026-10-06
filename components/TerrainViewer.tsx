@@ -93,7 +93,7 @@ import { isobandProtocol } from '@/lib/isoband-protocol'
 import { unpaperProtocol } from '@/lib/unpaper-protocol'
 import { ISOLINE_MEASURE_IDS } from '@/lib/isoline-measures'
 import { IsolineLayers } from './LayersAndSources/IsolineLayers'
-import { parseSourceNames } from '@/lib/portable-share-url'
+import { parseSourceNames, parseSourceMeta } from '@/lib/portable-share-url'
 import { blobnessProtocol } from '@/lib/blobness-protocol'
 import { svfProtocol } from '@/lib/svf-protocol'
 import { opennessProtocol } from '@/lib/openness-protocol'
@@ -2489,6 +2489,7 @@ export function TerrainViewer() {
     const params = new URLSearchParams(window.location.search)
     const cogViaTitiler = ["1", "true"].includes(params.get("viaTitiler") ?? "") ? true : undefined
     const linkNames = parseSourceNames(params.get("sourceNames"))
+    const linkMeta = parseSourceMeta(params.get("sourceMeta"))
     const nameOf = (url: string) => linkNames.get(url) ?? (() => { try { return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "") || new URL(url).hostname } catch { return url } })()
     const terrainUrls = Array.from(new Set(VIEW_IDS.map((side) => stateAny[sourceFieldName(side)]).filter(isUrl)))
     const basemapUrls = Array.from(new Set([state.basemapSource, ...VIEW_IDS.map((side) => stateAny[`basemapSource${side}`])].filter(isUrl)))
@@ -2508,8 +2509,9 @@ export function TerrainViewer() {
     if (basemapUrls.length || overlayUrls.length) {
       setCustomBasemapSources((prev) => {
         const make = (url: string, role: "basemap" | "overlay"): CustomBasemapSource => {
-          const type = (state.basemapType || (url.includes("{z}") ? "tms" : "cog")) as CustomBasemapSource["type"]
-          return { id: url, name: nameOf(url), url, type, role, description: "Loaded from a link", ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
+          const meta = linkMeta.get(url) ?? {}
+          const type = (meta.type || state.basemapType || (url.includes("{z}") ? "tms" : "cog")) as CustomBasemapSource["type"]
+          return { id: url, name: nameOf(url), url, type, role, description: "Loaded from a link", ...meta, ...(type === "iiif" ? { provider: "allmaps" as const } : {}), ...(type === "cog" && cogViaTitiler ? { cogViaTitiler } : {}) }
         }
         const missing = [
           ...basemapUrls.filter((url) => !prev.some((s) => s.id === url)).map((url) => make(url, "basemap")),

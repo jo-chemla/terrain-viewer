@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { viewFieldName, type ViewId } from "./grid-layouts"
 import { atom, useAtom, useSetAtom } from "jotai"
 import customSources from "./custom-sources.json"
 import { allmapsMeta, ALLMAPS_API } from "./coverage-overlays"
@@ -15,7 +16,7 @@ import { customTerrainSourcesAtom, customBasemapSourcesAtom, type CustomTerrainS
  * first, Editor Layer Index layers are turned into a basemap the same way
  * the ELI search panel does, then the view-A field is pointed at the id.
  */
-export const coverageUseRequestAtom = atom<{ overlay: string; nonce: number } | null>(null)
+export const coverageUseRequestAtom = atom<{ overlay: string; nonce: number; side?: ViewId } | null>(null)
 
 /** Which side of the app an overlay id selects. */
 export const coverageUseKind = (overlay: string): "terrain" | "basemap" | null =>
@@ -29,12 +30,18 @@ export const coverageUseKind = (overlay: string): "terrain" | "basemap" | null =
 export function activateBasemapSource(
   setState: (updates: Record<string, unknown> | ((prev: Record<string, any>) => Record<string, unknown>)) => void,
   source: Pick<CustomBasemapSource, "id" | "role">,
+  /** A view picked on a row's view grid: an overlay toggles on that view, a
+   *  basemap becomes that view's (per-view basemaps on). */
+  side?: ViewId,
 ) {
   if (source.role === "overlay") {
+    const field = !side || side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`
     setState((prev) => {
-      const ids: string[] = prev.overlayBasemapIds ?? []
-      return { overlayBasemapIds: ids.includes(source.id) ? ids : [...ids, source.id], showRasterBasemap: true }
+      const ids: string[] = prev[field] ?? []
+      return { [field]: side && ids.includes(source.id) ? ids.filter((x) => x !== source.id) : ids.includes(source.id) ? ids : [...ids, source.id], showRasterBasemap: true }
     })
+  } else if (side && side !== "A") {
+    setState({ [viewFieldName(side, "basemapSource", true)]: source.id, basemapPerView: true, showRasterBasemap: true })
   } else {
     setState({ basemapSource: source.id, basemapSourceA: source.id, showRasterBasemap: true })
   }
@@ -49,14 +56,14 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
   useEffect(() => {
     if (!request) return
     setRequest(null)
-    const { overlay } = request
+    const { overlay, side } = request
     const [kind, ...rest] = overlay.split(":")
     const key = rest.join(":")
 
     if (overlay === "mapterhorn") { setState({ sourceA: "mapterhorn" }); return }
     // A historical catalog item (its footprint on the map): the timeline
     // panel holds the tick and puts it on the view.
-    if (kind === "catalog") { setCatalogPick({ ref: key, nonce: Date.now() }); return }
+    if (kind === "catalog") { setCatalogPick({ ref: key, nonce: Date.now(), side }); return }
     // A catalog item from the text search: its basemap on the view, or
     // (catalog-overlay) stacked on top of the current basemap as an overlay.
     if (kind === "catalog-basemap" || kind === "catalog-overlay") {
@@ -64,7 +71,7 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
       if (!found) return
       const src: CustomBasemapSource = kind === "catalog-overlay" ? { ...found, role: "overlay", stack: "top", opacity: found.opacity ?? 100, transient: false } : found
       setBasemaps((prev) => (prev.some((x) => x.id === src.id) ? prev.map((x) => (x.id === src.id ? src : x)) : [...prev, src]))
-      activateBasemapSource(setState, src)
+      activateBasemapSource(setState, src, side)
       return
     }
     if (kind === "terrain") { setState({ sourceA: key }); return }

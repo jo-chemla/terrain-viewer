@@ -524,10 +524,14 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               {editMode && overlaySources.length > 1 && <p className="text-[11px] text-muted-foreground">Drag the handles to order the overlays: the first draws on top.</p>}
               {(state.pitch ?? 0) > 0.5 && overlaySources.some((s) => s.type === "iiif") && <p className="text-[11px] text-amber-700 dark:text-amber-400">Georeferenced IIIF maps (Allmaps) hide while the view is tilted: Allmaps' layer draws flat only. Set the pitch to 0 to see them.</p>}
               {overlaySources.map((source) => (
-                <div key={source.id} className={`flex items-center gap-2 min-w-0 ${dragOverId === source.id ? "ring-1 ring-primary rounded" : ""}`}
+                <div key={source.id} className="relative flex items-center gap-2 min-w-0"
                   onDragOver={editMode ? (e) => { e.preventDefault(); if (dragOverId !== source.id) setDragOverId(source.id) } : undefined}
                   onDragLeave={editMode ? () => setDragOverId((d) => (d === source.id ? null : d)) : undefined}
                   onDrop={editMode ? (e) => { e.preventDefault(); const from = e.dataTransfer.getData("text/overlay-id") || dragId; setDragOverId(null); setDragId(null); if (from && from !== source.id) moveOverlayBefore(from, source.id) } : undefined}>
+                  {/* Where the dragged overlay lands: before this one. */}
+                  {editMode && dragOverId === source.id && dragId !== source.id && (
+                    <div className="pointer-events-none absolute -top-1 left-0 right-0 h-0.5 rounded bg-primary" />
+                  )}
                   {editMode && (
                     <span draggable className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0" title="Drag to reorder: the first overlay draws on top"
                       onDragStart={(e) => { e.dataTransfer.setData("text/overlay-id", source.id); e.dataTransfer.effectAllowed = "move"; setDragId(source.id) }}

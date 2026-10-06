@@ -441,7 +441,9 @@ export const StacSearchPanel: React.FC<{
   // by tiles.planet.com, signed with the API key (not the access token).
   const planetTiles = catalog.auth === "planet" && target === "basemap"
   planetTilesRef.current = planetTiles
-  const planetTileUrl = (it: StacItem) => `https://tiles.planet.com/data/v1/${it.collection}/${it.id}/{z}/{x}/{y}.png?api_key=${getDefaultStore().get(planetKeyAtom).trim()}`
+  // The key is a placeholder, filled with this browser's own key when the
+  // tiles are requested (lib/key-placeholders.ts): never saved, never shared.
+  const planetTileUrl = (it: StacItem) => `https://tiles.planet.com/data/v1/${it.collection}/${it.id}/{z}/{x}/{y}.png?api_key={planetKey}`
   const cogAssets = (it: StacItem) => {
     let assets = Object.entries(it.assets ?? {}).filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
     if (target === "terrain") {
@@ -723,7 +725,7 @@ export const StacSearchPanel: React.FC<{
                       title={hasKey ? "XYZ tiles of this scene from tiles.planet.com, signed with your Planet API key" : "Needs your Planet API key (Settings → API Keys): the tiles are signed with it"}
                       onClick={() => { setAdded((s) => new Set(s).add(href)); onSave({
                         name: `${when ? `${when} ` : ""}${title}`, url: href, type: "tms",
-                        description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""} · tiles.planet.com, API key in the URL`,
+                        description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""} · tiles.planet.com, signed with your Planet API key`,
                         bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
                         // The Tile Service serves a compressed visual preview, to
                         // z17 for SkySat and z15 for the rest; beyond, the tile is

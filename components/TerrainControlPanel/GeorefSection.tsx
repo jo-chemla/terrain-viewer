@@ -11,7 +11,7 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { GripHorizontal, X, ChevronDown } from "lucide-react"
+import { GripHorizontal, X, ChevronDown, Maximize2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -439,20 +439,23 @@ const GeorefImagePane: React.FC<{
 
   // Fit the whole image on first show, when the image changes, and when the
   // window is resized (the pane fills whatever holds it).
+  const fitImage = useCallback(() => {
+    const el = paneRef.current
+    if (!el) return
+    const w = el.clientWidth, h = el.clientHeight
+    if (!w || !h) return
+    const scale = Math.min(w / image.width, h / image.height)
+    setView({ scale, tx: (w - image.width * scale) / 2, ty: (h - image.height * scale) / 2 })
+  }, [image])
   useEffect(() => {
     const el = paneRef.current
     if (!el) return
-    const fit = () => {
-      const w = el.clientWidth, h = el.clientHeight
-      if (!w || !h) return
-      const scale = Math.min(w / image.width, h / image.height)
-      setView({ scale, tx: (w - image.width * scale) / 2, ty: (h - image.height * scale) / 2 })
-    }
+    const fit = fitImage
     fit()
     const ro = new ResizeObserver(fit)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [image])
+  }, [image, fitImage])
 
   // A native, non-passive wheel listener: React registers onWheel passively,
   // so preventDefault there is ignored and the wheel scrolls the sidebar
@@ -543,6 +546,11 @@ const GeorefImagePane: React.FC<{
           >{i + 1}</div>
         )
       })}
+      {/* Back to the whole image after a wheel zoom or a pan lost it. */}
+      <button type="button" className="absolute right-1.5 top-1.5 z-10 inline-flex cursor-pointer items-center gap-1 rounded border bg-background/90 px-1.5 py-0.5 text-[10px] shadow-sm hover:bg-accent"
+        title="Fit the whole image in the window" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); fitImage() }}>
+        <Maximize2 className="h-3 w-3" /> Fit
+      </button>
     </div>
   )
 }

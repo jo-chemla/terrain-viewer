@@ -146,11 +146,15 @@ export async function detectByFetching(raw: string, target: DetectTarget, signal
     const image = `https://www.davidrumsey.com/luna/servlet/iiif/${rumsey[1]}`
     const hex = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(image)))).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16)
     const annotation = `https://annotations.allmaps.org/images/${hex}`
-    const ok = await fetch(annotation, { signal: sig }).then((r) => r.ok).catch(() => false)
-    if (!ok) return { type: "unsupported", url, label: "A David Rumsey map", note: "Not georeferenced in Allmaps (no annotation for its IIIF image), so it cannot be draped. Georeference it on editor.allmaps.org first." }
-    return target === "basemap"
-      ? { type: "iiif", url: annotation, label: "David Rumsey map, georeferenced in Allmaps" }
-      : { type: "unsupported", url: annotation, label: "A David Rumsey map", note: "A georeferenced map is a picture, not elevation: add it with Add Basemap." }
+    const page = await fetch(annotation, { signal: sig }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    if (!page) return { type: "unsupported", url, label: "A David Rumsey map", note: "Not georeferenced in Allmaps (no annotation for its IIIF image), so it cannot be draped. Georeference it on editor.allmaps.org first." }
+    if (target !== "basemap") return { type: "unsupported", url: annotation, label: "A David Rumsey map", note: "A georeferenced map is a picture, not elevation: add it with Add Basemap." }
+    // Rumsey's own IIIF server answers a tile in half a second or in two
+    // minutes, uncached: Allmaps' tile server warps the map server-side and
+    // caches the tiles, so the second visit is fast.
+    const mapId = /\/maps\/([0-9a-f]{16})/.exec(String((page.items?.[0] ?? page).id ?? ""))?.[1]
+    if (!mapId) return { type: "iiif", url: annotation, label: "David Rumsey map, georeferenced in Allmaps" }
+    return { type: "tms", url: `https://allmaps.xyz/maps/${mapId}/{z}/{x}/{y}.png`, label: "David Rumsey map, as Allmaps tiles", note: `Warped and cached by Allmaps' tile server, faster than Rumsey's IIIF server. For the sharper in-browser warp, paste ${annotation} instead (type IIIF).` }
   }
   try {
     const head = await fetch(url, { method: "HEAD", signal: sig })

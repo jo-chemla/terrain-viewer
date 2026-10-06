@@ -24,5 +24,15 @@ type: project
   reverse, keyed on position, so the first of the list draws on top; edit
   mode's drag handle reorders `customBasemapSources`.
 
+- Rumsey's Luna IIIF server is erratic (one tile 0.6 s, the same tile 102 s
+  next time, no cache headers). Allmaps' tile server warps any Allmaps map
+  server-side and caches it: `https://allmaps.xyz/maps/<mapId>/{z}/{x}/{y}.png`
+  (also `/tiles.json` with bounds, maxzoom 20). Auto turns a Rumsey detail page
+  into that template.
+- Shared links: `makePortableShareUrl` now names catalog items by URL with
+  `?sourceMeta=` (bounds, zooms, stack, type) and leaves the rebuildable ids
+  alone; Planet tile URLs carry a `{planetKey}` placeholder filled by
+  `lib/key-placeholders.ts` in `buildRasterTileSource`.
+
 **Why:** these three came up together when tilted views broke and shared
 links lost their overlays.

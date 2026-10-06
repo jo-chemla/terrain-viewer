@@ -1,3 +1,4 @@
+import { SourceGridToggle } from "./controls-components"
 import type React from "react"
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -609,7 +610,13 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
     return rows.sort(byOverlap)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogItems, state.lat, state.lng, state.zoom, mapRef])
-  type Row = { key: string; label: string; detail: string; url?: string; thumb?: string; stats?: OverlapStats; bounds?: [number, number, number, number]; use?: () => void; useLabel?: string; needsKey?: boolean }
+  type Row = { key: string; label: string; detail: string; url?: string; thumb?: string; stats?: OverlapStats; bounds?: [number, number, number, number]; use?: () => void; useLabel?: string; needsKey?: boolean
+    /** Split views: put it on one view from a grid (the row's Use otherwise). */
+    useOn?: (side: ViewId) => void; isOn?: (side: ViewId) => boolean }
+  const picksKeep = useAtomValue(tickPicksKeepAtom)
+  const splitGrid: GridLayoutId | null = state.splitStyle && state.splitStyle !== "off" ? (state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")) : null
+  const overlaysOn = (side: ViewId): string[] => (state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []
+  const basemapOn = (side: ViewId) => state[viewFieldName(side, "basemapSource", true)] ?? state.basemapSource
   const groups: { key: string; label: string; color: string; rows: Row[] }[] = []
   const push = (g: { key: string; label: string; color: string }, r: Row) => {
     let entry = groups.find((x) => x.key === g.key)
@@ -621,11 +628,17 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
     // undated map), a QMS service as the basemap.
     const cfg = SOURCE_CONFIG[h.catalog]
     const label = h.catalog === "qmsAll" ? "NextGIS QMS" : h.catalog === "cat-allmaps" ? "David Rumsey, georeferenced in Allmaps" : cfg?.label ?? h.catalog
-    const overlay = h.ref ? `catalog-overlay:${h.ref}` : h.use?.startsWith("catalog-basemap:") ? h.use.replace("catalog-basemap:", "catalog-overlay:") : h.use
+    // As an overlay that joins your sources with "Picks join my sources"
+    // (on by default), as the view's transient basemap otherwise.
+    const asOverlay = picksKeep
+    const ref = h.ref ?? (h.use?.startsWith("catalog-basemap:") ? h.use.slice("catalog-basemap:".length) : undefined)
+    const overlay = ref ? (asOverlay ? `catalog-overlay:${ref}` : (h.ref ? `catalog:${ref}` : `catalog-basemap:${ref}`)) : h.use
     push({ key: `search:${h.catalog}`, label, color: cfg?.color ?? (h.catalog === "qmsAll" ? "#0891b2" : h.catalog === "cat-allmaps" ? "#d946ef" : "#888") }, {
       key: `${h.ref ?? h.use ?? h.label}`, label: h.label, detail: h.detail, url: h.url, bounds: h.bounds, thumb: h.ref ? catalogTick(h.ref)?.meta?.thumb : undefined,
       use: overlay ? () => { requestUse({ overlay, nonce: Date.now() }); if (h.bounds) fit(h.bounds) } : undefined,
       useLabel: overlay?.startsWith("catalog-overlay:") ? "Add as an overlay on the basemap" : "Use as the view's basemap",
+      useOn: overlay && ref ? (side) => { requestUse({ overlay, nonce: Date.now(), side }); if (h.bounds) fit(h.bounds) } : undefined,
+      isOn: ref ? (side) => (asOverlay ? overlaysOn(side).includes(ref) : basemapOn(side) === ref) : undefined,
     })
   }
   for (const it of (search ? [] : centreOnly ? (inView?.items ?? []).filter((i) => i.stats.atCentre) : inView?.items ?? [])) {
@@ -637,7 +650,9 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
     const cfg = SOURCE_CONFIG[item.source]
     push({ key: `cat:${item.source}`, label: cfg?.label ?? item.source, color: cfg?.color ?? "#888" }, {
       key: item.ref, label: item.label, detail: [item.meta?.date, item.meta?.gsd ? `${item.meta.gsd < 1 ? `${Math.round(item.meta.gsd * 100)} cm` : `${+item.meta.gsd.toFixed(1)} m`}/px` : null].filter(Boolean).join(" · "),
-      url: item.meta?.url, thumb: item.meta?.thumb, stats, use: () => requestPick({ ref: item.ref, nonce: Date.now() }), useLabel: "Put on the view",
+      url: item.meta?.url, thumb: item.meta?.thumb, stats, use: () => requestPick({ ref: item.ref, nonce: Date.now() }), useLabel: picksKeep ? "Add as an overlay on the view" : "Put on the view as its basemap",
+      useOn: (side) => requestPick({ ref: item.ref, nonce: Date.now(), side }),
+      isOn: (side) => (picksKeep ? overlaysOn(side).includes(item.ref) : basemapOn(side) === item.ref),
     })
   }
   // The overlay tree's order: terrain groups, then basemaps, then the catalogs.
@@ -698,7 +713,11 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
                         {it.bounds && (
                           <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-foreground" title="Frame its extent" onClick={() => fit(it.bounds!)}><Maximize2 className="h-3 w-3" /></button>
                         )}
-                        {it.use && (
+                        {splitGrid && it.useOn && it.isOn ? (
+                          <span className="shrink-0" title={it.useLabel}>
+                            <SourceGridToggle gridLayout={splitGrid} isActive={it.isOn} onSelect={it.useOn} allowUnpress={picksKeep} />
+                          </span>
+                        ) : it.use && (
                           <Button size="sm" variant="outline" className="h-6 px-1.5 text-[10px] cursor-pointer shrink-0" disabled={it.needsKey}
                             title={it.needsKey ? "Needs an API key: add it from the Editor Layer Index search" : it.useLabel} onClick={it.use}>
                             Use

@@ -28,6 +28,7 @@ The URL's own shape answers most of the time, at once, without a request:
 | An Allmaps viewer link (`viewer.allmaps.org/?url=…&map=…`) | The map's annotation, taken from the link's `map` parameter |
 | A IIIF manifest, `info.json`, `/iiif/` or `/manifests/` path | IIIF map, looked up in Allmaps: it drapes only if someone georeferenced it there |
 | A NextGIS QMS page | QMS search (basemap) |
+| A David Rumsey detail page (`davidrumsey.com/luna/servlet/detail/RUMSEY~…`) | When the sheet is georeferenced in Allmaps, its tiles from Allmaps' tile server (`allmaps.xyz/maps/<id>/{z}/{x}/{y}.png`, warped and cached server-side, faster than Rumsey's own IIIF server); the note gives the annotation for the in-browser warp | 
 
 ## From the response
 

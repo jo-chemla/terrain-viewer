@@ -1162,14 +1162,17 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // a keyboard step/background click). Sync never affects this — see the
   // dualUnsynced comment above.
   const picksKeep = useAtomValue(tickPicksKeepAtom)
-  const applyTick = useCallback((tick: TimelineTick, explicitSide?: ViewId) => {
+  // A click on a catalog tick: with "Picks join my sources" (on by default)
+  // the item joins the user's overlays and goes on the view as one, over the
+  // basemap; off, it becomes the view's transient basemap. Scrubbing and
+  // arrow keys (browse) always swap the basemap, never pile up overlays.
+  const applyTick = useCallback((tick: TimelineTick, explicitSide?: ViewId, browse = false) => {
     const which = explicitSide ?? resolveSide()
     setActiveSide(which)
-    setTickForSide(which, tick)
+    const asOverlay = picksKeep && !browse && !!tick.ref && !!catalogBasemap(tick.ref)
+    if (!asOverlay) setTickForSide(which, tick)
     maybeRecenterWindow(tick.dateMs)
-    // The picker's switch (on by default): a pick also joins the user's
-    // overlays and goes on this view as one, over the basemap.
-    if (picksKeep && tick.ref) {
+    if (asOverlay && tick.ref) {
       const src = catalogBasemap(tick.ref)
       if (src) {
         setCustomBasemaps((prev) => (prev.some((b) => b.id === tick.ref) ? prev.map((b) => (b.id === tick.ref ? { ...b, role: "overlay" as const, stack: b.stack ?? "top", transient: false } : b)) : [...prev, { ...src, role: "overlay" as const, stack: src.stack ?? "top", transient: false }]))
@@ -1227,7 +1230,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
 
   const scrubTo = useCallback((which: ViewId, clientX: number) => {
     const tick = nearestTickForClientX(clientX)
-    if (tick) applyTick(tick, which)
+    if (tick) applyTick(tick, which, true)
   }, [nearestTickForClientX, applyTick])
 
   const step = useCallback((direction: number) => {
@@ -1245,12 +1248,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const date = cur?.dateMs ?? key
       idx = direction > 0 ? items.findIndex((t) => t.dateMs > date) : (() => { let i = -1; items.forEach((t, j) => { if (t.dateMs < date) i = j }); return i })()
       if (idx === -1) return
-      applyTick(items[idx])
+      applyTick(items[idx], undefined, true)
       return
     }
     const newIdx = idx + direction
     if (newIdx < 0 || newIdx >= items.length) return
-    applyTick(items[newIdx])
+    applyTick(items[newIdx], undefined, true)
   }, [resolveSide, resolveDisplayTick, displaySourceFor, dateForSide, items, applyTick])
   // A pick from the map (a footprint click) or the search results.
   const [pickRequest, setPickRequest] = useAtom(catalogPickRequestAtom)
@@ -1260,7 +1263,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const tick = tickByRef.current.get(pickRequest.ref) ?? catalogTick(pickRequest.ref)
     if (!tick) return
     tickByRef.current.set(pickRequest.ref, tick)
-    const side = resolveSide()
+    const side = pickRequest.side ?? resolveSide()
     if (catalogBasemap(pickRequest.ref)?.role === "overlay") sendTickTo(tick, side, "overlay")
     else applyTick(tick, side)
   }, [pickRequest, setPickRequest, resolveSide, applyTick, sendTickTo])
@@ -1481,6 +1484,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       <TooltipContent>{toSide ? "Compare dates side by side: historical imagery on every view, sources synced" : "Compare dates overlaid: historical imagery on both views, sources synced"}</TooltipContent>
     </Tooltip>
   )
+  // The catalog items on a view as an overlay, for the timeline's grey marks.
+  const overlaySidesByRef = new Map<string, ViewId[]>()
+  for (const side of showingViews) {
+    for (const id of ((state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? [])) {
+      overlaySidesByRef.set(id, [...(overlaySidesByRef.get(id) ?? []), side])
+    }
+  }
   const tickBySide: Partial<Record<ViewId, TimelineTick>> = {}
   const captionBySide: Partial<Record<ViewId, string>> = {}
   const handleLeftPctBySide: Partial<Record<ViewId, number>> = {}
@@ -1632,7 +1642,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 if (newIdx === null) return
                 const deltaN = newIdx - drag.dragOriginalIndex
                 const draggedTick = tickAtFlatOffset(drag.dragOriginalIndex, deltaN)
-                if (draggedTick) applyTick(draggedTick, side)
+                if (draggedTick) applyTick(draggedTick, side, true)
                 if (drag.direction === 0) {
                   const dx = e.clientX - drag.startClientX
                   // Small dead-zone so a near-stationary click-then-jiggle
@@ -2039,6 +2049,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 // Which view(s) (if any) currently have this exact tick
                 // active — shown as the last line of its tooltip.
                 const activeSides = showingViews.filter((s) => tickBySide[s]?.source === t.source && tickBySide[s]?.key === t.key)
+                const overlaySides = t.ref ? overlaySidesByRef.get(t.ref) : undefined
                 return t.source === "wayback" ? (
                   <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} activeSides={activeSides} onSelect={() => applyTick(t)} />
                 ) : (
@@ -2058,6 +2069,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                       className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
                       style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.85 }}
                     />
+                    {/* On a view as an overlay: a grey marker (basemaps
+                        have the views' coloured handles). */}
+                    {overlaySides && (
+                      <div className="absolute left-1/2 -translate-x-1/2 top-0 h-2.5 w-2.5 rounded-full border border-background bg-muted-foreground pointer-events-none"
+                        title={`Overlay on ${overlaySides.join(", ")}`} />
+                    )}
                   </div>
                 )
               })}
@@ -2187,12 +2204,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             activeSides={showingViews.filter((s) => tickBySide[s]?.source === tickCard.tick.source && tickBySide[s]?.key === tickCard.tick.key)}
             views={showingViews}
             gridLayout={gridLayoutForTimeline}
-            asOverlay={!!tickCard.tick.ref && catalogBasemap(tickCard.tick.ref)?.role === "overlay"}
-            isOn={(side) => !!tickCard.tick.ref && (catalogBasemap(tickCard.tick.ref)?.role === "overlay" ? ((state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []).includes(tickCard.tick.ref) : activeBasemapSourceFor(side) === tickCard.tick.ref)}
+            asOverlay={!!tickCard.tick.ref && (picksKeep || catalogBasemap(tickCard.tick.ref)?.role === "overlay")}
+            isOn={(side) => !!tickCard.tick.ref && ((picksKeep || catalogBasemap(tickCard.tick.ref)?.role === "overlay") ? ((state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []).includes(tickCard.tick.ref) : activeBasemapSourceFor(side) === tickCard.tick.ref)}
             kept={!!tickCard.tick.ref && customBasemaps.some((b) => b.id === tickCard.tick.ref && !b.transient)}
             bounds={tickCard.tick.ref ? catalogBasemap(tickCard.tick.ref)?.bounds : undefined}
             onFit={() => { const b = tickCard.tick.ref ? catalogBasemap(tickCard.tick.ref)?.bounds : undefined; if (b) mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}
-            onSend={(side) => sendTickTo(tickCard.tick, side, catalogBasemap(tickCard.tick.ref!)?.role === "overlay" ? "overlay" : "basemap")}
+            onSend={(side) => sendTickTo(tickCard.tick, side, picksKeep || catalogBasemap(tickCard.tick.ref!)?.role === "overlay" ? "overlay" : "basemap")}
             onKeep={() => { keepTick(tickCard.tick); sendTickTo(tickCard.tick, resolveSide(), "overlay") }}
             onEnter={keepTickCard} onLeave={hideTickCardSoon}
           />

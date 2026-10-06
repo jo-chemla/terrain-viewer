@@ -19,11 +19,14 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
   - Allmaps viewer links, signed URLs (`.tif?sig=…`), and URLs without an extension (headers, then the first bytes; never the whole file); a map pasted in Add Terrain offers to open Add Basemap with it.
 - **STAC**: Planet's Data API as a catalog: the access token (Settings → API Keys) to search, and each scene added as XYZ tiles from tiles.planet.com signed with the API key (items carry only a thumbnail); static catalogs filtered by the date range too. A dev page on the search internals and why it uses no client library.
 - **Auto** also takes links to pages about the data: Source Cooperative repositories, stac-map and STAC Browser links.
-- **Timeline picks** join your sources as overlays and go on the view as one (on by default); a search hit's "Use" lists the overlay in Bring Your Own Data; a kept tick is an overlay.
+- **Timeline picks** join your sources as overlays and go on the view as one (on by default; off, a pick is the view's transient basemap); scrubbing and arrow keys still swap the basemap; a kept tick is an overlay; overlays show as grey marks on their ticks.
+- **Search results** in a split: a view grid per row puts a hit on view A, B…
+- **Shared links** carry catalog items (ArcGIS Online, STAC, Planet scenes, national layers) by URL with their extent and zooms; a Planet key never travels (`{planetKey}` placeholder, filled by the recipient's key).
+- **Image Georeferencer**: a Fit button brings the whole image back into the window.
 - **Overlays order**: in edit mode, drag the handles; the first of the list draws on top.
 - **Shared links** rebuild the catalog overlays they name (Allmaps maps, David Rumsey sheets, Map Warper and Wikimaps maps) on the recipient's side.
 - **STAC catalog picker** is a combobox: type a name ("planet"), or paste a URL for a custom catalog.
-- **Auto** reads a David Rumsey detail page (the map's Allmaps annotation, if georeferenced).
+- **Auto** reads a David Rumsey detail page: Allmaps' cached tiles of the sheet when it is georeferenced (Rumsey's own IIIF server can take minutes per tile).
 - Switching an overlay off from its label no longer moves the camera. Allmaps overlays hide while the view is tilted (the layer draws flat only) instead of landing in the wrong place.
 - **Desktop**: the light build updates itself too, from its own `desktop-latest-light` feed (the two builds could not share one release). **About**: the version answer scrolls into view. **Slides**: screenshots are no longer cropped (a cropped one keeps the side panel); on localhost the Slide decks page links the editor too.
 - **Docs**: Tools, Embedding / iframe, nDSM / Comparison renamed; the Dev group starts folded; the embed example on Mapterhorn; no redirect pages for old addresses.
