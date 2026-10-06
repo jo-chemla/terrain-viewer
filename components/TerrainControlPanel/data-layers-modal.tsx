@@ -108,7 +108,7 @@ const GROUPS: Group[] = [
     modes: [
       { key: "drawing", section: "drawing", label: "Draw and measure", image: "tools/draw.jpg", blurb: "Points, lines and polygons in layers, with lengths and areas. Imports and exports GeoJSON, KML, GPX." },
       { key: "elevationPicker", section: "elevationPicker", label: "Elevation picker, profile and slicer", image: "tools/elevation-picker-full.jpg", blurb: "Read elevation at a point, a profile along a line, or slice the terrain with a plane." },
-      { key: "sunShadowCalculator", section: "sunShadowCalculator", enable: { sunShadowBeta: true }, label: "Sun and shadow calculator", image: "sun-shadow-calculator-reverse.png", blurb: "When is this spot in sun? Forwards for a date, or backwards from an observed shadow." },
+      { key: "sunShadowCalculator", section: "sunShadowCalculator", label: "Sun and shadow calculator", image: "sun-shadow-calculator-reverse.png", blurb: "When is this spot in sun? Forwards for a date, or backwards from an observed shadow." },
       { key: "animation", section: "animation", label: "Camera animation", image: "tools/animation.jpg", blurb: "Keyframe a camera path and play it back, or export it." },
     ],
   },

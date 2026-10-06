@@ -2797,16 +2797,6 @@
       "note": "Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't clutter Visualization Modes for everyone by default."
     },
     {
-      "key": "sunShadowBeta",
-      "stateKey": "sunShadowBeta",
-      "type": "boolean",
-      "items": null,
-      "enum": null,
-      "default": true,
-      "defaultSource": "true",
-      "note": "Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator."
-    },
-    {
       "key": "georefBeta",
       "stateKey": "georefBeta",
       "type": "boolean",
@@ -2814,7 +2804,7 @@
       "enum": null,
       "default": false,
       "defaultSource": "false",
-      "note": "Same opt-in gate, for Tools: Georeference Image."
+      "note": "Same opt-in gate, for Tools: Image Georeferencer."
     },
     {
       "key": "historicalBeta",
@@ -3900,7 +3890,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "customBasemapLastType",
-      "default": "\"qms\"",
+      "default": "\"auto\"",
       "note": ""
     },
     {
@@ -3912,7 +3902,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "customTerrainLastType",
-      "default": "\"cog\"",
+      "default": "\"auto\"",
       "note": ""
     },
     {
@@ -4128,8 +4118,8 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "betaEnabled",
-      "default": "{ tells: false, sunShadow: true, historical: true, stacSear…",
-      "note": "Mirrors of TerrainViewer's tellsBeta/sunShadowBeta/historicalBeta nuqs fields (the actual gates the app reads) — those live in the URL so a `?tellsBeta=true` link still works, but with no localStorag…"
+      "default": "{ tells: false, historical: true, georef: false }",
+      "note": "Mirrors of TerrainViewer's tellsBeta/historicalBeta/georefBeta nuqs fields (the actual gates the app reads) — those live in the URL so a `?tellsBeta=true` link still works, but with no localStorage b…"
     },
     {
       "file": "lib/settings-atoms.ts",

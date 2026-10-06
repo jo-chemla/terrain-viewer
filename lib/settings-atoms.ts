@@ -394,7 +394,7 @@ export interface CustomBasemapSource {
    *  lives in-memory for the current session. */
   url: string
   /** "image" / "image-local": a plain picture placed from its four corners
-   *  (Tools > Georeference Image); "image-local" keeps a `local://<id>` url
+   *  (Tools > Image Georeferencer); "image-local" keeps a `local://<id>` url
    *  like "cog-local". */
   /** "iiif": a georeferenced IIIF map drawn from its Georeference Annotation
    *  (Allmaps; `url` is the annotation URL). Always an overlay. */
@@ -658,7 +658,7 @@ export const changelogViewAtom = atomWithStorage<"changes" | "full">("changelogV
 // entries show up open without needing an explicit default here.
 export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>("changelogEntriesOpen", {})
 
-// Mirrors of TerrainViewer's tellsBeta/sunShadowBeta/historicalBeta nuqs fields
+// Mirrors of TerrainViewer's tellsBeta/historicalBeta/georefBeta nuqs fields
 // (the actual gates the app reads) — those live in the URL so a
 // `?tellsBeta=true` link still works, but with no localStorage backing they
 // silently reset to off on every reload without the param. These atoms are
@@ -671,12 +671,10 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, sunShadow: true, historical: true, stacSearch: false, georef: false }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, historical: true, georef: false }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
-export const sunShadowBetaEnabledAtom = booleanField(betaEnabledAtom, "sunShadow")
 export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")
 /** STAC catalog search in the Add Dataset / Add Basemap modals (no URL param: local only). */
-export const stacSearchBetaEnabledAtom = booleanField(betaEnabledAtom, "stacSearch")
 export const georefBetaEnabledAtom = booleanField(betaEnabledAtom, "georef")
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one

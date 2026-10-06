@@ -16,7 +16,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SegmentedToggle } from "./controls-components"
-import { type CustomBasemapSource, customTerrainSourcesAtom, customBasemapLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
+import { type CustomBasemapSource, customTerrainSourcesAtom, customBasemapLastTypeAtom } from "@/lib/settings-atoms"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
@@ -51,7 +51,6 @@ export const CustomBasemapModal: React.FC<{
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [lastType, setLastType] = useAtom(customBasemapLastTypeAtom)
-  const [stacSearchBeta] = useAtom(stacSearchBetaEnabledAtom)
   const fitTo = (b?: [number, number, number, number]) => { const m = mapRef?.current?.getMap(); if (m && b) m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, speed: 6 }) }
   const [type, setTypeState] = useState<BasemapFormType>(lastType as BasemapFormType)
   // Remember the choice for the next "Add Basemap" (not while editing an
@@ -154,7 +153,7 @@ export const CustomBasemapModal: React.FC<{
       setName("")
       setUrl("")
       // NextGIS QMS on the very first run, then the last type used.
-      setTypeState((OPENING_TYPES.includes(lastType) && (stacSearchBeta || lastType !== "stac") ? lastType : "auto") as BasemapFormType)
+      setTypeState((OPENING_TYPES.includes(lastType) ? lastType : "auto") as BasemapFormType)
       setDetected(null)
       setDescription("")
       setRole("basemap")
@@ -321,7 +320,7 @@ export const CustomBasemapModal: React.FC<{
                 "wms-picker": "WMS (list layers)",
                 qms: "NextGIS QMS (search)",
                 eli: "OSM Editor Layer Index (search)",
-                stac: "STAC catalog search (beta)",
+                stac: "STAC catalog search",
               }}
             >
               <SelectTrigger id="basemap-type" className="cursor-pointer w-full">
@@ -334,7 +333,7 @@ export const CustomBasemapModal: React.FC<{
                     <SelectLabel>Search a catalog</SelectLabel>
                     <SelectItem value="qms">NextGIS QMS (search)</SelectItem>
                     <SelectItem value="eli">OSM Editor Layer Index (search)</SelectItem>
-                    {stacSearchBeta && <SelectItem value="stac">STAC catalog search (beta)</SelectItem>}
+                    <SelectItem value="stac">STAC catalog search</SelectItem>
                   </SelectGroup>
                 )}
                 <SelectGroup>

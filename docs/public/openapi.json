@@ -3147,20 +3147,10 @@
             }
           },
           {
-            "name": "sunShadowBeta",
-            "in": "query",
-            "required": false,
-            "description": "State. Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator.",
-            "schema": {
-              "type": "boolean",
-              "default": true
-            }
-          },
-          {
             "name": "georefBeta",
             "in": "query",
             "required": false,
-            "description": "State. Same opt-in gate, for Tools: Georeference Image.",
+            "description": "State. Same opt-in gate, for Tools: Image Georeferencer.",
             "schema": {
               "type": "boolean",
               "default": false

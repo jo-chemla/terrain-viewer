@@ -2,7 +2,6 @@ import type React from "react"
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
-import { stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
 import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles, Compass, BookOpen } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -240,7 +239,6 @@ const ChangelogEntryList: React.FC<{ entries: ChangelogEntry[]; onImageClick: (s
 
 export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: boolean) => void; state: any, setState: any; historicalMode?: boolean }> = ({ isOpen, onOpenChange, state, setState, historicalMode = false }) => {
   const { theme, toggleTheme, setTheme: setAppTheme } = useTheme()
-  const [stacSearchBeta, setStacSearchBeta] = useAtom(stacSearchBetaEnabledAtom)
   const { setTheme: setColorTheme } = useColorTheme()
   const [showThemeEditor, setShowThemeEditor] = useState(false)
   const setCustomThemes = useSetAtom(customThemesAtom)
@@ -906,29 +904,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <h4 className="text-sm font-semibold">Sun Shadow Calculator</h4>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="sun-shadow-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
-                  <Switch
-                    id="sun-shadow-beta"
-                    checked={state.sunShadowBeta}
-                    className="cursor-pointer"
-                    onCheckedChange={(checked) => setState({ sunShadowBeta: checked })}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Pick a point on the map and measure the shadow an object of a given
-                height casts at the current sun position/date/time (Tools section)
-                — reuses the shared date/time light direction control that
-                Hillshade/Phong/Shadows also drive.
-              </p>
-            </div>
-
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h4 className="text-sm font-semibold">Georeference Image</h4>
+                <h4 className="text-sm font-semibold">Image Georeferencer</h4>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="georef-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
                   <Switch
@@ -969,25 +945,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </p>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">STAC catalog search</Label>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="stac-search-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
-                  <Switch
-                    id="stac-search-beta"
-                    checked={stacSearchBeta}
-                    className="cursor-pointer"
-                    onCheckedChange={(checked) => setStacSearchBeta(checked)}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Adds a <span className="font-semibold text-foreground">STAC search</span> option to the Add Dataset and
-                Add Basemap modals: pick a catalog (Earth Search, Maxar Open Data, Planetary Computer or any URL),
-                a date range and the current view, then add any Cloud Optimized GeoTIFF from the results.
-              </p>
-            </div>
           </CollapsibleSection>
 
           <Separator />

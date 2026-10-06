@@ -26,7 +26,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, sunShadowBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -809,15 +809,12 @@ export const QUERY_STATE_PARSERS = {
     // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
     // clutter Visualization Modes for everyone by default.
     tellsBeta: parseAsBoolean.withDefault(false),
-    // Same opt-in-beta gate as tellsBeta above, for Tools: Sun Shadow Calculator.
-    // Default true so the URL stays clean when the feature is on (the atom
-    // default is also true); `?sunShadowBeta=false` disables it explicitly.
-    sunShadowBeta: parseAsBoolean.withDefault(true),
-    // Same opt-in gate, for Tools: Georeference Image. Off by default.
+    // Same opt-in gate, for Tools: Image Georeferencer. Off by default.
     georefBeta: parseAsBoolean.withDefault(false),
     // Same opt-in-beta gate as tellsBeta above, for the historical-imagery
     // basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel.
-    // Default true — same rationale as sunShadowBeta.
+    // Default true so the URL stays clean when the feature is on (the atom
+    // default is also true); `?historicalBeta=false` disables it explicitly.
     historicalBeta: parseAsBoolean.withDefault(true),
     // Master on/off (Visualization Modes' "Tells (Mound Detector)" checkbox) —
     // gates the sidebar's Mound Candidates section as well as the map layer.
@@ -1903,18 +1900,14 @@ export function TerrainViewer() {
   }, [])
 
   // Persist the beta gates' last value so re-opening the app without their
-  // `?tellsBeta=`/`?sunShadowBeta=` URL param doesn't silently reset to off
+  // `?tellsBeta=`/`?historicalBeta=` URL param doesn't silently reset to off
   // (see stateOverrides application below, and the atoms' own comment).
   const [tellsBetaEnabled, setTellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
-  const [sunShadowBetaEnabled, setSunShadowBetaEnabled] = useAtom(sunShadowBetaEnabledAtom)
   const [historicalBetaEnabled, setHistoricalBetaEnabled] = useAtom(historicalBetaEnabledAtom)
   const [appModeEnabled, setAppModeEnabled] = useAtom(appModeAtom)
   useEffect(() => {
     setTellsBetaEnabled(state.tellsBeta)
   }, [state.tellsBeta, setTellsBetaEnabled])
-  useEffect(() => {
-    setSunShadowBetaEnabled(state.sunShadowBeta)
-  }, [state.sunShadowBeta, setSunShadowBetaEnabled])
   const [, setGeorefBetaEnabled] = useAtom(georefBetaEnabledAtom)
   useEffect(() => {
     setGeorefBetaEnabled(state.georefBeta)
@@ -1951,7 +1944,6 @@ export function TerrainViewer() {
     // Restore the beta gates from their persisted last value, unless the URL
     // itself already carries an explicit override.
     if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
-    if (!searchParams.has("sunShadowBeta") && sunShadowBetaEnabled) stateOverrides.sunShadowBeta = true
     if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
     if (!searchParams.has("appMode")) {
       if (appModeEnabled !== "terrain") {

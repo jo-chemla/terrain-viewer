@@ -5,6 +5,8 @@ import { devtools } from '@tanstack/devtools-vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { fileURLToPath, URL } from "url"
 import { execSync } from "child_process"
+import fs from "fs"
+import path from "path"
 
 // Build stamp for the About section: the commit and the build day. The
 // commit comes from git at build time (CI checks the repo out), "dev" when
@@ -44,6 +46,34 @@ export default defineConfig({
     nodePolyfills({
       include: ['buffer', 'fs', 'path', 'crypto', 'stream', 'util'],
     }),
+    // /docs/slides/ in dev: the built decks and PDFs from .cache/slides-site
+    // (the /docs proxy above lets these requests through).
+    {
+      name: "slides-static",
+      configureServer(server) {
+        const site = fileURLToPath(new URL("./.cache/slides-site", import.meta.url))
+        const types: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".pdf": "application/pdf", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon", ".woff2": "font/woff2", ".woff": "font/woff", ".mp4": "video/mp4", ".webm": "video/webm" }
+        server.middlewares.use((req, res, next) => {
+          const url = req.url ?? ""
+          if (!url.startsWith("/docs/slides")) return next()
+          if (url === "/docs/slides") { res.writeHead(302, { Location: "/docs/slides/" }); res.end(); return }
+          const rel = decodeURIComponent(url.slice("/docs/slides/".length).split("?")[0])
+          let file = path.join(site, rel)
+          if (!file.startsWith(site)) { res.statusCode = 403; res.end(); return }
+          if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html")
+          if (!fs.existsSync(file)) {
+            res.statusCode = 404
+            res.setHeader("content-type", "text/plain; charset=utf-8")
+            res.end(fs.existsSync(site)
+              ? `Not in the built slides site: ${rel}`
+              : "The slide decks are built, not served live, under /docs/slides/. Run `pnpm slides:static` (decks) or `pnpm slides:pdf` (decks and PDFs) once, then reload. `pnpm slides` runs the live editor on port 3200 instead.")
+            return
+          }
+          res.setHeader("content-type", types[path.extname(file).toLowerCase()] ?? "application/octet-stream")
+          fs.createReadStream(file).pipe(res)
+        })
+      },
+    },
   ],
   optimizeDeps: {
     exclude: ['@loaders.gl/geopackage', '@loaders.gl/core', 'sql.js'],
@@ -111,12 +141,19 @@ export default defineConfig({
         // The STAC catalog under /docs/stac is read by STAC Map and STAC
         // Browser from their own origins (GitHub Pages sends this in prod).
         configure: (proxy) => { proxy.on("proxyRes", (proxyRes) => { proxyRes.headers["access-control-allow-origin"] = "*" }) },
+        // The slide decks (and their PDFs) are not a Next route either: the
+        // docs deploy copies slides/scripts/publish.mjs's output to
+        // /docs/slides/. Here they come from the same output in
+        // .cache/slides-site (built by `pnpm slides:static` or
+        // `pnpm slides:pdf`), served by the middleware below.
         bypass: (req) =>
           req.url?.startsWith("/docs/content/")
             ? req.url
             : req.url?.startsWith("/docs/screenshots/")
               ? req.url.replace("/docs/screenshots/", "/docs/public/screenshots/")
-              : undefined,
+              : req.url?.startsWith("/docs/slides/") || req.url === "/docs/slides"
+                ? req.url
+                : undefined,
       },
     },
   },

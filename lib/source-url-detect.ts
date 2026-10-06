@@ -87,7 +87,7 @@ export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource
 
   // STAC.
   if (has(url, /\/(catalog|collection)\.json($|\?)|\/stac(\/|$|\?)|stac\.[a-z]/i)) {
-    return { type: "stac", url, label: "STAC catalog", note: "STAC search is a beta: switch it on in Settings → Beta if the type is missing." }
+    return { type: "stac", url, label: "STAC catalog", note: "Opened as a custom catalog in the STAC search." }
   }
 
   // Catalog pages.
@@ -114,7 +114,7 @@ export async function detectByFetching(raw: string, target: DetectTarget, signal
   let json: any = null
   try { json = JSON.parse(text) } catch { /* not JSON */ }
   if (json) {
-    if (json.stac_version) return { type: "stac", url, label: `STAC ${json.type ?? "document"}`, note: "STAC search is a beta: switch it on in Settings → Beta if the type is missing." }
+    if (json.stac_version) return { type: "stac", url, label: `STAC ${json.type ?? "document"}`, note: "Opened as a custom catalog in the STAC search." }
     if (json.tilejson || Array.isArray(json.tiles)) return { type: "tilejson", url, label: "TileJSON" }
     if (json.type === "AnnotationPage" || json.type === "Annotation" || json.motivation === "georeferencing") {
       return target === "basemap" ? { type: "iiif", url, label: "Georeference Annotation" } : { type: "unsupported", url, label: "A Georeference Annotation", note: "A georeferenced map is a picture, not elevation: add it with Add Basemap." }

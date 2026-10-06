@@ -66,7 +66,7 @@ import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, GRID_LAYOUT
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
-  type CustomBasemapSource, type CustomTerrainSource, basemapLibraryOpenAtom, customBasemapLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
+  type CustomBasemapSource, type CustomTerrainSource, basemapLibraryOpenAtom, customBasemapLastTypeAtom } from "@/lib/settings-atoms"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -88,7 +88,6 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddBasemapModalOpen, setIsAddBasemapModalOpen] = useState(false)
   const setLastBasemapType = useSetAtom(customBasemapLastTypeAtom)
-  const stacSearchBeta = useAtomValue(stacSearchBetaEnabledAtom)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
   const [editMode, setEditMode] = useAtom(sourcesEditModeAtom)
@@ -322,7 +321,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     return customBasemapSources.filter((s) => onViews.has(s.id) && (s.type === "iiif" || s.oldMap)).map((s) => ({ id: s.id, name: s.name, key: s.url }))
   })()
 
-  // Sends a saved picture back to Tools > Georeference Image with its points,
+  // Sends a saved picture back to Tools > Image Georeferencer with its points,
   // so they can be moved and the overlay updated in place.
   const setCustomTerrainSources = useSetAtom(customTerrainSourcesAtom)
   const activeView = useAtomValue(activeViewAtom)
@@ -536,7 +535,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         onOpenChange={setIsSampleModalOpen}
         title="Basemap library"
         stacTarget="basemap"
-        onBrowseStac={!stacSearchBeta ? undefined : (presetId) => {
+        onBrowseStac={(presetId) => {
         // The Add dialog reads its own type back from the "last type" atom
         // when it opens for a NEW source, so pointing that at "stac" is all it
         // takes to land on the catalog tab - no extra prop, no second path

@@ -8,9 +8,11 @@
 // sorted by name; the old maps and the open data rows sit right under their
 // root. A group's box takes its whole group. Each row shows its tick count
 // and a spinner while loading; a catalog a browser cannot query is listed,
-// greyed, with why. Every group starts folded; what the user opens is kept
-// (coverageFoldsAtom, the same state in both places); a source whose extent
-// misses the view is dimmed.
+// greyed, with why. In the timeline's picker the four root groups start
+// open and everything under them folded; in the coverage section every
+// group starts folded. What the user opens is kept (coverageFoldsAtom, the
+// same state in both places); a source whose extent misses the view is
+// dimmed.
 import type React from "react"
 import { useAtom, useAtomValue } from "jotai"
 import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2 } from "lucide-react"
@@ -104,9 +106,10 @@ export const HistoricalCatalogTree: React.FC<{
     if (covs.length) setCoverage((prev) => { const next = new Set(prev); for (const id of covs) on ? next.add(id) : next.delete(id); return [...next] })
   }
   const nodes = buildNodes(roots, bare)
-  const isOpen = (key: string) => folds[`cat:${key}`] === true
+  const allNodes = (ns: Node[]): Node[] => ns.flatMap((n) => [n, ...allNodes(n.children)])
+  const isOpen = (n: Node) => folds[`cat:${n.key}`] ?? (n.depth === 0 && !compact)
   const keys = nodes.flatMap(nodeKeys)
-  const allOpen = keys.every(isOpen)
+  const allOpen = allNodes(nodes).every(isOpen)
   const foldAll = (fold: boolean) => setFolds((prev) => ({ ...prev, ...Object.fromEntries(keys.map((k) => [`cat:${k}`, !fold])) }))
   const toggleFold = (key: string, openNow: boolean) => setFolds((prev) => ({ ...prev, [`cat:${key}`]: !openNow }))
 
@@ -151,7 +154,7 @@ export const HistoricalCatalogTree: React.FC<{
     )
   }
   const renderNode = (n: Node, withHeader: boolean): React.ReactNode => {
-    const open = !withHeader || isOpen(n.key)
+    const open = !withHeader || isOpen(n)
     return (
       <div key={n.key} className={n.depth ? "pl-[21px]" : undefined}>
         {withHeader && groupHeader(n.key, n.label, nodeCats(n), open, n.depth)}

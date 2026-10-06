@@ -14,7 +14,13 @@ const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n/
 // (Fumadocs' MDX compiler errors on the latter), so that's the only syntax
 // these files ever use.
 const MDX_COMMENT_RE = /\{\/\*[\s\S]*?\*\/\}/g
+// A docs page may open with a screenshot and its italic caption (a JSX
+// <p className=...>): both are for the docs site only. react-markdown would
+// show the image broken (the /screenshots path is the docs') and the caption
+// as raw tag text.
+const DOCS_IMAGE_RE = /^!\[[^\]]*\]\([^)]*\)[ \t]*\r?\n/gm
+const DOCS_CAPTION_RE = /^<p className=[^>]*>[\s\S]*?<\/p>[ \t]*\r?\n/gm
 
 export function stripFrontmatter(raw: string): string {
-  return raw.replace(FRONTMATTER_RE, "").replace(MDX_COMMENT_RE, "").trim()
+  return raw.replace(FRONTMATTER_RE, "").replace(MDX_COMMENT_RE, "").replace(DOCS_IMAGE_RE, "").replace(DOCS_CAPTION_RE, "").trim()
 }

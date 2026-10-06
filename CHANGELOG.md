@@ -12,6 +12,9 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **Remove paper**: scanned maps lose their sheet, colour detected per map.
 - **Sources Coverage**: one tree, footprints on the map, results ranked by overlap.
 - **Search by name** across the checked catalogs, anywhere: "Cassini" finds the Rumsey sheets georeferenced in Allmaps, IGN's Cassini map, Map Warper's sheets.
+- **Out of beta**: the Sun Shadow Calculator and the STAC catalog search are always on. "Georeference Image" is now **Image Georeferencer** (still a beta).
+- **Search by name** hits take the place of the view's rows (fold per catalog, Fit); **Use** adds the map as an overlay on the basemap.
+- The timeline's **Catalogs** picker opens on its four groups.
 - **Auto** in Add Basemap and Add Terrain: paste any URL (tiles, WMS, COG, STAC, Allmaps, IIIF…), the type is found and filled in.
 - **Iso-line** on any measure, with an exact fill.
 - **Building shadows**, **modes per view**, **Image Georeferencer**, a **STAC catalog** of every source.

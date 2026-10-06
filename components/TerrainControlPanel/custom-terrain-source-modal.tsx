@@ -14,7 +14,7 @@ import { SourceCombobox } from "./source-combobox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
-import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainSourcesAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
+import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainSourcesAtom, customTerrainLastTypeAtom } from "@/lib/settings-atoms"
 import { supportsNodataControls } from "@/lib/nodata"
 import { terrainSources } from "@/lib/terrain-sources"
 import customSources from "@/lib/custom-sources.json"
@@ -40,7 +40,6 @@ export const CustomTerrainSourceModal: React.FC<{
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [lastType, setLastType] = useAtom(customTerrainLastTypeAtom)
-  const [stacSearchBeta] = useAtom(stacSearchBetaEnabledAtom)
   const fitTo = (b?: [number, number, number, number]) => { const m = mapRef?.current?.getMap(); if (m && b) m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, speed: 6 }) }
   const [type, setTypeState] = useState<TerrainFormType>(lastType as TerrainFormType)
   // Remember the choice for the next "Add Dataset" (not while editing).
@@ -195,7 +194,7 @@ export const CustomTerrainSourceModal: React.FC<{
     } else {
       setName("")
       setUrl("")
-      setTypeState((OPENING_TYPES.includes(lastType) && (stacSearchBeta || lastType !== "stac") ? lastType : "auto") as TerrainFormType)
+      setTypeState((OPENING_TYPES.includes(lastType) ? lastType : "auto") as TerrainFormType)
       setDetected(null)
       setDescription("")
       setMaxzoom("")
@@ -355,7 +354,7 @@ export const CustomTerrainSourceModal: React.FC<{
                 terrarium: "TMS (Terrarium)",
                 terrainrgb: "TMS (TerrainRGB)",
                 "wms-picker": "WMS (list layers)",
-                stac: "STAC catalog search (beta)",
+                stac: "STAC catalog search",
                 "wms-raw": "WMS (raw Float32 elevation)",
                 "lerc": "ArcGIS tiled elevation (LERC)",
                 tilejson: "TileJSON",
@@ -398,7 +397,7 @@ export const CustomTerrainSourceModal: React.FC<{
                   <SelectGroup>
                     <SelectLabel>Search a catalog</SelectLabel>
                     <SelectItem value="wms-picker">WMS (list layers)</SelectItem>
-                    {stacSearchBeta && <SelectItem value="stac">STAC catalog search (beta)</SelectItem>}
+                    <SelectItem value="stac">STAC catalog search</SelectItem>
                   </SelectGroup>
                 )}
               </SelectContent>

@@ -27,3 +27,4 @@
 - [Desktop Electrobun gotchas](desktop-electrobun-gotchas.md) — Windows WebView2 has no new-window handler (route window.open through host-message), driving the installed app over CDP, updater.log, shortcut-name collision between the two variants
 - [Iso-line over any measure, coverage tree plumbing](isoline-and-coverage-tree.md) — measures table and scales, luma:// over grey, the fill-alpha shadowing bug, fold atom keys, catalog pick/tickByRef plumbing, Allmaps dating
 - [Recording demos with agent-browser](agent-browser-recording.md) — `record` drops map takes (encoder lag); CDP screencast capture instead; GPU flags, storage, Git Bash and IIIF-host traps; Remocn/Remotion notes
+- [Docs, slides and video tooling](docs-slides-video-tooling.md) — Fumadocs, open-slide, agent-browser in use; Nextra, Slidev, Lumae rated

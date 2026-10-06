@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
   titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom, cesiumIonKeyAtom,
-  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, customTerrainLastTypeAtom, stacSearchBetaEnabledAtom } from "@/lib/settings-atoms"
+  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, customTerrainLastTypeAtom } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { deletePersistedCogFile } from "@/lib/opfs-file-store"
@@ -49,7 +49,6 @@ export const TerrainSourceSection: React.FC<{
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
   const setLastTerrainType = useSetAtom(customTerrainLastTypeAtom)
-  const stacSearchBeta = useAtomValue(stacSearchBetaEnabledAtom)
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
   const [editMode, setEditMode] = useAtom(sourcesEditModeAtom)
@@ -493,7 +492,7 @@ export const TerrainSourceSection: React.FC<{
         onOpenChange={setIsSampleModalOpen}
         title="Terrain dataset library"
         stacTarget="terrain"
-        onBrowseStac={!stacSearchBeta ? undefined : (presetId) => {
+        onBrowseStac={(presetId) => {
         // The Add dialog reads its own type back from the "last type" atom
         // when it opens for a NEW source, so pointing that at "stac" is all it
         // takes to land on the catalog tab - no extra prop, no second path

@@ -54,12 +54,10 @@ Features that work but are not finished, or are expensive enough to be opt-in:
 | Flag | What it unlocks |
 |---|---|
 | **Tells (mound candidates) detection** | the `tells` mode, plus Difference-of-Gaussians of the LRM, plan curvature / divergence and det-Hessian |
-| **Sun Shadow Calculator** | the reverse-solve tool in [Tools](/features/tools) |
 | **Historical imagery sources** | the [historical timeline](/features/basemaps-and-historical) and its providers |
-| **STAC catalog search** | the [STAC search](/features/tools) tab in both Add dialogs |
-| **Georeference Image** | the [Image Georeferencer](/features/tools#image-georeferencer) in the Tools group |
+| **Image Georeferencer** | the [Image Georeferencer](/features/tools#image-georeferencer) in the Tools group |
 
-Defaults are `{ tells: false, sunShadow: true, historical: true, stacSearch: false, georef: false }`. Each flag is mirrored to a nuqs field (`tellsBeta`, `sunShadowBeta`, `historicalBeta`, `georefBeta`) which is what the app actually reads — so a link can enable one for a visitor without changing their own stored preference.
+Defaults are `{ tells: false, historical: true, georef: false }`. Each flag is mirrored to a nuqs field (`tellsBeta`, `historicalBeta`, `georefBeta`) which is what the app actually reads, so a link can enable one for a visitor without changing their own stored preference. The Sun Shadow Calculator and the STAC catalog search were betas until October 2026 and are now always on.
 
 ## API Keys
 

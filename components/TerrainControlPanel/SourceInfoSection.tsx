@@ -503,15 +503,13 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
 /** A text search over the checked catalogs, wherever their items are (Map
  *  Warper, Wikimaps, David Rumsey through Allmaps, ArcGIS Online, QMS, the
  *  USGS quads, IGN and the national catalogs' layer names): "Cassini" finds
- *  the Cassini sheets outside the view. Fit frames a hit, Use puts it on the
- *  view (a catalog item like a tick, a QMS service as a basemap). */
-const CatalogTextSearch: React.FC<{ mapRef: React.RefObject<MapRef>; state: any }> = ({ mapRef, state }) => {
+ *  the Cassini sheets outside the view. The field only; the hits are listed
+ *  by CoverageInViewList in place of the view's rows. */
+type TextSearchResult = CatalogSearchResult & { query: string }
+const CatalogTextSearch: React.FC<{ state: any; result: TextSearchResult | null; onResult: (r: TextSearchResult | null) => void }> = ({ state, result, onResult }) => {
   const coverage = useAtomValue(coverageOverlaysAtom)
-  const requestUse = useSetAtom(coverageUseRequestAtom)
-  const requestPick = useSetAtom(catalogPickRequestAtom)
   const [text, setText] = useState("")
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<(CatalogSearchResult & { query: string }) | null>(null)
   const ctrlRef = useRef<AbortController | null>(null)
   const ids: string[] = [...(state.timelineCatalogs ?? []), ...COVERAGE_ONLY_ENTRIES.map((e) => e.id).filter((id) => coverage.includes(id))]
   const run = () => {
@@ -522,70 +520,24 @@ const CatalogTextSearch: React.FC<{ mapRef: React.RefObject<MapRef>; state: any 
     ctrlRef.current = ctrl
     setBusy(true)
     searchCatalogs(ids, q, ctrl.signal)
-      .then((r) => { if (!ctrl.signal.aborted) setResult({ ...r, query: q }) })
+      .then((r) => { if (!ctrl.signal.aborted) onResult({ ...r, query: q }) })
       .finally(() => { if (ctrlRef.current === ctrl) setBusy(false) })
   }
-  const clear = () => { ctrlRef.current?.abort(); setBusy(false); setResult(null); setText("") }
-  const fit = (b: [number, number, number, number]) => mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 })
-  const groups = new Map<string, NonNullable<typeof result>["hits"]>()
-  for (const h of result?.hits ?? []) {
-    const k = h.catalog === "qmsAll" ? "NextGIS QMS" : h.catalog === "cat-allmaps" ? "David Rumsey, georeferenced in Allmaps" : SOURCE_CONFIG[h.catalog]?.label ?? h.catalog
-    if (!groups.has(k)) groups.set(k, [])
-    groups.get(k)!.push(h)
-  }
+  const clear = () => { ctrlRef.current?.abort(); setBusy(false); onResult(null); setText("") }
   return (
-    <div className="space-y-1">
-      <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); run() }}>
-        <div className="relative flex-1">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={ids.length ? `Search the ${ids.length} checked catalogs, anywhere` : "Check catalogs in the tree to search them"} disabled={!ids.length} className="h-7 pl-6 text-xs" />
-        </div>
-        <Tooltip>
-          <TooltipTrigger render={<span className="cursor-help shrink-0 text-muted-foreground"><Info className="h-3.5 w-3.5" /></span>} />
-          <TooltipContent className="max-w-80"><p>Searches the catalogs checked in the tree by name, outside the view too: Map Warper and Wikimaps titles, David Rumsey's catalog (the maps georeferenced in Allmaps), ArcGIS Online, NextGIS QMS, the USGS quads, IGN and the national catalogs' layers. Enter to search.</p></TooltipContent>
-        </Tooltip>
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" /> : result ? (
-          <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground shrink-0" title="Clear the search" onClick={clear}><X className="h-3.5 w-3.5" /></button>
-        ) : null}
-      </form>
-      {result && (
-        <div className="rounded border px-2 py-1.5 space-y-1">
-          <div className="text-[11px] font-medium">“{result.query}”: {result.hits.length} found in {result.searched.join(", ") || "no catalog"}</div>
-          {result.unsupported.length > 0 && <p className="text-[10px] text-muted-foreground">No text search in {result.unsupported.join(", ")}.</p>}
-          {result.notes.map((n, i) => <p key={i} className="text-[10px] text-muted-foreground">{n}</p>)}
-          {Object.entries(result.errors).map(([k, v]) => <p key={k} className="text-[10px] text-destructive">{k}: {v}</p>)}
-          {result.hits.length > 0 && (
-            <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
-              {[...groups.entries()].map(([label, hits]) => (
-                <div key={label} className="space-y-0.5">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label} · {hits.length}</div>
-                  <ul className="space-y-1">
-                    {hits.slice(0, 80).map((h, i) => (
-                      <li key={`${h.ref ?? h.use ?? h.label}-${i}`} className="flex items-center gap-1.5">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs truncate" title={h.label}>{h.url ? <a href={h.url} target="_blank" rel="noopener noreferrer" className="underline">{h.label}</a> : h.label}</div>
-                          {h.detail && <div className="text-[10px] text-muted-foreground truncate" title={h.detail}>{h.detail}</div>}
-                        </div>
-                        {h.bounds && (
-                          <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-foreground" title="Frame its extent" onClick={() => fit(h.bounds!)}><Maximize2 className="h-3 w-3" /></button>
-                        )}
-                        {(h.ref || h.use) && (
-                          <Button size="sm" variant="outline" className="h-6 px-1.5 text-[10px] cursor-pointer shrink-0" title={h.ref ? "Put it on the view (and on the timeline)" : "Use as the view's basemap"}
-                            onClick={() => { if (h.ref) { requestPick({ ref: h.ref, nonce: Date.now() }); if (h.bounds) fit(h.bounds) } else if (h.use) requestUse({ overlay: h.use, nonce: Date.now() }) }}>
-                            Use
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                    {hits.length > 80 && <li className="text-[10px] text-muted-foreground">+{hits.length - 80} more</li>}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); run() }}>
+      <div className="relative flex-1">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={ids.length ? `Search the ${ids.length} checked catalogs by name, anywhere` : "Check catalogs in the tree to search them"} disabled={!ids.length} className="h-7 pl-6 text-xs" />
+      </div>
+      <Tooltip>
+        <TooltipTrigger render={<span className="cursor-help shrink-0 text-muted-foreground"><Info className="h-3.5 w-3.5" /></span>} />
+        <TooltipContent className="max-w-80"><p>Searches the catalogs checked in the tree by name, outside the view too: Map Warper and Wikimaps titles, David Rumsey's catalog (the maps georeferenced in Allmaps), ArcGIS Online, NextGIS QMS, the USGS quads, IGN and the national catalogs' layers. Enter to search; the hits replace the view's rows below until cleared.</p></TooltipContent>
+      </Tooltip>
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" /> : result ? (
+        <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground shrink-0" title="Clear the search: back to what is in view" onClick={clear}><X className="h-3.5 w-3.5" /></button>
+      ) : null}
+    </form>
   )
 }
 
@@ -596,6 +548,9 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
   const requestPick = useSetAtom(catalogPickRequestAtom)
   const [centreOnly, setCentreOnly] = useState(false)
   const [folds, setFolds] = useAtom(coverageFoldsAtom)
+  // A text search's hits, shown instead of the view's rows until cleared.
+  const [search, setSearch] = useState<TextSearchResult | null>(null)
+  const fit = (b: [number, number, number, number]) => mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 })
   // The catalog items' overlap with the view, from their extents.
   const catalogRows = useMemo(() => {
     const m = mapRef.current?.getMap()
@@ -612,18 +567,30 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
     return rows.sort(byOverlap)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogItems, state.lat, state.lng, state.zoom, mapRef])
-  type Row = { key: string; label: string; detail: string; url?: string; stats: OverlapStats; use?: () => void; useLabel?: string; needsKey?: boolean }
+  type Row = { key: string; label: string; detail: string; url?: string; stats?: OverlapStats; bounds?: [number, number, number, number]; use?: () => void; useLabel?: string; needsKey?: boolean }
   const groups: { key: string; label: string; color: string; rows: Row[] }[] = []
   const push = (g: { key: string; label: string; color: string }, r: Row) => {
     let entry = groups.find((x) => x.key === g.key)
     if (!entry) { entry = { ...g, rows: [] }; groups.push(entry) }
     entry.rows.push(r)
   }
-  for (const it of (centreOnly ? (inView?.items ?? []).filter((i) => i.stats.atCentre) : inView?.items ?? [])) {
+  for (const h of search?.hits ?? []) {
+    // A hit goes on the view as an overlay (a dated tick's basemap or an
+    // undated map), a QMS service as the basemap.
+    const cfg = SOURCE_CONFIG[h.catalog]
+    const label = h.catalog === "qmsAll" ? "NextGIS QMS" : h.catalog === "cat-allmaps" ? "David Rumsey, georeferenced in Allmaps" : cfg?.label ?? h.catalog
+    const overlay = h.ref ? `catalog-overlay:${h.ref}` : h.use?.startsWith("catalog-basemap:") ? h.use.replace("catalog-basemap:", "catalog-overlay:") : h.use
+    push({ key: `search:${h.catalog}`, label, color: cfg?.color ?? (h.catalog === "qmsAll" ? "#0891b2" : h.catalog === "cat-allmaps" ? "#d946ef" : "#888") }, {
+      key: `${h.ref ?? h.use ?? h.label}`, label: h.label, detail: h.detail, url: h.url, bounds: h.bounds,
+      use: overlay ? () => { requestUse({ overlay, nonce: Date.now() }); if (h.bounds) fit(h.bounds) } : undefined,
+      useLabel: overlay?.startsWith("catalog-overlay:") ? "Add as an overlay on the basemap" : "Use as the view's basemap",
+    })
+  }
+  for (const it of (search ? [] : centreOnly ? (inView?.items ?? []).filter((i) => i.stats.atCentre) : inView?.items ?? [])) {
     push(coverageGroupOfLeaf(it.leaf), { key: `${it.leaf}|${it.label}|${it.detail}`, label: it.label, detail: it.detail, url: it.url, stats: it.stats, needsKey: it.needsKey,
       use: it.overlay && it.useAs ? () => requestUse({ overlay: it.overlay!, nonce: Date.now() }) : undefined, useLabel: it.useAs ? `Use as ${it.useAs}` : undefined })
   }
-  for (const { item, stats } of catalogRows) {
+  for (const { item, stats } of (search ? [] : catalogRows)) {
     if (centreOnly && !stats.atCentre) continue
     const cfg = SOURCE_CONFIG[item.source]
     push({ key: `cat:${item.source}`, label: cfg?.label ?? item.source, color: cfg?.color ?? "#888" }, {
@@ -641,15 +608,24 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
       <div className="flex items-center justify-between gap-2">
         <button type="button" className="flex items-center gap-1 cursor-pointer text-xs font-medium" onClick={() => setFolds((prev) => ({ ...prev, "sec:results": !open }))}>
           <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
-          Search results · {total} in {centreOnly ? "the view's centre" : "view"}
+          Search results · {total} {search ? `for “${search.query}”` : centreOnly ? "in the view's centre" : "in view"}
         </button>
-        <div className="flex items-center gap-1.5">
-          <Label htmlFor="coverage-centre-only" className="text-[11px] text-muted-foreground">Centre only</Label>
-          <Switch id="coverage-centre-only" checked={centreOnly} onCheckedChange={setCentreOnly} className="cursor-pointer" />
-        </div>
+        {!search && (
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="coverage-centre-only" className="text-[11px] text-muted-foreground">Centre only</Label>
+            <Switch id="coverage-centre-only" checked={centreOnly} onCheckedChange={setCentreOnly} className="cursor-pointer" />
+          </div>
+        )}
       </div>
-      {open && <CatalogTextSearch mapRef={mapRef} state={state} />}
-      {open && groups.length === 0 && <p className="text-xs text-muted-foreground">Nothing from the shown overlays or the checked catalogs {centreOnly ? "under the centre" : "in view"}.</p>}
+      {open && <CatalogTextSearch state={state} result={search} onResult={setSearch} />}
+      {open && search && (
+        <div className="text-[10px] text-muted-foreground space-y-0.5">
+          <p>Searched {search.searched.join(", ") || "no catalog"}{search.unsupported.length > 0 ? `; no text search in ${search.unsupported.join(", ")}` : ""}.</p>
+          {search.notes.map((n, i) => <p key={i}>{n}</p>)}
+          {Object.entries(search.errors).map(([k, v]) => <p key={k} className="text-destructive">{k}: {v}</p>)}
+        </div>
+      )}
+      {open && groups.length === 0 && <p className="text-xs text-muted-foreground">{search ? "No item of that name in the checked catalogs." : `Nothing from the shown overlays or the checked catalogs ${centreOnly ? "under the centre" : "in view"}.`}</p>}
       {open && groups.length > 0 && (
         <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
           {groups.map((g) => {
@@ -668,8 +644,11 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
                       <li key={it.key} className="flex items-center gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="text-xs truncate" title={it.label}>{it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline">{it.label}</a> : it.label}</div>
-                          <div className="text-[10px] text-muted-foreground truncate" title={it.detail}>{overlapLabel(it.stats)}{it.detail ? ` · ${it.detail}` : ""}</div>
+                          <div className="text-[10px] text-muted-foreground truncate" title={it.detail}>{[it.stats ? overlapLabel(it.stats) : null, it.detail].filter(Boolean).join(" · ")}</div>
                         </div>
+                        {it.bounds && (
+                          <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-foreground" title="Frame its extent" onClick={() => fit(it.bounds!)}><Maximize2 className="h-3 w-3" /></button>
+                        )}
                         {it.use && (
                           <Button size="sm" variant="outline" className="h-6 px-1.5 text-[10px] cursor-pointer shrink-0" disabled={it.needsKey}
                             title={it.needsKey ? "Needs an API key: add it from the Editor Layer Index search" : it.useLabel} onClick={it.use}>

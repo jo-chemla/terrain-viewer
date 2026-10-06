@@ -20,7 +20,7 @@ export const coverageUseRequestAtom = atom<{ overlay: string; nonce: number } | 
 /** Which side of the app an overlay id selects. */
 export const coverageUseKind = (overlay: string): "terrain" | "basemap" | null =>
   overlay === "mapterhorn" || overlay.startsWith("lib:") || overlay.startsWith("terrain:") ? "terrain"
-  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") || overlay.startsWith("catalog:") || overlay.startsWith("catalog-basemap:") ? "basemap"
+  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") || overlay.startsWith("catalog:") || overlay.startsWith("catalog-basemap:") || overlay.startsWith("catalog-overlay:") ? "basemap"
   : null
 
 /** Overlay-role sources stack on the active basemap (overlayBasemapIds)
@@ -57,11 +57,13 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
     // A historical catalog item (its footprint on the map): the timeline
     // panel holds the tick and puts it on the view.
     if (kind === "catalog") { setCatalogPick({ ref: key, nonce: Date.now() }); return }
-    // An undated catalog item from the text search: its basemap on the view.
-    if (kind === "catalog-basemap") {
-      const src = catalogBasemap(key)
-      if (!src) return
-      setBasemaps((prev) => (prev.some((x) => x.id === src.id) ? prev : [...prev, src]))
+    // A catalog item from the text search: its basemap on the view, or
+    // (catalog-overlay) stacked on top of the current basemap as an overlay.
+    if (kind === "catalog-basemap" || kind === "catalog-overlay") {
+      const found = catalogBasemap(key)
+      if (!found) return
+      const src: CustomBasemapSource = kind === "catalog-overlay" ? { ...found, role: "overlay", stack: "top", opacity: found.opacity ?? 100 } : found
+      setBasemaps((prev) => (prev.some((x) => x.id === src.id) ? prev.map((x) => (x.id === src.id ? src : x)) : [...prev, src]))
       activateBasemapSource(setState, src)
       return
     }
