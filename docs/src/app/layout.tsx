@@ -13,6 +13,10 @@ const inter = Inter({
 // single "canonical" domain to prefer over the other for this purpose.
 export const metadata: Metadata = {
   metadataBase: new URL('https://terrain-viewer.iconem.com/docs/'),
+  // Every page's <title> gets the site's name: a bare "Dev" or "Features"
+  // is too short for a search result (Bing flagged eleven pages), and the
+  // suffix says what the site is.
+  title: { template: '%s · Terrain Viewer docs', default: 'Terrain Viewer docs: elevation, relief and historical imagery' },
   // Without this, the browser falls back to fumadocs-ui's own default
   // favicon (a generic, unstyled lucide book-open glyph) instead of this
   // colored one. Deliberately a book-open glyph (not the main app's mountain

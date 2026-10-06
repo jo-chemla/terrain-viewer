@@ -29,3 +29,4 @@
 - [Recording demos with agent-browser](agent-browser-recording.md) — `record` drops map takes (encoder lag); CDP screencast capture instead; GPU flags, storage, Git Bash and IIIF-host traps; Remocn/Remotion notes
 - [Docs, slides and video tooling](docs-slides-video-tooling.md) — Fumadocs, open-slide, agent-browser in use; Nextra, Slidev, Lumae rated
 - [Allmaps overlays](allmaps-overlays.md) — no pitch support (hidden while tilted), self-describing catalog ids for links, overlay order
+- [MapLibre 3D overlays, later](maplibre-3d-overlays-idea.md) — PR #8567 is the hook for 3D overlays when wanted
