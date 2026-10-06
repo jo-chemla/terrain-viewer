@@ -24,7 +24,7 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **Shared links** rebuild the catalog overlays they name (Allmaps maps, David Rumsey sheets, Map Warper and Wikimaps maps) on the recipient's side.
 - **STAC catalog picker** is a combobox: type a name ("planet"), or paste a URL for a custom catalog.
 - **Auto** reads a David Rumsey detail page (the map's Allmaps annotation, if georeferenced).
-- Switching an overlay off from its label no longer moves the camera.
+- Switching an overlay off from its label no longer moves the camera. Allmaps overlays hide while the view is tilted (the layer draws flat only) instead of landing in the wrong place.
 - **Desktop**: the light build updates itself too, from its own `desktop-latest-light` feed (the two builds could not share one release). **About**: the version answer scrolls into view. **Slides**: screenshots are no longer cropped (a cropped one keeps the side panel); on localhost the Slide decks page links the editor too.
 - **Docs**: Tools, Embedding / iframe, nDSM / Comparison renamed; the Dev group starts folded; the embed example on Mapterhorn; no redirect pages for old addresses.
 - **Sources Coverage**: Controls, Catalogs and Search results as three folds; a box on Terrain, Basemaps · Static and Basemaps · Historical takes the whole section; a row with a thumbnail shows it on hover.

@@ -522,6 +522,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               <SliderControl label="Overlays opacity" value={(state.overlaysOpacity ?? 1) * 100} onChange={(v) => setState({ overlaysOpacity: v / 100 })} min={0} max={100} step={1} suffix="%" sliderId="overlays-opacity" />
               {scannedMaps.length > 0 && <PaperControl maps={scannedMaps} />}
               {editMode && overlaySources.length > 1 && <p className="text-[11px] text-muted-foreground">Drag the handles to order the overlays: the first draws on top.</p>}
+              {(state.pitch ?? 0) > 0.5 && overlaySources.some((s) => s.type === "iiif") && <p className="text-[11px] text-amber-700 dark:text-amber-400">Georeferenced IIIF maps (Allmaps) hide while the view is tilted: Allmaps' layer draws flat only. Set the pitch to 0 to see them.</p>}
               {overlaySources.map((source) => (
                 <div key={source.id} className={`flex items-center gap-2 min-w-0 ${dragOverId === source.id ? "ring-1 ring-primary rounded" : ""}`}
                   onDragOver={editMode ? (e) => { e.preventDefault(); if (dragOverId !== source.id) setDragOverId(source.id) } : undefined}

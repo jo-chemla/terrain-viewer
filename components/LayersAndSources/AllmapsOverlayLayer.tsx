@@ -54,6 +54,7 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
         if (map.getLayer(beforeId)) {
           map.addLayer(layer as CustomLayerInterface, beforeId)
           layer.setOpacity(opacity)
+          syncPitch()
           layer.addGeoreferenceAnnotationByUrl(annotationUrl)
             .then(() => apply())
             .catch((e: unknown) => console.error("[allmaps] annotation failed:", annotationUrl, e))
@@ -63,14 +64,21 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
       }
       tryAdd()
     }
+    // Allmaps' WarpedMapLayer draws from a flat viewport (the four screen
+    // corners unprojected, a centre, a scale, a rotation): it has no pitch,
+    // and in a tilted view the map lands flat over the perspective, in the
+    // wrong place. Hidden while the view is tilted, back when it is flat.
+    const syncPitch = () => { if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", map.getPitch() > 0.5 ? "none" : "visible") }
+    map.on("pitch", syncPitch)
     add().catch((e) => console.error("[allmaps] layer failed:", e))
     // A style swap drops every layer: put it back once the style is there.
-    const onStyleData = () => { if (layer && !map.getLayer(layerId) && map.getLayer(beforeId)) { map.addLayer(layer as CustomLayerInterface, beforeId); layer.setOpacity(opacity) } }
+    const onStyleData = () => { if (layer && !map.getLayer(layerId) && map.getLayer(beforeId)) { map.addLayer(layer as CustomLayerInterface, beforeId); layer.setOpacity(opacity); syncPitch() } }
     map.on("styledata", onStyleData)
     return () => {
       cancelled = true
       if (raf !== null) cancelAnimationFrame(raf)
       map.off("styledata", onStyleData)
+      map.off("pitch", syncPitch)
       layerRef.current = null
       if (map.style && map.getLayer(layerId)) map.removeLayer(layerId)
     }
