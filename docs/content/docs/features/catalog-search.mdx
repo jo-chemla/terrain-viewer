@@ -1,0 +1,71 @@
+---
+title: Catalog search
+description: Finding data you have no URL for, from the Add Terrain and Add Basemap dialogs - STAC catalogs and APIs, NextGIS QMS and the OSM Editor Layer Index - and the app's own sources published as STAC
+icon: Search
+---
+
+The Add Terrain and Add Basemap dialogs take a URL, or [recognise one](/features/byod#auto-paste-any-url). When there is no URL yet, their search tabs look one up: a STAC catalog for scenes and DEMs over the view, and for basemaps the two big registries of public map services. What a search found keeps its provenance in [Source info](/features/coverage-overlays). The historical catalogs (post-crisis imagery, national archives, old maps) are a different thing: they feed the [timeline](/features/basemaps-and-historical) and are listed on [Historical sources](/features/historical-sources).
+
+## STAC search
+
+A tab in both the **Add Terrain** and **Add Basemap** dialogs.
+
+[STAC](https://stacspec.org/) is the standard index for cloud-native imagery and elevation. This tab searches a catalog for scenes over your current view and adds the COG assets it finds as sources, with no download step.
+
+Seventeen presets ship, grouped by what they hold:
+
+| Group | Catalogs |
+|---|---|
+| **Mixed** | OpenAerialMap, Earth Search (AWS/Element 84), eoAPI demo, NASA VEDA, swisstopo |
+| **Imagery** | LINZ New Zealand, Maxar and Vantor open-data disaster events, Planet disaster releases, Umbra and Capella open SAR, Lower Saxony orthophotos, SPOT Canada |
+| **Elevation** | OpenTopography raster DEMs, LINZ elevation, Polar Geospatial Center (ArcticDEM, REMA, EarthDEM) |
+| **Registries** | federated collection discovery (MAAP) |
+
+Or paste any catalog URL: a `.json` is crawled as a static catalog, anything else is treated as a STAC API.
+
+The same list is also in the **Library**, under **Catalogs** — a catalog cannot be "added" the way a single dataset URL can, so its row offers **Browse**, which closes the Library and opens this tab with that endpoint already selected. That is the entry point worth remembering: the Library is where you look for data, and per-scene DEMs (EarthDEM strips, ArcticDEM strips, OpenTopography's rasters) only exist behind a search.
+
+Each catalog row also has a **+/−**, which decides whether that endpoint is offered in the search's own picker at all — so a list you never use can be trimmed to the handful you do. The choice is remembered, and it is stored as the *exclusions*, so a catalog added in a later release turns up rather than being silently absent.
+
+What the panel does for you:
+
+- **Two access shapes, one UI.** A STAC **API** is paged through its `/search` endpoint with bbox and datetime; a **static** catalog has no search, so its child links are crawled breadth-first and filtered to the view. Static crawls of deeply nested archives (Umbra's year-nested tree, for instance) are slow by nature — the progress line says where it is.
+- **Filters** — date range, current view only, cloud cover.
+- **Web Mercator first.** Assets already in EPSG:3857 sort ahead of the rest, because they load directly; anything else is pinned to [titiler](/features/byod) automatically rather than failing quietly.
+- **Terrain is filtered to single-band elevation rasters**, so the terrain dialog does not offer you an RGB quicklook as a DEM.
+- Collections offering a `xyz` web-map-link can be added as a tile source directly, without picking an item at all.
+
+Your last catalog, collection and filters are remembered per target, so reopening the tab resumes where you left off.
+
+<Callout type="warn">
+A catalog has to send CORS headers to be usable from a browser at all, regardless of how open its licence is. CNES GEODES, for example, answers 200 with 66 collections and no `Access-Control-Allow-Origin` — unreachable from any client-side app.
+</Callout>
+
+### Terrain Viewer's own sources, as STAC
+
+The other way round: every source the app knows is published as a static STAC catalog at [`/docs/stac/catalog.json`](../../stac/catalog.json). Open it in [STAC Map](https://developmentseed.org/stac-map/?href=https://terrain-viewer.iconem.com/docs/stac/catalog.json) or [STAC Browser](https://radiantearth.github.io/stac-browser/#/external/terrain-viewer.iconem.com/docs/stac/catalog.json) (the file is served with CORS, in production by GitHub Pages and in development by the Vite proxy). Eight collections:
+
+- **terrain-builtin**: the global elevation tiles (Mapterhorn, Mapbox, MapTiler, AWS, Esri, Cesium), each link carrying its tile encoding and whether it needs a key.
+- **terrain-library** and **basemap-library**: the libraries, with their declared footprints and native resolution (`gsd`); COGs as assets, tile services as web-map links.
+- **historical-imagery**: the timeline's own sources (Wayback, Google Earth Historical, Bing, Planet, EOX, HLS), one item each spanning its archive.
+- **eli**: every layer of the OSM Editor Layer Index (about 1,750) with its coverage polygon and capture dates where it has them.
+- **ign-historical**: every dated IGN Géoplateforme layer (about 140), with WMTS and tile links.
+- **national-historical**: the regional year series on the timeline (about 330 layers: Catalonia, Spain, NRW, Wallonia, Flanders, the Netherlands, Vienna, Luxembourg, Hamburg, Bavaria, Tyrol, Japan, New York City, 1953 East Germany, Landsat WELD).
+- **timeline-catalogs**: the catalogs searched per view (HOT STAC, Planet disaster data, Map Warper, Wikimaps, USGS topo, ArcGIS Online, swisstopo, QMS, Allmaps), linked rather than copied; the two STAC ones are children a client can follow.
+
+Tile services use the [web-map-links](https://github.com/stac-extensions/web-map-links) extension (`xyz`, `wms`, `wmts`); each item also links back to the app at its place. Items without a date carry an open time range and `terrain-viewer:undated`. The catalog is rebuilt by the docs build (`pnpm run stac` by hand). QMS and Allmaps could later be served as live STAC through a small proxy that turns a STAC search into their own queries.
+
+## Basemap catalog search
+
+Two more tabs of the **Add Basemap** dialog, for imagery rather than elevation.
+
+**NextGIS QMS** — searches [qms.nextgis.com](https://qms.nextgis.com/), a community index of public map services. Only `tms` and `wms` entries can become a MapLibre raster source directly, so those are what the list shows; each result carries its zoom range and a permalink into the QMS browser.
+
+**OSM Editor Layer Index** — the imagery catalog behind iD, JOSM and Rapid: roughly 1,500 aerial, map and historic sources, most of them national or regional agency services **with their licence recorded**. It ships bundled (bumped weekly) rather than fetched, so it works offline and cannot break when an upstream index moves.
+
+- Filter by text, by category (aerial, map, historic map, OSM-based, historic aerial, QA, elevation), or to **layers covering the current view**.
+- "Best" layers are starred, as the OSM editors mark them.
+- Licence and attribution follow the layer into [Sources Coverage](/features/coverage-overlays), along with a permalink to the index entry.
+- An entry's real coverage polygon — not a bounding box — can be drawn as a [coverage overlay](/features/coverage-overlays).
+
+An index entry declares whether it is a **basemap or an overlay**, and that role is honoured on add: an overlay-role layer joins the overlay list rather than silently replacing your basemap.

@@ -37,15 +37,9 @@ When the URL itself says nothing, the dialog reads the start of the response onc
 
 ## Searching catalogs
 
-Both dialogs can search catalogs instead of taking a URL:
+Both dialogs can search catalogs instead of taking a URL: a STAC catalog or API, NextGIS QMS and the OSM Editor Layer Index. They have their own page, [Catalog search](/features/catalog-search). One more type takes a URL that is not a tile service:
 
 - **IIIF map with a Georeference Annotation** (basemaps, always an overlay): an old map or plan already georeferenced with [Allmaps](https://allmaps.org/), or any service that writes the IIIF Georeference extension. Paste the annotation URL (`https://annotations.allmaps.org/maps/<id>`, or a manifest's or image's annotation page): the IIIF image is warped on the GPU from the annotation's control points and mask by Allmaps' MapLibre layer, so nothing is pre-rendered and the map stays sharp at every zoom. The quickest way to find one is the **Old maps (Allmaps)** coverage overlay below: click an outline, then **Use as overlay**.
-- **NextGIS QMS** and the **OSM Editor Layer Index** (basemaps): the two big registries of tile and WMS services, filtered to the current view, with licence and attribution carried over into Source Info.
-- **STAC search** (beta, enable it in Settings → Beta): pick a catalog — OpenAerialMap, Earth Search, eoAPI, NASA VEDA, swisstopo, LINZ, Maxar and Vantor open-data events, Planet disaster releases, PGC polar DEMs, OpenTopography, a federated collection search, or any STAC API / static `catalog.json` URL — a date range and the current view, then add any Cloud Optimized GeoTIFF from the results as a terrain or basemap source. Assets whose projection extension says they are not Web Mercator are pinned to titiler automatically. Each catalog links to stac-map and STAC Browser for a fuller look.
-
-  ![The STAC catalog list: custom URL, mixed, imagery, elevation and registries](/screenshots/stac-catalogs.jpg)
-
-  ![Vantor open-data results over the 2026 Nepal flooding, each scene addable as a basemap or overlay](/screenshots/stac-search.jpg)
 
 Where a source has data is what [Coverage Overlays](/features/coverage-overlays) show, on the map, before you load it.
 
