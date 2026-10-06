@@ -86,17 +86,13 @@ Native MapLibre hillshade with multiple illumination methods (Standard, Combined
 
 ## Elevation Hypso (Hypsometric Tint)
 
-Color-encoded elevation with a choice of color ramps (including [CPT City](http://seaviewsensing.com/pub/cpt-city/) ramps) — see [MapLibre PR #5913](https://github.com/maplibre/maplibre-gl-js/pull/5913).
+Color-encoded elevation with a choice of color ramps (including [CPT City](http://seaviewsensing.com/pub/cpt-city/) ramps, and in the Classic tab **Relief Green-Red**, the green-to-red palette of archaeological LiDAR figures: pale cyan for water and the lowest ground, greens, yellow and orange up to a dark red top) — see [MapLibre PR #5913](https://github.com/maplibre/maplibre-gl-js/pull/5913).
 
 ![Elevation Hypso combined with Hillshade, with the Elevation Color controls panel open](/screenshots/viz-modes/hypso.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">Elevation Hypso + Hillshade, with the Elevation Color controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=60&bearing=-20&viewMode=3d&showHillshade=true&showColorRelief=true&hillshadeOpacity=0.6&colorRamp=tv-a&hypsoSliderMaxBound=4230&maxElevation=8620&minElevation=1450&colorReliefOpacity=0.9&hypsoSliderMinBound=90&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ## Contours + Geo Grid
-
-**Iso-line** is the third group of the section, under the geogrid: a vector line drawn from any **measure**, independent of the contour lines. The measure is the elevation, any terrain-analysis mode (slope, aspect, TRI, TPI, roughness, curvature, shape index, blobness, eigen ratio, orientation), the local relief model, or a lighting mode's brightness (Phong with its rim, Matcap, the hard shadow), each with that mode's own settings (the curvature kernel, the LRM radius, the light, the Phong strengths and Fresnel rim). The horizon modes (sky-view factor, openness, local dominance) are left out: minutes per view at the zooms a line needs. **At a value** draws one line where the measure crosses the value you set (an iso-slope at 30° for avalanche terrain or 80° for cliffs, a lake or flood level, canopy on an nDSM at 1.5 m), the slider sized to the measure's range and unit, the exact value typed; **Fill the area above** paints that area in the line's colour. Both come from one set of polygons (marching squares on the measure tiles, `isoband://`), so the fill stops exactly on the line. **Every interval** draws the contours of the measure itself (slope every 10°, a curvature every 1). The lines export as GeoJSON like the contours (`showIsoline`, `isolineMeasure`, `isolineMode`, `isolineValue`, `isolineInterval`, `isolineFill`). The tiles follow the terrain source's own zoom (a WMS DSM up to zoom 19), so the line is as sharp as the shading.
-
-Under the hood every derived mode's tiles are a Terrarium-encoded scalar, so the contour engine reads them like a DEM; a lighting tile goes through `luma://`, which composites it over a mid grey and keeps its luminance (128 neutral, 0 full shadow, 255 the brightest highlight; with the diffuse strength at 0 and a dark rim the whole range sits below 45, so pick the value accordingly); the value you type is scaled the way the mode bakes its numbers (curvature ×100) before the polygons are traced.
 
 Contour lines trace one of two references. **Absolute** is real elevation, with a minor and a major interval. **LRM** traces the Local Relief Model instead, so the lines follow local bumps and hollows rather than altitude.
 
@@ -105,6 +101,19 @@ Configurable-interval contour lines via [onthegomap/maplibre-contour](https://gi
 ![Contour lines, with the Contours & GeoGrid controls panel open](/screenshots/viz-modes/contours.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">Contours + GeoGrid alone (no Hillshade), top-down, with the Contours & GeoGrid controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=false&showContours=true&showContoursAndGraticules=true&contourWeight=2&contourMinor=10&contourMajor=100&showGraticuleLabels=true&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+
+### Iso-line
+
+![An iso-slope at 45° with its fill over the Matterhorn hillshade: the red line where the slope crosses 45°, the area steeper than 45° filled in light red, with the Iso-line controls open](/screenshots/viz-modes/isoline-slope.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Iso-line, Slope at 45° with Fill the area above, over Hillshade, with the Contours & GeoGrid panel open, Matterhorn massif · <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showHillshade=true&hillshadeOpacity=1&exaggeration=1&showContoursAndGraticules=true&showContours=false&showIsoline=true&isolineMeasure=slope&isolineMode=value&isolineValue=45&isolineFill=true&isolineFillOpacity=0.35" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+
+**Iso-line** is the third group of **Contours & GeoGrid**, under the geogrid (**Show Iso-line**): a vector line drawn from any **measure**, independent of the contour lines. The measure is the elevation, any terrain-analysis mode (slope, aspect, TRI, TPI, roughness, curvature, shape index, blobness, eigen ratio, orientation), the local relief model, or a lighting mode's brightness (Phong with its rim, Matcap, the hard shadow), each with that mode's own settings (the curvature kernel, the LRM radius, the light, the Phong strengths and Fresnel rim). The horizon modes (sky-view factor, openness, local dominance) are left out: minutes per view at the zooms a line needs. **At a value** draws one line where the measure crosses the value you set (an iso-slope at 30° for avalanche terrain or 80° for cliffs, a lake or flood level, canopy on an nDSM at 1.5 m), the slider sized to the measure's range and unit, the exact value typed; **Fill the area above** paints that area in the line's colour. Both come from one set of polygons (marching squares on the measure tiles, `isoband://`), so the fill stops exactly on the line. **Every interval** draws the contours of the measure itself (slope every 10°, a curvature every 1). The lines export as GeoJSON like the contours (`showIsoline`, `isolineMeasure`, `isolineMode`, `isolineValue`, `isolineInterval`, `isolineFill`). The tiles follow the terrain source's own zoom (a WMS DSM up to zoom 19), so the line is as sharp as the shading.
+
+Under the hood every derived mode's tiles are a Terrarium-encoded scalar, so the contour engine reads them like a DEM; a lighting tile goes through `luma://`, which composites it over a mid grey and keeps its luminance (128 neutral, 0 full shadow, 255 the brightest highlight; with the diffuse strength at 0 and a dark rim the whole range sits below 45, so pick the value accordingly); the value you type is scaled the way the mode bakes its numbers (curvature ×100) before the polygons are traced.
+
+Iso-line replaces the beta **threshold outlines** of the contours (a third contour reference, now removed, with its `thresholdBeta` flag): an outline at 1.5 m on an nDSM, or a flood level on a DEM, is now an Iso-line on the elevation at that value. Limits: the line is traced on the measure's tiles, so it is only as fine as the terrain source.
+
 
 ## Terrain Analysis
 
@@ -144,11 +153,15 @@ SVF/Openness/Local Dominance share the terrain-analysis pipeline above (just a r
 
 See [Lighting Effects](/dev/lighting-effects) for how these differ from the terrain-analysis pipeline above (real surface normals, GPU shading, a live-WebGL fast path), and [Sun Position](/features/sun-position) for the astronomy behind driving Phong's light from real solar position.
 
-- **Matcap** — material-capture-style shading looked up by surface normal, independent of any real light direction
-- **Phong** — ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light, sharing the "hold L, drag" on-map light control
+- **Matcap** — material-capture-style shading looked up by surface normal, independent of any real light direction; the **Duotone Sphere** material matches the Duotone NW/NE hillshade
+- **Phong** — ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light, sharing the "hold L, drag" on-map light control. With the live renderer it takes up to three coloured lights: in Free mode, Light Direction shows **Lights 1 / 2 / 3** and a colour swatch per light, and lights 2 and 3 are pills of their colour on the light pad (blue from the north-east and orange from the south-east by default). **Fresnel Rim** (under Intensities, with **Rim Falloff**) brightens the edges of slopes that turn away from the camera; it shows best on a tilted view. Details in [Lighting Effects](/dev/lighting-effects#up-to-three-coloured-lights-live-renderer).
 - **Shadows**, two kinds sharing one light (the same pad, or the datetime sun):
   - **Terrain** (hard shadows) — cast shadows from a single ray marched toward the sun's actual azimuth/altitude
   - **Buildings (OSM)** — shadows of OpenStreetMap buildings (heights from OpenFreeMap's building layer, OSM height or levels), the fast flat-ground way, on the GPU: each footprint is swept away from the sun by height / tan(altitude), the sweeps are drawn once into a mask (overlaps never darken twice, roofs stay lit), and the mask is composited over the map. The buildings are read once per settled view, from zoom 13; moving the light is a repaint, so the sun slider is live. Needs no OSM basemap on. Mercator only, and over 3D terrain the shadows stay on the flat plane the buildings' feet are drawn on; for shadows cast by the real shapes (a spire, a dome) falling on slopes, use the terrain Shadows above with a surface model (DSM) as the terrain source. Off by default (`showBuildingShadows=true`, `buildingShadowOpacity`).
+
+![Building shadows over the Louvre on the OpenStreetMap basemap: the shadows of the OSM buildings cast north-west by a low south-east sun, with the Lighting Effects panel open on Shadows → Buildings (OSM)](/screenshots/viz-modes/building-shadows-louvre.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Lighting Effects, Shadows → Buildings (OSM), sun from the south-east at 20°, on the OpenStreetMap basemap, the Louvre, Paris · <a href="https://terrain-viewer.iconem.com/?viewMode=2d&lat=48.8606&lng=2.3376&zoom=16.2&pitch=0&bearing=0&showHillshade=false&showRasterBasemap=true&basemapSource=osm&basemapSourceA=osm&showLightingEffects=true&showPhong=false&showBuildingShadows=true&buildingShadowOpacity=0.6&illuminationDir=135&illuminationAlt=20" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
 ![Phong lighting over Hillshade, with the Lighting Effects controls panel open](/screenshots/viz-modes/phong.jpg)
 

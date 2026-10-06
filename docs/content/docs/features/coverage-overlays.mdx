@@ -15,6 +15,8 @@ description: See where each terrain or basemap source actually has data, before 
 - for COGs, links to open the same file in an external viewer (source.coop, GeoLibre);
 - and the coverage picker described below.
 
+Source info has two folds, **Basemap** above and **Terrain** below. Each basemap row shows its provider prefix, its type and its resolution, with an info button that opens the full metadata dialog. The terrain fold's **Show data provenance at map center** lists the datasets covering the tile at the centre of the view; it waits until zoom 5, since a coarser tile spans half a continent.
+
 Sources that arrived from a catalog keep their provenance: an [Editor Layer Index](/features/tools) layer carries its index entry and licence, a STAC item carries its collection.
 
 It is also where a source found under the cursor can be **switched into view A** in one click — the hover list below sorts what covers a point by increasing ground sample distance, so the sharpest dataset available there is first.
@@ -48,6 +50,8 @@ The picker is a small tree, independent of what is loaded in your Terrain and Ba
 
 - **FLAI open LiDAR** — 114 open point clouds republished as COPC at [hub.flai.ai](https://hub.flai.ai/). Not a DEM, but the same question: is there anything better than global 30 m here? These are real flown footprints, not bounding boxes — traced from each COPC octree’s own occupied nodes, which is why France comes out as France rather than as the rectangle around it. Click one to open it in FLAI Hub at the same view.
 
+- **OpenTopography** (under 3D and LiDAR coverage): the footprints of the rasters and point clouds hosted by [OpenTopography](https://opentopography.org/). Clicking one opens the dataset's page, with its DOI and downloads.
+
 - **Esri Integrated Mesh** — every public photogrammetric I3S scene layer on ArcGIS Online, one rectangle per service. There are about 10 900 of them and most are one drone flight over one building site, so anything under 5 km² of declared extent is dropped — a speck you cannot click is not an answer. That leaves 1 719, cities down to districts. Esri has no global photorealistic mesh — its one global *3D Buildings* layer (TomTom, Vantor, Community Maps, Overture, quarterly) is modelled buildings, not imagery-derived, and declares a whole-world extent, so there is no footprint to draw and it is not one of these. None of it is renderable here, I3S being Esri’s own format, so clicking a footprint opens that one service in Esri’s Scene Viewer instead — the service alone, so nothing else in the scene collides with the mesh.
 
 **Basemaps**
@@ -56,11 +60,47 @@ The picker is a small tree, independent of what is loaded in your Terrain and Ba
 - **Your basemaps** — custom basemaps with declared bounds, or added from the Editor Layer Index (those use the index polygon).
 - **Basemap library** — the sample basemaps that declare bounds.
 
+## The coverage tree
+
+![The Sources Coverage section: the switches above the tree, Terrain and Basemaps · Static folded, Basemaps · Historical with Mapping agencies national catalogs open on Europe and France, IGN Remonter le temps checked with 52 items here; the Allmaps outlines over Paris](/screenshots/coverage-tree.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Sources Coverage over Paris: Mapping agencies national catalogs → Europe → FRA · France opened, IGN Remonter le temps on (52 items here), the other French archives dimmed because they do not cover the view; the Allmaps outlines drawn on the map · <a href="https://terrain-viewer.iconem.com/?lat=48.857&lng=2.345&zoom=12.4&viewMode=2d&pitch=0&bearing=0&showHillshade=false&showRasterBasemap=true&basemapSource=esri&coverageOverlays=allmaps&timelineCatalogs=cat-ign,cat-mapwarper,cat-allmaps,cat-wikimaps" target="_blank" rel="noopener noreferrer">open in app ↗</a> (open the folds by hand: they are kept in your browser, not in the link)</p>
+
+The tree is always open at the top of the Sources Coverage section. It has three parts:
+
+- **Terrain**: Mapterhorn, 3D and LiDAR coverage (Bing, Google, Esri, FLAI, OpenTopography), the terrain library, your terrain sources.
+- **Basemaps · Static**: the Editor Layer Index footprints, your basemaps, the basemap library.
+- **Basemaps · Historical**: the timeline's catalogs tree itself, the same tree the timeline's **Catalogs** select opens (see [Basemaps and Historical](/features/basemaps-and-historical#the-timeline-panel)). Its four roots are **Open data for post-crisis response**, **Community indexes** (the Editor Layer Index's dated layers, ArcGIS Online, NextGIS QMS), **Mapping agencies national catalogs** (a continent, then a country with its ISO alpha-3 code) and **Old maps, digitised and warped** (Allmaps and David Rumsey first, as footprint-only rows since those annotations carry no date, then Allmaps' dated maps, the CORONA Atlas, Map Warper, Wikimaps Warper, SLUB, the USGS topo maps).
+
+A checkbox draws a group or a single entry; the chevron on the left opens it. A row shows how many of its items cover the view ("1 on · 2 here"), and a catalog that has nothing here is dimmed. Every group starts folded except the three parts; what you open is kept across sessions, here and in the timeline's Catalogs select alike.
+
+The switches above the tree:
+
+| Switch | What it does |
+|---|---|
+| **Show on the map** | Hides or shows every footprint at once; the selection is kept. **clear** unticks everything. |
+| **Outlines only** | Footprints without their fill. |
+| **Items' footprints** | Draws the outline of every item the checked historical catalogs found. |
+| **Follow the view** | On (the default), the catalogs are asked again as the map moves. Off, the results stay as they are; switching it on again asks for the current view. |
+| **Within the timeline window** | Asks the catalogs only for items dated inside the timeline's current window. Changing it asks them again. |
+| **Active sources' extents** | Draws the declared extents of the sources on the views (terrain, basemap and overlays) as dashed outlines; a source row shows z≥N while the view is below the zoom it serves. |
+| **Picks join my sources** | Off by default: an item picked on the timeline only becomes the view's basemap. On, it also joins Your basemaps. |
+| **Expand all / Fold all** | Opens or folds the whole tree. |
+
+Leaves with a known extent (your sources, the libraries, the Allmaps maps, every catalog item picked on the timeline) have a zoom-to-fit button.
+
+## Search results
+
+![Under the tree: the Old maps root open with Map Warper (42), Allmaps dated maps (39) and Wikimaps Warper (16) on, then Search results, 293 in view, with the Allmaps maps ranked by overlap and a Use button on each row](/screenshots/coverage-search-results.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Search results over Paris: 293 sources and catalog items in view, the Allmaps block first, each row with its IoU, how much of it is in view, its area and a Use button · <a href="https://terrain-viewer.iconem.com/?lat=48.857&lng=2.345&zoom=13&viewMode=2d&pitch=0&bearing=0&showHillshade=false&showRasterBasemap=true&basemapSource=esri&coverageOverlays=allmaps&timelineCatalogs=cat-ign,cat-mapwarper,cat-allmaps,cat-wikimaps" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
+
+**Search results**, under the tree, lists everything the shown overlays and the checked catalogs hold for the view, without clicking on the map. It is one foldable list with a single scroll: a block per group (Mapterhorn, the libraries, 3D and LiDAR, ELI, QMS, Allmaps, your sources, then each historical catalog with its items' dates and resolutions). Rows are ranked by how well each footprint matches the view (intersection over union, IoU), so a city plan comes before a world map that also covers it. Each row says how much of it is in view and how much of the view it covers, links to its page, and has a **Use** button that puts the source, or the catalog item, on the view. **Centre only** keeps what lies under the view's centre. The list refreshes when the map settles.
+
 ## Reading the map
 
 - **Hover** a point to list every overlay covering it in a floating box.
-- **Click** to open the same list as a dialog, with each source's dataset page or catalog record linked, every row prefixed with where it comes from (FLAI, OpenTopography, Terrain library, QMS…); the historical items' footprints (Map Warper, Allmaps, the national archives…) are listed and clickable the same way, and **Use** puts the item on the view. The list is ranked by how well each footprint matches the view (intersection over union): a city plan comes before the world map that also covers the point, and each row says how much of the view it covers and how much of it is in view.
-- **The tree** is always open in the Sources Coverage section, in three parts: **Terrain** (Mapterhorn, 3D and LiDAR coverage, the terrain library, your sources), **Basemaps · Static** (the Editor Layer Index footprints, the basemap library, your basemaps) and **Basemaps · Historical**, the timeline's catalogs tree itself (the same tree the timeline's Catalogs select opens): open data for post-crisis response, the **Community indexes** (the Editor Layer Index's dated layers, ArcGIS Online imagery, NextGIS QMS footprints), the mapping agencies' national catalogs under a continent then a country (ISO alpha-3 code), and the old maps, Allmaps and David Rumsey first (footprint-only rows: those annotations carry no date), then Allmaps' dated maps, the CORONA Atlas, Map Warper, Wikimaps Warper, SLUB, USGS topo maps. Every group starts folded; what you open is kept across sessions, in both places. Above the tree: the master switch that hides every footprint at once (the selection kept), **Outlines only**, the historical **Items' footprints**, **Follow the view** (off to stop re-asking the catalogs as the map moves; on again asks them for the current view), **Within the timeline window** (changing it asks the catalogs again), **Active sources' extents** (the declared extents of the sources on the views, terrain, basemap and overlays, drawn dashed; a source row shows z≥N while the view is below the zoom it serves), **Picks join my sources** (off by default: a timeline pick only becomes the view's basemap) and **Expand all / Fold all** for the whole tree.
+- **Click** to open the same list as a dialog, with each source's dataset page or catalog record linked, every row prefixed with where it comes from (FLAI, OpenTopography, Terrain library, QMS…); the historical items' footprints (Map Warper, Allmaps, the national archives…) are listed and clickable the same way, and **Use** puts the item on the view. A filter box at the top narrows a long list by name, collection, type or year. The list is ranked by how well each footprint matches the view (intersection over union): a city plan comes before the world map that also covers the point, and each row says how much of the view it covers and how much of it is in view.
 - **What each catalog can tell about an item** (the tick card and the lists show what exists):
 
   | Catalog | Resolution | Date | Licence | Page | Thumbnail |
@@ -76,8 +116,6 @@ The picker is a small tree, independent of what is loaded in your Terrain and Ba
   | IGN, swisstopo, Kartverket, CORONA | layer-level | yes | yes | source page | no |
   | Allmaps, QMS | no | none in the annotations; the **Allmaps, dated maps in view** catalog reads a year from the map's title or its IIIF manifest (one read per undated map in view, up to 40) | no | yes | derivable (IIIF) |
 
-- **Search results**: under the picker, a foldable list of everything the shown overlays and the checked catalogs hold for the view, without clicking, one scroll for the whole list: a block per group (Mapterhorn, the libraries, 3D and LiDAR, ELI, QMS, Allmaps, your sources, then each historical catalog with its items' dates and resolutions), ranked by overlap with the view, refreshed as the map settles. **Centre only** keeps what lies under the view's centre. Each row links to its page and has a **Use** button that puts the source, or the catalog item, on the view.
-- Leaves with a known extent (your sources, the libraries, every catalog item picked on the timeline) have a zoom-to-fit button.
 - A map click while the elevation picker, the sun calculator or a drawing tool is active goes to that tool: no coverage list opens.
 - Selected entries show as pills under the picker. A fully selected group is one pill with its count; remove a pill to hide it, or *clear* to hide all.
 

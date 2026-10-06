@@ -62,11 +62,15 @@ A solar azimuth/elevation pair does not map to a single instant: the same sun po
 
 ## Image Georeferencer
 
+Beta: switch on **Georeference Image** under Settings → Beta; the section then appears in the Tools group.
+
 A plain image with no georeferencing, a figure from a paper, a scanned plan, a drone orthomosaic exported as a JPEG, placed on the map from control points. Open the image from disk or paste its URL: it opens in a floating window over the map (drag its header, resize from any corner, wheel to zoom, drag to pan). With **Place control points** on, click matching spots on the image and on the map, in any order: the n-th image point pairs with the n-th map point, and both can be dragged afterwards. Each pair gets a number on both sides, and clicking a row in the list enlarges its two marks. From two pairs on, the image appears on the map, drawn through MapLibre's image source above the basemap and under the relief layers, so hillshade and contours still read through it at the chosen opacity.
 
 The fit comes from the [Allmaps](https://allmaps.org) transform library, without IIIF: **Similarity** (two points, keeps shapes) is the usual choice for a map figure, **Affine** (three) adds shear, **Projective** (four) suits a photograph of a flat map taken at an angle, and the polynomial and thin-plate-spline fits bend. The image is drawn from its four fitted corners, so the first three are exact on screen and the bending fits are exact at the corners only. Residuals in metres are listed per point once there are more points than the fit needs; a point can be removed from the list.
 
 What travels in the link: the points (`georefGcps`), the fit (`georefType`), opacity and visibility, and the image when it was loaded from a URL (`georefImage`). An image opened from disk stays in the browser session. **World file** downloads an ESRI world file (`.pgw` or `.jgw`, in WGS 84 degrees, with a `.prj`) to put next to the image for QGIS or GDAL.
+
+**Save as basemap overlay** keeps the result as an overlay in Basemap → Bring Your Own Data → Overlays, an image opened from disk included (it is stored in the browser, like a local COG, and restored after a reload). The overlay remembers its points: its row has a button that reopens the image in the georeferencer with them, so they can be moved and the overlay updated in place (**Update the overlay**). **Zoom to image** frames the placed image.
 
 ## Animation
 
