@@ -29,6 +29,8 @@ import type { FeatureCollection } from "geojson"
 import type { CustomBasemapSource } from "./settings-atoms"
 import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
 import { loadAllmapsCoverage, allmapsMeta } from "./coverage-overlays"
+
+const ALLMAPS_ANNOTATIONS = "https://annotations.allmaps.org"
 import { gsdFromZoom } from "./gsd"
 import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, loadNationalLayers, type NatLayer, type NatSource } from "./national-historical"
 
@@ -187,13 +189,28 @@ function yearOf(...texts: (string | undefined | null)[]): number | null {
 /** Catalogs whose items are scanned map sheets: the paper removal applies. */
 const SCANNED_MAP_CATALOGS = new Set(["cat-mapwarper", "cat-wikimaps", "cat-slub", "cat-usgs-topo", "cat-swiss-maps", "cat-kartverket", "cat-nat-ngi", "cat-nat-slovensko", "cat-nat-sinica"])
 
+/** A catalog item without a date (a search hit): its basemap only, no
+ *  tick; "Use" adds it to the view through the coverage use request. */
+function registerUndated(catalog: string, itemKey: string, source: Omit<CustomBasemapSource, "id">): string {
+  const id = `${CATALOG_BASEMAP_PREFIX}${catalog}--${itemKey.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 90)}`
+  basemaps.set(id, { ...source, id, transient: true, ...(SCANNED_MAP_CATALOGS.has(catalog) || source.type === "iiif" ? { oldMap: true } : {}) } as CustomBasemapSource)
+  return id
+}
+
+// Every tick registered this session, by its basemap id: a pick from the
+// text search (or a view's item after the search moved on) is found here.
+const ticksByRef = new Map<string, CatalogTick>()
+export const catalogTick = (ref: string): CatalogTick | undefined => ticksByRef.get(ref)
+
 function register(catalog: string, itemKey: string, dateMs: number, label: string, source: Omit<CustomBasemapSource, "id">, meta?: TickMeta): CatalogTick {
   const id = `${CATALOG_BASEMAP_PREFIX}${catalog}--${itemKey.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 90)}`
   basemaps.set(id, { ...source, id, transient: true, ...(SCANNED_MAP_CATALOGS.has(catalog) || source.type === "iiif" ? { oldMap: true } : {}) } as CustomBasemapSource)
   // No declared resolution: one pixel at the source's max zoom, at its extent's latitude.
   const lat = source.bounds ? (source.bounds[1] + source.bounds[3]) / 2 : 0
   const gsd = meta?.gsd ?? (source.maxzoom ? gsdFromZoom(source.maxzoom, lat, 256) : undefined)
-  return { source: catalog, key: dateMs, dateMs, label, ref: id, meta: { date: new Date(dateMs).toISOString().slice(0, 10), url: source.infoUrl, ...meta, gsd } }
+  const tick: CatalogTick = { source: catalog, key: dateMs, dateMs, label, ref: id, meta: { date: new Date(dateMs).toISOString().slice(0, 10), url: source.infoUrl, ...meta, gsd } }
+  ticksByRef.set(id, tick)
+  return tick
 }
 
 const cogSource = (name: string, href: string, bbox: Bbox | undefined, description: string, infoUrl?: string): Omit<CustomBasemapSource, "id"> =>
@@ -320,15 +337,26 @@ async function mapWarperTicks(catalog: string, bbox: Bbox, signal?: AbortSignal)
   const region = [Math.max(-180, bbox[0] - w), Math.max(-85, bbox[1] - h), Math.min(180, bbox[2] + w), Math.min(85, bbox[3] + h)]
   const res = await fetch(`${host}/api/v1/maps?bbox=${region.map((v) => v.toFixed(5)).join(",")}&operation=within&per_page=100`, { signal })
   if (!res.ok) throw new Error(`${short} ${res.status}`)
-  const d = await res.json()
+  return mapWarperItems(catalog, (await res.json()).data ?? [], bbox)
+}
+function mapWarperItems(catalog: string, data: any[], bbox: Bbox | null, undated?: CatalogSearchHit[]): CatalogTick[] {
+  const { host, short } = WARPERS[catalog]
   const ticks: CatalogTick[] = []
-  for (const r of d.data ?? []) {
+  for (const r of data) {
     const a = r.attributes ?? {}
     if (a.status && a.status !== "warped") continue
     const b = String(a.bbox ?? "").split(",").map(Number) as Bbox
-    if (b.length !== 4 || b.some((v) => !Number.isFinite(v)) || !intersects(b, bbox)) continue
+    if (b.length !== 4 || b.some((v) => !Number.isFinite(v)) || (bbox && !intersects(b, bbox))) continue
     const year = yearOf(a.date_depicted, a.title)
-    if (!year) continue
+    if (!year) {
+      // A search keeps the undated maps: no tick, but on the view by "Use".
+      if (undated) {
+        const title = String(a.title ?? r.id).replace(/^File:/, "").replace(/\.(jpe?g|png|tiff?|gif)$/i, "")
+        const ref = registerUndated(catalog, String(r.id), { name: title, url: `${host}/maps/tile/${r.id}/{z}/{x}/{y}.png`, type: "tms", role: "basemap", bounds: b, description: `${TIMELINE_CATALOG_BY_ID[catalog].label} map ${r.id}, undated`, infoUrl: `${host}/maps/${r.id}`, maxzoom: 20 } as Omit<CustomBasemapSource, "id">)
+        undated.push({ catalog, label: `${short} · ${title}`, detail: "undated · as a basemap, not on the timeline", url: `${host}/maps/${r.id}`, bounds: b, use: `catalog-basemap:${ref}` })
+      }
+      continue
+    }
     const dateMs = Date.UTC(year, 0, 1)
     const title = String(a.title ?? r.id).replace(/^File:/, "").replace(/\.(jpe?g|png|tiff?|gif)$/i, "")
     ticks.push(register(catalog, String(r.id), dateMs, `${short} · ${title} · ${year}`, {
@@ -397,14 +425,16 @@ function coronaTicks(bbox: Bbox): CatalogTick[] {
 
 // ── USGS historical topographic maps ──────────────────────────────────────
 const USGS_TOPO = "https://historical1.arcgis.com/arcgis/rest/services/USA_Historical_Topographic_Maps/ImageServer"
-async function usgsTopoTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
+async function usgsTopoTicks(bbox: Bbox | null, signal?: AbortSignal, text?: string): Promise<CatalogTick[]> {
   // Quads under the view centre (Category 1: primary rasters, not footprints);
-  // a whole-view query over a state would list thousands.
-  const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
+  // a whole-view query over a state would list thousands. A text search:
+  // the quads whose name holds the words, anywhere.
+  const cx = bbox ? (bbox[0] + bbox[2]) / 2 : 0, cy = bbox ? (bbox[1] + bbox[3]) / 2 : 0
+  const where = text ? `Category=1 AND UPPER(Map_Name) LIKE '%${text.toUpperCase().replace(/'/g, "''")}%'` : "Category=1"
   const q = new URLSearchParams({
-    where: "Category=1", geometry: `${cx.toFixed(5)},${cy.toFixed(5)}`, geometryType: "esriGeometryPoint", inSR: "4326",
-    spatialRel: "esriSpatialRelIntersects", outFields: "OBJECTID,Map_Name,Date_On_Map,Imprint_Year,Map_Scale,State",
-    returnGeometry: "true", outSR: "4326", resultRecordCount: "300", f: "json",
+    where, ...(text ? {} : { geometry: `${cx.toFixed(5)},${cy.toFixed(5)}`, geometryType: "esriGeometryPoint", inSR: "4326", spatialRel: "esriSpatialRelIntersects" }),
+    outFields: "OBJECTID,Map_Name,Date_On_Map,Imprint_Year,Map_Scale,State",
+    returnGeometry: "true", outSR: "4326", resultRecordCount: text ? "100" : "300", f: "json",
   })
   const res = await fetch(`${USGS_TOPO}/query?${q}`, { signal })
   if (!res.ok) throw new Error(`USGS topo ${res.status}`)
@@ -667,9 +697,13 @@ function kartverketTicks(bbox: Bbox): CatalogTick[] {
 }
 
 // ── ArcGIS Online search ──────────────────────────────────────────────────
-async function agolTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[]> {
-  const q = '(type:"Image Service" OR type:"Map Service") AND (orthophoto OR orthophotos OR orthoimagery OR orthofoto OR orthophotographie OR luchtfoto OR "aerial photography" OR "aerial imagery" OR "historical imagery")'
-  const viewKm2 = areaKm2(bbox)
+async function agolTicks(bbox: Bbox | null, signal?: AbortSignal, text?: string): Promise<CatalogTick[]> {
+  // A text search looks for the words anywhere in the world; the view query
+  // for imagery keywords over the view.
+  const q = text
+    ? `(type:"Image Service" OR type:"Map Service") AND (${text})`
+    : '(type:"Image Service" OR type:"Map Service") AND (orthophoto OR orthophotos OR orthoimagery OR orthofoto OR orthophotographie OR luchtfoto OR "aerial photography" OR "aerial imagery" OR "historical imagery")'
+  const viewKm2 = bbox ? areaKm2(bbox) : 0
   // National services stay listed over a city (the Netherlands is ~80,000 km2);
   // continental and world layers do not.
   const minKm2 = viewKm2 / 2000, maxKm2 = Math.max(viewKm2 * 2000, 1_000_000)
@@ -677,7 +711,7 @@ async function agolTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[
   const candidates: { r: any; b: Bbox; year: number; base: string }[] = []
   let start = 1
   for (let page = 0; page < 3 && start > 0; page++) {
-    const res = await fetch(`https://www.arcgis.com/sharing/rest/search?q=${encodeURIComponent(q)}&bbox=${bbox.map((v) => v.toFixed(5)).join(",")}&num=100&start=${start}&f=json`, { signal })
+    const res = await fetch(`https://www.arcgis.com/sharing/rest/search?q=${encodeURIComponent(q)}${bbox ? `&bbox=${bbox.map((v) => v.toFixed(5)).join(",")}` : ""}&num=100&start=${start}&f=json`, { signal })
     if (!res.ok) throw new Error(`ArcGIS Online ${res.status}`)
     const d = await res.json()
     for (const r of d.results ?? []) {
@@ -685,7 +719,7 @@ async function agolTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTick[
       if (!r.url || !ext?.length) continue
       const b: Bbox = [ext[0][0], ext[0][1], ext[1][0], ext[1][1]]
       const a = areaKm2(b)
-      if (a < minKm2 || a > maxKm2 || !intersects(b, bbox)) continue
+      if (bbox && (a < minKm2 || a > maxKm2 || !intersects(b, bbox))) continue
       const year = yearOf(r.title)
       if (!year) continue
       const base = String(r.url).replace(/\/+$/, "")
@@ -785,6 +819,125 @@ async function allmapsTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTi
     } as Omit<CustomBasemapSource, "id">, { provider: meta.providerLabel ?? "Allmaps", url: meta.pageUrl }))
   }))
   return ticks
+}
+
+// ── Text search across the checked catalogs, anywhere ─────────────────────
+/** One hit of the text search. `ref` when it is a catalog item (picking puts
+ *  it on the view like a tick); `use` when it goes through the coverage
+ *  "Use" path (a QMS service); neither when it can only be looked at. */
+export interface CatalogSearchHit { catalog: string; label: string; detail: string; url?: string; bounds?: Bbox; ref?: string; use?: string; dateMs?: number }
+export interface CatalogSearchResult { hits: CatalogSearchHit[]; searched: string[]; unsupported: string[]; errors: Record<string, string>; notes: string[] }
+
+const tickHit = (t: CatalogTick, detail?: string): CatalogSearchHit => {
+  const src = basemaps.get(t.ref)
+  const gsd = t.meta?.gsd ? (t.meta.gsd < 1 ? `${Math.round(t.meta.gsd * 100)} cm` : `${+t.meta.gsd.toFixed(1)} m`) : null
+  return { catalog: t.source, label: t.label, detail: detail ?? [t.meta?.date, gsd].filter(Boolean).join(" · "), url: t.meta?.url, bounds: src?.bounds, ref: t.ref, dateMs: t.dateMs }
+}
+const sha1Id = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(s)))).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16)
+
+/** David Rumsey's own catalog search, kept to the maps Allmaps has
+ *  georeferenced (an Allmaps image id is the first 16 hex of the SHA-1 of
+ *  the IIIF image address): those drape as overlays, dated by Rumsey. */
+async function rumseyAllmapsSearch(text: string, signal?: AbortSignal): Promise<{ hits: CatalogSearchHit[]; notGeoreferenced: number; total: number }> {
+  const res = await fetch(`https://www.davidrumsey.com/luna/servlet/as/search?q=${encodeURIComponent(text)}&os=0&bs=60`, { signal })
+  if (!res.ok) throw new Error(`David Rumsey ${res.status}`)
+  const d = await res.json()
+  const results: any[] = d.results ?? []
+  const field = (r: any, name: string): string | undefined => { for (const f of r.fieldValues ?? []) if (f[name]) return String(f[name][0]); return undefined }
+  let notGeoreferenced = 0
+  const hits: CatalogSearchHit[] = []
+  const queue = [...results]
+  await Promise.all(Array.from({ length: 8 }, async () => {
+    for (let r = queue.shift(); r; r = queue.shift()) {
+      const image = `https://www.davidrumsey.com/luna/servlet/iiif/${r.id}`
+      const annotationUrl = `${ALLMAPS_ANNOTATIONS}/images/${await sha1Id(image)}`
+      const a = await fetch(annotationUrl, { signal }).then((x) => (x.ok ? x.json() : null)).catch(() => null)
+      if (!a) { notGeoreferenced++; continue }
+      const pts: [number, number][] = []
+      for (const item of a.items ?? []) for (const f of item.body?.features ?? []) { const c = f.geometry?.coordinates; if (Array.isArray(c)) pts.push([c[0], c[1]]) }
+      const bounds: Bbox | undefined = pts.length > 1 ? [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))] : undefined
+      const title = field(r, "Short Title") ?? r.displayName ?? r.id
+      const year = yearOf(field(r, "Date"), field(r, "Full Title"), title)
+      const info = `https://www.davidrumsey.com/luna/servlet/detail/${r.id}`
+      if (!year) { hits.push({ catalog: "cat-allmaps", label: `Rumsey · ${title}`, detail: "undated · georeferenced in Allmaps", url: info, bounds }); continue }
+      const t = register("cat-allmaps", `rumsey-${r.id}`, Date.UTC(year, 0, 1), `Allmaps · Rumsey: ${title} · ${year}`, {
+        name: `${title} (${year}, David Rumsey)`, url: annotationUrl, type: "iiif", role: "overlay", stack: "top", provider: "allmaps", bounds,
+        description: `David Rumsey Map Collection ${r.id}, ${field(r, "Full Title") ?? title}, georeferenced in Allmaps`, infoUrl: info,
+      } as Omit<CustomBasemapSource, "id">, { provider: "David Rumsey Map Collection", url: info })
+      hits.push(tickHit(t, [String(year), field(r, "Attributed Author") ?? field(r, "Author"), "David Rumsey via Allmaps"].filter(Boolean).join(" · ")))
+    }
+  }))
+  return { hits, notGeoreferenced, total: Number(d.totalResults) || results.length }
+}
+
+/** The checked catalogs searched for `text`, wherever their items are:
+ *  Map Warper and Wikimaps (title search), David Rumsey through Allmaps,
+ *  ArcGIS Online, NextGIS QMS, the USGS quads (name), IGN Remonter le temps
+ *  and the national catalogs (their layer names). The rest cannot search by
+ *  text and are listed as such. */
+export async function searchCatalogs(ids: string[], text: string, signal?: AbortSignal): Promise<CatalogSearchResult> {
+  const q = text.trim()
+  const out: CatalogSearchResult = { hits: [], searched: [], unsupported: [], errors: {}, notes: [] }
+  if (q.length < 2) return out
+  const lower = q.toLowerCase()
+  const jobs: Promise<void>[] = []
+  const run = (id: string, label: string, job: () => Promise<CatalogSearchHit[]>) => {
+    out.searched.push(label)
+    jobs.push(job().then((h) => { out.hits.push(...h) }, (e) => { if (!signal?.aborted) out.errors[label] = String(e?.message ?? e) }))
+  }
+  const set = new Set(ids)
+  for (const id of ids) {
+    if (id in WARPERS) {
+      run(id, TIMELINE_CATALOG_BY_ID[id].short, async () => {
+        const res = await fetch(`${WARPERS[id].host}/api/v1/maps?field=title&query=${encodeURIComponent(q)}&per_page=60`, { signal })
+        if (!res.ok) throw new Error(`${WARPERS[id].short} ${res.status}`)
+        const undated: CatalogSearchHit[] = []
+        const dated = mapWarperItems(id, (await res.json()).data ?? [], null, undated).map((t) => tickHit(t))
+        return [...dated, ...undated]
+      })
+    } else if (id === "cat-agol") {
+      run(id, "ArcGIS Online", async () => (await agolTicks(null, signal, q)).map((t) => tickHit(t)))
+    } else if (id === "cat-usgs-topo") {
+      run(id, "USGS topo", async () => (await usgsTopoTicks(null, signal, q)).map((t) => tickHit(t)))
+    } else if (id === "cat-ign") {
+      run(id, "IGN", async () => {
+        if (!ignIndex) ignIndex = loadIgnIndex().catch((e) => { ignIndex = null; throw e })
+        return (await ignIndex).filter((l) => `${l.title} ${l.id}`.toLowerCase().includes(lower)).slice(0, 60).map((l) => tickHit(register("cat-ign", l.id, Date.UTC(l.year, 0, 1), `IGN · ${l.title} · ${l.span}`, {
+          name: `IGN ${l.title}`, url: ignTileUrl(l), type: "tms", role: "basemap", bounds: l.bbox, minzoom: l.minzoom, maxzoom: l.maxzoom,
+          description: `IGN Géoplateforme layer ${l.id}, ${l.span}`, infoUrl: "https://remonterletemps.ign.fr/",
+        } as Omit<CustomBasemapSource, "id">)))
+      })
+    } else if (id in NATIONAL_SOURCE_BY_ID) {
+      const src = NATIONAL_SOURCE_BY_ID[id]
+      run(id, src.short, async () => (await loadNationalLayers(src)).filter((l) => `${src.label} ${l.label}`.toLowerCase().includes(lower)).slice(0, 40).map((l) => tickHit(register(src.id, l.key, Date.UTC(l.year, 0, 1), `${src.short} · ${l.label} · ${l.endYear ? `${l.year}-${l.endYear}` : l.year}`, {
+        name: `${src.label}: ${l.label}`, url: l.url, type: l.type, role: "basemap", bounds: l.bbox ?? src.bbox, maxzoom: l.maxzoom, minzoom: l.minzoom,
+        description: `${src.label}, ${l.label}. ${src.licence}.`, infoUrl: src.infoUrl,
+      } as Omit<CustomBasemapSource, "id">, { licence: src.licence, provider: src.label }))))
+    } else if (id === "qmsAll") {
+      run(id, "QMS", async () => {
+        const res = await fetch(`https://qms.nextgis.com/api/v1/geoservices/?search=${encodeURIComponent(q)}&cumulative_status=works&limit=40`, { signal })
+        if (!res.ok) throw new Error(`QMS ${res.status}`)
+        const d = await res.json()
+        return (d.results ?? d ?? []).filter((s: any) => s.type === "tms" || s.type === "wms").map((s: any) => ({
+          catalog: "qmsAll", label: `QMS · ${s.name}`, detail: `${String(s.type).toUpperCase()} · undated`, url: `https://qms.nextgis.com/geoservices/${s.id}/`, use: `qms:${s.id}`,
+        }))
+      })
+    } else if (id !== "allmapsAll" && id !== "allmapsRumsey" && id !== "cat-allmaps") {
+      out.unsupported.push(TIMELINE_CATALOG_BY_ID[id]?.short ?? COVERAGE_ONLY_ENTRIES.find((e) => e.id === id)?.short ?? id)
+    }
+  }
+  // Allmaps has no text search; David Rumsey's catalog does, and its maps
+  // georeferenced in Allmaps drape.
+  if (set.has("cat-allmaps") || set.has("allmapsAll") || set.has("allmapsRumsey")) {
+    out.searched.push("David Rumsey (Allmaps)")
+    jobs.push(rumseyAllmapsSearch(q, signal).then((r) => {
+      out.hits.push(...r.hits)
+      if (r.notGeoreferenced) out.notes.push(`${r.notGeoreferenced} of the first ${Math.min(60, r.total)} David Rumsey matches (${r.total} in all) are not georeferenced in Allmaps yet, so they cannot drape; Allmaps itself has no text search.`)
+    }, (e) => { if (!signal?.aborted) out.errors["David Rumsey"] = String(e?.message ?? e) }))
+  }
+  await Promise.all(jobs)
+  out.hits.sort((a, b) => (a.dateMs ?? Infinity) - (b.dateMs ?? Infinity))
+  return out
 }
 
 /** Ticks for one catalog over the view; keys made unique per catalog

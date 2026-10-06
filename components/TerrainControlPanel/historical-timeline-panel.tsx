@@ -1,5 +1,5 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
-import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, type CatalogItem } from "@/lib/timeline-catalogs"
+import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, catalogTick, type CatalogItem } from "@/lib/timeline-catalogs"
 import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom, tickPicksKeepAtom } from "@/lib/settings-atoms"
 import { TickCard } from "./tick-card"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
@@ -731,7 +731,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     if (source in TIMELINE_CATALOG_BY_ID) {
       const ref = activeBasemapSourceFor(side)
-      const own = allTicks.find((t) => t.ref === ref) ?? tickByRef.current.get(ref)
+      const own = allTicks.find((t) => t.ref === ref) ?? tickByRef.current.get(ref) ?? catalogTick(ref)
       if (own) return own
     }
     return findNearestTick(source, dateForSide(side)) ?? newestTickFor(source)
@@ -1250,8 +1250,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   useEffect(() => {
     if (!pickRequest) return
     setPickRequest(null)
-    const tick = tickByRef.current.get(pickRequest.ref)
+    const tick = tickByRef.current.get(pickRequest.ref) ?? catalogTick(pickRequest.ref)
     if (!tick) return
+    tickByRef.current.set(pickRequest.ref, tick)
     const side = resolveSide()
     if (catalogBasemap(pickRequest.ref)?.role === "overlay") sendTickTo(tick, side, "overlay")
     else applyTick(tick, side)

@@ -97,6 +97,21 @@ Leaves with a known extent (your sources, the libraries, the Allmaps maps, every
 
 **Search results**, under the tree, lists everything the shown overlays and the checked catalogs hold for the view, without clicking on the map. It is one foldable list with a single scroll: a block per group (Mapterhorn, the libraries, 3D and LiDAR, ELI, QMS, Allmaps, your sources, then each historical catalog with its items' dates and resolutions). Rows are ranked by how well each footprint matches the view (intersection over union, IoU), so a city plan comes before a world map that also covers it. Each row says how much of it is in view and how much of the view it covers, links to its page, and has a **Use** button that puts the source, or the catalog item, on the view. **Centre only** keeps what lies under the view's centre. The list refreshes when the map settles.
 
+### Search by name
+
+The field at the top of Search results searches the catalogs checked in the tree **by name, anywhere**, not only in the view: type "Cassini" and press Enter. What each catalog can do:
+
+| Catalog | How it is searched |
+| --- | --- |
+| Map Warper, Wikimaps Warper | their title search |
+| Allmaps, David Rumsey | Allmaps has no text search, so [David Rumsey's catalog](https://www.davidrumsey.com/) is searched, and each match is looked up in Allmaps: the maps georeferenced there drape as overlays, dated by Rumsey's record (the others are counted, they cannot drape yet) |
+| ArcGIS Online | its item search, world-wide |
+| NextGIS QMS | its service search |
+| USGS historical topo maps | the quad's name |
+| IGN Remonter le temps, the national catalogs | their layer names ("Cassini", "1950", "Luftbild"…) |
+
+Other checked catalogs (the post-crisis STAC collections, SLUB, the CORONA Atlas) cannot be searched by text and are named as such. Each hit has its page, **Fit** (frames its extent) and **Use**: a dated item goes on the view and on the timeline like a tick; an undated map (many Map Warper sheets) becomes the view's basemap; a QMS service, the basemap. Over Paris, "Cassini" finds about 70 maps: the Cassini sheets of 1750 to 1789 from Rumsey, the IGN Cassini map, Map Warper's sheets and two ArcGIS services.
+
 ## Reading the map
 
 - **Hover** a point to list every overlay covering it in a floating box.

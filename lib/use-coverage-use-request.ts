@@ -4,7 +4,7 @@ import customSources from "./custom-sources.json"
 import { allmapsMeta, ALLMAPS_API } from "./coverage-overlays"
 import { QMS_API, qmsDetailToBasemap, type QmsDetail } from "./qms"
 import { eliLayerAsBasemap } from "./eli-timeline"
-import { catalogPickRequestAtom } from "./timeline-catalogs"
+import { catalogPickRequestAtom, catalogBasemap } from "./timeline-catalogs"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "./settings-atoms"
 
 /**
@@ -20,7 +20,7 @@ export const coverageUseRequestAtom = atom<{ overlay: string; nonce: number } | 
 /** Which side of the app an overlay id selects. */
 export const coverageUseKind = (overlay: string): "terrain" | "basemap" | null =>
   overlay === "mapterhorn" || overlay.startsWith("lib:") || overlay.startsWith("terrain:") ? "terrain"
-  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") || overlay.startsWith("catalog:") ? "basemap"
+  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") || overlay.startsWith("catalog:") || overlay.startsWith("catalog-basemap:") ? "basemap"
   : null
 
 /** Overlay-role sources stack on the active basemap (overlayBasemapIds)
@@ -57,6 +57,14 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
     // A historical catalog item (its footprint on the map): the timeline
     // panel holds the tick and puts it on the view.
     if (kind === "catalog") { setCatalogPick({ ref: key, nonce: Date.now() }); return }
+    // An undated catalog item from the text search: its basemap on the view.
+    if (kind === "catalog-basemap") {
+      const src = catalogBasemap(key)
+      if (!src) return
+      setBasemaps((prev) => (prev.some((x) => x.id === src.id) ? prev : [...prev, src]))
+      activateBasemapSource(setState, src)
+      return
+    }
     if (kind === "terrain") { setState({ sourceA: key }); return }
     if (kind === "basemap") {
       // Built-in ids (esri, google, ...) are not in the custom list: plain basemaps.
