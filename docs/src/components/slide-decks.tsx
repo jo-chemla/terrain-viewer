@@ -13,6 +13,10 @@
 import { useState } from "react";
 
 const SLIDES = "../../slides/";
+// In development the decks are also live in open-slide's editor (pnpm
+// slides, port 3200): comments, the inspector and inline edits live there,
+// not in the static site the "present" links open.
+const EDITOR = typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname) ? "http://localhost:3200/" : null;
 
 const DECKS = [
   { id: "terrain-viewer", title: "Terrain Viewer", pages: 12, about: "What it is, the sources, the visualization modes, split and compare, export" },
@@ -41,7 +45,7 @@ export function SlideDecksTable() {
             <tr key={d.id} className="border-b align-top">
               <td className="py-2 pr-4 font-semibold whitespace-nowrap">{d.title}</td>
               <td className="py-2 pr-4">{d.about}</td>
-              <td className="py-2 pr-4"><a className={linkClass} href={`${SLIDES}s/${d.id}/`}>present</a></td>
+              <td className="py-2 pr-4"><a className={linkClass} href={`${SLIDES}s/${d.id}/`}>present</a>{EDITOR && <> · <a className={linkClass} href={`${EDITOR}s/${d.id}/`} title="open-slide's editor on port 3200 (pnpm slides): comments, inspector, inline edits">edit</a></>}</td>
               <td className="py-2 whitespace-nowrap"><a className={linkClass} href={`${SLIDES}pdf/${d.id}.pdf`}>{d.id}.pdf</a></td>
             </tr>
           ))}

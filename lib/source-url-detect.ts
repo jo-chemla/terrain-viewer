@@ -24,14 +24,32 @@ const has = (u: string, re: RegExp) => re.test(u)
 const lowerParams = (u: string) => { try { return new URL(u).searchParams } catch { return new URLSearchParams(u.split("?")[1] ?? "") } }
 const param = (u: string, name: string) => { for (const [k, v] of lowerParams(u)) if (k.toLowerCase() === name) return v; return null }
 
+/** A page about the data, turned into the data's own URL: an Allmaps viewer
+ *  link (the map's annotation), a Source Cooperative repository page (its
+ *  files are on data.source.coop), a stac-map or STAC Browser link (the
+ *  catalog they show). */
+export function normalizeSourceUrl(raw: string): string {
+  let url = raw.trim()
+  // viewer.allmaps.org/?url=<image or manifest>&map=<annotation>: the map.
+  if (/^https?:\/\/viewer\.allmaps\.org\//i.test(url)) { const q = lowerParams(url); url = q.get("map") ?? q.get("url") ?? url }
+  // source.coop/<account>/<repo>/<path…> → data.source.coop/<account>/<repo>/<path…>
+  const sc = /^https?:\/\/(?:www\.)?source\.coop\/([^/?#]+)\/([^/?#]+)(\/[^?#]*)?/i.exec(url)
+  if (sc) {
+    const file = sc[3] && /\.[a-z0-9]+$/i.test(sc[3]) ? sc[3] : "/catalog.json"
+    url = `https://data.source.coop/${sc[1]}/${sc[2]}${file}`
+  }
+  // developmentseed.org/stac-map/?href=<catalog>
+  if (/stac-map/i.test(url)) { const href = lowerParams(url).get("href"); if (href) url = href }
+  // radiantearth.github.io/stac-browser/#/external/<host>/<path>
+  const sb = /stac-browser\/#\/external\/(.+)$/i.exec(url)
+  if (sb) url = `https://${sb[1].replace(/^https?:\/\//i, "")}`
+  return url
+}
+
 /** From the URL alone; null when its shape says nothing certain. */
 export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource | null {
-  let url = raw.trim()
+  const url = normalizeSourceUrl(raw)
   if (!url) return null
-  // An Allmaps viewer link (viewer.allmaps.org/?url=<image or manifest>&map=<annotation>):
-  // the map's annotation is the thing to add; failing that, the url.
-  const viewer = /^https?:\/\/viewer\.allmaps\.org\//i.test(url) ? lowerParams(url) : null
-  if (viewer) url = viewer.get("map") ?? viewer.get("url") ?? url
   const service = (param(url, "service") ?? "").toLowerCase()
   const request = (param(url, "request") ?? "").toLowerCase()
 
@@ -116,10 +134,8 @@ function detectFromHeaders(res: Response, url: string, target: DetectTarget): De
  *  Range request: a TIFF's magic number, JSON keys, an XML root). A whole
  *  COG is never fetched. */
 export async function detectByFetching(raw: string, target: DetectTarget, signal?: AbortSignal): Promise<DetectedSource | null> {
-  let url = raw.trim()
+  const url = normalizeSourceUrl(raw)
   if (!/^https?:\/\//i.test(url)) return null
-  const viewer = /^https?:\/\/viewer\.allmaps\.org\//i.test(url) ? lowerParams(url) : null
-  if (viewer) url = viewer.get("map") ?? viewer.get("url") ?? url
   const timeout = AbortSignal.timeout(6000)
   const sig = signal && "any" in AbortSignal ? (AbortSignal as any).any([signal, timeout]) : timeout
   try {

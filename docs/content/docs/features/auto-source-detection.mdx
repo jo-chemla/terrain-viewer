@@ -31,12 +31,24 @@ The URL's own shape answers most of the time, at once, without a request:
 
 ## From the response
 
-When the URL says nothing (no extension, no placeholder, a signed download link, a service behind a short path), the dialog reads the response once typing pauses. Nothing big is downloaded:
+When the URL says nothing (no extension, no placeholder, a signed download link, a service behind a short path), the dialog reads the response once typing pauses, in this order, and stops at the first match. Nothing big is downloaded: a HEAD, then one Range request for the first 64 KB.
 
-- A **HEAD** request first: the `Content-Type` (`image/tiff`) or a `Content-Disposition` file name (`dem.tif`, `mosaic.vrt`, `area.pmtiles`) settle it without a body.
-- Otherwise one **Range** request for the first 64 KB: a TIFF's magic number (`II*` or `MM*`, BigTIFF too), the `PMTiles` header, a STAC document's `stac_version`, a TileJSON's `tilejson` or `tiles`, a Georeference Annotation (`AnnotationPage`, `motivation: georeferencing`), a IIIF `@context`, a MosaicJSON, WMS or WMTS capabilities XML, a VRT's `VRTDataset`.
+1. **HEAD, the headers**: `Content-Type: image/tiff` or a GeoTIFF type, or a `Content-Disposition` file name ending in `.tif`, `.vrt` (terrain) or `.pmtiles`.
+2. **GET of the first 64 KB, the headers again** (for servers that refuse HEAD).
+3. **TIFF magic number** in the first bytes (`II*`, `MM*`, BigTIFF `II+` / `MM+`): COG.
+4. **`PMTiles` header**: a `pmtiles://` tile template.
+5. **WMS capabilities XML** (`WMS_Capabilities`, `WMT_MS_Capabilities`): WMS (list layers).
+6. **WMTS capabilities XML**: WMS, with the note to give the tile template.
+7. **`VRTDataset`** (terrain): VRT mosaic.
+8. **JSON** with `stac_version`: STAC search on that catalog.
+9. JSON with `tilejson` or a `tiles` array: TileJSON.
+10. JSON that is an `AnnotationPage` or `Annotation`, or whose `motivation` is `georeferencing`: IIIF map (basemap).
+11. JSON with a IIIF `@context` (a manifest, an image's `info.json`): IIIF map through Allmaps (basemap).
+12. JSON with `mosaicjson`: COG through titiler.
 
 This works when the server allows the browser to read it (CORS). When it does not, or nothing matches, the field says so and you pick the type by hand: the URL is kept.
+
+Links to pages about the data are turned into the data's URL first: an Allmaps viewer link, a Source Cooperative repository page (`source.coop/<account>/<repo>` becomes `data.source.coop/…/catalog.json`), a stac-map link (`?href=`), a STAC Browser link (`#/external/…`).
 
 ## What a dialog cannot take
 

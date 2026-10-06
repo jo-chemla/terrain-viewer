@@ -505,17 +505,18 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
           <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={picksKeep} onCheckedChange={setPicksKeep} className="cursor-pointer scale-75 origin-left" />Picks join my sources</label>} />
           <TooltipContent><p>On: a timeline pick is added to your basemaps as well as set on the view. Off: it only becomes the view's basemap, listed nowhere else</p></TooltipContent>
         </Tooltip>
+      </div>
+      </>}
+      {partHeader("catalogs", "Catalogs", (
         <Tooltip>
           <TooltipTrigger render={
-            <button type="button" className="cursor-pointer ml-auto shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1" onClick={() => foldAll(allOpen)}>
+            <button type="button" className="cursor-pointer shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1" onClick={() => foldAll(allOpen)}>
               {allOpen ? <ChevronsDownUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3" />}{allOpen ? "Fold all" : "Expand all"}
             </button>
           } />
           <TooltipContent><p>{allOpen ? "Fold every group of the tree" : "Expand every group of the tree"}</p></TooltipContent>
         </Tooltip>
-      </div>
-      </>}
-      {partHeader("catalogs", "Catalogs")}
+      ))}
       {isOpenKey("sec:catalogs", true) && <div className="pl-1 space-y-0.5">
       {sectionHeader("Terrain", "Terrain")}
       {isOpenKey("sec:Terrain", true) && <div className="pl-1">{terrainGroups.map((g) => renderGroup(g, 0))}</div>}

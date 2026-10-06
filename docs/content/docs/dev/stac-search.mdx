@@ -1,0 +1,20 @@
+---
+title: STAC search internals
+description: How the STAC search tab talks to APIs, static catalogs and the federation, why it uses no STAC client library, and what a stac-geoparquet reader would add
+---
+
+The [STAC search](/features/catalog-search) tab (`components/TerrainControlPanel/stac-search-panel.tsx`, presets in `lib/stac-presets.ts`) is plain `fetch` code. Three kinds of catalog, one UI:
+
+- **API** (`kind: "api"`): `POST {root}/search` with `bbox`, `datetime`, `collections`, `limit`, paged through the `next` link. Cloud cover goes to the server through the query extension and the plain search is retried if the server refuses it. Collections come from `/collections`, paged, handed to the list as each page lands.
+- **Static** (`kind: "static"`): no server to search, so the catalog is crawled breadth first from its root (or the chosen collection): sixteen nodes fetched at a time, four levels deep, `child` and `item` links resolved against their document (absolute links to other hosts included, if those hosts allow CORS). A collection whose spatial extent misses the view or whose temporal extent misses the date window is skipped whole. Item links are collected up to four times the result cap, then the items are fetched sixteen at a time and kept when their bbox, datetime and cloud cover pass. Catalog and collection documents are cached for the session; items are not. Fetching every item JSON is where the time goes on a large catalog, by design: there is no index to read instead.
+- **Discovery** (`kind: "discovery"`, the MAAP federation): a collection search only; items come from the chosen collection's own `items` link with `bbox` and `datetime` as query parameters.
+
+Auth: a preset's `auth` names a scheme; Planet's `/x/data` takes an OpenID access token as a Bearer (see the preset note).
+
+## Why no client library
+
+What this tab needs is the union of API search, a bounded static crawl with bbox and time pruning, pagination, a collection listing that streams, CORS-aware error messages and per-catalog auth. No npm package bundles that: `stac-js` and `stac-ts` are typings and model helpers over documents you fetched yourself, `pystac-client` has no browser port, and stac-map (Development Seed) also fetches with its own code, plus DuckDB-wasm for stac-geoparquet. A wrapper would have added weight without removing any of the code above.
+
+## stac-geoparquet, later
+
+Some catalogs ship their items as one [stac-geoparquet](https://github.com/stac-utils/stac-geoparquet) file (Source Cooperative repositories often do; stac-map reads them with DuckDB-wasm). Reading it in the browser with [hyparquet](https://github.com/hyparam/hyparquet) (pure JS, small) and pruning row groups on the `bbox` column would replace the item-by-item crawl for those catalogs. What is missing is a convention for finding the file from a catalog: STAC has no standard link for it yet, so each catalog would need its own pointer. Not built; noted here so the next person does not start from zero.

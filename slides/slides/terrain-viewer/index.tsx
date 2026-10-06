@@ -210,8 +210,9 @@ const Shot = ({
   caption,
   width = 900,
   height,
-  fit = 'cover',
-  position = 'top',
+  // Whole screenshots by default; a crop (fit="cover") keeps the right edge.
+  fit = 'contain',
+  position = '100% 50%',
 }: {
   src: string;
   caption?: string;
@@ -223,7 +224,7 @@ const Shot = ({
   <figure style={{ margin: 0, width, flex: 'none' }}>
     <img
       src={src}
-      style={{ width: width, height: height ?? Math.round(width * 0.5625), objectFit: 'cover', objectPosition: '100% 50%', borderRadius: 12, boxShadow: shadow.window, display: 'block', background: ink.panel, }}
+      style={{ width: width, height: height ?? Math.round(width * 0.5625), objectFit: fit, objectPosition: position, borderRadius: 12, boxShadow: shadow.window, display: 'block', background: ink.panel, }}
     />
     {caption ? (
       <figcaption style={{ fontSize: 20, color: ink.muted, marginTop: 14, lineHeight: 1.35 }}>{caption}</figcaption>

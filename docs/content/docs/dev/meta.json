@@ -1,6 +1,6 @@
 {
   "title": "Dev",
-  "defaultOpen": true,
+  "defaultOpen": false,
   "pages": [
     "equations",
     "tech-stack",
@@ -33,6 +33,7 @@
     "product-tour",
     "layer-order",
     "draping",
-    "coverage-footprints"
+    "coverage-footprints",
+    "stac-search"
   ]
 }

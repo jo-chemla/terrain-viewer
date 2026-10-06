@@ -195,8 +195,11 @@ const Shot = ({
   caption,
   width = 900,
   height,
-  fit = 'cover',
-  position = 'top',
+  // Whole screenshots by default: a crop hides the side panel. When a crop
+  // is wanted (fit="cover"), the right edge is kept, so the panel and its
+  // padding stay in the frame.
+  fit = 'contain',
+  position = '100% 50%',
 }: {
   src: string;
   caption?: string;

@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState, useCallback , useRef, useEffect } from "react"
 import { ChevronDown, Loader2, RefreshCw } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -51,6 +51,9 @@ type VersionCheckState =
   | { status: "error"; message: string }
 const VersionCheck: React.FC = () => {
   const [state, setState] = useState<VersionCheckState>({ status: "idle" })
+  // The answer lands below the fold of the sidebar: bring it into view.
+  const answerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (state.status === "done" || state.status === "error") answerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }) }, [state.status])
   const check = useCallback(async () => {
     setState({ status: "loading" })
     try {
@@ -80,6 +83,7 @@ const VersionCheck: React.FC = () => {
         {state.status === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
         Is this the latest version?
       </button>
+      <div ref={answerRef}>
       {state.status === "error" && <p className="text-destructive">Could not reach GitHub: {state.message}</p>}
       {state.status === "done" && (
         <>
@@ -96,6 +100,7 @@ const VersionCheck: React.FC = () => {
           )}
         </>
       )}
+      </div>
     </div>
   )
 }

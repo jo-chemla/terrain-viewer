@@ -86,9 +86,12 @@ const looksLikeDem = (it: StacItem, key: string, a: StacAsset) => {
 function authHeaders(url: string): Record<string, string> {
   const preset = STAC_PRESETS.find((p) => p.auth && url.startsWith(p.url))
   if (preset?.auth === "planet") {
-    const key = getDefaultStore().get(planetKeyAtom)
-    if (!key) throw new Error("Planet's STAC needs your Planet API key: Settings → API Keys")
-    return { Authorization: `api-key ${key}` }
+    const key = getDefaultStore().get(planetKeyAtom).trim()
+    if (!key) throw new Error("Planet's STAC needs a token: Settings → API Keys → Planet")
+    // api.planet.com/x/data only lists an OpenID scheme: it takes the access
+    // token of `planet auth print-access-token` (a JWT) as a Bearer; a PLAK…
+    // API key answers 401 there (it still works on the legacy Data API v1).
+    return { Authorization: key.startsWith("eyJ") ? `Bearer ${key}` : `api-key ${key}` }
   }
   return {}
 }
