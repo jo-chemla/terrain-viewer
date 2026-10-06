@@ -69,8 +69,13 @@ const VersionCheck: React.FC = () => {
       let desktop: Extract<VersionCheckState, { status: "done" }>["desktop"] = null
       if (releaseRes.ok) {
         const rel = await releaseRes.json()
-        const built = /from `([0-9a-f]{7,})`/.exec(String(rel.body ?? ""))?.[1]?.slice(0, 7) ?? ""
-        desktop = { sha: built, date: String(rel.published_at ?? "").slice(0, 10), same: !!built && built === __BUILD_COMMIT__, url: String(rel.html_url ?? "https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest") }
+        // The rolling release is edited on every build, so published_at
+        // stays the day it was first created: the date comes from the notes
+        // ("built on 2026-10-06 from `9831f34`").
+        const body = String(rel.body ?? "")
+        const built = /from `([0-9a-f]{7,})`/.exec(body)?.[1]?.slice(0, 7) ?? ""
+        const builtOn = /built on (\d{4}-\d{2}-\d{2})/.exec(body)?.[1] ?? String(rel.published_at ?? "").slice(0, 10)
+        desktop = { sha: built, date: builtOn, same: !!built && built === __BUILD_COMMIT__, url: String(rel.html_url ?? "https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest") }
       }
       setState({ status: "done", web: { sha, date, same: sha === __BUILD_COMMIT__ }, desktop })
     } catch (e) {
