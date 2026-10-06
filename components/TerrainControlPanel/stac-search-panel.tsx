@@ -2,6 +2,8 @@ import type React from "react"
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { STAC_PRESETS, remembered, type StacPreset } from "@/lib/stac-presets"
+import { getDefaultStore } from "jotai"
+import { planetKeyAtom } from "@/lib/settings-atoms"
 import { useAtomValue, useAtom } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom, type SavedStacCatalog } from "@/lib/settings-atoms"
 import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays } from "lucide-react"
@@ -79,10 +81,34 @@ const looksLikeDem = (it: StacItem, key: string, a: StacAsset) => {
 // Last search per target survives closing the modal, so re-opening it does
 // not throw the results away.
 
+/** Headers a catalog's requests need (StacPreset.auth): Planet's api-key,
+ *  read from the same atom as the Historical timeline's Planet mosaics. */
+function authHeaders(url: string): Record<string, string> {
+  const preset = STAC_PRESETS.find((p) => p.auth && url.startsWith(p.url))
+  if (preset?.auth === "planet") {
+    const key = getDefaultStore().get(planetKeyAtom)
+    if (!key) throw new Error("Planet's STAC needs your Planet API key: Settings → API Keys")
+    return { Authorization: `api-key ${key}` }
+  }
+  return {}
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init)
+  const res = await fetch(url, { ...init, headers: { ...authHeaders(url), ...(init?.headers as Record<string, string> | undefined) } })
   if (!res.ok) throw new Error(`${res.status} from ${new URL(url).host}`)
   return res.json() as Promise<T>
+}
+
+/** Whether an item's datetime (or start/end interval) overlaps a window. */
+function withinDatetime(it: StacItem, from?: number, to?: number): boolean {
+  if (from === undefined && to === undefined) return true
+  const p = it.properties ?? {}
+  const t = (v: unknown) => (typeof v === "string" ? Date.parse(v) : NaN)
+  const start = t(p.start_datetime) || t(p.datetime)
+  const end = t(p.end_datetime) || t(p.datetime)
+  if (Number.isNaN(start) && Number.isNaN(end)) return true // undated: kept
+  const s = Number.isNaN(start) ? end : start, e = Number.isNaN(end) ? start : end
+  return (from === undefined || e >= from) && (to === undefined || s <= to)
 }
 
 /** Follow `next` links of a paginated /collections listing, up to a cap. */
@@ -113,7 +139,7 @@ const explainFetchError = (e: unknown, fallback: string) => {
 
 /** Bounded crawl of a static catalog: child collections/catalogs to a few
  *  levels, item links collected, then fetched in small batches. */
-type StacNode = { links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] } } }
+type StacNode = { links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] }; temporal?: { interval?: (string | null)[][] } } }
 // Catalog / collection documents are immutable enough to keep for the
 // session: the second search of OpenTopography's 283 collections is instant.
 const nodeCache = new Map<string, Promise<StacNode | null>>()
@@ -123,7 +149,7 @@ const fetchNode = (u: string, signal?: AbortSignal) => {
   return p
 }
 
-async function crawlStaticItems(url: string, bbox: number[] | null, limit: number, onProgress?: (msg: string) => void, signal?: AbortSignal): Promise<StacItem[]> {
+async function crawlStaticItems(url: string, bbox: number[] | null, limit: number, onProgress?: (msg: string) => void, signal?: AbortSignal, window?: { from: number; to: number }): Promise<StacItem[]> {
   const items: StacItem[] = []
   const queue: { url: string; depth: number }[] = [{ url, depth: 0 }]
   const itemLinks: string[] = []
@@ -145,9 +171,15 @@ async function crawlStaticItems(url: string, bbox: number[] | null, limit: numbe
     nodes.forEach((node, i) => {
       if (!node) return
       const { url: u, depth } = batch[i]
-      // Skip whole collections that cannot overlap the viewport.
+      // Skip whole collections that cannot overlap the viewport, or the
+      // date window (a collection's temporal extent; an open end is null).
       const ext = node.extent?.spatial?.bbox?.[0]
       if (bbox && ext && (ext[2] < bbox[0] || ext[0] > bbox[2] || ext[3] < bbox[1] || ext[1] > bbox[3])) return
+      const temporal = node.extent?.temporal?.interval?.[0]
+      if (window && temporal) {
+        const s = temporal[0] ? Date.parse(temporal[0]) : -Infinity, e = temporal[1] ? Date.parse(temporal[1]) : Infinity
+        if (e < window.from || s > window.to) return
+      }
       for (const l of node.links ?? []) {
         if (l.rel === "item") itemLinks.push(resolveHref(u, l.href))
         else if (l.rel === "child") queue.push({ url: resolveHref(u, l.href), depth: depth + 1 })
@@ -160,6 +192,7 @@ async function crawlStaticItems(url: string, bbox: number[] | null, limit: numbe
     for (const it of batch) {
       if (!it) continue
       if (bbox && it.bbox && (it.bbox[2] < bbox[0] || it.bbox[0] > bbox[2] || it.bbox[3] < bbox[1] || it.bbox[1] > bbox[3])) continue
+      if (window && !withinDatetime(it, window.from, window.to)) continue
       for (const a of Object.values(it.assets ?? {})) a.href = resolveHref(itemLinks[i], a.href)
       items.push(it)
     }
@@ -339,7 +372,11 @@ export const StacSearchPanel: React.FC<{
         setItems((data.features ?? []).filter(cloudOk))
       } else {
         const start = collectionId || catalog.url
-        setItems((await crawlStaticItems(start, bbox, 50, setProgress)).filter(cloudOk))
+        // The date window applies here too: a static catalog has no server
+        // to pass it to, so collections outside it are skipped by their
+        // temporal extent and items by their datetime.
+        const window = datetime ? { from: Date.parse(`${startDate}T00:00:00Z`), to: Date.parse(`${endDate}T23:59:59Z`) } : undefined
+        setItems((await crawlStaticItems(start, bbox, 50, setProgress, undefined, window)).filter(cloudOk))
       }
     } catch (e) {
       setError(explainFetchError(e, "Search failed"))

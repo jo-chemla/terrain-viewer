@@ -16,6 +16,9 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **Search by name** hits take the place of the view's rows (fold per catalog, Fit); **Use** adds the map as an overlay on the basemap.
 - The timeline's **Catalogs** picker opens on its four groups.
 - **Auto** in Add Basemap and Add Terrain: paste any URL (tiles, WMS, COG, STAC, Allmaps, IIIF…), the type is found and filled in.
+  - Allmaps viewer links, signed URLs (`.tif?sig=…`), and URLs without an extension (headers, then the first bytes; never the whole file); a map pasted in Add Terrain offers to open Add Basemap with it.
+- **STAC**: Planet's Data API as a catalog (your Planet key, `api-key` header); static catalogs filtered by the date range too.
+- **Sources Coverage**: Controls, Catalogs and Search results as three folds; a box on Terrain, Basemaps · Static and Basemaps · Historical takes the whole section; a row with a thumbnail shows it on hover.
 - **Iso-line** on any measure, with an exact fill.
 - **Building shadows**, **modes per view**, **Image Georeferencer**, a **STAC catalog** of every source.
 - **Slide decks**: five presentations, live and as PDFs.

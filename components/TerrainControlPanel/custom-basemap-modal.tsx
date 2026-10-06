@@ -47,7 +47,9 @@ export const CustomBasemapModal: React.FC<{
   // against, so this is omitted for the "Add New Basemap" flow.
   onLiveOpacityChange?: (opacity: number) => void
   mapRef?: React.RefObject<MapRef>
-}> = ({ isOpen, onOpenChange, editingSource, onSave, onLiveOpacityChange, mapRef }) => {
+  /** A URL handed over by Add Terrain: the dialog opens on Auto with it. */
+  initialUrl?: string
+}> = ({ isOpen, onOpenChange, editingSource, onSave, onLiveOpacityChange, mapRef, initialUrl }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [lastType, setLastType] = useAtom(customBasemapLastTypeAtom)
@@ -153,7 +155,7 @@ export const CustomBasemapModal: React.FC<{
       setName("")
       setUrl("")
       // NextGIS QMS on the very first run, then the last type used.
-      setTypeState((OPENING_TYPES.includes(lastType) ? lastType : "auto") as BasemapFormType)
+      setTypeState((!initialUrl && OPENING_TYPES.includes(lastType) ? lastType : "auto") as BasemapFormType)
       setDetected(null)
       setDescription("")
       setRole("basemap")
@@ -307,6 +309,7 @@ export const CustomBasemapModal: React.FC<{
           <div className="space-y-2">
             <Label htmlFor="basemap-type">Type *</Label>
             <Select
+              key={detected ? `d:${detected.type}` : "manual"}
               value={type}
               onValueChange={(value: any) => setType(value)}
               items={{
@@ -369,7 +372,7 @@ export const CustomBasemapModal: React.FC<{
           <DetectedNote detected={detected} onDismiss={() => setDetected(null)} onBack={() => { setType("auto"); setUrl("") }} />
 
           {type === "auto" ? (
-            <SourceUrlAutoPanel target="basemap" onDetected={handleDetected} />
+            <SourceUrlAutoPanel key={initialUrl ?? ""} target="basemap" onDetected={handleDetected} initialUrl={initialUrl} />
           ) : type === "qms" ? (
             <NextGisQmsSearchPanel onSave={(source) => { onSave(source); onOpenChange(false) }} />
           ) : type === "eli" ? (

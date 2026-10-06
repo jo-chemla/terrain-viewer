@@ -180,6 +180,9 @@ export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://t
  *  Session-only, never persisted. */
 export const viewportCenterAtom = atom<{ lat: number; lng: number; zoom: number } | null>(null)
 
+/** "Open Add Basemap on this URL": from Add Terrain's Auto when the URL is a
+ *  georeferenced map (Allmaps, IIIF), which only a basemap can take. */
+export const addBasemapRequestAtom = atom<{ url: string; nonce: number } | null>(null)
 /** Type the "Add Basemap" modal opens on: Auto (detect from the pasted URL),
  *  or a search or file type picked last. Persisted; edit mode ignores it. */
 export const customBasemapLastTypeAtom = atomWithStorage<string>("customBasemapLastType", "auto")

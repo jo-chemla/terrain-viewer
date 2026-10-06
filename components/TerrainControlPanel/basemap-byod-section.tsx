@@ -66,7 +66,7 @@ import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, GRID_LAYOUT
 import {
   isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
-  type CustomBasemapSource, type CustomTerrainSource, basemapLibraryOpenAtom, customBasemapLastTypeAtom } from "@/lib/settings-atoms"
+  type CustomBasemapSource, type CustomTerrainSource, basemapLibraryOpenAtom, customBasemapLastTypeAtom, addBasemapRequestAtom } from "@/lib/settings-atoms"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import type { MapRef } from "react-map-gl/maplibre"
@@ -87,6 +87,20 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [isAddBasemapModalOpen, setIsAddBasemapModalOpen] = useState(false)
+  // Add Terrain's Auto hands over a URL only a basemap can take (an Allmaps map).
+  const [addRequest, setAddRequest] = useAtom(addBasemapRequestAtom)
+  const [handedUrl, setHandedUrl] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    if (!addRequest) return
+    setHandedUrl(addRequest.url)
+    setEditingBasemap(null)
+    // After the terrain dialog's close animation; the request is cleared
+    // once the dialog is open (clearing it first re-ran this effect and
+    // cancelled the timer).
+    const t = setTimeout(() => { setIsAddBasemapModalOpen(true); setAddRequest(null) }, 220)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addRequest])
   const setLastBasemapType = useSetAtom(customBasemapLastTypeAtom)
   const [editingBasemap, setEditingBasemap] = useState<CustomBasemapSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)
@@ -576,7 +590,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         }}
       />
       <SourceMetadataDialog source={infoId ? customBasemapSources.find((s) => s.id === infoId) ?? null : null} onClose={closeInfo} onFit={(s) => handleFitToBounds(s, true)} />
-      <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={setIsAddBasemapModalOpen} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} onLiveOpacityChange={handleLiveOpacityChange} mapRef={mapRef} />
+      <CustomBasemapModal isOpen={isAddBasemapModalOpen} onOpenChange={(o) => { setIsAddBasemapModalOpen(o); if (!o) setHandedUrl(undefined) }} initialUrl={handedUrl} editingSource={editingBasemap} onSave={handleSaveCustomBasemap} onLiveOpacityChange={handleLiveOpacityChange} mapRef={mapRef} />
       <BasemapBatchEditModal
         isOpen={isBatchEditModalOpen}
         onOpenChange={setIsBatchEditModalOpen}

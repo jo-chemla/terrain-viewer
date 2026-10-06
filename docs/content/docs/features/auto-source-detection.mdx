@@ -1,0 +1,47 @@
+---
+title: Auto source detection
+description: Paste any URL in Add Terrain or Add Basemap and the dialog finds its type - tile templates, WMS, ArcGIS, COG, VRT, PMTiles, TileJSON, STAC, Allmaps and IIIF - from the URL itself, then from the response headers and first bytes
+icon: ScanSearch
+---
+
+A new source opens on **Auto**: one URL field. Paste a link and the dialog recognises what it is, switches to the matching type with the URL in its field, and says what it found above the field ("Detected: WMS GetCapabilities"). **Back to Auto** returns to the single field. A name is proposed from the layer or the file. A search panel or a local file picked last is reopened next time instead of Auto.
+
+## From the URL itself
+
+The URL's own shape answers most of the time, at once, without a request:
+
+| You paste | It becomes |
+|---|---|
+| A template with `{z}/{x}/{y}` (also `{-y}`, `{quadkey}`, `{s}`) | TMS/XYZ (basemap); Terrarium or TerrainRGB (terrain, guessed from the URL, said so in the note) |
+| `{bbox-epsg-3857}`, or a WMS `REQUEST=GetMap` | WMS (basemap) or WMS raw elevation (terrain), the bbox turned into the placeholder |
+| A WMS `REQUEST=GetCapabilities`, or `SERVICE=WMS` alone | WMS (list layers), its layers listed at once |
+| A WMTS service or `WMTSCapabilities.xml` | WMS, with a note to give the tile template instead |
+| An ArcGIS `MapServer` | Its cached tiles, `/tile/{z}/{y}/{x}` |
+| An ArcGIS `ImageServer` | An `exportImage` request: a picture for a basemap, Float32 for terrain |
+| A `.tif` or `.tiff`, with or without a query behind it (a SAS token, a signature) | Remote COG |
+| A `.vrt` | VRT mosaic (terrain) |
+| A `.lerc` tile or an `ImageServer/tile/` path | ArcGIS LERC (terrain) |
+| A `.pmtiles` archive | Its `pmtiles://` tile template |
+| `tilejson` or `tiles.json` in the path | TileJSON |
+| A STAC API, `catalog.json` or `collection.json`, or `/stac` in the path | STAC search, opened on that catalog |
+| An Allmaps annotation (`annotations.allmaps.org/maps/<id>`) | IIIF map (basemap) |
+| An Allmaps viewer link (`viewer.allmaps.org/?url=…&map=…`) | The map's annotation, taken from the link's `map` parameter |
+| A IIIF manifest, `info.json`, `/iiif/` or `/manifests/` path | IIIF map, looked up in Allmaps: it drapes only if someone georeferenced it there |
+| A NextGIS QMS page | QMS search (basemap) |
+
+## From the response
+
+When the URL says nothing (no extension, no placeholder, a signed download link, a service behind a short path), the dialog reads the response once typing pauses. Nothing big is downloaded:
+
+- A **HEAD** request first: the `Content-Type` (`image/tiff`) or a `Content-Disposition` file name (`dem.tif`, `mosaic.vrt`, `area.pmtiles`) settle it without a body.
+- Otherwise one **Range** request for the first 64 KB: a TIFF's magic number (`II*` or `MM*`, BigTIFF too), the `PMTiles` header, a STAC document's `stac_version`, a TileJSON's `tilejson` or `tiles`, a Georeference Annotation (`AnnotationPage`, `motivation: georeferencing`), a IIIF `@context`, a MosaicJSON, WMS or WMTS capabilities XML, a VRT's `VRTDataset`.
+
+This works when the server allows the browser to read it (CORS). When it does not, or nothing matches, the field says so and you pick the type by hand: the URL is kept.
+
+## What a dialog cannot take
+
+Add Terrain refuses what is a picture rather than elevation: an Allmaps annotation or a IIIF map. The note says why and offers **Open Add Basemap with it**, which closes the terrain dialog and opens the basemap one on that URL, already detected.
+
+## After detection
+
+The type's own field takes over: a WMS GetCapabilities lists its layers at once, a STAC URL opens the STAC search as a custom catalog, a COG shows its inferred zoom range and the external viewers. Everything else about the source (bounds, zoom range, linked sources, opacity) is set as for any source of that type: see [Bring Your Own Data](/features/byod).

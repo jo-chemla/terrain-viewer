@@ -1,0 +1,47 @@
+---
+title: Basemaps and Overlays
+icon: Map
+description: Satellite basemaps, overlays, a basemap per view, and Remove paper for scanned maps
+---
+
+## Basemap sources
+
+The **Basemap** section under Sources offers several satellite/hybrid basemaps ([Google Hybrid](https://mapsplatform.google.com/), [Bing Aerial](https://www.bing.com/maps/aerial), [ESRI World Imagery](https://www.esri.com/en-us/arcgis/products/arcgis-image/services/world-imagery), [Mapbox Satellite](https://www.mapbox.com/), [HERE Satellite](https://www.here.com/), [Google Satellite](https://mapsplatform.google.com/), [OpenStreetMap](https://www.openstreetmap.org/)) plus any custom source you've added — see [Bring Your Own Data](/features/byod).
+
+OpenStreetMap is [OpenFreeMap](https://openfreemap.org/)'s Liberty vector style rather than raster tiles, so it stays crisp at any zoom and can extrude OSM buildings with their recorded heights — the **3D** switch on its row toggles them.
+
+![OSM 3D buildings from OpenFreeMap Liberty, here over a Vantor post-event overlay in Nepal](/screenshots/osm-liberty-3d.jpg)
+
+## Overlays
+
+Overlays have an opacity pill each, and the **Overlays** heading one for all of them (`overlaysOpacity`): click a pill and a short vertical slider opens on it, its point for the current value under the pointer, so a drag up or down sets it (bottom 0, top 100).
+
+An overlay draws over the basemap instead of replacing it. Where it sits in the layer stack is set per overlay, in its edit dialog (pencil, then the overlay's edit button) under **Draw it**: **Under relief** (the default: hillshade and the colour relief draw over it), **Over hypso** (above the colour relief, still shaded by the hillshade) or **On top** (above every terrain layer, only contours and markers over it). In a split or grid with per-view basemaps, each overlay row gets the view grid, so an overlay can be on view B only; clicking the overlay's name adds it to every view, or removes it from all of them when every view already shows it.
+
+## A basemap per view
+
+In **split view** (grid layouts up to 4×2 / 8 views, labeled A–H), each basemap row shows an A–H button grid so a different source can be assigned per view. Clicking a row's **label** (not just its A–H buttons) sets *every* active view in the current grid layout to that source in one click — handy for putting a whole 4×2 comparison grid onto Historical Imagery without clicking each pane individually.
+
+![Comparing basemap sources side-by-side in grid mode](/screenshots/n-grid.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Basemap comparison, Side grid mode</p>
+
+## Remove paper
+
+![Map Warper's Paris 1905 as an overlay over ESRI World Imagery, Remove paper off: the cream paper of the sheet hides the imagery](/screenshots/remove-paper-off.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Remove paper off: Map Warper's Paris 1905 on the view as an overlay, its cream paper covering the imagery</p>
+
+![The same map with Remove paper on: the paper is transparent, the streets show the imagery under the drawn buildings, the Seine and the parks keep their colour; the sidebar lists the detected paper colour, threshold and paper share](/screenshots/remove-paper-on.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Remove paper on (Auto): the paper detected as #ebd2b3, threshold 0.20, 68% of the sheet; the buildings, the river and the parks stay</p>
+
+**Remove paper** turns the paper of scanned maps transparent, so an old map reads over today's imagery. It is in the **Basemap** section, under the **Overlays** heading (Bring Your Own Data), and only shows while a scanned map is on a view: a warped Allmaps map, or a tiled old map from Map Warper, Wikimaps Warper, SLUB, the USGS quads, or the swisstopo, Kartverket, NGI and Academia Sinica map series (as an overlay, or as a view's basemap picked on the timeline). It works like the Allmaps viewer's magic wand: the pixels close to the paper colour fade out.
+
+- **Auto** (the default): each map gets its own paper colour and threshold from its own image. For an Allmaps map that is a 256 px rendition inside its georeference mask; for a tiled map, one tile at the centre of its extent. The luminance histogram is split in two by Otsu's method, the paper colour is the median of the bright part, and the threshold is where the pixels' distance to that colour falls away (at most 0.2, so an aged sheet keeps its colour washes).
+- The line under the switch shows, per map, the paper colour, the threshold in use and the paper's share of the sheet, or "no paper, kept".
+- A map is left as it is when its drawing fills the sheet (an engraving, a grey bird's-eye view): the paper must be light and cover 40% of the sheet, or three quarters when it is darker.
+- The slider widens or narrows every detected threshold; the middle is as detected.
+- **Auto** off: one colour (the swatch) and one threshold (the slider) for every map.
+
+Limits: the removal is by colour, so map details close to the paper colour (a light road fill, pale washes) fade with it, and white margins outside the drawn frame go only if they are close to the paper colour. The setting is kept in your browser, not in the link.

@@ -20,6 +20,10 @@ export interface StacPreset {
    *  all 21 collections. */
   collection?: string
   note?: string
+  /** Requests carry a key from Settings → API Keys: "planet" sends
+   *  `Authorization: api-key <key>` (Planet's STAC expects the key itself,
+   *  not a bearer token). */
+  auth?: "planet"
 }
 
 export const STAC_PRESETS: StacPreset[] = [
@@ -50,6 +54,8 @@ export const STAC_PRESETS: StacPreset[] = [
     note: "Same NASA CSDA catalog, collection `airbus-dem`: Airbus WorldDEM DSM tiles (5 m WorldDEM Neo lineage), 2025 onwards. Browsable and CORS-open; the DEM assets are `s3://` behind Earthdata login + EULA, so they are discoverable here but not streamable. Airbus also runs its own OneAtlas elevation API with a free trial that includes the WorldDEM layer - if you hold those credentials, add the tile endpoint as a custom source instead." },
   { id: "lidarbc", name: "LidarBC elevation (New Graph Environment)", url: "https://images.a11s.one", kind: "api", target: "terrain", group: "Elevation",
     note: "British Columbia's open LidarBC DEMs and DSMs as COGs - 102,000+ tiles in collection stac-elevation-bc, CC BY 4.0, updated monthly. A community catalog, not the province's own; Mapterhorn has only Canada's national 2 m here." },
+  { id: "planet-stac", name: "Planet Data API (STAC)", url: "https://api.planet.com/x/data", kind: "api", target: "basemap", group: "Imagery", auth: "planet",
+    note: "Planet's own STAC API over its archive (PlanetScope, SkySat...): needs your Planet API key (Settings → API Keys), sent as `Authorization: api-key`. What a search returns depends on the key's plan; assets are fetched with the same key." },
   // Disaster imagery
   { id: "maxar-opendata", name: "Maxar Open Data - disaster events", url: "https://maxar-opendata.s3.dualstack.us-west-2.amazonaws.com/events/catalog.json", kind: "static", target: "basemap", group: "Imagery",
     note: "Pre/post-event 30-50 cm ARD COGs per event (CC BY-NC 4.0). Static catalog: pick an event, items are crawled." },

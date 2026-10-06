@@ -29,7 +29,7 @@ const FEATURES = [
     body: 'Browse decades of historical satellite imagery (Wayback, HLS, Google Earth Historical, Planet) along a draggable timeline, per view.',
     image: '/docs/screenshots/historical-timeline.jpg',
     alt: 'Scrubbing the historical imagery timeline',
-    href: '/features/basemaps-and-historical',
+    href: '/features/historical-imagery',
   },
   {
     title: 'Split Screen & N-Map Compare',

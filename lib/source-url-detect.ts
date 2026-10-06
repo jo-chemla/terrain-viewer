@@ -26,8 +26,12 @@ const param = (u: string, name: string) => { for (const [k, v] of lowerParams(u)
 
 /** From the URL alone; null when its shape says nothing certain. */
 export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource | null {
-  const url = raw.trim()
+  let url = raw.trim()
   if (!url) return null
+  // An Allmaps viewer link (viewer.allmaps.org/?url=<image or manifest>&map=<annotation>):
+  // the map's annotation is the thing to add; failing that, the url.
+  const viewer = /^https?:\/\/viewer\.allmaps\.org\//i.test(url) ? lowerParams(url) : null
+  if (viewer) url = viewer.get("map") ?? viewer.get("url") ?? url
   const service = (param(url, "service") ?? "").toLowerCase()
   const request = (param(url, "request") ?? "").toLowerCase()
 
@@ -69,7 +73,7 @@ export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource
   }
 
   // Tile templates.
-  if (has(url, /\.pmtiles($|\?)/i) && !url.startsWith("pmtiles://")) {
+  if (has(url, /\.pmtiles($|[?#])/i) && !url.startsWith("pmtiles://")) {
     const t = `pmtiles://${url}/{z}/{x}/{y}`
     return target === "basemap" ? { type: "tms", url: t, label: "PMTiles archive" } : { type: "terrarium", url: t, label: "PMTiles archive", note: "Encoding guessed as Terrarium; switch to TerrainRGB if heights look wrong." }
   }
@@ -80,13 +84,13 @@ export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource
   }
 
   // Files.
-  if (has(url, /\.vrt($|\?)/i) && target === "terrain") return { type: "vrt", url, label: "GDAL VRT mosaic" }
-  if (has(url, /\.lerc($|\?)|\/ImageServer\/tile\//i) && target === "terrain") return { type: "lerc", url, label: "ArcGIS LERC tiles" }
-  if (has(url, /\.tiff?($|\?)/i)) return { type: "cog", url, label: "Cloud Optimized GeoTIFF" }
-  if (has(url, /tilejson|\/tiles\.json($|\?)/i)) return { type: "tilejson", url, label: "TileJSON" }
+  if (has(url, /\.vrt($|[?#])/i) && target === "terrain") return { type: "vrt", url, label: "GDAL VRT mosaic" }
+  if (has(url, /\.lerc($|[?#])|\/ImageServer\/tile\//i) && target === "terrain") return { type: "lerc", url, label: "ArcGIS LERC tiles" }
+  if (has(url, /\.tiff?($|[?#])/i)) return { type: "cog", url, label: "Cloud Optimized GeoTIFF" }
+  if (has(url, /tilejson|\/tiles\.json($|[?#])/i)) return { type: "tilejson", url, label: "TileJSON" }
 
   // STAC.
-  if (has(url, /\/(catalog|collection)\.json($|\?)|\/stac(\/|$|\?)|stac\.[a-z]/i)) {
+  if (has(url, /\/(catalog|collection)\.json($|[?#])|\/stac(\/|$|\?)|stac\.[a-z]/i)) {
     return { type: "stac", url, label: "STAC catalog", note: "Opened as a custom catalog in the STAC search." }
   }
 
@@ -95,18 +99,48 @@ export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource
   return null
 }
 
-/** The response, read once, when the URL's shape said nothing. */
+/** What the headers alone say: the content type, or the file name of a
+ *  Content-Disposition (a GeoTIFF served from a path without extension). */
+function detectFromHeaders(res: Response, url: string, target: DetectTarget): DetectedSource | null {
+  const ct = (res.headers.get("content-type") ?? "").toLowerCase()
+  const cd = res.headers.get("content-disposition") ?? ""
+  const name = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(cd)?.[1] ?? ""
+  if (/image\/tiff|geotiff/.test(ct) || /\.tiff?$/i.test(name)) return { type: "cog", url, label: "GeoTIFF (by its headers)" }
+  if (/\.vrt$/i.test(name) && target === "terrain") return { type: "vrt", url, label: "GDAL VRT mosaic (by its headers)" }
+  if (/\.pmtiles$/i.test(name)) return detectFromUrl(name, target) && { type: target === "basemap" ? "tms" : "terrarium", url: `pmtiles://${url}/{z}/{x}/{y}`, label: "PMTiles archive (by its headers)" }
+  return null
+}
+
+/** The response, when the URL's shape said nothing: its headers first (a
+ *  HEAD, nothing downloaded), then the first bytes of the body (one small
+ *  Range request: a TIFF's magic number, JSON keys, an XML root). A whole
+ *  COG is never fetched. */
 export async function detectByFetching(raw: string, target: DetectTarget, signal?: AbortSignal): Promise<DetectedSource | null> {
-  const url = raw.trim()
+  let url = raw.trim()
   if (!/^https?:\/\//i.test(url)) return null
+  const viewer = /^https?:\/\/viewer\.allmaps\.org\//i.test(url) ? lowerParams(url) : null
+  if (viewer) url = viewer.get("map") ?? viewer.get("url") ?? url
   const timeout = AbortSignal.timeout(6000)
   const sig = signal && "any" in AbortSignal ? (AbortSignal as any).any([signal, timeout]) : timeout
+  try {
+    const head = await fetch(url, { method: "HEAD", signal: sig })
+    if (head.ok) { const d = detectFromHeaders(head, url, target); if (d) return d }
+  } catch { /* HEAD refused or blocked: the Range GET below */ }
   let res: Response
   try { res = await fetch(url, { signal: sig, headers: { Range: "bytes=0-65535" } }) } catch { return null }
   if (!res.ok && res.status !== 206) return null
-  const ct = (res.headers.get("content-type") ?? "").toLowerCase()
-  if (/image\/tiff|application\/octet-stream.*tif|geotiff/.test(ct)) return { type: "cog", url, label: "GeoTIFF (by its content type)" }
-  const text = await res.text().catch(() => "")
+  const byHeaders = detectFromHeaders(res, url, target)
+  if (byHeaders) return byHeaders
+  const buf = await res.arrayBuffer().catch(() => new ArrayBuffer(0))
+  const bytes = new Uint8Array(buf)
+  // TIFF magic: "II*\0" (little endian) or "MM\0*", BigTIFF "II+\0" / "MM\0+".
+  if (bytes.length >= 4 && ((bytes[0] === 0x49 && bytes[1] === 0x49 && (bytes[2] === 0x2a || bytes[2] === 0x2b) && bytes[3] === 0) || (bytes[0] === 0x4d && bytes[1] === 0x4d && bytes[2] === 0 && (bytes[3] === 0x2a || bytes[3] === 0x2b)))) {
+    return { type: "cog", url, label: "GeoTIFF (by its first bytes)" }
+  }
+  if (bytes.length >= 7 && String.fromCharCode(...bytes.slice(0, 7)) === "PMTiles") {
+    return { type: target === "basemap" ? "tms" : "terrarium", url: `pmtiles://${url}/{z}/{x}/{y}`, label: "PMTiles archive (by its first bytes)" }
+  }
+  const text = new TextDecoder().decode(bytes)
   const head = text.slice(0, 4000)
   if (/WMS_Capabilities|WMT_MS_Capabilities/.test(head)) return { type: "wms-picker", url: url.split("?")[0], label: "WMS GetCapabilities", note: "Its layers are listed below: pick one." }
   if (/<Capabilities[^>]*wmts/i.test(head)) return { type: target === "basemap" ? "wms" : "terrarium", url, label: "WMTS capabilities", note: "Give the tile template with {z}/{x}/{y} rather than the capabilities." }

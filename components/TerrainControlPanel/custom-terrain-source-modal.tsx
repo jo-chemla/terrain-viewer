@@ -14,7 +14,7 @@ import { SourceCombobox } from "./source-combobox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Switch } from "@/components/ui/switch"
-import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainSourcesAtom, customTerrainLastTypeAtom } from "@/lib/settings-atoms"
+import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainSourcesAtom, customTerrainLastTypeAtom, addBasemapRequestAtom } from "@/lib/settings-atoms"
 import { supportsNodataControls } from "@/lib/nodata"
 import { terrainSources } from "@/lib/terrain-sources"
 import customSources from "@/lib/custom-sources.json"
@@ -40,6 +40,7 @@ export const CustomTerrainSourceModal: React.FC<{
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [lastType, setLastType] = useAtom(customTerrainLastTypeAtom)
+  const requestAddBasemap = useSetAtom(addBasemapRequestAtom)
   const fitTo = (b?: [number, number, number, number]) => { const m = mapRef?.current?.getMap(); if (m && b) m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, speed: 6 }) }
   const [type, setTypeState] = useState<TerrainFormType>(lastType as TerrainFormType)
   // Remember the choice for the next "Add Dataset" (not while editing).
@@ -345,6 +346,7 @@ export const CustomTerrainSourceModal: React.FC<{
           <div className="space-y-2">
             <Label htmlFor="source-type">Type *</Label>
             <Select
+              key={detected ? `d:${detected.type}` : "manual"}
               value={type}
               onValueChange={(value: any) => setType(value)}
               items={{
@@ -366,6 +368,10 @@ export const CustomTerrainSourceModal: React.FC<{
               <SelectContent>
                 {!editingSource && <SelectItem value="auto">Auto (detect from the URL)</SelectItem>}
                 <SelectGroup>
+                  <SelectLabel>Derived: nDSM and change detection / comparison</SelectLabel>
+                  <SelectItem value="dem-diff">Difference of two sources (DSM − DTM)</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
                   <SelectLabel>Cloud Optimized GeoTIFF</SelectLabel>
                   <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
                   {/* Streams straight off the user's disk via a blob: object URL — no
@@ -375,6 +381,13 @@ export const CustomTerrainSourceModal: React.FC<{
                       it isn't saved, so it needs re-picking after a reload. */}
                   <SelectItem value="cog-local">Local COG file (this browser only)</SelectItem>
                 </SelectGroup>
+                {!editingSource && (
+                  <SelectGroup>
+                    <SelectLabel>Search a catalog</SelectLabel>
+                    <SelectItem value="stac">STAC catalog search</SelectItem>
+                    <SelectItem value="wms-picker">WMS (list layers)</SelectItem>
+                  </SelectGroup>
+                )}
                 <SelectGroup>
                   <SelectLabel>Tile and map services</SelectLabel>
                   <SelectItem value="terrarium">TMS (Terrarium)</SelectItem>
@@ -389,17 +402,6 @@ export const CustomTerrainSourceModal: React.FC<{
                       CORS or a tile spans too many files. */}
                   <SelectItem value="vrt">VRT mosaic</SelectItem>
                 </SelectGroup>
-                <SelectGroup>
-                  <SelectLabel>Derived: nDSM and change detection / comparison</SelectLabel>
-                  <SelectItem value="dem-diff">Difference of two sources (DSM − DTM)</SelectItem>
-                </SelectGroup>
-                {!editingSource && (
-                  <SelectGroup>
-                    <SelectLabel>Search a catalog</SelectLabel>
-                    <SelectItem value="wms-picker">WMS (list layers)</SelectItem>
-                    <SelectItem value="stac">STAC catalog search</SelectItem>
-                  </SelectGroup>
-                )}
               </SelectContent>
             </Select>
           </div>
@@ -407,7 +409,7 @@ export const CustomTerrainSourceModal: React.FC<{
           <DetectedNote detected={detected} onDismiss={() => setDetected(null)} onBack={() => { setType("auto"); setUrl("") }} />
 
           {type === "auto" ? (
-            <SourceUrlAutoPanel target="terrain" onDetected={handleDetected} />
+            <SourceUrlAutoPanel target="terrain" onDetected={handleDetected} onSwitchToBasemap={(u) => { onOpenChange(false); requestAddBasemap({ url: u, nonce: Date.now() }) }} />
           ) : type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
               <StacSearchPanel key={detected?.url ?? "manual"} initialUrl={detected?.type === "stac" ? detected.url : undefined} target="terrain" mapRef={mapRef} onSave={(source) => { onSave({ ...source, type: "cog" }); fitTo(source.bounds) }} />

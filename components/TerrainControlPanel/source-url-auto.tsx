@@ -12,8 +12,12 @@ import { detectFromUrl, detectByFetching, type DetectTarget, type DetectedSource
 export const SourceUrlAutoPanel: React.FC<{
   target: DetectTarget
   onDetected: (d: DetectedSource) => void
-}> = ({ target, onDetected }) => {
-  const [url, setUrl] = useState("")
+  /** A URL handed over by the other dialog: detected at once. */
+  initialUrl?: string
+  /** Terrain only: open Add Basemap on this URL instead. */
+  onSwitchToBasemap?: (url: string) => void
+}> = ({ target, onDetected, initialUrl, onSwitchToBasemap }) => {
+  const [url, setUrl] = useState(initialUrl ?? "")
   const [probing, setProbing] = useState(false)
   const [unknown, setUnknown] = useState(false)
   // Recognised, but not something this dialog adds.
@@ -64,7 +68,7 @@ export const SourceUrlAutoPanel: React.FC<{
       </div>
       <p className="text-xs text-muted-foreground">
         {refused
-          ? <><span className="font-medium text-foreground">{refused.label}.</span> {refused.note}</>
+          ? <><span className="font-medium text-foreground">{refused.label}.</span> {refused.note}{onSwitchToBasemap && <> <button type="button" className="underline text-foreground hover:opacity-80 cursor-pointer" onClick={() => onSwitchToBasemap(refused.url)}>Open Add Basemap with it</button></>}</>
           : unknown
           ? "Not recognised (or the server does not allow it to be read from here): pick the type above."
           : <>Recognised: {"{z}/{x}/{y}"} tile templates, {"{bbox-epsg-3857}"} and WMS GetMap or GetCapabilities, WMTS, ArcGIS MapServer and ImageServer, COG and VRT files, PMTiles, TileJSON, STAC catalogs and APIs, {target === "basemap" ? "Allmaps annotations and IIIF manifests or images" : "LERC tiles"}. The type then switches with the URL filled in.</>}

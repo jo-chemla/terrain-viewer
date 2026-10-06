@@ -4,7 +4,7 @@ icon: Library
 description: Every historical source the timeline can show, by provider and by catalog, and which archives can or cannot be added
 ---
 
-The [historical timeline](/features/basemaps-and-historical#historical-imagery-mode) draws from two kinds of sources: its own providers, turned on and off with the source pills, and the catalogs, checked in the **Catalogs** tree (the same tree as **Basemaps · Historical** in [Sources Coverage](/features/coverage-overlays#the-coverage-tree)). This page lists them all, as the app groups them, with what each holds and where it comes from. How to use the timeline, the picker and a tick's card is on [Basemaps and Historical](/features/basemaps-and-historical).
+The [historical timeline](/features/historical-imagery#historical-imagery-mode) draws from two kinds of sources: its own providers, turned on and off with the source pills, and the catalogs, checked in the **Catalogs** tree (the same tree as **Basemaps · Historical** in [Sources Coverage](/features/coverage-overlays#the-coverage-tree)). This page lists them all, as the app groups them, with what each holds and where it comes from. How to use the timeline, the picker and a tick's card is on [Historical Imagery Timeline](/features/historical-imagery).
 
 ## The timeline's own providers
 
@@ -49,9 +49,9 @@ The catalogs sit in four root groups. Every checked catalog is queried for the v
 |---|---|---|
 | [OpenAerialMap](https://openaerialmap.org/) | Open drone and aerial imagery uploaded to OpenAerialMap, one tick per upload, dated by its capture. | HOT STAC API |
 | [Maxar Open Data](https://www.maxar.com/open-data) | Maxar's pre- and post-event 30-50 cm imagery for disasters (CC BY-NC 4.0), one tick per acquisition. | HOT STAC API |
-| [Vantor Open Data](https://vantor.com/) | The Vantor (ex-Maxar) open data programme, 2025 onwards. | HOT STAC API |
+| [Vantor Open Data](https://www.vantor.com/company/open-data-program) | The Vantor (ex-Maxar) open data programme, 2025 onwards. | HOT STAC API |
 | [NOAA Emergency Response](https://storms.ngs.noaa.gov/) | NOAA's aerial imagery after hurricanes, tornadoes and floods. | HOT STAC API |
-| [Planet disaster data](https://source.coop/) | Planet's Crisis Response Program releases on Source Cooperative: events, pre- and post-event acquisitions. | Static STAC catalog |
+| [Planet disaster data](https://source.coop/planet/disasterdata) | Planet's Crisis Response Program releases on Source Cooperative: events, pre- and post-event acquisitions. | Static STAC catalog |
 
 The first four come from the HOT STAC API (`api.imagery.hotosm.org/stac`), searched with the view's bbox. Items of one date and one acquisition are grouped into a tick; the tile shown is the one containing the view's centre, its COG drawn through TiTiler. Planet's open static catalog on source.coop has no search API, so the first use builds an index of every acquisition's extent for the session (about 10 s), then filters it by the view. Who produces this data after a disaster is on [Post-Crisis Response](/dev/post-crisis-response).
 
@@ -104,7 +104,7 @@ Every archive sits under its continent, then its country with the ISO alpha-3 co
 
 **Allmaps, dated maps in view**: the Allmaps annotations carry no date of the map itself, only of the georeferencing, which is never used. The catalog reads the archive's own record: the IIIF manifest the map belongs to (BnF's "Date", Rumsey's "Pub Date", a `navDate`; one read per map in view, up to 40, cached, the earliest year named), else a year in the title when it is plainly historical (before 1950). Maps with neither get no tick.
 
-The paper of these scanned maps can be made transparent: see [Remove paper](/features/basemaps-and-historical#remove-paper).
+The paper of these scanned maps can be made transparent: see [Remove paper](/features/basemaps#remove-paper).
 
 ## In the basemap library
 

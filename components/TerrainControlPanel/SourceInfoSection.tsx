@@ -31,7 +31,7 @@ import { sourceFieldName } from "@/lib/grid-layouts"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
-import { catalogItemsAtom, catalogPickRequestAtom, HISTORICAL_TREE_ROOTS, searchCatalogs, COVERAGE_ONLY_ENTRIES, type CatalogItem, type CatalogSearchResult } from "@/lib/timeline-catalogs"
+import { catalogItemsAtom, catalogPickRequestAtom, catalogTick, HISTORICAL_TREE_ROOTS, searchCatalogs, COVERAGE_ONLY_ENTRIES, TIMELINE_CATALOGS, type CatalogItem, type CatalogSearchResult } from "@/lib/timeline-catalogs"
 import { Input } from "@/components/ui/input"
 import { Search, X, Loader2 } from "lucide-react"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
@@ -420,22 +420,55 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
       </div>
     )
   }
-  const sectionHeader = (key: string, label: string) => (
-    <button type="button" className="flex w-full items-center gap-1 py-0.5 cursor-pointer" onClick={() => setFolds((prev) => ({ ...prev, [`sec:${key}`]: !(prev[`sec:${key}`] ?? true) }))}>
-      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpenKey(`sec:${key}`, true) ? "" : "-rotate-90"}`} />
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/80">{label}</span>
-    </button>
-  )
   const terrainGroups = groups.filter((g) => g.section === "Terrain" && !g.parent)
   const staticGroups = groups.filter((g) => g.section === "Basemaps" && !g.parent && g.key !== "allmaps" && g.key !== "qms")
+  // The historical root takes every catalog of the tree: the dated ones are
+  // state.timelineCatalogs, the footprint-only ones (Allmaps, QMS) coverage
+  // overlays; a catalog a browser cannot query (disabled) is left out.
+  const historicalTicks = TIMELINE_CATALOGS.filter((c) => !c.disabled).map((c) => c.id)
+  const historicalCov = COVERAGE_ONLY_ENTRIES.map((c) => c.id)
+  const sectionState = (key: string): { on: number; total: number; toggle: (on: boolean) => void } => {
+    if (key === "Historical") {
+      const on = historicalTicks.filter((id) => timelineCatalogs.includes(id)).length + historicalCov.filter((id) => set.has(id)).length
+      return { on, total: historicalTicks.length + historicalCov.length, toggle: (v) => { setState?.({ timelineCatalogs: v ? [...new Set([...timelineCatalogs, ...historicalTicks])] : timelineCatalogs.filter((id) => !historicalTicks.includes(id)) }); setMany(historicalCov, v) } }
+    }
+    const leaves = (key === "Terrain" ? terrainGroups : staticGroups).flatMap(leavesOf)
+    return { on: leaves.filter((l) => set.has(l.id)).length, total: leaves.length, toggle: (v) => setMany(leaves.map((l) => l.id), v) }
+  }
+  // A section header: its fold, and a box that takes every leaf under it
+  // (indeterminate while only some are on), so a whole section can be
+  // switched without opening it.
+  const sectionHeader = (key: string, label: string) => {
+    const { on, total, toggle } = sectionState(key)
+    return (
+      <div className="flex w-full items-center gap-1 py-0.5">
+        <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpenKey(`sec:${key}`, true) ? "Collapse" : "Expand"} onClick={() => setFolds((prev) => ({ ...prev, [`sec:${key}`]: !(prev[`sec:${key}`] ?? true) }))}>
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpenKey(`sec:${key}`, true) ? "" : "-rotate-90"}`} />
+        </button>
+        <Checkbox id={`cov-sec-${key}`} checked={total > 0 && on === total} indeterminate={on > 0 && on < total} disabled={total === 0} onCheckedChange={(v) => toggle(v === true)} className="cursor-pointer" />
+        <Label htmlFor={`cov-sec-${key}`} className="text-[11px] font-semibold uppercase tracking-wide text-foreground/80 cursor-pointer flex-1">{label}</Label>
+        {total > 0 && <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{total}</span>}
+      </div>
+    )
+  }
   // Expand or fold every group of the three sections at once.
   const allKeys = [...groups.map((g) => `cov:${g.key}`), ...catalogTreeKeys()]
   const allOpen = allKeys.every((k) => folds[k] === true)
   const foldAll = (fold: boolean) => setFolds((prev) => ({ ...prev, ...Object.fromEntries(allKeys.map((k) => [k, !fold])) }))
+  // Two folds of their own: the controls (the master switch and the flags),
+  // then the catalogs (the three trees); Search results below is the third.
+  const partHeader = (key: string, label: string, right?: React.ReactNode) => (
+    <div className="flex items-center justify-between gap-2">
+      <button type="button" className="flex items-center gap-1 cursor-pointer text-xs font-medium" onClick={() => setFolds((prev) => ({ ...prev, [`sec:${key}`]: !(prev[`sec:${key}`] ?? true) }))}>
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpenKey(`sec:${key}`, true) ? "" : "-rotate-90"}`} />
+        {label}
+      </button>
+      {right}
+    </div>
+  )
   return (
     <div id="tour-coverage-overlays" className="space-y-1.5 scroll-mt-[100px]">
-      <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="coverage-visible" className="text-sm font-medium">Show on the map</Label>
+      {partHeader("controls", "Controls", (
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground tabular-nums">{selected.length ? `${selected.length} shown` : "none"}</span>
           {selected.length > 0 && <button type="button" className="text-[11px] underline text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setSelected([])}>clear</button>}
@@ -444,7 +477,8 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
             <TooltipContent><p>Show or hide every coverage footprint at once, the selection kept</p></TooltipContent>
           </Tooltip>
         </div>
-      </div>
+      ))}
+      {isOpenKey("sec:controls", true) && <>
       {/* The switches that apply to every footprint and every catalog, above the tree. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
         <Tooltip>
@@ -480,6 +514,9 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
           <TooltipContent><p>{allOpen ? "Fold every group of the tree" : "Expand every group of the tree"}</p></TooltipContent>
         </Tooltip>
       </div>
+      </>}
+      {partHeader("catalogs", "Catalogs")}
+      {isOpenKey("sec:catalogs", true) && <div className="pl-1 space-y-0.5">
       {sectionHeader("Terrain", "Terrain")}
       {isOpenKey("sec:Terrain", true) && <div className="pl-1">{terrainGroups.map((g) => renderGroup(g, 0))}</div>}
       {sectionHeader("Static", "Basemaps · Static")}
@@ -491,6 +528,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point; click a footprint for the dataset's page and to put it on the map.</p>
+      </div>}
     </div>
   )
 }
@@ -567,7 +605,7 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
     return rows.sort(byOverlap)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogItems, state.lat, state.lng, state.zoom, mapRef])
-  type Row = { key: string; label: string; detail: string; url?: string; stats?: OverlapStats; bounds?: [number, number, number, number]; use?: () => void; useLabel?: string; needsKey?: boolean }
+  type Row = { key: string; label: string; detail: string; url?: string; thumb?: string; stats?: OverlapStats; bounds?: [number, number, number, number]; use?: () => void; useLabel?: string; needsKey?: boolean }
   const groups: { key: string; label: string; color: string; rows: Row[] }[] = []
   const push = (g: { key: string; label: string; color: string }, r: Row) => {
     let entry = groups.find((x) => x.key === g.key)
@@ -581,7 +619,7 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
     const label = h.catalog === "qmsAll" ? "NextGIS QMS" : h.catalog === "cat-allmaps" ? "David Rumsey, georeferenced in Allmaps" : cfg?.label ?? h.catalog
     const overlay = h.ref ? `catalog-overlay:${h.ref}` : h.use?.startsWith("catalog-basemap:") ? h.use.replace("catalog-basemap:", "catalog-overlay:") : h.use
     push({ key: `search:${h.catalog}`, label, color: cfg?.color ?? (h.catalog === "qmsAll" ? "#0891b2" : h.catalog === "cat-allmaps" ? "#d946ef" : "#888") }, {
-      key: `${h.ref ?? h.use ?? h.label}`, label: h.label, detail: h.detail, url: h.url, bounds: h.bounds,
+      key: `${h.ref ?? h.use ?? h.label}`, label: h.label, detail: h.detail, url: h.url, bounds: h.bounds, thumb: h.ref ? catalogTick(h.ref)?.meta?.thumb : undefined,
       use: overlay ? () => { requestUse({ overlay, nonce: Date.now() }); if (h.bounds) fit(h.bounds) } : undefined,
       useLabel: overlay?.startsWith("catalog-overlay:") ? "Add as an overlay on the basemap" : "Use as the view's basemap",
     })
@@ -595,7 +633,7 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
     const cfg = SOURCE_CONFIG[item.source]
     push({ key: `cat:${item.source}`, label: cfg?.label ?? item.source, color: cfg?.color ?? "#888" }, {
       key: item.ref, label: item.label, detail: [item.meta?.date, item.meta?.gsd ? `${item.meta.gsd < 1 ? `${Math.round(item.meta.gsd * 100)} cm` : `${+item.meta.gsd.toFixed(1)} m`}/px` : null].filter(Boolean).join(" · "),
-      url: item.meta?.url, stats, use: () => requestPick({ ref: item.ref, nonce: Date.now() }), useLabel: "Put on the view",
+      url: item.meta?.url, thumb: item.meta?.thumb, stats, use: () => requestPick({ ref: item.ref, nonce: Date.now() }), useLabel: "Put on the view",
     })
   }
   // The overlay tree's order: terrain groups, then basemaps, then the catalogs.
@@ -643,7 +681,14 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
                     {g.rows.slice(0, 100).map((it) => (
                       <li key={it.key} className="flex items-center gap-2">
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs truncate" title={it.label}>{it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline">{it.label}</a> : it.label}</div>
+                          {it.thumb ? (
+                            <Tooltip>
+                              <TooltipTrigger render={<div className="text-xs truncate" title={it.label}>{it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline">{it.label}</a> : it.label}</div>} />
+                              <TooltipContent className="p-1"><img src={it.thumb} alt="" className="max-h-48 max-w-64 rounded object-contain" loading="lazy" /></TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <div className="text-xs truncate" title={it.label}>{it.url ? <a href={it.url} target="_blank" rel="noopener noreferrer" className="underline">{it.label}</a> : it.label}</div>
+                          )}
                           <div className="text-[10px] text-muted-foreground truncate" title={it.detail}>{[it.stats ? overlapLabel(it.stats) : null, it.detail].filter(Boolean).join(" · ")}</div>
                         </div>
                         {it.bounds && (
