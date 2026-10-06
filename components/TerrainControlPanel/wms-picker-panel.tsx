@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Plus, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -25,8 +25,10 @@ export const WmsPickerPanel: React.FC<{
   format?: string
   tileSize?: number
   onSave: (params: WmsPickerSaveParams) => void
-}> = ({ format = "image/png", tileSize = 256, onSave }) => {
-  const [baseUrl, setBaseUrl] = useState("")
+  /** A service URL found by the dialog's Auto type: filled in and listed at once. */
+  initialUrl?: string
+}> = ({ format = "image/png", tileSize = 256, onSave, initialUrl }) => {
+  const [baseUrl, setBaseUrl] = useState(initialUrl ?? "")
   const [service, setService] = useState<WmsServiceInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -47,6 +49,9 @@ export const WmsPickerPanel: React.FC<{
       setIsLoading(false)
     }
   }, [baseUrl])
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (initialUrl) handleFetchLayers() }, [])
 
   const handlePick = useCallback((layer: FlatWmsLayer) => {
     if (!service) return

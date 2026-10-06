@@ -186,7 +186,9 @@ export const StacSearchPanel: React.FC<{
   target: "basemap" | "terrain"
   onSave: (source: StacSaveSource) => void
   mapRef?: React.RefObject<MapRef | null>
-}> = ({ target, onSave, mapRef }) => {
+  /** A catalog URL found by the dialog's Auto type: opened as a custom catalog. */
+  initialUrl?: string
+}> = ({ target, onSave, mapRef, initialUrl }) => {
   // Catalogs switched off in the Library's Catalogs section are left out
   // here - that section is where the list is curated. A catalog that is
   // still the remembered choice stays listed even when hidden, so seeding it
@@ -202,8 +204,8 @@ export const StacSearchPanel: React.FC<{
     return kept.length ? kept : all.filter((p) => p.target === "both" || p.target === target)
   }, [target, disabledStac, savedCatalogs])
   const prev = remembered[target]
-  const [presetId, setPresetId] = useState(prev?.presetId ?? presets[0].id)
-  const [customUrl, setCustomUrl] = useState(prev?.customUrl ?? "")
+  const [presetId, setPresetId] = useState(initialUrl ? "custom" : prev?.presetId ?? presets[0].id)
+  const [customUrl, setCustomUrl] = useState(initialUrl ?? prev?.customUrl ?? "")
   const catalog = useMemo<StacPreset>(() => presetId === "custom"
     ? { id: "custom", name: "Custom", url: trimSlash(customUrl.trim()), kind: /\.json($|\?)/i.test(customUrl) ? "static" : "api", target: "both", group: "Mixed" }
     : presets.find((p) => p.id === presetId) ?? presets[0], [presetId, customUrl, presets])
@@ -245,7 +247,7 @@ export const StacSearchPanel: React.FC<{
   // cleanup only discards a superseded fetch. No "already listed" guard: a
   // guard that survived the cleanup left React's dev double-invocation with
   // a cancelled fetch and a spinner that never stopped.
-  const skipFirstListing = useRef(prev?.presetId === presetId && (prev?.collections.length ?? 0) > 0)
+  const skipFirstListing = useRef(prev?.presetId === presetId && (prev?.collections.length ?? 0) > 0 && (!initialUrl || prev?.customUrl === initialUrl))
   const [listing, setListing] = useState(false)
   useEffect(() => {
     if (skipFirstListing.current) { skipFirstListing.current = false; return }

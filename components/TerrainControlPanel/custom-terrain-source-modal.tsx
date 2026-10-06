@@ -23,8 +23,14 @@ import { copyToClipboard } from "@/lib/controls-utils"
 import { useCogMetadata, useCogResolution, zoomRangeFromMetadata, formatGsd } from "@/lib/cog-metadata"
 import { WmsPickerPanel } from "./wms-picker-panel"
 const StacSearchPanel = lazy(() => import("./stac-search-panel").then((m) => ({ default: m.StacSearchPanel })))
+import { SourceUrlAutoPanel, DetectedNote } from "./source-url-auto"
+import { nameFromUrl, type DetectedSource } from "@/lib/source-url-detect"
 
-type TerrainFormType = CustomTerrainSource["type"] | "wms-picker" | "stac"
+// The types a new source opens on: Auto unless a search panel or a local
+// file was the last choice (a URL type found by Auto is not remembered).
+const OPENING_TYPES = ["auto", "stac", "cog-local", "wms-picker", "dem-diff"]
+
+type TerrainFormType = CustomTerrainSource["type"] | "wms-picker" | "stac" | "auto"
 
 export const CustomTerrainSourceModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomTerrainSource | null
@@ -40,8 +46,17 @@ export const CustomTerrainSourceModal: React.FC<{
   // Remember the choice for the next "Add Dataset" (not while editing).
   const setType = useCallback((t: TerrainFormType) => {
     setTypeState(t)
+    setDetected(null)
     if (!editingSource) setLastType(t)
   }, [editingSource, setLastType])
+  // What Auto recognised, shown above the field of the type it switched to.
+  const [detected, setDetected] = useState<DetectedSource | null>(null)
+  const handleDetected = useCallback((d: DetectedSource) => {
+    setTypeState(d.type as TerrainFormType)
+    setUrl(d.url)
+    setDetected(d)
+    setName((n) => n || nameFromUrl(d.url))
+  }, [])
   // Brief "copied!" confirmation on the template hint's copy button — same
   // 2s-timeout pattern as ShareSection's CopyUrlButton.
   const [templateCopied, setTemplateCopied] = useState(false)
@@ -180,7 +195,8 @@ export const CustomTerrainSourceModal: React.FC<{
     } else {
       setName("")
       setUrl("")
-      setTypeState(((stacSearchBeta || lastType !== "stac") ? lastType : "cog") as TerrainFormType || "cog")
+      setTypeState((OPENING_TYPES.includes(lastType) && (stacSearchBeta || lastType !== "stac") ? lastType : "auto") as TerrainFormType)
+      setDetected(null)
       setDescription("")
       setMaxzoom("")
       setLinkedBasemapId("")
@@ -333,6 +349,7 @@ export const CustomTerrainSourceModal: React.FC<{
               value={type}
               onValueChange={(value: any) => setType(value)}
               items={{
+                auto: "Auto (detect from the URL)",
                 cog: "COG (Cloud Optimized GeoTIFF)",
                 "cog-local": "Local COG file (this browser only)",
                 terrarium: "TMS (Terrarium)",
@@ -348,6 +365,7 @@ export const CustomTerrainSourceModal: React.FC<{
             >
               <SelectTrigger id="source-type" className="cursor-pointer w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
+                {!editingSource && <SelectItem value="auto">Auto (detect from the URL)</SelectItem>}
                 <SelectGroup>
                   <SelectLabel>Cloud Optimized GeoTIFF</SelectLabel>
                   <SelectItem value="cog">COG (Cloud Optimized GeoTIFF)</SelectItem>
@@ -387,12 +405,18 @@ export const CustomTerrainSourceModal: React.FC<{
             </Select>
           </div>
 
-          {type === "stac" ? (
+          <DetectedNote detected={detected} onDismiss={() => setDetected(null)} onBack={() => { setType("auto"); setUrl("") }} />
+
+          {type === "auto" ? (
+            <SourceUrlAutoPanel target="terrain" onDetected={handleDetected} />
+          ) : type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
-              <StacSearchPanel target="terrain" mapRef={mapRef} onSave={(source) => { onSave({ ...source, type: "cog" }); fitTo(source.bounds) }} />
+              <StacSearchPanel key={detected?.url ?? "manual"} initialUrl={detected?.type === "stac" ? detected.url : undefined} target="terrain" mapRef={mapRef} onSave={(source) => { onSave({ ...source, type: "cog" }); fitTo(source.bounds) }} />
             </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel
+              key={detected?.url ?? "manual"}
+              initialUrl={detected?.type === "wms-picker" ? detected.url : undefined}
               format="image/geotiff"
               tileSize={514}
               onSave={(params) => { onSave({ ...params, type: "wms-raw" }); onOpenChange(false) }}

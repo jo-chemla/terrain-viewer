@@ -12,6 +12,7 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **Remove paper**: scanned maps lose their sheet, colour detected per map.
 - **Sources Coverage**: one tree, footprints on the map, results ranked by overlap.
 - **Search by name** across the checked catalogs, anywhere: "Cassini" finds the Rumsey sheets georeferenced in Allmaps, IGN's Cassini map, Map Warper's sheets.
+- **Auto** in Add Basemap and Add Terrain: paste any URL (tiles, WMS, COG, STAC, Allmaps, IIIF…), the type is found and filled in.
 - **Iso-line** on any measure, with an exact fill.
 - **Building shadows**, **modes per view**, **Image Georeferencer**, a **STAC catalog** of every source.
 - **Slide decks**: five presentations, live and as PDFs.

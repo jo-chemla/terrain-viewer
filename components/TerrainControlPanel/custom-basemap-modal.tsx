@@ -26,8 +26,14 @@ import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 const EliSearchPanel = lazy(() => import("./eli-search-panel").then((m) => ({ default: m.EliSearchPanel })))
 const StacSearchPanel = lazy(() => import("./stac-search-panel").then((m) => ({ default: m.StacSearchPanel })))
 import { WmsPickerPanel } from "./wms-picker-panel"
+import { SourceUrlAutoPanel, DetectedNote } from "./source-url-auto"
+import { nameFromUrl, type DetectedSource } from "@/lib/source-url-detect"
 
-type BasemapFormType = "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker" | "stac" | "iiif"
+// The types a new source opens on: Auto unless a search panel or a local
+// file was the last choice (a URL type found by Auto is not remembered).
+const OPENING_TYPES = ["auto", "qms", "eli", "stac", "cog-local", "wms-picker"]
+
+type BasemapFormType = "auto" | "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker" | "stac" | "iiif"
 
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
@@ -52,8 +58,17 @@ export const CustomBasemapModal: React.FC<{
   // existing source, whose type is its own).
   const setType = useCallback((t: BasemapFormType) => {
     setTypeState(t)
+    setDetected(null)
     if (!editingSource) setLastType(t)
   }, [editingSource, setLastType])
+  // What Auto recognised, shown above the field of the type it switched to.
+  const [detected, setDetected] = useState<DetectedSource | null>(null)
+  const handleDetected = useCallback((d: DetectedSource) => {
+    setTypeState(d.type as BasemapFormType)
+    setUrl(d.url)
+    setDetected(d)
+    setName((n) => n || nameFromUrl(d.url))
+  }, [])
   // Brief "copied!" confirmation on the template hint's copy button — same
   // 2s-timeout pattern as ShareSection's CopyUrlButton.
   const [templateCopied, setTemplateCopied] = useState(false)
@@ -139,7 +154,8 @@ export const CustomBasemapModal: React.FC<{
       setName("")
       setUrl("")
       // NextGIS QMS on the very first run, then the last type used.
-      setTypeState((((stacSearchBeta || lastType !== "stac") ? lastType : "qms") as BasemapFormType) || "qms")
+      setTypeState((OPENING_TYPES.includes(lastType) && (stacSearchBeta || lastType !== "stac") ? lastType : "auto") as BasemapFormType)
+      setDetected(null)
       setDescription("")
       setRole("basemap")
       setStack("under")
@@ -295,6 +311,7 @@ export const CustomBasemapModal: React.FC<{
               value={type}
               onValueChange={(value: any) => setType(value)}
               items={{
+                auto: "Auto (detect from the URL)",
                 tms: "TMS/XYZ (Raster Tile)",
                 cog: "Remote COG (URL)",
                 "cog-local": "Local COG file (this browser only)",
@@ -311,6 +328,7 @@ export const CustomBasemapModal: React.FC<{
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                {!editingSource && <SelectItem value="auto">Auto (detect from the URL)</SelectItem>}
                 {!editingSource && (
                   <SelectGroup>
                     <SelectLabel>Search a catalog</SelectLabel>
@@ -349,7 +367,11 @@ export const CustomBasemapModal: React.FC<{
             </Select>
           </div>
 
-          {type === "qms" ? (
+          <DetectedNote detected={detected} onDismiss={() => setDetected(null)} onBack={() => { setType("auto"); setUrl("") }} />
+
+          {type === "auto" ? (
+            <SourceUrlAutoPanel target="basemap" onDetected={handleDetected} />
+          ) : type === "qms" ? (
             <NextGisQmsSearchPanel onSave={(source) => { onSave(source); onOpenChange(false) }} />
           ) : type === "eli" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading the Editor Layer Index…</p>}>
@@ -357,10 +379,12 @@ export const CustomBasemapModal: React.FC<{
             </Suspense>
           ) : type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
-              <StacSearchPanel target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: source.role ?? "basemap", opacity: 100 } as any); fitTo(source.bounds) }} />
+              <StacSearchPanel key={detected?.url ?? "manual"} initialUrl={detected?.type === "stac" ? detected.url : undefined} target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: source.role ?? "basemap", opacity: 100 } as any); fitTo(source.bounds) }} />
             </Suspense>
           ) : type === "wms-picker" ? (
             <WmsPickerPanel
+              key={detected?.url ?? "manual"}
+              initialUrl={detected?.type === "wms-picker" ? detected.url : undefined}
               format="image/png"
               tileSize={256}
               onSave={(params) => { onSave({ ...params, type: "wms" }); onOpenChange(false) }}

@@ -16,6 +16,25 @@ A heavily-loaded Terrain source list — several custom BYOD sources (national L
 
 **Shareable via URL:** a link whose `sourceA`/`sourceB`/`basemapSource…` params reference a sample-library id (e.g. `?sourceB=custom-ign-lidarhd-dtm-wms-raw`) auto-adds that source to the recipient's BYOD list on load, and `?addSources=id1,id2` prepopulates several samples at once without selecting any of them — handy for handing a colleague both the IGN DSM *and* DTM ready to toggle between.
 
+## Auto: paste any URL
+
+A new source opens on **Auto**: one URL field. Paste a link and the dialog recognises what it is, switches to the matching type and puts the URL in its field, with a note above saying what was found ("Detected: WMS GetCapabilities"). **Back to Auto** returns to the single field. A name is proposed from the layer or the file.
+
+| You paste | It becomes |
+|---|---|
+| A template with `{z}/{x}/{y}` | TMS/XYZ (basemap); Terrarium or TerrainRGB (terrain, guessed from the URL) |
+| `{bbox-epsg-3857}`, or a WMS `REQUEST=GetMap` | WMS (basemap) or WMS raw elevation (terrain), the bbox turned into the placeholder |
+| A WMS `REQUEST=GetCapabilities`, or `SERVICE=WMS` | WMS (list layers), its layers listed at once |
+| An ArcGIS `MapServer` or `ImageServer` | Its cached tiles, or an `exportImage` request (Float32 for terrain) |
+| A `.tif` / `.tiff` | Remote COG |
+| A `.vrt`, a `.lerc` tile | VRT mosaic, ArcGIS LERC (terrain) |
+| A `.pmtiles` archive | Its `pmtiles://` tile template |
+| A TileJSON | TileJSON |
+| A STAC API, `catalog.json` or `collection.json` | STAC search, opened on that catalog |
+| An Allmaps annotation, a IIIF manifest or `info.json` | IIIF map (basemap only; a manifest is looked up in Allmaps) |
+
+When the URL itself says nothing, the dialog reads the start of the response once (content type, JSON keys, XML root): a STAC landing page, a TileJSON, a GeoTIFF served without extension are found that way, if the server allows it to be read from the browser. Otherwise it says so and you pick the type by hand. A search panel or local file picked last is reopened next time instead of Auto.
+
 ## Searching catalogs
 
 Both dialogs can search catalogs instead of taking a URL:
