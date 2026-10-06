@@ -109,20 +109,27 @@ export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSo
   overlayIds: string[]
   opacity: number
   customBasemapSources: { id: string; opacity?: number; stack?: "under" | "relief" | "top"; type?: string; url?: string }[]
-}) => (
+}) => {
+  // Drawn in the order of the Overlays list, reversed: each layer is inserted
+  // right before its slot, so the last inserted is on top, and the first of
+  // the list should be the one on top (the list's drag handle sets this).
+  const rank = (id: string) => { const i = customBasemapSources.findIndex((s) => s.id === id); return i === -1 ? -1 : i }
+  const ordered = [...overlayIds].sort((a, b) => rank(b) - rank(a))
+  return (
   <>
-    {overlayIds.map((id) => {
+    {ordered.map((id, pos) => {
       const source = customBasemapSources.find((s) => s.id === id)
       const sourceOpacity = (source?.opacity ?? 100) / 100
-      // Keyed on the slot: a layer's position is set when it is created.
+      // Keyed on the slot and the position: a layer's place is set when it
+      // is created, so a reorder remounts it.
       const stack = source?.stack ?? "under"
       // A georeferenced IIIF map: Allmaps' warped custom layer, no raster source.
       if (source?.type === "iiif" && source.url) {
-        return <AllmapsOverlayLayer key={`overlay-layer-${id}-${stack}`} id={id} annotationUrl={source.url} opacity={opacity * sourceOpacity} beforeId={OVERLAY_STACK_SLOT[stack]} />
+        return <AllmapsOverlayLayer key={`overlay-layer-${id}-${stack}-${pos}`} id={id} annotationUrl={source.url} opacity={opacity * sourceOpacity} beforeId={OVERLAY_STACK_SLOT[stack]} />
       }
       return (
         <Layer
-          key={`overlay-layer-${id}-${stack}`}
+          key={`overlay-layer-${id}-${stack}-${pos}`}
           beforeId={OVERLAY_STACK_SLOT[stack]}
           id={`overlay-basemap-${id}`}
           type="raster"
@@ -132,7 +139,8 @@ export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSo
       )
     })}
   </>
-))
+  )
+})
 OverlayBasemapLayers.displayName = "OverlayBasemapLayers"
 
 // Background Layer

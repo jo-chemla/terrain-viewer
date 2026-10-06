@@ -19,6 +19,12 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
   - Allmaps viewer links, signed URLs (`.tif?sig=…`), and URLs without an extension (headers, then the first bytes; never the whole file); a map pasted in Add Terrain offers to open Add Basemap with it.
 - **STAC**: Planet's Data API as a catalog: the access token (Settings → API Keys) to search, and each scene added as XYZ tiles from tiles.planet.com signed with the API key (items carry only a thumbnail); static catalogs filtered by the date range too. A dev page on the search internals and why it uses no client library.
 - **Auto** also takes links to pages about the data: Source Cooperative repositories, stac-map and STAC Browser links.
+- **Timeline picks** join your sources as overlays and go on the view as one (on by default); a search hit's "Use" lists the overlay in Bring Your Own Data; a kept tick is an overlay.
+- **Overlays order**: in edit mode, drag the handles; the first of the list draws on top.
+- **Shared links** rebuild the catalog overlays they name (Allmaps maps, David Rumsey sheets, Map Warper and Wikimaps maps) on the recipient's side.
+- **STAC catalog picker** is a combobox: type a name ("planet"), or paste a URL for a custom catalog.
+- **Auto** reads a David Rumsey detail page (the map's Allmaps annotation, if georeferenced).
+- Switching an overlay off from its label no longer moves the camera.
 - **Desktop**: the light build updates itself too, from its own `desktop-latest-light` feed (the two builds could not share one release). **About**: the version answer scrolls into view. **Slides**: screenshots are no longer cropped (a cropped one keeps the side panel); on localhost the Slide decks page links the editor too.
 - **Docs**: Tools, Embedding / iframe, nDSM / Comparison renamed; the Dev group starts folded; the embed example on Mapterhorn; no redirect pages for old addresses.
 - **Sources Coverage**: Controls, Catalogs and Search results as three folds; a box on Terrain, Basemaps · Static and Basemaps · Historical takes the whole section; a row with a thumbnail shows it on hover.

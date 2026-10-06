@@ -24,7 +24,8 @@ export const CustomSourceDetails: React.FC<{
    *  setState({ basemapSource: id }) — the caller decides which state key to write.
    *  Omit in contexts (e.g. split-screen A/B) where a separate control already handles
    *  selection and the label should only fit-to-bounds. */
-  onSelect?: (id: string) => void
+  /** Returns false when the click switched the source off: no camera move then. */
+  onSelect?: (id: string) => void | boolean
   /** Name of the paired terrain/basemap source this one is linked to (see
    *  CustomTerrainSource.linkedBasemapId / CustomBasemapSource.linkedTerrainId)
    *  — the caller resolves this since it needs the OTHER list to look it up.
@@ -164,8 +165,8 @@ export const CustomSourceDetails: React.FC<{
             className={`flex-1 text-sm truncate min-w-0 ${isOrphanedDiff ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
             onClick={() => {
               if (isOrphanedDiff) return
-              onSelect?.(source.id)
-              handleFitToBounds(source)
+              const activated = onSelect?.(source.id)
+              if (activated !== false) handleFitToBounds(source)
             }}
             >
             <span className="truncate min-w-0">{source.name}</span>

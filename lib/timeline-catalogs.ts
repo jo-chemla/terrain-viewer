@@ -197,6 +197,36 @@ function registerUndated(catalog: string, itemKey: string, source: Omit<CustomBa
   return id
 }
 
+/** A catalog source named in a link but not in this browser's list: its
+ *  id says enough to rebuild it for the catalogs whose items are addressed
+ *  by one key (an Allmaps map, a David Rumsey sheet through Allmaps, a Map
+ *  Warper or Wikimaps map); null for the others (an ArcGIS Online item, a
+ *  STAC scene), which a catalog query would have to find again. */
+async function sha1Id(s: string) { return sha1IdImpl(s) }
+export async function resolveCatalogSourceId(id: string): Promise<CustomBasemapSource | null> {
+  const allmapsMap = (mapId: string, name: string, extra: Partial<CustomBasemapSource> = {}): CustomBasemapSource => ({
+    id, name, url: `${ALLMAPS_ANNOTATIONS}/maps/${mapId}`, type: "iiif", role: "overlay", stack: "top", provider: "allmaps", oldMap: true,
+    description: `Georeferenced IIIF map, Allmaps annotation ${mapId}`, infoUrl: `https://viewer.allmaps.org/?url=${encodeURIComponent(`${ALLMAPS_ANNOTATIONS}/maps/${mapId}`)}`, ...extra,
+  } as CustomBasemapSource)
+  let m = /^custom-basemap-allmaps-([0-9a-f]{16})$/.exec(id)
+  if (m) return allmapsMap(m[1], `Allmaps map ${m[1]}`)
+  m = /^custom-basemap-cat-cat-allmaps--rumsey-(RUMSEY_[0-9_]+)$/.exec(id)
+  if (m) {
+    const luna = m[1].replace(/_/g, "~")
+    const image = `https://www.davidrumsey.com/luna/servlet/iiif/${luna}`
+    const url = `${ALLMAPS_ANNOTATIONS}/images/${await sha1Id(image)}`
+    return { id, name: `David Rumsey ${luna}`, url, type: "iiif", role: "overlay", stack: "top", provider: "allmaps", oldMap: true, description: `David Rumsey Map Collection sheet ${luna}, georeferenced in Allmaps`, infoUrl: `https://www.davidrumsey.com/luna/servlet/detail/${luna}` } as CustomBasemapSource
+  }
+  m = /^custom-basemap-cat-cat-allmaps--([0-9a-f]{16})$/.exec(id)
+  if (m) return allmapsMap(m[1], `Allmaps map ${m[1]}`)
+  m = /^custom-basemap-cat-(cat-mapwarper|cat-wikimaps)--(\d+)$/.exec(id)
+  if (m) {
+    const { host, short } = WARPERS[m[1] as keyof typeof WARPERS]
+    return { id, name: `${short} map ${m[2]}`, url: `${host}/maps/tile/${m[2]}/{z}/{x}/{y}.png`, type: "tms", role: "overlay", stack: "top", oldMap: true, description: `${TIMELINE_CATALOG_BY_ID[m[1]].label} map ${m[2]}`, infoUrl: `${host}/maps/${m[2]}`, maxzoom: 20 } as CustomBasemapSource
+  }
+  return null
+}
+
 // Every tick registered this session, by its basemap id: a pick from the
 // text search (or a view's item after the search moved on) is found here.
 const ticksByRef = new Map<string, CatalogTick>()
@@ -833,7 +863,7 @@ const tickHit = (t: CatalogTick, detail?: string): CatalogSearchHit => {
   const gsd = t.meta?.gsd ? (t.meta.gsd < 1 ? `${Math.round(t.meta.gsd * 100)} cm` : `${+t.meta.gsd.toFixed(1)} m`) : null
   return { catalog: t.source, label: t.label, detail: detail ?? [t.meta?.date, gsd].filter(Boolean).join(" · "), url: t.meta?.url, bounds: src?.bounds, ref: t.ref, dateMs: t.dateMs }
 }
-const sha1Id = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(s)))).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16)
+const sha1IdImpl = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(s)))).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16)
 
 /** David Rumsey's own catalog search, kept to the maps Allmaps has
  *  georeferenced (an Allmaps image id is the first 16 hex of the SHA-1 of

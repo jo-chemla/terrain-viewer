@@ -3,10 +3,12 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { STAC_PRESETS, remembered, type StacPreset } from "@/lib/stac-presets"
 import { getDefaultStore } from "jotai"
+import { Combobox } from "@base-ui/react/combobox"
+import { cn } from "@/lib/utils"
 import { planetKeyAtom, planetAccessTokenAtom } from "@/lib/settings-atoms"
 import { useAtomValue, useAtom } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom, type SavedStacCatalog } from "@/lib/settings-atoms"
-import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays } from "lucide-react"
+import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -201,6 +203,46 @@ async function crawlStaticItems(url: string, bbox: number[] | null, limit: numbe
     }
   }
   return items
+}
+
+/** The catalog picker: type to find one of the presets ("planet" lists both
+ *  Planet entries), or paste a URL, which becomes the custom catalog. */
+type CatalogItem = { value: string; label: string; group: string }
+const CatalogCombobox: React.FC<{ presets: StacPreset[]; value: string; customUrl: string; onPick: (id: string) => void; onUrl: (url: string) => void }> = ({ presets, value, customUrl, onPick, onUrl }) => {
+  const items = useMemo<CatalogItem[]>(() => [
+    { value: "custom", label: customUrl.trim() ? `Custom: ${customUrl.trim()}` : "Custom catalog URL…", group: "Other" },
+    ...(["Yours", "Elevation", "Mixed", "Imagery", "Registries"] as const).flatMap((g) => presets.filter((p) => p.group === g).map((p) => ({ value: p.id, label: p.name, group: g }))),
+  ], [presets, customUrl])
+  const selected = items.find((i) => i.value === value) ?? items[0]
+  return (
+    <Combobox.Root
+      items={items}
+      value={selected}
+      onValueChange={(v) => { const it = v as CatalogItem | null; if (it) onPick(it.value) }}
+      itemToStringLabel={(i) => (i as CatalogItem).label}
+      onInputValueChange={(text) => { if (/^https?:\/\/\S+/i.test(text.trim())) onUrl(text.trim()) }}
+    >
+      <div className="relative flex w-full min-w-0 items-center">
+        <Combobox.Input placeholder="Type a catalog's name, or paste its URL" className={cn("border-input dark:bg-input/30 placeholder:text-muted-foreground h-9 w-full min-w-0 rounded-md border bg-transparent py-1 pl-3 pr-9 text-sm shadow-xs outline-none", "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] cursor-text")} />
+        <Combobox.Trigger aria-label="Open the list" className="absolute right-1 cursor-pointer rounded-sm p-1 text-muted-foreground hover:text-foreground"><ChevronDown className="size-4 opacity-70" /></Combobox.Trigger>
+      </div>
+      <Combobox.Portal>
+        <Combobox.Positioner sideOffset={4} className="z-[60] w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]">
+          <Combobox.Popup className="bg-popover text-popover-foreground max-h-80 overflow-y-auto rounded-md border p-1 shadow-md outline-none">
+            <Combobox.Empty className="px-2 py-1.5 text-sm text-muted-foreground">No catalog of that name; paste a URL to search it.</Combobox.Empty>
+            <Combobox.List>
+              {(item: CatalogItem) => (
+                <Combobox.Item key={item.value} value={item} className="relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground">
+                  <span className="truncate">{item.label}</span>
+                  <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">{item.group}</span>
+                </Combobox.Item>
+              )}
+            </Combobox.List>
+          </Combobox.Popup>
+        </Combobox.Positioner>
+      </Combobox.Portal>
+    </Combobox.Root>
+  )
 }
 
 export interface StacSaveSource {
@@ -447,7 +489,6 @@ export const StacSearchPanel: React.FC<{
   // likely reaching for, and leaving it out of this list (as the first version
   // did) filtered saved catalogs out of the picker entirely.
   const groups = ["Yours", "Elevation", "Mixed", "Imagery", "Registries"] as const
-  const selectItems = Object.fromEntries([["custom", "Custom catalog URL…"], ...presets.map((p) => [p.id, p.name])])
 
   return (
     <div className="space-y-3 min-w-0">
@@ -455,25 +496,13 @@ export const StacSearchPanel: React.FC<{
         Beta — search a STAC catalog for Cloud Optimized GeoTIFFs and add any as {target === "terrain" ? "terrain (DEM)" : "basemap"} sources; the dialog stays open so you can add several.
         Web Mercator (3857) assets are listed first{target === "terrain" ? ", single-band elevation rasters only" : ""}; an asset whose catalog declares another projection is pinned to titiler, the rest use the global COG setting.
       </p>
-      <Select value={presetId} onValueChange={(v) => v && setPresetId(v)} items={selectItems}>
-        <SelectTrigger className="w-full cursor-pointer"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectLabel>Other</SelectLabel>
-            <SelectItem value="custom">Custom catalog URL…</SelectItem>
-          </SelectGroup>
-          {groups.map((g) => {
-            const rows = presets.filter((p) => p.group === g)
-            if (!rows.length) return null
-            return (
-              <SelectGroup key={g}>
-                <SelectLabel>{g}</SelectLabel>
-                {rows.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectGroup>
-            )
-          })}
-        </SelectContent>
-      </Select>
+      <CatalogCombobox
+        presets={presets}
+        value={presetId}
+        customUrl={customUrl}
+        onPick={(id) => setPresetId(id)}
+        onUrl={(u) => { setPresetId("custom"); setCustomUrl(u) }}
+      />
       {presetId === "custom" && (
         <div className="flex items-center gap-2">
           <Input placeholder="https://…/v1 (API) or https://…/catalog.json (static)" value={customUrl} onChange={(e) => setCustomUrl(e.target.value)} className="cursor-text" />

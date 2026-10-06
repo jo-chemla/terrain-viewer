@@ -13,10 +13,12 @@
 import { useState } from "react";
 
 const SLIDES = "../../slides/";
-// In development the decks are also live in open-slide's editor (pnpm
-// slides, port 3200): comments, the inspector and inline edits live there,
-// not in the static site the "present" links open.
-const EDITOR = typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname) ? "http://localhost:3200/" : null;
+// In development the decks are live in open-slide's editor (pnpm slides,
+// port 3200, served under /docs/slides/ and proxied there by the app's dev
+// server when it is up): comments, the inspector and inline edits live
+// there. The "present" links already reach it through the proxy; "edit"
+// opens the editor on its own port.
+const EDITOR = typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname) ? "http://localhost:3200/docs/slides/" : null;
 
 const DECKS = [
   { id: "terrain-viewer", title: "Terrain Viewer", pages: 12, about: "What it is, the sources, the visualization modes, split and compare, export" },

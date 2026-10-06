@@ -118,12 +118,14 @@ jobs:
         with:
           path: bundles
       - name: Collect assets
-        # The light build's updater feed (out/light-feed/) has the same file
-        # names as the full build's: it goes to its own release below.
+        # Two releases: the full build (installers and its updater feed) on
+        # desktop-latest, the light build's installers and feed on
+        # desktop-latest-light. The two feeds have the same file names
+        # (Electrobun names them after the channel), hence two releases.
         run: |
           mkdir -p assets assets-light
-          find bundles -type f -not -path '*/light-feed/*' -exec cp {} assets/ \;
-          find bundles -type f -path '*/light-feed/*' -exec cp {} assets-light/ \;
+          find bundles -type f -not -path '*/light-feed/*' -not -name '*light-online-docs*' -exec cp {} assets/ \;
+          find bundles -type f \( -path '*/light-feed/*' -o -name '*light-online-docs*' \) -exec cp {} assets-light/ \;
           ls -la assets assets-light
           [ -n "$(ls -A assets)" ] || { echo "no bundle built on any platform"; exit 1; }
       - name: Rolling release desktop-latest
@@ -135,7 +137,7 @@ jobs:
         run: |
           sha=$(git rev-parse --short HEAD)
           date=$(date -u +%Y-%m-%d)
-          notes="Desktop bundles built on $date from \`$sha\`. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/ for what works and how to run them. Each platform comes twice: \`with-offline-docs\` carries the documentation for offline reading, \`light-online-docs\` is about 180 MB smaller and opens the documentation on the website. Setup files are installers (zip holding the installer on Windows, dmg on macOS, self-extracting tar.gz on Linux); Portable zips unpack anywhere and run as they are. macOS: the app is only ad-hoc signed, so right-click, Open on first launch; if it is reported as damaged, run xattr -cr on the app once (see the docs page). Windows: SmartScreen, More info, Run anyway."
+          notes="Desktop bundles built on $date from \`$sha\`, the full build (\`with-offline-docs\`: the documentation inside, for offline reading). The light build (\`light-online-docs\`, about 180 MB smaller, the documentation on the website) is on the desktop-latest-light release. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/ for what works and how to run them. Setup files are installers (zip holding the installer on Windows, dmg on macOS, self-extracting tar.gz on Linux); Portable zips unpack anywhere and run as they are. macOS: the app is only ad-hoc signed, so right-click, Open on first launch; if it is reported as damaged, run xattr -cr on the app once (see the docs page). Windows: SmartScreen, More info, Run anyway."
           if ! gh release view desktop-latest >/dev/null 2>&1; then
             gh release create desktop-latest --title "Desktop bundles ($date)" --notes "$notes" --latest
           fi
@@ -147,22 +149,22 @@ jobs:
           done
           gh release upload desktop-latest assets/* --clobber
           gh release edit desktop-latest --title "Desktop bundles ($date)" --notes "$notes" --latest
-      - name: Rolling release desktop-latest-light (the light build's updater feed)
-        # Only the feed lives here (the installers are on desktop-latest):
-        # the light build's release.baseUrl points at this tag.
+      - name: Rolling release desktop-latest-light (the light build)
+        # The light build's installers and its updater feed; its
+        # release.baseUrl points at this tag.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           [ -n "$(ls -A assets-light)" ] || { echo "no light feed built"; exit 0; }
           sha=$(git rev-parse --short HEAD)
           date=$(date -u +%Y-%m-%d)
-          notes="Updater feed of the light desktop build (light-online-docs), built on $date from \`$sha\`. Nothing to download here by hand: the installers are on the desktop-latest release; an installed light build reads this feed at launch and updates itself."
+          notes="Light desktop bundles built on $date from \`$sha\`: the documentation opens on the website, about 180 MB smaller than the full build on the desktop-latest release. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/. Setup files are installers, Portable zips unpack anywhere and run as they are; the .tar.zst and update.json are the updater's feed, which an installed light build reads at launch. Windows: SmartScreen, More info, Run anyway."
           if ! gh release view desktop-latest-light >/dev/null 2>&1; then
-            gh release create desktop-latest-light --title "Light desktop build, updater feed ($date)" --notes "$notes" --prerelease
+            gh release create desktop-latest-light --title "Desktop bundles, light ($date)" --notes "$notes"
           fi
           built=$(ls assets-light | grep -o -E 'win-x64|macos-arm64|linux-x64' | sort -u)
           for plat in $built; do
             gh release view desktop-latest-light --json assets -q '.assets[].name' | grep -- "$plat" | while read -r a; do gh release delete-asset desktop-latest-light "$a" --yes || true; done
           done
           gh release upload desktop-latest-light assets-light/* --clobber
-          gh release edit desktop-latest-light --title "Light desktop build, updater feed ($date)" --notes "$notes" --prerelease
+          gh release edit desktop-latest-light --title "Desktop bundles, light ($date)" --notes "$notes"

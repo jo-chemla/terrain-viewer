@@ -16,7 +16,7 @@ Two co-located apps share this repo:
 pnpm dev   # BOTH servers at once (concurrently; no extra args — they'd go to concurrently, not vite)
 pnpm app   # app only (vite; accepts vite flags like --port)
 pnpm docs  # docs only, port 3100 (proxied at /docs)
-pnpm slides         # open-slide decks (slides/, own install: pnpm slides:install), port 3200
+pnpm slides         # open-slide decks (slides/, own install: pnpm slides:install), port 3200 under /docs/slides/ (the app dev server proxies /docs/slides/ to it when it is up)
 pnpm slides:static  # the decks as published (static, under /docs/slides/), port 4180
 pnpm slides:pdf     # the static decks plus five PDFs in .cache/slides-site/ (the deploy runs this)
 pnpm dev:all        # app, docs and slides together

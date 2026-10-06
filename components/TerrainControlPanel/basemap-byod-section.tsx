@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown, Plus, Edit, Library, Crosshair, Braces } from "lucide-react"
+import { ChevronDown, Plus, Edit, Library, Crosshair, Braces, GripVertical } from "lucide-react"
 import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
 import { sourcesEditModeAtom } from "@/lib/settings-atoms"
 import { OpacityPill } from "@/components/ui/opacity-pill"
@@ -177,6 +177,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       patch[field] = everywhere ? current.filter((x) => x !== id) : (current.includes(id) ? current : [...current, id])
     }
     setState(patch)
+    return !everywhere
   }, [state, setState])
 
   const selectBasemapSingle = useCallback((id: string) => {
@@ -361,9 +362,24 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
     setSectionOpen((prev: any) => ({ ...prev, georef: true }))
   }, [georefEditingId, setGeorefImage, setGeorefEditingId, setGeorefActive, setSectionOpen, setState])
 
+  // The overlays' order (edit mode's drag handle): a dragged overlay lands
+  // before the one it is dropped on; the list's first draws on top.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const moveOverlayBefore = useCallback((fromId: string, beforeId: string) => {
+    setCustomBasemapSources((prev) => {
+      const from = prev.find((s) => s.id === fromId)
+      if (!from) return prev
+      const rest = prev.filter((s) => s.id !== fromId)
+      const at = rest.findIndex((s) => s.id === beforeId)
+      if (at === -1) return prev
+      return [...rest.slice(0, at), from, ...rest.slice(at)]
+    })
+  }, [setCustomBasemapSources])
   const handleToggleOverlay = useCallback((id: string, checked: boolean) => {
     const current: string[] = state.overlayBasemapIds || []
     setState({ overlayBasemapIds: checked ? [...current, id] : current.filter((x) => x !== id) })
+    return checked
   }, [state.overlayBasemapIds, setState])
   // Per view, in split / grid with per-view basemaps: view A is the plain
   // overlayBasemapIds, the others overlayBasemapIds<side>.
@@ -505,8 +521,19 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               <GroupHeading>Overlays</GroupHeading>
               <SliderControl label="Overlays opacity" value={(state.overlaysOpacity ?? 1) * 100} onChange={(v) => setState({ overlaysOpacity: v / 100 })} min={0} max={100} step={1} suffix="%" sliderId="overlays-opacity" />
               {scannedMaps.length > 0 && <PaperControl maps={scannedMaps} />}
+              {editMode && overlaySources.length > 1 && <p className="text-[11px] text-muted-foreground">Drag the handles to order the overlays: the first draws on top.</p>}
               {overlaySources.map((source) => (
-                <div key={source.id} className="flex items-center gap-2 min-w-0">
+                <div key={source.id} className={`flex items-center gap-2 min-w-0 ${dragOverId === source.id ? "ring-1 ring-primary rounded" : ""}`}
+                  onDragOver={editMode ? (e) => { e.preventDefault(); if (dragOverId !== source.id) setDragOverId(source.id) } : undefined}
+                  onDragLeave={editMode ? () => setDragOverId((d) => (d === source.id ? null : d)) : undefined}
+                  onDrop={editMode ? (e) => { e.preventDefault(); const from = e.dataTransfer.getData("text/overlay-id") || dragId; setDragOverId(null); setDragId(null); if (from && from !== source.id) moveOverlayBefore(from, source.id) } : undefined}>
+                  {editMode && (
+                    <span draggable className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0" title="Drag to reorder: the first overlay draws on top"
+                      onDragStart={(e) => { e.dataTransfer.setData("text/overlay-id", source.id); e.dataTransfer.effectAllowed = "move"; setDragId(source.id) }}
+                      onDragEnd={() => { setDragId(null); setDragOverId(null) }}>
+                      <GripVertical className="h-4 w-4" />
+                    </span>
+                  )}
                   {state.basemapPerView && state.splitStyle !== "off" ? (
                     <SourceGridToggle
                       gridLayout={state.splitStyle === "overlay" ? "2x1" : state.gridLayout}

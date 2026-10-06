@@ -116,7 +116,7 @@ export const coverageOutlineOnlyAtom = atomWithStorage("coverageOutlineOnly", fa
 export const coverageFoldsAtom = atomWithStorage<Record<string, boolean>>("coverageTreeOpen", {}, undefined, { getOnInit: true })
 /** A timeline pick also joins the user's sources (off: the item stays a
  *  transient basemap of the view, listed nowhere else). */
-export const tickPicksKeepAtom = atomWithStorage("tickPicksKeep", false)
+export const tickPicksKeepAtom = atomWithStorage("tickPicksKeep", true)
 /** Draw the active views' terrain and basemap sources' declared extents as
  *  dashed outlines (their coverage leaves, selected for you). */
 export const activeExtentsAtom = atomWithStorage("coverageActiveExtents", false)

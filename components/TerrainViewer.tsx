@@ -43,7 +43,7 @@ import { terrainShortLabel } from "@/lib/terrain-sources"
 import { HistoricalTimelinePanel, SOURCE_CONFIG } from "./TerrainControlPanel/historical-timeline-panel"
 import { isHistoricalSourceActive, resolveActiveHistoricalSource, TIMELINE_SOURCE_IDS } from "@/lib/historical-sources"
 import { isEliBasemapId } from "@/lib/eli-timeline"
-import { isCatalogBasemapId } from "@/lib/timeline-catalogs"
+import { isCatalogBasemapId, resolveCatalogSourceId } from "@/lib/timeline-catalogs"
 import { useEsriLiveCaptureDate } from "@/lib/wayback"
 import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
@@ -1326,6 +1326,20 @@ export function TerrainViewer() {
     () => computeHillshadePaint(state),
     [ state.hillshadeMethod, state.illuminationDir, state.illuminationAlt, state.hillshadeOpacity, state.shadowColor, state.highlightColor, state.hillshadeExag, state.accentColor ]
   )
+  // A link naming a catalog source this browser never saw (an Allmaps map, a
+  // Rumsey sheet, a Map Warper map on another machine's list): rebuilt from
+  // its id, once, so the shared view shows it.
+  const resolvedCatalogIds = useRef(new Set<string>())
+  const linkedSourceIds = [state.basemapSource, ...VIEW_IDS.map((s) => (state as any)[`basemapSource${s}`]), ...(state.overlayBasemapIds ?? []), ...VIEW_IDS.filter((s) => s !== "A").flatMap((s) => ((state as any)[`overlayBasemapIds${s}`] as string[] | undefined) ?? [])].filter((x): x is string => typeof x === "string" && /^custom-basemap-(cat-|allmaps-)/.test(x))
+  const linkedSourceKey = linkedSourceIds.join(",")
+  useEffect(() => {
+    for (const id of linkedSourceIds) {
+      if (resolvedCatalogIds.current.has(id) || customBasemapSources.some((s) => s.id === id)) continue
+      resolvedCatalogIds.current.add(id)
+      resolveCatalogSourceId(id).then((src) => { if (src) setCustomBasemapSources((prev) => (prev.some((s) => s.id === id) ? prev : [...prev, src])) }).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedSourceKey, customBasemapSources.length])
 
   const colorReliefPaint = useMemo(
     () => computeColorReliefPaint({ ...state, sessionOverride: rampOverrides[state.colorRamp] }),

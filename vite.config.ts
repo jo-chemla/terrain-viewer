@@ -7,6 +7,8 @@ import { fileURLToPath, URL } from "url"
 import { execSync } from "child_process"
 import fs from "fs"
 import path from "path"
+import http from "http"
+import net from "net"
 
 // Build stamp for the About section: the commit and the build day. The
 // commit comes from git at build time (CI checks the repo out), "dev" when
@@ -53,10 +55,28 @@ export default defineConfig({
       configureServer(server) {
         const site = fileURLToPath(new URL("./.cache/slides-site", import.meta.url))
         const types: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".pdf": "application/pdf", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon", ".woff2": "font/woff2", ".woff": "font/woff", ".mp4": "video/mp4", ".webm": "video/webm" }
-        server.middlewares.use((req, res, next) => {
+        // The live editor (pnpm slides, port 3200, base /docs/slides/) wins
+        // when it is up: comments, inspector and inline edits are there. Its
+        // reachability is checked at most every few seconds.
+        const editorPort = Number(process.env.SLIDES_PORT) || 3200
+        let editorUp = false, editorCheckedAt = 0
+        const probeEditor = () => new Promise<boolean>((resolve) => {
+          const sock = net.connect({ port: editorPort, host: "127.0.0.1" })
+          const done = (v: boolean) => { sock.destroy(); resolve(v) }
+          sock.once("connect", () => done(true)); sock.once("error", () => done(false)); sock.setTimeout(300, () => done(false))
+        })
+        server.middlewares.use(async (req, res, next) => {
           const url = req.url ?? ""
           if (!url.startsWith("/docs/slides")) return next()
           if (url === "/docs/slides") { res.writeHead(302, { Location: "/docs/slides/" }); res.end(); return }
+          if (Date.now() - editorCheckedAt > 3000) { editorUp = await probeEditor(); editorCheckedAt = Date.now() }
+          // PDFs only exist in the published build: those stay on the static site.
+          if (editorUp && !url.startsWith("/docs/slides/pdf/")) {
+            const up = http.request({ host: "127.0.0.1", port: editorPort, path: url, method: req.method, headers: { ...req.headers, host: `localhost:${editorPort}` } }, (r) => { res.writeHead(r.statusCode ?? 502, r.headers); r.pipe(res) })
+            up.on("error", () => { if (!res.headersSent) { res.statusCode = 502; res.end("The slides editor on port " + editorPort + " did not answer.") } })
+            req.pipe(up)
+            return
+          }
           const rel = decodeURIComponent(url.slice("/docs/slides/".length).split("?")[0])
           let file = path.join(site, rel)
           if (!file.startsWith(site)) { res.statusCode = 403; res.end(); return }
@@ -66,7 +86,7 @@ export default defineConfig({
             res.setHeader("content-type", "text/plain; charset=utf-8")
             res.end(fs.existsSync(site)
               ? `Not in the built slides site: ${rel}`
-              : "The slide decks are built, not served live, under /docs/slides/. Run `pnpm slides:static` (decks) or `pnpm slides:pdf` (decks and PDFs) once, then reload. `pnpm slides` runs the live editor on port 3200 instead.")
+              : "Nothing serves /docs/slides/ yet: run `pnpm slides` for the live editor (port 3200, proxied here), or `pnpm slides:static` / `pnpm slides:pdf` once for the published build (and its PDFs).")
             return
           }
           res.setHeader("content-type", types[path.extname(file).toLowerCase()] ?? "application/octet-stream")

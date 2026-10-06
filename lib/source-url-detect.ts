@@ -138,6 +138,20 @@ export async function detectByFetching(raw: string, target: DetectTarget, signal
   if (!/^https?:\/\//i.test(url)) return null
   const timeout = AbortSignal.timeout(6000)
   const sig = signal && "any" in AbortSignal ? (AbortSignal as any).any([signal, timeout]) : timeout
+  // A David Rumsey detail page: Allmaps keys the annotation by the IIIF
+  // image's URL (the first 16 hex digits of its SHA-1), so the map's page is
+  // enough to ask whether it was georeferenced.
+  const rumsey = /davidrumsey\.com\/luna\/servlet\/(?:detail|iiif)\/(RUMSEY~[0-9~]+)/i.exec(url)
+  if (rumsey) {
+    const image = `https://www.davidrumsey.com/luna/servlet/iiif/${rumsey[1]}`
+    const hex = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(image)))).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16)
+    const annotation = `https://annotations.allmaps.org/images/${hex}`
+    const ok = await fetch(annotation, { signal: sig }).then((r) => r.ok).catch(() => false)
+    if (!ok) return { type: "unsupported", url, label: "A David Rumsey map", note: "Not georeferenced in Allmaps (no annotation for its IIIF image), so it cannot be draped. Georeference it on editor.allmaps.org first." }
+    return target === "basemap"
+      ? { type: "iiif", url: annotation, label: "David Rumsey map, georeferenced in Allmaps" }
+      : { type: "unsupported", url: annotation, label: "A David Rumsey map", note: "A georeferenced map is a picture, not elevation: add it with Add Basemap." }
+  }
   try {
     const head = await fetch(url, { method: "HEAD", signal: sig })
     if (head.ok) { const d = detectFromHeaders(head, url, target); if (d) return d }

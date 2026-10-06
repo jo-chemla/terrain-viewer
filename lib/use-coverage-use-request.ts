@@ -62,7 +62,7 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
     if (kind === "catalog-basemap" || kind === "catalog-overlay") {
       const found = catalogBasemap(key)
       if (!found) return
-      const src: CustomBasemapSource = kind === "catalog-overlay" ? { ...found, role: "overlay", stack: "top", opacity: found.opacity ?? 100 } : found
+      const src: CustomBasemapSource = kind === "catalog-overlay" ? { ...found, role: "overlay", stack: "top", opacity: found.opacity ?? 100, transient: false } : found
       setBasemaps((prev) => (prev.some((x) => x.id === src.id) ? prev.map((x) => (x.id === src.id ? src : x)) : [...prev, src]))
       activateBasemapSource(setState, src)
       return
