@@ -52,7 +52,11 @@ export const SourceMetadataDialog: React.FC<{
 }> = ({ source, onClose, onFit }) => (
   <Dialog open={!!source} onOpenChange={(o) => { if (!o) onClose() }}>
     <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto overflow-x-hidden">
-      <DialogHeader>
+      {/* min-w-0: the dialog is a grid, and a grid item's automatic minimum
+          width is its min-content, which for a nowrap (truncate) title is the
+          whole title; the column then grew past the dialog and every row
+          overflowed with it. pr-6 keeps the title off the close button. */}
+      <DialogHeader className="min-w-0 pr-6">
         <DialogTitle className="truncate">{source?.name ?? "Source"}</DialogTitle>
         <DialogDescription>Everything this source carries. Switch the sources' edit mode on to change it.</DialogDescription>
       </DialogHeader>

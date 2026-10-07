@@ -21,7 +21,7 @@ import { planetMonthlyTicks, fetchPlanetMonthlyRange, type PlanetMonthlyRange } 
 import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
-import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
@@ -183,6 +183,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // items. Pressing a handle, the map pane's pill or a tick selects the
   // handle again.
   const [activeOverlay, setActiveOverlay] = useAtom(timelineActiveOverlayAtom)
+  // The view selected on the map (its pane's pill): a handle press selects
+  // it too, an overlay pill press clears it, so one thing is selected.
+  const setActiveView = useSetAtom(activeViewAtom)
   const [syncEnabled, setSyncEnabled] = useAtom(historicalTimelineSyncAtom)
   const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
   const [colorizeMapBordersStored] = useAtom(colorizeMapBordersAtom)
@@ -1561,7 +1564,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               className={cn("absolute top-1/2 z-20 h-4 min-w-4 -translate-y-1/2 rounded-full border border-background px-1 text-center text-[9px] font-semibold leading-[14px] shadow-sm cursor-grab active:cursor-grabbing", selected && "outline outline-2 outline-offset-1 outline-foreground/80")}
               style={{ left: `calc(50% - 8px + ${i * 15}px)`, background: c ? `color-mix(in srgb, ${c} 45%, white)` : "var(--muted-foreground)", color: c ? "#111" : "var(--background)", opacity: ghost ? 0.35 : 1 }}
               title={`Overlay on view ${side}: drag onto another tick to swap it; selected, the arrow keys move it through the catalog items`}
-              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setActiveSide(side); setActiveOverlay(t.ref!); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
+              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setActiveSide(side); setActiveOverlay(t.ref!); setActiveView(null); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
               onPointerMove={(e) => { if (overlayDrag) setOverlayDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY } : d)) }}
               onPointerUp={(e) => { const d = overlayDrag; setOverlayDrag(null); if (!d) return; const target = nearestTickForClientX(e.clientX); if (target) swapOverlayTick(d.ref, d.side, target) }}
               onPointerCancel={() => setOverlayDrag(null)}
@@ -1689,6 +1692,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 e.currentTarget.setPointerCapture(e.pointerId)
                 setActiveSide(side)
                 setActiveOverlay(null)
+                if (showingViews.length > 1) setActiveView(side)
                 if (e.ctrlKey || e.metaKey) {
                   const snapshot = showingViews
                     .filter((s) => s !== side && tickBySide[s])

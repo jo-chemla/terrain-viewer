@@ -49,13 +49,12 @@ export const TickCard: React.FC<{
       <div className="font-semibold">{headline}</div>
       {itemName ? <div className="leading-snug">{itemName}</div> : <div>{sourceLabel}</div>}
       {itemName && <div className="text-[10px] text-muted-foreground">{sourceLabel}</div>}
-      {m && (m.gsd || m.licence || m.provider) && (
-        <div className="text-[10px] text-muted-foreground mt-0.5">
-          {m.gsd ? <span>{gsdLabel(m.gsd)}/px</span> : null}
-          {m.gsd && (m.provider || m.licence) ? " · " : null}
-          {m.provider ? <span>{m.provider}</span> : null}
-          {m.provider && m.licence ? " · " : null}
-          {m.licence ? <span>{m.licence}</span> : null}
+      {m && (m.gsd || m.licence || m.provider || m.date) && (
+        <div className="text-[10px] text-muted-foreground mt-0.5 space-y-0.5">
+          {m.gsd ? <div><span className="font-medium text-foreground/80">GSD:</span> {gsdLabel(m.gsd)}/px</div> : null}
+          {m.date ? <div><span className="font-medium text-foreground/80">Date:</span> {m.date}</div> : null}
+          {m.provider ? <div><span className="font-medium text-foreground/80">Source:</span> {m.provider}</div> : null}
+          {m.licence ? <div><span className="font-medium text-foreground/80">Licence:</span> {m.licence}</div> : null}
         </div>
       )}
       {m?.thumb && <img src={m.thumb} alt="" className="mt-1 max-h-24 w-auto rounded border object-contain" loading="lazy" />}

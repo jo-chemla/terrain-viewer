@@ -122,7 +122,7 @@ export const ALLMAPS_VIEW_LEAVES: Record<string, { domain?: string }> = {
   allmapsAll: {},
   allmapsRumsey: { domain: "www.davidrumsey.com" },
 }
-export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string; /** Metres per pixel, from the control points. */ gsd?: number; bounds?: [number, number, number, number]; /** The IIIF canvas or manifest label. */ title?: string; /** The IIIF manifest it comes from. */ manifest?: string; providerLabel?: string; /** A year in the title. */ year?: number }
+export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string; /** Metres per pixel, from the control points. */ gsd?: number; /** The sheet's IIIF thumbnail. */ thumb?: string; bounds?: [number, number, number, number]; /** The IIIF canvas or manifest label. */ title?: string; /** The IIIF manifest it comes from. */ manifest?: string; providerLabel?: string; /** A year in the title. */ year?: number }
 const allmapsMetaCache = new Map<string, AllmapsLike>()
 export function allmapsMeta(id: string): AllmapsLike | undefined { return allmapsMetaCache.get(id) }
 const RUMSEY_IIIF_RE = /davidrumsey\.com\/luna\/servlet\/iiif\/([^/]+)/
@@ -156,7 +156,9 @@ function allmapsLikeOf(p: Record<string, any>): AllmapsLike {
   const now = new Date().getUTCFullYear()
   const ym = title ? /\b(1[4-9]\d\d|20\d\d)\b/.exec(title) : null
   const year = ym && Number(ym[1]) <= now ? Number(ym[1]) : undefined
-  return { id, label: title ? (providerLabel ? `${providerLabel} · ${title}` : title) : label, detail, annotationUrl, pageUrl, title, manifest, providerLabel, year, gsd }
+  // The sheet, 200 px: IIIF Image API 2 and 3 both take `!w,h`.
+  const thumb = resourceId ? `${resourceId.replace(/\/info\.json$/, "").replace(/\/+$/, "")}/full/!200,200/0/default.jpg` : undefined
+  return { id, label: title ? (providerLabel ? `${providerLabel} · ${title}` : title) : label, detail, annotationUrl, pageUrl, title, manifest, providerLabel, year, gsd, thumb }
 }
 /** Every map outline in the view, as coverage features. The area window
  *  keeps the 200 that matter at this scale: city plans when zoomed in,

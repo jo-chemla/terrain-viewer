@@ -14,7 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN, SliderControl, CheckboxWithSlider, SegmentedToggle } from "./controls-components"
+import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN, SliderControl, CheckboxWithSlider } from "./controls-components"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ColorAlphaSwatch } from "./color-picker"
 import { allmapsRemoveColorAtom } from "@/lib/settings-atoms"
 import { paperEstimateStore } from "@/lib/allmaps-paper"
@@ -547,9 +548,15 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               {/* One stack position for every overlay (overlaysStack), so it
                   cannot fight the order of the list below. */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground shrink-0" title="Where every overlay sits: under the hillshade and colour relief, above the colour relief but still shaded, or above every terrain layer">Stack</span>
-                <SegmentedToggle className="flex-1" value={(state.overlaysStack ?? "under") as "under" | "relief" | "top"} onChange={(v) => setState({ overlaysStack: v })}
-                  options={[{ value: "under" as const, label: "Under relief" }, { value: "relief" as const, label: "Over hypso" }, { value: "top" as const, label: "On top" }]} />
+                <span className="text-xs text-muted-foreground shrink-0" title="Where every overlay sits in the layer stack">Stack</span>
+                <Select value={state.overlaysStack ?? "under"} onValueChange={(v) => v && setState({ overlaysStack: v })}>
+                  <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="under">Under relief: hillshade and colour relief draw over the overlays</SelectItem>
+                    <SelectItem value="relief">Over hypso: above the colour relief, still shaded by the hillshade</SelectItem>
+                    <SelectItem value="top">On top: above every terrain layer, only contours and markers over</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {scannedMaps.length > 0 && <PaperControl maps={scannedMaps} />}
               {editMode && overlaySources.length > 1 && <p className="text-[11px] text-muted-foreground">Drag the handles to order the overlays: the first draws on top.</p>}
