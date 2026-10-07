@@ -435,6 +435,10 @@ export interface CustomBasemapSource {
   /** Registered by a timeline catalog pick, not by the user: listed on the
    *  map and the timeline, not among the user's own sources until kept. */
   transient?: boolean
+  /** Set by the user (the lock button in the sources list, edit mode): the
+   *  source is never removed by an automatic step such as an overlay pill
+   *  drag on the timeline; only its own Delete button removes it. */
+  locked?: boolean
   /** A scanned map sheet (a catalog's old maps, the national map series): the
    *  paper removal applies (lib/unpaper-protocol.ts). */
   oldMap?: boolean

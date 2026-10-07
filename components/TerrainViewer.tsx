@@ -1204,6 +1204,33 @@ export function TerrainViewer() {
       ? setQueryState((prev) => takeBetas(updates({ ...prev, ...betaRef.current })) as any, options)
       : setQueryState(takeBetas(updates) as any, options)
   }, [setQueryState, setTellsBeta, setHistoricalBeta, setGeorefBeta])
+  // A link that uses a beta feature switches its flag on, once, on arrival:
+  // showTellsDetector=true (mound candidates), georefImage= (the Image
+  // Georeferencer), appMode=historical. The flag stays on afterwards, as if
+  // set in Settings; the reader is told. A link with a frozen detector gets
+  // a word too: the candidates it carries are a snapshot, Live recomputes.
+  const betaLinkChecked = useRef(false)
+  useEffect(() => {
+    if (betaLinkChecked.current) return
+    betaLinkChecked.current = true
+    const q = queryState
+    if (q.showTellsDetector && !betaRef.current.tellsBeta) {
+      setTellsBeta(true)
+      pushToast({ key: "beta-link-tells", title: "Mound candidates switched on", body: "This link uses the mound detector, a beta mode. It is now on for this browser (Settings → Beta to turn it off).", duration: 9000 })
+    }
+    if (q.georefImage && !betaRef.current.georefBeta) {
+      setGeorefBeta(true)
+      pushToast({ key: "beta-link-georef", title: "Image Georeferencer switched on", body: "This link places an image, a beta tool. It is now on for this browser (Settings → Beta to turn it off).", duration: 9000 })
+    }
+    if (q.appMode === "historical" && !betaRef.current.historicalBeta) {
+      setHistoricalBeta(true)
+      pushToast({ key: "beta-link-historical", title: "Historical imagery switched on", body: "This link opens the historical mode, a beta. It is now on for this browser (Settings → Beta to turn it off).", duration: 9000 })
+    }
+    if (q.showTellsDetector && q.tellsFrozen) {
+      pushToast({ key: "tells-frozen-link", title: "Mound candidates are frozen", body: "This link carries a snapshot of the candidates: the detector does not recompute when the view moves. Switch it to Live in the Mound candidates section to search the current view.", duration: 12000 })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Mirror the primary camera centre for the viz sources' coverage probe (see
   // viewportCenterAtom). Rounded to ~11 km so a live pan does not churn it.
   const setViewportCenter = useSetAtom(viewportCenterAtom)

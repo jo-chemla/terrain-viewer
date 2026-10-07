@@ -1,12 +1,12 @@
 import type React from "react"
 import { useRef } from "react"
-import { useSetAtom, useAtomValue } from "jotai"
-import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink, LibraryBig, Info } from "lucide-react"
+import { useSetAtom, useAtomValue, useAtom } from "jotai"
+import { MapPin, Edit, Trash2, Upload, HardDrive, Link, ExternalLink, LibraryBig, Info, Lock, LockOpen } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { registerLocalFileAtom, resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
-import { sourcesEditModeAtom, viewportCenterAtom } from "@/lib/settings-atoms"
+import { sourcesEditModeAtom, viewportCenterAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { sourceGsd, gsdLabel, gsdText } from "@/lib/gsd"
 
 const providerName = (p?: string) => (p === "qms" ? "NextGIS QMS" : p === "eli" ? "OSM Editor Layer Index" : p === "allmaps" ? "Allmaps" : p || null)
@@ -43,6 +43,12 @@ export const CustomSourceDetails: React.FC<{
   onLoadFromLibrary?: (ids: string[]) => void
 }> = ({ source, handleFitToBounds, handleEditSource, handleDeleteCustomSource, onSelect, linkedSourceName, liveSourceIds, libraryIds, onLoadFromLibrary, extraActions, trailingActions, onInfo }) => {
   const editMode = useAtomValue(sourcesEditModeAtom)
+  // The lock (basemaps and overlays only): a locked source is never removed
+  // by an automatic step, such as a timeline overlay pill dragged to another
+  // tick, which otherwise swaps the old catalog item out of the sources.
+  const [customBasemaps, setCustomBasemaps] = useAtom(customBasemapSourcesAtom)
+  const basemapEntry = customBasemaps.find((b) => b.id === source.id)
+  const toggleLock = () => setCustomBasemaps((prev) => prev.map((b) => (b.id === source.id ? { ...b, locked: !b.locked } : b)))
   const viewportCenter = useAtomValue(viewportCenterAtom)
   const gsd = sourceGsd(source, viewportCenter?.lat ?? 0)
   const belowMinZoom = typeof source.minzoom === "number" && viewportCenter != null && viewportCenter.zoom < source.minzoom - 0.01
@@ -151,6 +157,12 @@ export const CustomSourceDetails: React.FC<{
         <TooltipContent><p>Local file — lives only in this browser's storage, not a shareable URL</p></TooltipContent>
       </Tooltip>
     )}
+    {basemapEntry?.locked && !editMode && (
+      <Tooltip>
+        <TooltipTrigger render={<span className="shrink-0"><Lock className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
+        <TooltipContent><p>Locked: never removed automatically (unlock in edit mode)</p></TooltipContent>
+      </Tooltip>
+    )}
     {linkedSourceName && (
       <Tooltip>
         <TooltipTrigger render={<span className="shrink-0"><Link className="h-3.5 w-3.5 text-muted-foreground" /></span>} />
@@ -225,6 +237,18 @@ export const CustomSourceDetails: React.FC<{
       </Tooltip>
     )}
     {editMode ? (<>
+      {basemapEntry && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button variant="ghost" size="icon" className={`h-8 w-8 shrink-0 cursor-pointer ${basemapEntry.locked ? "text-primary" : ""}`} onClick={toggleLock}>
+                {basemapEntry.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+              </Button>
+            }
+          />
+          <TooltipContent><p>{basemapEntry.locked ? "Locked: never removed automatically (a timeline pill drag swapping it out, for instance). Click to unlock." : "Lock: keep this source whatever the timeline does (a pill drag can otherwise replace a catalog item)"}</p></TooltipContent>
+        </Tooltip>
+      )}
       <Tooltip>
         <TooltipTrigger
           render={

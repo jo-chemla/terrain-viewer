@@ -1452,19 +1452,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const field = fieldOf(side)
     const current: string[] = state[field] || []
     const next = current.includes(target.ref) ? current.filter((x) => x !== fromRef) : current.map((x) => (x === fromRef ? target.ref! : x))
-    // The old item: when this was the last view it was on (no other view's
-    // overlays, no view's basemap), the new one replaces it in your sources;
-    // otherwise both stay. Only catalog items: a source you added yourself
-    // in the side panel is never removed by a drag.
-    const usedElsewhere = VIEW_IDS.some((s) => (s !== side && ((state[fieldOf(s)] as string[] | undefined) ?? []).includes(fromRef)) || activeBasemapSourceFor(s) === fromRef)
+    // The old item: when this was the last view showing it as an overlay,
+    // the new one replaces it in your sources; otherwise both stay. A view
+    // showing it as its basemap does not count: that is the handle's
+    // business, not the pills'. Only catalog items, and never a locked one:
+    // a source you added yourself in the side panel has no catalog id, and
+    // the lock button (edit mode) protects any source from automatic removal.
+    const usedElsewhere = VIEW_IDS.some((s) => s !== side && ((state[fieldOf(s)] as string[] | undefined) ?? []).includes(fromRef))
     setCustomBasemaps((prev) => {
       const withNew = prev.some((b) => b.id === src.id)
         ? prev.map((b) => (b.id === src.id ? { ...b, role: "overlay" as const, stack: b.stack ?? "top", transient: false } : b))
         : [...prev, { ...src, role: "overlay" as const, stack: src.stack ?? "top", transient: false }]
-      return !usedElsewhere && isCatalogBasemapId(fromRef) ? withNew.filter((b) => b.id !== fromRef) : withNew
+      const old = withNew.find((b) => b.id === fromRef)
+      return !usedElsewhere && isCatalogBasemapId(fromRef) && !old?.locked ? withNew.filter((b) => b.id !== fromRef) : withNew
     })
     setState({ [field]: next })
-  }, [state, setState, setCustomBasemaps, activeBasemapSourceFor])
+  }, [state, setState, setCustomBasemaps])
   if (!panelVisible) return null
 
   // Per-side display tick/caption/handle-position, computed once here for

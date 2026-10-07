@@ -6,7 +6,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { customTerrainSourcesAtom, mapboxKeyAtom, maptilerKeyAtom, titilerEndpointAtom, type CustomTerrainSource } from "@/lib/settings-atoms"
-import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
+import { useClientDemUpstreamOne } from "@/components/LayersAndSources/MapSources"
 import { fetchOperand, sampleOperand } from "@/lib/demdiff-protocol"
 import { DraftBoundInput } from "./controls-components"
 import { pushToast } from "@/components/ui/toast"
@@ -38,8 +38,8 @@ export const DiffOffsetControl: React.FC<{ sourceId: string; mapRef: React.RefOb
   // Same resolution MapSources uses for the rendered difference, so what is
   // sampled is exactly what is subtracted. Hooks are unconditional ("" for a
   // non-difference source resolves to null).
-  const opA = useClientDemUpstream(isDiff ? source!.diffMinuendId ?? "" : "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, undefined, undefined, true)
-  const opB = useClientDemUpstream(isDiff ? source!.diffSubtrahendId ?? "" : "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, undefined, undefined, true)
+  const opA = useClientDemUpstreamOne(isDiff ? source!.diffMinuendId ?? "" : "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, undefined, undefined, true)
+  const opB = useClientDemUpstreamOne(isDiff ? source!.diffSubtrahendId ?? "" : "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, undefined, undefined, true)
   const [busy, setBusy] = useState(false)
   const offset = source?.diffOffsetM ?? 0
 

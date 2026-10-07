@@ -843,7 +843,13 @@ export function lightingTemplate(kind: "matcap" | "phong" | "shadow", up: Client
     return { template, tileSize: n, maxzoom: up.maxzoom }
 }
 
-export const useClientDemUpstream = (
+// Split in two so react-refresh's signature graph has no cycle: a hook that
+// calls itself (this one did, for the two operands of a "dem-diff" source)
+// sends Fast Refresh's computeFullKey into infinite recursion at load in dev
+// ("Maximum call stack size exceeded" from @react-refresh). The leaf hook
+// resolves one source and takes the operands as values; the exported hook
+// calls the leaf three times.
+export const useClientDemUpstreamOne = (
     terrainSource: TerrainSource | string,
     customTerrainSources: CustomTerrainSource[],
     mapboxKey: string,
@@ -860,10 +866,13 @@ export const useClientDemUpstream = (
     // maxzoom while the point-sample cleanly falls back to a lower, real one.
     latProp?: number,
     lngProp?: number,
-    /** Internal: set when resolving one operand of a "dem-diff" source, so a
-     *  difference of differences stops at one level (hooks below are called
-     *  conditionally on this, which is stable per call site). */
+    /** Set when resolving one operand of a "dem-diff" source, so a
+     *  difference of differences stops at one level. */
     _nested = false,
+    /** The resolved operands of a "dem-diff" source (null when not one, or
+     *  when nested). */
+    diffA: ClientDemUpstream | null = null,
+    diffB: ClientDemUpstream | null = null,
 ): ClientDemUpstream | null => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const cesiumDetailOffset = useAtomValue(cesiumDetailOffsetAtom)
@@ -872,11 +881,6 @@ export const useClientDemUpstream = (
     // lib/demdiff-protocol.ts): resolve both operands with this same hook and
     // wrap their templates. Operands that are themselves differences resolve
     // to null.
-    const diffSource = !_nested ? customTerrainSources.find((s) => s.id === terrainSource && s.type === "dem-diff") : undefined
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const diffA: ClientDemUpstream | null = _nested ? null : useClientDemUpstream(diffSource?.diffMinuendId ?? "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, true)
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const diffB: ClientDemUpstream | null = _nested ? null : useClientDemUpstream(diffSource?.diffSubtrahendId ?? "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, true)
     // Callers that pass lat/lng win; everyone else probes at the primary
     // viewport centre (see viewportCenterAtom), so no viz source is left with
     // a declared maxzoom the tiles at this location cannot honour.
@@ -1085,6 +1089,25 @@ export const useClientDemUpstream = (
         if (!baseUpstream || probedMaxzoom == null || baseUpstream.maxzoom == null || probedMaxzoom >= baseUpstream.maxzoom) return baseUpstream
         return { ...baseUpstream, maxzoom: probedMaxzoom }
     }, [baseUpstream, probedMaxzoom])
+}
+
+export const useClientDemUpstream = (
+    terrainSource: TerrainSource | string,
+    customTerrainSources: CustomTerrainSource[],
+    mapboxKey: string,
+    maptilerKey: string,
+    titilerEndpoint: string,
+    latProp?: number,
+    lngProp?: number,
+): ClientDemUpstream | null => {
+    // A "dem-diff" source is the difference of two other sources' tiles (see
+    // lib/demdiff-protocol.ts): both operands resolve first, with the same
+    // leaf hook, and the source's own resolution wraps their templates.
+    // Operands that are themselves differences resolve to null.
+    const diffSource = customTerrainSources.find((s) => s.id === terrainSource && s.type === "dem-diff")
+    const diffA = useClientDemUpstreamOne(diffSource?.diffMinuendId ?? "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, true, null, null)
+    const diffB = useClientDemUpstreamOne(diffSource?.diffSubtrahendId ?? "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, true, null, null)
+    return useClientDemUpstreamOne(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, false, diffA, diffB)
 }
 
 export const SlopeSource = memo(({

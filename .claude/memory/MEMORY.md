@@ -32,3 +32,4 @@
 - [MapLibre 3D overlays, later](maplibre-3d-overlays-idea.md) — PR #8567 is the hook for 3D overlays when wanted
 - [Reminders](reminders.md) — things to bring up at the start of a session (upstream requests to post, Google Search Console service account)
 - [MapLibre 6.13 draping](maplibre-613-drape.md) — renderToTerrainTile etc.: planned route for Allmaps on 3D terrain, live Phong/Matcap, building shadows
+- [Fast Refresh and self-calling hooks](react-refresh-recursive-hook.md) — a hook calling itself overflows @react-refresh computeFullKey; split into leaf + wrapper; scripts to find the culprit

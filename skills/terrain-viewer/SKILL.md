@@ -42,7 +42,7 @@ What published studies use, from the 120-study [Research References](https://ter
 | Subject | Modes most used | Parameters |
 |---|---|---|
 | Settlements, earthworks and roads under forest | hillshade, LRM, SVF | `showReliefVisualization=true&showLrm=true&showSvf=true` |
-| Mounds, tells, barrows, field systems | mound detector, LRM, hillshade, TPI | `showTellsDetector=true&showReliefVisualization=true&showLrm=true` (the mound detector is a beta mode: the detector only shows once the person has switched on Tells under Settings → Beta in their own browser; a link cannot switch it, so say so) |
+| Mounds, tells, barrows, field systems | mound detector, LRM, hillshade, TPI | `showTellsDetector=true&showReliefVisualization=true&showLrm=true` (the mound detector is a beta mode; a link that uses it switches the beta on in the reader's browser when opened, with a notice; it then stays on, Settings → Beta turns it off) |
 | Karst dolines, pits, bomb craters, trenches | mound detector, SVF, hillshade | `showReliefVisualization=true&showSvf=true` |
 | Faults, scarps and earthquake ruptures | hillshade, slope, SVF, DEM difference | `showTerrainAnalysis=true&showSlope=true` and a low sun (`illuminationAlt=20`) across the fault |
 | Landslides and mass movements | hillshade, slope, SVF, curvature, roughness, DEM difference | `showTerrainAnalysis=true&showSlope=true&showCurvature=true` |
@@ -97,14 +97,24 @@ To sweep the light in an animation, put `illuminationDir` or `illuminationAlt` i
 
 ## Sources, library, bookmarks and panels
 
-- **Terrain or basemap from a URL:** `terrainSourceA=<URL>` (see Terrain sources); `basemapSource=<id or URL>` with `showRasterBasemap=true` for imagery underneath (`{z}` in the URL means XYZ tiles, otherwise a COG).
+- **Terrain or basemap from a URL:** `terrainSourceA=<URL>` (see Terrain sources); `basemapSource=<id or URL>` with `showRasterBasemap=true` for imagery underneath (`{z}` in the URL means XYZ tiles, otherwise a COG). A WMS GetMap URL with `{bbox-epsg-3857}` in place of the BBOX works as tiles; in the app, the Auto field of Add Basemap reads any pasted URL (tiles, WMS, WMTS, COG, STAC, Allmaps, IIIF, Source Cooperative) and finds a WMS layer's zoom range by asking the server.
 - **Make sources available without activating them:** `addSources=id1,id2` (library ids), `addTerrainUrl=`, `addBasemapUrl=`, `addOverlayUrl=` (repeatable). `overlayBasemapIds=` turns overlays on.
 - **Open a dialog on arrival:** `openLibrary=terrain` or `openLibrary=basemap` (the library of national and global datasets), `openDataLayers=true` (the data layers picker), `bookmarksGallery=true` (the user's bookmarks).
 - **Bookmarks** live in the user's browser. A bookmark to share is simply the link; bookmark lists move between browsers through the Bookmarks section's JSON export and import.
 - **Files on the user's disk:** a local COG can be added in the app (Terrain, add a source, local file); it stays in the browser and cannot travel in a link.
 - **A plain image placed on the map** (a figure, a scan): `georefImage=<percent-encoded image URL>&georefGcps=px,py,lng,lat;px,py,lng,lat&georefType=helmert` draws it from control points (pixel x, pixel y from the top-left; two pairs for `helmert`, three for `polynomial1`, four for `projective`); `georefOpacity=0.7`. In the app the user picks the points by clicking (Tools, Image Georeferencer).
-- **Historical imagery:** `appMode=historical&basemapSourceA=wayback` (also `ge-historical`, `bing`, `hls`, `eox-s2`) with `dateA=<epoch milliseconds>`.
+- **Historical imagery:** `appMode=historical&basemapSourceA=historical&historicalActiveSourceA=wayback` (also `ge-historical`, `bing`, `hls`, `eox-s2`) with `dateA=<epoch milliseconds>`; see Historical imagery and catalogs below.
 - **Panels:** `openSections=animation,drawing` and `closeSections=` fold or unfold sidebar sections; `sidebarCollapsed=true` hides the panel, for embeds; `project=<name>` loads a preset.
+
+## Historical imagery and catalogs
+
+`appMode=historical` shows dated imagery under the terrain, with a timeline at the bottom: one tick per date of each source on it. A view's handle sits on a tick; the arrow keys step through every tick, whatever its source.
+
+- **Providers:** `timelineSources=wayback,ge-historical,bing,hls,eox-s2` picks which contribute ticks (Esri Wayback since 2014, Google Earth historical, Bing, NASA HLS and Sentinel-2 at medium resolution). `historicalActiveSourceA=<id>` and `dateA=<epoch ms>` put view A on one of them at a date.
+- **Catalogs:** `timelineCatalogs=<ids>` adds every item of a catalog covering the view as a tick: `cat-oam` (OpenAerialMap), `cat-maxar`, `cat-vantor`, `cat-noaa`, `cat-planet` (post-crisis open data), `eli` (OSM Editor Layer Index), `cat-agol` (ArcGIS Online), `cat-allmaps`, `cat-mapwarper`, `cat-wikimaps`, `cat-slub`, `cat-usgs-topo`, `cat-corona` (old maps), and about 70 national archives such as `cat-ign` (France), `cat-swissimage` and `cat-swiss-maps` (Switzerland), `cat-kartverket` (Norway). The full id list is on https://terrain-viewer.iconem.com/docs/features/historical-imagery/. Items are found at open time, so a link carries the catalog, not the item.
+- **Before and after:** `splitStyle=side-by-side&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=<epoch ms>` puts a second date next to the first.
+- **Old maps on 3D terrain:** an Allmaps Georeference Annotation URL (`https://annotations.allmaps.org/maps/<id>`) in `addOverlayUrl=` drapes the map as an overlay; a David Rumsey detail page URL works too. Tilted views draw it from Allmaps' tile server, flat views warp it in the browser.
+- **Which datasets cover a place:** `coverageOverlays=library` draws the footprints of every terrain dataset of the library on the map (`mapterhorn` for Mapterhorn's sources, `basemapLibrary` for basemaps, `allmaps` for the old maps in view); Sources Coverage in the sidebar lists them ranked by overlap with the view. See https://terrain-viewer.iconem.com/docs/features/coverage-overlays/.
 
 ## Animation
 
@@ -136,6 +146,8 @@ In the app, the Animation panel's Export Video button records it as an MP4.
 
 - Every parameter, with types and defaults: https://terrain-viewer.iconem.com/docs/openapi.json and https://terrain-viewer.iconem.com/docs/dev/url-api/
 - What each mode shows: https://terrain-viewer.iconem.com/docs/features/visualization-modes/
+- Historical imagery, the timeline and its catalogs: https://terrain-viewer.iconem.com/docs/features/historical-imagery/
+- Bring your own data (tiles, WMS, COG, STAC, old maps): https://terrain-viewer.iconem.com/docs/features/byod/
 - Which modes published studies use, by subject and with the study areas as links: https://terrain-viewer.iconem.com/docs/resources/research-references-table/
 - nDSM, canopy height and change between surveys: https://terrain-viewer.iconem.com/docs/features/ndsm-and-comparison/
 - The whole documentation for agents: https://terrain-viewer.iconem.com/llms.txt

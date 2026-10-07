@@ -25,6 +25,13 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
 | [Per-variant update feed](#electrobun-per-variant-update-feed) | Electrobun | Drafted 2026-10-07, not posted | Two GitHub releases, one per build |
 | [A browser OAuth client](#planet-a-browser-oauth-client) | Planet | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
+| [renderToTerrainTile: the plan past experimental](#maplibre-rendertoterraintile-the-plan-past-experimental) | MapLibre, [PR 8588](https://github.com/maplibre/maplibre-gl-js/pull/8588) | Drafted 2026-10-07, not posted | Own meshes for Phong and Matcap; Allmaps from its tile server when tilted |
+
+## MapLibre: renderToTerrainTile, the plan past experimental
+
+A comment for PR 8588, short:
+
+> Thanks for this, it is the hook we were missing. We build Terrain Viewer (terrain-viewer.iconem.com, MapLibre 6.13) and plan to use `renderToTerrainTile` for three things: draping Allmaps' warped old maps on terrain at any pitch, live Phong and Matcap shading computed in the custom layer (view-dependent, so `terrainTileRevision` bumps on every camera move), and cast shadows of buildings. Before we build on it: what is the plan for taking it out of experimental, and what might change? In particular whether per-tile calls could get the camera (for view-dependent terms), whether a revision bump on every frame is the intended way to drape something view-dependent or a `renderToTerrainTile` per frame is coming, and whether the clip-space convention (tile corners at ±1) and the `{ tileID, width, height }` arguments are settled. Happy to report back from a real use.
 
 ## Allmaps: WarpedMapLayer, pitch, globe and terrain
 
