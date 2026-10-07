@@ -34,7 +34,9 @@ What we need from projects we depend on, written once, kept here, and linked whe
 
 MapLibre already hands a custom layer everything needed. In MapLibre 5 and 6, `render(gl, args)` receives `args.modelViewProjectionMatrix` and `args.defaultProjectionData` (the uniforms of MapLibre's own projection), plus `args.shaderData`: a `vertexShaderPrelude` exposing `projectTile()` and the `define`s of the current projection (Mercator or globe). Proposal: let the WebGL2 renderer take that, either a matrix (Web Mercator to clip space) as an alternative to `Viewport`, or better, MapLibre's prelude so the triangle vertices go through `projectTile()`. That gives pitch on Mercator and correct placement on the globe with one code path. Draping on terrain would follow once a custom layer can be rendered into MapLibre's terrain render-to-texture.
 
-Context: Terrain Viewer (MapLibre 6.11, `@allmaps/maplibre` 1.0.0-beta.44) shows Allmaps maps as overlays on 3D terrain. While the view is tilted we switch to `allmaps.xyz` tiles, which tilt and drape but are less sharp than the in-browser warp.
+MapLibre 6.13 adds a simpler route for terrain ([#8588](https://github.com/maplibre/maplibre-gl-js/pull/8588), experimental): `renderToTerrainTile(gl, { tileID, width, height })` is called per terrain tile, in that tile's flat clip space, and MapLibre drapes the result. `WarpedMapLayer` could implement it by rendering a flat `Viewport` of each tile, which the renderer already supports; two things in `WebGL2Renderer` get in the way: `#renderInternal` sets `gl.viewport` to the canvas size, and the visible-tile fetching follows the last viewport rendered. Exposing a render-to-target call (viewport size and framebuffer as given) and keeping tile fetching tied to the main view would be enough.
+
+Context: Terrain Viewer (MapLibre 6.13, `@allmaps/maplibre` 1.0.0-beta.44) shows Allmaps maps as overlays on 3D terrain. While the view is tilted we switch to `allmaps.xyz` tiles, which tilt and drape but are less sharp than the in-browser warp.
 
 ## Allmaps: plain images as a resource
 

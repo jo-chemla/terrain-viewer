@@ -3,9 +3,24 @@ title: Draping custom layers
 description: What MapLibre drapes over its terrain and what it does not, why Matcap and Phong have a raster path and a live GL path, and the tile-seam fix
 ---
 
-## Draping and MapLibre 6
+## MapLibre 6.13: custom layers can drape
 
-MapLibre 6 does not drape custom layers. A custom layer still draws itself in 3D with the projection data it is handed (`getProjectionData` is now part of the render arguments), while the render-to-texture path that drapes style layers over terrain has no public hook for a custom layer; 6 only refined that path (mipmap sampling, drape pooling, one stale drape re-rendered per frame). What does ride it is the raster mode of matcap and phong: the protocol emits tiles and MapLibre drapes them like any raster layer, with no seams. The live GL layers exist only for instant light and rotation changes, and they draw their own tile meshes. On 6 that showed as white dashes along every tile seam on the globe: MapLibre's terrain skirts, coloured by the draped layers, peeking through wherever a live quad stopped at the tile edge. The fix is the same technique MapLibre uses: the mesh is built with a border ring (`generateBorders`) and the vertex shader folds those vertices back onto the edge and drops them by `Terrain.getSkirtLength(zoom)`, a vertical wall under each edge, so tiles neither gap nor overlap. Both follow MapLibre's default (`terrainSkirtLength: "auto"`), which is wanted over the plain background layer.
+MapLibre 6.13 ([#8588](https://github.com/maplibre/maplibre-gl-js/pull/8588), experimental) adds the hook this page used to say was missing. The app runs 6.13 since 2026-10-07; nothing uses the hook yet.
+
+- `renderToTerrainTile(gl, { tileID, width, height })`, called instead of `render` while terrain is on: the layer draws into one terrain tile's framebuffer, clip space `(-1,-1)` to `(1,1)` being the tile's south-west and north-east corners, and MapLibre drapes it with the fill, line and raster layers around it in the style.
+- `terrainTileRevision`: a number the layer changes (then `triggerRepaint`) when what it draws changes, so MapLibre redraws the terrain tiles.
+- `renderTerrainHeightMap(target)`, in `prerender`'s arguments: the terrain's elevation as MapLibre draws it, into a float texture, for placing many objects on the ground on the GPU.
+
+What it means here, in the order worth doing:
+
+1. **Allmaps overlays on 3D terrain, at any pitch.** Allmaps' renderer only knows flat viewports, which is why it breaks when tilted. Per terrain tile it would be handed a flat viewport (the tile's own square), so a wrapper around `WarpedMapLayer` implementing `renderToTerrainTile` would drape the in-browser warp on the terrain at any pitch, sharper than the `allmaps.xyz` tiles we switch to today. Two things to handle in the wrapper: the renderer forces `gl.viewport` to the canvas size (pin it to the tile's size during the call), and it fetches IIIF tiles for "the" viewport (keep that driven by the main view, in `prerender`, so per-tile calls do not thrash it). 2D views (no terrain) keep the tile-server fallback.
+2. **Live Phong and Matcap** (`PhongLiveGlLayer`, `MatcapLiveGlLayer`) draw their own tile meshes with skirts over the terrain today, with the seam fix below. Drawn per terrain tile instead, they would be draped like hillshade: no own mesh, no z-fighting, no skirts. The view-dependent terms (specular, the camera-relative matcap) stay correct by bumping `terrainTileRevision` on camera moves: a GPU redraw of the drape, not a tile reload as on the raster path.
+3. **Building shadows** (`BuildingShadowLayer`): same, draped instead of drawn above the ground.
+4. `renderTerrainHeightMap`: markers, labels or measure points snapped to the drawn terrain on the GPU.
+
+## Draping before 6.13
+
+MapLibre 6 before 6.13 did not drape custom layers. A custom layer still draws itself in 3D with the projection data it is handed (`getProjectionData` is now part of the render arguments), while the render-to-texture path that drapes style layers over terrain has no public hook for a custom layer; 6 only refined that path (mipmap sampling, drape pooling, one stale drape re-rendered per frame). What does ride it is the raster mode of matcap and phong: the protocol emits tiles and MapLibre drapes them like any raster layer, with no seams. The live GL layers exist only for instant light and rotation changes, and they draw their own tile meshes. On 6 that showed as white dashes along every tile seam on the globe: MapLibre's terrain skirts, coloured by the draped layers, peeking through wherever a live quad stopped at the tile edge. The fix is the same technique MapLibre uses: the mesh is built with a border ring (`generateBorders`) and the vertex shader folds those vertices back onto the edge and drops them by `Terrain.getSkirtLength(zoom)`, a vertical wall under each edge, so tiles neither gap nor overlap. Both follow MapLibre's default (`terrainSkirtLength: "auto"`), which is wanted over the plain background layer.
 
 ### What can be draped, and why there are two paths
 
