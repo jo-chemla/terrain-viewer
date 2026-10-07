@@ -30,3 +30,4 @@
 - [Docs, slides and video tooling](docs-slides-video-tooling.md) — Fumadocs, open-slide, agent-browser in use; Nextra, Slidev, Lumae rated
 - [Allmaps overlays](allmaps-overlays.md) — no pitch support (hidden while tilted), self-describing catalog ids for links, overlay order
 - [MapLibre 3D overlays, later](maplibre-3d-overlays-idea.md) — PR #8567 is the hook for 3D overlays when wanted
+- [Reminders](reminders.md) — things to bring up at the start of a session (upstream requests to post, Google Search Console service account)

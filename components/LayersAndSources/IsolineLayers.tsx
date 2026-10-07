@@ -48,7 +48,7 @@ export const IsolineLayers = memo(({
   useEffect(() => {
     const map = mapRef?.getMap()
     if (!map || !cliff || map.hasImage(toothImage)) return
-    const w = 12, h = 10, c = document.createElement("canvas"); c.width = w; c.height = h
+    const w = 18, h = 14, c = document.createElement("canvas"); c.width = w; c.height = h
     const g = c.getContext("2d")!
     g.fillStyle = color; g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w / 2, h); g.closePath(); g.fill()
     map.addImage(toothImage, g.getImageData(0, 0, w, h), { pixelRatio: 1 })
@@ -73,10 +73,10 @@ export const IsolineLayers = memo(({
           layout={{ "line-join": "round", "line-cap": "round" }}
           paint={{ "line-color": color, "line-width": weight, "line-opacity": 0.9 }} />
         {cliff && measure === "slope" && (
-          // Cliff hatching: a tooth every few pixels along the line, hanging
+          // Cliff hatching: a tooth every 28 px along the line, hanging
           // off one side (the steep side of the boundary ring).
           <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-cliff-teeth" type="symbol" source="isoline-band-source" source-layer="isoline"
-            layout={{ "symbol-placement": "line", "symbol-spacing": 14, "icon-image": toothImage, "icon-size": 0.7, "icon-rotation-alignment": "map", "icon-pitch-alignment": "map", "icon-allow-overlap": true, "icon-ignore-placement": true, "icon-offset": [0, 7], "icon-padding": 0 }}
+            layout={{ "symbol-placement": "line", "symbol-spacing": 28, "icon-image": toothImage, "icon-size": 1, "icon-rotation-alignment": "map", "icon-pitch-alignment": "map", "icon-allow-overlap": true, "icon-ignore-placement": true, "icon-offset": [0, 8], "icon-padding": 0 }}
             paint={{ "icon-opacity": 0.9 }} />
         )}
       </Source>

@@ -11,6 +11,11 @@ on:
   # for now (desktop/README.md) and uploaded to the desktop-latest release
   # by hand with `gh release upload desktop-latest <files> --clobber`.
   workflow_dispatch:
+    inputs:
+      all_platforms:
+        description: "Also build macOS and Linux (off: Windows only, to save Actions minutes)"
+        type: boolean
+        default: false
   # schedule:
   #   - cron: "0 4 * * 1"  # Mondays 04:00 UTC
 
@@ -21,17 +26,12 @@ jobs:
   bundle:
     strategy:
       fail-fast: false
+      # Windows by default (Actions minutes); macOS and Linux when the run is
+      # started with all_platforms. A platform not built keeps its last
+      # bundles on the releases: the release job only replaces the assets of
+      # the platforms it just built.
       matrix:
-        include:
-          # macOS and Linux are paused to save Actions minutes (2026-10-02);
-          # their last bundles stay on the release because the release job
-          # below only replaces the assets of the platforms it just built.
-          # - os: macos-latest
-          #   label: macos-arm64
-          - os: windows-latest
-            label: windows-x64
-          # - os: ubuntu-latest
-          #   label: linux-x64
+        include: ${{ fromJSON(inputs.all_platforms && '[{"os":"windows-latest","label":"windows-x64"},{"os":"macos-latest","label":"macos-arm64"},{"os":"ubuntu-latest","label":"linux-x64"}]' || '[{"os":"windows-latest","label":"windows-x64"}]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

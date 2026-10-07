@@ -25,7 +25,9 @@ In **split view** (grid layouts up to 4×2 / 8 views, labeled A–H), each basem
 
 <p className="text-sm text-fd-muted-foreground italic">Basemap comparison, Side grid mode</p>
 
-A georeferenced IIIF map (an Allmaps overlay) is drawn one of two ways, chosen in its dialog under **Draw it**: **warped in the browser**, the sharpest, from the IIIF image itself, or from **Allmaps' tile server** (`allmaps.xyz`), warped and cached server-side, a plain raster that tilts and drapes on terrain and is much faster when the image server is slow (David Rumsey's). The in-browser warp draws in flat views only (Allmaps' layer has no pitch support yet, see [Upstream requests](/dev/upstream-requests)), so a tilted view switches it to the tile server by itself and back at pitch 0. Auto picks the tile server for a David Rumsey link.
+A georeferenced IIIF map (an Allmaps overlay) is drawn one of two ways, chosen in its dialog under **Draw it**: **warped in the browser**, the sharpest, from the IIIF image itself, or from **Allmaps' tile server** (`allmaps.xyz`), warped and cached server-side, a plain raster that tilts and drapes on terrain and is much faster when the image server is slow (David Rumsey's). The in-browser warp draws in flat views only (Allmaps' layer has no pitch support yet, see [Upstream requests](/dev/upstream-requests)), so a tilted view switches it to the tile server by itself and back at pitch 0; a toast says so the first time. Auto picks the tile server for a David Rumsey link.
+
+Why the in-browser warp is sharper: it samples the original IIIF image at the exact scale of the screen and warps each pixel on the GPU, one resampling. The tile server renders 256 px PNG tiles at fixed integer zooms, and the map resamples those again when it draws them: two resamplings plus PNG quantisation. The tile server is slow on a first visit to an area because it has to fetch the source tiles from the image server and warp them; after that the tiles are cached and come back in a fraction of a second.
 
 ## Remove paper
 

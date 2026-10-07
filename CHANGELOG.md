@@ -25,7 +25,10 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **Allmaps maps** can be drawn from Allmaps' tile server (Draw it, in their dialog): cached, faster on slow image servers, and they tilt and drape; tilted views switch to it by themselves instead of hiding the map. A David Rumsey link starts there.
 - **National datasets** also as a tablecn data table, next to the original, for comparison.
 - **Beta flags** are local settings, not URL parameters: a link does not switch them and Home does not clear them.
-- **Iso-line, slope at a value**: Cliff teeth along the line.
+- **Iso-line, slope at a value**: Cliff teeth along the line (one every 28 px).
+- **Library**: BRGM's geological maps of France, the scanned sheets (1:1M to 1:50k, one scale-dependent service) and the harmonised 1:50k vector map, as overlays with their zoom ranges.
+- **Timeline**: the basemap handle, scrubbed or stepped, lands on the providers' ticks and skips the catalog items (overlays), so the view's basemap stays Historical Imagery; the active view's handle is ringed in every layout; a pill drag swaps the view's overlay and keeps the old item in your sources.
+- Fixed: the timeline panel crashed the app (\"Rendered fewer hooks than expected\") when a view in a split switched to a non-historical basemap while an overlay drag state existed.
 - A pasted WMS GetMap in another CRS (Lambert-93, a national portal's copy) is asked in EPSG:3857 with one tile's size, so it draws instead of staying blank.
 - A toast says when a tilted view switches Allmaps maps to the tile server.
 - **Timeline overlay pills** are bigger, centred on their tick and in front of it; the tick a dragged pill would land on is ringed; every dated overlay on a view gets a tick, found by the catalogs or not.

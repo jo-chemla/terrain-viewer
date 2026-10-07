@@ -33,6 +33,10 @@ cd docs && pnpm exec next dev -p 3101
 
 The preview browser available to agents does NOT fire `requestAnimationFrame` — MapLibre never loads a style there. Do not try to verify map behavior in the agent browser; ask the user to test in a real browser. What CAN be checked there: map instances and app state exist, and in dev builds `window.__tv = { mapRefs, state, setState }` (TerrainViewer.tsx) lets `preview_evaluate` read `getMaxBounds()`, zoom limits, the transform, and drive nuqs state - used to prove the Map Bounds "None" path releases the fence.
 
+## Environment file
+
+`.env` (gitignored) lives in the main checkout, `C:/Dev/Iconem/terrain-viewer/.env`: the Mapbox and Planet keys the build reads (`VITE_…`) and keys for scripts and agents (`BING_WEBMASTER_API_KEY`). A worktree has none until it is copied: `cp /c/Dev/Iconem/terrain-viewer/.env .env` (Git Bash). Add new keys to the main checkout's file first, then copy.
+
 ## Tech stack
 
 | Layer | Library |

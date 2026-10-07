@@ -1551,6 +1551,34 @@
             "bounds": [118.0, 21.8, 122.1, 26.4],
             "infoUrl": "https://gis.sinica.edu.tw/",
             "description": "Declassified US CORONA reconnaissance satellite photographs of Taiwan, 1969, georeferenced by the Academia Sinica Center for GIS. Checked 2026-10-05."
+        },
+        {
+            "id": "custom-basemap-brgm-scan-geol",
+            "name": "FRA - BRGM geological maps, scanned (1:1 000 000 to 1:50 000)",
+            "url": "https://mapsref.brgm.fr/wxs/referentiel/geologie?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&STYLES=&FORMAT=image%2Fpng&TRANSPARENT=TRUE&SRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&LAYERS=SCAN_GEOL_ALL",
+            "type": "wms",
+            "role": "overlay",
+            "stack": "top",
+            "opacity": 80,
+            "minzoom": 6,
+            "maxzoom": 16,
+            "bounds": [-5.5, 41.2, 9.8, 51.2],
+            "description": "The printed geological maps of France by BRGM, the national geological survey, as one scale-dependent service: the 1:1 000 000 sheet to zoom 10, the 1:250 000 sheets at zooms 11 to 12, the 1:50 000 sheets from zoom 12 to 16. The server answers an empty tile outside those zooms, hence the range. CORS open, no key. Licence Ouverte / Etalab. (c) BRGM.",
+            "infoUrl": "https://www.brgm.fr/fr/ressource/carte-geologique-france"
+        },
+        {
+            "id": "custom-basemap-brgm-geol50-harm",
+            "name": "FRA - BRGM harmonised geology 1:50 000 (vector)",
+            "url": "https://mapsref.brgm.fr/wxs/referentiel/geologie?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&STYLES=&FORMAT=image%2Fpng&TRANSPARENT=TRUE&SRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&LAYERS=GEOL50_HARM",
+            "type": "wms",
+            "role": "overlay",
+            "stack": "top",
+            "opacity": 70,
+            "minzoom": 6,
+            "maxzoom": 15,
+            "bounds": [-5.5, 41.2, 9.8, 51.2],
+            "description": "BRGM's harmonised vector geological map of France at 1:50 000, one legend across the former sheet boundaries, drawn from zoom 6 to 15 (empty tiles beyond). CORS open, no key. Licence Ouverte / Etalab. (c) BRGM.",
+            "infoUrl": "https://www.brgm.fr/fr/ressource/carte-geologique-france"
         }
     ]
 }
