@@ -20,9 +20,12 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **STAC**: Planet's Data API as a catalog: the access token (Settings → API Keys) to search, and each scene added as XYZ tiles from tiles.planet.com signed with the API key (items carry only a thumbnail); static catalogs filtered by the date range too. A dev page on the search internals and why it uses no client library.
 - **Auto** also takes links to pages about the data: Source Cooperative repositories, stac-map and STAC Browser links.
 - **Timeline picks** join your sources as overlays and go on the view as one (on by default; off, a pick is the view's transient basemap); scrubbing and arrow keys still swap the basemap; a kept tick is an overlay; overlays show as grey marks on their ticks.
-- **Search results** in a split: a view grid per row puts a hit on view A, B…
+- **Search results** in a split: a view grid per row puts a hit on any view of the layout.
+- **Timeline overlay pills**: one per view on an overlay's tick (tinted with the view's colour when borders are coloured); drag one onto another tick to swap that view's overlay.
+- **Allmaps maps** can be drawn from Allmaps' tile server (Draw it, in their dialog): cached, faster on slow image servers, and they tilt and drape; tilted views switch to it by themselves instead of hiding the map. A David Rumsey link starts there.
+- **National datasets** also as a tablecn data table, next to the original, for comparison.
 - **Shared links** carry catalog items (ArcGIS Online, STAC, Planet scenes, national layers) by URL with their extent and zooms; a Planet key never travels (`{planetKey}` placeholder, filled by the recipient's key).
-- **Image Georeferencer**: a Fit button brings the whole image back into the window.
+- **Image Georeferencer**: a Fit button in the image window's title bar brings the whole image back.
 - **Overlays order**: in edit mode, drag the handles; the first of the list draws on top.
 - **Shared links** rebuild the catalog overlays they name (Allmaps maps, David Rumsey sheets, Map Warper and Wikimaps maps) on the recipient's side.
 - **STAC catalog picker** is a combobox: type a name ("planet"), or paste a URL for a custom catalog.

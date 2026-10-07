@@ -79,6 +79,7 @@ export const GeorefSection: React.FC<{
   // The image is worked on in a floating window over the map (the sidebar
   // is far too narrow to pick points in); opened with the image.
   const [windowOpen, setWindowOpen] = useState(true)
+  const fitImageRef = useRef<(() => void) | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
   const objectUrlRef = useRef<string | null>(null)
@@ -339,8 +340,9 @@ export const GeorefSection: React.FC<{
             <Label htmlFor="georef-window" className="text-sm font-medium">Image window</Label>
           </div>
           {windowOpen && (
-            <GeorefImageWindow title={image.name} aspect={image.width / image.height} onClose={() => setWindowOpen(false)}>
+            <GeorefImageWindow title={image.name} aspect={image.width / image.height} onClose={() => setWindowOpen(false)} onFit={() => fitImageRef.current?.()}>
               <GeorefImagePane
+                fitRef={fitImageRef}
                 image={image}
                 points={imagePts}
                 mapCount={mapPts.length}
@@ -427,7 +429,9 @@ const GeorefImagePane: React.FC<{
   onAdd: (px: number, py: number) => void
   onMove: (i: number, px: number, py: number) => void
   onSelect: (i: number | null) => void
-}> = ({ image, points, mapCount, selected, active, onAdd, onMove, onSelect }) => {
+  /** Set to this pane's fit, for the window's title-bar button. */
+  fitRef?: React.MutableRefObject<(() => void) | null>
+}> = ({ image, points, mapCount, selected, active, onAdd, onMove, onSelect, fitRef }) => {
   const paneRef = useRef<HTMLDivElement>(null)
   // View transform: image pixel -> pane CSS pixel is  x * scale + tx.
   const [view, setView] = useState({ scale: 0, tx: 0, ty: 0 })
@@ -447,6 +451,7 @@ const GeorefImagePane: React.FC<{
     const scale = Math.min(w / image.width, h / image.height)
     setView({ scale, tx: (w - image.width * scale) / 2, ty: (h - image.height * scale) / 2 })
   }, [image])
+  if (fitRef) fitRef.current = fitImage
   useEffect(() => {
     const el = paneRef.current
     if (!el) return
@@ -546,11 +551,6 @@ const GeorefImagePane: React.FC<{
           >{i + 1}</div>
         )
       })}
-      {/* Back to the whole image after a wheel zoom or a pan lost it. */}
-      <button type="button" className="absolute right-1.5 top-1.5 z-10 inline-flex cursor-pointer items-center gap-1 rounded border bg-background/90 px-1.5 py-0.5 text-[10px] shadow-sm hover:bg-accent"
-        title="Fit the whole image in the window" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); fitImage() }}>
-        <Maximize2 className="h-3 w-3" /> Fit
-      </button>
     </div>
   )
 }
@@ -561,7 +561,7 @@ const GeorefImagePane: React.FC<{
 // own aspect. Not a dialog: nothing is modal. Portaled to the body so the
 // sidebar's own scrolling and clipping do not apply.
 const HEADER_H = 28
-const GeorefImageWindow: React.FC<{ title: string; aspect: number; onClose: () => void; children: React.ReactNode }> = ({ title, aspect, onClose, children }) => {
+const GeorefImageWindow: React.FC<{ title: string; aspect: number; onClose: () => void; onFit?: () => void; children: React.ReactNode }> = ({ title, aspect, onClose, onFit, children }) => {
   const [box, setBox] = useState(() => {
     const w = Math.max(360, Math.round(window.innerWidth * 0.3))
     const h = Math.min(Math.round(w / aspect) + HEADER_H, Math.round(window.innerHeight * 0.8))
@@ -603,6 +603,11 @@ const GeorefImageWindow: React.FC<{ title: string; aspect: number; onClose: () =
         <GripHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="truncate font-medium">{title}</span>
         <span className="ml-auto hidden text-muted-foreground sm:inline">wheel: zoom · drag: pan · click: point · drag a point to move it</span>
+        {onFit && (
+          <button type="button" className="ml-1 inline-flex cursor-pointer items-center gap-1 rounded border bg-background/80 px-1.5 py-0.5 text-[10px] hover:bg-muted" onPointerDown={(e) => e.stopPropagation()} onClick={onFit} title="Fit the whole image in the window">
+            <Maximize2 className="h-3 w-3" /> Fit
+          </button>
+        )}
         <button type="button" className="ml-1 cursor-pointer rounded p-0.5 hover:bg-muted" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} aria-label="Close the image window"><X className="h-3.5 w-3.5" /></button>
       </div>
       <div className="min-h-0 flex-1 p-1">{children}</div>

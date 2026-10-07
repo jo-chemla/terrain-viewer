@@ -27,7 +27,10 @@ const removeColorOptions = (o: AllmapsRemoveColor, paper: PaperEstimate | null) 
   return { removeColor: true, removeColorColor: color, removeColorThreshold: threshold, removeColorHardness: o.hardness }
 }
 
-export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { id: string; annotationUrl: string; opacity: number; beforeId: string }) {
+/** Allmaps' tile server: the same map warped server-side, cached, as XYZ. */
+export const allmapsTileUrl = (annotationUrl: string) => `https://allmaps.xyz/{z}/{x}/{y}.png?url=${encodeURIComponent(annotationUrl)}`
+
+export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId, alwaysTiles = false, bounds }: { id: string; annotationUrl: string; opacity: number; beforeId: string; alwaysTiles?: boolean; bounds?: [number, number, number, number] }) {
   const { current: mapRef } = useMap()
   const layerRef = useRef<any>(null)
   const layerId = `overlay-basemap-${id}`
@@ -35,6 +38,9 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
   const removeColorRef = useRef(removeColor)
   removeColorRef.current = removeColor
   const paperRef = useRef<PaperEstimate | null>(null)
+  const opacityRef = useRef(opacity); opacityRef.current = opacity
+  const alwaysTilesRef = useRef(alwaysTiles); alwaysTilesRef.current = alwaysTiles
+  const syncRef = useRef<(() => void) | null>(null)
   const apply = () => { try { layerRef.current?.setMapsOptions(() => removeColorOptions(removeColorRef.current, paperRef.current)) } catch {} }
 
   useEffect(() => {
@@ -67,18 +73,36 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
     // Allmaps' WarpedMapLayer draws from a flat viewport (the four screen
     // corners unprojected, a centre, a scale, a rotation): it has no pitch,
     // and in a tilted view the map lands flat over the perspective, in the
-    // wrong place. Hidden while the view is tilted, back when it is flat.
-    const syncPitch = () => { if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", map.getPitch() > 0.5 ? "none" : "visible") }
+    // wrong place. While tilted (or always, with alwaysTiles) the same map
+    // comes from Allmaps' tile server as a plain raster layer, which pitches
+    // and drapes like any other.
+    const tilesSource = `${layerId}-tiles-src`, tilesLayer = `${layerId}-tiles`
+    const ensureTiles = () => {
+      if (!map.getLayer(beforeId)) return
+      if (!map.getSource(tilesSource)) map.addSource(tilesSource, { type: "raster", tiles: [allmapsTileUrl(annotationUrl)], tileSize: 256, maxzoom: 20, ...(bounds ? { bounds } : {}) })
+      if (!map.getLayer(tilesLayer)) map.addLayer({ id: tilesLayer, type: "raster", source: tilesSource, paint: { "raster-opacity": opacityRef.current, "raster-resampling": "linear" }, layout: { visibility: "none" } }, beforeId)
+    }
+    const syncPitch = () => {
+      const tilted = map.getPitch() > 0.5
+      const useTiles = alwaysTilesRef.current || tilted
+      if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", useTiles ? "none" : "visible")
+      if (useTiles) ensureTiles()
+      if (map.getLayer(tilesLayer)) map.setLayoutProperty(tilesLayer, "visibility", useTiles ? "visible" : "none")
+    }
+    syncRef.current = syncPitch
     map.on("pitch", syncPitch)
     add().catch((e) => console.error("[allmaps] layer failed:", e))
     // A style swap drops every layer: put it back once the style is there.
-    const onStyleData = () => { if (layer && !map.getLayer(layerId) && map.getLayer(beforeId)) { map.addLayer(layer as CustomLayerInterface, beforeId); layer.setOpacity(opacity); syncPitch() } }
+    const onStyleData = () => { if (layer && !map.getLayer(layerId) && map.getLayer(beforeId)) { map.addLayer(layer as CustomLayerInterface, beforeId); layer.setOpacity(opacity); syncPitch() } else if (map.getLayer(beforeId) && (alwaysTilesRef.current || map.getPitch() > 0.5) && !map.getLayer(tilesLayer)) syncPitch() }
     map.on("styledata", onStyleData)
     return () => {
       cancelled = true
       if (raf !== null) cancelAnimationFrame(raf)
       map.off("styledata", onStyleData)
       map.off("pitch", syncPitch)
+      syncRef.current = null
+      if (map.style && map.getLayer(tilesLayer)) map.removeLayer(tilesLayer)
+      if (map.style && map.getSource(tilesSource)) map.removeSource(tilesSource)
       layerRef.current = null
       if (map.style && map.getLayer(layerId)) map.removeLayer(layerId)
     }
@@ -87,7 +111,11 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId }: { 
 
   useEffect(() => {
     try { layerRef.current?.setOpacity(opacity) } catch {}
+    const map = mapRef?.getMap()
+    const tl = `${layerId}-tiles`
+    if (map?.getLayer(tl)) map.setPaintProperty(tl, "raster-opacity", opacity)
   }, [opacity])
+  useEffect(() => { syncRef.current?.() }, [alwaysTiles])
   // The map's own paper, estimated once per annotation (cached) when the
   // removal is on in auto mode.
   const wantsEstimate = removeColor.enabled && (removeColor.auto ?? true)

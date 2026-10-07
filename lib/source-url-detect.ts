@@ -18,6 +18,8 @@ export interface DetectedSource {
   label: string
   /** A caveat to show with it (a guessed encoding, a beta type…). */
   note?: string
+  /** IIIF maps: start on Allmaps' tile server (a slow image server). */
+  allmapsTiles?: boolean
 }
 
 const has = (u: string, re: RegExp) => re.test(u)
@@ -153,8 +155,7 @@ export async function detectByFetching(raw: string, target: DetectTarget, signal
     // minutes, uncached: Allmaps' tile server warps the map server-side and
     // caches the tiles, so the second visit is fast.
     const mapId = /\/maps\/([0-9a-f]{16})/.exec(String((page.items?.[0] ?? page).id ?? ""))?.[1]
-    if (!mapId) return { type: "iiif", url: annotation, label: "David Rumsey map, georeferenced in Allmaps" }
-    return { type: "tms", url: `https://allmaps.xyz/maps/${mapId}/{z}/{x}/{y}.png`, label: "David Rumsey map, as Allmaps tiles", note: `Warped and cached by Allmaps' tile server, faster than Rumsey's IIIF server. For the sharper in-browser warp, paste ${annotation} instead (type IIIF).` }
+    return { type: "iiif", url: mapId ? `https://annotations.allmaps.org/maps/${mapId}` : annotation, label: "David Rumsey map, georeferenced in Allmaps", allmapsTiles: true, note: "Drawn from Allmaps' tile server (cached, much faster than Rumsey's own image server); switch Draw it to the browser for the sharpest warp." }
   }
   try {
     const head = await fetch(url, { method: "HEAD", signal: sig })

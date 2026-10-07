@@ -1,0 +1,41 @@
+---
+title: Upstream requests
+description: Feature requests to the libraries and services Terrain Viewer builds on, drafted here before they are posted, with their status and our workaround meanwhile
+---
+
+What we need from projects we depend on, written once, kept here, and linked when posted. Each entry says what we do in the meantime.
+
+| Request | To | Status | Our workaround |
+|---|---|---|---|
+| [WarpedMapLayer: pitch, globe and terrain](#allmaps-warpedmaplayer-pitch-globe-and-terrain) | Allmaps | Drafted 2026-10-07, not posted | Tilted views draw the map from Allmaps' tile server |
+| [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
+| [Per-variant update feed](#electrobun-per-variant-update-feed) | Electrobun | Drafted 2026-10-07, not posted | Two GitHub releases, one per build |
+| [A browser OAuth client](#planet-a-browser-oauth-client) | Planet | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
+
+## Allmaps: WarpedMapLayer, pitch, globe and terrain
+
+**WarpedMapLayer (MapLibre): render with MapLibre's projection, for pitch, globe and terrain**
+
+`WarpedMapLayer.render()` rebuilds a flat `Viewport` from the four unprojected canvas corners, the centre, the scale and the bearing. With `map.getPitch() > 0` the warped map is drawn flat over the tilted view, in the wrong place (the README says pitch is unsupported), and on the globe projection it cannot follow the curvature.
+
+MapLibre already hands a custom layer everything needed. In MapLibre 5 and 6, `render(gl, args)` receives `args.modelViewProjectionMatrix` and `args.defaultProjectionData` (the uniforms of MapLibre's own projection), plus `args.shaderData`: a `vertexShaderPrelude` exposing `projectTile()` and the `define`s of the current projection (Mercator or globe). Proposal: let the WebGL2 renderer take that, either a matrix (Web Mercator to clip space) as an alternative to `Viewport`, or better, MapLibre's prelude so the triangle vertices go through `projectTile()`. That gives pitch on Mercator and correct placement on the globe with one code path. Draping on terrain would follow once a custom layer can be rendered into MapLibre's terrain render-to-texture.
+
+Context: Terrain Viewer (MapLibre 6.11, `@allmaps/maplibre` 1.0.0-beta.44) shows Allmaps maps as overlays on 3D terrain. While the view is tilted we switch to `allmaps.xyz` tiles, which tilt and drape but are less sharp than the in-browser warp.
+
+## Allmaps: plain images as a resource
+
+**@allmaps/render: accept a plain image (or an `ImageBitmap`) as a map's resource, not only IIIF image services**
+
+Terrain Viewer's Image Georeferencer places a plain image (a figure from a paper, a JPEG plan) from control points, with `@allmaps/transform`. MapLibre's image source draws from four corners only, so the bending fits (polynomial 2, thin-plate spline) cannot be shown correctly, while Allmaps' renderer already triangulates and warps on the GPU. A resource type for a single image (a URL or an `ImageBitmap`, width and height known, no tiles, no `info.json`) would let us hand our control points and transformation to `WarpedMapLayer.addGeoreferencedMap` and get every fit drawn exactly. The renderer accepts a `fetchFn`, so a synthetic level-0 IIIF service served from memory is a possible workaround today; a first-class resource would avoid it.
+
+## Electrobun: per-variant update feed
+
+**Updater: a feed name per variant, so two builds of one app can share a release**
+
+The update feed is named after the channel (`stable-<platform>-update.json`, the archive next to it). Two variants of one app produce the same feed name, so they cannot share a `release.baseUrl`. Ours are a full build and a light build, with different `app.identifier`s. The archive already carries `app.name` (`stable-win-x64-TerrainViewerLight.tar.zst`), but `update.json` does not. Proposal: an optional `release.feedName` (or `app.name` / `app.identifier` in the feed file's name), used both by `electrobun build` and by `Updater.checkForUpdate`. Today we publish two GitHub releases, `desktop-latest` and `desktop-latest-light`.
+
+## Planet: a browser OAuth client
+
+**Insights Platform STAC (api.planet.com/x/data): a way for a browser app to get an access token**
+
+The STAC API takes only an OpenID access token; a `PLAK` API key answers 401 there (it works on the Data API v1 and the tile service). The documentation says the Planet CLI and SDK are the only interactive OAuth clients for now, and that machine-to-machine tokens for `api.planet.com` are in progress. A web app can therefore only ask users to run `planet auth print-access-token` and paste the result, every two hours or so. Proposal, either: self-service registration of a public OAuth client (authorization code with PKCE, the app's own redirect URI), or accepting the API key on `/x/data` as the Data API v1 does. CORS on `/x/data` is already open, so nothing else is missing.

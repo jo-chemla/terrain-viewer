@@ -10,8 +10,11 @@ type: project
   viewport (the four screen corners unprojected, a centre, a scale, a
   rotation); its README: "WarpedMapLayer currently does not support pitch".
   In a tilted view the map lands flat over the perspective. `AllmapsOverlayLayer`
-  sets the layer's visibility to none while `map.getPitch() > 0.5` and the
-  Overlays list explains it. Revisit when Allmaps adds a projection matrix.
+  hides the warped layer while `map.getPitch() > 0.5` and shows a raster layer
+  from `https://allmaps.xyz/{z}/{x}/{y}.png?url=<annotation>` instead (works
+  for any annotation URL); `allmapsTiles: true` on the source draws from the
+  tile server always. Revisit when Allmaps takes MapLibre's projection (request
+  drafted in docs/content/docs/dev/upstream-requests.mdx).
 - Shared links name catalog overlays by id; `resolveCatalogSourceId` in
   `lib/timeline-catalogs.ts` rebuilds the source from the id alone for Allmaps
   maps (`custom-basemap-allmaps-<id>`, `custom-basemap-cat-cat-allmaps--<id>`),

@@ -108,7 +108,7 @@ const OVERLAY_STACK_SLOT = { under: LAYER_SLOTS.OVERLAYS, relief: LAYER_SLOTS.HI
 export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSources }: {
   overlayIds: string[]
   opacity: number
-  customBasemapSources: { id: string; opacity?: number; stack?: "under" | "relief" | "top"; type?: string; url?: string }[]
+  customBasemapSources: { id: string; opacity?: number; stack?: "under" | "relief" | "top"; type?: string; url?: string; allmapsTiles?: boolean; bounds?: [number, number, number, number] }[]
 }) => {
   // Drawn in the order of the Overlays list, reversed: each layer is inserted
   // right before its slot, so the last inserted is on top, and the first of
@@ -125,7 +125,7 @@ export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSo
       const stack = source?.stack ?? "under"
       // A georeferenced IIIF map: Allmaps' warped custom layer, no raster source.
       if (source?.type === "iiif" && source.url) {
-        return <AllmapsOverlayLayer key={`overlay-layer-${id}-${stack}-${pos}`} id={id} annotationUrl={source.url} opacity={opacity * sourceOpacity} beforeId={OVERLAY_STACK_SLOT[stack]} />
+        return <AllmapsOverlayLayer key={`overlay-layer-${id}-${stack}-${pos}`} id={id} annotationUrl={source.url} opacity={opacity * sourceOpacity} beforeId={OVERLAY_STACK_SLOT[stack]} alwaysTiles={!!source.allmapsTiles} bounds={source.bounds} />
       }
       return (
         <Layer

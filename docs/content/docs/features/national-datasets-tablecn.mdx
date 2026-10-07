@@ -1,0 +1,11 @@
+---
+title: National Open-Data Terrain (tablecn)
+icon: Table2
+description: The national, regional, surface-model and global terrain datasets of the library as one tablecn data table in client mode, for a side-by-side comparison with the National Open-Data Terrain page
+---
+
+import { NationalDatasetsTablecn } from "@/components/national-datasets-tablecn";
+
+The same table as [National Open-Data Terrain](/features/national-datasets), rendered with [tablecn](https://tablecn.com)'s data table (shadcn/ui on Base UI, TanStack Table v9) in its client mode, `useDataTable({ mode: "client" })`, for comparison. The original page's separate tables (the four Mapterhorn groups, regional datasets, surface models and global datasets) are one table here: **Category**, **vs Mapterhorn**, **Country**, **API resolution** (by class), **Served as** and **Model** are faceted filters, and the search box looks through codes, countries, dataset names and coverage. Column headers sort and hide; **View** picks the columns, including Model and the source id, which start hidden. Sort, filters and page live in the address bar, **Show all** replaces the pages with one, and **Export CSV** saves the rows shown. *API resolution* is the grid the live service streams, *Bulk download* the finest grid the agency advertises for download, which is what Mapterhorn ingests.
+
+<NationalDatasetsTablecn />

@@ -68,6 +68,7 @@ export const CustomBasemapModal: React.FC<{
     setTypeState(d.type as BasemapFormType)
     setUrl(d.url)
     setDetected(d)
+    if (d.allmapsTiles !== undefined) setAllmapsTiles(d.allmapsTiles)
     setName((n) => n || nameFromUrl(d.url))
   }, [])
   // Brief "copied!" confirmation on the template hint's copy button — same
@@ -82,6 +83,9 @@ export const CustomBasemapModal: React.FC<{
   const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
   const [stack, setStack] = useState<NonNullable<CustomBasemapSource["stack"]>>("under")
   const [cogViaTitiler, setCogViaTitiler] = useState(false)
+  // IIIF maps: warped in the browser (sharp, flat views) or from Allmaps'
+  // tile server (cached, tilted and 3D views too).
+  const [allmapsTiles, setAllmapsTiles] = useState(false)
   const [opacity, setOpacity] = useState(100)
   // Unlike the terrain side, no basemap source type gets an auto-detected zoom
   // range (RasterBasemapSource just reads customBasemap.minzoom/maxzoom with a
@@ -134,6 +138,7 @@ export const CustomBasemapModal: React.FC<{
       setRole(editingSource.role ?? "basemap")
       setStack(editingSource.stack ?? "under")
       setCogViaTitiler(!!editingSource.cogViaTitiler)
+      setAllmapsTiles(!!editingSource.allmapsTiles)
       setOpacity(editingSource.opacity ?? 100)
       originalOpacityRef.current = editingSource.opacity ?? 100
       setMinzoom(editingSource.minzoom === undefined ? "" : String(editingSource.minzoom))
@@ -161,6 +166,7 @@ export const CustomBasemapModal: React.FC<{
       setRole("basemap")
       setStack("under")
       setCogViaTitiler(false)
+      setAllmapsTiles(false)
       setOpacity(100)
       setMinzoom("")
       setMaxzoom("")
@@ -234,7 +240,7 @@ export const CustomBasemapModal: React.FC<{
       : undefined
     onSave({
       id: editingSource?.id, name, url, type: type as CustomBasemapSource["type"], description, role: type === "iiif" ? "overlay" : role, opacity, stack: (type === "iiif" || role === "overlay") ? (type === "iiif" && role !== "overlay" ? "top" : stack) : undefined,
-      ...(type === "iiif" ? { provider: "allmaps" as const } : {}),
+      ...(type === "iiif" ? { provider: "allmaps" as const, allmapsTiles: allmapsTiles || undefined } : {}),
       minzoom: minzoom === "" ? undefined : Number(minzoom),
       maxzoom: maxzoom === "" ? undefined : Number(maxzoom),
       linkedTerrainId: linkedTerrainId || undefined,
@@ -478,6 +484,23 @@ export const CustomBasemapModal: React.FC<{
                       <a href={`https://web.geolibre.app/?data=${encodeURIComponent(url.trim())}`} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">GeoLibre <ExternalLink className="h-3 w-3" /></a>
                     </p>
                   )}
+                </div>
+              )}
+              {type === "iiif" && (
+                <div className="space-y-2">
+                  <Label>Draw it</Label>
+                  <SegmentedToggle
+                    className="w-full"
+                    value={allmapsTiles ? "tiles" : "browser"}
+                    onChange={(v) => setAllmapsTiles(v === "tiles")}
+                    options={[
+                      { value: "browser" as const, label: "Warped in the browser" },
+                      { value: "tiles" as const, label: "Allmaps tile server" },
+                    ]}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    In the browser: the sharpest, from the IIIF image itself, flat views only (a tilted view switches to the tile server by itself). Tile server: warped and cached by Allmaps (allmaps.xyz), a plain raster that tilts and drapes on terrain, and much faster when the image server is slow (David Rumsey's).
+                  </p>
                 </div>
               )}
               <div className="space-y-2">

@@ -1484,6 +1484,30 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       <TooltipContent>{toSide ? "Compare dates side by side: historical imagery on every view, sources synced" : "Compare dates overlaid: historical imagery on both views, sources synced"}</TooltipContent>
     </Tooltip>
   )
+  // An overlay pill being dragged along the axis (its item, its view, the
+  // pointer), drawn as a floating pill until it is dropped on a tick.
+  const [overlayDrag, setOverlayDrag] = useState<{ ref: string; side: ViewId; x: number; y: number } | null>(null)
+  // Dropped on another catalog tick: that view's overlay becomes the new
+  // item (same place in its stack), the new item joins your overlays, and
+  // the old one leaves your sources when no view shows it any more.
+  const swapOverlayTick = useCallback((fromRef: string, side: ViewId, target: TimelineTick) => {
+    if (!target.ref || target.ref === fromRef) return
+    const src = catalogBasemap(target.ref)
+    if (!src) return
+    const fieldOf = (s: ViewId) => (s === "A" ? "overlayBasemapIds" : `overlayBasemapIds${s}`)
+    const field = fieldOf(side)
+    const current: string[] = state[field] || []
+    const next = current.includes(target.ref) ? current.filter((x) => x !== fromRef) : current.map((x) => (x === fromRef ? target.ref! : x))
+    const stillUsed = VIEW_IDS.some((s) => (s !== side && ((state[fieldOf(s)] as string[] | undefined) ?? []).includes(fromRef)) || activeBasemapSourceFor(s) === fromRef)
+    setCustomBasemaps((prev) => {
+      let list = prev.some((b) => b.id === src.id)
+        ? prev.map((b) => (b.id === src.id ? { ...b, role: "overlay" as const, stack: b.stack ?? "top", transient: false } : b))
+        : [...prev, { ...src, role: "overlay" as const, stack: src.stack ?? "top", transient: false }]
+      if (!stillUsed && isCatalogBasemapId(fromRef)) list = list.filter((b) => b.id !== fromRef)
+      return list
+    })
+    setState({ [field]: next })
+  }, [state, setState, setCustomBasemaps, activeBasemapSourceFor])
   // The catalog items on a view as an overlay, for the timeline's grey marks.
   const overlaySidesByRef = new Map<string, ViewId[]>()
   for (const side of showingViews) {
@@ -2069,12 +2093,26 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                       className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
                       style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.85 }}
                     />
-                    {/* On a view as an overlay: a grey marker (basemaps
-                        have the views' coloured handles). */}
-                    {overlaySides && (
-                      <div className="absolute left-1/2 -translate-x-1/2 top-0 h-2.5 w-2.5 rounded-full border border-background bg-muted-foreground pointer-events-none"
-                        title={`Overlay on ${overlaySides.join(", ")}`} />
-                    )}
+                    {/* On a view as an overlay: one small pill per view,
+                        grey, or a light tint of the view's colour when the
+                        map borders are coloured (the views' basemaps have
+                        the full-colour handles). Drag one onto another
+                        tick to swap that view's overlay. */}
+                    {overlaySides?.map((side, i) => {
+                      const c = colorFor(side)
+                      const ghost = !!overlayDrag && overlayDrag.ref === t.ref && overlayDrag.side === side
+                      return (
+                        <div key={side}
+                          className="absolute left-1/2 -translate-x-1/2 h-2.5 min-w-2.5 px-0.5 rounded-full border border-background text-[7px] leading-[8px] font-semibold text-center cursor-grab active:cursor-grabbing"
+                          style={{ top: i * 11, background: c ? `color-mix(in srgb, ${c} 40%, white)` : "var(--muted-foreground)", color: c ? "#111" : "var(--background)", opacity: ghost ? 0.35 : 1 }}
+                          title={`Overlay on ${side}: drag onto another tick to swap it`}
+                          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
+                          onPointerMove={(e) => { if (overlayDrag) setOverlayDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY } : d)) }}
+                          onPointerUp={(e) => { const d = overlayDrag; setOverlayDrag(null); if (!d) return; const target = nearestTickForClientX(e.clientX); if (target) swapOverlayTick(d.ref, d.side, target) }}
+                          onPointerCancel={() => setOverlayDrag(null)}
+                        >{showingViews.length > 1 ? side : ""}</div>
+                      )
+                    })}
                   </div>
                 )
               })}
@@ -2196,6 +2234,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             (comparison-mix-section.tsx, both app modes), since this row
             (and the whole timeline panel it's part of) only shows once a
             historical basemap is actually active and expanded. */}
+        {overlayDrag && (
+          <div className="pointer-events-none fixed z-[70] h-3 min-w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-background px-1 text-[8px] font-semibold leading-3 shadow"
+            style={{ left: overlayDrag.x, top: overlayDrag.y, background: colorFor(overlayDrag.side) ? `color-mix(in srgb, ${colorFor(overlayDrag.side)} 40%, white)` : "var(--muted-foreground)", color: colorFor(overlayDrag.side) ? "#111" : "var(--background)" }}>
+            {overlayDrag.side}
+          </div>
+        )}
         {tickCard && (
           <TickCard
             tick={tickCard.tick} left={tickCard.left} top={tickCard.top}

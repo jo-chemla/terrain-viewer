@@ -454,6 +454,11 @@ export interface CustomBasemapSource {
   /** Catalog record or provider page for this source. */
   infoUrl?: string
   provider?: "qms" | "eli" | "allmaps"
+  /** A georeferenced IIIF map (type "iiif") drawn from Allmaps' tile server
+   *  (allmaps.xyz, warped and cached server-side) instead of warped in the
+   *  browser: a plain raster, so it shows in tilted and 3D views. Unset: in
+   *  the browser while the view is flat, tiles while it is tilted. */
+  allmapsTiles?: boolean
   /** Mirror of CustomTerrainSource.linkedBasemapId — the terrain source this
    *  basemap auto-selects (and is auto-selected by) when either becomes
    *  active. Only needs to be set from one side of the pair. */
