@@ -57,7 +57,7 @@ Features that work but are not finished, or are expensive enough to be opt-in:
 | **Historical imagery sources** | the [historical timeline](/features/historical-imagery) and its providers |
 | **Image Georeferencer** | the [Image Georeferencer](/features/tools#image-georeferencer) in the Tools group |
 
-Defaults are `{ tells: false, historical: true, georef: false }`. Each flag is mirrored to a nuqs field (`tellsBeta`, `historicalBeta`, `georefBeta`) which is what the app actually reads, so a link can enable one for a visitor without changing their own stored preference. The Sun Shadow Calculator and the STAC catalog search were betas until October 2026 and are now always on.
+Defaults are `{ tells: false, historical: true, georef: false }`. The flags are this browser's settings only, stored locally: a shared link does not switch them, and the Home button, which clears the view's URL, leaves them as they are. The Sun Shadow Calculator and the STAC catalog search were betas until October 2026 and are now always on.
 
 ## API Keys
 

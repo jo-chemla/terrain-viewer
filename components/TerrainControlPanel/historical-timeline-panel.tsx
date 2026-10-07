@@ -1515,6 +1515,43 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       overlaySidesByRef.set(id, [...(overlaySidesByRef.get(id) ?? []), side])
     }
   }
+  // The overlay pills on a tick: one per view, grey or a light tint of the
+  // view's colour, centred on the tick and in front of it; drag one onto
+  // another tick to swap that view's overlay (the tick it would land on is
+  // ringed while dragging).
+  const dragTarget = overlayDrag ? nearestTickForClientX(overlayDrag.x) : null
+  const renderOverlayPills = (t: TimelineTick, sides: ViewId[] | undefined) => {
+    const isTarget = !!dragTarget && dragTarget.source === t.source && dragTarget.key === t.key && dragTarget.ref !== overlayDrag?.ref
+    return (
+      <>
+        {isTarget && <div className="pointer-events-none absolute -inset-x-1.5 inset-y-0 rounded-sm ring-2 ring-primary" />}
+        {sides?.map((side, i) => {
+          const c = colorFor(side)
+          const ghost = !!overlayDrag && overlayDrag.ref === t.ref && overlayDrag.side === side
+          return (
+            <div key={side}
+              className="absolute top-1/2 z-10 h-4 min-w-4 -translate-y-1/2 rounded-full border border-background px-1 text-center text-[9px] font-semibold leading-[14px] shadow-sm cursor-grab active:cursor-grabbing"
+              style={{ left: `calc(50% - 8px + ${i * 15}px)`, background: c ? `color-mix(in srgb, ${c} 45%, white)` : "var(--muted-foreground)", color: c ? "#111" : "var(--background)", opacity: ghost ? 0.35 : 1 }}
+              title={`Overlay on view ${side}: drag onto another tick to swap it`}
+              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
+              onPointerMove={(e) => { if (overlayDrag) setOverlayDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY } : d)) }}
+              onPointerUp={(e) => { const d = overlayDrag; setOverlayDrag(null); if (!d) return; const target = nearestTickForClientX(e.clientX); if (target) swapOverlayTick(d.ref, d.side, target) }}
+              onPointerCancel={() => setOverlayDrag(null)}
+            >{side}</div>
+          )
+        })}
+      </>
+    )
+  }
+  // Overlays with a known date whose item is not among the ticks of the view
+  // (kept from another place, a search hit): a tick of their own, so every
+  // dated overlay shows on the axis.
+  const extraOverlayTicks: TimelineTick[] = []
+  for (const [ref] of overlaySidesByRef) {
+    if (items.some((t) => t.ref === ref)) continue
+    const ct = catalogTick(ref)
+    if (ct) extraOverlayTicks.push(ct as unknown as TimelineTick)
+  }
   const tickBySide: Partial<Record<ViewId, TimelineTick>> = {}
   const captionBySide: Partial<Record<ViewId, string>> = {}
   const handleLeftPctBySide: Partial<Record<ViewId, number>> = {}
@@ -2093,29 +2130,21 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                       className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
                       style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)", opacity: 0.85 }}
                     />
-                    {/* On a view as an overlay: one small pill per view,
-                        grey, or a light tint of the view's colour when the
-                        map borders are coloured (the views' basemaps have
-                        the full-colour handles). Drag one onto another
-                        tick to swap that view's overlay. */}
-                    {overlaySides?.map((side, i) => {
-                      const c = colorFor(side)
-                      const ghost = !!overlayDrag && overlayDrag.ref === t.ref && overlayDrag.side === side
-                      return (
-                        <div key={side}
-                          className="absolute left-1/2 -translate-x-1/2 h-2.5 min-w-2.5 px-0.5 rounded-full border border-background text-[7px] leading-[8px] font-semibold text-center cursor-grab active:cursor-grabbing"
-                          style={{ top: i * 11, background: c ? `color-mix(in srgb, ${c} 40%, white)` : "var(--muted-foreground)", color: c ? "#111" : "var(--background)", opacity: ghost ? 0.35 : 1 }}
-                          title={`Overlay on ${side}: drag onto another tick to swap it`}
-                          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
-                          onPointerMove={(e) => { if (overlayDrag) setOverlayDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY } : d)) }}
-                          onPointerUp={(e) => { const d = overlayDrag; setOverlayDrag(null); if (!d) return; const target = nearestTickForClientX(e.clientX); if (target) swapOverlayTick(d.ref, d.side, target) }}
-                          onPointerCancel={() => setOverlayDrag(null)}
-                        >{showingViews.length > 1 ? side : ""}</div>
-                      )
-                    })}
+                    {renderOverlayPills(t, overlaySides)}
                   </div>
                 )
               })}
+              {extraOverlayTicks.filter((t) => t.dateMs >= effectiveMin && t.dateMs <= effectiveMax).map((t) => (
+                <div key={`overlay-${t.ref}`}
+                  onPointerEnter={(e) => { if (e.pointerType !== "touch") showTickCard(t, e.currentTarget as HTMLElement) }}
+                  onPointerLeave={(e) => { if (e.pointerType !== "touch") hideTickCardSoon() }}
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer"
+                  style={{ left: `${tickLeftPct(t)}%` }}
+                >
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1 opacity-60" style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)" }} />
+                  {renderOverlayPills(t, overlaySidesByRef.get(t.ref!))}
+                </div>
+              ))}
             </div>
             {/* Off-screen (dirFor(side) set): ONE combined rounded-rect chip —
                 letter + chevron pointing which way to look, e.g. "A>" or
@@ -2235,7 +2264,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             (and the whole timeline panel it's part of) only shows once a
             historical basemap is actually active and expanded. */}
         {overlayDrag && (
-          <div className="pointer-events-none fixed z-[70] h-3 min-w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-background px-1 text-[8px] font-semibold leading-3 shadow"
+          <div className="pointer-events-none fixed z-[70] h-4 min-w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-background px-1 text-center text-[9px] font-semibold leading-[14px] shadow"
             style={{ left: overlayDrag.x, top: overlayDrag.y, background: colorFor(overlayDrag.side) ? `color-mix(in srgb, ${colorFor(overlayDrag.side)} 40%, white)` : "var(--muted-foreground)", color: colorFor(overlayDrag.side) ? "#111" : "var(--background)" }}>
             {overlayDrag.side}
           </div>

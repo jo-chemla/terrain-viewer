@@ -2787,36 +2787,6 @@
       "note": "Same Absolute/LRM reference as Plane Slicer, for the Elevation Picker's point/profile sampling itself (lib/elevation-query.ts) — \"LRM\" here has no 3D-mesh equivalent (map.queryTerrainElevation() only…"
     },
     {
-      "key": "tellsBeta",
-      "stateKey": "tellsBeta",
-      "type": "boolean",
-      "items": null,
-      "enum": null,
-      "default": false,
-      "defaultSource": "false",
-      "note": "Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't clutter Visualization Modes for everyone by default."
-    },
-    {
-      "key": "georefBeta",
-      "stateKey": "georefBeta",
-      "type": "boolean",
-      "items": null,
-      "enum": null,
-      "default": false,
-      "defaultSource": "false",
-      "note": "Same opt-in gate, for Tools: Image Georeferencer."
-    },
-    {
-      "key": "historicalBeta",
-      "stateKey": "historicalBeta",
-      "type": "boolean",
-      "items": null,
-      "enum": null,
-      "default": true,
-      "defaultSource": "true",
-      "note": "Same opt-in-beta gate as tellsBeta above, for the historical-imagery basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel."
-    },
-    {
       "key": "showTellsDetector",
       "stateKey": "showTellsDetector",
       "type": "boolean",
@@ -3384,6 +3354,16 @@
       "note": ""
     },
     {
+      "key": "isolineCliff",
+      "stateKey": "isolineCliff",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Slope at a value only: cliff teeth along the line, pointing into the steep area (both edges of a steep band get them)."
+    },
+    {
       "key": "isolineFillOpacity",
       "stateKey": "isolineFillOpacity",
       "type": "number",
@@ -3805,6 +3785,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "planetAccessToken",
+      "default": "\"\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "cesiumIonKey",
       "default": "import.meta.env.VITE_CESIUM_ION_TOKEN ?? \"\"",
       "note": "Cesium ion access token."
@@ -3860,7 +3846,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "tickPicksKeep",
-      "default": "false",
+      "default": "true",
       "note": ""
     },
     {
@@ -4119,7 +4105,7 @@
       "file": "lib/settings-atoms.ts",
       "key": "betaEnabled",
       "default": "{ tells: false, historical: true, georef: false }",
-      "note": "Mirrors of TerrainViewer's tellsBeta/historicalBeta/georefBeta nuqs fields (the actual gates the app reads) — those live in the URL so a `?tellsBeta=true` link still works, but with no localStorage b…"
+      "note": "The beta gates."
     },
     {
       "file": "lib/settings-atoms.ts",

@@ -5,8 +5,8 @@
 // geometry; every interval, the contour engine (ContoursLayer) over the
 // measure tiles themselves (slope every 10°, a curvature every 1). One
 // component so the terrain upstream hook runs once for everything.
-import { memo } from "react"
-import { Source, Layer } from "react-map-gl/maplibre"
+import { memo, useEffect } from "react"
+import { Source, Layer, useMap } from "react-map-gl/maplibre"
 import type { TerrainSource } from "@/lib/terrain-types"
 import type { CustomTerrainSource } from "@/lib/settings-atoms"
 import { useClientDemUpstream, type DerivedModeParams, type LightingParams } from "./MapSources"
@@ -16,7 +16,7 @@ import { buildIsobandProtocolUrl } from "@/lib/isoband-protocol"
 import { isolineMeasure, isolineMeasureDem, type IsolineMeasureId } from "@/lib/isoline-measures"
 
 export const IsolineLayers = memo(({
-  enabled, mode, measure, value, interval, fill, fillOpacity, color, weight,
+  enabled, mode, measure, value, interval, fill, cliff = false, fillOpacity, color, weight,
   terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, derived, lighting, mapLoaded, theme,
 }: {
   enabled: boolean
@@ -25,6 +25,8 @@ export const IsolineLayers = memo(({
   value: number
   interval: number
   fill: boolean
+  /** Slope at a value: cliff teeth along the line, into the steep area. */
+  cliff?: boolean
   fillOpacity: number
   color: string
   weight: number
@@ -39,6 +41,18 @@ export const IsolineLayers = memo(({
   theme: string
 }) => {
   const up = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
+  const { current: mapRef } = useMap()
+  // The tooth: a small triangle in the line's colour, one image per colour,
+  // placed along the line by the symbol layer below.
+  const toothImage = `isoline-cliff-tooth-${color}`
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    if (!map || !cliff || map.hasImage(toothImage)) return
+    const w = 12, h = 10, c = document.createElement("canvas"); c.width = w; c.height = h
+    const g = c.getContext("2d")!
+    g.fillStyle = color; g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w / 2, h); g.closePath(); g.fill()
+    map.addImage(toothImage, g.getImageData(0, 0, w, h), { pixelRatio: 1 })
+  }, [mapRef, cliff, color, toothImage])
   if (!enabled || !up) return null
   const m = isolineMeasure(measure)
   const measureDem = isolineMeasureDem(measure, up, derived, lighting)
@@ -58,6 +72,13 @@ export const IsolineLayers = memo(({
         <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-lines" type="line" source="isoline-band-source" source-layer="isoline"
           layout={{ "line-join": "round", "line-cap": "round" }}
           paint={{ "line-color": color, "line-width": weight, "line-opacity": 0.9 }} />
+        {cliff && measure === "slope" && (
+          // Cliff hatching: a tooth every few pixels along the line, hanging
+          // off one side (the steep side of the boundary ring).
+          <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-cliff-teeth" type="symbol" source="isoline-band-source" source-layer="isoline"
+            layout={{ "symbol-placement": "line", "symbol-spacing": 14, "icon-image": toothImage, "icon-size": 0.7, "icon-rotation-alignment": "map", "icon-pitch-alignment": "map", "icon-allow-overlap": true, "icon-ignore-placement": true, "icon-offset": [0, 7], "icon-padding": 0 }}
+            paint={{ "icon-opacity": 0.9 }} />
+        )}
       </Source>
     )
   }

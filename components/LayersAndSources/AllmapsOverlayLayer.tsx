@@ -12,6 +12,10 @@ import type { CustomLayerInterface } from "maplibre-gl"
 import { useAtomValue } from "jotai"
 import { allmapsRemoveColorAtom, type AllmapsRemoveColor } from "@/lib/settings-atoms"
 import { estimatePaper, type PaperEstimate } from "@/lib/allmaps-paper"
+import { pushToast } from "@/components/ui/toast"
+
+// Once per session: the first tilt with an in-browser Allmaps map on.
+let tiltToastShown = false
 
 /** The warped maps' per-map render options for the background removal
  *  (Allmaps' own "remove background colour": pixels within `threshold` of
@@ -85,6 +89,10 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId, alwa
     const syncPitch = () => {
       const tilted = map.getPitch() > 0.5
       const useTiles = alwaysTilesRef.current || tilted
+      if (tilted && !alwaysTilesRef.current && !tiltToastShown) {
+        tiltToastShown = true
+        pushToast({ key: "allmaps-tilt", title: "Tilted view: Allmaps maps from the tile server", body: "Allmaps' in-browser warp draws flat views only, so the georeferenced maps come from allmaps.xyz while the view is tilted (coarser, cached). Back to the in-browser warp at pitch 0.", duration: 7000 })
+      }
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", useTiles ? "none" : "visible")
       if (useTiles) ensureTiles()
       if (map.getLayer(tilesLayer)) map.setLayoutProperty(tilesLayer, "visibility", useTiles ? "visible" : "none")

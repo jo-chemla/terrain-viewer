@@ -37,5 +37,14 @@ type: project
   alone; Planet tile URLs carry a `{planetKey}` placeholder filled by
   `lib/key-placeholders.ts` in `buildRasterTileSource`.
 
+- Plain images in Allmaps (the georeferencer's polynomial and TPS fits drawn on
+  the GPU): `@allmaps/render` only takes IIIF image services, but it accepts a
+  `fetchFn`. The workaround to build when wanted: a synthetic IIIF Image API
+  level-0 description (`info.json` with width, height, one tile size) answered
+  from memory by that fetchFn, the tiles cut from the image with a canvas, then
+  our control points and transformation handed to
+  `WarpedMapLayer.addGeoreferencedMap`. The cleaner route is the upstream
+  request (docs/dev/upstream-requests.mdx).
+
 **Why:** these three came up together when tilted views broke and shared
 links lost their overlays.

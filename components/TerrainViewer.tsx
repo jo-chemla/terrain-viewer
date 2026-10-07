@@ -806,16 +806,6 @@ export const QUERY_STATE_PARSERS = {
     // the real terrain, not a synthetic relief value), so LRM mode always
     // samples client-side regardless of view mode; see ElevationPickerSection.
     elevationPickerReferenceMode: parseAsStringLiteral(PLANE_SLICER_REFERENCE_MODES).withDefault("absolute"),
-    // Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't
-    // clutter Visualization Modes for everyone by default.
-    tellsBeta: parseAsBoolean.withDefault(false),
-    // Same opt-in gate, for Tools: Image Georeferencer. Off by default.
-    georefBeta: parseAsBoolean.withDefault(false),
-    // Same opt-in-beta gate as tellsBeta above, for the historical-imagery
-    // basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel.
-    // Default true so the URL stays clean when the feature is on (the atom
-    // default is also true); `?historicalBeta=false` disables it explicitly.
-    historicalBeta: parseAsBoolean.withDefault(true),
     // Master on/off (Visualization Modes' "Tells (Mound Detector)" checkbox) —
     // gates the sidebar's Mound Candidates section as well as the map layer.
     // Independent from tellsMarkersVisible below: this is "is the detector
@@ -928,6 +918,9 @@ export const QUERY_STATE_PARSERS = {
     isolineValue: parseAsFloat.withDefault(30),
     isolineInterval: parseAsFloat.withDefault(10),
     isolineFill: parseAsBoolean.withDefault(false),
+    // Slope at a value only: cliff teeth along the line, pointing into the
+    // steep area (both edges of a steep band get them).
+    isolineCliff: parseAsBoolean.withDefault(false),
     isolineFillOpacity: parseAsFloat.withDefault(0.35),
     isolineWeight: parseAsFloat.withDefault(2),
     isolineColor: parseAsString.withDefault("#ef4444"),
@@ -1171,7 +1164,7 @@ export function TerrainViewer() {
     try { return window.localStorage.getItem("sectionOpen") !== null } catch { return false }
   })())
 
-  const [state, setState] = useQueryStates(QUERY_STATE_PARSERS,
+  const [queryState, setQueryState] = useQueryStates(QUERY_STATE_PARSERS,
   {
     // sourceA..H are written as terrainSourceA..H (see lib/url-keys.ts).
     urlKeys: URL_KEYS,
@@ -1181,6 +1174,32 @@ export function TerrainViewer() {
       timeMs: 500
     }
   })
+  // The beta gates (tells, the historical sources, the georeferencer) are
+  // this browser's settings, stored locally and never in the URL: a shared
+  // link does not switch them, and the Home button, which clears the URL,
+  // does not either. They ride in `state` next to the URL fields so every
+  // section reads state.tellsBeta as before, and a setState({ tellsBeta })
+  // lands in the atom.
+  const [tellsBeta, setTellsBeta] = useAtom(tellsBetaEnabledAtom)
+  const [historicalBeta, setHistoricalBeta] = useAtom(historicalBetaEnabledAtom)
+  const [georefBeta, setGeorefBeta] = useAtom(georefBetaEnabledAtom)
+  type BetaKeys = { tellsBeta: boolean; historicalBeta: boolean; georefBeta: boolean }
+  type AppState = typeof queryState & BetaKeys
+  const state: AppState = useMemo(() => ({ ...queryState, tellsBeta, historicalBeta, georefBeta }), [queryState, tellsBeta, historicalBeta, georefBeta])
+  const betaRef = useRef<BetaKeys>({ tellsBeta, historicalBeta, georefBeta }); betaRef.current = { tellsBeta, historicalBeta, georefBeta }
+  const setState = useCallback((updates: Partial<AppState> | null | ((prev: AppState) => Partial<AppState> | null), options?: Parameters<typeof setQueryState>[1]) => {
+    const takeBetas = (u: Partial<AppState> | null) => {
+      if (!u) return u
+      const { tellsBeta: t, historicalBeta: h, georefBeta: g, ...rest } = u
+      if (t !== undefined) setTellsBeta(!!t)
+      if (h !== undefined) setHistoricalBeta(!!h)
+      if (g !== undefined) setGeorefBeta(!!g)
+      return rest as Partial<typeof queryState>
+    }
+    return typeof updates === "function"
+      ? setQueryState((prev) => takeBetas(updates({ ...prev, ...betaRef.current })) as any, options)
+      : setQueryState(takeBetas(updates) as any, options)
+  }, [setQueryState, setTellsBeta, setHistoricalBeta, setGeorefBeta])
   // Mirror the primary camera centre for the viz sources' coverage probe (see
   // viewportCenterAtom). Rounded to ~11 km so a live pan does not churn it.
   const setViewportCenter = useSetAtom(viewportCenterAtom)
@@ -1913,22 +1932,7 @@ export function TerrainViewer() {
     }
   }, [])
 
-  // Persist the beta gates' last value so re-opening the app without their
-  // `?tellsBeta=`/`?historicalBeta=` URL param doesn't silently reset to off
-  // (see stateOverrides application below, and the atoms' own comment).
-  const [tellsBetaEnabled, setTellsBetaEnabled] = useAtom(tellsBetaEnabledAtom)
-  const [historicalBetaEnabled, setHistoricalBetaEnabled] = useAtom(historicalBetaEnabledAtom)
   const [appModeEnabled, setAppModeEnabled] = useAtom(appModeAtom)
-  useEffect(() => {
-    setTellsBetaEnabled(state.tellsBeta)
-  }, [state.tellsBeta, setTellsBetaEnabled])
-  const [, setGeorefBetaEnabled] = useAtom(georefBetaEnabledAtom)
-  useEffect(() => {
-    setGeorefBetaEnabled(state.georefBeta)
-  }, [state.georefBeta, setGeorefBetaEnabled])
-  useEffect(() => {
-    setHistoricalBetaEnabled(state.historicalBeta)
-  }, [state.historicalBeta, setHistoricalBetaEnabled])
   useEffect(() => {
     setAppModeEnabled(state.appMode as AppMode)
   }, [state.appMode, setAppModeEnabled])
@@ -1955,10 +1959,6 @@ export function TerrainViewer() {
       stateOverrides.viewMode = projectConfig.initialViewMode
     }
 
-    // Restore the beta gates from their persisted last value, unless the URL
-    // itself already carries an explicit override.
-    if (!searchParams.has("tellsBeta") && tellsBetaEnabled) stateOverrides.tellsBeta = true
-    if (!searchParams.has("historicalBeta") && historicalBetaEnabled) stateOverrides.historicalBeta = true
     if (!searchParams.has("appMode")) {
       if (appModeEnabled !== "terrain") {
         stateOverrides.appMode = appModeEnabled
@@ -4331,6 +4331,7 @@ export function TerrainViewer() {
             mode={state.isolineMode}
             measure={state.isolineMeasure}
             value={state.isolineValue}
+            cliff={state.isolineCliff}
             interval={state.isolineInterval}
             fill={state.isolineFill}
             fillOpacity={state.isolineFillOpacity}

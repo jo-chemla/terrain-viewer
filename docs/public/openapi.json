@@ -3137,36 +3137,6 @@
             }
           },
           {
-            "name": "tellsBeta",
-            "in": "query",
-            "required": false,
-            "description": "State. Experimental — opt-in via Settings (or ?tellsBeta=true directly) so it doesn't clutter Visualization Modes for everyone by default.",
-            "schema": {
-              "type": "boolean",
-              "default": false
-            }
-          },
-          {
-            "name": "georefBeta",
-            "in": "query",
-            "required": false,
-            "description": "State. Same opt-in gate, for Tools: Image Georeferencer.",
-            "schema": {
-              "type": "boolean",
-              "default": false
-            }
-          },
-          {
-            "name": "historicalBeta",
-            "in": "query",
-            "required": false,
-            "description": "State. Same opt-in-beta gate as tellsBeta above, for the historical-imagery basemaps (Wayback/HLS/GE Historical/Planet) + bottom timeline panel.",
-            "schema": {
-              "type": "boolean",
-              "default": true
-            }
-          },
-          {
             "name": "showTellsDetector",
             "in": "query",
             "required": false,
@@ -3742,6 +3712,16 @@
             "in": "query",
             "required": false,
             "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "isolineCliff",
+            "in": "query",
+            "required": false,
+            "description": "State. Slope at a value only: cliff teeth along the line, pointing into the steep area (both edges of a steep band get them).",
             "schema": {
               "type": "boolean",
               "default": false

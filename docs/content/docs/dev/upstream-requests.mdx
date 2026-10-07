@@ -3,7 +3,21 @@ title: Upstream requests
 description: Feature requests to the libraries and services Terrain Viewer builds on, drafted here before they are posted, with their status and our workaround meanwhile
 ---
 
-What we need from projects we depend on, written once, kept here, and linked when posted. Each entry says what we do in the meantime.
+What we need from projects we depend on, written once, kept here, and linked when posted. Each entry says what we do in the meantime. The community posts and venues are on [Advocacy](/dev/advocacy).
+
+## Posted, or ready to post
+
+| Request | To | Status |
+|---|---|---|
+| Custom-protocol fetch through the main thread, with [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts) as the example | maplibre-contour, [issue 434](https://github.com/onthegomap/maplibre-contour/issues/434) | To comment |
+| A sweep of national sources finer than what is ingested, with the [National Datasets](/features/national-datasets#finer-than-mapterhorn) comparison as the reference | Mapterhorn, [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) | To comment |
+| `https://terrain-viewer.iconem.com` as an allowed origin on the Almond Blossom PMTiles host, so the library's [impasto entries](/dev/vendored-protocols#pmtiles) work without a local proxy | Lars Maxfield (impasto.dev) | Not to be sent yet |
+| A bilinear option when a tile is upsampled from a coarser overview | geomatico/maplibre-cog-protocol, [issue 14](https://github.com/geomatico/maplibre-cog-protocol/issues/14) is the nearest thread | To open |
+| Sparse tiles and the Esri placeholder tile; 3D Tiles | MapLibre, [PR 8335](https://github.com/maplibre/maplibre-gl-js/pull/8335), [PR 8567](https://github.com/maplibre/maplibre-gl-js/pull/8567) | Commented |
+| MapLibre 6 support and label placement | geogrid-maplibre-gl, [issue 18](https://github.com/falseinput/geogrid-maplibre-gl/issues/18) | Posted |
+| A browser option for remote DEMs | geospatial-skills, [issue 7](https://github.com/isaaccorley/geospatial-skills/issues/7) | Posted |
+
+## Drafted
 
 | Request | To | Status | Our workaround |
 |---|---|---|---|

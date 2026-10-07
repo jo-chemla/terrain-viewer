@@ -669,7 +669,10 @@ export const changelogViewAtom = atomWithStorage<"changes" | "full">("changelogV
 // entries show up open without needing an explicit default here.
 export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>("changelogEntriesOpen", {})
 
-// Mirrors of TerrainViewer's tellsBeta/historicalBeta/georefBeta nuqs fields
+// The beta gates. Since 2026-10-07 these are the only home of the flags:
+// TerrainViewer merges them into `state` (state.tellsBeta…) and routes a
+// setState({ tellsBeta }) here, no URL field (a link does not switch them,
+// the Home button does not clear them). Earlier mirrors of nuqs fields
 // (the actual gates the app reads) — those live in the URL so a
 // `?tellsBeta=true` link still works, but with no localStorage backing they
 // silently reset to off on every reload without the param. These atoms are

@@ -24,6 +24,10 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **Timeline overlay pills**: one per view on an overlay's tick (tinted with the view's colour when borders are coloured); drag one onto another tick to swap that view's overlay.
 - **Allmaps maps** can be drawn from Allmaps' tile server (Draw it, in their dialog): cached, faster on slow image servers, and they tilt and drape; tilted views switch to it by themselves instead of hiding the map. A David Rumsey link starts there.
 - **National datasets** also as a tablecn data table, next to the original, for comparison.
+- **Beta flags** are local settings, not URL parameters: a link does not switch them and Home does not clear them.
+- **Iso-line, slope at a value**: Cliff teeth along the line.
+- A toast says when a tilted view switches Allmaps maps to the tile server.
+- **Timeline overlay pills** are bigger, centred on their tick and in front of it; the tick a dragged pill would land on is ringed; every dated overlay on a view gets a tick, found by the catalogs or not.
 - **Shared links** carry catalog items (ArcGIS Online, STAC, Planet scenes, national layers) by URL with their extent and zooms; a Planet key never travels (`{planetKey}` placeholder, filled by the recipient's key).
 - **Image Georeferencer**: a Fit button in the image window's title bar brings the whole image back.
 - **Overlays order**: in edit mode, drag the handles; the first of the list draws on top.
