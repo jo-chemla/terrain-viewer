@@ -139,7 +139,7 @@ jobs:
           date=$(date -u +%Y-%m-%d)
           notes="Desktop bundles built on $date from \`$sha\`, the full build (\`with-offline-docs\`: the documentation inside, for offline reading). The light build (\`light-online-docs\`, about 180 MB smaller, the documentation on the website) is on the desktop-latest-light release. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/ for what works and how to run them. Setup files are installers (zip holding the installer on Windows, dmg on macOS, self-extracting tar.gz on Linux); Portable zips unpack anywhere and run as they are. macOS: the app is only ad-hoc signed, so right-click, Open on first launch; if it is reported as damaged, run xattr -cr on the app once (see the docs page). Windows: SmartScreen, More info, Run anyway."
           if ! gh release view desktop-latest >/dev/null 2>&1; then
-            gh release create desktop-latest --title "Desktop bundles ($date)" --notes "$notes" --latest
+            gh release create desktop-latest --title "Desktop bundles, full offline-docs ($date)" --notes "$notes" --latest
           fi
           # drop the previous assets of the platforms this run built (dated
           # names change every day, so --clobber alone would pile them up)
@@ -148,7 +148,7 @@ jobs:
             gh release view desktop-latest --json assets -q '.assets[].name' | grep -- "$plat" | while read -r a; do gh release delete-asset desktop-latest "$a" --yes || true; done
           done
           gh release upload desktop-latest assets/* --clobber
-          gh release edit desktop-latest --title "Desktop bundles ($date)" --notes "$notes" --latest
+          gh release edit desktop-latest --title "Desktop bundles, full offline-docs ($date)" --notes "$notes" --latest
       - name: Rolling release desktop-latest-light (the light build)
         # The light build's installers and its updater feed; its
         # release.baseUrl points at this tag.
@@ -160,11 +160,11 @@ jobs:
           date=$(date -u +%Y-%m-%d)
           notes="Light desktop bundles built on $date from \`$sha\`: the documentation opens on the website, about 180 MB smaller than the full build on the desktop-latest release. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/. Setup files are installers, Portable zips unpack anywhere and run as they are; the .tar.zst and update.json are the updater's feed, which an installed light build reads at launch. Windows: SmartScreen, More info, Run anyway."
           if ! gh release view desktop-latest-light >/dev/null 2>&1; then
-            gh release create desktop-latest-light --title "Desktop bundles, light ($date)" --notes "$notes"
+            gh release create desktop-latest-light --title "Desktop bundles, light online-docs ($date)" --notes "$notes"
           fi
           built=$(ls assets-light | grep -o -E 'win-x64|macos-arm64|linux-x64' | sort -u)
           for plat in $built; do
             gh release view desktop-latest-light --json assets -q '.assets[].name' | grep -- "$plat" | while read -r a; do gh release delete-asset desktop-latest-light "$a" --yes || true; done
           done
           gh release upload desktop-latest-light assets-light/* --clobber
-          gh release edit desktop-latest-light --title "Desktop bundles, light ($date)" --notes "$notes"
+          gh release edit desktop-latest-light --title "Desktop bundles, light online-docs ($date)" --notes "$notes"
