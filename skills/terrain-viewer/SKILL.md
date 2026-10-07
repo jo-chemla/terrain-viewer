@@ -42,7 +42,7 @@ What published studies use, from the 120-study [Research References](https://ter
 | Subject | Modes most used | Parameters |
 |---|---|---|
 | Settlements, earthworks and roads under forest | hillshade, LRM, SVF | `showReliefVisualization=true&showLrm=true&showSvf=true` |
-| Mounds, tells, barrows, field systems | mound detector, LRM, hillshade, TPI | `tellsBeta=true&showTellsDetector=true&showReliefVisualization=true&showLrm=true` (the mound detector is a beta mode: both flags are needed) |
+| Mounds, tells, barrows, field systems | mound detector, LRM, hillshade, TPI | `showTellsDetector=true&showReliefVisualization=true&showLrm=true` (the mound detector is a beta mode: the detector only shows once the person has switched on Tells under Settings → Beta in their own browser; a link cannot switch it, so say so) |
 | Karst dolines, pits, bomb craters, trenches | mound detector, SVF, hillshade | `showReliefVisualization=true&showSvf=true` |
 | Faults, scarps and earthquake ruptures | hillshade, slope, SVF, DEM difference | `showTerrainAnalysis=true&showSlope=true` and a low sun (`illuminationAlt=20`) across the fault |
 | Landslides and mass movements | hillshade, slope, SVF, curvature, roughness, DEM difference | `showTerrainAnalysis=true&showSlope=true&showCurvature=true` |
@@ -69,7 +69,7 @@ Mapterhorn already ingests most open national LiDAR, so for a place in Europe, t
 From the research references, each the study's own area and the modes it used:
 
 - Monumental Maya architecture under forest (Inomata et al. 2020): Aguada Fénix LiDAR, hillshade plus local relief model, top-down. https://terrain-viewer.iconem.com/?viewMode=2d&zoom=15&lat=17.7338&lng=-91.2886&terrainSourceA=custom-mx-aguadafenix-lidar&showReliefVisualization=true&showLrm=true&place=Aguada%20F%C3%A9nix
-- Barrows and Celtic fields found by machine learning (Verschoof-van der Vaart et al. 2019): Veluwe, AHN 0.5 m, hillshade with the mound detector. https://terrain-viewer.iconem.com/?viewMode=2d&zoom=14&lat=52.2&lng=5.85&terrainSourceA=custom-nl-ahn-dtm&tellsBeta=true&showTellsDetector=true&showReliefVisualization=true&showLrm=true&place=Veluwe
+- Barrows and Celtic fields found by machine learning (Verschoof-van der Vaart et al. 2019): Veluwe, AHN 0.5 m, hillshade with the mound detector. https://terrain-viewer.iconem.com/?viewMode=2d&zoom=14&lat=52.2&lng=5.85&terrainSourceA=custom-nl-ahn-dtm&showTellsDetector=true&showReliefVisualization=true&showLrm=true&place=Veluwe
 - The 2014 Oso landslide (Iverson et al. 2015): Mapterhorn (Washington 3DEP LiDAR), slope and sky-view factor over hillshade. https://terrain-viewer.iconem.com/?viewMode=2d&zoom=14&lat=48.2826&lng=-121.848&showTerrainAnalysis=true&showSlope=true&showReliefVisualization=true&showSvf=true&place=Oso%20landslide
 - Drumlins (Yu, Eyles and Sookhan 2015): Wadena drumlin field, Minnesota, curvature plus local relief model in 3D at a landscape zoom. https://terrain-viewer.iconem.com/?viewMode=3d&zoom=11&lat=46.4425&lng=-95.1361&pitch=50&showTerrainAnalysis=true&showCurvature=true&showReliefVisualization=true&showLrm=true&place=Wadena%20drumlins
 
