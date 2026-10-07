@@ -4814,7 +4814,7 @@ export function TerrainViewer() {
       <div
         key={`date-${pane.side}`}
         className={cn(
-          "absolute z-10 rounded-full bg-background/90 backdrop-blur-sm border border-border px-2 py-0.5 text-[11px] font-medium tabular-nums shadow-sm flex items-center gap-1.5",
+          "absolute z-10 rounded-full bg-background/90 backdrop-blur-sm border border-border px-2 py-0.5 text-[11px] font-medium tabular-nums shadow-sm flex items-center gap-1.5 max-w-[85%] min-w-0",
           !isSplit && "pointer-events-none",
         )}
         style={positionStyle}
@@ -4823,7 +4823,7 @@ export function TerrainViewer() {
           <Tooltip>
             <TooltipTrigger
               render={
-                <span data-snapshot-plain data-timeline-side-select="" onClick={onPillClick} className={cn("cursor-pointer", activeView === pane.side ? "font-bold text-[1.08em]" : selected && "font-bold")}>
+                <span data-snapshot-plain data-timeline-side-select="" onClick={onPillClick} title={label ?? undefined} className={cn("cursor-pointer block min-w-0 truncate", activeView === pane.side ? "font-bold text-[1.08em]" : selected && "font-bold")}>
                   {isSplit && <span data-snapshot-ignore>{label ? `${pane.side}: ` : pane.side}</span>}
                   {label}{distinctModesSuffix(pane.side, !!label)}
                 </span>
@@ -4832,7 +4832,7 @@ export function TerrainViewer() {
             <TooltipContent><p>{activeView === pane.side ? "Selected: per-view mode toggles act on this view. Click again to deselect." : timelineSelectable ? "Click to select this view: per-view mode toggles and the timeline's arrow keys act on it" : "Click to select this view: per-view mode toggles act on it alone"}</p></TooltipContent>
           </Tooltip>
         ) : (
-          <span data-snapshot-plain className={cn(selected && "font-bold")}>
+          <span data-snapshot-plain title={label ?? undefined} className={cn("block min-w-0 truncate", selected && "font-bold")}>
             {isSplit && <span data-snapshot-ignore>{label ? `${pane.side}: ` : pane.side}</span>}
             {label}{distinctModesSuffix(pane.side, !!label)}
           </span>

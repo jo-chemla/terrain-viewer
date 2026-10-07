@@ -549,12 +549,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                   cannot fight the order of the list below. */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground shrink-0" title="Where every overlay sits in the layer stack">Stack</span>
-                <Select value={state.overlaysStack ?? "under"} onValueChange={(v) => v && setState({ overlaysStack: v })}>
+                <Select value={state.overlaysStack ?? "under"} items={{ under: "Under relief", relief: "Over hypso", top: "On top" }} onValueChange={(v) => v && setState({ overlaysStack: v })}>
                   <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="under">Under relief: hillshade and colour relief draw over the overlays</SelectItem>
-                    <SelectItem value="relief">Over hypso: above the colour relief, still shaded by the hillshade</SelectItem>
-                    <SelectItem value="top">On top: above every terrain layer, only contours and markers over</SelectItem>
+                    <SelectItem value="under"><span className="block">Under relief</span><span className="block text-[10px] text-muted-foreground">Hillshade and colour relief draw over the overlays</span></SelectItem>
+                    <SelectItem value="relief"><span className="block">Over hypso</span><span className="block text-[10px] text-muted-foreground">Above the colour relief, still shaded by the hillshade</span></SelectItem>
+                    <SelectItem value="top"><span className="block">On top</span><span className="block text-[10px] text-muted-foreground">Above every terrain layer; only contours and markers over</span></SelectItem>
                   </SelectContent>
                 </Select>
               </div>

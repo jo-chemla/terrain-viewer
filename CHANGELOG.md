@@ -32,7 +32,8 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **Overlay stack** is one setting for every overlay (Stack, in the Overlays group; `overlaysStack` in the link), no longer per source, so it cannot fight the list's order. The Basemap and Overlays groups of the sources list fold. An Allmaps map's "Draw it" is now "Warp (projection transform)".
 - **GSD of Allmaps maps**: read from the control points (metres per pixel), on the ticks, the tick card and the source rows.
 - **Source dialogs**: Save and Cancel sit under the form, which scrolls on its own; nothing shows through. The source info dialog no longer overflows (a long title made the dialog's column wider than the dialog). The overlay Stack is a select.
-- **Tick card**: GSD, date, source and licence on their own lines, as in the source rows' tooltip; Allmaps ticks carry the sheet's thumbnail.
+- **Tick card**: GSD, date, source and licence on their own lines, as in the source rows' tooltip; Allmaps, Map Warper, Wikimaps and ArcGIS Online ticks carry a thumbnail.
+- **Map pane pill**: one line, an ellipsis when the label does not fit (the whole label on hover). The overlay Stack select names its options.
 - **Timeline**: pressing a view's handle selects the view on the map too; an overlay pill clears that selection.
 - **Timeline**: a selected overlay pill deselects the view's handle and its pill on the map.
 - **Remove paper, Auto**, for maps drawn from Allmaps' tile server: the estimate reads the sheet's thumbnail, not one tile (a tile over the dense part of a plan saw no paper).

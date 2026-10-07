@@ -397,7 +397,7 @@ function mapWarperItems(catalog: string, data: any[], bbox: Bbox | null, undated
     ticks.push(register(catalog, String(r.id), dateMs, `${short} · ${title} · ${year}`, {
       name: `${title} (${year})`, url: `${host}/maps/tile/${r.id}/{z}/{x}/{y}.png`, type: "tms", role: "basemap", bounds: b,
       description: `${TIMELINE_CATALOG_BY_ID[catalog].label} map ${r.id}, depicting ${year}`, infoUrl: `${host}/maps/${r.id}`, maxzoom: 20,
-    } as Omit<CustomBasemapSource, "id">))
+    } as Omit<CustomBasemapSource, "id">, { thumb: `${host}/maps/thumb/${r.id}`, url: `${host}/maps/${r.id}`, date: String(year), provider: TIMELINE_CATALOG_BY_ID[catalog].label }))
   }
   return ticks
 }
@@ -787,7 +787,7 @@ async function agolTicks(bbox: Bbox | null, signal?: AbortSignal, text?: string)
     ticks.push(register("cat-agol", r.id, Date.UTC(year, 0, 1), `ArcGIS · ${r.title} · ${year} · ${r.owner}`, {
       name: `${r.title}`, url, type, role: "basemap", bounds: b,
       description: `ArcGIS Online ${r.type}, ${r.owner}, title year ${year}`, infoUrl: `https://www.arcgis.com/home/item.html?id=${r.id}`,
-    } as Omit<CustomBasemapSource, "id">, { gsd, provider: `ArcGIS Online (${r.owner})`, licence: r.licenseInfo ? String(r.licenseInfo).replace(/<[^>]+>/g, "").slice(0, 120) : undefined }))
+    } as Omit<CustomBasemapSource, "id">, { gsd, provider: `ArcGIS Online (${r.owner})`, licence: r.licenseInfo ? String(r.licenseInfo).replace(/<[^>]+>/g, "").slice(0, 120) : undefined, thumb: r.thumbnail ? `https://www.arcgis.com/sharing/rest/content/items/${r.id}/info/${r.thumbnail}` : undefined, url: `https://www.arcgis.com/home/item.html?id=${r.id}` }))
   }))
   return ticks
 }
