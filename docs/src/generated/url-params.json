@@ -550,15 +550,9 @@
     {
       "key": "historicalActiveSource",
       "stateKey": "historicalActiveSource",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": "Which concrete underlying source (wayback/hls/ge-historical/planet/ eox-s2) actually renders when basemapSource(A/B) === \"historical\" — the sidebar only ever exposes one combined \"Historical Imagery\"…"
@@ -566,15 +560,9 @@
     {
       "key": "historicalActiveSourceA",
       "stateKey": "historicalActiveSourceA",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": ""
@@ -582,15 +570,9 @@
     {
       "key": "historicalActiveSourceB",
       "stateKey": "historicalActiveSourceB",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": ""
@@ -598,15 +580,9 @@
     {
       "key": "historicalActiveSourceC",
       "stateKey": "historicalActiveSourceC",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": ""
@@ -614,15 +590,9 @@
     {
       "key": "historicalActiveSourceD",
       "stateKey": "historicalActiveSourceD",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": ""
@@ -630,15 +600,9 @@
     {
       "key": "historicalActiveSourceE",
       "stateKey": "historicalActiveSourceE",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": ""
@@ -646,15 +610,9 @@
     {
       "key": "historicalActiveSourceF",
       "stateKey": "historicalActiveSourceF",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": ""
@@ -662,15 +620,9 @@
     {
       "key": "historicalActiveSourceG",
       "stateKey": "historicalActiveSourceG",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": ""
@@ -678,15 +630,9 @@
     {
       "key": "historicalActiveSourceH",
       "stateKey": "historicalActiveSourceH",
-      "type": "enum",
+      "type": "string",
       "items": null,
-      "enum": [
-        "wayback",
-        "hls",
-        "ge-historical",
-        "planet",
-        "eox-s2\" as const"
-      ],
+      "enum": null,
       "default": "wayback",
       "defaultSource": "\"wayback\"",
       "note": ""

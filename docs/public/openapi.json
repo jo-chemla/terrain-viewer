@@ -815,13 +815,6 @@
             "description": "State. Which concrete underlying source (wayback/hls/ge-historical/planet/ eox-s2) actually renders when basemapSource(A/B) === \"historical\" — the sidebar only ever exposes one combined \"Historical Imagery\"…",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },
@@ -832,13 +825,6 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },
@@ -849,13 +835,6 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },
@@ -866,13 +845,6 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },
@@ -883,13 +855,6 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },
@@ -900,13 +865,6 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },
@@ -917,13 +875,6 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },
@@ -934,13 +885,6 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },
@@ -951,13 +895,6 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "enum": [
-                "wayback",
-                "hls",
-                "ge-historical",
-                "planet",
-                "eox-s2\" as const"
-              ],
               "default": "wayback"
             }
           },

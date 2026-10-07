@@ -772,21 +772,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const buildTickUpdates = useCallback((side: ViewId, tick: TimelineTick): Record<string, any> => {
     const sourceField = viewFieldName(side, "basemapSource", state.basemapPerView)
     const dateField = viewFieldName(side, "date", state.basemapPerView)
-    const updates: Record<string, any> = { [dateField]: tick.dateMs }
-    if (tick.source === "bing") {
-      updates[sourceField] = "bing"
-    } else if (tick.source in TIMELINE_CATALOG_BY_ID && tick.source !== "eli" && tick.ref) {
-      // A catalog item: its registered basemap (lib/timeline-catalogs.ts).
-      updates[sourceField] = tick.ref
-    } else if (tick.source === "eli" && tick.ref) {
-      // The layer itself becomes the view's basemap (hydrated by the effect
-      // above); its date stays the view's date.
-      updates[sourceField] = `${ELI_BASEMAP_PREFIX}${tick.ref}`
-    } else {
-      updates[sourceField] = "historical"
-      updates[viewFieldName(side, "historicalActiveSource", state.basemapPerView)] = tick.source
+    // Whatever the tick (a provider's date, Bing, a dated ELI layer, a
+    // catalog item), the view stays on Historical Imagery and the tick
+    // becomes its active source: the sidebar keeps saying Historical
+    // Imagery, and moving the handle only changes which source is shown.
+    const active = tick.source === "bing" ? "bing"
+      : tick.source === "eli" && tick.ref ? `${ELI_BASEMAP_PREFIX}${tick.ref}`
+      : tick.source in TIMELINE_CATALOG_BY_ID && tick.ref ? tick.ref
+      : tick.source
+    return {
+      [dateField]: tick.dateMs,
+      [sourceField]: "historical",
+      [viewFieldName(side, "historicalActiveSource", state.basemapPerView)]: active,
     }
-    return updates
   }, [state.basemapPerView])
 
   const setTickForSide = useCallback((side: ViewId, tick: TimelineTick) => {
@@ -1090,23 +1088,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     return bestIdx
   }, [items, tickLeftPct])
-  // `providersOnly`: the basemap handle, scrubbed or stepped, lands on the
-  // providers' ticks (Wayback, Google Earth…) and skips the catalog items,
-  // which are overlays while "Picks join my sources" is on; the view's
-  // basemap stays Historical Imagery.
-  const nearestTickForClientX = useCallback((clientX: number, providersOnly = false): TimelineTick | null => {
-    if (!providersOnly) { const idx = nearestIndexForClientX(clientX); return idx === null ? null : items[idx] }
-    const rect = trackRef.current?.getBoundingClientRect()
-    if (!rect) return null
-    const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
-    let best: TimelineTick | null = null, bestDist = Infinity
-    for (const t of items) {
-      if (t.ref && t.source in TIMELINE_CATALOG_BY_ID) continue
-      const d = Math.abs(tickLeftPct(t) / 100 - frac)
-      if (d < bestDist) { best = t; bestDist = d }
-    }
-    return best ?? (items.length ? items[nearestIndexForClientX(clientX) ?? 0] : null)
-  }, [items, nearestIndexForClientX, tickLeftPct])
+  const nearestTickForClientX = useCallback((clientX: number): TimelineTick | null => {
+    const idx = nearestIndexForClientX(clientX)
+    return idx === null ? null : items[idx]
+  }, [items, nearestIndexForClientX])
 
   // Ctrl+drag "move this pill and sweep everything on one side along with
   // it" — see ctrlGroupDragRef below for the full gesture. Index space here
@@ -1242,9 +1227,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   }, [setCustomBasemaps])
 
   const scrubTo = useCallback((which: ViewId, clientX: number) => {
-    const tick = nearestTickForClientX(clientX, picksKeep)
+    const tick = nearestTickForClientX(clientX)
     if (tick) applyTick(tick, which, true)
-  }, [nearestTickForClientX, applyTick, picksKeep])
+  }, [nearestTickForClientX, applyTick])
 
   const step = useCallback((direction: number) => {
     const which = resolveSide()
@@ -1457,7 +1442,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // pointer), drawn as a floating pill until it is dropped on a tick.
   const [overlayDrag, setOverlayDrag] = useState<{ ref: string; side: ViewId; x: number; y: number } | null>(null)
   // Dropped on another catalog tick: that view's overlay becomes the new
-  // item (same place in its stack) and the new item joins your overlays.
+  // item (same place in its stack) and the new item joins your overlays;
+  // the old one leaves them when no other view uses it.
   const swapOverlayTick = useCallback((fromRef: string, side: ViewId, target: TimelineTick) => {
     if (!target.ref || target.ref === fromRef) return
     const src = catalogBasemap(target.ref)
@@ -1466,13 +1452,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const field = fieldOf(side)
     const current: string[] = state[field] || []
     const next = current.includes(target.ref) ? current.filter((x) => x !== fromRef) : current.map((x) => (x === fromRef ? target.ref! : x))
-    // The old item stays in your sources (it was kept on purpose): only
-    // the view's overlay changes.
-    setCustomBasemaps((prev) => (prev.some((b) => b.id === src.id)
-      ? prev.map((b) => (b.id === src.id ? { ...b, role: "overlay" as const, stack: b.stack ?? "top", transient: false } : b))
-      : [...prev, { ...src, role: "overlay" as const, stack: src.stack ?? "top", transient: false }]))
+    // The old item: when this was the last view it was on (no other view's
+    // overlays, no view's basemap), the new one replaces it in your sources;
+    // otherwise both stay. Only catalog items: a source you added yourself
+    // in the side panel is never removed by a drag.
+    const usedElsewhere = VIEW_IDS.some((s) => (s !== side && ((state[fieldOf(s)] as string[] | undefined) ?? []).includes(fromRef)) || activeBasemapSourceFor(s) === fromRef)
+    setCustomBasemaps((prev) => {
+      const withNew = prev.some((b) => b.id === src.id)
+        ? prev.map((b) => (b.id === src.id ? { ...b, role: "overlay" as const, stack: b.stack ?? "top", transient: false } : b))
+        : [...prev, { ...src, role: "overlay" as const, stack: src.stack ?? "top", transient: false }]
+      return !usedElsewhere && isCatalogBasemapId(fromRef) ? withNew.filter((b) => b.id !== fromRef) : withNew
+    })
     setState({ [field]: next })
-  }, [state, setState, setCustomBasemaps])
+  }, [state, setState, setCustomBasemaps, activeBasemapSourceFor])
   if (!panelVisible) return null
 
   // Per-side display tick/caption/handle-position, computed once here for
@@ -1542,7 +1534,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               className="absolute top-1/2 z-20 h-4 min-w-4 -translate-y-1/2 rounded-full border border-background px-1 text-center text-[9px] font-semibold leading-[14px] shadow-sm cursor-grab active:cursor-grabbing"
               style={{ left: `calc(50% - 8px + ${i * 15}px)`, background: c ? `color-mix(in srgb, ${c} 45%, white)` : "var(--muted-foreground)", color: c ? "#111" : "var(--background)", opacity: ghost ? 0.35 : 1 }}
               title={`Overlay on view ${side}: drag onto another tick to swap it`}
-              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
+              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setActiveSide(side); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
               onPointerMove={(e) => { if (overlayDrag) setOverlayDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY } : d)) }}
               onPointerUp={(e) => { const d = overlayDrag; setOverlayDrag(null); if (!d) return; const target = nearestTickForClientX(e.clientX); if (target) swapOverlayTick(d.ref, d.side, target) }}
               onPointerCancel={() => setOverlayDrag(null)}

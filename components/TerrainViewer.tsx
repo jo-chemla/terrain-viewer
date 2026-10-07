@@ -413,15 +413,19 @@ export const QUERY_STATE_PARSERS = {
     // the relevant date field AND this field (see historical-timeline-
     // panel.tsx's setTickForSide). Bing bypasses this: its tick sets
     // basemapSource(A/B) = "bing" directly, never "historical".
-    historicalActiveSource: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
-    historicalActiveSourceA: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
-    historicalActiveSourceB: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
-    historicalActiveSourceC: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
-    historicalActiveSourceD: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
-    historicalActiveSourceE: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
-    historicalActiveSourceF: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
-    historicalActiveSourceG: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
-    historicalActiveSourceH: parseAsStringLiteral(["wayback", "hls", "ge-historical", "planet", "eox-s2"] as const).withDefault("wayback"),
+    // The view's historical source: a provider (wayback, hls, ge-historical,
+    // planet, eox-s2), "bing", an ELI layer (eli:…) or a catalog item's
+    // basemap id: whatever tick the view's handle sits on. The view's
+    // basemapSource stays "historical" for all of them.
+    historicalActiveSource: parseAsString.withDefault("wayback"),
+    historicalActiveSourceA: parseAsString.withDefault("wayback"),
+    historicalActiveSourceB: parseAsString.withDefault("wayback"),
+    historicalActiveSourceC: parseAsString.withDefault("wayback"),
+    historicalActiveSourceD: parseAsString.withDefault("wayback"),
+    historicalActiveSourceE: parseAsString.withDefault("wayback"),
+    historicalActiveSourceF: parseAsString.withDefault("wayback"),
+    historicalActiveSourceG: parseAsString.withDefault("wayback"),
+    historicalActiveSourceH: parseAsString.withDefault("wayback"),
     // Which historical sources' ticks are aggregated onto the shared timeline
     // (pill toggles in historical-timeline-panel.tsx) — independent of which
     // single source is actually "active"/rendered on the map. "planet" is

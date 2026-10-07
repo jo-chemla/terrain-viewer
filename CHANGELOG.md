@@ -27,7 +27,7 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **Beta flags** are local settings, not URL parameters: a link does not switch them and Home does not clear them.
 - **Iso-line, slope at a value**: Cliff teeth along the line (one every 28 px).
 - **Library**: BRGM's geological maps of France, the scanned sheets (1:1M to 1:50k, one scale-dependent service) and the harmonised 1:50k vector map, as overlays with their zoom ranges.
-- **Timeline**: the basemap handle, scrubbed or stepped, lands on the providers' ticks and skips the catalog items (overlays), so the view's basemap stays Historical Imagery; the active view's handle is ringed in every layout; a pill drag swaps the view's overlay and keeps the old item in your sources.
+- **Timeline**: every tick is a place for a view's handle, providers and catalog items alike; the view stays on Historical Imagery and the tick becomes its source (a SWISSIMAGE flight, a Map Warper sheet, a Wayback release). The full-colour handle is the view's basemap; the lighter pills are its overlays, and dragging one swaps that view's overlay, replacing the old item in your sources when no other view uses it. The active view's handle is ringed in every layout; pressing a handle or a pill selects its view.
 - Fixed: the timeline panel crashed the app (\"Rendered fewer hooks than expected\") when a view in a split switched to a non-historical basemap while an overlay drag state existed.
 - A pasted WMS GetMap in another CRS (Lambert-93, a national portal's copy) is asked in EPSG:3857 with one tile's size, so it draws instead of staying blank.
 - A toast says when a tilted view switches Allmaps maps to the tile server.
