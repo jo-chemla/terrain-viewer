@@ -5,6 +5,8 @@ description: The release-chained alternative to Google Earth Historical's per-ti
 
 ESRI Wayback is one of the [providers](/features/historical-sources#the-timelines-own-providers) behind [Historical Imagery mode](/features/historical-imagery). Where [Google Earth Historical](/dev/ge-historical) is *self-contained per-tile*  — every capture date for a tile lives inside that one tile's quadtree packet — Wayback is **release-chained**: a flat, dated catalog of full, independently-addressable global tile pyramids. `lib/wayback.ts` is a thin wrapper around [`@esri/wayback-core`](https://github.com/Esri/wayback-core) (the SDK behind Esri's own Wayback app) that resolves that release model into the same "one date in, one tile source out" shape every other historical provider in this app already has.
 
+The service itself is Esri's, at `wayback.maptiles.arcgis.com` (`/arcgis/rest/services/World_Imagery/MapServer`, with `WMTS/1.0.0/default028mm/{release}/{z}/{y}/{x}` tiles and the release catalog at `waybackconfig.json`). It is sometimes looked up as "wayback.maptiler.com", which does not exist: MapTiler has no Wayback service; the "maptiles" in the host is Esri's tile subdomain.
+
 <Callout title="Three different dates, easy to conflate" type="warn">
 Wayback surfaces (and this app displays) **three distinct dates** for the same pixel:
 
