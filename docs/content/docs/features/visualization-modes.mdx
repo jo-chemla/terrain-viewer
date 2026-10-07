@@ -115,7 +115,7 @@ Under the hood every derived mode's tiles are a Terrarium-encoded scalar, so the
 Iso-line replaces the beta **threshold outlines** of the contours (a third contour reference, now removed, with its `thresholdBeta` flag): an outline at 1.5 m on an nDSM, or a flood level on a DEM, is now an Iso-line on the elevation at that value. Limits: the line is traced on the measure's tiles, so it is only as fine as the terrain source.
 
 
-**Cliff teeth** (slope, at a value): teeth along the line, the symbol maps use for cliffs. The line is the boundary of the area steeper than the value, so both its edges carry the teeth, hanging off the steep side; OSM-style cliff lines (a mapped edge that stops where the cliff stops) need vector data the DEM does not carry.
+**Cliff teeth** (slope, at a value): teeth along the line, the symbol maps use for cliffs. They sit on a simplified outline of the steep areas, traced on the slope blurred over 4 px with specks under 40 px dropped, so they follow the faces rather than every pixel; the thin full-resolution line stays underneath. The outline is the boundary of the area steeper than the value, so both its edges carry teeth, hanging off the steep side; OSM-style cliff lines (a mapped edge that stops where the cliff stops) need vector data the DEM does not carry.
 
 ## Terrain Analysis
 

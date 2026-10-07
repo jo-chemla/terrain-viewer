@@ -64,6 +64,7 @@ export const IsolineLayers = memo(({
   if (mode === "value") {
     const url = buildIsobandProtocolUrl(measureDem.template, measureDem.encoding, measureDem.tileSize, value * scale)
     return (
+      <>
       <Source id="isoline-band-source" key={`isoline-band-${measureDem.template}`} type="vector" tiles={[url]} maxzoom={maxzoom}>
         {fill && (
           <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-fill" type="fill" source="isoline-band-source" source-layer="isoband"
@@ -71,15 +72,25 @@ export const IsolineLayers = memo(({
         )}
         <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-lines" type="line" source="isoline-band-source" source-layer="isoline"
           layout={{ "line-join": "round", "line-cap": "round" }}
-          paint={{ "line-color": color, "line-width": weight, "line-opacity": 0.9 }} />
-        {cliff && measure === "slope" && (
-          // Cliff hatching: a tooth every 28 px along the line, hanging
-          // off one side (the steep side of the boundary ring).
-          <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-cliff-teeth" type="symbol" source="isoline-band-source" source-layer="isoline"
+          paint={{ "line-color": color, "line-width": weight, "line-opacity": cliff && measure === "slope" ? 0.35 : 0.9 }} />
+      </Source>
+      {cliff && measure === "slope" && (
+        // Cliff hatching on a simplified edge: the same iso-slope traced on
+        // the measure blurred over 4 px, with runs under 40 px dropped, so
+        // the line is the outline of the steep areas rather than every
+        // wiggle and speck of the full-resolution slope (whose teeth
+        // pointed every which way). A tooth every 28 px, hanging off the
+        // steep side of the ring.
+        <Source id="isoline-cliff-source" key={`isoline-cliff-${measureDem.template}`} type="vector" tiles={[buildIsobandProtocolUrl(measureDem.template, measureDem.encoding, measureDem.tileSize, value * scale, { smooth: 4, minLength: 40 })]} maxzoom={maxzoom}>
+          <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-cliff-line" type="line" source="isoline-cliff-source" source-layer="isoline"
+            layout={{ "line-join": "round", "line-cap": "round" }}
+            paint={{ "line-color": color, "line-width": weight + 0.5, "line-opacity": 0.95 }} />
+          <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-cliff-teeth" type="symbol" source="isoline-cliff-source" source-layer="isoline"
             layout={{ "symbol-placement": "line", "symbol-spacing": 28, "icon-image": toothImage, "icon-size": 1, "icon-rotation-alignment": "map", "icon-pitch-alignment": "map", "icon-allow-overlap": true, "icon-ignore-placement": true, "icon-offset": [0, 8], "icon-padding": 0 }}
             paint={{ "icon-opacity": 0.9 }} />
-        )}
-      </Source>
+        </Source>
+      )}
+      </>
     )
   }
   const step = Math.max(1e-6, interval * scale)
