@@ -26,6 +26,7 @@ New between Friday 2 and Sunday 5 October 2026; details in the entries below.
 - **National datasets** also as a tablecn data table, next to the original, for comparison.
 - **Beta flags** are local settings, not URL parameters: a link does not switch them and Home does not clear them.
 - **Iso-line, slope at a value**: Cliff teeth along the line.
+- A pasted WMS GetMap in another CRS (Lambert-93, a national portal's copy) is asked in EPSG:3857 with one tile's size, so it draws instead of staying blank.
 - A toast says when a tilted view switches Allmaps maps to the tile server.
 - **Timeline overlay pills** are bigger, centred on their tick and in front of it; the tick a dragged pill would land on is ringed; every dated overlay on a view gets a tick, found by the catalogs or not.
 - **Shared links** carry catalog items (ArcGIS Online, STAC, Planet scenes, national layers) by URL with their extent and zooms; a Planet key never travels (`{planetKey}` placeholder, filled by the recipient's key).

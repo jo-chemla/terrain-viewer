@@ -13,7 +13,7 @@ The URL's own shape answers most of the time, at once, without a request:
 | You paste | It becomes |
 |---|---|
 | A template with `{z}/{x}/{y}` (also `{-y}`, `{quadkey}`, `{s}`) | TMS/XYZ (basemap); Terrarium or TerrainRGB (terrain, guessed from the URL, said so in the note) |
-| `{bbox-epsg-3857}`, or a WMS `REQUEST=GetMap` | WMS (basemap) or WMS raw elevation (terrain), the bbox turned into the placeholder |
+| `{bbox-epsg-3857}`, or a WMS `REQUEST=GetMap` | WMS (basemap) or WMS raw elevation (terrain): the bbox becomes the placeholder, the `SRS`/`CRS` becomes EPSG:3857 (a request copied from a national portal is in its own CRS, Lambert-93 say, and the placeholder's bbox is Web Mercator), the width and height become one tile's; layers, styles, format and version stay as pasted |
 | A WMS `REQUEST=GetCapabilities`, or `SERVICE=WMS` alone | WMS (list layers), its layers listed at once |
 | A WMTS service or `WMTSCapabilities.xml` | WMS, with a note to give the tile template instead |
 | An ArcGIS `MapServer` | Its cached tiles, `/tile/{z}/{y}/{x}` |

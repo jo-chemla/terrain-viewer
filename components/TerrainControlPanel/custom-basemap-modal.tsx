@@ -27,7 +27,7 @@ const EliSearchPanel = lazy(() => import("./eli-search-panel").then((m) => ({ de
 const StacSearchPanel = lazy(() => import("./stac-search-panel").then((m) => ({ default: m.StacSearchPanel })))
 import { WmsPickerPanel } from "./wms-picker-panel"
 import { SourceUrlAutoPanel, DetectedNote } from "./source-url-auto"
-import { nameFromUrl, type DetectedSource } from "@/lib/source-url-detect"
+import { nameFromUrl, templateWmsGetMap, type DetectedSource } from "@/lib/source-url-detect"
 
 // The types a new source opens on: Auto unless a search panel or a local
 // file was the last choice (a URL type found by Auto is not remembered).
@@ -282,8 +282,8 @@ export const CustomBasemapModal: React.FC<{
   // the same url (e.g. a WMTS REST endpoint) into %7Bz%7D etc. Mirrors
   // lib/wms-client.ts's own bbox-param rewrite.
   const normalizeBboxParam = (input: string) => {
-    if (type !== "wms") return input
-    return input.replace(/([?&]bbox=)[^&]*/i, "$1{bbox-epsg-3857}")
+    if (type !== "wms" || !/[?&]request=getmap/i.test(input) && !/[?&]bbox=/i.test(input)) return input
+    return templateWmsGetMap(input, 256)
   };
 
   return (

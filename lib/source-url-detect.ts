@@ -48,6 +48,22 @@ export function normalizeSourceUrl(raw: string): string {
   return url
 }
 
+/** A pasted GetMap request as the app can tile it: the bbox placeholder,
+ *  Web Mercator (a request copied from a national portal is in its own
+ *  CRS, Lambert-93 say, and the placeholder's bbox is Web Mercator, so the
+ *  CRS has to follow), and one tile's width and height. Other parameters
+ *  (layers, styles, format, version, transparent) stay as pasted. A plain
+ *  string rewrite, not `new URL(…)`: that would percent-encode every brace. */
+export function templateWmsGetMap(url: string, tileSize = 256): string {
+  let out = url.replace(/([?&]bbox=)[^&]*/i, "$1{bbox-epsg-3857}")
+  out = out.replace(/([?&](?:srs|crs)=)[^&]*/i, "$1EPSG:3857")
+  if (!/[?&](srs|crs)=/i.test(out)) out += `&${/version=1\.3/i.test(out) ? "CRS" : "SRS"}=EPSG:3857`
+  out = out.replace(/([?&]width=)[^&]*/i, `$1${tileSize}`).replace(/([?&]height=)[^&]*/i, `$1${tileSize}`)
+  if (!/[?&]width=/i.test(out)) out += `&WIDTH=${tileSize}`
+  if (!/[?&]height=/i.test(out)) out += `&HEIGHT=${tileSize}`
+  return out
+}
+
 /** From the URL alone; null when its shape says nothing certain. */
 export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource | null {
   const url = normalizeSourceUrl(raw)
@@ -71,10 +87,11 @@ export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource
     return { type: "wms-picker", url: url.split("?")[0], label: "WMS GetCapabilities", note: "Its layers are listed below: pick one." }
   }
   if (service === "wms" && request === "getmap" || has(url, /\{bbox-epsg-3857\}/)) {
-    const withBbox = url.replace(/([?&]bbox=)[^&]*/i, "$1{bbox-epsg-3857}")
+    const pastedCrs = param(url, "srs") ?? param(url, "crs")
+    const changed = pastedCrs && !/3857|900913/.test(pastedCrs) ? `The request was in ${pastedCrs}: asked in EPSG:3857 instead, 256 px tiles. ` : ""
     return target === "basemap"
-      ? { type: "wms", url: withBbox, label: "WMS GetMap request" }
-      : { type: "wms-raw", url: withBbox, label: "WMS GetMap request", note: "Read as raw Float32 elevation: the service must deliver GeoTIFF or BIL values, not a coloured picture." }
+      ? { type: "wms", url: templateWmsGetMap(url, 256), label: "WMS GetMap request", note: changed || undefined }
+      : { type: "wms-raw", url: templateWmsGetMap(url, 514), label: "WMS GetMap request", note: `${changed}Read as raw Float32 elevation: the service must deliver GeoTIFF or BIL values, not a coloured picture.` }
   }
   if (service === "wmts" || has(url, /WMTSCapabilities\.xml/i)) {
     return { type: target === "basemap" ? "wms" : "terrarium", url, label: "WMTS service", note: "Give the tile template with {z}/{x}/{y} (TileMatrix, TileCol, TileRow) rather than the capabilities." }
