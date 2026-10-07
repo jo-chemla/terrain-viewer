@@ -1574,7 +1574,7 @@
             "role": "overlay",
             "stack": "top",
             "opacity": 70,
-            "minzoom": 6,
+            "minzoom": 12,
             "maxzoom": 15,
             "bounds": [-5.5, 41.2, 9.8, 51.2],
             "description": "BRGM's harmonised vector geological map of France at 1:50 000, one legend across the former sheet boundaries, drawn from zoom 6 to 15 (empty tiles beyond). CORS open, no key. Licence Ouverte / Etalab. (c) BRGM.",

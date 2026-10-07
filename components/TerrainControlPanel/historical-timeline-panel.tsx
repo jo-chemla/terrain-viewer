@@ -22,7 +22,7 @@ import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom } from "@/lib/settings-atoms"
-import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
+import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -177,6 +177,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const collapsed = !!state.historicalTimelineCollapsed
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
   const [activeSide, setActiveSide] = useAtom(timelineActiveSideAtom)
+  // The selected overlay pill (a catalog item id), or null when the
+  // selection is the view's handle: the arrow keys move whichever is
+  // selected, the handle through every tick, the pill through the catalog
+  // items. Pressing a handle, the map pane's pill or a tick selects the
+  // handle again.
+  const [activeOverlay, setActiveOverlay] = useAtom(timelineActiveOverlayAtom)
   const [syncEnabled, setSyncEnabled] = useAtom(historicalTimelineSyncAtom)
   const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
   const [colorizeMapBordersStored] = useAtom(colorizeMapBordersAtom)
@@ -1167,6 +1173,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const applyTick = useCallback((tick: TimelineTick, explicitSide?: ViewId, browse = false) => {
     const which = explicitSide ?? resolveSide()
     setActiveSide(which)
+    setActiveOverlay(null)
     const asOverlay = picksKeep && !browse && !!tick.ref && !!catalogBasemap(tick.ref)
     if (!asOverlay) setTickForSide(which, tick)
     maybeRecenterWindow(tick.dateMs)
@@ -1231,8 +1238,51 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     if (tick) applyTick(tick, which, true)
   }, [nearestTickForClientX, applyTick])
 
+  // An overlay pill being dragged along the axis (its item, its view, the
+  // pointer), drawn as a floating pill until it is dropped on a tick.
+  const [overlayDrag, setOverlayDrag] = useState<{ ref: string; side: ViewId; x: number; y: number } | null>(null)
+  // Dropped on another catalog tick: that view's overlay becomes the new
+  // item (same place in its stack) and the new item joins your overlays;
+  // the old one leaves them when no other view uses it.
+  const swapOverlayTick = useCallback((fromRef: string, side: ViewId, target: TimelineTick) => {
+    if (!target.ref || target.ref === fromRef) return
+    const src = catalogBasemap(target.ref)
+    if (!src) return
+    const fieldOf = (s: ViewId) => (s === "A" ? "overlayBasemapIds" : `overlayBasemapIds${s}`)
+    const field = fieldOf(side)
+    const current: string[] = state[field] || []
+    const next = current.includes(target.ref) ? current.filter((x) => x !== fromRef) : current.map((x) => (x === fromRef ? target.ref! : x))
+    // The old item: when this was the last view showing it as an overlay,
+    // the new one replaces it in your sources; otherwise both stay. A view
+    // showing it as its basemap does not count: that is the handle's
+    // business, not the pills'. Only catalog items, and never a locked one:
+    // a source you added yourself in the side panel has no catalog id, and
+    // the lock button (edit mode) protects any source from automatic removal.
+    const usedElsewhere = VIEW_IDS.some((s) => s !== side && ((state[fieldOf(s)] as string[] | undefined) ?? []).includes(fromRef))
+    setCustomBasemaps((prev) => {
+      const withNew = prev.some((b) => b.id === src.id)
+        ? prev.map((b) => (b.id === src.id ? { ...b, role: "overlay" as const, stack: b.stack ?? "top", transient: false } : b))
+        : [...prev, { ...src, role: "overlay" as const, stack: src.stack ?? "top", transient: false }]
+      const old = withNew.find((b) => b.id === fromRef)
+      return !usedElsewhere && isCatalogBasemapId(fromRef) && !old?.locked ? withNew.filter((b) => b.id !== fromRef) : withNew
+    })
+    setState({ [field]: next })
+  }, [state, setState, setCustomBasemaps])
   const step = useCallback((direction: number) => {
     const which = resolveSide()
+    // An overlay pill selected: it walks the catalog items (the ticks with
+    // an item), swapping the view's overlay as a drag would.
+    const overlaysOfSide: string[] = (state[which === "A" ? "overlayBasemapIds" : `overlayBasemapIds${which}`] as string[] | undefined) ?? []
+    if (activeOverlay && overlaysOfSide.includes(activeOverlay)) {
+      const catalogTicks = items.filter((t) => t.ref)
+      const i = catalogTicks.findIndex((t) => t.ref === activeOverlay)
+      const target = catalogTicks[i === -1 ? (direction > 0 ? 0 : catalogTicks.length - 1) : i + direction]
+      if (!target || !target.ref) return
+      swapOverlayTick(activeOverlay, which, target)
+      setActiveOverlay(target.ref)
+      maybeRecenterWindow(target.dateMs)
+      return
+    }
     // The tick the view shows (a catalog item by its id, a date otherwise),
     // then the next one on the axis whatever its source: the arrows walk
     // every tick of the pills and catalogs that are on, in date order.
@@ -1252,7 +1302,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const newIdx = idx + direction
     if (newIdx < 0 || newIdx >= items.length) return
     applyTick(items[newIdx], undefined, true)
-  }, [resolveSide, resolveDisplayTick, displaySourceFor, dateForSide, items, applyTick])
+  }, [resolveSide, resolveDisplayTick, displaySourceFor, dateForSide, items, applyTick, activeOverlay, state, swapOverlayTick, setActiveOverlay, maybeRecenterWindow])
   // A pick from the map (a footprint click) or the search results.
   const [pickRequest, setPickRequest] = useAtom(catalogPickRequestAtom)
   useEffect(() => {
@@ -1320,10 +1370,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const el = document.activeElement
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || (el as HTMLElement).isContentEditable)) return
       e.preventDefault()
+      // Capture phase, and stopped: MapLibre's own keyboard handler (on the
+      // focused map canvas) would otherwise pan the view by the same key.
+      e.stopPropagation()
       step(e.key === "ArrowLeft" ? -1 : 1)
     }
-    window.addEventListener("keydown", handler)
-    return () => window.removeEventListener("keydown", handler)
+    window.addEventListener("keydown", handler, true)
+    return () => window.removeEventListener("keydown", handler, true)
   }, [panelVisible, step])
 
   // Mousewheel zoom/pan reads effectiveMin/Max/Span, paddedMin/Max/Span and
@@ -1438,36 +1491,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
   }, [panelVisible, scheduleViewWindow])
 
-  // An overlay pill being dragged along the axis (its item, its view, the
-  // pointer), drawn as a floating pill until it is dropped on a tick.
-  const [overlayDrag, setOverlayDrag] = useState<{ ref: string; side: ViewId; x: number; y: number } | null>(null)
-  // Dropped on another catalog tick: that view's overlay becomes the new
-  // item (same place in its stack) and the new item joins your overlays;
-  // the old one leaves them when no other view uses it.
-  const swapOverlayTick = useCallback((fromRef: string, side: ViewId, target: TimelineTick) => {
-    if (!target.ref || target.ref === fromRef) return
-    const src = catalogBasemap(target.ref)
-    if (!src) return
-    const fieldOf = (s: ViewId) => (s === "A" ? "overlayBasemapIds" : `overlayBasemapIds${s}`)
-    const field = fieldOf(side)
-    const current: string[] = state[field] || []
-    const next = current.includes(target.ref) ? current.filter((x) => x !== fromRef) : current.map((x) => (x === fromRef ? target.ref! : x))
-    // The old item: when this was the last view showing it as an overlay,
-    // the new one replaces it in your sources; otherwise both stay. A view
-    // showing it as its basemap does not count: that is the handle's
-    // business, not the pills'. Only catalog items, and never a locked one:
-    // a source you added yourself in the side panel has no catalog id, and
-    // the lock button (edit mode) protects any source from automatic removal.
-    const usedElsewhere = VIEW_IDS.some((s) => s !== side && ((state[fieldOf(s)] as string[] | undefined) ?? []).includes(fromRef))
-    setCustomBasemaps((prev) => {
-      const withNew = prev.some((b) => b.id === src.id)
-        ? prev.map((b) => (b.id === src.id ? { ...b, role: "overlay" as const, stack: b.stack ?? "top", transient: false } : b))
-        : [...prev, { ...src, role: "overlay" as const, stack: src.stack ?? "top", transient: false }]
-      const old = withNew.find((b) => b.id === fromRef)
-      return !usedElsewhere && isCatalogBasemapId(fromRef) && !old?.locked ? withNew.filter((b) => b.id !== fromRef) : withNew
-    })
-    setState({ [field]: next })
-  }, [state, setState, setCustomBasemaps])
   if (!panelVisible) return null
 
   // Per-side display tick/caption/handle-position, computed once here for
@@ -1532,12 +1555,13 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         {sides?.map((side, i) => {
           const c = colorFor(side)
           const ghost = !!overlayDrag && overlayDrag.ref === t.ref && overlayDrag.side === side
+          const selected = activeOverlay === t.ref && side === activeSide
           return (
             <div key={side}
-              className="absolute top-1/2 z-20 h-4 min-w-4 -translate-y-1/2 rounded-full border border-background px-1 text-center text-[9px] font-semibold leading-[14px] shadow-sm cursor-grab active:cursor-grabbing"
+              className={cn("absolute top-1/2 z-20 h-4 min-w-4 -translate-y-1/2 rounded-full border border-background px-1 text-center text-[9px] font-semibold leading-[14px] shadow-sm cursor-grab active:cursor-grabbing", selected && "outline outline-2 outline-offset-1 outline-foreground/80")}
               style={{ left: `calc(50% - 8px + ${i * 15}px)`, background: c ? `color-mix(in srgb, ${c} 45%, white)` : "var(--muted-foreground)", color: c ? "#111" : "var(--background)", opacity: ghost ? 0.35 : 1 }}
-              title={`Overlay on view ${side}: drag onto another tick to swap it`}
-              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setActiveSide(side); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
+              title={`Overlay on view ${side}: drag onto another tick to swap it; selected, the arrow keys move it through the catalog items`}
+              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setActiveSide(side); setActiveOverlay(t.ref!); setOverlayDrag({ ref: t.ref!, side, x: e.clientX, y: e.clientY }) }}
               onPointerMove={(e) => { if (overlayDrag) setOverlayDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY } : d)) }}
               onPointerUp={(e) => { const d = overlayDrag; setOverlayDrag(null); if (!d) return; const target = nearestTickForClientX(e.clientX); if (target) swapOverlayTick(d.ref, d.side, target) }}
               onPointerCancel={() => setOverlayDrag(null)}
@@ -1664,6 +1688,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 e.stopPropagation()
                 e.currentTarget.setPointerCapture(e.pointerId)
                 setActiveSide(side)
+                setActiveOverlay(null)
                 if (e.ctrlKey || e.metaKey) {
                   const snapshot = showingViews
                     .filter((s) => s !== side && tickBySide[s])
@@ -1742,7 +1767,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               }}
               data-snapshot-plain
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing",
+                "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-background shadow cursor-grab active:cursor-grabbing z-30",
                 !bg && "bg-primary",
                 // The side the arrow keys act on (also picked from the map
                 // pane's own date pill): same size, one more circle around it.
@@ -1853,7 +1878,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                             Bing (fetching the current tile's capture-date-range
                             header) — both a real network round-trip per
                             location, not instant. */}
-                        {id === "wayback" && waybackDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {id === "wayback" && active && waybackDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                         {id === "ge-historical" && geDatesLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                         {id === "bing" && bingLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                       </button>
@@ -2127,7 +2152,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                     onPointerDown={(e) => { e.stopPropagation(); applyTick(t) }}
                     onPointerEnter={(e) => { if (e.pointerType !== "touch") showTickCard(t, e.currentTarget as HTMLElement) }}
                     onPointerLeave={(e) => { if (e.pointerType !== "touch") hideTickCardSoon() }}
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer"
+                    // z-20 when it holds pills: every tick is its own stacking
+                    // context (the translate), so a later tick's bar would
+                    // otherwise paint over this tick's pills.
+                    className={cn("absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer", overlaySides?.length && "z-20")}
                     style={{ left: `${tickLeftPct(t)}%` }}
                   >
                     <div
@@ -2142,7 +2170,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 <div key={`overlay-${t.ref}`}
                   onPointerEnter={(e) => { if (e.pointerType !== "touch") showTickCard(t, e.currentTarget as HTMLElement) }}
                   onPointerLeave={(e) => { if (e.pointerType !== "touch") hideTickCardSoon() }}
-                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer"
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer z-20"
                   style={{ left: `${tickLeftPct(t)}%` }}
                 >
                   <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1 opacity-60" style={{ backgroundColor: SOURCE_CONFIG[t.source]?.color ?? "var(--muted-foreground)" }} />

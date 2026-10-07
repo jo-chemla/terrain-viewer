@@ -47,7 +47,8 @@ export const CustomSourceDetails: React.FC<{
   // by an automatic step, such as a timeline overlay pill dragged to another
   // tick, which otherwise swaps the old catalog item out of the sources.
   const [customBasemaps, setCustomBasemaps] = useAtom(customBasemapSourcesAtom)
-  const basemapEntry = customBasemaps.find((b) => b.id === source.id)
+  // Overlays only: a basemap is never removed by an automatic step.
+  const basemapEntry = customBasemaps.find((b) => b.id === source.id && b.role === "overlay")
   const toggleLock = () => setCustomBasemaps((prev) => prev.map((b) => (b.id === source.id ? { ...b, locked: !b.locked } : b)))
   const viewportCenter = useAtomValue(viewportCenterAtom)
   const gsd = sourceGsd(source, viewportCenter?.lat ?? 0)
@@ -198,9 +199,11 @@ export const CustomSourceDetails: React.FC<{
           // attribution and description. The info button has every field.
           <div className="space-y-0.5">
             <p className="font-medium">{source.name}</p>
-            <p className="text-muted-foreground">{[source.type, providerName(source.provider), gsd ? gsdText(gsd) : null, source.role === "overlay" ? "overlay" : null].filter(Boolean).join(" · ")}</p>
-            {source.attribution && <p className="text-muted-foreground">{source.attribution}</p>}
-            {source.description && <p className="text-muted-foreground line-clamp-4">{source.description}</p>}
+            {gsd && <p className="text-muted-foreground"><span className="font-medium text-foreground/80">GSD:</span> {gsd.estimated ? "about " : ""}{gsdLabel(gsd.m)}/px{gsd.zoom !== undefined ? ` (zoom ${gsd.zoom})` : ""}</p>}
+            <p className="text-muted-foreground"><span className="font-medium text-foreground/80">Type:</span> {source.type}{source.role === "overlay" ? ", overlay" : ""}</p>
+            {providerName(source.provider) && <p className="text-muted-foreground"><span className="font-medium text-foreground/80">Source:</span> {providerName(source.provider)}</p>}
+            {source.attribution && <p className="text-muted-foreground"><span className="font-medium text-foreground/80">Attribution:</span> {source.attribution}</p>}
+            {source.description && <p className="text-muted-foreground line-clamp-4"><span className="font-medium text-foreground/80">Description:</span> {source.description}</p>}
           </div>
         )}
       </TooltipContent>

@@ -12,7 +12,7 @@
 // a whole sheet, picked by the caller) goes through the same histogram as
 // an Allmaps map; `g` scales the detected threshold like the sidebar's
 // slider. The template may hold {z}/{x}/{y} or a WMS {bbox-epsg-3857}.
-import { estimateFromPixels, publishEstimate, type PaperEstimate } from "./allmaps-paper"
+import { estimateFromPixels, estimatePaper, publishEstimate, type PaperEstimate } from "./allmaps-paper"
 import { toTileImage, type TileImage } from "./tile-image"
 
 const UNPAPER_URL_RE = /^unpaper:\/\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?c=(auto|[0-9a-f]{6})&t=([\d.]+)&h=([\d.]+)&g=([\d.]+)&s=(\d+)\/(\d+)\/(\d+)$/
@@ -64,8 +64,12 @@ const estimates = new Map<string, Promise<PaperEstimate | null>>()
 function estimateFor(template: string, sample: { z: number; x: number; y: number }, signal: AbortSignal): Promise<PaperEstimate | null> {
   let p = estimates.get(template)
   if (!p) {
-    p = fetchPixels(tileUrl(template, sample.z, sample.x, sample.y), signal)
-      .then((px) => (px ? estimateFromPixels(px.data) : null))
+    // A map from Allmaps' tile server (allmaps.xyz/...?url=<annotation>):
+    // the whole sheet's thumbnail is the sample, as for the in-browser warp;
+    // one tile can land on the dense part of a plan and see no paper.
+    const allmaps = template.match(/allmaps\.xyz\/.*[?&]url=([^&]+)/)
+    p = (allmaps ? estimatePaper(decodeURIComponent(allmaps[1]), signal) : fetchPixels(tileUrl(template, sample.z, sample.x, sample.y), signal)
+      .then((px) => (px ? estimateFromPixels(px.data) : null)))
       .catch(() => null)
       .then((e) => { publishEstimate(template, e); return e })
     estimates.set(template, p)

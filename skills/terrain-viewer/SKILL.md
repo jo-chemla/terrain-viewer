@@ -142,6 +142,16 @@ In the app, the Animation panel's Export Video button records it as an MP4.
 - Local relief model for spotting earthworks: https://terrain-viewer.iconem.com/?viewMode=2d&zoom=15&lat=<lat>&lng=<lng>&showReliefVisualization=true&showLrm=true
 - A COG the user shared: https://terrain-viewer.iconem.com/?terrainSourceA=https%3A%2F%2Fexample.com%2Fdem.tif&showHillshade=true
 
+## More parameters
+
+- **Several modes in a split:** `vizSync=false&vizViews=…` lets each view keep its own modes; `splitRatio=0.5`; `matchColorsToA=true` matches a view's colours to A.
+- **Colour relief range:** `customHypsoMinMax=true&minElevation=0&maxElevation=40` (metres), `colorRamp=<name>`, `invertColorRamp=true`; each mode has its own `…ColorRamp`, `…Min`, `…Max`, `…InvertColorRamp` (`slopeMinDegrees`, `lrmMin`, `svfMax`…).
+- **More modes:** `showTri=true` (ruggedness), `showRoughness=true`, `showLocalDominance=true`, `showShapeIndex=true`, `showBlobness=true` (section switch `showTerrainAnalysis` or `showReliefVisualization` as for the others); `showBuildingShadows=true` casts building shadows with the sun; `showPlaneSlicer=true&planeSlicerValue=<m>` floods below an elevation.
+- **Contours:** `contourMinor=10&contourMajor=50` (metres), `showContourLabels=true`; `showGraticules=true` for a lat/lng grid.
+- **Pills and chrome:** `showCaptureDatePill=true` dates each view; `pillTerrain`, `pillBasemap`, `pillModes` choose what the pill says; `minimapMinimized=true`; `showBackground=false` hides the sky.
+- **Fence the map:** `maxBoundsMode=view&maxBoundsBuffer=0.2` keeps the camera near the place.
+- **Opacity:** `basemapSourceOpacity`, `overlaysOpacity`, each mode's `…Opacity` (0 to 1).
+
 ## Reference
 
 - Every parameter, with types and defaults: https://terrain-viewer.iconem.com/docs/openapi.json and https://terrain-viewer.iconem.com/docs/dev/url-api/

@@ -86,3 +86,7 @@ export const profileDockLiftPx = (heightPx: number, isMobile: boolean): number =
 // panel's "last click was on me" gate for the arrow keys: a badge click
 // arms it from outside the panel.
 export const timelineActiveSideAtom = atom<ViewId>("A")
+/** The selected overlay pill on the timeline (a catalog item id) when the
+ *  arrow keys should move that overlay rather than the view's handle; null
+ *  selects the handle. See historical-timeline-panel.tsx. */
+export const timelineActiveOverlayAtom = atom<string | null>(null)

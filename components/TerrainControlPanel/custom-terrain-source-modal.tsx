@@ -733,7 +733,9 @@ export const CustomTerrainSourceModal: React.FC<{
                   </div>
                 </CollapsibleContent>
               </Collapsible>
-              <div className="flex justify-end gap-2">
+              {/* Sticks to the dialog's bottom while the form scrolls; the
+                  gradient above it says there is more to scroll. */}
+              <div className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-2 px-6 pb-5 pt-3 flex justify-end gap-2 bg-background border-t before:pointer-events-none before:absolute before:inset-x-0 before:-top-8 before:h-8 before:bg-gradient-to-t before:from-background before:to-transparent">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">Cancel</Button>
                 <Button onClick={handleSave} disabled={!name || (isDemDiff ? !diffReady : !url)} className="cursor-pointer">{editingSource ? "Save Changes" : "Add Source"}</Button>
               </div>

@@ -91,7 +91,7 @@ export function AllmapsOverlayLayer({ id, annotationUrl, opacity, beforeId, alwa
       const useTiles = alwaysTilesRef.current || tilted
       if (tilted && !alwaysTilesRef.current && !tiltToastShown) {
         tiltToastShown = true
-        pushToast({ key: "allmaps-tilt", title: "Tilted view: Allmaps maps from the tile server", body: "Allmaps' in-browser warp draws flat views only, so the georeferenced maps come from allmaps.xyz while the view is tilted (coarser, cached). Back to the in-browser warp at pitch 0.", duration: 7000 })
+        pushToast({ key: "allmaps-tilt", title: "Tilted view: Allmaps maps from the tile server", body: "Allmaps' in-browser warp draws flat views only, so the georeferenced maps come from allmaps.xyz while the view is tilted (coarser, cached). Back to the in-browser warp at pitch 0.", duration: 28000 })
       }
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", useTiles ? "none" : "visible")
       if (useTiles) ensureTiles()

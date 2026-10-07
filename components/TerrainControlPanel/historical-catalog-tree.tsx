@@ -128,9 +128,9 @@ export const HistoricalCatalogTree: React.FC<{
         <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={openNow ? "Collapse" : "Expand"} onClick={() => toggleFold(key, openNow)}>
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openNow ? "" : "-rotate-90"}`} />
         </button>
-        {loadingHere(cats) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
         <Checkbox id={`tlcat-g-${key}`} checked={on === usable.length && usable.length > 0} indeterminate={on > 0 && on < usable.length} disabled={!usable.length}
           onCheckedChange={(v) => setMany(usable, v === true)} className="cursor-pointer" />
+        {loadingHere(cats) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
         <Label htmlFor={`tlcat-g-${key}`} className={cn("cursor-pointer flex-1 tracking-wide text-muted-foreground", depth === 0 ? "uppercase text-[11px] font-semibold text-foreground/80" : depth === 1 ? "uppercase text-[10px]" : "text-[10px]")}>{label}</Label>
         {on > 0 && <span className="text-[10px] text-muted-foreground tabular-nums">{on} on</span>}
         {regional && here > 0 && <span className="text-[10px] text-muted-foreground tabular-nums" title="Sources covering the view centre">{here} here</span>}
@@ -173,9 +173,9 @@ export const HistoricalCatalogTree: React.FC<{
         <div className="flex items-start gap-2 px-0.5 pb-1">
           <p className="text-[11px] text-muted-foreground flex-1">Items covering the view become ticks; picking one makes it the view's basemap. Refreshed as you move. Dimmed sources have nothing here.</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] flex-1">
+            <SwitchRow checked={follow} onChange={setFollow} label="Follow the view" tip="Off: the catalogs are not asked again as the map moves, so the ticks stay as they are; on again asks them for the current view" />
+            <SwitchRow checked={windowFilter} onChange={setWindowFilter} label="Within the timeline window" tip="Only items dated within the timeline's current window (STAC searches pass it to the server); the catalogs are asked again when this changes" />
             <SwitchRow checked={footprints} onChange={setFootprints} label="Footprints on the map" tip="Every item found drawn as an outline in its catalog's colour" />
-            <SwitchRow checked={follow} onChange={setFollow} label="Follow the view" tip="Off: the catalogs are not asked again as the map moves, so the ticks stay as they are" />
-            <SwitchRow checked={windowFilter} onChange={setWindowFilter} label="Within the timeline window" tip="Only items dated within the timeline's current window (STAC searches pass it to the server)" />
           </div>
           <Tooltip>
             <TooltipTrigger render={

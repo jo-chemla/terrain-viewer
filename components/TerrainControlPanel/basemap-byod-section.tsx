@@ -366,6 +366,17 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
   // before the one it is dropped on; the list's first draws on top.
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [dragOverAfter, setDragOverAfter] = useState(false)
+  const moveOverlayAfter = useCallback((fromId: string, afterId: string) => {
+    setCustomBasemapSources((prev) => {
+      const from = prev.find((s) => s.id === fromId)
+      if (!from) return prev
+      const rest = prev.filter((s) => s.id !== fromId)
+      const at = rest.findIndex((s) => s.id === afterId)
+      if (at === -1) return prev
+      return [...rest.slice(0, at + 1), from, ...rest.slice(at + 1)]
+    })
+  }, [setCustomBasemapSources])
   const moveOverlayBefore = useCallback((fromId: string, beforeId: string) => {
     setCustomBasemapSources((prev) => {
       const from = prev.find((s) => s.id === fromId)
@@ -409,12 +420,14 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               <TooltipButton
                 icon={Plus}
                 label="Add Basemap"
+                className="flex-1 min-w-0"
                 tooltip="Add a new custom basemap source"
                 onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}
               />
               <TooltipButton
                 icon={Library}
                 label="Library"
+                className="flex-1 min-w-0"
                 tooltip="Pick from the library of sample basemaps"
                 onClick={handleLoadSample}
               />
@@ -525,12 +538,13 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               {(state.pitch ?? 0) > 0.5 && overlaySources.some((s) => s.type === "iiif" && !s.allmapsTiles) && <p className="text-[11px] text-muted-foreground">Tilted view: the georeferenced IIIF maps come from Allmaps' tile server (Allmaps' in-browser warp draws flat only); back to the sharper in-browser warp at pitch 0.</p>}
               {overlaySources.map((source) => (
                 <div key={source.id} className="relative flex items-center gap-2 min-w-0"
-                  onDragOver={editMode ? (e) => { e.preventDefault(); if (dragOverId !== source.id) setDragOverId(source.id) } : undefined}
-                  onDragLeave={editMode ? () => setDragOverId((d) => (d === source.id ? null : d)) : undefined}
-                  onDrop={editMode ? (e) => { e.preventDefault(); const from = e.dataTransfer.getData("text/overlay-id") || dragId; setDragOverId(null); setDragId(null); if (from && from !== source.id) moveOverlayBefore(from, source.id) } : undefined}>
-                  {/* Where the dragged overlay lands: before this one. */}
+                  onDragOver={editMode ? (e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; if (dragOverId !== source.id) setDragOverId(source.id); if (after !== dragOverAfter) setDragOverAfter(after) } : undefined}
+                  onDragLeave={editMode ? (e) => { if (e.currentTarget.contains(e.relatedTarget as Node | null)) return; setDragOverId((d) => (d === source.id ? null : d)) } : undefined}
+                  onDrop={editMode ? (e) => { e.preventDefault(); const from = e.dataTransfer.getData("text/overlay-id") || dragId; const after = dragOverAfter; setDragOverId(null); setDragId(null); if (from && from !== source.id) (after ? moveOverlayAfter : moveOverlayBefore)(from, source.id) } : undefined}>
+                  {/* Where the dragged overlay lands: before or after this one,
+                      by which half of the row the pointer is in. */}
                   {editMode && dragOverId === source.id && dragId !== source.id && (
-                    <div className="pointer-events-none absolute -top-1 left-0 right-0 h-0.5 rounded bg-primary" />
+                    <div className={cn("pointer-events-none absolute left-0 right-0 h-0.5 rounded bg-primary", dragOverAfter ? "-bottom-1" : "-top-1")} />
                   )}
                   {editMode && (
                     <span draggable className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0" title="Drag to reorder: the first overlay draws on top"

@@ -486,14 +486,6 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
       {/* The switches that apply to every footprint and every catalog, above the tree. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
         <Tooltip>
-          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={outlineOnly} onCheckedChange={setOutlineOnly} className="cursor-pointer scale-75 origin-left" />Outlines only</label>} />
-          <TooltipContent><p>No fill, borders twice as bold</p></TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={footprints} onCheckedChange={setFootprints} className="cursor-pointer scale-75 origin-left" />Items' footprints</label>} />
-          <TooltipContent><p>Every item the historical catalogs found for the view, drawn as an outline in its catalog's colour</p></TooltipContent>
-        </Tooltip>
-        <Tooltip>
           <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={follow} onCheckedChange={setFollow} className="cursor-pointer scale-75 origin-left" />Follow the view</label>} />
           <TooltipContent><p>Off: the catalogs are not asked again as the map moves, so the historical items stay as they are; on again asks them for the current view</p></TooltipContent>
         </Tooltip>
@@ -502,12 +494,20 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
           <TooltipContent><p>Only items dated within the timeline's current window (STAC searches pass it to the server); the catalogs are asked again when this changes</p></TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={activeExtents} onCheckedChange={setActiveExtents} className="cursor-pointer scale-75 origin-left" />Active sources' extents</label>} />
-          <TooltipContent><p>The declared extents of the sources on the views (terrain, basemap, overlays), dashed; a source row shows z≥N while the view is below the zoom it serves</p></TooltipContent>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={outlineOnly} onCheckedChange={setOutlineOnly} className="cursor-pointer scale-75 origin-left" />Outlines only</label>} />
+          <TooltipContent><p>No fill, borders twice as bold</p></TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={picksKeep} onCheckedChange={setPicksKeep} className="cursor-pointer scale-75 origin-left" />Picks join my sources</label>} />
           <TooltipContent><p>On: a timeline pick is added to your basemaps as well as set on the view. Off: it only becomes the view's basemap, listed nowhere else</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={footprints} onCheckedChange={setFootprints} className="cursor-pointer scale-75 origin-left" />Items' footprints</label>} />
+          <TooltipContent><p>Every item the historical catalogs found for the view, drawn as an outline in its catalog's colour</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<label className="flex items-center gap-1.5 cursor-pointer"><Switch checked={activeExtents} onCheckedChange={setActiveExtents} className="cursor-pointer scale-75 origin-left" />Active sources' extents</label>} />
+          <TooltipContent><p>The declared extents of the sources on the views (terrain, basemap, overlays), dashed; a source row shows z≥N while the view is below the zoom it serves</p></TooltipContent>
         </Tooltip>
       </div>
       </>}

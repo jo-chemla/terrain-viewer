@@ -57,7 +57,7 @@ import { COLOR_SPACES } from "@/lib/histogram-matching";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
 import { ArrowLeftRight, X } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
@@ -2419,6 +2419,7 @@ export function TerrainViewer() {
   // when nothing has been touched.
   const lastInteractedViewRef = useRef<ViewId>("A")
   const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
+  const setTimelineActiveOverlay = useSetAtom(timelineActiveOverlayAtom)
   const [activeView, setActiveView] = useAtom(activeViewAtom)
   // A view that leaves the layout cannot stay selected; Escape deselects.
   useEffect(() => { if (activeView && !activeViewIds.includes(activeView)) setActiveView(null) }, [activeView, activeViewIds, setActiveView])
@@ -4759,7 +4760,8 @@ export function TerrainViewer() {
     const selectable = isSplit
     const selected = (timelineSelectable && timelineActiveSide === pane.side) || activeView === pane.side
     const onPillClick = () => {
-      if (timelineSelectable) setTimelineActiveSide(pane.side)
+      // The pane's pill selects the view's basemap handle on the timeline.
+      if (timelineSelectable) { setTimelineActiveSide(pane.side); setTimelineActiveOverlay(null) }
       setActiveView((cur) => (cur === pane.side ? null : pane.side))
     }
     const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : profileDockHeightPx > 0 ? `${timelineBottomPaddingPx + 8}px` : "0.5rem"
