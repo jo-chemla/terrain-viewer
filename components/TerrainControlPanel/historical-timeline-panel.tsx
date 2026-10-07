@@ -1771,7 +1771,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 !bg && "bg-primary",
                 // The side the arrow keys act on (also picked from the map
                 // pane's own date pill): same size, one more circle around it.
-                showingViews.length > 1 && side === activeSide && "z-10 outline outline-2 outline-offset-2 outline-foreground/80",
+                // Not while an overlay pill is the selection.
+                showingViews.length > 1 && side === activeSide && !activeOverlay && "z-10 outline outline-2 outline-offset-2 outline-foreground/80",
               )}
               style={{ left: `${handleLeftPctBySide[side]}%`, ...(bg ? { background: bg } : {}) }}
             >

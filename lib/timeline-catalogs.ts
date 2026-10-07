@@ -849,9 +849,9 @@ async function allmapsTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTi
     if (!year && meta.year && meta.year < 1950) year = meta.year
     if (!year) return
     ticks.push(register("cat-allmaps", id, Date.UTC(year, 0, 1), `Allmaps · ${meta.title ?? meta.label} · ${year}`, {
-      name: meta.title ?? meta.label, url: meta.annotationUrl, type: "iiif", role: "overlay", stack: "top",
+      name: meta.title ?? meta.label, url: meta.annotationUrl, type: "iiif", role: "overlay", stack: "top", resolutionM: meta.gsd,
       description: `Georeferenced IIIF map, Allmaps annotation ${id} · ${meta.detail}`, infoUrl: meta.pageUrl, provider: "allmaps", bounds: meta.bounds,
-    } as Omit<CustomBasemapSource, "id">, { provider: meta.providerLabel ?? "Allmaps", url: meta.pageUrl }))
+    } as Omit<CustomBasemapSource, "id">, { provider: meta.providerLabel ?? "Allmaps", url: meta.pageUrl, gsd: meta.gsd }))
   }))
   return ticks
 }

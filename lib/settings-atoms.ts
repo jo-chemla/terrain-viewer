@@ -463,6 +463,9 @@ export interface CustomBasemapSource {
    *  browser: a plain raster, so it shows in tilted and 3D views. Unset: in
    *  the browser while the view is flat, tiles while it is tilted. */
   allmapsTiles?: boolean
+  /** Metres per pixel, declared or, for an Allmaps map, from its control
+   *  points (lib/allmaps-gsd.ts); shown as the GSD of the row. */
+  resolutionM?: number
   /** Mirror of CustomTerrainSource.linkedBasemapId — the terrain source this
    *  basemap auto-selects (and is auto-selected by) when either becomes
    *  active. Only needs to be set from one side of the pair. */
@@ -471,6 +474,9 @@ export interface CustomBasemapSource {
 
 export const customBasemapSourcesAtom = atomWithStorage<CustomBasemapSource[]>("customBasemapSources", [], undefined, { getOnInit: true })
 export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
+// The Basemap and Overlays groups of the basemap BYOD list, folded or not.
+export const byodBasemapsOpenAtom = atomWithStorage("byodBasemapsOpen", true)
+export const byodOverlaysOpenAtom = atomWithStorage("byodOverlaysOpen", true)
 export const isHillshadeXYPadOpenAtom = atomWithStorage("isHillshadeXYPadOpen", true)
 // User-dragged height (px) of the Bookmarks list's scroll area (bookmarks-section.tsx's
 // drag handle below it) — null means "use the default max-h-64 clamp".

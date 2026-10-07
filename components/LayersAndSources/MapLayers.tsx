@@ -1,11 +1,12 @@
-import { memo, useEffect, useRef, type RefObject } from "react"
+import { memo, useEffect, useRef, useState, type RefObject } from "react"
 import { AllmapsOverlayLayer } from "./AllmapsOverlayLayer"
 import { Layer, Source, type MapRef } from "react-map-gl/maplibre"
 import * as maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
 import { useAtom } from "jotai"
 import { highResTerrainAtom, georefImageAtom } from "@/lib/settings-atoms"
-import { fitGeoref, gcpsFromParam, type GeorefType } from "@/lib/georef"
+import { fitGeoref, gcpsFromParam, isBendingType, type GeorefType } from "@/lib/georef"
+import { warpGeorefImage, type WarpedImage } from "@/lib/georef-warp"
 import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops, buildCustomRampColors, extractStops, applyBlackWhiteTransparent, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop, type RampOverride } from "@/lib/color-ramps"
 
 export const LAYER_SLOTS = {
@@ -105,9 +106,12 @@ RasterLayer.displayName = "RasterLayer"
 // track the primary basemap's slider, with no way to blend a specific overlay
 // (e.g. a land-cover map) more subtly against what's under it.
 const OVERLAY_STACK_SLOT = { under: LAYER_SLOTS.OVERLAYS, relief: LAYER_SLOTS.HILLSHADE, top: LAYER_SLOTS.CONTOURS } as const
-export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSources }: {
+export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSources, stack }: {
   overlayIds: string[]
   opacity: number
+  /** Where every overlay sits in the layer stack (overlaysStack in the URL
+   *  state): one setting, so it cannot fight the overlays' own order. */
+  stack: "under" | "relief" | "top"
   customBasemapSources: { id: string; opacity?: number; stack?: "under" | "relief" | "top"; type?: string; url?: string; allmapsTiles?: boolean; bounds?: [number, number, number, number] }[]
 }) => {
   // Drawn in the order of the Overlays list, reversed: each layer is inserted
@@ -122,7 +126,6 @@ export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSo
       const sourceOpacity = (source?.opacity ?? 100) / 100
       // Keyed on the slot and the position: a layer's place is set when it
       // is created, so a reorder remounts it.
-      const stack = source?.stack ?? "under"
       // A georeferenced IIIF map: Allmaps' warped custom layer, no raster source.
       if (source?.type === "iiif" && source.url) {
         return <AllmapsOverlayLayer key={`overlay-layer-${id}-${stack}-${pos}`} id={id} annotationUrl={source.url} opacity={opacity * sourceOpacity} beforeId={OVERLAY_STACK_SLOT[stack]} alwaysTiles={!!source.allmapsTiles} bounds={source.bounds} />
@@ -464,10 +467,27 @@ PlaneSlicerLayer.displayName = "PlaneSlicerLayer"
 export const GeorefImageLayer = memo(({ imageUrl, gcpsParam, type, opacity, visible }: { imageUrl: string; gcpsParam: string; type: GeorefType; opacity: number; visible: boolean }) => {
   const [image] = useAtom(georefImageAtom)
   const url = image?.url || imageUrl
-  const fit = (image && gcpsParam) ? fitGeoref(gcpsFromParam(gcpsParam), type, image.width, image.height) : null
-  if (!url || !fit) return null
+  const bending = isBendingType(type)
+  const fit = (image && gcpsParam && !bending) ? fitGeoref(gcpsFromParam(gcpsParam), type, image.width, image.height) : null
+  // A bending fit: the image warped through it (lib/georef-warp.ts), a
+  // moment after the points settle; the previous warp stays until the new
+  // one is ready, and its object URL is released then.
+  const [warped, setWarped] = useState<WarpedImage | null>(null)
+  useEffect(() => {
+    if (!bending || !url || !gcpsParam) { setWarped((prev) => { if (prev) URL.revokeObjectURL(prev.url); return null }); return }
+    const ctrl = new AbortController()
+    const t = setTimeout(() => {
+      warpGeorefImage(url, gcpsFromParam(gcpsParam), type, ctrl.signal)
+        .then((r) => { if (ctrl.signal.aborted) { if (r) URL.revokeObjectURL(r.url); return } setWarped((prev) => { if (prev) URL.revokeObjectURL(prev.url); return r }) })
+        .catch(() => {})
+    }, 400)
+    return () => { ctrl.abort(); clearTimeout(t) }
+  }, [bending, url, gcpsParam, type])
+  const drawUrl = bending ? warped?.url : url
+  const corners = bending ? warped?.corners : fit?.corners
+  if (!drawUrl || !corners) return null
   return (
-    <Source key={url} id="georef-image-source" type="image" url={url} coordinates={fit.corners}>
+    <Source key={drawUrl} id="georef-image-source" type="image" url={drawUrl} coordinates={corners}>
       <Layer
         beforeId={LAYER_SLOTS.OVERLAYS}
         id="georef-image"

@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN, SliderControl, CheckboxWithSlider } from "./controls-components"
+import { TooltipButton, SourceGridToggle, GroupHeading, ByodFilter, matchesByodQuery, BYOD_FILTER_MIN, SliderControl, CheckboxWithSlider, SegmentedToggle } from "./controls-components"
 import { ColorAlphaSwatch } from "./color-picker"
 import { allmapsRemoveColorAtom } from "@/lib/settings-atoms"
 import { paperEstimateStore } from "@/lib/allmaps-paper"
@@ -64,7 +64,7 @@ const PaperControl: React.FC<{ maps: { id: string; name: string; key: string }[]
 import { allmapsAnnotationBounds } from "@/lib/allmaps-bounds"
 import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import {
-  isBasemapByodOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
+  isBasemapByodOpenAtom, byodBasemapsOpenAtom, byodOverlaysOpenAtom, customBasemapSourcesAtom, customTerrainSourcesAtom,
   useCogProtocolVsTitilerAtom, titilerEndpointAtom,
   type CustomBasemapSource, type CustomTerrainSource, basemapLibraryOpenAtom, customBasemapLastTypeAtom, addBasemapRequestAtom } from "@/lib/settings-atoms"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
@@ -83,6 +83,16 @@ const SAMPLE_BASEMAP_SOURCES = customSources['SAMPLE_BASEMAPS_SOURCES']
 
 export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
   const [isBasemapByodOpen, setIsBasemapByodOpen] = useAtom(isBasemapByodOpenAtom)
+  const [basemapsOpen, setBasemapsOpen] = useAtom(byodBasemapsOpenAtom)
+  const [overlaysOpen, setOverlaysOpen] = useAtom(byodOverlaysOpenAtom)
+  // A group heading with a chevron: the Basemap and Overlays lists fold.
+  const foldHeading = (label: string, open: boolean, toggle: () => void, count: number) => (
+    <button type="button" className="flex items-center gap-1 w-full cursor-pointer text-left" onClick={toggle} aria-expanded={open}>
+      <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+      <GroupHeading>{label}</GroupHeading>
+      {!open && <span className="text-[10px] text-muted-foreground tabular-nums ml-1">{count}</span>}
+    </button>
+  )
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
@@ -460,8 +470,8 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
           </TooltipProvider>
           {basemapRoleSources.length > 0 && (
             <>
-            <GroupHeading>Basemap</GroupHeading>
-            {state.basemapPerView ? (
+            {foldHeading("Basemap", basemapsOpen, () => setBasemapsOpen(!basemapsOpen), basemapRoleSources.length)}
+            {basemapsOpen && (state.basemapPerView ? (
               state.splitStyle !== "off" ? (
                 <div className="space-y-1.5">
                   {basemapRoleSources.map((source) => (
@@ -526,13 +536,21 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                   </div>
                 ))}
               </RadioGroup>
-            )}
+            ))}
             </>
           )}
           {state.basemapPerView && overlaySources.length > 0 && (
             <div className="space-y-2 pt-2 mt-2 border-t">
-              <GroupHeading>Overlays</GroupHeading>
+              {foldHeading("Overlays", overlaysOpen, () => setOverlaysOpen(!overlaysOpen), overlaySources.length)}
+              {overlaysOpen && (<>
               <SliderControl label="Overlays opacity" value={(state.overlaysOpacity ?? 1) * 100} onChange={(v) => setState({ overlaysOpacity: v / 100 })} min={0} max={100} step={1} suffix="%" sliderId="overlays-opacity" />
+              {/* One stack position for every overlay (overlaysStack), so it
+                  cannot fight the order of the list below. */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground shrink-0" title="Where every overlay sits: under the hillshade and colour relief, above the colour relief but still shaded, or above every terrain layer">Stack</span>
+                <SegmentedToggle className="flex-1" value={(state.overlaysStack ?? "under") as "under" | "relief" | "top"} onChange={(v) => setState({ overlaysStack: v })}
+                  options={[{ value: "under" as const, label: "Under relief" }, { value: "relief" as const, label: "Over hypso" }, { value: "top" as const, label: "On top" }]} />
+              </div>
               {scannedMaps.length > 0 && <PaperControl maps={scannedMaps} />}
               {editMode && overlaySources.length > 1 && <p className="text-[11px] text-muted-foreground">Drag the handles to order the overlays: the first draws on top.</p>}
               {(state.pitch ?? 0) > 0.5 && overlaySources.some((s) => s.type === "iiif" && !s.allmapsTiles) && <p className="text-[11px] text-muted-foreground">Tilted view: the georeferenced IIIF maps come from Allmaps' tile server (Allmaps' in-browser warp draws flat only); back to the sharper in-browser warp at pitch 0.</p>}
@@ -585,6 +603,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                   />
                 </div>
               ))}
+              </>)}
             </div>
           )}
         </CollapsibleContent>

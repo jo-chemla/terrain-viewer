@@ -1,3 +1,4 @@
+import { gsdFromGcps } from "./allmaps-gsd"
 import { atom } from "jotai"
 import { createParser } from "nuqs"
 import type { FeatureCollection, Feature, Polygon } from "geojson"
@@ -121,12 +122,15 @@ export const ALLMAPS_VIEW_LEAVES: Record<string, { domain?: string }> = {
   allmapsAll: {},
   allmapsRumsey: { domain: "www.davidrumsey.com" },
 }
-export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string; bounds?: [number, number, number, number]; /** The IIIF canvas or manifest label. */ title?: string; /** The IIIF manifest it comes from. */ manifest?: string; providerLabel?: string; /** A year in the title. */ year?: number }
+export interface AllmapsLike { id: string; label: string; detail: string; annotationUrl: string; pageUrl: string; /** Metres per pixel, from the control points. */ gsd?: number; bounds?: [number, number, number, number]; /** The IIIF canvas or manifest label. */ title?: string; /** The IIIF manifest it comes from. */ manifest?: string; providerLabel?: string; /** A year in the title. */ year?: number }
 const allmapsMetaCache = new Map<string, AllmapsLike>()
 export function allmapsMeta(id: string): AllmapsLike | undefined { return allmapsMetaCache.get(id) }
 const RUMSEY_IIIF_RE = /davidrumsey\.com\/luna\/servlet\/iiif\/([^/]+)/
 function allmapsLikeOf(p: Record<string, any>): AllmapsLike {
   const id = String(p.id ?? "").split("/").pop() ?? ""
+  // Metres per pixel from the control points; the API's _allmaps.scale
+  // (pixels per metre) when they are not in the record.
+  const gsd = Array.isArray(p.gcps) && p.gcps.length >= 2 ? gsdFromGcps(p.gcps) : (Number(p._allmaps?.scale) > 0 ? 1 / Number(p._allmaps.scale) : undefined)
   const provider = p.resource?.provider?.[0]
   const providerLabel: string | undefined = provider?.label ? (Object.values(provider.label as Record<string, string[]>)[0] ?? [])[0] : undefined
   const resourceId: string = p.resource?.id ?? ""
@@ -152,7 +156,7 @@ function allmapsLikeOf(p: Record<string, any>): AllmapsLike {
   const now = new Date().getUTCFullYear()
   const ym = title ? /\b(1[4-9]\d\d|20\d\d)\b/.exec(title) : null
   const year = ym && Number(ym[1]) <= now ? Number(ym[1]) : undefined
-  return { id, label: title ? (providerLabel ? `${providerLabel} · ${title}` : title) : label, detail, annotationUrl, pageUrl, title, manifest, providerLabel, year }
+  return { id, label: title ? (providerLabel ? `${providerLabel} · ${title}` : title) : label, detail, annotationUrl, pageUrl, title, manifest, providerLabel, year, gsd }
 }
 /** Every map outline in the view, as coverage features. The area window
  *  keeps the 200 that matter at this scale: city plans when zoomed in,

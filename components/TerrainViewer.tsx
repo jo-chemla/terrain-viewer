@@ -881,6 +881,9 @@ export const QUERY_STATE_PARSERS = {
     // overlay's own opacity (its pill) is the source's `opacity` in local
     // storage. Not overlayOpacity above, which is the compare-blend fade.
     overlaysOpacity: parseAsFloat.withDefault(1.0),
+    // Where every overlay sits in the layer stack: under the relief layers,
+    // above the colour relief ("relief") or above every terrain layer.
+    overlaysStack: parseAsStringLiteral(["under", "relief", "top"] as const).withDefault("under"),
     exaggeration: parseAsFloat.withDefault(1),
     // Whole-earth start, the same view handleGoHome resets to and historical
     // mode already used. The old Matterhorn start looked good but dropped a
@@ -2419,7 +2422,7 @@ export function TerrainViewer() {
   // when nothing has been touched.
   const lastInteractedViewRef = useRef<ViewId>("A")
   const [timelineActiveSide, setTimelineActiveSide] = useAtom(timelineActiveSideAtom)
-  const setTimelineActiveOverlay = useSetAtom(timelineActiveOverlayAtom)
+  const [timelineActiveOverlay, setTimelineActiveOverlay] = useAtom(timelineActiveOverlayAtom)
   const [activeView, setActiveView] = useAtom(activeViewAtom)
   // A view that leaves the layout cannot stay selected; Escape deselects.
   useEffect(() => { if (activeView && !activeViewIds.includes(activeView)) setActiveView(null) }, [activeView, activeViewIds, setActiveView])
@@ -4288,7 +4291,7 @@ export function TerrainViewer() {
             rasterBasemapOpacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.basemapSourceOpacity}
           />
           {state.basemapPerView && state.showRasterBasemap && vm("showRasterBasemap") && (
-            <OverlayBasemapLayers overlayIds={overlayIdsForView(side)} opacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.overlaysOpacity} customBasemapSources={customBasemapSources} />
+            <OverlayBasemapLayers overlayIds={overlayIdsForView(side)} stack={state.overlaysStack} opacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.overlaysOpacity} customBasemapSources={customBasemapSources} />
           )}
           <CatalogFootprintsLayer />
           <ColorReliefLayer
@@ -4758,7 +4761,7 @@ export function TerrainViewer() {
     // mode the click also arms the timeline's arrow keys for the view.
     const timelineSelectable = isSplit && historicalTimelineVisible && !!state.basemapPerView
     const selectable = isSplit
-    const selected = (timelineSelectable && timelineActiveSide === pane.side) || activeView === pane.side
+    const selected = (timelineSelectable && timelineActiveSide === pane.side && !timelineActiveOverlay) || activeView === pane.side
     const onPillClick = () => {
       // The pane's pill selects the view's basemap handle on the timeline.
       if (timelineSelectable) { setTimelineActiveSide(pane.side); setTimelineActiveOverlay(null) }

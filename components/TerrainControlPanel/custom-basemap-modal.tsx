@@ -29,6 +29,7 @@ import { WmsPickerPanel } from "./wms-picker-panel"
 import { SourceUrlAutoPanel, DetectedNote } from "./source-url-auto"
 import { nameFromUrl, templateWmsGetMap, type DetectedSource } from "@/lib/source-url-detect"
 import { probeWmsZoomRange } from "@/lib/wms-zoom-range"
+import { allmapsAnnotationGsd } from "@/lib/allmaps-gsd"
 
 // The types a new source opens on: Auto unless a search panel or a local
 // file was the last choice (a URL type found by Auto is not remembered).
@@ -249,9 +250,11 @@ export const CustomBasemapModal: React.FC<{
     if (editingSource) onLiveOpacityChange?.(value)
   }, [editingSource, onLiveOpacityChange])
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!name || !url) return
     savedRef.current = true
+    // An Allmaps map's metres per pixel, from its control points, once.
+    const resolutionM = type === "iiif" && !editingSource?.resolutionM ? await allmapsAnnotationGsd(url).catch(() => undefined) : editingSource?.resolutionM
     const boundsValues = [boundsWest, boundsSouth, boundsEast, boundsNorth].map((v) => Number(v))
     // All four or none — a partial bounds box isn't meaningful, so treat it the
     // same as unset rather than saving e.g. [NaN, 41, 9.8, 51.5].
@@ -266,6 +269,7 @@ export const CustomBasemapModal: React.FC<{
       linkedTerrainId: linkedTerrainId || undefined,
       bounds: parsedBounds,
       cogViaTitiler: type === "cog" && cogViaTitiler ? true : undefined,
+      ...(resolutionM ? { resolutionM } : {}),
     })
     onOpenChange(false)
   }, [name, url, type, description, role, opacity, stack, minzoom, maxzoom, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, cogViaTitiler, editingSource, onSave, onOpenChange])
@@ -308,8 +312,8 @@ export const CustomBasemapModal: React.FC<{
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto" showCloseButton={false}>
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg max-h-[92vh] flex flex-col gap-0 p-0" showCloseButton={false}>
+        <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle>
             {editingSource ? "Edit Basemap" : "Add New Basemap"}
           </DialogTitle>
@@ -320,7 +324,8 @@ export const CustomBasemapModal: React.FC<{
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">
           ✕
         </DialogClose>
-        <div className="space-y-4 min-w-0">
+        {/* The form scrolls; the footer below it does not. */}
+        <div className="space-y-4 min-w-0 flex-1 min-h-0 overflow-y-auto px-6 pb-4">
           <div className="space-y-2">
             <Label htmlFor="basemap-name">Name *</Label>
             <Input
@@ -509,7 +514,7 @@ export const CustomBasemapModal: React.FC<{
               )}
               {type === "iiif" && (
                 <div className="space-y-2">
-                  <Label>Draw it</Label>
+                  <Label>Warp (projection transform)</Label>
                   <SegmentedToggle
                     className="w-full"
                     value={allmapsTiles ? "tiles" : "browser"}
@@ -538,24 +543,6 @@ export const CustomBasemapModal: React.FC<{
                 <p className="text-xs text-muted-foreground">
                   Overlays stack on top of the active basemap instead of replacing it — only available in Split/Radio basemap mode.
                 </p>
-                {role === "overlay" && (
-                  <>
-                    <Label>Draw it</Label>
-                    <SegmentedToggle
-                      className="w-full"
-                      value={stack}
-                      onChange={(value) => setStack(value)}
-                      options={[
-                        { value: "under" as const, label: "Under relief" },
-                        { value: "relief" as const, label: "Over hypso" },
-                        { value: "top" as const, label: "On top" },
-                      ]}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Under relief: hillshade and colour relief draw over it. Over hypso: above the colour relief, hillshade still shades it. On top: above every terrain layer, only contours and markers over it.
-                    </p>
-                  </>
-                )}
               </div>
               {/* Named "Style" (rather than folded into the fields above) so it
                   reads as a display preference belonging to this saved source —
@@ -731,27 +718,27 @@ export const CustomBasemapModal: React.FC<{
                   </div>
                 </CollapsibleContent>
               </Collapsible>
-              {/* Sticks to the dialog's bottom while the form scrolls; the
-                  gradient above it says there is more to scroll. */}
-              <div className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-2 px-6 pb-5 pt-3 flex justify-end gap-2 bg-background border-t before:pointer-events-none before:absolute before:inset-x-0 before:-top-8 before:h-8 before:bg-gradient-to-t before:from-background before:to-transparent">
-                <Button
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="cursor-pointer"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={!name || !url}
-                  className="cursor-pointer"
-                >
-                  {editingSource ? "Save Changes" : "Add Basemap"}
-                </Button>
-              </div>
             </>
           )}
         </div>
+        {!(["auto", "stac-search", "wms-picker"].includes(type)) && (
+          <div className="relative shrink-0 px-6 pb-5 pt-3 flex justify-end gap-2 border-t bg-background before:pointer-events-none before:absolute before:inset-x-0 before:-top-8 before:h-8 before:bg-gradient-to-t before:from-background before:to-transparent">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="cursor-pointer"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!name || !url}
+            className="cursor-pointer"
+          >
+            {editingSource ? "Save Changes" : "Add Basemap"}
+          </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

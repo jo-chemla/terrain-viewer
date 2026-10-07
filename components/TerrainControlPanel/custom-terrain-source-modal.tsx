@@ -330,15 +330,16 @@ export const CustomTerrainSourceModal: React.FC<{
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto" showCloseButton={false}>
+      <DialogContent className="sm:max-w-lg max-h-[92vh] flex flex-col gap-0 p-0" showCloseButton={false}>
         {/* pr-8: the absolute close button below sits over the header's right
             edge, and a long description ran underneath it. */}
-        <DialogHeader className="pr-8 min-w-0">
+        <DialogHeader className="px-6 pt-6 pb-3 pr-8 min-w-0">
           <DialogTitle className="break-words">{editingSource ? "Edit Terrain Dataset" : "Add New Terrain Dataset"}</DialogTitle>
           <DialogDescription className="break-words">{editingSource ? "Change this terrain source's settings." : "Add your own terrain data: a COG, TerrainRGB or Terrarium tiles, a WMS, or a difference of two sources."}</DialogDescription>
         </DialogHeader>
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">✕</DialogClose>
-        <div className="space-y-4">
+        {/* The form scrolls; the footer below it does not. */}
+        <div className="space-y-4 min-w-0 flex-1 min-h-0 overflow-y-auto px-6 pb-4">
           <div className="space-y-2">
             <Label htmlFor="source-name">Name *</Label>
             <Input id="source-name" type="text" placeholder="My Custom Terrain" value={name} onChange={(e) => setName(e.target.value)} className="cursor-text" />
@@ -733,15 +734,15 @@ export const CustomTerrainSourceModal: React.FC<{
                   </div>
                 </CollapsibleContent>
               </Collapsible>
-              {/* Sticks to the dialog's bottom while the form scrolls; the
-                  gradient above it says there is more to scroll. */}
-              <div className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-2 px-6 pb-5 pt-3 flex justify-end gap-2 bg-background border-t before:pointer-events-none before:absolute before:inset-x-0 before:-top-8 before:h-8 before:bg-gradient-to-t before:from-background before:to-transparent">
-                <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">Cancel</Button>
-                <Button onClick={handleSave} disabled={!name || (isDemDiff ? !diffReady : !url)} className="cursor-pointer">{editingSource ? "Save Changes" : "Add Source"}</Button>
-              </div>
             </>
           )}
         </div>
+        {!(["auto", "stac-search", "wms-picker"].includes(type)) && (
+          <div className="relative shrink-0 px-6 pb-5 pt-3 flex justify-end gap-2 border-t bg-background before:pointer-events-none before:absolute before:inset-x-0 before:-top-8 before:h-8 before:bg-gradient-to-t before:from-background before:to-transparent">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="cursor-pointer">Cancel</Button>
+          <Button onClick={handleSave} disabled={!name || (isDemDiff ? !diffReady : !url)} className="cursor-pointer">{editingSource ? "Save Changes" : "Add Source"}</Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

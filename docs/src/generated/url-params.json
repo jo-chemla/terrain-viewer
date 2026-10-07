@@ -3086,6 +3086,20 @@
       "note": "Every overlay basemap at once (the Overlays heading's pill); each overlay's own opacity (its pill) is the source's `opacity` in local storage."
     },
     {
+      "key": "overlaysStack",
+      "stateKey": "overlaysStack",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "under",
+        "relief",
+        "top\" as const"
+      ],
+      "default": "under",
+      "defaultSource": "\"under\"",
+      "note": "Where every overlay sits in the layer stack: under the relief layers, above the colour relief (\"relief\") or above every terrain layer."
+    },
+    {
       "key": "exaggeration",
       "stateKey": "exaggeration",
       "type": "number",
@@ -3948,6 +3962,18 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "isBasemapByodOpen",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "byodBasemapsOpen",
+      "default": "true",
+      "note": "The Basemap and Overlays groups of the basemap BYOD list, folded or not."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "byodOverlaysOpen",
       "default": "true",
       "note": ""
     },

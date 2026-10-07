@@ -3435,6 +3435,21 @@
             }
           },
           {
+            "name": "overlaysStack",
+            "in": "query",
+            "required": false,
+            "description": "State. Where every overlay sits in the layer stack: under the relief layers, above the colour relief (\"relief\") or above every terrain layer.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "under",
+                "relief",
+                "top\" as const"
+              ],
+              "default": "under"
+            }
+          },
+          {
             "name": "exaggeration",
             "in": "query",
             "required": false,
