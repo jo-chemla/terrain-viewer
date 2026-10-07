@@ -2,7 +2,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react"
 import { useAtom, useSetAtom } from "jotai"
 import { v4 as uuidv4 } from "uuid"
-import { ChevronDown, Link, Settings2, Expand, Copy, Check, ExternalLink } from "lucide-react"
+import { ChevronDown, Link, Settings2, Expand, Copy, Check, ExternalLink, Loader2 } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,7 @@ const StacSearchPanel = lazy(() => import("./stac-search-panel").then((m) => ({ 
 import { WmsPickerPanel } from "./wms-picker-panel"
 import { SourceUrlAutoPanel, DetectedNote } from "./source-url-auto"
 import { nameFromUrl, templateWmsGetMap, type DetectedSource } from "@/lib/source-url-detect"
+import { probeWmsZoomRange } from "@/lib/wms-zoom-range"
 
 // The types a new source opens on: Auto unless a search panel or a local
 // file was the last choice (a URL type found by Auto is not remembered).
@@ -93,6 +94,24 @@ export const CustomBasemapModal: React.FC<{
   // here, not gated behind a showMaxzoomField-style type check.
   const [minzoom, setMinzoom] = useState("")
   const [maxzoom, setMaxzoom] = useState("")
+  // A WMS's zoom range, probed from the server (lib/wms-zoom-range.ts) when
+  // a WMS URL is set and the fields are empty, or on "Detect".
+  const [wmsZoomProbe, setWmsZoomProbe] = useState<"idle" | "probing" | "done" | "none">("idle")
+  const detectWmsZooms = useCallback(async () => {
+    const c = mapRef?.current?.getMap()?.getCenter()
+    if (!c || !/\{bbox-epsg-3857\}/.test(url)) return
+    setWmsZoomProbe("probing")
+    const range = await probeWmsZoomRange(url, c.lng, c.lat).catch(() => null)
+    if (range) { setMinzoom(String(range[0])); setMaxzoom(String(range[1])); setWmsZoomProbe("done") }
+    else setWmsZoomProbe("none")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, mapRef])
+  useEffect(() => {
+    if (!isOpen || editingSource || type !== "wms" || minzoom !== "" || maxzoom !== "" || !/\{bbox-epsg-3857\}/.test(url)) return
+    const t = setTimeout(() => { detectWmsZooms() }, 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, editingSource, type, url])
   // Pairs this basemap/raster source with a terrain one (e.g. a fresco's
   // albedo photo COG paired with its own DTM) — "" means unlinked. See
   // CustomBasemapSource.linkedTerrainId; the reverse Select lives in
@@ -167,6 +186,7 @@ export const CustomBasemapModal: React.FC<{
       setStack("under")
       setCogViaTitiler(false)
       setAllmapsTiles(false)
+      setWmsZoomProbe("idle")
       setOpacity(100)
       setMinzoom("")
       setMaxzoom("")
@@ -394,6 +414,7 @@ export const CustomBasemapModal: React.FC<{
               key={detected?.url ?? "manual"}
               initialUrl={detected?.type === "wms-picker" ? detected.url : undefined}
               format="image/png"
+              mapCenter={() => { const c = mapRef?.current?.getMap()?.getCenter(); return c ? [c.lng, c.lat] : undefined }}
               tileSize={256}
               onSave={(params) => { onSave({ ...params, type: "wms" }); onOpenChange(false) }}
             />
@@ -598,6 +619,19 @@ export const CustomBasemapModal: React.FC<{
                         ? `Inferred native resolution: zoom ${inferredCogZoomRange.maxzoom}${cogResolution ? ` (~${formatGsd(cogResolution.meanGsd)} GSD)` : ""} — override below if it's wrong.`
                         : "Detecting native resolution…"}
                     </p>
+                  )}
+                  {type === "wms" && (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        {wmsZoomProbe === "probing" ? "Finding the zooms this WMS draws at, around the map's centre…"
+                          : wmsZoomProbe === "none" ? "No zoom drew anything around the map's centre: move the map over the layer and try again, or set the zooms by hand."
+                          : wmsZoomProbe === "done" ? "Zooms detected from the server (empty tiles outside them); edit them if needed."
+                          : "A WMS answers an empty image outside a layer's scales: detect the zooms it draws at, around the map's centre."}
+                      </p>
+                      <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 cursor-pointer" disabled={wmsZoomProbe === "probing" || !/\{bbox-epsg-3857\}/.test(url)} onClick={detectWmsZooms}>
+                        {wmsZoomProbe === "probing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Detect"}
+                      </Button>
+                    </div>
                   )}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">

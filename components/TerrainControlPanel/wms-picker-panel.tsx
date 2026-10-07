@@ -4,12 +4,16 @@ import { Plus, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { fetchWmsService, buildWmsTileUrl, type WmsServiceInfo, type FlatWmsLayer } from "@/lib/wms-client"
+import { probeWmsZoomRange } from "@/lib/wms-zoom-range"
 
 export interface WmsPickerSaveParams {
   name: string
   url: string
   description?: string
   bounds?: [west: number, south: number, east: number, north: number]
+  /** The zooms the layer draws at, probed when it is picked (lib/wms-zoom-range.ts). */
+  minzoom?: number
+  maxzoom?: number
 }
 
 /**
@@ -25,9 +29,12 @@ export const WmsPickerPanel: React.FC<{
   format?: string
   tileSize?: number
   onSave: (params: WmsPickerSaveParams) => void
+  /** The map's centre [lng, lat], where a layer's zoom range is probed when
+   *  it covers it (its extent's middle otherwise). */
+  mapCenter?: () => [number, number] | undefined
   /** A service URL found by the dialog's Auto type: filled in and listed at once. */
   initialUrl?: string
-}> = ({ format = "image/png", tileSize = 256, onSave, initialUrl }) => {
+}> = ({ format = "image/png", tileSize = 256, onSave, initialUrl, mapCenter }) => {
   const [baseUrl, setBaseUrl] = useState(initialUrl ?? "")
   const [service, setService] = useState<WmsServiceInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -53,15 +60,30 @@ export const WmsPickerPanel: React.FC<{
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (initialUrl) handleFetchLayers() }, [])
 
-  const handlePick = useCallback((layer: FlatWmsLayer) => {
+  // Picking a layer probes the zooms it draws at, at the middle of its
+  // extent (or the map's centre), before saving: a WMS answers an empty
+  // image outside a layer's scales, which MapLibre would show as nothing.
+  const [probing, setProbing] = useState<string | null>(null)
+  const handlePick = useCallback(async (layer: FlatWmsLayer) => {
     if (!service) return
     const url = buildWmsTileUrl({ source: service.source, layerName: layer.name, tileSize, format })
     const bbox = layer.geographicBoundingBox
     const bounds: WmsPickerSaveParams["bounds"] = bbox
       ? [bbox[0][0], bbox[0][1], bbox[1][0], bbox[1][1]]
       : undefined
-    onSave({ name: layer.title, url, description: service.capabilities.title, bounds })
-  }, [service, tileSize, format, onSave])
+    let range: [number, number] | null = null
+    if (/^image\/(png|jpe?g|webp)/i.test(format)) {
+      const c = mapCenter?.()
+      const lng = bounds && !(c && c[0] >= bounds[0] && c[0] <= bounds[2] && c[1] >= bounds[1] && c[1] <= bounds[3]) ? (bounds[0] + bounds[2]) / 2 : c?.[0]
+      const lat = bounds && !(c && c[0] >= bounds[0] && c[0] <= bounds[2] && c[1] >= bounds[1] && c[1] <= bounds[3]) ? (bounds[1] + bounds[3]) / 2 : c?.[1]
+      if (lng !== undefined && lat !== undefined) {
+        setProbing(layer.name)
+        range = await probeWmsZoomRange(url, lng, lat).catch(() => null)
+        setProbing(null)
+      }
+    }
+    onSave({ name: layer.title, url, description: service.capabilities.title, bounds, ...(range ? { minzoom: range[0], maxzoom: range[1] } : {}) })
+  }, [service, tileSize, format, onSave, mapCenter])
 
   const filterQuery = layerFilter.trim().toLowerCase()
   const filteredLayers = service
@@ -119,8 +141,10 @@ export const WmsPickerPanel: React.FC<{
                   variant="outline"
                   className="cursor-pointer"
                   onClick={() => handlePick(layer)}
+                  disabled={!!probing}
+                  title={probing === layer.name ? "Finding the zooms this layer draws at…" : "Add this layer"}
                 >
-                  <Plus className="h-4 w-4" />
+                  {probing === layer.name ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
             ))}

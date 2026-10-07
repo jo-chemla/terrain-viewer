@@ -21,6 +21,10 @@ A heavily-loaded Terrain source list — several custom BYOD sources (national L
 
 A new source opens on **Auto**: one URL field. Paste a link and the dialog recognises what it is (a tile template, a WMS, an ArcGIS service, a COG, a VRT, PMTiles, a TileJSON, a STAC catalog, an Allmaps or IIIF map), switches to the matching type with the URL in its field, and says what it found. What is recognised, from the URL and then from the response headers, is on [Auto source detection](/features/auto-source-detection).
 
+## WMS zoom ranges
+
+A WMS answers any bounding box, so a zoom outside a layer's scales does not fail: it comes back as an empty or transparent image, and the map would show nothing there. When a WMS layer is added (from the layer list, or a pasted GetMap URL), the dialog asks the server for one tile per zoom, around the map's centre or the layer's extent, keeps the zooms whose image holds pixels, and fills **Min Zoom** and **Max Zoom** under Advanced. They stay editable, and **Detect** asks again after moving the map over the layer. Beyond the maximum the map stretches the last real zoom instead of fetching empty tiles.
+
 ## Searching catalogs
 
 Both dialogs can search catalogs instead of taking a URL: a STAC catalog or API, NextGIS QMS and the OSM Editor Layer Index. They have their own page, [Catalog search](/features/catalog-search). One more type takes a URL that is not a tile service:
