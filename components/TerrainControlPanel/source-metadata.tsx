@@ -36,7 +36,7 @@ export const SourceMetadataRows: React.FC<{ source: Record<string, any>; classNa
         return (
           <div key={k} className="contents">
             <dt className="text-muted-foreground">{LABELS[k] ?? k}</dt>
-            <dd className="min-w-0 break-all">{isUrl(v) ? <a href={v} target="_blank" rel="noopener noreferrer" className="underline">{v}</a> : text}</dd>
+            <dd className={isUrl(v) ? "min-w-0 break-all" : "min-w-0 break-words"}>{isUrl(v) ? <a href={v} target="_blank" rel="noopener noreferrer" className="underline">{v}</a> : text}</dd>
           </div>
         )
       })}
