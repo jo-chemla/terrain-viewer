@@ -350,6 +350,11 @@ const HOT_SPECS: Record<string, StacSpec> = {
   "cat-noaa": { endpoint: HOT_STAC, kind: "api", collection: "noaa-emergency-response", licence: "Public domain (NOAA)" },
 }
 const stacSpecOf = (catalog: string): StacSpec | undefined => HOT_SPECS[catalog] ?? TIMELINE_CATALOG_BY_ID[catalog]?.stac
+/** Whether a catalog's ticks come from STAC items (HOT, the attached and
+ *  shipped STAC catalogs): their gsd is the item's own, so the timeline's
+ *  VHR / medium pills can judge each tick by it. The other catalogs' gsd is
+ *  derived from a tile zoom (register), which says nothing about the scan. */
+export const isStacBackedCatalog = (catalog: string): boolean => !!stacSpecOf(catalog)
 
 /** The item's asset to drape: the catalog's keys, then visual / cog / image,
  *  then an asset with the visual role, then the first GeoTIFF that is not a

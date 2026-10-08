@@ -11,7 +11,7 @@ import {
     TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode
 } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
-import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target, Link, Loader2 } from 'lucide-react'
+import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target, Link, Loader2, RefreshCw } from 'lucide-react'
 import { fetchVector, parseVector, nameFromUrl, vectorFormatFromName, VECTOR_FILE_ACCEPT } from '@/lib/remote-vector'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -111,6 +111,12 @@ export const activeDrawModeAtom = atom<string>('select')
 // the DrawingMirrorLayer on views B..H reads them so every view agrees.
 export const drawingsVisibleAtom = atom<boolean>(true)
 export const drawingsOpacityAtom = atom<number>(1)
+// Bumped by the "Reinitialise" buttons (TerraDrawControls): useTerraDraw's
+// init effect re-runs, stops the current instance and creates a new one on
+// the current map. The tools sometimes never come up (a style reloading
+// while terra-draw attaches, a map swapped under the ref), and the only way
+// out was a page reload.
+export const drawInitNonceAtom = atom<number>(0)
 
 // --- LAYERS ---
 
@@ -621,6 +627,7 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
 }
 
 export function useTerraDraw(mapRef: RefObject<MapRef>) {
+    const initNonce = useAtomValue(drawInitNonceAtom)
     const [draw, setDraw] = useState<TerraDraw | null>(null)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
     const [layers] = useAtom(drawingLayersAtom)
@@ -948,7 +955,8 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
             }
         }
 
-    }, [mapRef, setFeatures])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mapRef, setFeatures, initNonce])
 
     // drawingUrl (state, a list of URLs): remote vector data loaded into the
     // drawing, one layer per URL - for links and iframes that point the app
@@ -984,6 +992,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
 // --- CONTROLS COMPONENT ---
 
 function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
+    const setInitNonce = useSetAtom(drawInitNonceAtom)
     // Shared with ElevationPickerSection/sun-shadow-calculator-section (see
     // activeDrawModeAtom's own comment) — written here at every point
     // draw.setMode() itself is called, not re-derived from draw's 'change'
@@ -1032,7 +1041,14 @@ function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: R
         return () => window.removeEventListener('keydown', handler)
     }, [draw])
 
-    if (!draw) return <div className="text-sm text-muted-foreground py-2">Initializing drawing tools...</div>
+    if (!draw) return (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Initializing drawing tools...
+            <Button variant="outline" size="sm" className="cursor-pointer ml-auto" title="Start the drawing tools again on the current map" onClick={() => setInitNonce((n) => n + 1)}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Retry
+            </Button>
+        </div>
+    )
 
     const modes = [
         { id: 'select', label: 'Select', icon: MousePointer },
@@ -1045,7 +1061,17 @@ function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: R
 
     return (
         <div className="space-y-2">
-            <GroupHeading>Mode</GroupHeading>
+            <div className="flex items-center gap-2">
+                <GroupHeading>Mode</GroupHeading>
+                <Tooltip>
+                    <TooltipTrigger render={
+                        <button type="button" className="ml-auto cursor-pointer text-muted-foreground hover:text-foreground p-0.5" aria-label="Reinitialise the drawing tools" onClick={() => setInitNonce((n) => n + 1)}>
+                            <RefreshCw className="h-3.5 w-3.5" />
+                        </button>
+                    } />
+                    <TooltipContent><p>Reinitialise the drawing tools on the current map (when they stopped reacting, or a view swap left them on the wrong map). Drawings are kept.</p></TooltipContent>
+                </Tooltip>
+            </div>
             <div className="grid grid-cols-3 gap-2">
                 {modes.map(({ id, label, icon: Icon }) => (
                     <Button

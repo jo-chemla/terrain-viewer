@@ -1,5 +1,5 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
-import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isStacCatalogId, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, catalogTick, type CatalogItem } from "@/lib/timeline-catalogs"
+import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isStacCatalogId, isStacBackedCatalog, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, catalogTick, type CatalogItem } from "@/lib/timeline-catalogs"
 import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom, tickPicksKeepAtom } from "@/lib/settings-atoms"
 import { TickCard } from "./tick-card"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
@@ -94,12 +94,14 @@ export const SOURCE_CONFIG: Record<string, SourceConfig> = new Proxy(BUILTIN_SOU
   },
 })
 const SOURCE_IDS = Object.keys(BUILTIN_SOURCE_CONFIG)
-/** The resolution class the VHR / Medium res pills filter on: a catalog
- *  tick that knows its gsd is judged by it (1 m/px and finer is VHR: a 50 cm
- *  SkySat scene, a drone upload; a 3 m PlanetScope scene is medium), the
- *  rest by their source. */
+/** The resolution class the VHR / Medium res pills filter on: a STAC tick
+ *  is judged by its item's gsd (1 m/px and finer is VHR: a 50 cm SkySat
+ *  scene, a drone upload; a 3 m PlanetScope scene is medium), everything
+ *  else by its source. Only STAC catalogs: the other catalogs' gsd is
+ *  derived from a tile zoom (an ELI layer at maxzoom 16 read as 2.4 m), and
+ *  judging by it hid IGN's layers under the VHR pill. */
 const tickResClass = (t: { source: string; meta?: { gsd?: number } }): "vhr" | "medium" | undefined =>
-  t.source in TIMELINE_CATALOG_BY_ID && typeof t.meta?.gsd === "number" && t.meta.gsd > 0 ? (t.meta.gsd > 1 ? "medium" : "vhr") : SOURCE_CONFIG[t.source]?.resClass
+  isStacBackedCatalog(t.source) && typeof t.meta?.gsd === "number" && t.meta.gsd > 0 ? (t.meta.gsd > 1 ? "medium" : "vhr") : SOURCE_CONFIG[t.source]?.resClass
 
 const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
   { id: "vhr", label: "VHR" },
