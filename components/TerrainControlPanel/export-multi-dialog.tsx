@@ -205,8 +205,11 @@ export const ExportMultiDialog: React.FC<{
     const map = mapRef?.current?.getMap()
     if (!map) return
     const bump = () => setViewNonce((n) => n + 1)
+    // A browser window resize changes the view's bbox too (MapLibre fires
+    // moveend from resize(), but not from every container change).
     map.on("moveend", bump)
-    return () => { map.off("moveend", bump) }
+    map.on("resize", bump)
+    return () => { map.off("moveend", bump); map.off("resize", bump) }
   }, [open, mapRef])
 
   // The export targets with their padded extents, as the export builds

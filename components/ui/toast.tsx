@@ -1,6 +1,7 @@
 import type React from "react"
 import { useEffect, useSyncExternalStore } from "react"
 import { cn } from "@/lib/utils"
+import { X } from "lucide-react"
 
 /** A deliberately tiny toast. The app had no notification primitive at all and
  *  pulling in sonner for one message would be a dependency for a div.
@@ -74,12 +75,16 @@ const ToastItem: React.FC<{ toast: Entry }> = ({ toast }) => {
       role="status"
       onClick={() => dismissToast(toast.id)}
       className={cn(
-        "pointer-events-auto cursor-pointer select-none rounded-md border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur",
+        "pointer-events-auto relative cursor-pointer select-none rounded-md border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur",
         "animate-in fade-in slide-in-from-bottom-2 duration-200",
         "max-w-[360px]",
       )}
     >
-      <p className="text-sm font-medium text-popover-foreground">{toast.title}</p>
+      {/* A visible way out: the whole toast dismisses on click, but nothing said so. */}
+      <button type="button" aria-label="Dismiss" className="absolute right-1.5 top-1.5 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); dismissToast(toast.id) }}>
+        <X className="h-3.5 w-3.5" />
+      </button>
+      <p className="pr-5 text-sm font-medium text-popover-foreground">{toast.title}</p>
       {toast.body && <div className="mt-0.5 text-xs text-muted-foreground">{toast.body}</div>}
       {toast.action && (
         <button

@@ -111,7 +111,7 @@ export const activeDrawModeAtom = atom<string>('select')
 // the DrawingMirrorLayer on views B..H reads them so every view agrees.
 export const drawingsVisibleAtom = atom<boolean>(true)
 export const drawingsOpacityAtom = atom<number>(1)
-// Bumped by the "Reinitialise" buttons (TerraDrawControls): useTerraDraw's
+// Bumped by the Retry button on the initialising message (TerraDrawControls): useTerraDraw's
 // init effect re-runs, stops the current instance and creates a new one on
 // the current map. The tools sometimes never come up (a style reloading
 // while terra-draw attaches, a map swapped under the ref), and the only way
@@ -1061,17 +1061,7 @@ function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: R
 
     return (
         <div className="space-y-2">
-            <div className="flex items-center gap-2">
-                <GroupHeading>Mode</GroupHeading>
-                <Tooltip>
-                    <TooltipTrigger render={
-                        <button type="button" className="ml-auto cursor-pointer text-muted-foreground hover:text-foreground p-0.5" aria-label="Reinitialise the drawing tools" onClick={() => setInitNonce((n) => n + 1)}>
-                            <RefreshCw className="h-3.5 w-3.5" />
-                        </button>
-                    } />
-                    <TooltipContent><p>Reinitialise the drawing tools on the current map (when they stopped reacting, or a view swap left them on the wrong map). Drawings are kept.</p></TooltipContent>
-                </Tooltip>
-            </div>
+            <GroupHeading>Mode</GroupHeading>
             <div className="grid grid-cols-3 gap-2">
                 {modes.map(({ id, label, icon: Icon }) => (
                     <Button
