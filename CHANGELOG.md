@@ -5,6 +5,7 @@
 #### TL;DR
 
 - **Yandex Satellite in the library**: Yandex cuts its tiles in World Mercator (EPSG:3395, the ellipsoid), a dozen kilometres off Web Mercator at mid latitudes. A new `epsg3395://` protocol resamples each tile's rows onto Web Mercator in the browser, no titiler. Often the sharpest free capture over Russia, Central Asia, the Caucasus and Türkiye.
+- **Match Colors guarded**: skipped while View A (or the matched view) is mostly blank or white (Esri placeholder tiles, a sheet margin, unloaded tiles), and softened when the match would shift colours by more than a quarter of the range on average. No more washed-out view B over a white A.
 
 #### Details
 

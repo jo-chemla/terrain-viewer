@@ -1,7 +1,7 @@
 import type React from "react"
 import { useEffect, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
-import { computeRgbLut, computeColorSpaceMapping, applyColorSpaceMapping, type ColorSpaceId } from "@/lib/histogram-matching"
+import { computeRgbLut, computeColorSpaceMapping, applyColorSpaceMapping, assessSample, isUsableSample, opaquePixels, rgbLutMeanShift, colorSpaceMeanShift, capStrength, softenRgbLut, type ColorSpaceId } from "@/lib/histogram-matching"
 
 // Live "match target's colors to reference" for the historical "Compare and
 // Blend" feature (comparison-mix-section.tsx) — one instance per non-A view
@@ -117,15 +117,29 @@ export const HistogramMatchFilter: React.FC<{
     let raf = 0
     let timer: ReturnType<typeof setTimeout> | null = null
     const recompute = () => {
-      const referenceData = sampleCanvasPixels(referenceMap.getCanvas())
+      const referenceRaw = sampleCanvasPixels(referenceMap.getCanvas())
       const targetCanvas = targetMap.getCanvas()
-      const targetSampleData = sampleCanvasPixels(targetCanvas)
-      if (!referenceData || !targetSampleData) return
+      const targetRaw = sampleCanvasPixels(targetCanvas)
+      if (!referenceRaw || !targetRaw) return
+
+      // A blank reference (unloaded, Esri's placeholder tiles, a sheet
+      // margin, snow) or a blank target: nothing sensible to match, leave
+      // the target as it is until the views show imagery. See
+      // histogram-matching.ts, "Guards".
+      if (!isUsableSample(assessSample(referenceRaw)) || !isUsableSample(assessSample(targetRaw))) {
+        targetCanvas.style.filter = ""
+        lastRgbLutRef.current = null
+        hideOverlay()
+        return
+      }
+      const referenceData = opaquePixels(referenceRaw)
+      const targetSampleData = opaquePixels(targetRaw)
 
       if (colorSpace === "rgb") {
         overlayCanvasRef.current?.remove()
         overlayCanvasRef.current = null
-        const lut = computeRgbLut(targetSampleData, referenceData)
+        const full = computeRgbLut(targetSampleData, referenceData)
+        const lut = softenRgbLut(full, capStrength(rgbLutMeanShift(full, targetSampleData)))
         lastRgbLutRef.current = { r: toTableValues(lut.r), g: toTableValues(lut.g), b: toTableValues(lut.b) }
         if (funcRRef.current) funcRRef.current.setAttribute("tableValues", lastRgbLutRef.current.r)
         if (funcGRef.current) funcGRef.current.setAttribute("tableValues", lastRgbLutRef.current.g)
@@ -147,7 +161,7 @@ export const HistogramMatchFilter: React.FC<{
       overlayCtx.drawImage(targetCanvas, 0, 0)
       const imageData = overlayCtx.getImageData(0, 0, overlay.width, overlay.height)
       const mapping = computeColorSpaceMapping(targetSampleData, referenceData, colorSpace)
-      applyColorSpaceMapping(imageData, mapping)
+      applyColorSpaceMapping(imageData, mapping, capStrength(colorSpaceMeanShift(mapping, targetSampleData)))
       overlayCtx.putImageData(imageData, 0, 0)
       overlay.style.opacity = "1"
     }

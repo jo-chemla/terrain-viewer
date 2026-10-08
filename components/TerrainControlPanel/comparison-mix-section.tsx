@@ -286,7 +286,7 @@ export const ComparisonMixSection: React.FC<{
                 render={<Label htmlFor="match-colors-to-a" className="text-sm font-medium cursor-pointer">Match Colors</Label>}
               />
               <TooltipContent className="max-w-60">
-                <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others.</p>
+                <p>Histogram matching onto reference View A in the chosen color space — computes a lookup table (LUT) and applies it as a CSS filter for RGB, or a per-pixel 3D LUT mapping for the others. Skipped while View A (or the view being matched) is mostly blank or white, and softened when the match would shift colours too far.</p>
               </TooltipContent>
             </Tooltip>
           </div>

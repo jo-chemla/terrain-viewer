@@ -1499,7 +1499,7 @@
         },
         {
             "id": "basemap-yandex-sat",
-            "name": "Global - Yandex Satellite (EPSG:3395, warped in the browser)",
+            "name": "Global - Yandex Satellite",
             "url": "epsg3395://https://core-sat.maps.yandex.net/tiles?l=sat&x={x}&y={y}&z={z}&scale=1&lang=ru_RU",
             "type": "tms",
             "maxzoom": 19,

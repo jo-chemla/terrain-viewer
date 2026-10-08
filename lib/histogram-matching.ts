@@ -323,13 +323,16 @@ function buildColorSpaceLut(mapping: ColorSpaceMapping, gridSize: number): Float
 // native canvas resolution, see HistogramMatchFilter.tsx) — building the LUT
 // is cheap (grid-sized, not image-sized); applying it per pixel is 8 LUT
 // reads + linear blends, no per-pixel colorspace conversion.
-export function applyColorSpaceMapping(imageData: ImageData, mapping: ColorSpaceMapping) {
+// `strength` in 0..1 blends the remapped colour with the original (1 = the
+// full match); see capStrength below for where it comes from.
+export function applyColorSpaceMapping(imageData: ImageData, mapping: ColorSpaceMapping, strength = 1) {
   const gridSize = LUT_GRID_SIZE
   const lut = buildColorSpaceLut(mapping, gridSize)
   const data = imageData.data
   const scale = (gridSize - 1) / 255
   const gridSize2 = gridSize * gridSize
   const maxIndex = gridSize - 2 // so index+1 never overflows the grid
+  const keep = 1 - strength
 
   for (let i = 0; i < data.length; i += 4) {
     const rf = data[i] * scale, gf = data[i + 1] * scale, bf = data[i + 2] * scale
@@ -353,7 +356,103 @@ export function applyColorSpaceMapping(imageData: ImageData, mapping: ColorSpace
       const c11 = lut[i011 + c] * (1 - rt) + lut[i111 + c] * rt
       const c0 = c00 * (1 - gt) + c10 * gt
       const c1 = c01 * (1 - gt) + c11 * gt
-      data[i + c] = c0 * (1 - bt) + c1 * bt
+      data[i + c] = (c0 * (1 - bt) + c1 * bt) * strength + data[i + c] * keep
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Guards: a reference worth matching onto, and a cap on how far a match goes
+// ---------------------------------------------------------------------------
+// Matching onto a reference that is mostly blank is the classic failure of
+// this feature: view A over Esri's "map data not yet available" tiles, a
+// white sheet margin of an old map, the unloaded part of a slow source
+// (transparent canvas), or a snow field. The target then gets pushed onto a
+// near-white (or flat) distribution and reads as washed out. Two guards:
+//  - `assessSample`: the share of the reference that is empty (transparent)
+//    or near-white, and the luminance spread of the rest. A reference that
+//    is more than half empty-or-white, or nearly flat, is skipped: the target
+//    is left uncorrected until the view shows something to match onto.
+//  - `capStrength`: how far the match moves the target, as the mean
+//    absolute shift of its own pixels (0..255). Past MAX_MEAN_SHIFT the
+//    match is softened towards identity, so a scanned map next to imagery
+//    still gets its tone pulled over, but never into a posterised mess.
+export type SampleStats = { pixels: number; emptyShare: number; whiteShare: number; lumaStd: number }
+
+const EMPTY_ALPHA = 8
+const WHITE_MIN_CHANNEL = 235
+
+export function assessSample(data: Uint8ClampedArray): SampleStats {
+  const pixels = data.length / 4
+  let empty = 0, white = 0, n = 0, sum = 0, sum2 = 0
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < EMPTY_ALPHA) { empty++; continue }
+    const r = data[i], g = data[i + 1], b = data[i + 2]
+    if (r >= WHITE_MIN_CHANNEL && g >= WHITE_MIN_CHANNEL && b >= WHITE_MIN_CHANNEL) { white++; continue }
+    const y = 0.299 * r + 0.587 * g + 0.114 * b
+    sum += y; sum2 += y * y; n++
+  }
+  const mean = n ? sum / n : 0
+  const lumaStd = n ? Math.sqrt(Math.max(0, sum2 / n - mean * mean)) : 0
+  return { pixels, emptyShare: pixels ? empty / pixels : 1, whiteShare: pixels ? white / pixels : 0, lumaStd }
+}
+
+export const MAX_BLANK_SHARE = 0.5
+export const MIN_LUMA_STD = 8
+
+/** Whether a sampled view can serve as the reference (or the target) of a
+ *  match: enough of it is real imagery with some spread. */
+export function isUsableSample(s: SampleStats): boolean {
+  return s.emptyShare + s.whiteShare <= MAX_BLANK_SHARE && s.lumaStd >= MIN_LUMA_STD
+}
+
+/** The sample without its transparent pixels, so an unloaded corner of the
+ *  canvas does not enter the distributions as black. */
+export function opaquePixels(data: Uint8ClampedArray): Uint8ClampedArray {
+  let n = 0
+  for (let i = 3; i < data.length; i += 4) if (data[i] >= EMPTY_ALPHA) n++
+  if (n * 4 === data.length) return data
+  const out = new Uint8ClampedArray(n * 4)
+  for (let i = 0, p = 0; i < data.length; i += 4) {
+    if (data[i + 3] < EMPTY_ALPHA) continue
+    out[p++] = data[i]; out[p++] = data[i + 1]; out[p++] = data[i + 2]; out[p++] = data[i + 3]
+  }
+  return out
+}
+
+export const MAX_MEAN_SHIFT = 56
+
+/** Mean absolute RGB shift (0..255) a per-channel LUT applies to a sample. */
+export function rgbLutMeanShift(lut: RgbLut, sample: Uint8ClampedArray): number {
+  let sum = 0, n = 0
+  for (let i = 0; i < sample.length; i += 4) {
+    sum += Math.abs(lut.r[sample[i]] - sample[i]) + Math.abs(lut.g[sample[i + 1]] - sample[i + 1]) + Math.abs(lut.b[sample[i + 2]] - sample[i + 2])
+    n += 3
+  }
+  return n ? sum / n : 0
+}
+
+/** 1 when the match moves the target by at most MAX_MEAN_SHIFT on average,
+ *  less when it moves it further, so the applied shift never exceeds the cap. */
+export function capStrength(meanShift: number): number {
+  return meanShift > MAX_MEAN_SHIFT ? MAX_MEAN_SHIFT / meanShift : 1
+}
+
+export function softenRgbLut(lut: RgbLut, strength: number): RgbLut {
+  if (strength >= 1) return lut
+  const soften = (t: Float64Array) => t.map((v, i) => i + (v - i) * strength)
+  return { r: soften(lut.r), g: soften(lut.g), b: soften(lut.b) }
+}
+
+/** Mean absolute RGB shift a colour-space mapping applies to a sample, by
+ *  running it over a copy of the sample at full strength. */
+export function colorSpaceMeanShift(mapping: ColorSpaceMapping, sample: Uint8ClampedArray): number {
+  const copy = new ImageData(new Uint8ClampedArray(sample), sample.length / 4, 1)
+  applyColorSpaceMapping(copy, mapping, 1)
+  let sum = 0, n = 0
+  for (let i = 0; i < sample.length; i += 4) {
+    sum += Math.abs(copy.data[i] - sample[i]) + Math.abs(copy.data[i + 1] - sample[i + 1]) + Math.abs(copy.data[i + 2] - sample[i + 2])
+    n += 3
+  }
+  return n ? sum / n : 0
 }
