@@ -48,10 +48,12 @@ export function isHistoricalSourceActive(state: {
   // proposed/preview pill for a view that isn't), so this checks the same
   // thing here: true the moment ANY currently-active view is historical, not
   // unconditionally. Mirrors TerrainViewer.tsx's own effectiveGridLayout for
-  // which views count as "active" (overlay split, or outside Historical
-  // appMode, is always just the 2x1 A/B pair regardless of state.gridLayout).
+  // which views count as "active".
   if (state.basemapPerView && isSplit) {
-    const layout: GridLayoutId = (state.splitStyle === "overlay" || state.appMode !== "historical") ? "2x1" : (state.gridLayout ?? "2x1")
+    // Any non-overlay split uses the grid in BOTH app modes (until 2026-10-08
+    // this forced 2x1 outside the historical mode, so a historical basemap on
+    // C..H never showed the timeline toggle).
+    const layout: GridLayoutId = state.splitStyle === "overlay" ? "2x1" : (state.gridLayout ?? "2x1")
     return GRID_LAYOUTS[layout].grid.flat().some((side) => isActive(state[viewFieldName(side, "basemapSource", true)]))
   }
   // No per-view basemap at all: only the one shared field can ever be active,

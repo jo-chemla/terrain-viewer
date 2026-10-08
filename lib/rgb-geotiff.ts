@@ -6,11 +6,14 @@
 // geotiff.js's own writer source. This builds that nested shape from three
 // flat Uint8Array bands (see lib/rgb-tile-mosaic.ts) plus the same
 // ModelPixelScale/ModelTiepoint georeferencing tags the DTM export uses.
+// An optional fourth band is written as unassociated alpha (ExtraSamples 2),
+// which GDAL and QGIS read as the transparency mask.
 import { writeArrayBuffer } from "geotiff"
 
 export async function buildRgbGeoTiff(
   r: Uint8Array, g: Uint8Array, b: Uint8Array, width: number, height: number,
   bbox: { west: number; south: number; east: number; north: number },
+  alpha?: Uint8Array,
 ): Promise<Blob> {
   const pixelSizeX = (bbox.east - bbox.west) / width
   const pixelSizeY = (bbox.north - bbox.south) / height
@@ -28,7 +31,8 @@ export async function buildRgbGeoTiff(
     return rows
   }
 
-  const metadata = {
+  const bands = alpha ? 4 : 3
+  const metadata: Record<string, unknown> = {
     GTModelTypeGeoKey: 2,
     GeographicTypeGeoKey: 4326,
     GeogCitationGeoKey: "WGS 84",
@@ -36,17 +40,18 @@ export async function buildRgbGeoTiff(
     width,
     ModelPixelScale: [pixelSizeX, pixelSizeY, 0],
     ModelTiepoint: [0, 0, 0, bbox.west, bbox.north, 0],
-    SamplesPerPixel: 3,
-    BitsPerSample: [8, 8, 8],
-    SampleFormat: [1, 1, 1],
+    SamplesPerPixel: bands,
+    BitsPerSample: new Array(bands).fill(8),
+    SampleFormat: new Array(bands).fill(1),
     PlanarConfiguration: 1,
     // 2 = RGB (vs. 1 = BlackIsZero, used for the single-band DTM export).
     PhotometricInterpretation: 2,
   }
+  // 2 = unassociated alpha (the colour bands are not premultiplied).
+  if (alpha) metadata.ExtraSamples = 2
 
-  const outputArrayBuffer = await writeArrayBuffer(
-    [toRows(r), toRows(g), toRows(b)] as unknown as any[],
-    metadata,
-  )
+  const data = [toRows(r), toRows(g), toRows(b)]
+  if (alpha) data.push(toRows(alpha))
+  const outputArrayBuffer = await writeArrayBuffer(data as unknown as any[], metadata as any)
   return new Blob([outputArrayBuffer], { type: "image/tiff" })
 }

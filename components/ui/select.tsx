@@ -83,10 +83,42 @@ function SelectGroup({
   return <SelectPrimitive.Group data-slot="select-group" {...props} />
 }
 
+// The value is the one flex item of the trigger that may shrink: `flex-1
+// min-w-0 truncate` so a label longer than the trigger ends in an ellipsis
+// instead of pushing the chevron out or widening the trigger past its
+// container. The full text is readable on hover (title from the rendered
+// text, unless the caller passes one).
 function SelectValue({
+  className,
+  title,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Value>) {
-  return <SelectPrimitive.Value data-slot="select-value" {...props} />
+  const ref = React.useRef<HTMLSpanElement>(null)
+  React.useEffect(() => {
+    const el = ref.current
+    if (!el || title !== undefined) return
+    // Base UI writes the label into the span from its own store, after this
+    // commit, so a render-time read would lag one value behind: observe the
+    // text instead.
+    const sync = () => {
+      const text = el.textContent?.trim() ?? ''
+      if (text) el.title = text
+      else el.removeAttribute('title')
+    }
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(el, { childList: true, characterData: true, subtree: true })
+    return () => observer.disconnect()
+  }, [title])
+  return (
+    <SelectPrimitive.Value
+      ref={ref}
+      data-slot="select-value"
+      title={title}
+      className={cn('block min-w-0 flex-1 truncate text-left', className)}
+      {...props}
+    />
+  )
 }
 
 function SelectTrigger({
@@ -132,13 +164,18 @@ function SelectTrigger({
       data-size={size}
       onKeyDown={handleKeyDown}
       className={cn(
-        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        // Overflow contract (see .claude/memory/ui-overflow-rules.md): the
+        // trigger is a flex row that may shrink (min-w-0) and clips
+        // (overflow-hidden); the value span truncates (SelectValue), the
+        // chevron never shrinks. A long label therefore ends in an ellipsis
+        // instead of widening the trigger past its container.
+        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit min-w-0 max-w-full items-center justify-between gap-2 overflow-hidden rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon render={<ChevronDownIcon className="size-4 opacity-50" />} />
+      <SelectPrimitive.Icon render={<ChevronDownIcon className="size-4 shrink-0 opacity-50" />} />
     </SelectPrimitive.Trigger>
   )
 }
@@ -165,6 +202,7 @@ function SelectContent({
         align={align}
         alignOffset={alignOffset}
         alignItemWithTrigger={alignItemWithTrigger}
+        data-slot="select-positioner"
         className={cn(
           'z-50 min-w-[8rem]',
           !alignItemWithTrigger &&
@@ -174,7 +212,9 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-content"
           className={cn(
-            'bg-popover text-popover-foreground relative max-h-(--available-height) origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md transition-[transform,opacity] data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0',
+            // Capped at 28rem or the viewport: long option labels wrap
+            // (SelectItem) instead of forcing a popup wider than the screen.
+            'bg-popover text-popover-foreground relative max-h-(--available-height) max-w-[min(28rem,calc(100vw-2rem))] origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md transition-[transform,opacity] data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0',
             className,
           )}
           {...props}
@@ -217,7 +257,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full min-w-0 cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm whitespace-normal break-words outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className,
       )}
       {...props}
@@ -227,7 +267,7 @@ function SelectItem({
           <CheckIcon className="size-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemText className="min-w-0 break-words">{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
   )
 }

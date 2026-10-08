@@ -13,7 +13,15 @@ export function Calendar({ className, ...props }: CalendarProps) {
   return (
     <DayPicker
       showOutsideDays
-      className={cn("p-3 text-sm", className)}
+      // The month/year dropdowns are native <select>s (transparent, over the
+      // caption label), whose OS-drawn option list follows color-scheme, not
+      // the app's tokens: declare the scheme per theme and tint the select
+      // itself so the list is dark in dark mode instead of a white box.
+      className={cn(
+        "p-3 text-sm [color-scheme:light] dark:[color-scheme:dark]",
+        "[&_.rdp-dropdown]:bg-popover [&_.rdp-dropdown]:text-popover-foreground [&_.rdp-dropdown_option]:bg-popover [&_.rdp-dropdown_option]:text-popover-foreground",
+        className,
+      )}
       style={{
         // react-day-picker v10 exposes these; map them onto the app tokens.
         ["--rdp-accent-color" as string]: "var(--primary)",

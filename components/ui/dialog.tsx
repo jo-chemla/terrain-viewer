@@ -58,7 +58,14 @@ const DialogContent = React.forwardRef<
       ref={ref}
       data-slot="dialog-content"
       className={cn(
-        'bg-background fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg transition-[transform,opacity] data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0',
+        // Overflow contract (see .claude/memory/ui-overflow-rules.md): the
+        // box is a one-column grid whose track is minmax(0,1fr), not the
+        // default auto, so a nowrap title or a long URL cannot widen the
+        // column past the box (a grid item's automatic minimum width is its
+        // min-content); min-w-0 + overflow-hidden on the box itself, and the
+        // header/title/description carry min-w-0 break-words. Callers that
+        // scroll add overflow-y-auto (twMerge keeps x hidden, y auto).
+        'bg-background fixed top-[50%] left-[50%] z-50 grid grid-cols-[minmax(0,1fr)] w-full min-w-0 max-w-[calc(100vw-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-hidden rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg transition-[transform,opacity] data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0',
         className,
       )}
       {...props}
@@ -82,7 +89,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col gap-2 text-center sm:text-left', className)}
+      className={cn('flex min-w-0 flex-col gap-2 break-words text-center sm:text-left', className)}
       {...props}
     />
   )
@@ -93,7 +100,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="dialog-footer"
       className={cn(
-        'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+        'flex min-w-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}
@@ -108,7 +115,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     data-slot="dialog-title"
-    className={cn('text-lg leading-none font-semibold', className)}
+    className={cn('min-w-0 text-lg leading-none font-semibold break-words', className)}
     {...props}
   />
 ))
@@ -121,7 +128,7 @@ const DialogDescription = React.forwardRef<
   <DialogPrimitive.Description
     ref={ref}
     data-slot="dialog-description"
-    className={cn('text-muted-foreground text-sm', className)}
+    className={cn('text-muted-foreground min-w-0 text-sm break-words', className)}
     {...props}
   />
 ))

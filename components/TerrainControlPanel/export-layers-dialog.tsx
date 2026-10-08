@@ -417,7 +417,7 @@ export const ExportLayersDialog: React.FC<{
             </Button>
           </div>
         )}
-        <div className="grid grid-cols-[80px_1fr] items-center gap-x-2 gap-y-2">
+        <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-x-2 gap-y-2">
           <Label className="text-sm" htmlFor="export-name">Name</Label>
           <div className="flex items-center gap-1 min-w-0">
             <input

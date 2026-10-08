@@ -143,6 +143,17 @@ const fullMetaCache = new Map<string, WaybackMetadata | null>()
 // one network call instead of each firing their own.
 const fullMetaInflight = new Map<string, Promise<WaybackMetadata | null>>()
 
+// Bumped each time a release's real date lands in fullMetaCache, for
+// consumers that computed something from the cache's fallbacks before every
+// date was in (the export dialog's "N captures in range": a listing that
+// ran while a lookup was failing or still pending counted that release at
+// its catalog release date, and nothing told it to count again).
+const waybackMetaListeners = new Set<() => void>()
+export function subscribeWaybackMeta(listener: () => void): () => void {
+  waybackMetaListeners.add(listener)
+  return () => { waybackMetaListeners.delete(listener) }
+}
+
 async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<WaybackMetadata | null> {
   const key = `${releaseNumber}:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
   if (fullMetaCache.has(key)) return fullMetaCache.get(key)!
@@ -152,9 +163,13 @@ async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: n
     try {
       const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
       fullMetaCache.set(key, meta)
+      if (meta) for (const l of waybackMetaListeners) l()
       return meta
     } catch {
-      fullMetaCache.set(key, null)
+      // Not cached: a transient failure (rate limit, network blip) used to
+      // pin this release to "no real date" for the whole session, so every
+      // later listing fell back to its release date for good. The next
+      // caller retries instead.
       return null
     } finally {
       fullMetaInflight.delete(key)

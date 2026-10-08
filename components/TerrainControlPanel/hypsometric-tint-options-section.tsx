@@ -618,7 +618,7 @@ export const HypsometricTintOptionsSection: React.FC<{
                 "open-distribute": "Open License & Distribute Yes",
               }}
             >
-              <SelectTrigger className="h-8 w-[210px] cursor-pointer text-xs">
+              <SelectTrigger className="h-8 flex-1 min-w-0 cursor-pointer text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="text-xs">

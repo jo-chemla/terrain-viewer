@@ -8,14 +8,13 @@ import { cn } from "@/lib/utils"
 import { planetKeyAtom, planetAccessTokenAtom } from "@/lib/settings-atoms"
 import { useAtomValue, useAtom } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom, type SavedStacCatalog } from "@/lib/settings-atoms"
-import { Search, Plus, Check, Loader2, ExternalLink, CalendarDays, ChevronDown } from "lucide-react"
+import { Search, Plus, Check, Loader2, ExternalLink, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
+import { DateField } from "@/components/ui/date-field"
 import { SegmentedToggle } from "./controls-components"
 
 // STAC search (beta). Three kinds of catalog are handled:
@@ -45,8 +44,8 @@ const isCog = (a: StacAsset) => /geotiff|tiff/i.test(a.type ?? "") || /\.tiff?($
  *  than letting the item look like it has no data. */
 const isUnfetchable = (a: StacAsset) => /^(s3|gs|az):\/\//i.test(a.href)
 const resolveHref = (base: string, href: string) => { try { return new URL(href, base).toString() } catch { return href } }
+// Default range only (a timestamp, read in UTC); the fields themselves keep "YYYY-MM-DD" strings, see DateField.
 const isoDate = (d: Date) => d.toISOString().slice(0, 10)
-const parseIso = (s: string) => new Date(`${s}T12:00:00Z`)
 const trimSlash = (u: string) => u.replace(/\/$/, "")
 
 /** EPSG code of an item / asset when the projection extension says so. */
@@ -472,15 +471,6 @@ export const StacSearchPanel: React.FC<{
   }
   const ordered = useMemo(() => items.slice().sort((a, b) => rank(a) - rank(b)), [items, target, only3857]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const DateButton: React.FC<{ value: string; onChange: (v: string) => void }> = ({ value, onChange }) => (
-    <Popover>
-      <PopoverTrigger render={<Button variant="outline" size="sm" className="justify-between cursor-pointer font-normal tabular-nums flex-1">{value}<CalendarDays className="h-3.5 w-3.5 text-muted-foreground" /></Button>} />
-      <PopoverContent align="start" className="w-auto p-0">
-        <Calendar mode="single" selected={parseIso(value)} defaultMonth={parseIso(value)} captionLayout="dropdown" startMonth={new Date(1990, 0)} endMonth={new Date()} onSelect={(d) => { if (d) onChange(isoDate(d)) }} />
-      </PopoverContent>
-    </Popover>
-  )
-
   const collectionQuery = collectionFilter.trim().toLowerCase()
   const shownCollections = useMemo(() => (collectionQuery ? collections.filter((c) => `${c.title ?? ""} ${c.id}`.toLowerCase().includes(collectionQuery)) : collections).slice(0, 300), [collections, collectionQuery])
   const allLabel = catalog.kind === "discovery" ? `Pick one of ${collections.length} collections…` : `All collections (${collections.length})`
@@ -590,9 +580,9 @@ export const StacSearchPanel: React.FC<{
         </div>
         {!anyDate && (
           <>
-            <DateButton value={startDate} onChange={setStartDate} />
+            <DateField value={startDate} onChange={setStartDate} size="sm" className="flex-1" startMonth={new Date(1990, 0)} aria-label="Start date" />
             <span className="text-xs text-muted-foreground">to</span>
-            <DateButton value={endDate} onChange={setEndDate} />
+            <DateField value={endDate} onChange={setEndDate} size="sm" className="flex-1" startMonth={new Date(1990, 0)} aria-label="End date" />
           </>
         )}
         <Button size="sm" className="cursor-pointer ml-auto shrink-0" onClick={runSearch} disabled={loading || !catalog.url}>

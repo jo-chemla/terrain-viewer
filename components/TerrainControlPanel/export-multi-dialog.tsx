@@ -1,9 +1,9 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { useAtomValue, useSetAtom } from "jotai"
-import { Layers, Loader2, X, CalendarDays, ChevronDown } from "lucide-react"
+import { Layers, Loader2, X, ChevronDown } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
+import { DateField } from "@/components/ui/date-field"
 import saveAs from "file-saver"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,8 @@ import { CURRENT_BASEMAP_SOURCE_IDS, EXPORT_SOURCE_LABELS, listExportTicks, type
 import { exportMultiHistorical, fetchZoomFor, type ExportMultiMode, type ExportMultiSkip } from "@/lib/export-multi"
 import type { Bbox4 } from "@/lib/feature-extent"
 import { track } from "@/lib/analytics"
+import { subscribeWaybackMeta } from "@/lib/wayback"
+import { isoFromUtcMs, utcMsFromIso } from "@/lib/date-input"
 
 // EOX Sentinel-2 is off by default: a 10 m yearly cloudless mosaic is rarely
 // what someone exporting VHR history wants, and it adds a file per year.
@@ -97,43 +99,10 @@ const SourcePicker: React.FC<{
   )
 }
 
-/** "2024-03-08" <-> Date, UTC, for the calendar pickers. */
-const parseIso = (s: string) => new Date(`${s}T12:00:00Z`)
-const DatePickerButton: React.FC<{ value: string; onChange: (iso: string) => void; min?: string; max?: string }> = ({ value, onChange, min, max }) => (
-  <Popover>
-    <PopoverTrigger
-      render={
-        <Button variant="outline" className="w-full justify-between cursor-pointer font-normal tabular-nums">
-          {value || "Pick a date"}
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      }
-    />
-    <PopoverContent align="start" className="w-auto p-0">
-      <Calendar
-        mode="single"
-        selected={value ? parseIso(value) : undefined}
-        defaultMonth={value ? parseIso(value) : undefined}
-        captionLayout="dropdown"
-        startMonth={new Date(1930, 0)}
-        endMonth={new Date()}
-        disabled={[
-          ...(min ? [{ before: parseIso(min) }] : []),
-          ...(max ? [{ after: parseIso(max) }] : []),
-        ]}
-        onSelect={(d) => { if (d) onChange(isoDate(d)) }}
-      />
-    </PopoverContent>
-  </Popover>
-)
 const ALL_LAYERS = "__all__"
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError"
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
 }
 
 export const ExportMultiDialog: React.FC<{
@@ -161,8 +130,8 @@ export const ExportMultiDialog: React.FC<{
   const wasOpenRef = useRef(false)
   useEffect(() => {
     if (open && !wasOpenRef.current && timelineWindow) {
-      setStartDate(isoDate(new Date(timelineWindow.min)))
-      setEndDate(isoDate(new Date(timelineWindow.max)))
+      setStartDate(isoFromUtcMs(timelineWindow.min))
+      setEndDate(isoFromUtcMs(timelineWindow.max))
     }
     wasOpenRef.current = open
   }, [open, timelineWindow])
@@ -173,8 +142,8 @@ export const ExportMultiDialog: React.FC<{
   const [mode, setMode] = useState<ExportMultiMode>("viewport")
   const [layerId, setLayerId] = useState(ALL_LAYERS)
   const [sourceIds, setSourceIds] = useState<Set<ExportSourceId>>(new Set(DEFAULT_SOURCE_IDS))
-  const [startDate, setStartDate] = useState(() => isoDate(new Date(Date.now() - 365 * 86_400_000)))
-  const [endDate, setEndDate] = useState(() => isoDate(new Date()))
+  const [startDate, setStartDate] = useState(() => isoFromUtcMs(Date.now() - 365 * 86_400_000))
+  const [endDate, setEndDate] = useState(() => isoFromUtcMs(Date.now()))
   const [pointPaddingMeters, setPointPaddingMeters] = useState(100)
   const [percentPadding, setPercentPadding] = useState(20)
   const [targetResolution, setTargetResolution] = useState(512)
@@ -216,15 +185,34 @@ export const ExportMultiDialog: React.FC<{
   // Debounced: the date inputs fire on every keystroke, and Wayback/GE
   // listings are real network calls.
   const [rangeCounts, setRangeCounts] = useState<{ counts: Partial<Record<ExportSourceId, number>>; pending: boolean }>({ counts: {}, pending: false })
+  // A Wayback release's real imagery date can land after the listing ran
+  // (the lookup was failing or still in flight and the release was counted
+  // at its catalog date, if at all): count again when one does. Dates that
+  // land WHILE a listing is in flight are noted and folded into one recount
+  // after it completes, rather than restarting it (the listing resolves
+  // those very dates, so restarting on each would never let it finish).
+  // Only wired while Wayback is selected.
+  const [recount, setRecount] = useState(0)
+  const countPendingRef = useRef(false)
+  const missedMetaRef = useRef(false)
+  const waybackSelected = sourceIds.has("wayback")
+  useEffect(() => {
+    if (!open || !waybackSelected) return
+    return subscribeWaybackMeta(() => {
+      if (countPendingRef.current) missedMetaRef.current = true
+      else setRecount((n) => n + 1)
+    })
+  }, [open, waybackSelected])
   useEffect(() => {
     if (!open || !getMapView) return
     const view = getMapView()
     if (!view) return
-    const startMs = new Date(`${startDate}T00:00:00Z`).getTime()
-    const endMs = new Date(`${endDate}T23:59:59Z`).getTime()
+    const startMs = utcMsFromIso(startDate)
+    const endMs = utcMsFromIso(endDate, "end")
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return
     let cancelled = false
     setRangeCounts((prev) => ({ ...prev, pending: true }))
+    countPendingRef.current = true
     const timer = setTimeout(async () => {
       const ids = Array.from(sourceIds)
       const results = await Promise.all(ids.map(async (id) => {
@@ -235,16 +223,18 @@ export const ExportMultiDialog: React.FC<{
       const counts: Partial<Record<ExportSourceId, number>> = {}
       for (const [id, n] of results) if (n !== undefined) counts[id] = n
       setRangeCounts({ counts, pending: false })
+      countPendingRef.current = false
+      if (missedMetaRef.current) { missedMetaRef.current = false; setRecount((n) => n + 1) }
     }, 500)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [open, getMapView, startDate, endDate, sourceIds, planetKey, keys, countZoom])
+  }, [open, getMapView, startDate, endDate, sourceIds, planetKey, keys, countZoom, recount])
 
   // Mirror the chosen range onto the historical timeline so its ticks show
   // exactly what is about to be exported. Debounced with the count above.
   useEffect(() => {
     if (!open) return
-    const startMs = new Date(`${startDate}T00:00:00Z`).getTime()
-    const endMs = new Date(`${endDate}T23:59:59Z`).getTime()
+    const startMs = utcMsFromIso(startDate)
+    const endMs = utcMsFromIso(endDate, "end")
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return
     const timer = setTimeout(() => requestTimelineWindow({ min: startMs, max: endMs, nonce: Date.now() }), 500)
     return () => clearTimeout(timer)
@@ -276,8 +266,8 @@ export const ExportMultiDialog: React.FC<{
         viewportBbox,
         layers,
         sourceIds: Array.from(sourceIds),
-        startMs: new Date(`${startDate}T00:00:00Z`).getTime(),
-        endMs: new Date(`${endDate}T23:59:59Z`).getTime(),
+        startMs: utcMsFromIso(startDate),
+        endMs: utcMsFromIso(endDate, "end"),
         pointPaddingMeters,
         percentPadding,
         targetResolution,
@@ -377,11 +367,11 @@ export const ExportMultiDialog: React.FC<{
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Start date</Label>
-              <DatePickerButton value={startDate} max={endDate} onChange={setStartDate} />
+              <DateField value={startDate} max={endDate} onChange={setStartDate} aria-label="Start date" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">End date</Label>
-              <DatePickerButton value={endDate} min={startDate} onChange={setEndDate} />
+              <DateField value={endDate} min={startDate} onChange={setEndDate} aria-label="End date" />
             </div>
           </div>
 

@@ -56,7 +56,9 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           data-slot="popover-content"
           className={cn(
-            'bg-popover text-popover-foreground w-72 origin-(--transform-origin) rounded-md border p-4 shadow-md outline-hidden transition-[transform,opacity] data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0',
+            // Overflow contract (see .claude/memory/ui-overflow-rules.md):
+            // never wider than the viewport, text wraps.
+            'bg-popover text-popover-foreground w-72 min-w-0 max-w-[calc(100vw-2rem)] origin-(--transform-origin) rounded-md border p-4 break-words shadow-md outline-hidden transition-[transform,opacity] data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0',
             className,
           )}
           {...props}

@@ -248,7 +248,7 @@ export const ContourOptionsSection: React.FC<{
                 <div className="flex items-center justify-between gap-2">
                   <Label className="text-sm font-medium">Measure</Label>
                   <Select value={state.isolineMeasure} items={ISOLINE_MEASURE_LABELS} onValueChange={(v) => { if (!v) return; const next = isolineMeasure(v); setState({ isolineMeasure: v, isolineValue: next.defaultValue, isolineInterval: next.defaultInterval }) }}>
-                    <SelectTrigger className="h-7 w-[180px] text-xs cursor-pointer"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-7 flex-1 min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {ISOLINE_MEASURE_GROUPS.map((g) => (
                         <SelectGroup key={g}>

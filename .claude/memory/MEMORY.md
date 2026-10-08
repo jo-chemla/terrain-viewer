@@ -35,3 +35,5 @@
 - [Fast Refresh and self-calling hooks](react-refresh-recursive-hook.md) — a hook calling itself overflows @react-refresh computeFullKey; split into leaf + wrapper; scripts to find the culprit
 - [MCP Apps plan](mcp-apps-plan.md) — Terrain Viewer as an in-chat app for Claude and ChatGPT (MCP Apps + Apps SDK), tools and widget sketched, not built
 - [Changelog style](changelog-style.md) — TL;DR of 3 to 5 bullets at most, repeats folded, details under a second heading, link and one picture per feature page
+- [Custom STAC catalogs on the timeline](custom-stac-timeline-catalogs.md) — design for user-added STAC catalogs (API or static) as a My catalogs group: loader, self-describing ids, atom, dialog; not built
+- [UI overflow rules](ui-overflow-rules.md) — why selects and dialogs kept overflowing (flex min-width auto, grid min-content tracks), the contract in components/ui, no fixed SelectTrigger widths, min-w-0 on every flex/grid parent

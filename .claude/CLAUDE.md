@@ -71,6 +71,8 @@ The preview browser available to agents does NOT fire `requestAnimationFrame` â€
 
 **react-map-gl `<Layer>` source is immutable:** `<Layer source="...">` ignores runtime `source` prop changes. Key the element to force remount when the source changes.
 
+**UI overflow rule (selects, dialogs, sheets, popovers):** new selects, dialogs, sheets and popovers use the primitives in `components/ui/`, which already carry the overflow contract (`min-w-0` + `overflow-hidden` on the box, `truncate` on the select value with the full label as a hover title, `break-words` on titles and descriptions, a viewport-capped `max-w` on popups, `grid-cols-[minmax(0,1fr)]` on the dialog grid). Never set a fixed width on a `SelectTrigger` that holds labels longer than that width (use `flex-1 min-w-0` or `w-full`). Any flex or grid parent of a select or of a dialog title gets `min-w-0` (a grid `1fr` track is `minmax(0,1fr)`), or the min-content of a nowrap child widens it past the box. See `.claude/memory/ui-overflow-rules.md`.
+
 **`setTerrain` is expensive:** It rebuilds `Terrain` + `RenderToTexture` and drops the RTT tile cache. Never call it in a loop or on every idle. Compare `map.terrain?.tileManager?.getSource()` (object identity) and exaggeration before re-applying.
 
 ## Camera sync â€” read before touching TerrainViewer.tsx
