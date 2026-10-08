@@ -12,18 +12,22 @@
 // open and everything under them folded; in the coverage section every
 // group starts folded. What the user opens is kept (coverageFoldsAtom, the
 // same state in both places); a source whose extent misses the view is
-// dimmed.
+// dimmed. The last root, My catalogs, holds the STAC catalogs the visitor
+// attached (customTimelineCatalogsAtom): an "Add a catalog" row opens
+// add-timeline-catalog-dialog.tsx, and each row has a remove button.
 import type React from "react"
-import { useAtom, useAtomValue } from "jotai"
-import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2 } from "lucide-react"
+import { useMemo, useState } from "react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2, Plus, X, BookmarkPlus } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { TIMELINE_CATALOGS, CATALOG_ROOTS, CATALOG_ROOT_ORDER, COVERAGE_ONLY_ENTRIES, ISO3_NAMES, catalogStatusAtom, type TimelineCatalog } from "@/lib/timeline-catalogs"
+import { TIMELINE_CATALOGS, CATALOG_ROOTS, CATALOG_ROOT_ORDER, COVERAGE_ONLY_ENTRIES, ISO3_NAMES, MY_CATALOGS_ROOT, catalogStatusAtom, timelineCatalogsAtom, isStacCatalogId, stacCatalogDef, stacSpecOfId, type TimelineCatalog } from "@/lib/timeline-catalogs"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
-import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom, coverageFoldsAtom } from "@/lib/settings-atoms"
+import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom, coverageFoldsAtom, customTimelineCatalogsAtom } from "@/lib/settings-atoms"
+import { AddTimelineCatalogDialog } from "./add-timeline-catalog-dialog"
 
 const SwitchRow: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string; tip: string }> = ({ checked, onChange, label, tip }) => (
   <Tooltip>
@@ -35,17 +39,18 @@ const SwitchRow: React.FC<{ checked: boolean; onChange: (v: boolean) => void; la
 const covers = (c: { bbox?: [number, number, number, number] }, center?: [number, number]) =>
   !c.bbox || !center || (center[0] >= c.bbox[0] && center[0] <= c.bbox[2] && center[1] >= c.bbox[1] && center[1] <= c.bbox[3])
 
-type Entry = TimelineCatalog & { coverageOnly?: boolean }
+type Entry = TimelineCatalog & { coverageOnly?: boolean; /** Selected by a link, not in this browser's My catalogs: a Keep button stores it. */ unlisted?: boolean }
 // Footprint-only rows first within their group (Allmaps, Rumsey, QMS).
-const ENTRIES: Entry[] = [...COVERAGE_ONLY_ENTRIES.map((e) => ({ ...e, coverageOnly: true as const })), ...TIMELINE_CATALOGS]
+const entriesOf = (catalogs: TimelineCatalog[]): Entry[] => [...COVERAGE_ONLY_ENTRIES.map((e) => ({ ...e, coverageOnly: true as const })), ...catalogs]
+const BUILTIN_ENTRIES = entriesOf(TIMELINE_CATALOGS)
 const rootOf = (c: Entry) => CATALOG_ROOTS[c.group] ?? CATALOG_ROOT_ORDER[2]
 const byLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label)
 
 /** A node of the tree: a root, a continent, a country; rows under it. */
 interface Node { key: string; label: string; depth: number; rows: Entry[]; children: Node[] }
-function buildNodes(roots: string[], bare = false): Node[] {
+function buildNodes(roots: string[], bare = false, entries: Entry[] = BUILTIN_ENTRIES): Node[] {
   return roots.map((root) => {
-    const cats = ENTRIES.filter((c) => rootOf(c) === root)
+    const cats = entries.filter((c) => rootOf(c) === root)
     const node: Node = { key: root, label: root, depth: 0, rows: [], children: [] }
     if (root === CATALOG_ROOT_ORDER[2]) {
       // continent → country (ISO alpha-3) → sources, every level sorted.
@@ -97,6 +102,22 @@ export const HistoricalCatalogTree: React.FC<{
   className?: string
 }> = ({ selected, onChange, center, compact = false, roots = CATALOG_ROOT_ORDER, bare = false, className }) => {
   const { loading, counts, errors } = useAtomValue(catalogStatusAtom)
+  const catalogs = useAtomValue(timelineCatalogsAtom)
+  // A STAC catalog a link selected that this browser never saved: listed
+  // from its id (its endpoint is in it) with a Keep button.
+  const unlisted = selected.filter((id) => isStacCatalogId(id) && !catalogs.some((c) => c.id === id)).map((id) => stacCatalogDef(id)).filter((c): c is TimelineCatalog => !!c)
+  const entries = useMemo(() => [...entriesOf(catalogs), ...unlisted.map((c) => ({ ...c, unlisted: true }))], [catalogs, unlisted.map((c) => c.id).join(",")]) // eslint-disable-line react-hooks/exhaustive-deps
+  const setCustomCatalogs = useSetAtom(customTimelineCatalogsAtom)
+  const [addOpen, setAddOpen] = useState(false)
+  const removeCustom = (id: string) => {
+    setCustomCatalogs((prev) => prev.filter((c) => c.id !== id))
+    if (selected.includes(id)) onChange(selected.filter((s) => s !== id))
+  }
+  const keepCustom = (c: TimelineCatalog) => {
+    const spec = stacSpecOfId(c.id)
+    if (!spec) return
+    setCustomCatalogs((prev) => (prev.some((x) => x.id === c.id) ? prev : [...prev, { id: c.id, label: c.label, short: c.short, endpoint: spec.endpoint, kind: spec.kind, collection: spec.collection, color: c.color }]))
+  }
   const [coverage, setCoverage] = useAtom(coverageOverlaysAtom)
   const [footprints, setFootprints] = useAtom(timelineFootprintsAtom)
   const [windowFilter, setWindowFilter] = useAtom(timelineWindowFilterAtom)
@@ -109,7 +130,7 @@ export const HistoricalCatalogTree: React.FC<{
     if (ticks.length) { const next = new Set(selected); for (const id of ticks) on ? next.add(id) : next.delete(id); onChange([...next]) }
     if (covs.length) setCoverage((prev) => { const next = new Set(prev); for (const id of covs) on ? next.add(id) : next.delete(id); return [...next] })
   }
-  const nodes = buildNodes(roots, bare)
+  const nodes = buildNodes(roots, bare, entries)
   const allNodes = (ns: Node[]): Node[] => ns.flatMap((n) => [n, ...allNodes(n.children)])
   const isOpen = (n: Node) => folds[`cat:${n.key}`] ?? (n.depth === 0 && !compact)
   const keys = nodes.flatMap(nodeKeys)
@@ -154,15 +175,36 @@ export const HistoricalCatalogTree: React.FC<{
           : errors[c.id]
           ? <span className="text-[10px] text-destructive" title={errors[c.id]}>error</span>
           : <span className="text-[10px] text-muted-foreground tabular-nums">{counts[c.id] ?? 0}</span>)}
+        {c.unlisted && (
+          <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-foreground p-0.5" aria-label={`Keep ${c.label} in My catalogs`} title="From the link you opened: keep it in My catalogs" onClick={() => keepCustom(c)}>
+            <BookmarkPlus className="h-3 w-3" />
+          </button>
+        )}
+        {c.custom && (
+          <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-destructive p-0.5" aria-label={`Remove ${c.label} from My catalogs`} title={c.unlisted ? "Drop it from the timeline" : "Remove from My catalogs"} onClick={() => removeCustom(c.id)}>
+            <X className="h-3 w-3" />
+          </button>
+        )}
       </div>
     )
   }
+  // The My catalogs root ends with the row that adds one.
+  const addRow = (
+    <button type="button" className="cursor-pointer flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-0.5" onClick={() => setAddOpen(true)}>
+      <Plus className="h-3.5 w-3.5" /> Add a catalog…
+    </button>
+  )
   const renderNode = (n: Node, withHeader: boolean): React.ReactNode => {
     const open = !withHeader || isOpen(n)
     return (
       <div key={n.key} className={n.depth ? "pl-[21px]" : undefined}>
         {withHeader && groupHeader(n.key, n.label, nodeCats(n), open, n.depth)}
-        {open && n.rows.length > 0 && <div className={withHeader ? "pl-[42px] space-y-0.5" : "space-y-0.5"}>{n.rows.map(row)}</div>}
+        {open && (n.rows.length > 0 || n.key === MY_CATALOGS_ROOT) && (
+          <div className={withHeader ? "pl-[42px] space-y-0.5" : "space-y-0.5"}>
+            {n.rows.map(row)}
+            {n.key === MY_CATALOGS_ROOT && (n.rows.length ? addRow : <div className="space-y-0.5"><p className="text-[11px] text-muted-foreground">Your own STAC catalogs (an API or a static catalog.json), one tick per item in view.</p>{addRow}</div>)}
+          </div>
+        )}
         {open && n.children.map((c) => renderNode(c, true))}
       </div>
     )
@@ -190,6 +232,12 @@ export const HistoricalCatalogTree: React.FC<{
       {nodes.map((n, i) => (
         <div key={n.key} className={i && !bare ? "pt-1.5 border-t mt-1" : undefined}>{renderNode(n, !bare)}</div>
       ))}
+      {addOpen && (
+        <AddTimelineCatalogDialog open={addOpen} onOpenChange={setAddOpen} onAdd={(entry) => {
+          setCustomCatalogs((prev) => (prev.some((c) => c.id === entry.id) ? prev : [...prev, entry]))
+          if (!selected.includes(entry.id)) onChange([...selected, entry.id])
+        }} />
+      )}
     </div>
   )
 }

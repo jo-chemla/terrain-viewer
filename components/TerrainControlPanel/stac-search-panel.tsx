@@ -2,13 +2,16 @@ import type React from "react"
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { STAC_PRESETS, remembered, type StacPreset } from "@/lib/stac-presets"
-import { getDefaultStore } from "jotai"
+import { fetchJson, listCollections, crawlStaticItems, explainFetchError, resolveHref, trimSlash, type StacLink, type StacAsset, type StacItem, type StacCollection } from "@/lib/stac-crawl"
+import { customTimelineCatalogsAtom, type CustomTimelineCatalog } from "@/lib/settings-atoms"
+import { stacCatalogId } from "@/lib/timeline-catalogs"
+import { pushToast } from "@/components/ui/toast"
 import { Combobox } from "@base-ui/react/combobox"
 import { cn } from "@/lib/utils"
-import { planetKeyAtom, planetAccessTokenAtom } from "@/lib/settings-atoms"
-import { useAtomValue, useAtom } from "jotai"
+import { planetKeyAtom } from "@/lib/settings-atoms"
+import { useAtomValue, useAtom, getDefaultStore } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom, type SavedStacCatalog } from "@/lib/settings-atoms"
-import { Search, Plus, Check, Loader2, ExternalLink, ChevronDown } from "lucide-react"
+import { Search, Plus, Check, Loader2, ExternalLink, ChevronDown, History } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -32,10 +35,9 @@ import { SegmentedToggle } from "./controls-components"
 // Either way the result is the list of COG assets in the matching items,
 // each addable as a basemap (RGB) or a terrain (DEM) source.
 
-type StacLink = { rel: string; href: string; type?: string; title?: string }
-type StacAsset = { href: string; type?: string; title?: string; roles?: string[]; "proj:epsg"?: number; "proj:code"?: string; "raster:bands"?: unknown[]; "eo:bands"?: unknown[]; bands?: unknown[] }
-export type StacItem = { type: "Feature"; id: string; collection?: string; bbox?: number[]; properties: Record<string, unknown>; assets: Record<string, StacAsset>; links?: StacLink[] }
-export type StacCollection = { id: string; title?: string; description?: string; links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] } } }
+// The STAC types and the readers live in lib/stac-crawl.ts (the timeline's
+// catalog loaders share them); re-exported for lib/stac-presets.ts.
+export type { StacItem, StacCollection }
 
 const isCog = (a: StacAsset) => /geotiff|tiff/i.test(a.type ?? "") || /\.tiff?($|\?)/i.test(a.href)
 /** An `s3://` href is a real asset a browser cannot fetch - no scheme handler,
@@ -43,10 +45,8 @@ const isCog = (a: StacAsset) => /geotiff|tiff/i.test(a.type ?? "") || /\.tiff?($
  *  DEM collections are both like this). Worth naming in the empty state rather
  *  than letting the item look like it has no data. */
 const isUnfetchable = (a: StacAsset) => /^(s3|gs|az):\/\//i.test(a.href)
-const resolveHref = (base: string, href: string) => { try { return new URL(href, base).toString() } catch { return href } }
 // Default range only (a timestamp, read in UTC); the fields themselves keep "YYYY-MM-DD" strings, see DateField.
 const isoDate = (d: Date) => d.toISOString().slice(0, 10)
-const trimSlash = (u: string) => u.replace(/\/$/, "")
 
 /** EPSG code of an item / asset when the projection extension says so. */
 function epsgOf(it: StacItem, a: StacAsset): number | undefined {
@@ -81,128 +81,6 @@ const looksLikeDem = (it: StacItem, key: string, a: StacAsset) => {
 
 // Last search per target survives closing the modal, so re-opening it does
 // not throw the results away.
-
-/** Headers a catalog's requests need (StacPreset.auth): Planet's api-key,
- *  read from the same atom as the Historical timeline's Planet mosaics. */
-function authHeaders(url: string): Record<string, string> {
-  const preset = STAC_PRESETS.find((p) => p.auth && url.startsWith(p.url))
-  if (preset?.auth === "planet") {
-    // api.planet.com/x/data only lists an OpenID scheme: it takes the access
-    // token of `planet auth print-access-token` (a JWT) as a Bearer; a PLAK…
-    // API key answers 401 there (it still works on the legacy Data API v1).
-    const token = getDefaultStore().get(planetAccessTokenAtom).trim()
-    if (!token) throw new Error("Planet's STAC needs an access token: Settings → API Keys → Planet access token (planet auth print-access-token)")
-    return { Authorization: `Bearer ${token}` }
-  }
-  return {}
-}
-
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { ...init, headers: { ...authHeaders(url), ...(init?.headers as Record<string, string> | undefined) } })
-  if (!res.ok) throw new Error(`${res.status} from ${new URL(url).host}`)
-  return res.json() as Promise<T>
-}
-
-/** Whether an item's datetime (or start/end interval) overlaps a window. */
-function withinDatetime(it: StacItem, from?: number, to?: number): boolean {
-  if (from === undefined && to === undefined) return true
-  const p = it.properties ?? {}
-  const t = (v: unknown) => (typeof v === "string" ? Date.parse(v) : NaN)
-  const start = t(p.start_datetime) || t(p.datetime)
-  const end = t(p.end_datetime) || t(p.datetime)
-  if (Number.isNaN(start) && Number.isNaN(end)) return true // undated: kept
-  const s = Number.isNaN(start) ? end : start, e = Number.isNaN(end) ? start : end
-  return (from === undefined || e >= from) && (to === undefined || s <= to)
-}
-
-/** Follow `next` links of a paginated /collections listing, up to a cap. */
-/** Follow `next` links of a paginated /collections listing, handing each
- *  page over as it lands (the MAAP federation takes ~8 s for its first page
- *  and ~2 s per further page: the list fills in instead of blocking). */
-async function listCollections(root: string, onPage: (sofar: StacCollection[]) => void, cap = 1200): Promise<StacCollection[]> {
-  const out: StacCollection[] = []
-  let url: string | undefined = `${trimSlash(root)}/collections?limit=200`
-  for (let i = 0; url && i < 8 && out.length < cap; i++) {
-    const page: { collections?: StacCollection[]; links?: StacLink[] } = await fetchJson(url)
-    out.push(...(page.collections ?? []))
-    onPage(out.slice())
-    url = page.links?.find((l) => l.rel === "next")?.href
-  }
-  return out
-}
-
-/** "Failed to fetch" is all the browser says for a blocked request; a CORS
- *  override extension ("Allow CORS" and the like) is the usual culprit when
- *  a catalog that normally works suddenly does not. */
-const explainFetchError = (e: unknown, fallback: string) => {
-  const msg = e instanceof Error ? e.message : fallback
-  return /failed to fetch|networkerror|load failed/i.test(msg)
-    ? `${msg} - the browser blocked the request. A CORS-overriding extension (e.g. "Allow CORS") breaks catalogs that already send the right headers: disable it for this site. Otherwise the catalog does not allow browser access.`
-    : msg
-}
-
-/** Bounded crawl of a static catalog: child collections/catalogs to a few
- *  levels, item links collected, then fetched in small batches. */
-type StacNode = { links?: StacLink[]; extent?: { spatial?: { bbox?: number[][] }; temporal?: { interval?: (string | null)[][] } } }
-// Catalog / collection documents are immutable enough to keep for the
-// session: the second search of OpenTopography's 283 collections is instant.
-const nodeCache = new Map<string, Promise<StacNode | null>>()
-const fetchNode = (u: string, signal?: AbortSignal) => {
-  let p = nodeCache.get(u)
-  if (!p) { p = fetchJson<StacNode>(u, { signal }).catch(() => null); nodeCache.set(u, p) }
-  return p
-}
-
-async function crawlStaticItems(url: string, bbox: number[] | null, limit: number, onProgress?: (msg: string) => void, signal?: AbortSignal, window?: { from: number; to: number }): Promise<StacItem[]> {
-  const items: StacItem[] = []
-  const queue: { url: string; depth: number }[] = [{ url, depth: 0 }]
-  const itemLinks: string[] = []
-  const seen = new Set<string>()
-  let visited = 0
-  // Children are fetched sixteen at a time: OpenTopography's root alone has
-  // 283 collections, which took minutes one by one.
-  while (queue.length && itemLinks.length < limit * 4) {
-    const batch: { url: string; depth: number }[] = []
-    while (queue.length && batch.length < 16) {
-      const next = queue.shift()!
-      if (seen.has(next.url) || next.depth > 4) continue
-      seen.add(next.url)
-      batch.push(next)
-    }
-    const nodes = await Promise.all(batch.map(({ url: u }) => fetchNode(u, signal)))
-    visited += batch.length
-    onProgress?.(`Crawling the catalog: ${visited} read, ${queue.length} queued, ${itemLinks.length} items found…`)
-    nodes.forEach((node, i) => {
-      if (!node) return
-      const { url: u, depth } = batch[i]
-      // Skip whole collections that cannot overlap the viewport, or the
-      // date window (a collection's temporal extent; an open end is null).
-      const ext = node.extent?.spatial?.bbox?.[0]
-      if (bbox && ext && (ext[2] < bbox[0] || ext[0] > bbox[2] || ext[3] < bbox[1] || ext[1] > bbox[3])) return
-      const temporal = node.extent?.temporal?.interval?.[0]
-      if (window && temporal) {
-        const s = temporal[0] ? Date.parse(temporal[0]) : -Infinity, e = temporal[1] ? Date.parse(temporal[1]) : Infinity
-        if (e < window.from || s > window.to) return
-      }
-      for (const l of node.links ?? []) {
-        if (l.rel === "item") itemLinks.push(resolveHref(u, l.href))
-        else if (l.rel === "child") queue.push({ url: resolveHref(u, l.href), depth: depth + 1 })
-      }
-    })
-  }
-  for (let i = 0; i < itemLinks.length && items.length < limit; i += 16) {
-    onProgress?.(`Reading items: ${Math.min(i + 16, itemLinks.length)} of ${itemLinks.length}…`)
-    const batch = await Promise.all(itemLinks.slice(i, i + 16).map((l) => fetchJson<StacItem>(l, { signal }).catch(() => null)))
-    for (const it of batch) {
-      if (!it) continue
-      if (bbox && it.bbox && (it.bbox[2] < bbox[0] || it.bbox[0] > bbox[2] || it.bbox[3] < bbox[1] || it.bbox[1] > bbox[3])) continue
-      if (window && !withinDatetime(it, window.from, window.to)) continue
-      for (const a of Object.values(it.assets ?? {})) a.href = resolveHref(itemLinks[i], a.href)
-      items.push(it)
-    }
-  }
-  return items
-}
 
 /** The catalog picker: type to find one of the presets ("planet" lists both
  *  Planet entries), or paste a URL, which becomes the custom catalog. */
@@ -275,6 +153,7 @@ export const StacSearchPanel: React.FC<{
   // picker pointing at nothing.
   const disabledStac = useAtomValue(disabledStacPresetsAtom)
   const [savedCatalogs, setSavedCatalogs] = useAtom(savedStacCatalogsAtom)
+  const [timelineCatalogs, setTimelineCatalogs] = useAtom(customTimelineCatalogsAtom)
   const presets = useMemo(() => {
     const off = new Set(disabledStac)
     const all = [...STAC_PRESETS, ...savedCatalogs.map((c) => ({ ...c, group: "Yours" as const, note: "Added by you." }))]
@@ -522,6 +401,31 @@ export const StacSearchPanel: React.FC<{
         </div>
       )}
       {catalog.note && <p className="text-[11px] text-muted-foreground">{catalog.note}</p>}
+      {target === "basemap" && catalog.kind !== "discovery" && /^https?:\/\/\S+/.test(catalog.url) && (() => {
+        // The catalog (and its chosen collection) as a historical timeline
+        // catalog: one tick per item covering the view, under My catalogs.
+        const spec = { endpoint: trimSlash(catalog.url), kind: catalog.kind as "api" | "static", collection: collectionId || undefined }
+        const id = stacCatalogId(spec)
+        const onTimeline = timelineCatalogs.some((c) => c.id === id)
+        const colTitle = collectionId ? (collections.find((c) => c.id === collectionId)?.title || collectionId) : ""
+        return (
+          <Button variant="outline" size="sm" className="cursor-pointer" disabled={onTimeline}
+            title={onTimeline ? "Already on the historical timeline (Catalogs → My catalogs)" : "Attach this catalog to the historical timeline's Catalogs picker, under My catalogs: its items covering the view become ticks"}
+            onClick={() => {
+              // A pasted URL is named by its host, not "Custom".
+              const base = catalog.id === "custom" ? (() => { try { return new URL(catalog.url).host } catch { return catalog.url } })() : catalog.name
+              const label = colTitle ? `${base} · ${colTitle}` : base
+              const words = (colTitle || base).replace(/\(.*?\)/g, "").trim().split(/\s+/)
+              let short = ""
+              for (const w of words) { if ((short + " " + w).trim().length > 14) break; short = (short + " " + w).trim() }
+              const entry: CustomTimelineCatalog = { id, label, short: short || label.slice(0, 14), ...spec, color: ["#a3e635", "#f472b6", "#38bdf8", "#fb923c", "#c084fc", "#2dd4bf", "#facc15", "#f87171"].find((c) => !timelineCatalogs.some((t) => t.color === c)) ?? "#a3e635" }
+              setTimelineCatalogs((prev) => (prev.some((c) => c.id === id) ? prev : [...prev, entry]))
+              pushToast({ key: "stac-timeline", title: "Added to the historical timeline", body: `${label} sits under Catalogs → My catalogs; tick it there to see its items as ticks.`, duration: 6000 })
+            }}>
+            <History className="h-3.5 w-3.5" /> {onTimeline ? "On the timeline" : "Add to the timeline"}
+          </Button>
+        )
+      })()}
       {browserUrl && (
         <p className="text-[11px] text-muted-foreground flex flex-wrap gap-x-3">
           <a href={stacMapUrl} target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center gap-0.5">Open in stac-map (Development Seed) <ExternalLink className="h-3 w-3" /></a>

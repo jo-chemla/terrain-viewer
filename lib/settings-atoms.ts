@@ -75,6 +75,29 @@ export const disabledStacPresetsAtom = atomWithStorage<string[]>("disabledStacPr
 export interface SavedStacCatalog { id: string; name: string; url: string; kind: "api" | "static"; target: "basemap" | "terrain" | "both" }
 export const savedStacCatalogsAtom = atomWithStorage<SavedStacCatalog[]>("savedStacCatalogs", [])
 
+// STAC catalogs the visitor attached to the historical timeline's Catalogs
+// tree ("My catalogs" group, lib/timeline-catalogs.ts): a STAC API (one
+// /search per view move) or a static catalog.json (crawled, extent-filtered),
+// optionally narrowed to one collection (an API collection id, or a child
+// catalog URL of a static tree). The id is self-describing (stacCatalogId:
+// endpoint, kind and collection encoded in it), so a link that names it
+// resolves in a browser that never saved the entry; this list is what the
+// picker shows and what the label, short name and colour come from.
+export interface CustomTimelineCatalog {
+  id: string
+  label: string
+  /** Pill and caption text. */
+  short: string
+  endpoint: string
+  kind: "api" | "static"
+  collection?: string
+  /** Asset keys to prefer (visual, cog, image... when absent). */
+  assetKeys?: string[]
+  color: string
+  note?: string
+}
+export const customTimelineCatalogsAtom = atomWithStorage<CustomTimelineCatalog[]>("customTimelineCatalogs", [], undefined, { getOnInit: true })
+
 // Which walkthroughs have been finished, by branch key. The level-2 tours
 // (tools / byod / ndsm) are offered once EITHER level-1 branch is done -
 // terrain and historical are alternatives, not a sequence, so requiring both

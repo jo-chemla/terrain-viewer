@@ -3775,6 +3775,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "customTimelineCatalogs",
+      "default": "[]",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "timelineFootprints",
       "default": "false",
       "note": "The timeline's Catalogs picker switches: item footprints drawn on the map, and only items dated within the timeline's window."

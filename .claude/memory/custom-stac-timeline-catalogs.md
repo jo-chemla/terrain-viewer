@@ -1,70 +1,79 @@
 ---
 name: custom-stac-timeline-catalogs
-description: Design for letting the user attach their own STAC catalogs (API or static) to the historical timeline's Catalogs tree, in a "My catalogs" group - data model, loader, self-describing ids, UI, caveats, effort. Asked 2026-10-08, not built.
+description: User-attached STAC catalogs (API or static) on the historical timeline's Catalogs tree, "My catalogs" group - built 2026-10-08. Where the pieces live, the self-describing id scheme, the Proxy trick for TIMELINE_CATALOG_BY_ID and SOURCE_CONFIG, what is verified, what is not.
 type: project
 ---
 
-# Custom STAC catalogs on the timeline (design, not built)
+# Custom STAC catalogs on the timeline (built 2026-10-08)
 
-**Ask (2026-10-08):** attach custom STAC catalogs, static or search API, to the
-timeline catalogs, in their own group.
+**Ask (2026-10-08):** attach custom STAC catalogs, static or search API, to
+the timeline catalogs, in their own group. First the HOT loader generalised,
+then Planet's heritage static catalog
+(`https://data.source.coop/planet/heritage-hackathon-2026/catalog.json`).
 
-## What exists to reuse
+## Where
 
-- `lib/timeline-catalogs.ts`: `TIMELINE_CATALOGS` (static list, `group`
-  decides the tree root), `loadCatalogTicks(catalog, bbox, signal, range)`
-  dispatches per id; `hotStacTicks` is already a STAC API search loader
-  (bbox + datetime + collections, one tick per acquisition, asset pick
-  visual/cog/image, `cogSource` through titiler or cog://). `planetTicks`
-  is already a static-catalog walker (catalog.json → collections → items,
-  indexed once per session).
-- `lib/stac-presets.ts` and the STAC search panel's catalog combobox
-  (presets by name, or a pasted URL); `lib/source-url-detect.ts` tells a
-  STAC API from a static catalog from an item.
-- Catalog ids are self-describing where links must work on another
-  browser (Allmaps: `custom-basemap-cat-cat-allmaps--<id>`).
+- `lib/stac-crawl.ts` (new): the STAC types, `fetchJson` with the preset's
+  auth header, `listCollections`, `crawlStaticItems` (extent filter on the
+  way down, bbox + date window on items; nodes AND items cached per session,
+  so the timeline's re-crawl on every view move is cheap). Moved out of
+  `stac-search-panel.tsx` (lazy-loaded) so `lib/timeline-catalogs.ts` can
+  share it without dragging the panel into the initial bundle; the panel
+  re-exports the item/collection types for `lib/stac-presets.ts`.
+- `lib/timeline-catalogs.ts`: `StacSpec { endpoint, kind, collection?,
+  assetKeys?, licence? }`; `HOT_SPECS` (the four HOT catalogs are specs
+  now); `stacTicks(catalog, spec, bbox, signal, range)` replaces
+  `hotStacTicks` (API: GET /search, POST on 405/400; static:
+  `crawlStaticItems`, cap 400 items); `stacAssetHref` (given keys, then
+  visual/ortho_visual/cog/image, then the visual role, then a GeoTIFF that
+  is not a mask). `MY_CATALOGS_ROOT = "My catalogs"` appended to
+  `CATALOG_ROOTS`, `CATALOG_ROOT_ORDER`, `HISTORICAL_TREE_ROOTS`.
+- `lib/settings-atoms.ts`: `CustomTimelineCatalog` and
+  `customTimelineCatalogsAtom` (local storage `customTimelineCatalogs`).
+- `components/TerrainControlPanel/add-timeline-catalog-dialog.tsx` (new):
+  preset or saved catalog or URL, collection (API /collections or static
+  children), name, short name; `onAdd` stores and ticks it.
+- `historical-catalog-tree.tsx`: entries from `timelineCatalogsAtom`
+  (built-in + custom); the My catalogs root always renders with the
+  "Add a catalog…" row; custom rows have a ✕; a link-selected id not in the
+  list is still listed (from `stacCatalogDef`) with a Keep (BookmarkPlus)
+  button. The dialog is rendered inside the tree, so inside the picker's
+  Popover: verified headless that the Popover stays open under the Dialog.
+- `stac-search-panel.tsx`: "Add to the timeline" button (basemap target,
+  api/static) for the catalog + chosen collection, with a toast.
+- Docs: `features/historical-sources.mdx` "My catalogs" section.
 
-## Design
+## The id scheme (why it looks odd)
 
-1. **Loader**: generalise `hotStacTicks` into `stacTicks(spec, bbox, signal,
-   range)` with `spec = { endpoint, kind: "api" | "static", collections?,
-   assetKeys? }`. API: `GET /search?bbox&datetime&collections&limit=200`
-   (POST when GET is refused). Static: walk `catalog.json` → collections
-   (filter by `extent.spatial` against the bbox first) → items, cap the
-   walk (e.g. 2,000 items), cache per session like Planet. Asset: the
-   given keys, else visual/cog/image, else the first GeoTIFF; non-COG via
-   titiler. Date: `datetime`, else `start_datetime`; items without bbox or
-   date skipped. Thumbnail, gsd, licence from properties as today.
-2. **Ids, self-describing** so a shared link resolves without the
-   recipient having the catalog: `cat-stac--<base64url(endpoint|kind|
-   collection)>`; `catalogOfBasemapId` and `resolveCatalogSourceId`
-   already split on `--`. The user's list is only for the picker.
-3. **State**: `customTimelineCatalogsAtom` (`atomWithStorage`, like
-   `customBasemapSourcesAtom`): `{ id, label, short, endpoint, kind,
-   collections, assetKeys, color }`. A derived `timelineCatalogsAtom =
-   [...TIMELINE_CATALOGS, ...custom.map(toCatalog)]` with `group: "My
-   catalogs"`; append the group to `CATALOG_ROOT_ORDER` /
-   `HISTORICAL_TREE_ROOTS`. Every consumer that reads
-   `TIMELINE_CATALOGS` (picker tree, coverage tree, search by name,
-   `TIMELINE_CATALOG_BY_ID`) switches to the atom or a getter.
-4. **Dispatch**: `loadCatalogTicks` sends `cat-stac--*` to `stacTicks`
-   after decoding the id; `searchCatalogs` (search by name) can use the
-   API's free-text `q`/`ids` when offered, else is "unsupported".
-5. **UI**: an "Add a catalog" row at the end of the My catalogs group in
-   the Catalogs picker, opening a small dialog: URL (presets combobox from
-   `stac-presets.ts`, Auto-detect kind), collections (multi-select from
-   `/collections`, or the static catalog's children), asset key, name,
-   colour. Plus "Add to timeline" on the STAC search panel for its current
-   catalog. Remove/edit from the same group (edit mode, like the sources
-   list).
+`cat-stac-` + base64 of `kind|endpoint|collection` with `+`→`_`, `/`→`.`,
+no padding: alphabet `[A-Za-z0-9_.]`, no `-`, so a catalog id never holds
+the `--` that `catalogOfBasemapId` splits a basemap id on
+(`custom-basemap-cat-<catalog>--<item>`). `stacCatalogId` / `stacSpecOfId`.
+A link from another browser therefore resolves without the stored entry.
 
-## Caveats
+## The Proxy trick
 
-CORS decides everything (most STAC APIs and S3-hosted static catalogs
-allow it; refusals get the Old Maps Online treatment: listed, disabled,
-with the reason). Static catalogs can be huge: extent filter first, hard
-cap, progress in `catalogStatusAtom`. One search per view move, debounced
-as today.
+`TIMELINE_CATALOG_BY_ID` is a Proxy over the built-in record: `get` and `in`
+fall back to `stacCatalogDef(id)` (the stored entry's label/short/colour
+when present, else a synthesized one: host · last collection segment).
+Every `x in TIMELINE_CATALOG_BY_ID` / `TIMELINE_CATALOG_BY_ID[x]` consumer
+in the timeline panel kept working unchanged. `SOURCE_CONFIG` in
+`historical-timeline-panel.tsx` is the same Proxy pattern (resClass "vhr").
+`SOURCE_IDS` (the pill row) is the built-in keys only.
 
-**Effort:** about a day: half for loader, ids, atom and dispatch; half
-for the dialog, the picker group, the search panel button, docs.
+## Verified (headless, .cache/pw/stac-timeline-check.mjs, dbg2.mjs)
+
+Heritage catalog by link over Agadez: listed under My catalogs, 19 ticks.
+Dialog from the picker: URL pasted, 8 children listed, Agadez picked,
+suggested name "data.source.coop · Agadez, Niger", added, stored, selected,
+removed. HOT OAM 44 and Maxar 7 over Kathmandu through the new loader.
+The STAC panel's Add to the timeline (stac-panel-button.mjs): pasted URL,
+click, stored as its host, button turns "On the timeline", toast shown.
+
+## Not verified / not done
+
+- Picking a heritage tick as a view's basemap (titiler over a UTM COG on
+  source.coop) in a real browser.
+- Search by name for custom catalogs: "unsupported". Edit (rename, colour)
+  of an entry: remove and add again.
+- The tree's folds key for the new root is `cat:My catalogs`.

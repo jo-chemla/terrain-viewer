@@ -1,5 +1,5 @@
 import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
-import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, catalogTick, type CatalogItem } from "@/lib/timeline-catalogs"
+import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isStacCatalogId, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, catalogTick, type CatalogItem } from "@/lib/timeline-catalogs"
 import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom, tickPicksKeepAtom } from "@/lib/settings-atoms"
 import { TickCard } from "./tick-card"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
@@ -60,7 +60,8 @@ const MIN_YEAR_LABEL_GAP_PX = 32
 // pill's own hover tooltip — a few of these (Google Earth, EOX, HLS) got
 // shortened to keep the pill row from wrapping, so the full descriptive
 // name needs to live somewhere still discoverable.
-export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; shortLabel: string; color: string; resClass: "vhr" | "medium" }> = {
+type SourceConfig = { label: string; fullLabel: string; shortLabel: string; color: string; resClass: "vhr" | "medium" }
+const BUILTIN_SOURCE_CONFIG: Record<string, SourceConfig> = {
   // shortLabel is just the provider name, no product qualifier — used by
   // TerrainViewer.tsx's "Show Capture Date" pill in its "source + date" mode,
   // where space is tight and the provider alone is enough context.
@@ -76,7 +77,23 @@ export const SOURCE_CONFIG: Record<string, { label: string; fullLabel: string; s
   // tree, not the pill row (see visibleSourceIds).
   ...Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, { label: c.label, fullLabel: c.note, shortLabel: c.short, color: c.color, resClass: c.resClass ?? ("vhr" as const) }])),
 }
-const SOURCE_IDS = Object.keys(SOURCE_CONFIG)
+// The STAC catalogs the visitor attached (My catalogs, lib/timeline-catalogs.ts)
+// are not a fixed list: their config is made from the catalog's definition
+// when first asked for (the definition comes from the stored entry, or from
+// the id alone for a link from another browser).
+const stacSourceConfigs = new WeakMap<object, SourceConfig>()
+export const SOURCE_CONFIG: Record<string, SourceConfig> = new Proxy(BUILTIN_SOURCE_CONFIG, {
+  get: (t, k) => {
+    if (typeof k !== "string") return undefined
+    if (t[k]) return t[k]
+    const def = isStacCatalogId(k) ? TIMELINE_CATALOG_BY_ID[k] : undefined
+    if (!def) return undefined
+    let cfg = stacSourceConfigs.get(def)
+    if (!cfg) { cfg = { label: def.label, fullLabel: def.note, shortLabel: def.short, color: def.color, resClass: def.resClass ?? "vhr" }; stacSourceConfigs.set(def, cfg) }
+    return cfg
+  },
+})
+const SOURCE_IDS = Object.keys(BUILTIN_SOURCE_CONFIG)
 
 const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
   { id: "vhr", label: "VHR" },

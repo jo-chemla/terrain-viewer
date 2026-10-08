@@ -32,7 +32,7 @@ import { sourceFieldName } from "@/lib/grid-layouts"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { customBasemapSourcesAtom, customTerrainSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "@/lib/settings-atoms"
-import { catalogItemsAtom, catalogPickRequestAtom, catalogTick, HISTORICAL_TREE_ROOTS, searchCatalogs, COVERAGE_ONLY_ENTRIES, TIMELINE_CATALOGS, type CatalogItem, type CatalogSearchResult } from "@/lib/timeline-catalogs"
+import { catalogItemsAtom, catalogPickRequestAtom, catalogTick, HISTORICAL_TREE_ROOTS, searchCatalogs, COVERAGE_ONLY_ENTRIES, timelineCatalogsAtom, type CatalogItem, type CatalogSearchResult } from "@/lib/timeline-catalogs"
 import { Input } from "@/components/ui/input"
 import { Search, X, Loader2 } from "lucide-react"
 import { compareWithMapterhorn, formatRes } from "@/lib/mapterhorn-compare"
@@ -426,7 +426,8 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
   // The historical root takes every catalog of the tree: the dated ones are
   // state.timelineCatalogs, the footprint-only ones (Allmaps, QMS) coverage
   // overlays; a catalog a browser cannot query (disabled) is left out.
-  const historicalTicks = TIMELINE_CATALOGS.filter((c) => !c.disabled).map((c) => c.id)
+  const allTimelineCatalogs = useAtomValue(timelineCatalogsAtom)
+  const historicalTicks = allTimelineCatalogs.filter((c) => !c.disabled).map((c) => c.id)
   const historicalCov = COVERAGE_ONLY_ENTRIES.map((c) => c.id)
   const sectionState = (key: string): { on: number; total: number; toggle: (on: boolean) => void } => {
     if (key === "Historical") {

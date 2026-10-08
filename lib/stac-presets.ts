@@ -3,7 +3,7 @@
 // them without pulling in the panel itself - that file is deliberately
 // lazy-loaded (it is large and map-bound), and a static import of any symbol
 // from it would drag the whole thing into the initial bundle.
-import type { StacItem, StacCollection } from "@/components/TerrainControlPanel/stac-search-panel"
+import type { StacItem, StacCollection } from "./stac-crawl"
 
 export interface StacPreset {
   id: string

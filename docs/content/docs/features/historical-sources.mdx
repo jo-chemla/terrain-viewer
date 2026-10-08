@@ -106,6 +106,18 @@ Every archive sits under its continent, then its country with the ISO alpha-3 co
 
 The paper of these scanned maps can be made transparent: see [Remove paper](/features/basemaps#remove-paper).
 
+### My catalogs
+
+Your own STAC catalogs, attached to the tree: a STAC API (one `/search` with the view's bbox per move, the timeline window passed as `datetime` when the filter is on) or a static `catalog.json` tree (crawled a few levels down, collections skipped by their extent, items filtered by bbox and date, cached for the session), optionally narrowed to one collection (an API collection id, or one child of a static tree). The same loader serves the HOT catalogs above. Each item covering the view is a tick: its `visual`, `cog` or `image` asset (else the first GeoTIFF that is not a mask), drawn through TiTiler since most are in UTM; `gsd`, a thumbnail and the licence come along when the item has them.
+
+Three ways in:
+
+- **Add a catalog…**, the last row of the group in the Catalogs picker: a STAC preset (the imagery ones of the [STAC search](/features/basemaps#stac-search)), a catalog saved there, or a pasted URL; then a collection, a name and a short name for the pill. Try the Planet heritage release of the Eyes on Heritage hackathon, `https://data.source.coop/planet/heritage-hackathon-2026/catalog.json` (145 SkySat and PlanetScope scenes over eight sites, 2017 to 2026), narrowed to one site or whole.
+- **Add to the timeline** on the STAC search panel, for the catalog and collection being searched.
+- **A link**: the catalog's id in `timelineCatalogs` carries its endpoint, kind and collection, so a shared link resolves in a browser that never saved it. The row shows under My catalogs with a Keep button to store it.
+
+The list is this browser's (`customTimelineCatalogs` in local storage); the ✕ on a row removes it. The browser must be allowed to read the catalog (CORS): most STAC APIs and S3- or Source Cooperative-hosted static catalogs are; a refusal shows as an error on the row. Search by name is not offered for these catalogs.
+
 ## In the basemap library
 
 Some historical and current archives are basemaps rather than catalogs: the current HD orthophotos of [Esri World Imagery Clarity](https://www.arcgis.com/home/item.html?id=ab399b847323487dba26809bf11ea91a), [basemap.at](https://basemap.at/), [ČÚZK](https://geoportal.cuzk.cz/) and [Geoportal.gov.pl](https://www.geoportal.gov.pl/), and the 1966 and 1969 CORONA satellite photographs of Taiwan georeferenced by Academia Sinica. The historical OS maps of the [National Library of Scotland](https://maps.nls.uk/) are already in the OSM Editor Layer Index with their dates (about 150 layers), so they come through the ELI catalog.

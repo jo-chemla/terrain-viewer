@@ -24,10 +24,15 @@
 //     swisstopo time travel (identify at the view centre), Kartverket.
 //   Old Maps Online: listed, disabled - no CORS and a Cloudflare challenge
 //     (so are the Georeferencer API, David Rumsey's MapRank and loc.gov).
+//   My catalogs: STAC catalogs the visitor attached (customTimelineCatalogsAtom,
+//     a STAC API or a static catalog.json, optionally one collection), through
+//     the same STAC loader as HOT; their ids carry the endpoint (stacCatalogId),
+//     so a shared link resolves in a browser that never saved them.
 import type { ViewId } from "./grid-layouts"
-import { atom } from "jotai"
+import { atom, getDefaultStore } from "jotai"
 import type { FeatureCollection } from "geojson"
-import type { CustomBasemapSource } from "./settings-atoms"
+import { customTimelineCatalogsAtom, type CustomBasemapSource, type CustomTimelineCatalog } from "./settings-atoms"
+import { crawlStaticItems, fetchJson as stacFetchJson, authHeaders, trimSlash, type StacItem } from "./stac-crawl"
 import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
 import { loadAllmapsCoverage, allmapsMeta } from "./coverage-overlays"
 
@@ -67,7 +72,16 @@ export interface TimelineCatalog {
   /** The national archives' tree: continent, then the country (ISO 3166-1 alpha-3). */
   continent?: string
   iso3?: string
+  /** A catalog the visitor attached (My catalogs): removable from the tree. */
+  custom?: true
+  /** Its STAC endpoint, for the STAC loader. */
+  stac?: StacSpec
 }
+
+/** What the STAC loader needs: an API root (one /search per view) or a
+ *  static catalog.json (crawled), optionally one collection (an API
+ *  collection id, or a child catalog URL of a static tree). */
+export interface StacSpec { endpoint: string; kind: "api" | "static"; collection?: string; assetKeys?: string[]; licence?: string }
 
 /** Country names for the national archives' headings, by ISO alpha-3. */
 export const ISO3_NAMES: Record<string, string> = {
@@ -119,11 +133,14 @@ export const CATALOG_ROOTS: Record<string, string> = {
   "Community indexes": "Community indexes",
   "Mapping agencies national catalogs": "Mapping agencies national catalogs",
   "Old maps": "Old maps, digitised and warped",
+  "My catalogs": "My catalogs",
 }
+/** The group of the catalogs the visitor attached (customTimelineCatalogsAtom). */
+export const MY_CATALOGS_ROOT = "My catalogs"
 /** The roots the Sources Coverage section shows under Basemaps · Historical;
  *  Community indexes (ELI, QMS, ArcGIS Online) sit under Basemaps · Static. */
-export const HISTORICAL_TREE_ROOTS = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped"]
-export const CATALOG_ROOT_ORDER = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped"]
+export const HISTORICAL_TREE_ROOTS = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped", MY_CATALOGS_ROOT]
+export const CATALOG_ROOT_ORDER = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped", MY_CATALOGS_ROOT]
 
 export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "eli", label: "OSM Editor Layer Index (ELI)", short: "ELI", group: "Community indexes", color: "#99f6e4", note: "Dated orthophotos and maps of the OSM Editor Layer Index whose coverage touches the view (about 1,300 layers carry a date); a year-only date sits at 1 January." },
@@ -148,7 +165,68 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "Mapping agencies national catalogs", region: s.group.replace(/^Historical · /, ""), ...natPlace(s), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
   { id: "cat-allmaps", label: "Allmaps, dated maps in view", short: "Allmaps", group: "Old maps", color: "#d946ef", note: "Georeferenced IIIF maps from the Allmaps annotations API dated by the archive's own record: the IIIF manifest's date (one read per map in view, up to 40), else a historical year in the title; the georeferencing date is never used. One tick per map, draped as an overlay when picked." },
 ]
-export const TIMELINE_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>
+const BUILTIN_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>
+
+// ── STAC catalogs the visitor attached ("My catalogs") ──────────────────────
+// Their id carries the endpoint: "cat-stac-" + base64 of "kind|endpoint|
+// collection" over the alphabet [A-Za-z0-9_.] (no "-", so the id never holds
+// the "--" that separates a catalog from its item in a basemap id). A link
+// that names one therefore resolves anywhere: the stored list only gives the
+// picker its rows and the catalog its chosen label, short name and colour.
+const STAC_ID_PREFIX = "cat-stac-"
+export const isStacCatalogId = (id: string | undefined | null): boolean => !!id && id.startsWith(STAC_ID_PREFIX)
+const b64enc = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, "_").replace(/\//g, ".").replace(/=+$/, "")
+const b64dec = (s: string) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/_/g, "+").replace(/\./g, "/")), (c) => c.charCodeAt(0)))
+export const stacCatalogId = (spec: Pick<StacSpec, "endpoint" | "kind" | "collection">): string =>
+  `${STAC_ID_PREFIX}${b64enc(`${spec.kind}|${trimSlash(spec.endpoint)}|${spec.collection ?? ""}`)}`
+export function stacSpecOfId(id: string): StacSpec | null {
+  if (!isStacCatalogId(id)) return null
+  try {
+    const parts = b64dec(id.slice(STAC_ID_PREFIX.length)).split("|")
+    const kind = parts.shift(), collection = parts.pop(), endpoint = parts.join("|")
+    if ((kind !== "api" && kind !== "static") || !/^https?:\/\//.test(endpoint)) return null
+    return { endpoint, kind, collection: collection || undefined }
+  } catch { return null }
+}
+const STAC_PALETTE = ["#a3e635", "#f472b6", "#38bdf8", "#fb923c", "#c084fc", "#2dd4bf", "#facc15", "#f87171"]
+/** The colour for the next attached catalog: the first of the palette not in use. */
+export const nextStacCatalogColor = (used: { color: string }[]): string => STAC_PALETTE.find((c) => !used.some((u) => u.color === c)) ?? STAC_PALETTE[used.length % STAC_PALETTE.length]
+const customDefs = new WeakMap<CustomTimelineCatalog, TimelineCatalog>()
+const toTimelineCatalog = (c: CustomTimelineCatalog): TimelineCatalog => {
+  let def = customDefs.get(c)
+  if (!def) {
+    def = { id: c.id, label: c.label, short: c.short, group: MY_CATALOGS_ROOT, color: c.color, custom: true,
+      note: c.note ?? `${c.kind === "api" ? "STAC API" : "Static STAC catalog"} ${c.endpoint}${c.collection ? `, ${c.kind === "api" ? "collection" : "under"} ${c.collection}` : ""}: one tick per item covering the view.`,
+      stac: { endpoint: c.endpoint, kind: c.kind, collection: c.collection, assetKeys: c.assetKeys } }
+    customDefs.set(c, def)
+  }
+  return def
+}
+const synthesizedDefs = new Map<string, TimelineCatalog>()
+/** The definition of an attached STAC catalog: the visitor's entry when the
+ *  list has it, else one made from the id alone (a link from another browser). */
+export function stacCatalogDef(id: string): TimelineCatalog | undefined {
+  if (!isStacCatalogId(id)) return undefined
+  const own = getDefaultStore().get(customTimelineCatalogsAtom).find((c) => c.id === id)
+  if (own) return toTimelineCatalog(own)
+  let def = synthesizedDefs.get(id)
+  if (def) return def
+  const spec = stacSpecOfId(id)
+  if (!spec) return undefined
+  const host = new URL(spec.endpoint).host
+  const col = spec.collection ? spec.collection.split("/").filter((p) => p && !/^(catalog|collection)\.json$/.test(p)).pop() ?? "" : ""
+  def = toTimelineCatalog({ id, label: col ? `${host} · ${col}` : host, short: (col || host).slice(0, 16), endpoint: spec.endpoint, kind: spec.kind, collection: spec.collection, color: STAC_PALETTE[0] })
+  synthesizedDefs.set(id, def)
+  return def
+}
+/** Every catalog by id: the built-in ones, and any attached STAC catalog
+ *  (`in` and indexing both answer for a cat-stac- id, listed or not). */
+export const TIMELINE_CATALOG_BY_ID: Record<string, TimelineCatalog> = new Proxy(BUILTIN_CATALOG_BY_ID, {
+  get: (t, k) => (typeof k === "string" ? t[k] ?? stacCatalogDef(k) : undefined),
+  has: (t, k) => typeof k === "string" && (k in t || !!stacCatalogDef(k)),
+})
+/** The built-in catalogs plus the visitor's attached ones, for the trees. */
+export const timelineCatalogsAtom = atom<TimelineCatalog[]>((get) => [...TIMELINE_CATALOGS, ...get(customTimelineCatalogsAtom).map(toTimelineCatalog)])
 
 export const isCatalogBasemapId = (id: string | undefined | null): boolean => !!id && id.startsWith(CATALOG_BASEMAP_PREFIX)
 /** "custom-basemap-cat-cat-oam--<item>" -> "cat-oam". */
@@ -259,34 +337,71 @@ function cogAssetHref(assets: Record<string, any> | undefined, prefer: string[])
   return (cog as any)?.href ?? null
 }
 
-// ── HOT STAC ──────────────────────────────────────────────────────────────
+// ── STAC: HOT's API and the catalogs the visitor attached ─────────────────
 const HOT_STAC = "https://api.imagery.hotosm.org/stac"
-const HOT_COLLECTION: Record<string, string> = { "cat-oam": "openaerialmap", "cat-maxar": "maxar-opendata", "cat-vantor": "vantor-opendata", "cat-noaa": "noaa-emergency-response" }
+const HOT_SPECS: Record<string, StacSpec> = {
+  "cat-oam": { endpoint: HOT_STAC, kind: "api", collection: "openaerialmap", licence: "CC BY 4.0 (per upload)" },
+  "cat-maxar": { endpoint: HOT_STAC, kind: "api", collection: "maxar-opendata", licence: "CC BY-NC 4.0" },
+  "cat-vantor": { endpoint: HOT_STAC, kind: "api", collection: "vantor-opendata", licence: "CC BY-NC 4.0" },
+  "cat-noaa": { endpoint: HOT_STAC, kind: "api", collection: "noaa-emergency-response", licence: "Public domain (NOAA)" },
+}
+const stacSpecOf = (catalog: string): StacSpec | undefined => HOT_SPECS[catalog] ?? TIMELINE_CATALOG_BY_ID[catalog]?.stac
 
-async function hotStacTicks(catalog: string, bbox: Bbox, signal?: AbortSignal, range?: [number, number]): Promise<CatalogTick[]> {
-  const collection = HOT_COLLECTION[catalog]
-  const datetime = range ? `&datetime=${new Date(range[0]).toISOString()}/${new Date(range[1]).toISOString()}` : ""
-  const res = await fetch(`${HOT_STAC}/search?collections=${collection}&bbox=${bbox.map((v) => v.toFixed(5)).join(",")}&limit=200${datetime}`, { signal })
-  if (!res.ok) throw new Error(`HOT STAC ${res.status}`)
-  const d = await res.json()
+/** The item's asset to drape: the catalog's keys, then visual / cog / image,
+ *  then an asset with the visual role, then the first GeoTIFF that is not a
+ *  mask or metadata. */
+function stacAssetHref(assets: Record<string, any> | undefined, prefer: string[] | undefined): string | null {
+  if (!assets) return null
+  for (const k of prefer ?? []) if (assets[k]?.href) return assets[k].href
+  for (const k of ["visual", "ortho_visual", "cog", "image"]) if (assets[k]?.href) return assets[k].href
+  const visual = Object.values(assets).find((a: any) => a?.href && (a.roles ?? []).includes("visual"))
+  if (visual) return (visual as any).href
+  const tiff = Object.values(assets).find((a: any) => a?.href && /cloud-optimized|image\/tiff/.test(String(a?.type ?? "")) && !(a.roles ?? []).some((r: string) => /mask|metadata|thumbnail|overview/.test(r)))
+  return (tiff as any)?.href ?? null
+}
+
+/** Ticks from a STAC catalog over the view: an API is asked for the bbox
+ *  (and the timeline's window, when on); a static tree is crawled with its
+ *  collections' extents as the filter (lib/stac-crawl.ts, cached for the
+ *  session). One tick per acquisition: Maxar and Vantor cut a capture into
+ *  many tiles, the tile under the view centre stands for it. */
+async function stacTicks(catalog: string, spec: StacSpec, bbox: Bbox, signal?: AbortSignal, range?: [number, number]): Promise<CatalogTick[]> {
+  const def = TIMELINE_CATALOG_BY_ID[catalog]
+  const base = trimSlash(spec.endpoint)
+  const datetime = range ? `${new Date(range[0]).toISOString()}/${new Date(range[1]).toISOString()}` : undefined
+  let features: StacItem[]
+  if (spec.kind === "api") {
+    const q = new URLSearchParams({ bbox: bbox.map((v) => v.toFixed(5)).join(","), limit: "200" })
+    if (spec.collection) q.set("collections", spec.collection)
+    if (datetime) q.set("datetime", datetime)
+    const res = await fetch(`${base}/search?${q}`, { signal, headers: authHeaders(base) })
+    let d: { features?: StacItem[] }
+    if (res.ok) d = await res.json()
+    // A server that refuses GET (405, or a 400 on the query form) takes the
+    // same search as a POST body.
+    else if (res.status === 405 || res.status === 400) {
+      d = await stacFetchJson(`${base}/search`, { method: "POST", signal, headers: { "content-type": "application/json" },
+        body: JSON.stringify({ bbox, limit: 200, ...(spec.collection ? { collections: [spec.collection] } : {}), ...(datetime ? { datetime } : {}) }) })
+    } else throw new Error(`STAC ${res.status}`)
+    features = d.features ?? []
+  } else {
+    features = await crawlStaticItems(spec.collection ?? spec.endpoint, bbox, 400, undefined, signal, range ? { from: range[0], to: range[1] } : undefined)
+  }
   const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
-  // One tick per acquisition: Maxar and Vantor cut a capture into many
-  // tiles; the tile under the view centre stands for it.
-  const groups = new Map<string, any[]>()
-  for (const f of d.features ?? []) {
-    const p = f.properties ?? {}
+  const groups = new Map<string, StacItem[]>()
+  for (const f of features) {
+    const p: any = f.properties ?? {}
     const dt = p.datetime ?? p.start_datetime ?? p.end_datetime
     if (!dt) continue
     const g = `${String(dt).slice(0, 10)}|${p.catalog_id ?? p.title ?? p.event ?? f.id}`
     if (!groups.has(g)) groups.set(g, [])
     groups.get(g)!.push(f)
   }
-  const def = TIMELINE_CATALOG_BY_ID[catalog]
   const ticks: CatalogTick[] = []
   for (const items of groups.values()) {
     const f = items.find((x) => Array.isArray(x.bbox) && containsPt(x.bbox as Bbox, cx, cy)) ?? items[0]
-    const p = f.properties ?? {}
-    const href = cogAssetHref(f.assets, ["visual", "cog", "image"])
+    const p: any = f.properties ?? {}
+    const href = stacAssetHref(f.assets, spec.assetKeys)
     if (!href) continue
     const dt = String(p.datetime ?? p.start_datetime ?? p.end_datetime)
     const dateMs = Date.parse(dt)
@@ -294,10 +409,11 @@ async function hotStacTicks(catalog: string, bbox: Bbox, signal?: AbortSignal, r
     const title = p.title ?? p.event ?? f.id
     const date = dt.slice(0, 10)
     const label = `${def.short} · ${title} · ${date}${items.length > 1 ? ` · ${items.length} tiles` : ""}`
-    const info = catalog === "cat-oam" ? `${HOT_STAC}/collections/${collection}/items/${encodeURIComponent(f.id)}` : `${HOT_STAC}/collections/${collection}/items/${encodeURIComponent(f.id)}`
+    const info = spec.kind === "api" && f.collection ? `${base}/collections/${f.collection}/items/${encodeURIComponent(f.id)}` : f.links?.find((l) => l.rel === "self")?.href ?? spec.endpoint
     const thumb = f.assets?.thumbnail?.href ?? f.assets?.preview?.href
-    ticks.push(register(catalog, f.id, dateMs, label, cogSource(`${def.label} · ${title} · ${date}`, href, f.bbox, `${def.label}, ${date}${p.gsd ? `, ${Number(p.gsd).toFixed(2)} m` : ""}`, info),
-      { gsd: Number.isFinite(Number(p.gsd)) ? Number(p.gsd) : undefined, thumb, provider: def.label, licence: catalog === "cat-maxar" || catalog === "cat-vantor" ? "CC BY-NC 4.0" : catalog === "cat-oam" ? "CC BY 4.0 (per upload)" : "Public domain (NOAA)" }))
+    const licence = spec.licence ?? (typeof p.license === "string" ? p.license : undefined)
+    ticks.push(register(catalog, f.id, dateMs, label, cogSource(`${def.label} · ${title} · ${date}`, href, f.bbox as Bbox | undefined, `${def.label}, ${date}${p.gsd ? `, ${Number(p.gsd).toFixed(2)} m` : ""}`, info),
+      { gsd: Number.isFinite(Number(p.gsd)) ? Number(p.gsd) : undefined, thumb, provider: def.label, licence }))
   }
   return ticks
 }
@@ -980,7 +1096,7 @@ export async function searchCatalogs(ids: string[], text: string, signal?: Abort
 export async function loadCatalogTicks(catalog: string, bbox: Bbox, signal?: AbortSignal, range?: [number, number]): Promise<CatalogTick[]> {
   let ticks: CatalogTick[] = []
   if (catalog === "eli") ticks = eliLayersToTicks(await datedEliLayersInView(bbox))
-  else if (catalog in HOT_COLLECTION) ticks = await hotStacTicks(catalog, bbox, signal, range)
+  else if (stacSpecOf(catalog)) ticks = await stacTicks(catalog, stacSpecOf(catalog)!, bbox, signal, range)
   else if (catalog === "cat-ign") ticks = await ignTicks(bbox, signal)
   else if (catalog === "cat-swissimage" || catalog === "cat-swiss-maps") ticks = await swisstopoTicks(catalog, bbox, signal)
   else if (catalog === "cat-kartverket") ticks = kartverketTicks(bbox)
