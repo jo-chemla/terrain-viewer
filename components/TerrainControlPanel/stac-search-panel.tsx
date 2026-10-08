@@ -410,7 +410,7 @@ export const StacSearchPanel: React.FC<{
         const colTitle = collectionId ? (collections.find((c) => c.id === collectionId)?.title || collectionId) : ""
         return (
           <Button variant="outline" size="sm" className="cursor-pointer" disabled={onTimeline}
-            title={onTimeline ? "Already on the historical timeline (Catalogs → My catalogs)" : "Attach this catalog to the historical timeline's Catalogs picker, under My catalogs: its items covering the view become ticks"}
+            title={onTimeline ? "Already on the historical timeline (Catalogs → My STAC catalogs)" : "Attach this catalog to the historical timeline's Catalogs picker, under My STAC catalogs: its items covering the view become ticks"}
             onClick={() => {
               // A pasted URL is named by its host, not "Custom".
               const base = catalog.id === "custom" ? (() => { try { return new URL(catalog.url).host } catch { return catalog.url } })() : catalog.name
@@ -420,7 +420,7 @@ export const StacSearchPanel: React.FC<{
               for (const w of words) { if ((short + " " + w).trim().length > 14) break; short = (short + " " + w).trim() }
               const entry: CustomTimelineCatalog = { id, label, short: short || label.slice(0, 14), ...spec, color: ["#a3e635", "#f472b6", "#38bdf8", "#fb923c", "#c084fc", "#2dd4bf", "#facc15", "#f87171"].find((c) => !timelineCatalogs.some((t) => t.color === c)) ?? "#a3e635" }
               setTimelineCatalogs((prev) => (prev.some((c) => c.id === id) ? prev : [...prev, entry]))
-              pushToast({ key: "stac-timeline", title: "Added to the historical timeline", body: `${label} sits under Catalogs → My catalogs; tick it there to see its items as ticks.`, duration: 6000 })
+              pushToast({ key: "stac-timeline", title: "Added to the historical timeline", body: `${label} sits under Catalogs → My STAC catalogs; tick it there to see its items as ticks.`, duration: 6000 })
             }}>
             <History className="h-3.5 w-3.5" /> {onTimeline ? "On the timeline" : "Add to the timeline"}
           </Button>

@@ -484,9 +484,13 @@ export const HypsometricTintOptionsSection: React.FC<{
               // first ramp. Switching to the first one while the ramp was
               // also in this tab made the sync effect flip the tab back.
               if (!filteredNow[state.colorRamp]) {
-                const first = Object.values(filteredNow)[0]?.name
+                // The ramp's KEY, not its lowercased name: 29 Classic ramps
+                // differ ("diverging-blue-white-red" vs "Diverging (Blue-White-Red)"),
+                // and a name written here was a ramp no tab holds, so the sync
+                // effect below sent the tab elsewhere.
+                const first = Object.keys(filteredNow)[0]
                 // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
-                if (first) setState({ colorRamp: first.toLowerCase() })
+                if (first) setState({ colorRamp: first })
               }
             }
           }}
@@ -605,9 +609,9 @@ export const HypsometricTintOptionsSection: React.FC<{
                   setLicenseFilter(value)
                   const filteredNow = filterColorRamps(colorRamps, colorRampType, value)
                   if (!filteredNow[state.colorRamp]) {
-                    const first = Object.values(filteredNow)[0]?.name
+                    const first = Object.keys(filteredNow)[0] // the key, see the tab handler above
                     // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
-                    setState({ colorRamp: first.toLowerCase() })
+                    if (first) setState({ colorRamp: first })
                   }
                 }
               }}

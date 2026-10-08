@@ -2,7 +2,7 @@
 // (historical-catalog-tree.tsx): a STAC API or a static catalog.json, from the
 // STAC presets, the catalogs saved in the STAC search, or a pasted URL;
 // optionally one collection (an API's /collections, or a static tree's
-// children); a name, a short name for the pill. The entry lands in
+// children); a name (the pill shows its first words). The entry lands in
 // customTimelineCatalogsAtom under a self-describing id (stacCatalogId), and
 // the tree ticks it on. What it loads and whether the catalog answers a
 // browser at all shows in the tree's count or error, as for every catalog.
@@ -55,8 +55,7 @@ export const AddTimelineCatalogDialog: React.FC<{
   const [listing, setListing] = useState(false)
   const [error, setError] = useState("")
   const [label, setLabel] = useState("")
-  const [short, setShort] = useState("")
-  const [touched, setTouched] = useState({ label: false, short: false })
+  const [touched, setTouched] = useState(false)
 
   // The collections of the chosen endpoint (API: /collections, paged;
   // static: the root's children), listed as soon as the URL is a URL.
@@ -88,12 +87,14 @@ export const AddTimelineCatalogDialog: React.FC<{
     const base = preset?.name ?? (() => { try { return new URL(endpoint).host } catch { return endpoint } })()
     return collectionTitle ? `${base} · ${collectionTitle}` : base
   }, [preset, endpoint, collectionTitle])
-  useEffect(() => { if (!touched.label) setLabel(suggestedLabel) }, [suggestedLabel, touched.label])
-  useEffect(() => { if (!touched.short) setShort(shortNameOf(collectionTitle || preset?.name || suggestedLabel)) }, [collectionTitle, preset, suggestedLabel, touched.short])
+  useEffect(() => { if (!touched) setLabel(suggestedLabel) }, [suggestedLabel, touched])
+  // The pill's name: the collection's first words while the name is the
+  // suggested one, else the first words of what was typed.
+  const short = shortNameOf(collectionTitle && label === suggestedLabel ? collectionTitle : label)
 
   const id = /^https?:\/\/\S+/.test(endpoint) ? stacCatalogId({ endpoint, kind, collection }) : ""
   const already = !!id && existing.some((c) => c.id === id)
-  const canAdd = !!id && !!label.trim() && !!short.trim() && !already
+  const canAdd = !!id && !!label.trim() && !already
   const add = () => {
     if (!canAdd) return
     onAdd({ id, label: label.trim(), short: short.trim(), endpoint, kind, collection, color: nextStacCatalogColor(existing) })
@@ -108,7 +109,7 @@ export const AddTimelineCatalogDialog: React.FC<{
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add a catalog to the timeline</DialogTitle>
-          <DialogDescription>A STAC API or a static catalog.json: its items covering the view become ticks under My catalogs, like the open-data catalogs. The browser must be allowed to read it (CORS).</DialogDescription>
+          <DialogDescription>A STAC API or a static catalog.json: its items covering the view become ticks under My STAC catalogs, like the open-data catalogs. The browser must be allowed to read it (CORS).</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 min-w-0">
           <div className="space-y-1 min-w-0">
@@ -144,15 +145,10 @@ export const AddTimelineCatalogDialog: React.FC<{
             </Select>
             {error && <p className="text-[11px] text-destructive break-words">{error}</p>}
           </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2 min-w-0">
-            <div className="space-y-1 min-w-0">
-              <Label htmlFor="tl-cat-label" className="text-xs">Name</Label>
-              <Input id="tl-cat-label" value={label} onChange={(e) => { setLabel(e.target.value); setTouched((t) => ({ ...t, label: true })) }} className="cursor-text" />
-            </div>
-            <div className="space-y-1 min-w-0">
-              <Label htmlFor="tl-cat-short" className="text-xs">Short name</Label>
-              <Input id="tl-cat-short" value={short} maxLength={16} onChange={(e) => { setShort(e.target.value); setTouched((t) => ({ ...t, short: true })) }} className="cursor-text" />
-            </div>
+          <div className="space-y-1 min-w-0">
+            <Label htmlFor="tl-cat-label" className="text-xs">Name</Label>
+            <Input id="tl-cat-label" value={label} onChange={(e) => { setLabel(e.target.value); setTouched(true) }} className="cursor-text" />
+            <p className="text-[11px] text-muted-foreground">On the pills as "{short}".</p>
           </div>
           {already && <p className="text-[11px] text-muted-foreground">This catalog is already in My catalogs.</p>}
           <div className="flex justify-end gap-2">

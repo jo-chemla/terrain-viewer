@@ -35,5 +35,6 @@
 - [Fast Refresh and self-calling hooks](react-refresh-recursive-hook.md) — a hook calling itself overflows @react-refresh computeFullKey; split into leaf + wrapper; scripts to find the culprit
 - [MCP Apps plan](mcp-apps-plan.md) — Terrain Viewer as an in-chat app for Claude and ChatGPT (MCP Apps + Apps SDK), tools and widget sketched, not built
 - [Changelog style](changelog-style.md) — TL;DR of 3 to 5 bullets at most, repeats folded, details under a second heading, link and one picture per feature page
+- [deck.gl-raster custom projections](deckgl-raster-custom-projections.md) — PR 694: COGs in polar stereographic and other planar projections on deck.gl v10, a route for polar DEM views; issue 322 on browser EPSG resolution (devseed epsg, clj-proj)
 - [Custom STAC catalogs on the timeline](custom-stac-timeline-catalogs.md) — My catalogs group (built 2026-10-08): lib/stac-crawl.ts shared loader, cat-stac- self-describing ids, the Proxy on TIMELINE_CATALOG_BY_ID and SOURCE_CONFIG, the dialog, what is unverified
 - [UI overflow rules](ui-overflow-rules.md) — why selects and dialogs kept overflowing (flex min-width auto, grid min-content tracks), the contract in components/ui, no fixed SelectTrigger widths, min-w-0 on every flex/grid parent

@@ -94,6 +94,12 @@ export const SOURCE_CONFIG: Record<string, SourceConfig> = new Proxy(BUILTIN_SOU
   },
 })
 const SOURCE_IDS = Object.keys(BUILTIN_SOURCE_CONFIG)
+/** The resolution class the VHR / Medium res pills filter on: a catalog
+ *  tick that knows its gsd is judged by it (1 m/px and finer is VHR: a 50 cm
+ *  SkySat scene, a drone upload; a 3 m PlanetScope scene is medium), the
+ *  rest by their source. */
+const tickResClass = (t: { source: string; meta?: { gsd?: number } }): "vhr" | "medium" | undefined =>
+  t.source in TIMELINE_CATALOG_BY_ID && typeof t.meta?.gsd === "number" && t.meta.gsd > 0 ? (t.meta.gsd > 1 ? "medium" : "vhr") : SOURCE_CONFIG[t.source]?.resClass
 
 const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
   { id: "vhr", label: "VHR" },
@@ -779,7 +785,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // though the caption below was reading the correct tick all along
   // (captions don't depend on this filtered/scaled list).
   const items = useMemo(() => {
-    const filtered = allTicks.filter((t) => (t.source in TIMELINE_CATALOG_BY_ID ? selectedCatalogs.includes(t.source) : timelineSourcesForPills.includes(t.source)) && resolutionClasses.includes(SOURCE_CONFIG[t.source]?.resClass))
+    const filtered = allTicks.filter((t) => (t.source in TIMELINE_CATALOG_BY_ID ? selectedCatalogs.includes(t.source) : timelineSourcesForPills.includes(t.source)) && resolutionClasses.includes(tickResClass(t) as "vhr" | "medium"))
     const activeTicks = activeViews.filter(showFor).map(resolveDisplayTick).filter((t): t is TimelineTick => !!t)
     const seen = new Set(filtered.map((t) => `${t.source}-${t.key}`))
     const extra = activeTicks.filter((t) => !seen.has(`${t.source}-${t.key}`))

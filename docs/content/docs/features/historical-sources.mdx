@@ -106,17 +106,17 @@ Every archive sits under its continent, then its country with the ISO alpha-3 co
 
 The paper of these scanned maps can be made transparent: see [Remove paper](/features/basemaps#remove-paper).
 
-### My catalogs
+### My STAC catalogs
 
-Your own STAC catalogs, attached to the tree: a STAC API (one `/search` with the view's bbox per move, the timeline window passed as `datetime` when the filter is on) or a static `catalog.json` tree (crawled a few levels down, collections skipped by their extent, items filtered by bbox and date, cached for the session), optionally narrowed to one collection (an API collection id, or one child of a static tree). The same loader serves the HOT catalogs above. Each item covering the view is a tick: its `visual`, `cog` or `image` asset (else the first GeoTIFF that is not a mask), drawn through TiTiler since most are in UTM; `gsd`, a thumbnail and the licence come along when the item has them.
+Your own STAC catalogs, attached to the tree, and one shipped there: **Planet Eyes on Heritage 2026**, the yearly SkySat, Pelican and PlanetScope series over eight cultural heritage sites released for the Eyes on Heritage hackathon (145 scenes, CC BY-NC 4.0, on Source Cooperative), also a preset of the STAC search. Each catalog is a STAC API (one `/search` with the view's bbox per move, the timeline window passed as `datetime` when the filter is on) or a static `catalog.json` tree (crawled a few levels down, collections skipped by their extent, items filtered by bbox and date, cached for the session), optionally narrowed to one collection (an API collection id, or one child of a static tree). The same loader serves the HOT catalogs above. Each item covering the view is a tick: its `visual`, `cog` or `image` asset (else the first GeoTIFF that is not a mask), drawn through TiTiler since most are in UTM; `gsd`, a thumbnail and the licence come along when the item has them.
 
 Three ways in:
 
-- **Add a catalog…**, the last row of the group in the Catalogs picker: a STAC preset (the imagery ones of the [STAC search](/features/basemaps#stac-search)), a catalog saved there, or a pasted URL; then a collection, a name and a short name for the pill. Try the Planet heritage release of the Eyes on Heritage hackathon, `https://data.source.coop/planet/heritage-hackathon-2026/catalog.json` (145 SkySat and PlanetScope scenes over eight sites, 2017 to 2026), narrowed to one site or whole.
+- **Add a catalog…**, the last row of the group in the Catalogs picker: a STAC preset (the imagery ones of the [STAC search](/features/basemaps#stac-search)), a catalog saved there, or a pasted URL; then a collection and a name (the pill shows its first words). The heritage catalog narrowed to one site is the shape of it: `https://data.source.coop/planet/heritage-hackathon-2026/catalog.json`, then Aleppo.
 - **Add to the timeline** on the STAC search panel, for the catalog and collection being searched.
-- **A link**: the catalog's id in `timelineCatalogs` carries its endpoint, kind and collection, so a shared link resolves in a browser that never saved it. The row shows under My catalogs with a Keep button to store it.
+- **A link**: the catalog's id in `timelineCatalogs` carries its endpoint, kind and collection, so a shared link resolves in a browser that never saved it. The row shows under My STAC catalogs with a Keep button to store it.
 
-The list is this browser's (`customTimelineCatalogs` in local storage); the ✕ on a row removes it. The browser must be allowed to read the catalog (CORS): most STAC APIs and S3- or Source Cooperative-hosted static catalogs are; a refusal shows as an error on the row. Search by name is not offered for these catalogs.
+The list is this browser's (`customTimelineCatalogs` in local storage); the ✕ on a row removes it. The VHR and Medium res pills judge each STAC tick by its own `gsd`: 1 m/px and finer is VHR, coarser is medium, so the 3 m PlanetScope scenes hide under VHR and the 50 cm SkySat ones stay. The browser must be allowed to read the catalog (CORS): most STAC APIs and S3- or Source Cooperative-hosted static catalogs are; a refusal shows as an error on the row. Search by name is not offered for these catalogs.
 
 ## In the basemap library
 

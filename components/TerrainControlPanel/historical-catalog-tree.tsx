@@ -13,7 +13,7 @@
 // group starts folded. What the user opens is kept (coverageFoldsAtom, the
 // same state in both places); a source whose extent misses the view is
 // dimmed. The last root, My catalogs, holds the STAC catalogs the visitor
-// attached (customTimelineCatalogsAtom): an "Add a catalog" row opens
+// attached (customTimelineCatalogsAtom) and the shipped ones: an "Add a catalog" row opens
 // add-timeline-catalog-dialog.tsx, and each row has a remove button.
 import type React from "react"
 import { useMemo, useState } from "react"
@@ -176,12 +176,12 @@ export const HistoricalCatalogTree: React.FC<{
           ? <span className="text-[10px] text-destructive" title={errors[c.id]}>error</span>
           : <span className="text-[10px] text-muted-foreground tabular-nums">{counts[c.id] ?? 0}</span>)}
         {c.unlisted && (
-          <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-foreground p-0.5" aria-label={`Keep ${c.label} in My catalogs`} title="From the link you opened: keep it in My catalogs" onClick={() => keepCustom(c)}>
+          <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-foreground p-0.5" aria-label={`Keep ${c.label} in My STAC catalogs`} title="From the link you opened: keep it in My STAC catalogs" onClick={() => keepCustom(c)}>
             <BookmarkPlus className="h-3 w-3" />
           </button>
         )}
         {c.custom && (
-          <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-destructive p-0.5" aria-label={`Remove ${c.label} from My catalogs`} title={c.unlisted ? "Drop it from the timeline" : "Remove from My catalogs"} onClick={() => removeCustom(c.id)}>
+          <button type="button" className="cursor-pointer shrink-0 text-muted-foreground hover:text-destructive p-0.5" aria-label={`Remove ${c.label} from My STAC catalogs`} title={c.unlisted ? "Drop it from the timeline" : "Remove from My STAC catalogs"} onClick={() => removeCustom(c.id)}>
             <X className="h-3 w-3" />
           </button>
         )}

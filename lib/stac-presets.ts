@@ -63,6 +63,8 @@ export const STAC_PRESETS: StacPreset[] = [
     note: "Maxar's successor programme, 2025 onwards (CC BY-NC 4.0)." },
   { id: "planet-disaster", name: "Planet disaster data releases", url: "https://data.source.coop/planet/disasterdata/catalog.json", kind: "static", target: "basemap", group: "Imagery",
     note: "Planet Crisis Response Program imagery for major events, mirrored on Source Cooperative (Portolan registry)." },
+  { id: "planet-heritage", name: "Planet Eyes on Heritage 2026 (cultural heritage sites)", url: "https://data.source.coop/planet/heritage-hackathon-2026/catalog.json", kind: "static", target: "basemap", group: "Imagery",
+    note: "Yearly SkySat/Pelican (50 cm) and PlanetScope (3 m) series 2017 to 2026 clipped to eight cultural heritage sites (Agadez, Aleppo, Damascus, Derna, Herat, Historic Cairo, Marrakesh, Timbuktu), 145 scenes, CC BY-NC 4.0; released for the Eyes on Heritage hackathon, Abu Dhabi 2026. Also on the historical timeline under My STAC catalogs. The GeoTIFFs are in UTM, routed through titiler." },
   { id: "umbra", name: "Umbra Open SAR Data", url: "https://s3.us-west-2.amazonaws.com/umbra-open-data-catalog/stac/catalog.json", kind: "static", target: "basemap", group: "Imagery",
     note: "Up to 16 cm synthetic-aperture radar over ~20 recurring sites, AWS Open Data. Static catalog nested by year, so crawling is slow; the geocoded (GEC) GeoTIFF of each collect is the one to load as a basemap. Radar amplitude, not an elevation model." },
   { id: "capella", name: "Capella Open SAR Data", url: "https://capella-open-data.s3.us-west-2.amazonaws.com/stac/catalog.json", kind: "static", target: "basemap", group: "Imagery",

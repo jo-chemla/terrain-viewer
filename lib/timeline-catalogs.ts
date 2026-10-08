@@ -133,10 +133,12 @@ export const CATALOG_ROOTS: Record<string, string> = {
   "Community indexes": "Community indexes",
   "Mapping agencies national catalogs": "Mapping agencies national catalogs",
   "Old maps": "Old maps, digitised and warped",
-  "My catalogs": "My catalogs",
+  "My STAC catalogs": "My STAC catalogs",
 }
-/** The group of the catalogs the visitor attached (customTimelineCatalogsAtom). */
-export const MY_CATALOGS_ROOT = "My catalogs"
+/** The group of the STAC catalogs: the ones the visitor attached
+ *  (customTimelineCatalogsAtom) and the shipped ones below. */
+export const MY_CATALOGS_ROOT = "My STAC catalogs"
+export const PLANET_HERITAGE_STAC = "https://data.source.coop/planet/heritage-hackathon-2026/catalog.json"
 /** The roots the Sources Coverage section shows under Basemaps · Historical;
  *  Community indexes (ELI, QMS, ArcGIS Online) sit under Basemaps · Static. */
 export const HISTORICAL_TREE_ROOTS = ["Open data for post-crisis response", "Community indexes", "Mapping agencies national catalogs", "Old maps, digitised and warped", MY_CATALOGS_ROOT]
@@ -163,6 +165,8 @@ export const TIMELINE_CATALOGS: TimelineCatalog[] = [
   { id: "cat-kartverket", label: "Kartverket Amtskart (Norway)", short: "Kartverket", group: "Mapping agencies national catalogs", region: "Norway", continent: "Europe", iso3: "NOR", color: "#bae6fd", note: "Norway's county maps, 1826-1916, the first regular map series of the country." , bbox: [4.0, 57.9, 31.2, 71.3] },
   // Regional series (lib/national-historical.ts).
   ...NATIONAL_SOURCES.map((s) => ({ id: s.id, label: s.label, short: s.short, group: "Mapping agencies national catalogs", region: s.group.replace(/^Historical · /, ""), ...natPlace(s), color: s.color, note: s.note, resClass: s.resClass, bbox: s.bbox })),
+  // A shipped STAC catalog in the My STAC catalogs group, through the same loader as the attached ones.
+  { id: "cat-planet-heritage", label: "Planet Eyes on Heritage 2026", short: "Heritage", group: MY_CATALOGS_ROOT, color: "#fdba74", bbox: [-9, 11, 64, 38], note: "Yearly Planet SkySat, Pelican and PlanetScope series 2017-2026 clipped to eight cultural heritage sites (Agadez, Aleppo, Damascus, Derna, Herat, Historic Cairo, Marrakesh, Timbuktu), released for the Eyes on Heritage hackathon on Source Cooperative (CC BY-NC 4.0): 145 scenes, one tick each; the 50 cm SkySat ones are VHR, the 3 m PlanetScope ones medium.", stac: { endpoint: PLANET_HERITAGE_STAC, kind: "static", licence: "CC BY-NC 4.0" } },
   { id: "cat-allmaps", label: "Allmaps, dated maps in view", short: "Allmaps", group: "Old maps", color: "#d946ef", note: "Georeferenced IIIF maps from the Allmaps annotations API dated by the archive's own record: the IIIF manifest's date (one read per map in view, up to 40), else a historical year in the title; the georeferencing date is never used. One tick per map, draped as an overlay when picked." },
 ]
 const BUILTIN_CATALOG_BY_ID = Object.fromEntries(TIMELINE_CATALOGS.map((c) => [c.id, c])) as Record<string, TimelineCatalog>

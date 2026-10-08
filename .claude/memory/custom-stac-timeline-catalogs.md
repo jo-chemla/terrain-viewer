@@ -70,6 +70,20 @@ removed. HOT OAM 44 and Maxar 7 over Kathmandu through the new loader.
 The STAC panel's Add to the timeline (stac-panel-button.mjs): pasted URL,
 click, stored as its host, button turns "On the timeline", toast shown.
 
+## Later the same day
+
+- Group renamed "My STAC catalogs" (`MY_CATALOGS_ROOT`); the folds key is
+  `cat:My STAC catalogs`.
+- A shipped entry in that group: `cat-planet-heritage` (built-in
+  TimelineCatalog with a `stac` spec, static, `PLANET_HERITAGE_STAC`), and
+  the `planet-heritage` STAC preset in the library. Its GeoTIFFs are plain
+  (IFD at the end of the file, not COG): they draw through titiler, which
+  reads any GeoTIFF with GDAL range requests, slower without overviews.
+- The VHR / Medium res pills judge a catalog tick by its own `gsd`
+  (`tickResClass` in historical-timeline-panel.tsx): > 1 m/px is medium.
+- The dialog has no short-name field: `shortNameOf(label)` (first words,
+  14 chars) is stored as `short`.
+
 ## Not verified / not done
 
 - Picking a heritage tick as a view's basemap (titiler over a UTM COG on
