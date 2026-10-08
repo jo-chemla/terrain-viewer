@@ -21,9 +21,8 @@ type: feedback
   Links report has no API; use the Search Console `sites`/`searchanalytics`
   endpoints for queries and pages, and for backlinks the Bing API we have
   plus a manual export of the Search Console Links report), and writes the
-  findings on the dev indexing page. Also: the computer was restarted with
-  Windows updates at the end of the 2026-10-08 session, the dev servers
-  (app 5204, docs 3101) need starting again.
+  findings on the dev indexing page. (The dev servers were started again
+  on 2026-10-08 after the Windows-update restart.)
 
 **Why:** the user asked "remind me about this next time and tomorrow".
 **How to apply:** mention open reminders in the first reply of a session;

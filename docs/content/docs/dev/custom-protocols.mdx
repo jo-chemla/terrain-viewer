@@ -39,6 +39,12 @@ Our own terrain sources, which read an elevation dataset MapLibre cannot read on
 | `quantized-mesh://` | Cesium quantized-mesh terrain, rasterised | [Quantized Mesh Protocol](/dev/quantized-mesh-protocol) |
 | `demdiff://` | The difference of two sources (an nDSM, a change layer) | [Derived Terrain Protocol](/dev/demdiff-protocol) |
 
+One imagery source, which reads raster tiles MapLibre could fetch but not place:
+
+| Scheme | What it serves | Notes |
+|---|---|---|
+| `epsg3395://` | Tiles cut in World Mercator (EPSG:3395, the ellipsoid), resampled onto Web Mercator rows in the browser. Yandex Satellite in the library is the one such provider; a plain XYZ source would sit up to a dozen kilometres off at mid latitudes | The two grids share their columns exactly, so each Web Mercator tile reads the one or two EPSG:3395 tiles of the same x and interpolates between rows (`lib/epsg3395-protocol.ts`). The historical-satellite app did this through titiler and a GDAL_WMS definition |
+
 Derived modes, which read one of the sources above and compute something from it:
 
 | Scheme | What it computes | Page |

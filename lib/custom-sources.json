@@ -1498,6 +1498,16 @@
             "description": "Esri World Imagery served from the Clarity endpoint: the same mosaic as World Imagery, often a newer or sharper capture where Esri has refreshed it. Checked 2026-10-05 (CORS open, no key)."
         },
         {
+            "id": "basemap-yandex-sat",
+            "name": "Global - Yandex Satellite (EPSG:3395, warped in the browser)",
+            "url": "epsg3395://https://core-sat.maps.yandex.net/tiles?l=sat&x={x}&y={y}&z={z}&scale=1&lang=ru_RU",
+            "type": "tms",
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "infoUrl": "https://yandex.com/maps/?l=sat",
+            "description": "Yandex's satellite mosaic, often the sharpest free capture over Russia, Central Asia, the Caucasus and Türkiye. Yandex cuts its tiles in World Mercator (EPSG:3395, the ellipsoid), not Web Mercator: a plain XYZ source would sit up to a dozen kilometres off at mid latitudes, so the epsg3395:// protocol resamples each tile's rows onto Web Mercator in the browser (lib/epsg3395-protocol.ts; the historical-satellite app did the same through titiler and a GDAL_WMS definition). Terms: Yandex Maps API, attribution required. Checked 2026-10-08 (CORS open, no key)."
+        },
+        {
             "id": "basemap-at-orthofoto",
             "name": "AUT - basemap.at Orthofoto 30 cm",
             "url": "https://mapsneu.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{z}/{y}/{x}.jpeg",

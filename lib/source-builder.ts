@@ -4,6 +4,7 @@
 // COG-vs-titiler branch duplicated in RasterBasemapSource.
 import { appendNodataMarkers, type NodataConfig } from "./nodata"
 import { buildVrtUrl } from "./vrt-protocol"
+import { buildEpsg3395Url } from "./epsg3395-protocol"
 import { fillKeyPlaceholders } from "./key-placeholders"
 
 // titiler's terrainrgb algorithm can encode masked (nodata) pixels as a
@@ -139,8 +140,12 @@ export function buildRasterTileSource(params: {
       }
 
     // terrarium / terrainrgb / tms / wms / wmts: already a plain XYZ/WMS tile
-    // template — nothing to route through titiler or a custom protocol.
+    // template — nothing to route through titiler or a custom protocol. One
+    // exception: an `epsg3395://` template (Yandex: tiles cut in World
+    // Mercator) is wrapped for the protocol that resamples its rows onto
+    // Web Mercator (lib/epsg3395-protocol.ts).
     default:
+      if (/^epsg3395:\/\//.test(url)) return { tiles: [buildEpsg3395Url(url.replace(/^epsg3395:\/\//, ""))] }
       return { tiles: [url], ...(scheme === "tms" ? { scheme } : {}) }
   }
 }

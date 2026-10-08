@@ -1,3 +1,16 @@
+# Changelog — Yandex Satellite, warped from World Mercator in the browser
+
+<!-- released: 2026-10-08 -->
+
+#### TL;DR
+
+- **Yandex Satellite in the library**: Yandex cuts its tiles in World Mercator (EPSG:3395, the ellipsoid), a dozen kilometres off Web Mercator at mid latitudes. A new `epsg3395://` protocol resamples each tile's rows onto Web Mercator in the browser, no titiler. Often the sharpest free capture over Russia, Central Asia, the Caucasus and Türkiye.
+
+#### Details
+
+- `lib/epsg3395-protocol.ts`: the two grids share their columns, so a Web Mercator tile reads the one or two EPSG:3395 tiles of the same x and interpolates between rows. Checked headless against Esri World Imagery on four tiles (Moscow z11 and z14, Istanbul z12, Tashkent z9): zero residual row shift, normalised cross-correlation 0.62 to 0.82, where the raw tile scores about 0.
+- Library entry only (`basemap-yandex-sat`, not loaded with the samples); the Add Source modal does not offer the type. Docs: Custom Protocols lists the scheme.
+
 # Changelog — The Weekend: Historical Catalogs, National Archives, Old Maps
 
 <!-- released: 2026-10-05 -->
