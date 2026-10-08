@@ -358,12 +358,15 @@ export const QUERY_STATE_PARSERS = {
     sourceB: parseAsString.withDefault("aws"),   // aws needs no API key, unlike maptiler/mapbox — safe default for a fresh visitor's first split view
     // C-H only ever matter for gridLayout "2x2"/"3x1"/"3x2"/"4x1"/"4x2" — same
     // shape as sourceA/B, just extra slots so bigger grids need no schema change.
-    sourceC: parseAsString.withDefault("aws"),
+    // All Mapterhorn like A (they used to alternate aws / mapterhorn /
+    // maptiler, so "every view on Mapterhorn" wrote four params and a
+    // keyless visitor's E and H asked for a MapTiler key).
+    sourceC: parseAsString.withDefault("mapterhorn"),
     sourceD: parseAsString.withDefault("mapterhorn"),
-    sourceE: parseAsString.withDefault("maptiler"),
-    sourceF: parseAsString.withDefault("aws"),
+    sourceE: parseAsString.withDefault("mapterhorn"),
+    sourceF: parseAsString.withDefault("mapterhorn"),
     sourceG: parseAsString.withDefault("mapterhorn"),
-    sourceH: parseAsString.withDefault("maptiler"),
+    sourceH: parseAsString.withDefault("mapterhorn"),
     basemapSource: parseAsString.withDefault("esri"), // can have custom id in addition to @/lib/terrain-sources
     basemapPerView: parseAsBoolean.withDefault(true),
     basemapSourceA: parseAsString.withDefault("esri"),
@@ -1278,7 +1281,10 @@ export function TerrainViewer() {
   // the param stays readable; the tolerance guard breaks the write-back
   // loop once URL and atom agree.
   useEffect(() => {
-    const rounded = Math.round(splitRatio * 1000) / 1000
+    // A drag that lands a pixel off the middle snaps to the default, so the
+    // param leaves the URL instead of staying as splitRatio=0.499.
+    const raw = Math.round(splitRatio * 1000) / 1000
+    const rounded = Math.abs(raw - 0.5) <= 0.006 ? 0.5 : raw
     if (Math.abs(rounded - state.splitRatio) < 0.002) return
     const timer = setTimeout(() => setState({ splitRatio: rounded }), 500)
     return () => clearTimeout(timer)

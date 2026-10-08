@@ -233,8 +233,8 @@
       "type": "string",
       "items": null,
       "enum": null,
-      "default": "aws",
-      "defaultSource": "\"aws\"",
+      "default": "mapterhorn",
+      "defaultSource": "\"mapterhorn\"",
       "note": "C-H only ever matter for gridLayout \"2x2\"/\"3x1\"/\"3x2\"/\"4x1\"/\"4x2\" — same shape as sourceA/B, just extra slots so bigger grids need no schema change."
     },
     {
@@ -253,8 +253,8 @@
       "type": "string",
       "items": null,
       "enum": null,
-      "default": "maptiler",
-      "defaultSource": "\"maptiler\"",
+      "default": "mapterhorn",
+      "defaultSource": "\"mapterhorn\"",
       "note": ""
     },
     {
@@ -263,8 +263,8 @@
       "type": "string",
       "items": null,
       "enum": null,
-      "default": "aws",
-      "defaultSource": "\"aws\"",
+      "default": "mapterhorn",
+      "defaultSource": "\"mapterhorn\"",
       "note": ""
     },
     {
@@ -283,8 +283,8 @@
       "type": "string",
       "items": null,
       "enum": null,
-      "default": "maptiler",
-      "defaultSource": "\"maptiler\"",
+      "default": "mapterhorn",
+      "defaultSource": "\"mapterhorn\"",
       "note": ""
     },
     {

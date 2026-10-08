@@ -6,6 +6,7 @@
 
 - **Yandex Satellite in the library**: Yandex cuts its tiles in World Mercator (EPSG:3395, the ellipsoid), a dozen kilometres off Web Mercator at mid latitudes. A new `epsg3395://` protocol resamples each tile's rows onto Web Mercator in the browser, no titiler. Often the sharpest free capture over Russia, Central Asia, the Caucasus and Türkiye.
 - **Match Colors guarded**: skipped while View A (or the matched view) is mostly blank or white (Esri placeholder tiles, a sheet margin, unloaded tiles), and softened when the match would shift colours by more than a quarter of the range on average. No more washed-out view B over a white A.
+- **Defaults tidied**: views C to H default to Mapterhorn like A (B stays AWS, keyless), so "every view on Mapterhorn" no longer writes four URL params and a keyless visitor's grid never asks for a MapTiler key. A split divider dropped a pixel off centre snaps back to the middle, so `splitRatio=0.499` no longer sticks in the URL. The Yandex entry is just "Yandex".
 
 #### Details
 

@@ -455,7 +455,7 @@
             "description": "State. C-H only ever matter for gridLayout \"2x2\"/\"3x1\"/\"3x2\"/\"4x1\"/\"4x2\" — same shape as sourceA/B, just extra slots so bigger grids need no schema change.",
             "schema": {
               "type": "string",
-              "default": "aws"
+              "default": "mapterhorn"
             }
           },
           {
@@ -475,7 +475,7 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "default": "maptiler"
+              "default": "mapterhorn"
             }
           },
           {
@@ -485,7 +485,7 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "default": "aws"
+              "default": "mapterhorn"
             }
           },
           {
@@ -505,7 +505,7 @@
             "description": "State.",
             "schema": {
               "type": "string",
-              "default": "maptiler"
+              "default": "mapterhorn"
             }
           },
           {
