@@ -359,7 +359,7 @@ export const GeorefSection: React.FC<{
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Label className="shrink-0 text-sm font-medium">Transform</Label>
-              <Select value={type} onValueChange={(v) => v && setState({ georefType: v })}>
+              <Select value={type} items={Object.fromEntries(GEOREF_TYPES.map((t) => [t.value, t.label]))} onValueChange={(v) => v && setState({ georefType: v })}>
                 <SelectTrigger className="h-8 flex-1 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {GEOREF_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}

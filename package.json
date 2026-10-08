@@ -21,6 +21,7 @@
     "slides:build": "pnpm --dir slides build",
     "slides:static": "pnpm --dir slides static",
     "slides:pdf": "pnpm --dir slides pdf",
+    "slides:shots": "pnpm --dir slides shots",
     "dev:all": "concurrently -k -n app,docs,slides -c cyan,magenta,yellow \"pnpm run app\" \"pnpm run docs\" \"pnpm run slides\"",
     "url-params": "node docs/scripts/build-url-params.mjs",
     "stac": "node docs/scripts/build-stac-catalog.mjs",

@@ -581,7 +581,7 @@ export function TerrainControlPanel({
     // Switching back to Terrain needs no equivalent nudge; every one of its
     // sections is just hidden, not disabled, so nothing needs restoring.
     if (next === "historical" && !historicalMode) {
-      setState({ historicalBeta: true, viewMode: "2d" })
+      setState({ viewMode: "2d" })
       setSectionOpen((prev) => ({ ...prev, rasterBasemap: true }))
     }
   }

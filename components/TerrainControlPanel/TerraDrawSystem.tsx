@@ -105,6 +105,13 @@ export const drawingExportScopeAtom = atomWithStorage<DrawingExportScope | null>
 // unrelated feature mutation happens to fire 'change' again.
 export const activeDrawModeAtom = atom<string>('select')
 
+// The Drawings panel's "Show drawings" checkbox and its opacity slider.
+// Session-only (never persisted, never in the URL): view A applies them to
+// its td-* layers through setTerraDrawVisibility / setTerraDrawOpacity, and
+// the DrawingMirrorLayer on views B..H reads them so every view agrees.
+export const drawingsVisibleAtom = atom<boolean>(true)
+export const drawingsOpacityAtom = atom<number>(1)
+
 // --- LAYERS ---
 
 export interface DrawLayer {
@@ -538,6 +545,8 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
     const setFeatures = useSetAtom(drawingFeaturesAtom)
     const [layers, setLayers] = useAtom(drawingLayersAtom)
     const setActiveLayerId = useSetAtom(activeLayerIdAtom)
+    const setDrawingsVisible = useSetAtom(drawingsVisibleAtom)
+    const setDrawingsOpacity = useSetAtom(drawingsOpacityAtom)
     const layersRef = useRef(layers)
     layersRef.current = layers
 
@@ -590,6 +599,10 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
             setFeatures((prev) => [...prev.filter((f) => !existing || f.properties?.layerId !== layer.id), ...newFeatures])
         }
 
+        // An import shows the drawings again at full opacity on every view
+        // (the atoms drive the mirror views, the two calls below drive A).
+        setDrawingsVisible(true)
+        setDrawingsOpacity(1)
         const map = mapRef.current?.getMap()
         if (map) {
             setTerraDrawVisibility(map, true)
@@ -1656,8 +1669,8 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         active: `Export — only "${activeLayer?.name ?? "the active layer"}" as one .geojson`,
     }
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const [visible, setVisible] = useState(true)
-    const [opacity, setOpacity] = useState(1)
+    const [visible, setVisible] = useAtom(drawingsVisibleAtom)
+    const [opacity, setOpacity] = useAtom(drawingsOpacityAtom)
     // Surfaced under the Import/Export/Clear row — picking a file that isn't
     // actually GeoJSON/KML (e.g. a bookmarks export, which also ends in
     // .json) used to fail completely silently: the reader's try/catch only

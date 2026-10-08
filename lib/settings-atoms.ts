@@ -523,7 +523,7 @@ export const dataLayersModalOpenAtom = atom(false)
 // gating). The live value is nuqs state (state.appMode, shareable/bookmarkable
 // via URL like viewMode) — this atom only mirrors its last value (same
 // "persist across a fresh session with no URL param" role as
-// historicalBetaEnabledAtom in TerrainViewer.tsx) so opening the app again
+// tellsBetaEnabledAtom in TerrainViewer.tsx) so opening the app again
 // without `?appMode=` doesn't silently reset to Terrain.
 export type AppMode = "terrain" | "historical"
 export const appModeAtom = atomWithStorage<AppMode>("appMode", "terrain")
@@ -695,9 +695,10 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, historical: true, georef: false }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, georef: false }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
-export const historicalBetaEnabledAtom = booleanField(betaEnabledAtom, "historical")
+// The historical imagery sources left beta on 2026-10-08 (always on; a stored
+// `historical` key from before is ignored).
 /** STAC catalog search in the Add Dataset / Add Basemap modals (no URL param: local only). */
 export const georefBetaEnabledAtom = booleanField(betaEnabledAtom, "georef")
 

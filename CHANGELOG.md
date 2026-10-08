@@ -1,4 +1,4 @@
-# Changelog — Yandex Satellite, warped from World Mercator in the browser
+# Changelog — Yandex, Historical Imagery Out of Beta, Guarded Match Colors
 
 <!-- released: 2026-10-08 -->
 
@@ -7,6 +7,7 @@
 - **Yandex Satellite in the library**: Yandex cuts its tiles in World Mercator (EPSG:3395, the ellipsoid), a dozen kilometres off Web Mercator at mid latitudes. A new `epsg3395://` protocol resamples each tile's rows onto Web Mercator in the browser, no titiler. Often the sharpest free capture over Russia, Central Asia, the Caucasus and Türkiye.
 - **Match Colors guarded**: skipped while View A (or the matched view) is mostly blank or white (Esri placeholder tiles, a sheet margin, unloaded tiles), and softened when the match would shift colours by more than a quarter of the range on average. No more washed-out view B over a white A.
 - **Defaults tidied**: views C to H default to Mapterhorn like A (B stays AWS, keyless), so "every view on Mapterhorn" no longer writes four URL params and a keyless visitor's grid never asks for a MapTiler key. A split divider dropped a pixel off centre snaps back to the middle, so `splitRatio=0.499` no longer sticks in the URL. The Yandex entry is just "Yandex".
+- **Historical imagery out of beta**: the sources and the timeline are always on, no switch in Settings (a browser that had the old switch off saw the Historical entry vanish from Worldwide Defaults). The Drawings panel's show toggle and opacity apply to every view. The Image Georeferencer's fit select names its choice. The research deck cites its papers on each slide, with a references page.
 
 #### Details
 
@@ -17,64 +18,23 @@
 
 <!-- released: 2026-10-05 -->
 
-New between Friday 2 and Sunday 5 October 2026; details in the entries below.
+#### TL;DR
 
-- **Historical catalogs on the timeline**: every item covering the view becomes a tick; pick it as the view's basemap, or keep it.
-  - **Post-crisis open data**: OpenAerialMap, Maxar and Vantor, NOAA, Planet.
-  - **Community indexes**: OSM Editor Layer Index, ArcGIS Online, NextGIS QMS.
-  - **National mapping agencies**: about 70 archives by continent and country (IGN, swisstopo, Kartverket, German and Austrian Länder, Spanish and Italian regions…).
-  - **Old maps**: Allmaps, David Rumsey, Wikimaps, Map Warper, SLUB, USGS topo, CORONA.
-- **Remove paper**: scanned maps lose their sheet, colour detected per map.
-- **Sources Coverage**: one tree, footprints on the map, results ranked by overlap.
-- **Search by name** across the checked catalogs, anywhere: "Cassini" finds the Rumsey sheets georeferenced in Allmaps, IGN's Cassini map, Map Warper's sheets.
-- **Out of beta**: the Sun Shadow Calculator and the STAC catalog search are always on. "Georeference Image" is now **Image Georeferencer** (still a beta).
-- **Search by name** hits take the place of the view's rows (fold per catalog, Fit); **Use** adds the map as an overlay on the basemap.
-- The timeline's **Catalogs** picker opens on its four groups.
-- **Auto** in Add Basemap and Add Terrain: paste any URL (tiles, WMS, COG, STAC, Allmaps, IIIF…), the type is found and filled in.
-  - Allmaps viewer links, signed URLs (`.tif?sig=…`), and URLs without an extension (headers, then the first bytes; never the whole file); a map pasted in Add Terrain offers to open Add Basemap with it.
-- **STAC**: Planet's Data API as a catalog: the access token (Settings → API Keys) to search, and each scene added as XYZ tiles from tiles.planet.com signed with the API key (items carry only a thumbnail); static catalogs filtered by the date range too. A dev page on the search internals and why it uses no client library.
-- **Auto** also takes links to pages about the data: Source Cooperative repositories, stac-map and STAC Browser links.
-- **Timeline picks** join your sources as overlays and go on the view as one (on by default; off, a pick is the view's transient basemap); scrubbing and arrow keys still swap the basemap; a kept tick is an overlay; overlays show as grey marks on their ticks.
-- **Search results** in a split: a view grid per row puts a hit on any view of the layout.
-- **Timeline overlay pills**: one per view on an overlay's tick (tinted with the view's colour when borders are coloured); drag one onto another tick to swap that view's overlay.
-- **Allmaps maps** can be drawn from Allmaps' tile server (Draw it, in their dialog): cached, faster on slow image servers, and they tilt and drape; tilted views switch to it by themselves instead of hiding the map. A David Rumsey link starts there.
-- **National datasets** also as a tablecn data table, next to the original, for comparison.
-- **Beta flags** are local settings, not URL parameters: a link does not switch them and Home does not clear them.
-- **Iso-line, slope at a value**: Cliff teeth, on a simplified outline of the steep areas (the slope blurred over 4 px, specks under 40 px dropped), one tooth every 28 px.
-- **WMS zoom ranges, found by asking the server**: adding a WMS layer from the list, or pasting a WMS URL, probes the zooms it draws at (one tile per zoom, empty images ignored) and fills Min and Max Zoom, still editable; a Detect button redoes it at the map's centre. Beyond those zooms the map overzooms real pixels instead of showing nothing.
-- **Timeline overlay pills**: a drag replaces the old catalog item in your sources only when no other view shows it as an overlay (a basemap use no longer counts); a **lock** button per overlay (sources list, edit mode) keeps it whatever the timeline does. A pressed pill is the selection: the arrow keys move that overlay through the catalog items. Pills paint over the ticks after them; the arrow keys no longer pan the map as well.
-- **Image Georeferencer**: **Polynomial 2** and **Thin plate spline** fits are back (beta): the image is warped pixel by pixel in the browser through the fit's inverse, then placed as a Mercator-aligned raster, so the inside follows the points.
-- **Overlay stack** is one setting for every overlay (Stack, in the Overlays group; `overlaysStack` in the link), no longer per source, so it cannot fight the list's order. The Basemap and Overlays groups of the sources list fold. An Allmaps map's "Draw it" is now "Warp (projection transform)".
-- **GSD of Allmaps maps**: read from the control points (metres per pixel), on the ticks, the tick card and the source rows.
-- **Source dialogs**: Save and Cancel sit under the form, which scrolls on its own; nothing shows through. The source info dialog no longer overflows (a long title made the dialog's column wider than the dialog). The overlay Stack is a select.
-- **Tick card**: GSD, date, source and licence on their own lines, as in the source rows' tooltip; Allmaps, Map Warper, Wikimaps and ArcGIS Online ticks carry a thumbnail.
-- **Map pane pill**: one line, an ellipsis when the label does not fit (the whole label on hover). The overlay Stack select names its options.
-- **Timeline**: pressing a view's handle selects the view on the map too; an overlay pill clears that selection.
-- **Timeline**: a selected overlay pill deselects the view's handle and its pill on the map.
-- **Remove paper, Auto**, for maps drawn from Allmaps' tile server: the estimate reads the sheet's thumbnail, not one tile (a tile over the dense part of a plan saw no paper).
-- **Source dialogs**: Save and Cancel stick to the bottom while the form scrolls, with a fade above. The sources list: the tooltip lists GSD, type, source, attribution and description on their own lines; overlays reorder by dropping on a row's upper or lower half; Add Basemap and Library fit their row in edit mode.
-- **Sources Coverage** switches in use order: Follow the view, Within the timeline window, Outlines only, Picks join my sources, Items' footprints, Active sources' extents; the tree's loading spinner sits after the checkbox.
-- **Library**: the BRGM harmonised geology draws from zoom 12 (below, the server sends a dotted placeholder).
-- **Beta flags from a link**: a link that uses the mound detector, the Image Georeferencer or the historical mode switches that beta on when opened, with a toast; a link with a frozen detector says its candidates are a snapshot.
-- **Library**: BRGM's geological maps of France, the scanned sheets (1:1M to 1:50k, one scale-dependent service) and the harmonised 1:50k vector map, as overlays with their zoom ranges.
-- **Timeline**: every tick is a place for a view's handle, providers and catalog items alike; the view stays on Historical Imagery and the tick becomes its source (a SWISSIMAGE flight, a Map Warper sheet, a Wayback release). The full-colour handle is the view's basemap; the lighter pills are its overlays, and dragging one swaps that view's overlay, replacing the old item in your sources when no other view uses it. The active view's handle is ringed in every layout; pressing a handle or a pill selects its view.
-- Fixed: the timeline panel crashed the app (\"Rendered fewer hooks than expected\") when a view in a split switched to a non-historical basemap while an overlay drag state existed.
-- A pasted WMS GetMap in another CRS (Lambert-93, a national portal's copy) is asked in EPSG:3857 with one tile's size, so it draws instead of staying blank.
-- A toast says when a tilted view switches Allmaps maps to the tile server.
-- **Timeline overlay pills** are bigger, centred on their tick and in front of it; the tick a dragged pill would land on is ringed; every dated overlay on a view gets a tick, found by the catalogs or not.
-- **Shared links** carry catalog items (ArcGIS Online, STAC, Planet scenes, national layers) by URL with their extent and zooms; a Planet key never travels (`{planetKey}` placeholder, filled by the recipient's key).
-- **Image Georeferencer**: a Fit button in the image window's title bar brings the whole image back.
-- **Overlays order**: in edit mode, drag the handles; the first of the list draws on top.
-- **Shared links** rebuild the catalog overlays they name (Allmaps maps, David Rumsey sheets, Map Warper and Wikimaps maps) on the recipient's side.
-- **STAC catalog picker** is a combobox: type a name ("planet"), or paste a URL for a custom catalog.
-- **Auto** reads a David Rumsey detail page: Allmaps' cached tiles of the sheet when it is georeferenced (Rumsey's own IIIF server can take minutes per tile).
-- Switching an overlay off from its label no longer moves the camera. Allmaps overlays hide while the view is tilted (the layer draws flat only) instead of landing in the wrong place.
-- **Desktop**: the light build updates itself too, from its own `desktop-latest-light` feed (the two builds could not share one release). **About**: the version answer scrolls into view. **Slides**: screenshots are no longer cropped (a cropped one keeps the side panel); on localhost the Slide decks page links the editor too.
-- **Docs**: Tools, Embedding / iframe, nDSM / Comparison renamed; the Dev group starts folded; the embed example on Mapterhorn; no redirect pages for old addresses.
-- **Sources Coverage**: Controls, Catalogs and Search results as three folds; a box on Terrain, Basemaps · Static and Basemaps · Historical takes the whole section; a row with a thumbnail shows it on hover.
-- **Iso-line** on any measure, with an exact fill.
-- **Building shadows**, **modes per view**, **Image Georeferencer**, a **STAC catalog** of every source.
-- **Slide decks**: five presentations, live and as PDFs.
+- **Historical catalogs on the timeline**: every item covering the view is a tick; pick it as a view's basemap or keep it as an overlay. Open data after a disaster (OpenAerialMap, Maxar and Vantor, NOAA, Planet), community indexes (OSM ELI, ArcGIS Online, NextGIS QMS), about 70 national archives, and old maps (Allmaps, David Rumsey, Wikimaps, Map Warper, SLUB, USGS topo, CORONA). Search by name across them all.
+- **Sources Coverage and Auto**: one coverage tree with footprints on the map; paste any URL in Add Basemap or Add Terrain and its type is found (tiles, WMS, COG, STAC, Allmaps, IIIF, a Rumsey or Source Cooperative page).
+- **Old maps drawn well**: Remove paper on every scanned map; Allmaps maps from their tile server, tilted and draped; the Image Georeferencer's non-rigid fits (beta); one overlay stack for all.
+- **Iso-line on any measure** with an exact fill and cliff teeth; building shadows; modes per view; WMS zoom ranges found by asking the server.
+- **Slide decks**: five presentations, live with a presenter view and as PDFs, [on the docs](https://terrain-viewer.iconem.com/docs/features/slide-decks/).
+  ![The title slide of the Terrain Viewer deck](/docs/screenshots/slides/terrain-viewer-title.jpg)
+
+#### Details
+
+- Timeline: overlay pills per view on a tick (drag to swap, a lock per overlay, the arrow keys move the selected one); every tick takes a view's handle; pressing a handle selects the view on the map.
+- Sources: dialogs with a fixed footer; the info dialog no longer overflows; tooltips, tick cards and the sources list show GSD, date, source and licence; thumbnails on Allmaps, Map Warper, Wikimaps and ArcGIS Online ticks; BRGM geology in the library.
+- Links: catalog items travel by URL with their extent (a Planet key never does); beta flags are local settings, switched on with a toast when a link needs them.
+- STAC: Planet's Data API as a catalog; the catalog picker is a combobox; a dev page on the search internals.
+- Fixed: the timeline panel crash in a split; a pasted WMS GetMap in another CRS; a switched-off overlay moved the camera; Allmaps maps while tilted.
+- Desktop: the light build updates itself. Docs: pages renamed, the Dev group folded, the embed example on Mapterhorn.
 
 # Changelog — Catalogs on the Timeline, Building Shadows, National Archives
 

@@ -26,7 +26,7 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, historicalBetaEnabledAtom, georefBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
@@ -1192,25 +1192,23 @@ export function TerrainViewer() {
   // section reads state.tellsBeta as before, and a setState({ tellsBeta })
   // lands in the atom.
   const [tellsBeta, setTellsBeta] = useAtom(tellsBetaEnabledAtom)
-  const [historicalBeta, setHistoricalBeta] = useAtom(historicalBetaEnabledAtom)
   const [georefBeta, setGeorefBeta] = useAtom(georefBetaEnabledAtom)
-  type BetaKeys = { tellsBeta: boolean; historicalBeta: boolean; georefBeta: boolean }
+  type BetaKeys = { tellsBeta: boolean; georefBeta: boolean }
   type AppState = typeof queryState & BetaKeys
-  const state: AppState = useMemo(() => ({ ...queryState, tellsBeta, historicalBeta, georefBeta }), [queryState, tellsBeta, historicalBeta, georefBeta])
-  const betaRef = useRef<BetaKeys>({ tellsBeta, historicalBeta, georefBeta }); betaRef.current = { tellsBeta, historicalBeta, georefBeta }
+  const state: AppState = useMemo(() => ({ ...queryState, tellsBeta, georefBeta }), [queryState, tellsBeta, georefBeta])
+  const betaRef = useRef<BetaKeys>({ tellsBeta, georefBeta }); betaRef.current = { tellsBeta, georefBeta }
   const setState = useCallback((updates: Partial<AppState> | null | ((prev: AppState) => Partial<AppState> | null), options?: Parameters<typeof setQueryState>[1]) => {
     const takeBetas = (u: Partial<AppState> | null) => {
       if (!u) return u
-      const { tellsBeta: t, historicalBeta: h, georefBeta: g, ...rest } = u
+      const { tellsBeta: t, georefBeta: g, ...rest } = u
       if (t !== undefined) setTellsBeta(!!t)
-      if (h !== undefined) setHistoricalBeta(!!h)
       if (g !== undefined) setGeorefBeta(!!g)
       return rest as Partial<typeof queryState>
     }
     return typeof updates === "function"
       ? setQueryState((prev) => takeBetas(updates({ ...prev, ...betaRef.current })) as any, options)
       : setQueryState(takeBetas(updates) as any, options)
-  }, [setQueryState, setTellsBeta, setHistoricalBeta, setGeorefBeta])
+  }, [setQueryState, setTellsBeta, setGeorefBeta])
   // A link that uses a beta feature switches its flag on, once, on arrival:
   // showTellsDetector=true (mound candidates), georefImage= (the Image
   // Georeferencer), appMode=historical. The flag stays on afterwards, as if
@@ -1228,10 +1226,6 @@ export function TerrainViewer() {
     if (q.georefImage && !betaRef.current.georefBeta) {
       setGeorefBeta(true)
       pushToast({ key: "beta-link-georef", title: "Image Georeferencer switched on", body: "This link places an image, a beta tool. It is now on for this browser (Settings → Beta to turn it off).", duration: 9000 })
-    }
-    if (q.appMode === "historical" && !betaRef.current.historicalBeta) {
-      setHistoricalBeta(true)
-      pushToast({ key: "beta-link-historical", title: "Historical imagery switched on", body: "This link opens the historical mode, a beta. It is now on for this browser (Settings → Beta to turn it off).", duration: 9000 })
     }
     if (q.showTellsDetector && q.tellsFrozen) {
       pushToast({ key: "tells-frozen-link", title: "Mound candidates are frozen", body: "This link carries a snapshot of the candidates: the detector does not recompute when the view moves. Switch it to Live in the Mound candidates section to search the current view.", duration: 12000 })
@@ -3217,7 +3211,7 @@ export function TerrainViewer() {
   // rendered at all, so a timeline scrubbing an invisible layer is noise.
   // (Historical mode always shows the basemap; see the opacity forcing in
   // the per-view render below.) The panel mirrors this same gate itself.
-  const historicalTimelineActive = state.historicalBeta && isHistoricalSourceActive(state)
+  const historicalTimelineActive = isHistoricalSourceActive(state)
     && (isHistoricalMode || state.showRasterBasemap)
   const historicalTimelineVisible = historicalTimelineActive && !state.historicalTimelineCollapsed
   const isBasemapCustom = customBasemapSources.some(s => s.id === activeBasemapSourceA)
@@ -4015,7 +4009,6 @@ export function TerrainViewer() {
             longitude={state.lng}
             zoom={state.zoom}
             planetKey={planetKey}
-            historicalBeta={state.historicalBeta}
             customBasemapSources={customBasemapSources}
             titilerEndpoint={titilerEndpoint}
             onZoomRangeChange={basemapZoomRangeSetters[side]}
@@ -4533,7 +4526,7 @@ export function TerrainViewer() {
       state.graticuleDensity, state.showGraticuleLabels, state.sourceB, state.sourceC, state.sourceD, state.sourceE, state.sourceF, state.sourceG, state.sourceH, isSplit,
       state.sourceA, state.contourMinor, state.contourMajor, state.contourMinorLrm, state.contourMajorLrm, state.contourReferenceMode, state.contourWeight,
       state.contourColor, state.graticuleColor,
-      perViewResolved, planetKey, state.historicalBeta,
+      perViewResolved, planetKey,
       hillshadePaint, colorReliefPaint, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint,
       tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint,
       svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint,

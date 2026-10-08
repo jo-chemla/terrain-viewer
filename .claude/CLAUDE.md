@@ -63,7 +63,7 @@ The preview browser available to agents does NOT fire `requestAnimationFrame` �
 
 **URL state vs local state:** Anything shareable/bookmarkable (viz modes, camera pose, app mode, split style) lives in `nuqs` (`useQueryStates` in `TerrainViewer.tsx`). Persistent-but-not-shareable settings (API keys, beta flags, collapsed sections) live in `jotai atomWithStorage`. Ephemeral UI state is plain `useState`/`useRef`.
 
-**Beta flags:** `betaEnabledAtom` in `settings-atoms.ts` — a single `atomWithStorage` record for `{ tells, historical, georef }`, each exposed as a `booleanField` slice. Default is `{ tells: false, historical: true, georef: false }`. The corresponding nuqs field (`tellsBeta`, `historicalBeta`, `georefBeta`) is what the app actually reads; the atom mirrors it across sessions without a URL param. The Sun Shadow Calculator and the STAC search left beta on 2026-10-06 (always on, no flag).
+**Beta flags:** `betaEnabledAtom` in `settings-atoms.ts` — a single `atomWithStorage` record for `{ tells, georef }`, each exposed as a `booleanField` slice. Default is `{ tells: false, georef: false }`. Since 2026-10-07 the flags are local only (no URL field): `TerrainViewer.tsx` merges them into `state` as `tellsBeta` and `georefBeta` and routes a `setState({ tellsBeta })` to the atom. The Sun Shadow Calculator and the STAC search left beta on 2026-10-06, the historical imagery sources on 2026-10-08 (always on, no flag).
 
 **Viz protocols:** Each mode (slope, curvature, SVF, …) is a custom MapLibre `addProtocol` handler in `lib/*-protocol.ts`. The tile cache (`lib/tile-result-cache.ts`) is shared — always clone `ArrayBuffer`s before storing (MapLibre detaches them on transfer).
 

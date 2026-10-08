@@ -103,7 +103,7 @@ type TourActions = {
 // switchAppMode's own historical-mode nudge touches internally, in
 // TerrainControlPanel.tsx's handleSelectMode).
 const TOUR_STATE_KEYS = [
-  "appMode", "viewMode", "historicalBeta", "showRasterBasemap",
+  "appMode", "viewMode", "showRasterBasemap",
   "showHillshade", "showLightingEffects", "showShadows", "showColorRelief",
   "showTerrainAnalysis", "showReliefVisualization", "showPlaneSlicer", "showTellsDetector",
   "showContoursAndGraticules", "showContours", "showGraticules", "showBackground",

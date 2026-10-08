@@ -24,7 +24,7 @@ const DECKS = [
   { id: "terrain-viewer", title: "Terrain Viewer", pages: 12, about: "What it is, the sources, the visualization modes, split and compare, export" },
   { id: "historical", title: "Historical imagery", pages: 13, about: "The timeline, the providers, the catalogs (open data after a disaster, national archives, old maps), coverage" },
   { id: "tools", title: "Tools", pages: 14, about: "Elevation picker and profiles, plane slicer, drawing, georeferencer, sun shadows, iso-lines, bookmarks" },
-  { id: "research", title: "Research themes", pages: 12, about: "Landscape archaeology and earth processes: what the modes show and the papers behind them" },
+  { id: "research", title: "Research themes", pages: 13, about: "Landscape archaeology and earth processes: what the modes show and the papers behind them, cited on each slide with a references page" },
   { id: "under-the-hood", title: "Under the hood", pages: 13, about: "The equations, the client-side tile protocols, the registry, what runs where" },
 ];
 
@@ -36,6 +36,7 @@ export function SlideDecksTable() {
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="border-b text-left text-fd-muted-foreground">
+            <th className="py-2 pr-4 font-medium"></th>
             <th className="py-2 pr-4 font-medium">Deck</th>
             <th className="py-2 pr-4 font-medium">What it covers</th>
             <th className="py-2 pr-4 font-medium">Live</th>
@@ -45,6 +46,10 @@ export function SlideDecksTable() {
         <tbody>
           {DECKS.map((d) => (
             <tr key={d.id} className="border-b align-top">
+              {/* The deck's title slide, captured from the static site by
+                  slides/scripts/title-shots.mjs into docs/public/screenshots/slides/.
+                  Relative like the links: this page sits at /docs/features/slide-decks/. */}
+              <td className="py-2 pr-4"><a href={`${SLIDES}s/${d.id}/`}><img src={`../../screenshots/slides/${d.id}-title.jpg`} alt={`${d.title}: title slide`} width={320} height={180} className="rounded border w-[320px] max-w-none" loading="lazy" /></a></td>
               <td className="py-2 pr-4 font-semibold whitespace-nowrap">{d.title}</td>
               <td className="py-2 pr-4">{d.about}</td>
               <td className="py-2 pr-4"><a className={linkClass} href={`${SLIDES}s/${d.id}/`}>present</a>{EDITOR && <> · <a className={linkClass} href={`${EDITOR}s/${d.id}/`} title="open-slide's editor on port 3200 (pnpm slides): comments, inspector, inline edits">edit</a></>}</td>

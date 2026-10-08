@@ -79,9 +79,8 @@ export const RasterBasemapSection: React.FC<{
   const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, maptiler: maptilerKey, planet: planetKey }
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS
-      .filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value])
-      .filter((o) => state.historicalBeta || o.value !== "historical"),
-    [hereKey, mapboxKey, maptilerKey, planetKey, state.historicalBeta],
+      .filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value]),
+    [hereKey, mapboxKey, maptilerKey, planetKey],
   )
 
   const basemapSourceOptions = useMemo(() => [

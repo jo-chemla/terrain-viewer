@@ -924,28 +924,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </p>
             </div>
 
-            <Separator />
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h4 className="text-sm font-semibold">Historical Imagery Sources</h4>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="historical-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
-                  <Switch
-                    id="historical-beta"
-                    checked={state.historicalBeta}
-                    className="cursor-pointer"
-                    onCheckedChange={(checked) => setState({ historicalBeta: checked })}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Adds <span className="font-semibold text-foreground">ESRI Wayback, HLS (Landsat/Sentinel), Google Earth Historical, and Planet Monthly Mosaic</span>{" "}
-                as basemap options plus a bottom timeline scrubber for picking a capture
-                date per source (Basemap section).
-              </p>
-            </div>
-
           </CollapsibleSection>
 
           <Separator />

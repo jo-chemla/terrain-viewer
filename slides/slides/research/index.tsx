@@ -123,6 +123,211 @@ const Footer = () => {
   );
 };
 
+// ─── Citations ──────────────────────────────────────────────────────────────
+// From docs/src/data/research-references.json (the Research References page).
+// `short` is the footer line; the References page prints the full record.
+
+type Paper = { who: string; year: number; short: string; title: string; venue: string; doi: string };
+
+const PAPERS = {
+  kokaljHesse2017: {
+    who: 'Kokalj, Ž., Hesse, R.',
+    year: 2017,
+    short: 'Kokalj & Hesse (2017), ALS raster data visualization: a guide to good practice',
+    title: 'Airborne laser scanning raster data visualization: A guide to good practice',
+    venue: 'Prostor, kraj, čas 14, ZRC SAZU',
+    doi: '10.3986/9789612549848',
+  },
+  esa2022: {
+    who: 'European Space Agency',
+    year: 2022,
+    short: 'ESA (2022), Copernicus DEM, global and European digital elevation model',
+    title: 'Copernicus DEM - Global and European Digital Elevation Model',
+    venue: 'Copernicus Data Space Ecosystem (dataset)',
+    doi: '10.5270/ESA-c5d3d65',
+  },
+  zaksek2011: {
+    who: 'Zakšek, K., Oštir, K., Kokalj, Ž.',
+    year: 2011,
+    short: 'Zakšek et al. (2011), Sky-view factor as a relief visualization technique',
+    title: 'Sky-View Factor as a Relief Visualization Technique',
+    venue: 'Remote Sensing 3(2)',
+    doi: '10.3390/rs3020398',
+  },
+  hesse2010: {
+    who: 'Hesse, R.',
+    year: 2010,
+    short: 'Hesse (2010), LiDAR-derived local relief models',
+    title: 'LiDAR-derived Local Relief Models - a new tool for archaeological prospection',
+    venue: 'Archaeological Prospection 17',
+    doi: '10.1002/arp.374',
+  },
+  orengoPetrie2018: {
+    who: 'Orengo, H. A., Petrie, C. A.',
+    year: 2018,
+    short: 'Orengo & Petrie (2018), Multi-scale relief model (MSRM)',
+    title:
+      'Multi-scale relief model (MSRM): a new algorithm for the visualization of subtle topographic change of variable size in digital elevation models',
+    venue: 'Earth Surface Processes and Landforms 43',
+    doi: '10.1002/esp.4317',
+  },
+  menzeUr2012: {
+    who: 'Menze, B. H., Ur, J. A.',
+    year: 2012,
+    short: 'Menze & Ur (2012), Long-term settlement in Northern Mesopotamia at a large scale',
+    title: 'Mapping patterns of long-term settlement in Northern Mesopotamia at a large scale',
+    venue: 'Proceedings of the National Academy of Sciences 109(14)',
+    doi: '10.1073/pnas.1115472109',
+  },
+  orengo2020: {
+    who: 'Orengo, H. A., Conesa, F. C., Garcia-Molsosa, A., et al.',
+    year: 2020,
+    short: 'Orengo et al. (2020), Automated detection of archaeological mounds',
+    title:
+      'Automated detection of archaeological mounds using machine-learning classification of multisensor and multitemporal satellite data',
+    venue: 'Proceedings of the National Academy of Sciences 117(31)',
+    doi: '10.1073/pnas.2005583117',
+  },
+  shugar2021: {
+    who: 'Shugar, D. H., Jacquemart, M., Shean, D., et al.',
+    year: 2021,
+    short: 'Shugar et al. (2021), The 2021 Chamoli rock and ice avalanche',
+    title: 'A massive rock and ice avalanche caused the 2021 disaster at Chamoli, Indian Himalaya',
+    venue: 'Science 373',
+    doi: '10.1126/science.abh4455',
+  },
+  mannerfelt2022: {
+    who: 'Mannerfelt, E. S., Dehecq, A., Hugonnet, R., et al.',
+    year: 2022,
+    short: 'Mannerfelt et al. (2022), Halving of Swiss glacier volume since 1931',
+    title: 'Halving of Swiss glacier volume since 1931 observed from terrestrial image photogrammetry',
+    venue: 'The Cryosphere 16',
+    doi: '10.5194/tc-16-3249-2022',
+  },
+  strick2018: {
+    who: 'Strick, R. J. P., Ashworth, P. J., Awcock, G., et al.',
+    year: 2018,
+    short: 'Strick et al. (2018), Morphology and spacing of river meander scrolls',
+    title: 'Morphology and spacing of river meander scrolls',
+    venue: 'Geomorphology 310',
+    doi: '10.1016/j.geomorph.2018.03.005',
+  },
+  singh2017: {
+    who: 'Singh, A., Thomsen, K. J., Sinha, R., et al.',
+    year: 2017,
+    short: 'Singh et al. (2017), Himalayan river morphodynamics and Indus urban settlements',
+    title: 'Counter-intuitive influence of Himalayan river morphodynamics on Indus Civilisation urban settlements',
+    venue: 'Nature Communications 8',
+    doi: '10.1038/s41467-017-01643-9',
+  },
+  horn1981: {
+    who: 'Horn, B. K. P.',
+    year: 1981,
+    short: 'Horn (1981), Hill shading and the reflectance map',
+    title: 'Hill shading and the reflectance map',
+    venue: 'Proceedings of the IEEE 69(1)',
+    doi: '10.1109/PROC.1981.11918',
+  },
+  zevenbergenThorne1987: {
+    who: 'Zevenbergen, L. W., Thorne, C. R.',
+    year: 1987,
+    short: 'Zevenbergen & Thorne (1987), Quantitative analysis of land surface topography',
+    title: 'Quantitative analysis of land surface topography',
+    venue: 'Earth Surface Processes and Landforms 12',
+    doi: '10.1002/esp.3290120107',
+  },
+  parcak2016: {
+    who: 'Parcak, S., Gathings, D., Childs, C., et al.',
+    year: 2016,
+    short: 'Parcak et al. (2016), Satellite evidence of site looting in Egypt, 2002-2013',
+    title: 'Satellite evidence of archaeological site looting in Egypt: 2002-2013',
+    venue: 'Antiquity 90',
+    doi: '10.15184/aqy.2016.1',
+  },
+  casanaLaugier2017: {
+    who: 'Casana, J., Laugier, E. J.',
+    year: 2017,
+    short: 'Casana & Laugier (2017), Satellite monitoring of site damage in the Syrian civil war',
+    title: 'Satellite imagery-based monitoring of archaeological site damage in the Syrian civil war',
+    venue: 'PLOS ONE 12(11)',
+    doi: '10.1371/journal.pone.0188589',
+  },
+  kokaljSomrak2019: {
+    who: 'Kokalj, Ž., Somrak, M.',
+    year: 2019,
+    short: 'Kokalj & Somrak (2019), Why not a single image? Combining visualizations',
+    title: 'Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping',
+    venue: 'Remote Sensing 11(7)',
+    doi: '10.3390/rs11070747',
+  },
+  guthGeoffroy2021: {
+    who: 'Guth, P. L., Geoffroy, T. M.',
+    year: 2021,
+    short: 'Guth & Geoffroy (2021), Evaluation of 1 second global DEMs: Copernicus wins',
+    title: 'LiDAR point cloud and ICESat-2 evaluation of 1 second global digital elevation models: Copernicus wins',
+    venue: 'Transactions in GIS 25',
+    doi: '10.1111/tgis.12825',
+  },
+  bielski2024: {
+    who: 'Bielski, C., López-Vázquez, C., Grohmann, C. H., et al.',
+    year: 2024,
+    short: 'Bielski et al. (2024), Ranking DEMs: Copernicus DEM improves one arc second topography',
+    title: 'Novel Approach for Ranking DEMs: Copernicus DEM Improves One Arc Second Open Global Topography',
+    venue: 'IEEE Transactions on Geoscience and Remote Sensing 62',
+    doi: '10.1109/TGRS.2024.3368015',
+  },
+} satisfies Record<string, Paper>;
+
+type PaperKey = keyof typeof PAPERS;
+
+// Order of first citation in the deck; the References page follows it.
+const CITED: PaperKey[] = [
+  'kokaljHesse2017',
+  'esa2022',
+  'zaksek2011',
+  'hesse2010',
+  'orengoPetrie2018',
+  'menzeUr2012',
+  'orengo2020',
+  'shugar2021',
+  'mannerfelt2022',
+  'strick2018',
+  'singh2017',
+  'horn1981',
+  'zevenbergenThorne1987',
+  'parcak2016',
+  'casanaLaugier2017',
+  'kokaljSomrak2019',
+  'guthGeoffroy2021',
+  'bielski2024',
+];
+
+// One muted line per paper, above the footer (the content box ends at 84 px
+// from the bottom; nothing on a content page reaches it).
+const Cite = ({ refs }: { refs: PaperKey[] }) => (
+  <div
+    style={{
+      position: 'absolute',
+      left: PAD_X,
+      right: PAD_X,
+      bottom: 80,
+      fontFamily: font.mono,
+      fontSize: 18,
+      lineHeight: '23px',
+      color: ink.dim,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    }}
+  >
+    {refs.map((k) => (
+      <div key={k} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {PAPERS[k].short}, doi:{PAPERS[k].doi}
+      </div>
+    ))}
+  </div>
+);
+
 const Eyebrow = ({ children }: { children: ReactNode }) => (
   <div
     style={{
@@ -139,7 +344,17 @@ const Eyebrow = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-const Frame = ({ eyebrow, title, children }: { eyebrow: string; title: ReactNode; children: ReactNode }) => (
+const Frame = ({
+  eyebrow,
+  title,
+  refs,
+  children,
+}: {
+  eyebrow: string;
+  title: ReactNode;
+  refs?: PaperKey[];
+  children: ReactNode;
+}) => (
   <div style={fill}>
     <Mark />
     <Eyebrow>{eyebrow}</Eyebrow>
@@ -161,6 +376,7 @@ const Frame = ({ eyebrow, title, children }: { eyebrow: string; title: ReactNode
       {title}
     </h2>
     <div style={{ position: 'absolute', left: PAD_X, right: PAD_X, top: 250, bottom: 84 }}>{children}</div>
+    {refs && refs.length ? <Cite refs={refs} /> : null}
     <Footer />
   </div>
 );
@@ -448,7 +664,7 @@ const P1Cover: Page = () => (
 );
 
 const P2Four: Page = () => (
-  <Frame eyebrow="Why terrain" title="Four things turn heights into evidence">
+  <Frame eyebrow="Why terrain" title="Four things turn heights into evidence" refs={['kokaljHesse2017', 'esa2022']}>
     <Steps>
       <div style={{ display: 'flex', gap: 24 }}>
         <Card title="Relief visualization" accent={teal}>Hillshade, sky-view factor, openness, local relief: centimetre-to-metre features legible whatever their orientation.</Card>
@@ -467,7 +683,7 @@ const P2Four: Page = () => (
 );
 
 const P3Archaeology: Page = () => (
-  <Frame eyebrow="Landscape archaeology" title="The RVT toolbox, in the browser">
+  <Frame eyebrow="Landscape archaeology" title="The RVT toolbox, in the browser" refs={['zaksek2011', 'hesse2010']}>
     <TwoCol
       leftWidth={900}
       left={
@@ -493,7 +709,7 @@ const P3Archaeology: Page = () => (
 );
 
 const P4Radius: Page = () => (
-  <Frame eyebrow="LRM" title="One slider, three questions">
+  <Frame eyebrow="LRM" title="One slider, three questions" refs={['hesse2010', 'orengoPetrie2018']}>
     <div style={{ display: 'flex', gap: 28 }}>
       <Shot src={lrmR4} caption="Radius 4 px: barely more than a 3×3 blur" width={548} height={340} />
       <Shot src={lrmR16} caption="Radius 16 px, the default" width={548} height={340} />
@@ -508,7 +724,7 @@ const P4Radius: Page = () => (
 );
 
 const P5Tells: Page = () => (
-  <Frame eyebrow="Mounds and tells" title="Detect candidates, then look at every one">
+  <Frame eyebrow="Mounds and tells" title="Detect candidates, then look at every one" refs={['menzeUr2012', 'orengo2020']}>
     <TwoCol
       leftWidth={820}
       left={
@@ -537,7 +753,11 @@ const P5Tells: Page = () => (
 );
 
 const P6Change: Page = () => (
-  <Frame eyebrow="Earth surface processes" title="DEM of difference: what moved between two surveys">
+  <Frame
+    eyebrow="Earth surface processes"
+    title="DEM of difference: what moved between two surveys"
+    refs={['shugar2021', 'mannerfelt2022']}
+  >
     <TwoCol
       leftWidth={820}
       left={
@@ -561,7 +781,7 @@ const P6Change: Page = () => (
 );
 
 const P7River: Page = () => (
-  <Frame eyebrow="Rivers and palaeochannels" title="Relative elevation: metres above the river">
+  <Frame eyebrow="Rivers and palaeochannels" title="Relative elevation: metres above the river" refs={['strick2018', 'singh2017']}>
     <TwoCol
       leftWidth={780}
       left={
@@ -586,7 +806,7 @@ const P7River: Page = () => (
 );
 
 const P8Geomorph: Page = () => (
-  <Frame eyebrow="Geomorphometry" title="Slope, curvature, TPI: numbers on landforms">
+  <Frame eyebrow="Geomorphometry" title="Slope, curvature, TPI: numbers on landforms" refs={['horn1981', 'zevenbergenThorne1987']}>
     <TwoCol
       leftWidth={840}
       left={
@@ -617,7 +837,7 @@ const P8Geomorph: Page = () => (
 );
 
 const P9Imagery: Page = () => (
-  <Frame eyebrow="Historical imagery" title="The time axis: looting, damage, change">
+  <Frame eyebrow="Historical imagery" title="The time axis: looting, damage, change" refs={['parcak2016', 'casanaLaugier2017']}>
     <TwoCol
       leftWidth={840}
       left={
@@ -642,7 +862,7 @@ const P9Imagery: Page = () => (
 );
 
 const P10Workflow: Page = () => (
-  <Frame eyebrow="What can be done" title="A survey, start to finish, without installing anything">
+  <Frame eyebrow="What can be done" title="A survey, start to finish, without installing anything" refs={['kokaljSomrak2019']}>
     <Steps>
       <div style={{ display: 'flex', gap: 24 }}>
         <Card title="1 · Find data" accent={teal}>Coverage overlays: is there LiDAR here? Load it from the library, or search STAC.</Card>
@@ -661,7 +881,7 @@ const P10Workflow: Page = () => (
 );
 
 const P11Limits: Page = () => (
-  <Frame eyebrow="Where it stops" title="Honest about the limits">
+  <Frame eyebrow="Where it stops" title="Honest about the limits" refs={['guthGeoffroy2021', 'bielski2024']}>
     <TwoCol
       leftWidth={900}
       left={
@@ -679,7 +899,51 @@ const P11Limits: Page = () => (
   </Frame>
 );
 
-const P12Close: Page = () => (
+const P12References: Page = () => {
+  const half = Math.ceil(CITED.length / 2);
+  const cols = [CITED.slice(0, half), CITED.slice(half)];
+  return (
+    <Frame eyebrow="References" title="The papers cited in this deck">
+      <div style={{ display: 'flex', gap: 48 }}>
+        {cols.map((col, c) => (
+          <div key={c} style={{ flex: 1, minWidth: 0, borderBottom: `1px solid ${ink.rule}` }}>
+            {col.map((k, i) => {
+              const p = PAPERS[k];
+              return (
+                <div
+                  key={k}
+                  style={{
+                    display: 'flex',
+                    gap: 16,
+                    alignItems: 'baseline',
+                    padding: '7px 0',
+                    borderTop: `1px solid ${ink.rule}`,
+                    fontSize: 16,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  <span style={{ fontFamily: font.mono, fontSize: 15, color: 'var(--osd-accent)', flex: 'none', width: 28 }}>
+                    {pad2(c * half + i + 1)}
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ fontWeight: 500, color: ink.text }}>{p.who}</span>{' '}
+                    <span style={{ color: ink.soft }}>({p.year}). {p.title}.</span>{' '}
+                    <span style={{ color: ink.muted }}>{p.venue}.</span>{' '}
+                    <span style={{ fontFamily: font.mono, fontSize: 15, color: ink.dim, wordBreak: 'break-all' }}>
+                      https://doi.org/{p.doi}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+};
+
+const P13Close: Page = () => (
   <Closing
     title={
       <>
@@ -709,6 +973,7 @@ export const notes: (string | undefined)[] = [
   'Historical imagery is the time axis. Looting, war damage, coasts, glaciers, year by year.',
   'A workflow from finding data to exporting into QGIS, all in the browser.',
   'The limits, plainly.',
+  'The papers behind each page, in full, with their DOIs. All of them, and over a hundred more, are on the research references page.',
   'The research references page is the place to start: every reference opens its study area.',
 ];
 
@@ -729,5 +994,6 @@ export default [
   P9Imagery,
   P10Workflow,
   P11Limits,
-  P12Close,
+  P12References,
+  P13Close,
 ] satisfies Page[];

@@ -49,17 +49,16 @@ Both default to on. Turn them off on a shared machine, or when a big local file 
 
 ## Beta
 
-A link that uses a beta feature switches its flag on when it is opened: `showTellsDetector=true` turns on the mound candidates, `georefImage=` the Image Georeferencer, `appMode=historical` the historical mode. A toast says so, and the flag stays on afterwards. A link whose detector is frozen (`tellsFrozen=true`) also gets a toast: its candidates are a snapshot, and the Live switch in the Mound candidates section recomputes them for the view.
+A link that uses a beta feature switches its flag on when it is opened: `showTellsDetector=true` turns on the mound candidates, `georefImage=` the Image Georeferencer. A toast says so, and the flag stays on afterwards. A link whose detector is frozen (`tellsFrozen=true`) also gets a toast: its candidates are a snapshot, and the Live switch in the Mound candidates section recomputes them for the view.
 
 Features that work but are not finished, or are expensive enough to be opt-in:
 
 | Flag | What it unlocks |
 |---|---|
 | **Tells (mound candidates) detection** | the `tells` mode, plus Difference-of-Gaussians of the LRM, plan curvature / divergence and det-Hessian |
-| **Historical imagery sources** | the [historical timeline](/features/historical-imagery) and its providers |
 | **Image Georeferencer** | the [Image Georeferencer](/features/tools#image-georeferencer) in the Tools group |
 
-Defaults are `{ tells: false, historical: true, georef: false }`. The flags are this browser's settings only, stored locally: a shared link does not switch them, and the Home button, which clears the view's URL, leaves them as they are. The Sun Shadow Calculator and the STAC catalog search were betas until October 2026 and are now always on.
+Defaults are `{ tells: false, georef: false }`. The historical imagery sources left beta on 2026-10-08 and are always on. The flags are this browser's settings only, stored locally: a shared link does not switch them, and the Home button, which clears the view's URL, leaves them as they are. The Sun Shadow Calculator and the STAC catalog search were betas until October 2026 and are now always on.
 
 ## API Keys
 

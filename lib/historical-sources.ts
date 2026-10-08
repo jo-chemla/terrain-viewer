@@ -3,7 +3,7 @@ import { isCatalogBasemapId } from "./timeline-catalogs"
 import { GRID_LAYOUTS, viewFieldName, type GridLayoutId } from "./grid-layouts"
 
 // Shared registry of basemap ids that are "historical" (date-driven, archival)
-// sources — used to gate the historicalBeta toggle's tile-fetch gate
+// sources (the historical basemap ids; once a beta gate, always on since 2026-10-08)
 // (MapSources.tsx) and to resolve the sidebar's single combined "historical"
 // basemap entry down to a concrete underlying source id.
 // Bing is deliberately NOT included here: it has no browsable archive (just

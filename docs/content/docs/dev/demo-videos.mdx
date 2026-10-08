@@ -1,0 +1,38 @@
+---
+title: Demo videos
+description: How the demo videos are made by agents — takes recorded with agent-browser and a DevTools screencast, cut in Remotion with Remocn components, and the commands that run the pipeline
+---
+
+The demo videos are made the same way as the [slide decks](/features/slide-decks): by an agent, from the real app. The pipeline lives in `video/`, a Remotion workspace with its own install, outside the pnpm workspace, like `slides/`.
+
+## Recording
+
+`scripts/record.sh` drives headless Chrome with [agent-browser](https://github.com/vercel-labs/agent-browser): it opens a URL that carries the app state, clicks the real controls and waits. Chrome is launched on the real GPU (`--use-angle=d3d11`, `--ignore-gpu-blocklist`); the default headless launch renders WebGL on SwiftShader.
+
+The frames are captured by `scripts/capture.mjs`, not by agent-browser's own `record`, which dropped every map take ("encoder fell more than 500 ms behind capture") whatever the frame rate or size. `capture.mjs` attaches to the same Chrome over the DevTools protocol (`agent-browser get cdp-url`), runs `Page.startScreencast`, writes the frames with their timestamps and assembles them afterwards with FFmpeg's concat demuxer. Chrome only sends a frame when the page changes, so a take is 20 to 70 frames, which is right for an interface demo. Takes land in `recordings/`.
+
+## Cutting
+
+`src/Demo.tsx` is the cut: a title, the takes with captions on the clicks, focus-pull transitions, an outro. Each take's in-point, speed and click times are constants at the top of the file; change them after a new recording.
+
+The motion components under `src/components/remocn/` are [Remocn](https://remocn.dev) components, copied in with the shadcn registry (`npx shadcn@latest add @remocn/<name>`, registry in `components.json`) and edited locally: they ship as full-frame scenes with their own background and a per-character text split, so `StaggeredFadeUp` and `FocusBlurResolve` gained an `inline` mode and a word split.
+
+## Commands
+
+```bash
+cd video
+pnpm install --ignore-workspace   # once
+pnpm record     # agent-browser drives the app, takes land in recordings/
+pnpm clips      # scale the takes to 1080p/30 fps into public/, write public/clips.json
+pnpm studio     # Remotion Studio, to edit and preview
+pnpm render     # out/terrain-viewer-demo.mp4
+```
+
+## Tried and rejected
+
+- agent-browser's `record`: works for simple pages, drops map scenes (above). The FFmpeg call is baked in, already `-preset ultrafast`, so it is not fixable from outside.
+- fframes (Rust, GPU, no browser) for title and end cards: not tried, because on Windows it needs a shared FFmpeg 9 build, LLVM and Vulkan.
+
+## Notes
+
+`.claude/memory/agent-browser-recording.md` has the details: the CDP screencast capture, the GPU flags, and the traps (localStorage written from a same-origin non-app URL because the app overwrites it on first load, Base UI checkboxes clicked through `label[for=…]`, Git Bash path rewriting and `MSYS_NO_PATHCONV=1`, never piping agent-browser output, slow IIIF hosts). `video/PROCESS.md` is the trace of the first video and what to do differently next time.

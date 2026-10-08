@@ -60,7 +60,7 @@ export const PRESET_BOOKMARKS: Bookmark[] = [
     search: presetSearch({
       appMode: "historical", viewMode: "2d", zoom: 12.64, lat: 48.8569, lng: 2.3264, pitch: 0,
       showRasterBasemap: true, basemapSourceA: "historical", dateA: 1648339200000,
-      historicalBeta: true, historicalActiveSourceA: "ge-historical",
+      historicalActiveSourceA: "ge-historical",
     }),
   },
   {

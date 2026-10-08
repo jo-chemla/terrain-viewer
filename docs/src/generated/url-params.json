@@ -4076,7 +4076,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "betaEnabled",
-      "default": "{ tells: false, historical: true, georef: false }",
+      "default": "{ tells: false, georef: false }",
       "note": "The beta gates."
     },
     {

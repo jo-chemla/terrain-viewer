@@ -458,7 +458,7 @@ const RASTER_SOURCE_DEBOUNCE_MS = 150
 
 export const RasterBasemapSource = memo(({
     // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
-    basemapSource: rawBasemapSource, mapboxKey, maptilerKey, hereKey, planetKey, date: rawDate, latitude, longitude, zoom, customBasemapSources, titilerEndpoint, onZoomRangeChange, historicalBeta,
+    basemapSource: rawBasemapSource, mapboxKey, maptilerKey, hereKey, planetKey, date: rawDate, latitude, longitude, zoom, customBasemapSources, titilerEndpoint, onZoomRangeChange,
     vectorVisible = true, vectorOpacity = 1,
 }: {
     /** For the OSM (Liberty) vector basemap, which has no raster layer to
@@ -473,7 +473,6 @@ export const RasterBasemapSource = memo(({
     /** Settings > Beta > "Historical Imagery Sources" gate — when false, the
      *  historical sources (wayback/hls/ge-historical/planet/eox-s2) render
      *  nothing even if somehow still selected (e.g. a stale `?basemapSource=` URL). */
-    historicalBeta?: boolean
     /** Epoch ms — the ONE date this side is scrubbed to, regardless of which
      *  concrete historical source is active (Wayback/HLS/GE/Planet/EOX-S2 all
      *  read the same field now; see lib/wayback.ts's useResolvedWaybackRelease
@@ -529,7 +528,6 @@ export const RasterBasemapSource = memo(({
             }), customBasemap, removeColor)
         }
 
-        if (HISTORICAL_BASEMAP_IDS.has(basemapSource) && !historicalBeta) return null
 
         if (basemapSource === "wayback") {
             // Catalog still loading, or no release resolved yet for this date
@@ -586,11 +584,10 @@ export const RasterBasemapSource = memo(({
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemapSource] }
-    }, [customBasemap, basemapSource, historicalBeta, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl, removeColor])
+    }, [customBasemap, basemapSource, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl, removeColor])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
-        if (HISTORICAL_BASEMAP_IDS.has(basemapSource) && !historicalBeta) return { minzoom: 0, maxzoom: 22, isCustom: false }
         if (basemapSource === "wayback") return { minzoom: 0, maxzoom: WAYBACK_MAXZOOM, isCustom: false }
         if (basemapSource === "hls") return { minzoom: 0, maxzoom: HLS_MAXZOOM, isCustom: false }
         if (basemapSource === "ge-historical") return { minzoom: 0, maxzoom: 23, isCustom: false }
@@ -598,7 +595,7 @@ export const RasterBasemapSource = memo(({
         if (basemapSource === "eox-s2") return { minzoom: 0, maxzoom: EOX_S2_MAXZOOM, isCustom: false }
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
-    }, [customBasemap, basemapSource, historicalBeta])
+    }, [customBasemap, basemapSource])
 
     useEffect(() => {
         onZoomRangeChange?.(zoomRange)
