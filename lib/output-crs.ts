@@ -32,6 +32,21 @@ export interface GridGeoref {
   maxResidualPx: number
 }
 
+/** Residual (pixels, at the corners) past which an unwarped export in a
+ *  CRS is reported as a warning; below it the residual is only noted. */
+export const RESIDUAL_WARNING_PX = 20
+
+/** The warning for a residual past RESIDUAL_WARNING_PX, else null. */
+export function residualWarning(epsg: number, maxResidualPx: number, smaller = "AOI"): string | null {
+  if (maxResidualPx <= RESIDUAL_WARNING_PX) return null
+  return `Footprint too large for an unwarped export in EPSG:${epsg}: up to ${maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller ${smaller}.`
+}
+
+/** The quiet note for a residual within the threshold. */
+export function residualNote(maxResidualPx: number): string {
+  return maxResidualPx < 0.05 ? "under 0.05 px off at the corners" : `about ${maxResidualPx.toFixed(1)} px off at the corners, fine for most uses`
+}
+
 /** How the output CRS is chosen: one code for every file, or a UTM zone per
  *  target from its own centre. */
 export type OutputCrsChoice = { kind: "epsg"; epsg: number } | { kind: "utm" }

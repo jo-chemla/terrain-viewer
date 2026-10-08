@@ -21,7 +21,8 @@ import { SOURCE_CONFIG } from "./historical-timeline-panel"
 import { CURRENT_BASEMAP_SOURCE_IDS, EXPORT_SOURCE_LABELS, listExportTicks, type ExportSourceId } from "@/lib/historical-export-sources"
 import { exportMultiHistorical, exportTargetsFor, fetchZoomFor, groundSpanMeters, wantedPixelsFor, pickExportZoom, MAX_EXPORT_PIXELS_PER_SIDE, type ExportMultiMode, type ExportMultiSkip, type ExportResolutionSpec } from "@/lib/export-multi"
 import { checkExportAvailability, zoomHintsFrom, type AvailabilityResult } from "@/lib/export-availability"
-import { affineForGrid, crsLabel, projDef, resolveOutputCrs, suggestUtmEpsg, utmZoneOf, type OutputCrsChoice } from "@/lib/output-crs"
+import { affineForGrid, crsLabel, projDef, resolveOutputCrs, suggestUtmEpsg, utmZoneOf, residualNote, RESIDUAL_WARNING_PX, type OutputCrsChoice } from "@/lib/output-crs"
+import type { MapRef } from "react-map-gl/maplibre"
 import type { Bbox4 } from "@/lib/feature-extent"
 import { track } from "@/lib/analytics"
 import { subscribeWaybackMeta } from "@/lib/wayback"
@@ -111,7 +112,9 @@ const MAX_CHECKED_TARGETS = 8
 /** Longest edge the first-opened dialog aims for, from which the GSD starts. */
 const DEFAULT_LONGEST_EDGE_PX = 1024
 
-type CrsChoice = "3857" | "4326" | "utm" | "other"
+/** "utm" is the zone of each AOI (the viewport's, or each feature's own);
+ *  "utm-fixed" is the one zone of the viewport centre for every file. */
+type CrsChoice = "3857" | "4326" | "utm" | "utm-fixed" | "other"
 
 function formatGsd(m: number): string {
   return m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m >= 1 ? m.toFixed(2) : m.toFixed(3)
@@ -128,7 +131,9 @@ export const ExportMultiDialog: React.FC<{
   /** Viewport centre + zoom, for the live "how many captures in this range"
    *  count below; the export itself still reads bounds at run time. */
   getMapView?: () => { lat: number; lng: number; zoom: number } | null
-}> = ({ open, onOpenChange, getMapBounds, getMapView }) => {
+  /** View A, so the sizes follow the map while the dialog is open. */
+  mapRef?: React.RefObject<MapRef | null>
+}> = ({ open, onOpenChange, getMapBounds, getMapView, mapRef }) => {
   const features = useAtomValue(drawingFeaturesAtom)
   const layers = useAtomValue(drawingLayersAtom)
   const planetKey = useAtomValue(planetKeyAtom)
@@ -168,6 +173,9 @@ export const ExportMultiDialog: React.FC<{
   // viewport the first time the dialog opens.
   const [gsd, setGsd] = useState<number | null>(null)
   const [editing, setEditing] = useState<{ field: "gsd" | "w" | "h"; text: string } | null>(null)
+  // When the last edit was a width or height, that edge is what is kept
+  // as the view moves (the GSD re-derives); otherwise the GSD is kept.
+  const keptEdgeRef = useRef<{ field: "w" | "h"; px: number } | null>(null)
   const [crsChoice, setCrsChoice] = useState<CrsChoice>("3857")
   const [otherEpsg, setOtherEpsg] = useState("")
   const [includeGdalScript, setIncludeGdalScript] = useState(false)
@@ -189,13 +197,27 @@ export const ExportMultiDialog: React.FC<{
 
   const hasTargets = mode === "viewport" ? true : selectedFeatures.length > 0
 
+  // The map moving while the dialog is open: the viewport AOI, the sizes
+  // and the availability check follow (moveend on view A).
+  const [viewNonce, setViewNonce] = useState(0)
+  useEffect(() => {
+    if (!open) return
+    const map = mapRef?.current?.getMap()
+    if (!map) return
+    const bump = () => setViewNonce((n) => n + 1)
+    map.on("moveend", bump)
+    return () => { map.off("moveend", bump) }
+  }, [open, mapRef])
+
   // The export targets with their padded extents, as the export builds
-  // them. The viewport bounds are re-read each time the dialog opens.
+  // them. The viewport bounds are re-read each time the dialog opens and
+  // after every move.
   const targets = useMemo(() => {
     const b = getMapBounds()
     return exportTargetsFor({ mode, features: selectedFeatures, layers, viewportBbox: [b.west, b.south, b.east, b.north], pointPaddingMeters, percentPadding })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getMapBounds, mode, selectedFeatures, layers, pointPaddingMeters, percentPadding, open])
+  }, [getMapBounds, mode, selectedFeatures, layers, pointPaddingMeters, percentPadding, open, viewNonce])
+  const viewCenter = useMemo(() => { const b = getMapBounds(); return { lng: (b.west + b.east) / 2, lat: (b.south + b.north) / 2 } }, [getMapBounds, viewNonce, open]) // eslint-disable-line react-hooks/exhaustive-deps
   // The AOI the size fields describe: the viewport, or the largest feature
   // (its width and height are then the maxima over the features).
   const sizingTarget = useMemo(() => {
@@ -215,6 +237,13 @@ export const ExportMultiDialog: React.FC<{
     if (longest > 0) setGsd(longest / DEFAULT_LONGEST_EDGE_PX)
   }, [open, gsd, getMapBounds])
   const resolution = useMemo<ExportResolutionSpec>(() => ({ kind: "metersPerPixel", metersPerPixel: gsd ?? 1 }), [gsd])
+  useEffect(() => {
+    const kept = keptEdgeRef.current
+    if (!kept || !sizingTarget) return
+    const [wM, hM] = groundSpanMeters(sizingTarget.paddedBbox)
+    const next = (kept.field === "w" ? wM : hM) / kept.px
+    if (next > 0 && Number.isFinite(next)) setGsd(next)
+  }, [sizingTarget])
   const sizePx = useMemo(() => (sizingTarget && gsd ? wantedPixelsFor(sizingTarget.paddedBbox, resolution)! : [0, 0] as [number, number]), [sizingTarget, gsd, resolution])
   const targetResolution = Math.max(sizePx[0], sizePx[1], 1)
   const sizeText = (field: "gsd" | "w" | "h") => {
@@ -227,9 +256,9 @@ export const ExportMultiDialog: React.FC<{
     const v = Number(text)
     if (!Number.isFinite(v) || v <= 0 || !sizingTarget) return
     const [wM, hM] = groundSpanMeters(sizingTarget.paddedBbox)
-    if (field === "gsd") setGsd(v)
-    else if (field === "w") setGsd(wM / Math.round(v))
-    else setGsd(hM / Math.round(v))
+    if (field === "gsd") { keptEdgeRef.current = null; setGsd(v) }
+    else if (field === "w") { keptEdgeRef.current = { field: "w", px: Math.round(v) }; setGsd(wM / Math.round(v)) }
+    else { keptEdgeRef.current = { field: "h", px: Math.round(v) }; setGsd(hM / Math.round(v)) }
   }
   // The zoom the tiles are fetched at for this GSD (exportZoom below is
   // the listing zoom, capped where Wayback's metadata stops).
@@ -240,16 +269,18 @@ export const ExportMultiDialog: React.FC<{
   // Output CRS: the suggested UTM zone follows the AOI centre (per target
   // in feature mode, each its own zone).
   const utmEpsgs = useMemo(() => Array.from(new Set(targets.map((t) => suggestUtmEpsg(t.centerLng, t.centerLat)))).sort((a, b) => a - b), [targets])
-  const utmLabel = utmEpsgs.length <= 1
-    ? crsLabel(utmEpsgs[0] ?? suggestUtmEpsg(0, 0)).replace(/^EPSG:(\d+) \((.*)\)$/, "$2 (EPSG:$1)")
-    : `UTM, zone per feature (${utmEpsgs.map((e) => { const z = utmZoneOf(e)!; return `${z.zone}${z.south ? "S" : "N"}` }).join(", ")})`
+  const zoneName = (e: number) => { const z = utmZoneOf(e)!; return `${z.zone}${z.south ? "S" : "N"}` }
+  const utmEachLabel = `UTM, zone of each AOI${utmEpsgs.length ? ` (${utmEpsgs.length > 4 ? `${utmEpsgs.slice(0, 4).map(zoneName).join(", ")}, …` : utmEpsgs.map(zoneName).join(", ")})` : ""}`
+  const fixedUtmEpsg = suggestUtmEpsg(viewCenter.lng, viewCenter.lat)
+  const utmFixedLabel = `UTM ${zoneName(fixedUtmEpsg)} (EPSG:${fixedUtmEpsg})`
   const otherEpsgCode = Number.parseInt(otherEpsg, 10)
   const outputCrs = useMemo<OutputCrsChoice | null>(() => {
     if (crsChoice === "3857") return { kind: "epsg", epsg: 3857 }
     if (crsChoice === "4326") return { kind: "epsg", epsg: 4326 }
     if (crsChoice === "utm") return { kind: "utm" }
+    if (crsChoice === "utm-fixed") return { kind: "epsg", epsg: fixedUtmEpsg }
     return Number.isInteger(otherEpsgCode) && otherEpsgCode > 0 ? { kind: "epsg", epsg: otherEpsgCode } : null
-  }, [crsChoice, otherEpsgCode])
+  }, [crsChoice, otherEpsgCode, fixedUtmEpsg])
   // The affine's residual over the targets at the output size, so the
   // dialog can say when the footprint is too large for an unwarped export
   // in that CRS (the export itself still runs; the manifest records it).
@@ -283,33 +314,49 @@ export const ExportMultiDialog: React.FC<{
   // the GSD needs; on a miss the finest zoom that answers. Runs on open,
   // when the GSD, sources, targets or dates change (debounced), and on
   // the Check button. The export starts from the zooms found.
-  const [availability, setAvailability] = useState<{ results: AvailabilityResult[]; pending: boolean; forGsd: number | null }>({ results: [], pending: false, forGsd: null })
+  const [availability, setAvailability] = useState<{ results: AvailabilityResult[]; pending: boolean; forGsd: number | null; nothing?: string }>({ results: [], pending: false, forGsd: null })
   const [checkNonce, setCheckNonce] = useState(0)
   const availabilityAbortRef = useRef<AbortController | null>(null)
+  const availabilityRunRef = useRef(0)
   const checkedTargets = useMemo(() => targets.slice(0, MAX_CHECKED_TARGETS), [targets])
   // Only the sources the pickers offer: a keyless Mapbox / MapTiler / HERE
   // or Planet is in the default selection but lists nothing.
   const checkedSourceIds = useMemo(() => Array.from(sourceIds).filter((id) =>
     (id !== "planet" || hasPlanetKey) && (id !== "mapbox" || !!mapboxKey) && (id !== "maptiler" || !!maptilerKey) && (id !== "here" || !!hereKey)), [sourceIds, hasPlanetKey, mapboxKey, maptilerKey, hereKey])
   useEffect(() => {
-    if (!open || !gsd || !checkedSourceIds.length || !checkedTargets.length) { setAvailability({ results: [], pending: false, forGsd: null }); return }
+    if (!open) return
+    availabilityAbortRef.current?.abort()
+    const runId = ++availabilityRunRef.current
+    // Nothing to check: say so and finish at once, no spinner.
+    const nothing = !sourceIds.size ? "no source selected"
+      : !checkedSourceIds.length ? "the selected sources have no key set"
+        : !checkedTargets.length ? "no export target (draw something, or export the viewport)"
+          : !gsd ? "no resolution" : null
     const startMs = utcMsFromIso(startDate)
     const endMs = utcMsFromIso(endDate, "end")
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return
-    availabilityAbortRef.current?.abort()
+    if (nothing || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+      setAvailability({ results: [], pending: false, forGsd: null, nothing: nothing ?? "the date range is empty" })
+      return
+    }
     const controller = new AbortController()
     availabilityAbortRef.current = controller
-    setAvailability((prev) => ({ ...prev, pending: true }))
+    setAvailability((prev) => ({ ...prev, pending: true, nothing: undefined }))
     const timer = setTimeout(async () => {
+      let results: AvailabilityResult[] = []
+      let forGsd: number | null = null
       try {
-        const results = await checkExportAvailability({ targets: checkedTargets, sourceIds: checkedSourceIds, resolution, startMs, endMs, planetKey, keys, signal: controller.signal })
-        if (!controller.signal.aborted) setAvailability({ results, pending: false, forGsd: gsd })
+        results = await checkExportAvailability({ targets: checkedTargets, sourceIds: checkedSourceIds, resolution, startMs, endMs, planetKey, keys, signal: controller.signal })
+        forGsd = gsd
       } catch (err) {
-        if (!isAbortError(err) && !controller.signal.aborted) setAvailability({ results: [], pending: false, forGsd: null })
+        if (!isAbortError(err)) console.warn("availability check failed", err)
+      } finally {
+        // Only the latest run reports; a superseded one has been aborted
+        // and its successor is in charge of the pending flag.
+        if (availabilityRunRef.current === runId && !controller.signal.aborted) setAvailability({ results, pending: false, forGsd })
       }
     }, 800)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [open, gsd, resolution, checkedSourceIds, checkedTargets, startDate, endDate, planetKey, keys, checkNonce])
+  }, [open, gsd, resolution, sourceIds, checkedSourceIds, checkedTargets, startDate, endDate, planetKey, keys, checkNonce])
   // The two candidate listing zooms for the viewport, so the choice below
   // can say when they coincide (and the toggle then changes nothing).
   const viewZoom = getMapView ? Math.round(getMapView()?.zoom ?? 0) : 0
@@ -619,7 +666,8 @@ export const ExportMultiDialog: React.FC<{
               <Select value={crsChoice} onValueChange={(v) => v && setCrsChoice(v as CrsChoice)} items={[
                 { value: "3857", label: "EPSG:3857 (Web Mercator)" },
                 { value: "4326", label: "EPSG:4326 (WGS 84)" },
-                { value: "utm", label: utmLabel },
+                { value: "utm", label: utmEachLabel },
+                { value: "utm-fixed", label: utmFixedLabel },
                 { value: "other", label: "Other EPSG code…" },
               ]}>
                 <SelectTrigger className="flex-1 w-0 min-w-0 cursor-pointer" aria-label="Output CRS">
@@ -628,7 +676,8 @@ export const ExportMultiDialog: React.FC<{
                 <SelectContent>
                   <SelectItem value="3857">EPSG:3857 (Web Mercator)</SelectItem>
                   <SelectItem value="4326">EPSG:4326 (WGS 84)</SelectItem>
-                  <SelectItem value="utm">{utmLabel}</SelectItem>
+                  <SelectItem value="utm">{utmEachLabel}</SelectItem>
+                  <SelectItem value="utm-fixed">{utmFixedLabel}</SelectItem>
                   <SelectItem value="other">Other EPSG code…</SelectItem>
                 </SelectContent>
               </Select>
@@ -637,19 +686,19 @@ export const ExportMultiDialog: React.FC<{
               )}
             </div>
             {crsChoice !== "3857" && (
-              <p className={cn("text-xs pl-[9.75rem]", crsCheck?.error ? "text-red-500" : crsCheck && crsCheck.maxResidualPx > 0.5 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+              <p className={cn("text-xs pl-[9.75rem]", crsCheck?.error ? "text-red-500" : crsCheck && crsCheck.maxResidualPx > RESIDUAL_WARNING_PX ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
                 {crsCheck?.error ? crsCheck.error
-                  : crsCheck && crsCheck.maxResidualPx > 0.5
+                  : crsCheck && crsCheck.maxResidualPx > RESIDUAL_WARNING_PX
                     ? `Footprint too large for an unwarped export in ${crsCheck.epsgs.map((e) => `EPSG:${e}`).join(", ")}: up to ${crsCheck.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller AOI.`
                     : crsCheck
-                      ? `Pixels stay on the Web Mercator grid; the georeferencing is an affine in ${crsCheck.epsgs.map((e) => crsLabel(e)).join(", ")} (${crsCheck.maxResidualPx < 0.05 ? "under 0.05" : crsCheck.maxResidualPx.toFixed(2)} px off at the corners).`
+                      ? `Pixels stay on the Web Mercator grid; the georeferencing is an affine in ${crsCheck.epsgs.map((e) => crsLabel(e)).join(", ")}, ${residualNote(crsCheck.maxResidualPx)}.`
                       : outputCrs ? "Checking the projection…" : "Type an EPSG code."}
               </p>
             )}
           </div>
 
           {/* Availability of the zoom the GSD needs, per source and target. */}
-          {sourceIds.size > 0 && gsd !== null && (
+          {(
             <div className="space-y-1" data-testid="export-availability">
               <div className="flex items-center gap-2">
                 <Label className="text-sm font-medium">Tiles at this resolution</Label>
@@ -658,7 +707,9 @@ export const ExportMultiDialog: React.FC<{
                   Check
                 </Button>
               </div>
-              {availability.pending && !availability.results.length ? (
+              {availability.nothing ? (
+                <p className="text-xs text-muted-foreground" data-testid="availability-nothing">Nothing to check: {availability.nothing}.</p>
+              ) : availability.pending && !availability.results.length ? (
                 <p className="text-xs text-muted-foreground">Asking each source for one tile at the AOI centre…</p>
               ) : availability.results.length > 0 ? (
                 <ul className="text-xs space-y-0.5 max-h-32 overflow-y-auto">

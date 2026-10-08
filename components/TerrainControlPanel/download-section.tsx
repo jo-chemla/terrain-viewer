@@ -5,7 +5,7 @@ import { Download, Camera, Copy, Loader2, X, Images, ChevronDown } from "lucide-
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ExportMultiDialog } from "./export-multi-dialog"
 import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom, exportResolutionModeAtom, exportCrsAtom } from "@/lib/settings-atoms"
-import { georefForMercatorGrid, parseCrsSetting, worldFileFor, crsWkt } from "@/lib/output-crs"
+import { georefForMercatorGrid, parseCrsSetting, worldFileFor, crsWkt, residualWarning } from "@/lib/output-crs"
 import { ExportCrsSelect } from "./export-crs-select"
 import { displayedTileZoom, exportOutputSize } from "@/lib/map-render-export"
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from "@/lib/matcap-textures"
@@ -232,9 +232,8 @@ export const DownloadSection: React.FC<{
         // Use .jgw for JPEG world file (instead of .pgw for PNG)
         saveAs(new Blob([worldFileFor(georef)], { type: "text/plain" }), `${filename}.jgw`)
         saveAs(new Blob([await crsWkt(georef.epsg)], { type: "text/plain" }), `${filename}.prj`)
-        if (georef.maxResidualPx > 0.5) {
-          pushToast({ key: "snapshot-crs", title: "World file is approximate", body: `Footprint too large for an unwarped export in EPSG:${georef.epsg}: up to ${georef.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller view.` })
-        }
+        const residual = residualWarning(georef.epsg, georef.maxResidualPx, "view")
+        if (residual) pushToast({ key: "snapshot-crs", title: "World file is approximate", body: residual })
       }
     } catch (error) {
       console.error("Failed to download screenshot:", error)
@@ -262,9 +261,8 @@ export const DownloadSection: React.FC<{
     const georef = epsg === 3857 ? await georefForMercatorGrid(toMercatorBbox(bbox), width, height, parseCrsSetting(exportCrs)) : undefined
     const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, epsg === 3857 ? toMercatorBbox(bbox) : bbox, epsg, georef)], { type: "image/tiff" })
     saveAs(blob, `${filename}.tif`)
-    if (georef && georef.maxResidualPx > 0.5) {
-      pushToast({ key: "dem-crs", title: "Georeferencing is approximate", body: `Footprint too large for an unwarped export in EPSG:${georef.epsg}: up to ${georef.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller view.` })
-    }
+    const residual = georef ? residualWarning(georef.epsg, georef.maxResidualPx, "view") : null
+    if (residual) pushToast({ key: "dem-crs", title: "Georeferencing is approximate", body: residual })
   }, [exportCrs])
 
   const exportDTMClientSide = useCallback(async (signal: AbortSignal, filename?: string) => {
@@ -452,7 +450,7 @@ export const DownloadSection: React.FC<{
           className="w-full bg-transparent"
         />
         {exportSettings}
-        <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} getMapView={getMapView} />
+        <ExportMultiDialog open={isExportMultiOpen} onOpenChange={setIsExportMultiOpen} getMapBounds={getMapBounds} getMapView={getMapView} mapRef={mapRef} />
       </Section>
     )
   }

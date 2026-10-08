@@ -18,7 +18,7 @@ import { computeFeaturePaddedExtent, type Bbox4 } from "./feature-extent"
 import { fetchRgbTileMosaic, mosaicPixelWindow } from "./rgb-tile-mosaic"
 import { buildRgbGeoTiff } from "./rgb-geotiff"
 import { lonLatToTileXY, tileXYToLonLat } from "./tile-mosaic"
-import { affineForGrid, crsLabel, projDef, resolveOutputCrs, type GridGeoref, type OutputCrsChoice } from "./output-crs"
+import { affineForGrid, crsLabel, projDef, resolveOutputCrs, residualWarning, type GridGeoref, type OutputCrsChoice } from "./output-crs"
 import { hasGdalTemplate, hasGdalQuadkeyTemplate, buildGdalTranslateCommand, buildGdalSkipComment } from "./gdal-export"
 import bbox from "@turf/bbox"
 
@@ -457,8 +457,9 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
       const epsg = resolveOutputCrs(opts.outputCrs, item.target.centerLng, item.target.centerLat)
       if (epsg !== 3857) await projDef(epsg)
       const georef = affineForGrid({ west: mosaic.bbox[0], south: mosaic.bbox[1], east: mosaic.bbox[2], north: mosaic.bbox[3] }, mosaic.width, mosaic.height, epsg)
-      if (georef.maxResidualPx > 0.5) {
-        const note = `${item.target.label}: footprint too large for an unwarped export in EPSG:${epsg}: up to ${georef.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller AOI.`
+      const residual = residualWarning(epsg, georef.maxResidualPx)
+      if (residual) {
+        const note = `${item.target.label}: ${residual}`
         if (!warnings.includes(note)) warnings.push(note)
       }
       const tiffBlob = await buildRgbGeoTiff(mosaic.r, mosaic.g, mosaic.b, mosaic.width, mosaic.height, georef, alpha)
@@ -543,9 +544,8 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
     : resolution.kind === "metersPerPixel" ? `${resolution.metersPerPixel} m/px` : `tile zoom ${resolution.zoom}`
   // One CRS for the zip when every file shares it; with UTM per target the
   // zones differ, and each file's own entry says which.
-  const crsCodes = Array.from(new Set(manifest.map((f) => f.crs)))
-  const crsText = crsCodes.length === 1 ? crsCodes[0]
-    : opts.outputCrs?.kind === "utm" ? `UTM zone per target (${crsCodes.join(", ")})` : crsCodes.join(", ")
+  const crsCodes = Array.from(new Set(manifest.map((f) => f.crs))).sort()
+  const crsText = opts.outputCrs?.kind === "utm" ? `UTM zone per target (${crsCodes.join(", ")})` : crsCodes.join(", ")
   if (manifest.length) {
     entries["manifest.json"] = JSON.stringify({
       generator: "Terrain Viewer historical export",

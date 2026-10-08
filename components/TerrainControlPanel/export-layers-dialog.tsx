@@ -17,7 +17,7 @@ import { renderLayers, renderExportBlocker, displayedTileZoom, exportOutputSize,
 import { pickZoomForResolution } from "@/lib/tile-mosaic"
 import type { ClientExportSource } from "@/lib/client-export"
 import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom, maxResolutionAtom, modeColorRampsAtom, exportCrsAtom } from "@/lib/settings-atoms"
-import { georefForMercatorGrid, parseCrsSetting, crsLabel, type GridGeoref } from "@/lib/output-crs"
+import { georefForMercatorGrid, parseCrsSetting, crsLabel, residualWarning, type GridGeoref } from "@/lib/output-crs"
 import { ExportCrsSelect } from "./export-crs-select"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
@@ -228,7 +228,8 @@ export const ExportLayersDialog: React.FC<{
   // residual is reported once per run through crsNote.
   const georefFor = async (mercBbox: GeoBbox, width: number, height: number): Promise<GridGeoref> => {
     const g = await georefForMercatorGrid(mercBbox, width, height, crsChoice)
-    if (g.maxResidualPx > 0.5) setCrsNote(`Footprint too large for an unwarped export in EPSG:${g.epsg}: up to ${g.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller view.`)
+    const warning = residualWarning(g.epsg, g.maxResidualPx, "view")
+    if (warning) setCrsNote(warning)
     return g
   }
 

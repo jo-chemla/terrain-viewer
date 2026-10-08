@@ -14,6 +14,9 @@ import { lonLatToTileXY } from "./tile-mosaic"
 
 /** Zooms stepped down below the wanted one before giving up. */
 export const MAX_STEP_DOWN = 4
+/** A source and target that has not answered (listing and probes) by then
+ *  is reported as "could not check" and its requests aborted. */
+export const PROBE_TIMEOUT_MS = 8000
 /** Highest zoom probed, whatever a source declares (same as the mosaic's). */
 const MAX_FETCH_ZOOM = 22
 
@@ -157,8 +160,35 @@ async function checkOne(target: ExportTarget, source: ExportSourceId, opts: Avai
  */
 export async function checkExportAvailability(opts: AvailabilityOptions): Promise<AvailabilityResult[]> {
   const jobs: Promise<AvailabilityResult>[] = []
-  for (const target of opts.targets) for (const source of opts.sourceIds) jobs.push(checkOne(target, source, opts))
+  for (const target of opts.targets) for (const source of opts.sourceIds) jobs.push(checkOneWithTimeout(target, source, opts))
   return Promise.all(jobs)
+}
+
+/** checkOne under PROBE_TIMEOUT_MS, with its own abort so a hung listing
+ *  or tile request stops when the time is up (or the caller aborts). */
+async function checkOneWithTimeout(target: ExportTarget, source: ExportSourceId, opts: AvailabilityOptions): Promise<AvailabilityResult> {
+  const controller = new AbortController()
+  const onParentAbort = () => controller.abort()
+  opts.signal?.addEventListener("abort", onParentAbort)
+  if (opts.signal?.aborted) controller.abort()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<AvailabilityResult>((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      resolve({ target: target.label, source, status: "error", wantedZoom: 0, bestZoom: null, bestGsd: null, message: `${EXPORT_SOURCE_LABELS[source]}: could not check (no answer within ${PROBE_TIMEOUT_MS / 1000} s)` })
+    }, PROBE_TIMEOUT_MS)
+  })
+  try {
+    return await Promise.race([checkOne(target, source, { ...opts, signal: controller.signal }), timeout])
+  } catch (err) {
+    // The caller's own abort propagates; a probe's abort after the timeout
+    // has already been answered by the timeout branch above.
+    if (opts.signal?.aborted) throw err
+    return { target: target.label, source, status: "error", wantedZoom: 0, bestZoom: null, bestGsd: null, message: `${EXPORT_SOURCE_LABELS[source]}: could not check (${err instanceof Error ? err.message : "failed"})` }
+  } finally {
+    clearTimeout(timer)
+    opts.signal?.removeEventListener("abort", onParentAbort)
+  }
 }
 
 /** The zoom hints an export should start from, from a check's results. */
