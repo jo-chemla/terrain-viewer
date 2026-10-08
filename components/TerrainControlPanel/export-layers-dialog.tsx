@@ -16,7 +16,9 @@ import { compileRamp, colorize } from "@/lib/color-ramp-eval"
 import { renderLayers, renderExportBlocker, displayedTileZoom, exportOutputSize, MAX_EXPORT_EDGE, tileCount } from "@/lib/map-render-export"
 import { pickZoomForResolution } from "@/lib/tile-mosaic"
 import type { ClientExportSource } from "@/lib/client-export"
-import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom, maxResolutionAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
+import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom, maxResolutionAtom, modeColorRampsAtom, exportCrsAtom } from "@/lib/settings-atoms"
+import { georefForMercatorGrid, parseCrsSetting, crsLabel, type GridGeoref } from "@/lib/output-crs"
+import { ExportCrsSelect } from "./export-crs-select"
 import { downloadGeoJSON } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
 import { SegmentedToggle } from "./controls-components"
@@ -182,6 +184,9 @@ export const ExportLayersDialog: React.FC<{
   const [longestEdge, setLongestEdge] = useAtom(maxResolutionAtom)
   const [valueFormat, setValueFormat] = useAtom(exportValueFormatAtom)
   const [imageFormat, setImageFormat] = useAtom(exportImageFormatAtom)
+  const exportCrs = useAtomValue(exportCrsAtom)
+  const crsChoice = parseCrsSetting(exportCrs)
+  const [crsNote, setCrsNote] = useState<string>("")
   const [edgeDraft, setEdgeDraft] = useState(String(longestEdge))
   useEffect(() => setEdgeDraft(String(longestEdge)), [longestEdge])
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
@@ -218,14 +223,24 @@ export const ExportLayersDialog: React.FC<{
     return next
   })
 
+  // The georeferencing of a Web Mercator grid in the chosen output CRS
+  // (exact in 3857, an affine through the corners elsewhere); the
+  // residual is reported once per run through crsNote.
+  const georefFor = async (mercBbox: GeoBbox, width: number, height: number): Promise<GridGeoref> => {
+    const g = await georefForMercatorGrid(mercBbox, width, height, crsChoice)
+    if (g.maxResidualPx > 0.5) setCrsNote(`Footprint too large for an unwarped export in EPSG:${g.epsg}: up to ${g.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller view.`)
+    return g
+  }
+
   // RGBA outputs in the chosen format: GeoTIFF, or PNG/JPEG with a world
-  // file and a .prj beside it.
+  // file and a .prj beside it. The bbox is always the Web Mercator one.
   const saveRgba = async (rgba: Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326, base: string) => {
+    const georef = await georefFor(bbox, width, height)
     if (imageFormat === "tiff") {
-      saveAs(new Blob([encodeRgbaGeoTiff(rgba, width, height, bbox, epsg)], { type: "image/tiff" }), `${base}.tif`)
+      saveAs(new Blob([encodeRgbaGeoTiff(rgba, width, height, bbox, epsg, georef)], { type: "image/tiff" }), `${base}.tif`)
       return
     }
-    const f = await encodeImageWithWorldFile(rgba, width, height, bbox, epsg, imageFormat)
+    const f = await encodeImageWithWorldFile(rgba, width, height, bbox, epsg, imageFormat, georef)
     const ext = imageFormat === "png" ? "png" : "jpg"
     saveAs(f.image, `${base}.${ext}`)
     saveAs(new Blob([f.worldFile], { type: "text/plain" }), `${base}.${ext === "png" ? "pgw" : "jgw"}`)
@@ -243,7 +258,8 @@ export const ExportLayersDialog: React.FC<{
     setRunning(true)
     const todo = groups.flatMap((g) => g.items).filter((i) => selected.has(i.id) && !blocked(i))
     const name = sanitizeExportName(exportName)
-    track("actions-export", { kind: "layers", count: todo.length, resolution: resolutionMode })
+    setCrsNote("")
+    track("actions-export", { kind: "layers", count: todo.length, resolution: resolutionMode, crs: exportCrs })
     const b = getMapBounds()
     for (let n = 0; n < todo.length; n++) {
       if (controller.signal.aborted) break
@@ -301,7 +317,7 @@ export const ExportLayersDialog: React.FC<{
           }
           if (valueFormat !== "color") {
             const data = mode.scale ? result.data.map((v) => v / mode.scale!) : result.data
-            saveAs(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, mercBbox, 3857)], { type: "image/tiff" }), `${base}.tif`)
+            saveAs(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, mercBbox, 3857, await georefFor(mercBbox, result.width, result.height))], { type: "image/tiff" }), `${base}.tif`)
           }
         } else if (item.kind === "basemap") {
           const spec = map.getStyle().sources["raster-basemap-source"] as { tiles?: string[]; tileSize?: number; maxzoom?: number } | undefined
@@ -488,6 +504,8 @@ export const ExportLayersDialog: React.FC<{
               { value: "both", label: "Both" },
             ]}
           />
+          <Label className="text-sm">Output CRS</Label>
+          <ExportCrsSelect center={(() => { const b = getMapBounds(); return { lng: (b.west + b.east) / 2, lat: (b.south + b.north) / 2 } })()} disabled={running} />
           <Label className="text-sm">Images as</Label>
           <SegmentedToggle
             className="w-full"
@@ -502,8 +520,9 @@ export const ExportLayersDialog: React.FC<{
           />
         </div>
         <p className="text-xs text-muted-foreground -mt-1">
-          Every file is in Web Mercator (EPSG:3857), the grid of the tiles and the map. The size applies to everything but the snapshot and the canvas renders, which are the screen's own pixels. Raw values and the DEM are always float32 GeoTIFF.
+          Every file's pixels are on the Web Mercator grid, the grid of the tiles and the map{exportCrs === "3857" ? "" : `; the georeferencing is an affine fitted in ${crsChoice.kind === "utm" ? "the UTM zone of the view's centre" : crsLabel(crsChoice.epsg)}, not a warp`}. The size applies to everything but the snapshot and the canvas renders, which are the screen's own pixels. Raw values and the DEM are always float32 GeoTIFF.
         </p>
+        {crsNote && <p className="text-xs text-amber-600 dark:text-amber-400 -mt-1">{crsNote}</p>}
         <div className="space-y-3">
           {branches.map((br) => {
             const branchIds = br.groups.flatMap((g) => g.items).filter((i) => !blocked(i)).map((i) => i.id)

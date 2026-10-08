@@ -4,13 +4,15 @@ import { useAtom } from "jotai"
 import { Download, Camera, Copy, Loader2, X, Images, ChevronDown } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ExportMultiDialog } from "./export-multi-dialog"
-import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom, exportResolutionModeAtom } from "@/lib/settings-atoms"
+import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom, exportResolutionModeAtom, exportCrsAtom } from "@/lib/settings-atoms"
+import { georefForMercatorGrid, parseCrsSetting, worldFileFor, crsWkt } from "@/lib/output-crs"
+import { ExportCrsSelect } from "./export-crs-select"
 import { displayedTileZoom, exportOutputSize } from "@/lib/map-render-export"
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from "@/lib/matcap-textures"
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { fromArrayBuffer } from "geotiff"
-import { encodeFloat32GeoTiff, toMercatorBbox, WKT_3857 } from "@/lib/float-geotiff"
+import { encodeFloat32GeoTiff, toMercatorBbox } from "@/lib/float-geotiff"
 import { defaultExportName } from "@/lib/export-names"
 import { ExportLayersDialog } from "./export-layers-dialog"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
@@ -62,6 +64,9 @@ export const DownloadSection: React.FC<{
   // Saved, copied and shared snapshots alike (see captureMapScreenshot).
   const [includeTimeline, setIncludeTimeline] = useAtom(snapshotIncludeTimelineAtom)
   const [isExportSettingsOpen, setIsExportSettingsOpen] = useAtom(isExportSettingsOpenAtom)
+  // CRS of the DEM GeoTIFF and the snapshot world file (the layer export
+  // dialog reads the same atom). The pixels stay on the Web Mercator grid.
+  const [exportCrs] = useAtom(exportCrsAtom)
   // Folded by default, under the last export button of either layout. The
   // DEM size cap only exists in terrain mode: the historical batch export
   // has its own target-resolution field in its dialog.
@@ -83,6 +88,12 @@ export const DownloadSection: React.FC<{
               onChange={(e) => setMaxResolution(Number.parseFloat(e.target.value))}
               className="cursor-text h-7 w-24 text-right"
             />
+          </div>
+        )}
+        {!historicalMode && (
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm shrink-0">Output CRS</Label>
+            <ExportCrsSelect className="w-52" center={(() => { const b = getMapBounds(); return { lng: (b.west + b.east) / 2, lat: (b.south + b.north) / 2 } })()} />
           </div>
         )}
         <div className="flex items-center justify-between gap-2">
@@ -198,37 +209,32 @@ export const DownloadSection: React.FC<{
       // no sign it worked, and the name is generated rather than chosen — so
       // say what was written, including the world file below when there is one.
       const wroteWorldFile = state.viewMode === "2d" && snapshotMatchesViewA(mapRef)
+      const snapshotCrs = parseCrsSetting(exportCrs)
       pushToast({
         key: "snapshot",
         title: "Snapshot saved",
-        body: `${filename}.jpg${wroteWorldFile ? ` + ${filename}.jgw and .prj (world file, EPSG:3857)` : ""}`,
+        body: `${filename}.jpg${wroteWorldFile ? ` + ${filename}.jgw and .prj (world file${snapshotCrs.kind === "epsg" ? `, EPSG:${snapshotCrs.epsg}` : ", UTM"})` : ""}`,
       })
 
       // Generate world file if in 2D mode - only when the image is view A's
       // extent (single view or overlay split). A side-by-side / grid snapshot
       // holds several extents, which no single world file can describe.
       if (state.viewMode === "2d" && snapshotMatchesViewA(mapRef)) {
-        // The canvas is Web Mercator, so the world file is in EPSG:3857 metres
-        // (it used to be degrees, which stretched in latitude), at the
-        // captured image's own pixel size: the snapshot is taken at the
-        // device pixel ratio, not the CSS size. The origin is the centre of
-        // the top-left pixel, as the format expects.
+        // The canvas is Web Mercator (it used to be written in degrees,
+        // which stretched in latitude), at the captured image's own pixel
+        // size: the snapshot is taken at the device pixel ratio, not the
+        // CSS size. The world file holds the affine in the chosen output
+        // CRS (exact in 3857, fitted through the corners elsewhere), with
+        // the centre of the top-left pixel as the format expects.
         const canvas = mapRef.current.getMap().getCanvas()
         const width = canvas.width, height = canvas.height
-        const m = toMercatorBbox(getMapBounds())
-        const pixelSizeX = (m.east - m.west) / width
-        const pixelSizeY = (m.north - m.south) / height
-        const pgwContent = [
-          pixelSizeX.toFixed(10),
-          "0.0",
-          "0.0",
-          (-pixelSizeY).toFixed(10),
-          (m.west + pixelSizeX / 2).toFixed(10),
-          (m.north - pixelSizeY / 2).toFixed(10),
-        ].join("\n")
+        const georef = await georefForMercatorGrid(toMercatorBbox(getMapBounds()), width, height, snapshotCrs)
         // Use .jgw for JPEG world file (instead of .pgw for PNG)
-        saveAs(new Blob([pgwContent], { type: "text/plain" }), `${filename}.jgw`)
-        saveAs(new Blob([WKT_3857], { type: "text/plain" }), `${filename}.prj`)
+        saveAs(new Blob([worldFileFor(georef)], { type: "text/plain" }), `${filename}.jgw`)
+        saveAs(new Blob([await crsWkt(georef.epsg)], { type: "text/plain" }), `${filename}.prj`)
+        if (georef.maxResidualPx > 0.5) {
+          pushToast({ key: "snapshot-crs", title: "World file is approximate", body: `Footprint too large for an unwarped export in EPSG:${georef.epsg}: up to ${georef.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller view.` })
+        }
       }
     } catch (error) {
       console.error("Failed to download screenshot:", error)
@@ -238,7 +244,7 @@ export const DownloadSection: React.FC<{
         body: error instanceof Error ? error.message : String(error),
       })
     }
-  }, [mapRef, state.viewMode, getMapBounds])
+  }, [mapRef, state.viewMode, getMapBounds, exportCrs])
 
   const saveElevationGeoTiff = useCallback(async (
     elevationData: Float32Array, width: number, height: number,
@@ -251,9 +257,15 @@ export const DownloadSection: React.FC<{
     // lib/float-geotiff.ts, not geotiff.js's writeArrayBuffer: that one writes
     // one byte per sample whatever BitsPerSample says, so every float DEM it
     // produced was unreadable (GDAL: "TIFFReadEncodedStrip ... failed").
-    const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, epsg === 3857 ? toMercatorBbox(bbox) : bbox, epsg)], { type: "image/tiff" })
+    // The client path's Web Mercator grid takes the chosen output CRS
+    // (lib/output-crs.ts); titiler's lon/lat raster is written as it comes.
+    const georef = epsg === 3857 ? await georefForMercatorGrid(toMercatorBbox(bbox), width, height, parseCrsSetting(exportCrs)) : undefined
+    const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, epsg === 3857 ? toMercatorBbox(bbox) : bbox, epsg, georef)], { type: "image/tiff" })
     saveAs(blob, `${filename}.tif`)
-  }, [])
+    if (georef && georef.maxResidualPx > 0.5) {
+      pushToast({ key: "dem-crs", title: "Georeferencing is approximate", body: `Footprint too large for an unwarped export in EPSG:${georef.epsg}: up to ${georef.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller view.` })
+    }
+  }, [exportCrs])
 
   const exportDTMClientSide = useCallback(async (signal: AbortSignal, filename?: string) => {
     const clientSource = getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl, clientUpstream)

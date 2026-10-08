@@ -1,5 +1,8 @@
-// GeoTIFF encoders for exports: single-band float32 values in EPSG:4326, and
-// 8-bit RGBA renders in EPSG:3857. Uncompressed, one strip, little-endian.
+// GeoTIFF encoders for exports: single-band float32 values, 8-bit RGB(A)
+// renders. Uncompressed, one strip, little-endian. The georeferencing is
+// either a bbox in the CRS (axis-aligned pixels) or a GridGeoref from
+// lib/output-crs.ts: an affine fitted in any EPSG code, written as
+// ModelTransformation when it carries rotation or shear.
 //
 // Why not geotiff.js's writeArrayBuffer: its encoder copies the values into
 // a Uint8Array whatever BitsPerSample says, so a float32 raster came out as
@@ -8,17 +11,22 @@
 // GeoTIFF the app exported until 2026-09-25 was unreadable. It is fine for
 // 8-bit RGB (lib/rgb-geotiff.ts still uses it).
 
-export interface GeoBbox { west: number; south: number; east: number; north: number }
+import { georefFromBbox, geoKeyDirectoryFor, modelTransformationFor, worldFileFor, crsWkt, toMercator, WKT_3857, WKT_4326, type GridGeoref, type GeoBbox } from "./output-crs"
+
+export type { GeoBbox, GridGeoref }
+export { WKT_3857, WKT_4326 }
 
 const SHORT = 3, LONG = 4, ASCII = 2, DOUBLE = 12
 const TYPE_SIZE: Record<number, number> = { [SHORT]: 2, [LONG]: 4, [ASCII]: 1, [DOUBLE]: 8 }
 
-type Entry = { tag: number; type: number; values: number[] | string }
+export type TiffEntry = { tag: number; type: number; values: number[] | string }
+type Entry = TiffEntry
+export const TIFF_TYPE = { SHORT, LONG, ASCII, DOUBLE } as const
 
 /** Lays out header, one IFD, out-of-line tag values, then the pixel bytes.
  *  `entries` must be sorted by tag and include StripOffsets (273), whose
  *  value is filled in here. */
-function writeTiff(entries: Entry[], pixels: Uint8Array): ArrayBuffer {
+export function writeTiff(entries: Entry[], pixels: Uint8Array): ArrayBuffer {
   const ifdOffset = 8
   const ifdSize = 2 + entries.length * 12 + 4
   const count = (e: Entry) => e.values.length
@@ -71,15 +79,25 @@ function writeTiff(entries: Entry[], pixels: Uint8Array): ArrayBuffer {
   return buffer
 }
 
-const georef = (bbox: GeoBbox, width: number, height: number): Entry[] => [
-  { tag: 33550, type: DOUBLE, values: [(bbox.east - bbox.west) / width, (bbox.north - bbox.south) / height, 0] }, // ModelPixelScale
-  { tag: 33922, type: DOUBLE, values: [0, 0, 0, bbox.west, bbox.north, 0] },                                   // ModelTiepoint
-]
+/** The georeferencing tags of a grid, in tag order: ModelPixelScale +
+ *  ModelTiepoint for an axis-aligned grid, ModelTransformation when the
+ *  affine has rotation or shear, then the GeoKeyDirectory for the CRS.
+ *  Callers splice these between tag 339 and tag 42113. */
+export function georefTags(g: GridGeoref): Entry[] {
+  const [x0, a, , y0, , e] = g.geoTransform
+  const placement: Entry[] = g.rotated
+    ? [{ tag: 34264, type: DOUBLE, values: modelTransformationFor(g) }]
+    : [
+      { tag: 33550, type: DOUBLE, values: [a, -e, 0] },           // ModelPixelScale
+      { tag: 33922, type: DOUBLE, values: [0, 0, 0, x0, y0, 0] }, // ModelTiepoint
+    ]
+  return [...placement, { tag: 34735, type: SHORT, values: geoKeyDirectoryFor(g.epsg, g.geographic) }]
+}
 
 /** Single band float32, NaN = nodata. EPSG:3857 (bbox in Web Mercator
  *  metres, the grid of the tiles and of every export in the app) or
  *  EPSG:4326 (bbox in degrees, the titiler DEM path). */
-export function encodeFloat32GeoTiff(data: Float32Array, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326 = 4326): ArrayBuffer {
+export function encodeFloat32GeoTiff(data: Float32Array, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326 = 4326, georef?: GridGeoref): ArrayBuffer {
   if (data.length !== width * height) throw new Error(`encodeFloat32GeoTiff: ${data.length} values for ${width}x${height}`)
   return writeTiff([
     { tag: 256, type: LONG, values: [width] },            // ImageWidth
@@ -93,11 +111,7 @@ export function encodeFloat32GeoTiff(data: Float32Array, width: number, height: 
     { tag: 279, type: LONG, values: [width * height * 4] }, // StripByteCounts
     { tag: 284, type: SHORT, values: [1] },               // PlanarConfiguration
     { tag: 339, type: SHORT, values: [3] },               // SampleFormat: IEEE float
-    ...georef(bbox, width, height),
-    // GeoKeyDirectory, pixel is area: projected EPSG:3857 or geographic 4326.
-    { tag: 34735, type: SHORT, values: epsg === 3857
-      ? [1, 1, 0, 3, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 3857]
-      : [1, 1, 0, 3, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326] },
+    ...georefTags(georef ?? georefFromBbox(bbox, epsg, width, height)),
     { tag: 42113, type: ASCII, values: "nan\0" },         // GDAL_NODATA
   ], new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
 }
@@ -105,7 +119,7 @@ export function encodeFloat32GeoTiff(data: Float32Array, width: number, height: 
 /** 8-bit RGBA with alpha as a real band, so transparent areas stay
  *  transparent in GIS. EPSG:3857 (bbox in Web Mercator metres) for renders
  *  of the canvas, EPSG:4326 (degrees) for colour-mapped values. */
-export function encodeRgbaGeoTiff(rgba: Uint8Array | Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326 = 3857): ArrayBuffer {
+export function encodeRgbaGeoTiff(rgba: Uint8Array | Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326 = 3857, georef?: GridGeoref): ArrayBuffer {
   if (rgba.length !== width * height * 4) throw new Error(`encodeRgbaGeoTiff: ${rgba.length} bytes for ${width}x${height} RGBA`)
   return writeTiff([
     { tag: 256, type: LONG, values: [width] },
@@ -120,19 +134,17 @@ export function encodeRgbaGeoTiff(rgba: Uint8Array | Uint8ClampedArray, width: n
     { tag: 284, type: SHORT, values: [1] },
     { tag: 338, type: SHORT, values: [2] },               // ExtraSamples: unassociated alpha
     { tag: 339, type: SHORT, values: [1, 1, 1, 1] },      // SampleFormat: unsigned
-    ...georef(bbox, width, height),
-    // GeoKeyDirectory, pixel is area: projected EPSG:3857 or geographic 4326.
-    { tag: 34735, type: SHORT, values: epsg === 3857
-      ? [1, 1, 0, 3, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 3857]
-      : [1, 1, 0, 3, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326] },
+    ...georefTags(georef ?? georefFromBbox(bbox, epsg, width, height)),
   ], new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength))
 }
 
 /** Image + world file + .prj for RGBA outputs, for tools that prefer them
- *  to a GeoTIFF. The world file holds the pixel size and the centre of the
- *  top-left pixel; JPEG has no alpha, so transparent pixels become white. */
+ *  to a GeoTIFF. The world file holds the six affine coefficients (pixel
+ *  size, rotation/shear, the centre of the top-left pixel); JPEG has no
+ *  alpha, so transparent pixels become white. A georef in another CRS
+ *  brings its .prj from lib/output-crs.ts (epsg.io for unknown codes). */
 export async function encodeImageWithWorldFile(
-  rgba: Uint8Array | Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326, format: "png" | "jpeg",
+  rgba: Uint8Array | Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326, format: "png" | "jpeg", georef?: GridGeoref,
 ): Promise<{ image: Blob; worldFile: string; prj: string }> {
   const canvas = document.createElement("canvas")
   canvas.width = width
@@ -148,19 +160,9 @@ export async function encodeImageWithWorldFile(
   } else ctx.putImageData(img, 0, 0)
   const image = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("image encoding failed"))), format === "jpeg" ? "image/jpeg" : "image/png", format === "jpeg" ? 0.95 : undefined))
-  const px = (bbox.east - bbox.west) / width
-  const py = (bbox.north - bbox.south) / height
-  const worldFile = [px, 0, 0, -py, bbox.west + px / 2, bbox.north - py / 2].map((v) => v.toFixed(12)).join("\n")
-  return { image, worldFile, prj: epsg === 3857 ? WKT_3857 : WKT_4326 }
+  const g = georef ?? georefFromBbox(bbox, epsg, width, height)
+  return { image, worldFile: worldFileFor(g), prj: await crsWkt(g.epsg) }
 }
 
-export const WKT_4326 = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]]'
-export const WKT_3857 = 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1],EXTENSION["PROJ4","+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs"],AUTHORITY["EPSG","3857"]]'
-
-const R = 6378137
 /** A lon/lat bbox as Web Mercator metres, for the EPSG:3857 writers. */
-export function toMercatorBbox(b: GeoBbox): GeoBbox {
-  const x = (lon: number) => (R * lon * Math.PI) / 180
-  const y = (lat: number) => R * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
-  return { west: x(b.west), south: y(b.south), east: x(b.east), north: y(b.north) }
-}
+export const toMercatorBbox = toMercator

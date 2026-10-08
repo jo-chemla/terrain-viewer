@@ -3883,6 +3883,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "exportCrs",
+      "default": "\"3857\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "useCogProtocolVsTitiler",
       "default": "true",
       "note": ""

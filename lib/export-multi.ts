@@ -18,6 +18,7 @@ import { computeFeaturePaddedExtent, type Bbox4 } from "./feature-extent"
 import { fetchRgbTileMosaic, mosaicPixelWindow } from "./rgb-tile-mosaic"
 import { buildRgbGeoTiff } from "./rgb-geotiff"
 import { lonLatToTileXY, tileXYToLonLat } from "./tile-mosaic"
+import { affineForGrid, crsLabel, projDef, resolveOutputCrs, type GridGeoref, type OutputCrsChoice } from "./output-crs"
 import { hasGdalTemplate, hasGdalQuadkeyTemplate, buildGdalTranslateCommand, buildGdalSkipComment } from "./gdal-export"
 import bbox from "@turf/bbox"
 
@@ -61,10 +62,16 @@ function mercatorSpanPx(box: Bbox4, zoom: number, tileSize: number): [number, nu
 }
 
 /** Ground size of a bbox in metres at its centre latitude. */
-function groundSpanMeters(box: Bbox4): [number, number] {
+export function groundSpanMeters(box: Bbox4): [number, number] {
   const [west, south, east, north] = box
   const centreLat = ((south + north) / 2) * (Math.PI / 180)
   return [(east - west) * METERS_PER_DEGREE_LAT * Math.cos(centreLat), (north - south) * METERS_PER_DEGREE_LAT]
+}
+
+/** Ground sample distance of one tile pixel at a zoom and latitude, metres
+ *  (the Web Mercator scale factor cos(lat) applied). */
+export function nativeGsdAt(lat: number, zoom: number, tileSize = 256): number {
+  return (2 * Math.PI * 6378137 * Math.cos((lat * Math.PI) / 180)) / (tileSize * 2 ** zoom)
 }
 
 /** Output size a resolution asks for over a bbox; null for "zoom" (native). */
@@ -151,6 +158,15 @@ export interface ExportMultiOptions {
    *    the cost of possibly describing a coarser mosaic level than the one
    *    exported. */
   listingZoom?: number | "fetch"
+  /** CRS the georeferencing is written in (the pixels stay the Web
+   *  Mercator mosaic, see lib/output-crs.ts). Default EPSG:3857; "utm"
+   *  gives every target the zone of its own centre. */
+  outputCrs?: OutputCrsChoice
+  /** Highest zoom to fetch per target and source, keyed by zoomHintKey():
+   *  what the availability check (lib/export-availability.ts) found
+   *  served at the target's centre, so the export starts there instead of
+   *  stepping down through 404s. */
+  zoomHints?: Record<string, number>
   /** Also write one `<target>_gdal_commands.bat` per target into the zip,
    *  with a gdal_translate command per (source, capture date) that has a
    *  real fetchable tile URL — see lib/gdal-export.ts for which sources
@@ -183,8 +199,18 @@ export interface ExportMultiManifestEntry {
   metersPerPixel: number
   /** Tile zoom the pixels were fetched at. */
   zoom: number
+  /** Tile zoom the resolution asked for (the source's maxzoom applied);
+   *  lower `zoom` means the source had no finer tiles there. */
+  wantedZoom: number
   /** Whether a fourth (alpha) band masks the pixels outside the feature. */
   masked: boolean
+  /** CRS of the georeferencing, e.g. "EPSG:32637". */
+  crs: string
+  /** GDAL geotransform in that CRS: X = x0 + a*col + b*row, Y = y0 + d*col + e*row. */
+  geoTransform: GridGeoref["geoTransform"]
+  /** Largest offset, in pixels, between the affine and the true projected
+   *  position at the corners and the centre (0 in EPSG:3857). */
+  maxResidualPx: number
 }
 
 export interface ExportMultiResult {
@@ -215,7 +241,7 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError"
 }
 
-interface ExportTarget {
+export interface ExportTarget {
   label: string
   paddedBbox: Bbox4
   extentDescriptor: string
@@ -231,7 +257,19 @@ function polygonRings(geometry: Geometry): Position[][] | undefined {
   return undefined
 }
 
-function buildTargets(opts: ExportMultiOptions): ExportTarget[] {
+/** Key of ExportMultiOptions.zoomHints for one target and source. */
+export function zoomHintKey(targetLabel: string, source: ExportSourceId): string {
+  return `${targetLabel}\u0000${source}`
+}
+
+/** The export targets an options set describes (one for the viewport, one
+ *  per feature), with their padded extents - shared with the dialog's
+ *  size readout and availability check. */
+export function exportTargetsFor(opts: Pick<ExportMultiOptions, "mode" | "features" | "layers" | "viewportBbox" | "pointPaddingMeters" | "percentPadding">): ExportTarget[] {
+  return buildTargets(opts)
+}
+
+function buildTargets(opts: Pick<ExportMultiOptions, "mode" | "features" | "layers" | "viewportBbox" | "pointPaddingMeters" | "percentPadding">): ExportTarget[] {
   if (opts.mode === "viewport") {
     if (!opts.viewportBbox) return []
     const [west, south, east, north] = opts.viewportBbox
@@ -376,10 +414,14 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
       // to be skipped. Step down a few zooms before giving up — a coarser
       // file beats no file, and the reason records what was tried.
       const MAX_STEP_DOWN = 3
+      // The availability check already found the zoom served at the
+      // target's centre: start there rather than at tiles known to 404.
+      const hint = opts.zoomHints?.[zoomHintKey(item.target.label, item.source)]
+      const startZoom = hint !== undefined ? Math.min(wantedZoom, hint) : wantedZoom
       let mosaic: Awaited<ReturnType<typeof fetchRgbTileMosaic>> | null = null
       let size: ReturnType<typeof outputSizeAt> | null = null
       let lastError: unknown = null
-      for (let zoom = wantedZoom; zoom >= Math.max(1, wantedZoom - MAX_STEP_DOWN); zoom--) {
+      for (let zoom = startZoom; zoom >= Math.max(1, startZoom - MAX_STEP_DOWN); zoom--) {
         const candidate = outputSizeAt(zoom)
         try {
           mosaic = await fetchRgbTileMosaic({
@@ -402,7 +444,7 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
         }
       }
       if (!mosaic || !size) {
-        throw new Error(`No tiles at z${wantedZoom}–z${Math.max(1, wantedZoom - MAX_STEP_DOWN)}: ${lastError instanceof Error ? lastError.message : "fetch failed"}`)
+        throw new Error(`No tiles at z${startZoom}–z${Math.max(1, startZoom - MAX_STEP_DOWN)}: ${lastError instanceof Error ? lastError.message : "fetch failed"}`)
       }
       if (size.capped) warnings.push(`${fileLabel}: scaled down to ${mosaic.width}×${mosaic.height} px (cap ${maxPixelsPerSide} px a side).`)
       if (size.coarser) warnings.push(`${fileLabel}: ${mosaic.width}×${mosaic.height} px at z${mosaic.zoom}, coarser than asked (the source has no finer tiles here).`)
@@ -410,9 +452,16 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
       const alpha = maskToFeature && item.target.maskRings
         ? rasterizeRingsMask(item.target.maskRings, mosaic.width, mosaic.height, mosaic.originPx, mosaic.nativeWidth, mosaic.nativeHeight, mosaic.zoom, tileSize)
         : undefined
-      const tiffBlob = await buildRgbGeoTiff(mosaic.r, mosaic.g, mosaic.b, mosaic.width, mosaic.height, {
-        west: mosaic.bbox[0], south: mosaic.bbox[1], east: mosaic.bbox[2], north: mosaic.bbox[3],
-      }, alpha)
+      // The georeferencing in the output CRS: exact in 3857, an affine
+      // fitted through the corners elsewhere (the pixels are not warped).
+      const epsg = resolveOutputCrs(opts.outputCrs, item.target.centerLng, item.target.centerLat)
+      if (epsg !== 3857) await projDef(epsg)
+      const georef = affineForGrid({ west: mosaic.bbox[0], south: mosaic.bbox[1], east: mosaic.bbox[2], north: mosaic.bbox[3] }, mosaic.width, mosaic.height, epsg)
+      if (georef.maxResidualPx > 0.5) {
+        const note = `${item.target.label}: footprint too large for an unwarped export in EPSG:${epsg}: up to ${georef.maxResidualPx.toFixed(1)} px off at the corners, use EPSG:3857 or a smaller AOI.`
+        if (!warnings.includes(note)) warnings.push(note)
+      }
+      const tiffBlob = await buildRgbGeoTiff(mosaic.r, mosaic.g, mosaic.b, mosaic.width, mosaic.height, georef, alpha)
       if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError")
 
       // The viewport target's label and extent descriptor are both
@@ -431,7 +480,8 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
       const [gW] = groundSpanMeters(mosaic.bbox)
       manifest.push({
         path, target: item.target.label, source: item.source, sourceLabel: EXPORT_SOURCE_LABELS[item.source], date: item.tick.label,
-        bbox: mosaic.bbox, width: mosaic.width, height: mosaic.height, metersPerPixel: gW / mosaic.width, zoom: mosaic.zoom, masked: !!alpha,
+        bbox: mosaic.bbox, width: mosaic.width, height: mosaic.height, metersPerPixel: gW / mosaic.width, zoom: mosaic.zoom, wantedZoom, masked: !!alpha,
+        crs: `EPSG:${epsg}`, geoTransform: georef.geoTransform, maxResidualPx: georef.maxResidualPx,
       })
     } catch (err) {
       if (isAbortError(err)) throw err
@@ -491,11 +541,17 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
   // Root manifest: the same list twice, for scripts and for people.
   const resolutionText = resolution.kind === "pixels" ? `${resolution.longestEdge} px longest edge`
     : resolution.kind === "metersPerPixel" ? `${resolution.metersPerPixel} m/px` : `tile zoom ${resolution.zoom}`
+  // One CRS for the zip when every file shares it; with UTM per target the
+  // zones differ, and each file's own entry says which.
+  const crsCodes = Array.from(new Set(manifest.map((f) => f.crs)))
+  const crsText = crsCodes.length === 1 ? crsCodes[0]
+    : opts.outputCrs?.kind === "utm" ? `UTM zone per target (${crsCodes.join(", ")})` : crsCodes.join(", ")
   if (manifest.length) {
     entries["manifest.json"] = JSON.stringify({
       generator: "Terrain Viewer historical export",
       generatedAt: new Date().toISOString(),
-      crs: "EPSG:4326",
+      crs: crsText,
+      crsNote: "Pixels are the Web Mercator tile mosaic; the georeferencing is an affine in `crs` fitted through the corners (maxResidualPx per file). bbox is in EPSG:4326.",
       resolution,
       dateRange: { start: new Date(startMs).toISOString().slice(0, 10), end: new Date(endMs).toISOString().slice(0, 10) },
       files: manifest,
@@ -504,12 +560,12 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
     }, null, 2)
     const readme: string[] = [
       "Terrain Viewer historical imagery export",
-      `Generated ${new Date().toISOString()} - ${manifest.length} GeoTIFF${manifest.length === 1 ? "" : "s"}, one folder per source, EPSG:4326, requested resolution ${resolutionText}.`,
-      "Columns: file | source | date | bbox [west, south, east, north] | size (px) | GSD at centre latitude | tile zoom | alpha mask",
+      `Generated ${new Date().toISOString()} - ${manifest.length} GeoTIFF${manifest.length === 1 ? "" : "s"}, one folder per source, georeferenced in ${crsText} (pixels on the Web Mercator grid, not warped), requested resolution ${resolutionText}.`,
+      "Columns: file | source | date | bbox [west, south, east, north] (EPSG:4326) | size (px) | GSD at centre latitude | tile zoom (asked) | alpha mask | CRS | affine residual (px)",
       "",
     ]
     for (const f of manifest) {
-      readme.push(`${f.path} | ${f.sourceLabel} | ${f.date} | [${f.bbox.map((v) => v.toFixed(6)).join(", ")}] | ${f.width}x${f.height} | ${formatGsd(f.metersPerPixel)}/px | z${f.zoom} | ${f.masked ? "yes" : "no"}`)
+      readme.push(`${f.path} | ${f.sourceLabel} | ${f.date} | [${f.bbox.map((v) => v.toFixed(6)).join(", ")}] | ${f.width}x${f.height} | ${formatGsd(f.metersPerPixel)}/px | z${f.zoom}${f.zoom !== f.wantedZoom ? ` (asked z${f.wantedZoom})` : ""} | ${f.masked ? "yes" : "no"} | ${f.crs} | ${f.maxResidualPx.toFixed(2)}`)
     }
     if (warnings.length) readme.push("", "Warnings:", ...warnings.map((w) => `- ${w}`))
     if (skipped.length) readme.push("", "Skipped:", ...skipped.map((s) => `- ${s.feature} / ${EXPORT_SOURCE_LABELS[s.source]}: ${s.reason}`))
@@ -524,5 +580,5 @@ export async function exportMultiHistorical(opts: ExportMultiOptions): Promise<E
   return { zipBlob: new Blob([bytes as BlobPart], { type: "application/zip" }), fileCount: manifest.length, skipped, warnings, manifest }
 }
 
-export { EXPORT_SOURCE_IDS }
+export { EXPORT_SOURCE_IDS, crsLabel }
 export type { ExportSourceId }

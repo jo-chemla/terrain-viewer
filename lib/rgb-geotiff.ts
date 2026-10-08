@@ -1,57 +1,48 @@
-// RGB sibling of download-section.tsx's saveElevationGeoTiff — that helper
-// writes a single float32 elevation band via geotiff.js's writeArrayBuffer
-// using a flat TypedArray. Multi-band (RGB) output uses a DIFFERENT calling
-// convention: `data` must be an array of N nested 2D arrays, `data[band][row][col]`,
-// not a flat typed array with SamplesPerPixel: 3 — confirmed by reading
-// geotiff.js's own writer source. This builds that nested shape from three
-// flat Uint8Array bands (see lib/rgb-tile-mosaic.ts) plus the same
-// ModelPixelScale/ModelTiepoint georeferencing tags the DTM export uses.
-// An optional fourth band is written as unassociated alpha (ExtraSamples 2),
-// which GDAL and QGIS read as the transparency mask.
-import { writeArrayBuffer } from "geotiff"
+// RGB(A) GeoTIFF for the historical batch export (lib/export-multi.ts):
+// three flat 8-bit bands from lib/rgb-tile-mosaic.ts plus an optional
+// alpha band, written as unassociated alpha (ExtraSamples 2), which GDAL
+// and QGIS read as the transparency mask. Interleaved pixels, one strip,
+// through the same writer as the DEM and layer exports (lib/float-geotiff.ts),
+// so the georeferencing is the one GridGeoref of lib/output-crs.ts: an
+// axis-aligned EPSG:3857 grid, or an affine fitted in another CRS, written
+// as ModelTransformation when it has rotation or shear.
+//
+// It used to go through geotiff.js's writeArrayBuffer, whose multi-band
+// writer wants data[band][row][col]; it has no ModelTransformation, and
+// the app's own writer was already there.
+import { writeTiff, georefTags, TIFF_TYPE } from "./float-geotiff"
+import type { GridGeoref } from "./output-crs"
 
 export async function buildRgbGeoTiff(
   r: Uint8Array, g: Uint8Array, b: Uint8Array, width: number, height: number,
-  bbox: { west: number; south: number; east: number; north: number },
+  georef: GridGeoref,
   alpha?: Uint8Array,
 ): Promise<Blob> {
-  const pixelSizeX = (bbox.east - bbox.west) / width
-  const pixelSizeY = (bbox.north - bbox.south) / height
-
-  // geotiff.js's multi-band writer wants data[band][row][col] — a plain
-  // typed-array band still works as the innermost "row" if pre-sliced per
-  // row, so this builds one Array<Uint8Array> (one entry per row) per band
-  // rather than a fully-nested plain-Array-of-Array-of-number, which would
-  // be far more allocation for the same result.
-  const toRows = (band: Uint8Array): Uint8Array[] => {
-    const rows: Uint8Array[] = new Array(height)
-    for (let row = 0; row < height; row++) {
-      rows[row] = band.subarray(row * width, (row + 1) * width)
-    }
-    return rows
-  }
-
   const bands = alpha ? 4 : 3
-  const metadata: Record<string, unknown> = {
-    GTModelTypeGeoKey: 2,
-    GeographicTypeGeoKey: 4326,
-    GeogCitationGeoKey: "WGS 84",
-    height,
-    width,
-    ModelPixelScale: [pixelSizeX, pixelSizeY, 0],
-    ModelTiepoint: [0, 0, 0, bbox.west, bbox.north, 0],
-    SamplesPerPixel: bands,
-    BitsPerSample: new Array(bands).fill(8),
-    SampleFormat: new Array(bands).fill(1),
-    PlanarConfiguration: 1,
-    // 2 = RGB (vs. 1 = BlackIsZero, used for the single-band DTM export).
-    PhotometricInterpretation: 2,
+  const n = width * height
+  if (r.length !== n || g.length !== n || b.length !== n || (alpha && alpha.length !== n)) throw new Error(`buildRgbGeoTiff: band length does not match ${width}x${height}`)
+  const pixels = new Uint8Array(n * bands)
+  for (let i = 0, j = 0; i < n; i++, j += bands) {
+    pixels[j] = r[i]
+    pixels[j + 1] = g[i]
+    pixels[j + 2] = b[i]
+    if (alpha) pixels[j + 3] = alpha[i]
   }
-  // 2 = unassociated alpha (the colour bands are not premultiplied).
-  if (alpha) metadata.ExtraSamples = 2
-
-  const data = [toRows(r), toRows(g), toRows(b)]
-  if (alpha) data.push(toRows(alpha))
-  const outputArrayBuffer = await writeArrayBuffer(data as unknown as any[], metadata as any)
-  return new Blob([outputArrayBuffer], { type: "image/tiff" })
+  const { SHORT, LONG } = TIFF_TYPE
+  const entries = [
+    { tag: 256, type: LONG, values: [width] },
+    { tag: 257, type: LONG, values: [height] },
+    { tag: 258, type: SHORT, values: new Array(bands).fill(8) },
+    { tag: 259, type: SHORT, values: [1] },                 // Compression: none
+    { tag: 262, type: SHORT, values: [2] },                 // Photometric: RGB
+    { tag: 273, type: LONG, values: [0] },                  // StripOffsets, filled by writeTiff
+    { tag: 277, type: SHORT, values: [bands] },
+    { tag: 278, type: LONG, values: [height] },             // one strip
+    { tag: 279, type: LONG, values: [n * bands] },
+    { tag: 284, type: SHORT, values: [1] },                 // PlanarConfiguration: chunky
+    ...(alpha ? [{ tag: 338, type: SHORT, values: [2] }] : []), // ExtraSamples: unassociated alpha
+    { tag: 339, type: SHORT, values: new Array(bands).fill(1) },
+    ...georefTags(georef),
+  ]
+  return new Blob([writeTiff(entries, pixels)], { type: "image/tiff" })
 }

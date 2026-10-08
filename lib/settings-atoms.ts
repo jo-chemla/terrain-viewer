@@ -240,6 +240,12 @@ export const exportResolutionModeAtom = atomWithStorage<"screen" | "max">("expor
 export const exportValueFormatAtom = atomWithStorage<"raw" | "color" | "both">("exportValueFormat", "raw")
 /** Layer export: file format for RGBA outputs (float32 is always GeoTIFF). */
 export const exportImageFormatAtom = atomWithStorage<"tiff" | "png" | "jpeg">("exportImageFormat", "tiff")
+/** CRS the DEM, layer and snapshot exports are georeferenced in: an EPSG
+ *  code as text ("3857", "4326", "2154"...) or "utm" for the zone of the
+ *  export's own centre. The pixels stay on the Web Mercator grid; only the
+ *  affine changes (lib/output-crs.ts). The historical batch export has its
+ *  own field in its dialog. */
+export const exportCrsAtom = atomWithStorage<string>("exportCrs", "3857")
 
 export const useCogProtocolVsTitilerAtom = atomWithStorage("useCogProtocolVsTitiler", true)
 // DTM export mode: client-side (browser range-reads/tile-mosaic, no titiler, no
