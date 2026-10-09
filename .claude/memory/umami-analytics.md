@@ -114,9 +114,18 @@ the Pro plan (confirmed 2026-10-09); Jonathan exports the data by hand.
   sam-anadem) against 43 selections of URL-added ones (24 distinct ids,
   20 sessions). The URLs pasted were mostly Jonathan's own tests (IGN
   LiDAR HD WMS, the Dura Europos COGs, PDOK AHN, 3DEP, DEM differences);
-  visitors' own: NASA GIBS tile layers, a Zenodo Chamoli DEM, the Spanish
-  CNIG COG and IDEE terrain-rgb, the Canterbury 1 m tiles, Planet's Nepal
-  flood items on source.coop, BRGM geology WMS, ESA WorldCover.
+  checked against lib/custom-sources.json on 2026-10-09: the Zenodo
+  Chamoli DEMs, the IDEE terrain-rgb, the Canterbury tiles, the WorldCover
+  WMTS, the BRGM geology WMS and the smartmaps PMTiles are all LIBRARY
+  entries (source-add fires on library picks too, it is the custom list
+  growing), so almost every "pasted" URL was a library pick, most of them
+  Jonathan's. Not in the library: a CNIG download-portal page (not a
+  file), Planet disasterdata items (the planet-disaster STAC preset covers
+  them), NASA GIBS layers. Probed the same day: all answer with CORS *
+  and range support except Zenodo (403 to a non-browser user agent; to
+  a browser 206 with ranges but NO Access-Control-Allow-Origin, so the
+  Chamoli COGs cannot be read in-page without a proxy) and the CNIG
+  portal page (connection failed).
 - `source-add` events carry `origin`: "library" when the added source keeps
   a library id (custom-<slug>, lib/custom-sources.json), "url" when it got
   custom-<timestamp> (the Add Source modal). The Properties tab of the
