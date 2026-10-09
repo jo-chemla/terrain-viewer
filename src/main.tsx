@@ -27,12 +27,36 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { startEmbedBridge } from "@/lib/embed-bridge"
 import { migrateLegacyUrlKeys } from "@/lib/url-keys"
-import { setWorkerUrl } from "maplibre-gl"
+import { setWorkerUrl, getVersion } from "maplibre-gl"
+import maplibrePkg from "maplibre-gl/package.json"
+import { pushToast } from "@/components/ui/toast"
 // MapLibre 6 is ESM-only and, under a bundler, cannot find its own worker
 // from import.meta.url; Vite's ?worker&url emits a self-contained chunk.
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
 
 setWorkerUrl(maplibreWorkerUrl)
+
+// Dev only: the main thread's MapLibre comes from Vite's dependency cache,
+// the worker from the installed package. After a bump the cache once kept
+// 6.11.2 under the 6.13.0 worker: every tile failed with "can't deserialize
+// unregistered class StructArrayLayout...", the style never loaded and the
+// drawing tools never initialised, with nothing naming the cause. Compare
+// the two versions and catch that error, and say what to do.
+if (import.meta.env.DEV) {
+  const installed = maplibrePkg.version
+  const running = getVersion()
+  const explain = (what: string) => {
+    const title = "MapLibre is split across two versions"
+    const body = `${what} Stop the dev server, delete node_modules/.vite and start it again (pnpm app --force).`
+    console.error(`[dev] ${title}: ${body}`)
+    pushToast({ key: "maplibre-version-split", title, body, duration: 60_000, action: { label: "Reload", onClick: () => window.location.reload() } })
+  }
+  if (installed !== running) explain(`Vite's dependency cache serves ${running} to the page while ${installed} is installed (and runs the worker).`)
+  window.addEventListener("unhandledrejection", (e) => {
+    const msg = String((e.reason as { message?: string })?.message ?? e.reason ?? "")
+    if (msg.includes("unregistered class")) explain("The worker sends tile data the page cannot read (" + msg.slice(0, 80) + ").")
+  })
+}
 
 // Links written before the terrain-source URL keys were renamed carry
 // sourceA=..; rewrite them before nuqs reads the address bar.

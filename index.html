@@ -114,6 +114,11 @@
         // A hash change counts as a pageview too (20 hash-only history calls
         // measured as 20 pageviews on 2026-10-09); the docs headings are hash links.
         s.setAttribute("data-exclude-hash", "true")
+        // A tag tells the loads apart in the dashboard (Filter by tag): the
+        // desktop app (Electrobun serves views://app/, no http), and the
+        // iframe embeds (the HeritageWatch and Anchise toolboxes).
+        var tag = !/^https?:$/.test(location.protocol) ? "desktop" : window.self !== window.top ? "embed" : ""
+        if (tag) s.setAttribute("data-tag", tag)
         document.head.appendChild(s)
       })()
     </script>

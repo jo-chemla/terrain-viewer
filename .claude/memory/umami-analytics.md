@@ -61,6 +61,15 @@ type: project
   the `x-umami-api-key` header and list the sessions of Oct 2-3 by views,
   with browser, OS, country and referrer. Without it: the Sessions page.
 
+## Tags (since 2026-10-09)
+
+The app loader sets `data-tag`: "desktop" when the protocol is not http(s)
+(Electrobun serves views://app/), "embed" when iframed. Umami's dashboard
+filters by tag (the Filter button), so desktop and toolbox loads can be
+told from the web ones. Plain web loads carry no tag. The API key is a
+paid-plan feature as far as known; a Sessions export or screenshot sorted
+by views is the free route to the Oct 2-3 session.
+
 ## If the quota keeps getting close
 
 1. Find the spike's session first (above); a bot or an embedder loop is

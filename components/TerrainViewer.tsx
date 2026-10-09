@@ -2294,16 +2294,9 @@ export function TerrainViewer() {
         if (group) for (const g of groups) if (g === group || g.parent === group.key) for (const leaf of g.leaves) ids.add(leaf.id)
         if (!group) ids.add(token)
       }
-      if (ids.size) {
-        stateOverrides.coverageOverlays = [...ids]
-        // Once per tab for a given selection: the param stays in the URL
-        // (nuqs), so without this a reload reopened Source Info after the
-        // visitor had folded it, and its fold looked unsaved.
-        const token = coverageTokens.join(",")
-        let revealed = false
-        try { revealed = sessionStorage.getItem("coverageOverlaysRevealed") === token; sessionStorage.setItem("coverageOverlaysRevealed", token) } catch { /* no storage */ }
-        if (!revealed) setSectionOpen((prev) => ({ ...prev, sourceInfo: true }))
-      }
+      // The section's fold is the visitor's own (sectionOpenAtom): a link
+      // that wants Source Info open says so with ?openSections=sourceInfo.
+      if (ids.size) stateOverrides.coverageOverlays = [...ids]
     }
 
     if (Object.keys(stateOverrides).length > 0) {

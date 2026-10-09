@@ -15,7 +15,7 @@
 
 - `lib/epsg3395-protocol.ts`: the two grids share their columns, so a Web Mercator tile reads the one or two EPSG:3395 tiles of the same x and interpolates between rows. Checked headless against Esri World Imagery on four tiles (Moscow z11 and z14, Istanbul z12, Tashkent z9): zero residual row shift, normalised cross-correlation 0.62 to 0.82, where the raw tile scores about 0.
 - Library entry only (`basemap-yandex-sat`, not loaded with the samples); the Add Source modal does not offer the type. Docs: Custom Protocols lists the scheme.
-- Fixes: a `?coverageOverlays=` link opened Source Info once per tab, not on every reload (the fold looked unsaved); the coverage picker's switches forward their ref (a React warning on load); embedded in the HeritageWatch or Anchise toolbox, the wrapper's theme toggle now switches the app live through a `meta-app:theme` message instead of reloading the iframe (lib/embed-bridge.ts onEmbedTheme).
+- Fixes: a `?coverageOverlays=` link no longer forces Source Info open on every load (the fold looked unsaved; `?openSections=sourceInfo` does that on purpose); the coverage picker's switches forward their ref (a React warning on load); embedded in the HeritageWatch or Anchise toolbox, the wrapper's theme toggle now switches the app live through a `meta-app:theme` message instead of reloading the iframe (lib/embed-bridge.ts onEmbedTheme).
 
 # Changelog — The Weekend: Historical Catalogs, National Archives, Old Maps
 
