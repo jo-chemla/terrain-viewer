@@ -112,3 +112,23 @@ these scripts next time. Two more traps from its run 1:
   confirmation made a 2 s zoom take 6.6 s. Fire and forget.
 - Chrome sends no frame for up to 0.3 s on a mode toggle or a slider
   press: brief holds in the video that are not pauses in the script.
+
+## The fourth take (2026-10-10, production, FHD): the current base
+
+.cache/recordings/basic-modes-v4-2026-10-09.mp4 (1920x1080, 30 fps, 18.4 s,
+551 frames), scripts take-v4.sh and take-v4.mjs: hillshade kept on, pan,
+Terrain Analysis, its go-to arrow, Slope Range max to 90 then min to 10,
+a wheel scroll of the sidebar back to the top, Elevation Hypso, a scroll-zoom.
+- **Cursor:** aero_arrow.cur holds 5 frames (128..32 px), all hotspot 0,0.
+  Pillow opens only the 128 px one: slice the 32 px entry out of the ICO
+  directory into a one-entry ICO, convert to PNG (aero_arrow.png and .b64
+  next to the scripts), inject as an <img> 32x32 at (clientX, clientY).
+  The arrow itself is 12x19 px inside the 32 px frame, as on Windows at 100 %.
+- `set viewport 1920 1080` gives DPR 1 and 1920x1080 screencast frames;
+  capture.mjs needed no change.
+- Dragging any slider makes the side panel see-through (the app's
+  transparentUiAtom): the map shows through the sidebar during the drag.
+  Expected app behaviour, not a capture glitch.
+- With the slope max at 90 the slope tint over hillshade becomes faint.
+- Evaluating element positions mid-take (the slider thumbs, the hypso box
+  after the scroll) costs ~0.3 s of pointer stillness each; keep them few.
