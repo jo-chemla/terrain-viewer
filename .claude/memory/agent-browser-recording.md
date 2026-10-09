@@ -55,3 +55,21 @@ in visible steps and overlay a cursor in Remotion); and no dev widgets
 (the FPS counter, the TanStack devtools button, the notification bell):
 record against a production build (pnpm build, serve dist) or hide them
 with a CSS injection before the take.
+
+## The second delegated take (2026-10-09): what worked
+
+.cache/recordings/basic-slope-v2-2026-10-09.mp4 (16.8 s, 505 frames), scripts
+take-v2.sh and take-v2.mjs next to it. Reusable parts:
+- **Cursor:** a 20 px SVG arrow injected at the top layer (pointer-events
+  none) following mousemove; the pointer driven over CDP in ~60 small steps
+  a second along slight arcs, so every move shows.
+- **Vite reload mid-take:** the first toggle of a mode Vite had not bundled
+  yet forces a full reload (run 1 lost). Load every mode the take uses once
+  before recording, or record a production build.
+- **Dev widgets:** React Scan's toolbar (FPS counter, bell) hides with CSS on
+  `#react-scan-root` and its overlay canvas; the TanStack devtools button is
+  a div added later under <body>, missed by a top-level-only observer, so
+  watch every added div, or hide by its text/aria, or use a production build.
+- Hover tooltips flash as the pointer crosses the modes list; route the
+  pointer around the labels or pause under one on purpose.
+- The take and capture scripts must not share a log file (lines lost).
