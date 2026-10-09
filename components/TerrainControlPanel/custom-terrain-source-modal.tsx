@@ -234,19 +234,19 @@ export const CustomTerrainSourceModal: React.FC<{
     const thisFileId = ++latestFileIdRef.current
     validateLocalCogFile(file).then((result) => {
       if (latestFileIdRef.current !== thisFileId || !result) return
-      if (!result.isTiled) {
-        setLocalFileWarning(
-          "This file is strip-organized, not internally tiled — it isn't a real Cloud-Optimized GeoTIFF, and streaming it in the browser can be very slow or crash on anything but tiny files. Re-export it with GDAL, e.g. gdal_translate -of COG src.tif out_cog.tif.",
-        )
-      } else if (result.epsg !== null && result.epsg !== 3857) {
-        setLocalFileWarning(
-          `This file is in EPSG:${result.epsg}, not Web Mercator (EPSG:3857) — the in-browser COG reader assumes 3857 and doesn't reproject, so its detected bounds/zoom range (and "Fit to bounds") will be wrong. Reproject it first, e.g. gdalwarp -t_srs EPSG:3857 -of COG src.tif out_3857.tif.`,
-        )
-      } else if (!result.hasOverviews) {
-        setLocalFileWarning(
-          "This file has no overviews (only one resolution level) — it'll work, but zoomed-out views will be slower to render since every zoom reads from the same full-resolution data.",
-        )
+      // Every problem the file has, not the first one: a strip-organized
+      // file in EPSG:4326 used to show only the strip line, and the degrees
+      // were then read as metres (a flight to null island, nothing drawn).
+      const lines: string[] = []
+      if (result.epsg !== null && result.epsg !== 3857) {
+        lines.push(`This file is in EPSG:${result.epsg}, not Web Mercator (EPSG:3857): the in-browser reader does not reproject, so it will not draw and its bounds are wrong. Reproject it first, e.g. gdalwarp -t_srs EPSG:3857 -of COG in.tif out.tif.`)
       }
+      if (!result.isTiled) {
+        lines.push("This file is strip-organized, not internally tiled — it isn't a real Cloud-Optimized GeoTIFF, and streaming it in the browser can be very slow or crash on anything but tiny files. Re-export it with GDAL, e.g. gdal_translate -of COG src.tif out_cog.tif.")
+      } else if (!result.hasOverviews) {
+        lines.push("This file has no overviews (only one resolution level) — it'll work, but zoomed-out views will be slower to render since every zoom reads from the same full-resolution data.")
+      }
+      if (lines.length) setLocalFileWarning(lines.join(" "))
     })
   }, [name, registerLocalFile])
 

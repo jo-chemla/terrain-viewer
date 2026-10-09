@@ -4,6 +4,8 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Plus, Edit, Library, RotateCcw, Lightbulb, Braces } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
+import { pushToast } from "@/components/ui/toast"
+import { getRegisteredLocalFile, validateLocalCogFile } from "@/lib/local-file-store"
 import { cn } from "@/lib/utils"
 import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
 import { sourcesEditModeAtom } from "@/lib/settings-atoms"
@@ -299,11 +301,21 @@ export const TerrainSourceSection: React.FC<{
       // real fetchable URL, not the persisted `local://<id>` placeholder.
       const resolvedUrl = resolveLocalFileUrl(localFileId(source.url))
       if (!resolvedUrl) return // not (re-)picked yet this session
+      // The reader only draws EPSG:3857 (it throws for a projected CRS, and
+      // reads a geographic file's degrees as metres): say so, once per
+      // source, and do not fly to a bbox that means nothing.
+      const file = getRegisteredLocalFile(localFileId(source.url))
+      const check = file ? await validateLocalCogFile(file) : null
+      if (check?.epsg != null && check.epsg !== 3857) {
+        pushToast({ key: `local-cog-${source.id}`, tone: "alert", title: "This file will not draw", body: `${source.name} is in EPSG:${check.epsg}, not Web Mercator (EPSG:3857); the in-browser reader does not reproject. Re-export it: gdalwarp -t_srs EPSG:3857 -of COG in.tif out.tif`, duration: 20000 })
+        return
+      }
       try {
         const metadata = await getCogMetadata(resolvedUrl)
         if (metadata.bbox) attemptFitBounds(metadata.bbox, force)
       } catch (error) {
         console.error("Failed to fetch local COG bounds:", error)
+        pushToast({ key: `local-cog-${source.id}`, tone: "alert", title: "This file cannot be read", body: String((error as Error)?.message ?? error), duration: 20000 })
       }
       return
     }

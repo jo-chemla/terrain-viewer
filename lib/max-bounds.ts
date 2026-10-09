@@ -6,7 +6,7 @@
 import { getCogMetadata } from "@geomatico/maplibre-cog-protocol"
 import { getVrtInfo } from "./vrt-protocol"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
-import { resolveLocalFileUrl, localFileId } from "./local-file-store"
+import { resolveLocalFileUrl, localFileId, getRegisteredLocalFile, validateLocalCogFile } from "./local-file-store"
 import customSources from "./custom-sources.json"
 
 // id -> shipped sample definition, across both terrain and basemap sample lists.
@@ -100,6 +100,11 @@ export async function resolveCustomSourceBounds(
   if (source.type === "cog-local") {
     const resolvedUrl = resolveLocalFileUrl(localFileId(source.url))
     if (!resolvedUrl) return null // not (re-)picked yet this session
+    // A file not in EPSG:3857 has no usable bbox (the reader takes a
+    // geographic file's degrees for metres); the section's fit toasts it.
+    const file = getRegisteredLocalFile(localFileId(source.url))
+    const check = file ? await validateLocalCogFile(file) : null
+    if (check?.epsg != null && check.epsg !== 3857) return null
     try {
       const metadata = await getCogMetadata(resolvedUrl)
       if (metadata?.bbox) return metadata.bbox as LngLatBoundsTuple
