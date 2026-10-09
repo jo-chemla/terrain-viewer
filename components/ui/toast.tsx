@@ -76,15 +76,15 @@ const ToastItem: React.FC<{ toast: Entry }> = ({ toast }) => {
   return (
     <div
       role="status"
-      onClick={() => dismissToast(toast.id)}
       className={cn(
-        "pointer-events-auto relative cursor-pointer select-none rounded-md border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur",
+        // Text selectable (a version, a path, an error to copy); the cross dismisses.
+        "pointer-events-auto relative select-text rounded-md border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur",
         "animate-in fade-in slide-in-from-bottom-2 duration-200",
         "max-w-[360px]",
         toast.tone === "alert" && "border-destructive bg-destructive/10",
       )}
     >
-      {/* A visible way out: the whole toast dismisses on click, but nothing said so. */}
+      {/* The one way out, so a text selection never dismisses. */}
       <button type="button" aria-label="Dismiss" className="absolute right-1.5 top-1.5 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); dismissToast(toast.id) }}>
         <X className="h-3.5 w-3.5" />
       </button>

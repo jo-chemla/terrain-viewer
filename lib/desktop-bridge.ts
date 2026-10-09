@@ -72,9 +72,27 @@ function fold(detail: { status?: string; version?: string; progress?: number; me
   }
 }
 
+/** The update bundle's size: the variant's usual size at once ("about 37 MB"
+ *  light, "about 220 MB" full), then the exact size of the platform's
+ *  .tar.zst on the rolling release (desktop-latest or desktop-latest-light,
+ *  the feed the updater reads) once GitHub's API answers. */
+const RELEASES_API = "https://api.github.com/repos/Iconem/terrain-viewer/releases/tags/"
+function roughSize(light: boolean | undefined): string { return light ? "about 37 MB" : "about 220 MB" }
+async function exactSize(light: boolean | undefined, platform: string | undefined): Promise<string | null> {
+  try {
+    const res = await fetch(RELEASES_API + (light ? "desktop-latest-light" : "desktop-latest"), { headers: { accept: "application/vnd.github+json" } })
+    if (!res.ok) return null
+    const assets = ((await res.json()).assets ?? []) as Array<{ name: string; size: number }>
+    const asset = assets.find((a) => a.name.endsWith(".tar.zst") && (!platform || a.name.includes(`-${platform}-`)))
+    if (!asset) return null
+    const mb = asset.size / 1e6
+    return mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(0)} MB`
+  } catch { return null }
+}
+
 export function initDesktopBridge(): void {
   window.addEventListener("tv-desktop-update", (ev) => {
-    const detail = (ev as CustomEvent<{ version?: string; status?: string; progress?: number; message?: string }>).detail ?? {}
+    const detail = (ev as CustomEvent<{ version?: string; status?: string; progress?: number; message?: string; light?: boolean; platform?: string }>).detail ?? {}
     const next = fold(detail)
     if (!next) return
     const was = current.status
@@ -82,11 +100,10 @@ export function initDesktopBridge(): void {
     if (next.status === was && next.status !== "error") return
     const v = next.version ? `Terrain Viewer ${next.version}` : "A new Terrain Viewer build"
     if (next.status === "available") {
-      pushToast({
-        key: "desktop-update",
-        title: "Update available",
-        body: `${v} is downloading in the background (about 220 MB, a few minutes). It installs at the next launch: the app then restarts itself once, which takes about half a minute. Progress shows under About.`,
-        duration: 15000,
+      const body = (size: string) => `${v} is downloading in the background (${size}, a few minutes). It installs at the next launch: the app then restarts itself once, which takes about half a minute. Progress shows under About.`
+      pushToast({ key: "desktop-update", title: "Update available", body: body(roughSize(detail.light)), duration: 15000 })
+      void exactSize(detail.light, detail.platform).then((size) => {
+        if (size && current.status === "available") pushToast({ key: "desktop-update", title: "Update available", body: body(size), duration: 15000 })
       })
     } else if (next.status === "ready") {
       pushToast({

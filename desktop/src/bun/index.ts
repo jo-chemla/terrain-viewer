@@ -155,11 +155,19 @@ function ulog(...parts: unknown[]) {
 // "error" from the flow below. The last one is kept and replayed when the
 // page asks (host-message "update-status"): the "complete" of a freshly
 // applied update fires before the page has loaded.
-type UpdateDetail = { status: string; version?: string; progress?: number; message?: string };
+// The light build ships no docs: its identifier ends in "-light"
+// (desktop/gen-config.mjs), and views://app/docs/ holds only a stand-in.
+// Read once from the bundle's own version.json.
+const docsOnline = (() => {
+  try { return String(JSON.parse(readFileSync(join(dirname(process.execPath), "..", "Resources", "version.json"), "utf8")).identifier ?? "").endsWith("-light"); } catch { return false; }
+})();
+type UpdateDetail = { status: string; version?: string; progress?: number; message?: string; light?: boolean; platform?: string };
 let lastUpdateDetail: UpdateDetail | null = null;
 let feedVersion = "";
 function announceUpdate(status: string, version?: string, extra: Partial<UpdateDetail> = {}) {
-  const detail: UpdateDetail = { status, version: version || feedVersion || undefined, ...extra };
+  // light and platform let the page name the right release and asset for
+  // the download size (the light bundle is about 37 MB, the full one 220).
+  const detail: UpdateDetail = { status, version: version || feedVersion || undefined, light: docsOnline, platform: `${process.platform === "win32" ? "win" : process.platform === "darwin" ? "macos" : "linux"}-${process.arch === "arm64" ? "arm64" : "x64"}`, ...extra };
   lastUpdateDetail = detail;
   try {
     mainWindow.webview.executeJavascript(`window.dispatchEvent(new CustomEvent("tv-desktop-update", { detail: ${JSON.stringify(detail)} }))`);
@@ -212,12 +220,6 @@ Updater.onStatusChange((entry) => {
 // A beat after the window exists, so the page is there to receive the toast.
 setTimeout(() => { void updateOnLaunch(); }, 4000);
 
-// The light build ships no docs: its identifier ends in "-light"
-// (desktop/gen-config.mjs), and views://app/docs/ holds only a stand-in.
-// Read once from the bundle's own version.json.
-const docsOnline = (() => {
-  try { return String(JSON.parse(readFileSync(join(dirname(process.execPath), "..", "Resources", "version.json"), "utf8")).identifier ?? "").endsWith("-light"); } catch { return false; }
-})();
 const DOCS_SITE = "https://terrain-viewer.iconem.com/docs/";
 
 // Links the app opens in a new tab (target="_blank"): the docs, when bundled

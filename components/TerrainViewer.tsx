@@ -37,6 +37,7 @@ import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
 import { onEmbedTheme } from "@/lib/embed-bridge"
+import { useBingCaptureDate } from "@/lib/bing"
 import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS, BASEMAP_SHORT_LABELS } from "./TerrainControlPanel/raster-basemap-section"
@@ -3202,6 +3203,11 @@ export function TerrainViewer() {
   // historical timeline panel already only ever calls once), applied to
   // any/every view whose resolved basemapSource comes out "esri" below.
   const { dateMs: esriLiveDateMs } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
+  // Bing is one live mosaic: its date is the tile under the view's centre,
+  // the same read the timeline's Bing tick and the sidebar make (lib/bing.ts).
+  // The per-view stored date was the one picked earlier, at another place
+  // or zoom, so the pill said 2011 where the timeline said 2021.
+  const { dateMs: bingLiveDateMs } = useBingCaptureDate(state.lat, state.lng, state.zoom)
   const perViewResolved = {} as Record<ViewId, { basemapSource: string; date: number }>
   for (const side of VIEW_IDS) {
     const rawBasemapSource = stateAny[viewFieldName(side, "basemapSource", state.basemapPerView)]
@@ -4739,8 +4745,10 @@ export function TerrainViewer() {
     // date the same way TIMELINE_SOURCE_IDS ones already have.
     const isHistoricalDate = !!resolved.date && (TIMELINE_SOURCE_IDS.has(resolved.basemapSource) || isEliBasemapId(resolved.basemapSource) || isCatalogBasemapId(resolved.basemapSource))
     const isEsriLive = resolved.basemapSource === "esri" && !!esriLiveDateMs
-    const hasKnownDate = isHistoricalDate || isEsriLive
-    const dateLabel = isHistoricalDate ? new Date(resolved.date).toISOString().slice(0, 10)
+    const isBingLive = resolved.basemapSource === "bing" && !!bingLiveDateMs
+    const hasKnownDate = isHistoricalDate || isEsriLive || isBingLive
+    const dateLabel = isBingLive ? new Date(bingLiveDateMs).toISOString().slice(0, 10)
+      : isHistoricalDate ? new Date(resolved.date).toISOString().slice(0, 10)
       : isEsriLive ? new Date(esriLiveDateMs).toISOString().slice(0, 10)
       : null
     const sourceShortLabel = SOURCE_CONFIG[resolved.basemapSource]?.shortLabel
