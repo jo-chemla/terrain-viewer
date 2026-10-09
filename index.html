@@ -14,6 +14,17 @@
          Each deploy points at its own root, so historical-satellite keeps
          its own; the GitHub Pages mirror defers to the main domain. -->
     <link rel="canonical" href="https://terrain-viewer.iconem.com/" />
+    <!-- Installable on a phone or desktop home screen (Add to Home Screen):
+         a web app manifest and icons, no service worker (nothing cached,
+         nothing offline, nothing to break). The historical host swaps in its
+         own manifest and icon below. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Terrain Viewer" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-apple-180.png" />
     <script>
       (function () {
         var h = location.hostname
@@ -31,6 +42,9 @@
           set('meta[property="og:title"]', title)
           set('meta[property="og:description"]', desc)
           set('meta[property="og:url"]', location.origin + "/")
+          var man = document.querySelector('link[rel="manifest"]'); if (man) man.href = "/manifest-historical.webmanifest"
+          var apple = document.querySelector('link[rel="apple-touch-icon"]'); if (apple) apple.href = "/icons/icon-historical-apple-180.png"
+          set('meta[name="apple-mobile-web-app-title"]', "Historical Sat")
         }
       })()
     </script>

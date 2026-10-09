@@ -1,0 +1,16 @@
+{
+  "name": "Historical Satellite",
+  "short_name": "Historical Sat",
+  "description": "Free viewer for historical satellite and aerial imagery: Esri World Imagery Wayback, Google Earth timelapse, Bing dated imagery, national archives and open post-disaster data on one timeline.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "icons": [
+    { "src": "/icons/icon-historical-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-historical-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-historical-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
