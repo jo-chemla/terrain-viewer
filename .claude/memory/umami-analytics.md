@@ -44,22 +44,29 @@ type: project
   `data-exclude-hash` was added to both loaders (the app writes no hash;
   the docs headings are hash links).
 
-## Attributing the Oct 2-3 spike (state 2026-10-09)
+## The Oct 2-3 spike, found (2026-10-09, from the CSV exports)
 
-- Not the embed wrapper, not the docs, not hash changes (probes above).
-- Not search-engine indexing: Umami drops known bot user agents server
-  side (isbot), Googlebot and Bingbot included, and a crawler would show
-  one view per visit with a high bounce, while the spike is thousands of
-  views from a flat visitor count.
-- The desktop app (Electrobun, `views://app/index.html`, hostname "app",
-  not excluded by the loader) is tracked, but both updater logs
-  (`%LOCALAPPDATA%/com.iconem.terrain-viewer*/stable/updater.log`) show
-  one clean update each on Oct 2 and Oct 7, no relaunch loop.
-- What settles it: the Umami API. An API key (Umami Cloud: account
-  settings, API keys) in `.env` as `UMAMI_API_KEY` lets a script call
-  `https://api.umami.is/v1/websites/<id>/sessions?startAt=&endAt=` with
-  the `x-umami-api-key` header and list the sessions of Oct 2-3 by views,
-  with browser, OS, country and referrer. Without it: the Sessions page.
+Jonathan exported the data (Umami Cloud, Settings, Export; two zips with
+website_event.csv, event_data.csv). `scripts/umami-export-analyze.mjs <dir>
+[days]` lists pageviews per day and the top sessions of given days.
+
+- **One session: 18,100 pageviews on Oct 2-3**, then 1,362 and 857 more on
+  Oct 8, all with hostname **localhost**, Chrome on Mac OS, a 3440x1440
+  screen, Kansas City (US), no referrer, no custom event at all, every
+  pageview carrying the full nuqs query string (zoom, lat, lng, a
+  `sourceA=custom-...` terrain of their own) over the Wyoming-Colorado
+  border and Zermatt.
+- So: **someone runs an old clone of the repo locally** (a build from
+  before 2026-09-25, when the tracker was a static tag with no localhost
+  guard and no `data-exclude-search`): every pan is a pageview sent to our
+  website id, which is public in index.html. Since Sept 26, 22,284 of the
+  query-carrying pageviews came from localhost and 10 from the real site.
+- Not bots, not the toolbox, not the desktop app, not us.
+- **What stops it:** only a new website id (Umami: add a website, swap the
+  id in index.html and docs/src/app/layout.tsx, delete the old website so
+  its events are refused and no longer count on the account's quota). The
+  dashboard history before the swap is lost (the exports keep it). The
+  tags and the hash/search exclusions do nothing for an old build.
 
 ## Tags (since 2026-10-09)
 
