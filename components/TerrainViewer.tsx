@@ -36,6 +36,7 @@ import { MAX_BOUNDS_MODES, unionBounds, sharedBounds, bufferBounds, resolveCusto
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { getProjectConfig } from "@/lib/project-config"
 import { useTheme } from "@/lib/controls-utils"
+import { onEmbedTheme } from "@/lib/embed-bridge"
 import { track } from "@/lib/analytics"
 import { terrainSources } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS, BASEMAP_SHORT_LABELS } from "./TerrainControlPanel/raster-basemap-section"
@@ -2295,7 +2296,13 @@ export function TerrainViewer() {
       }
       if (ids.size) {
         stateOverrides.coverageOverlays = [...ids]
-        setSectionOpen((prev) => ({ ...prev, sourceInfo: true }))
+        // Once per tab for a given selection: the param stays in the URL
+        // (nuqs), so without this a reload reopened Source Info after the
+        // visitor had folded it, and its fold looked unsaved.
+        const token = coverageTokens.join(",")
+        let revealed = false
+        try { revealed = sessionStorage.getItem("coverageOverlaysRevealed") === token; sessionStorage.setItem("coverageOverlaysRevealed", token) } catch { /* no storage */ }
+        if (!revealed) setSectionOpen((prev) => ({ ...prev, sourceInfo: true }))
       }
     }
 
@@ -2914,7 +2921,10 @@ export function TerrainViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.viewMode, activeViewIds.join(","), mapLoaded])
 
-  const { theme } = useTheme()
+  const { theme, setTheme } = useTheme()
+  // Embedded in the meta-app wrapper: its theme toggle posts the new theme
+  // (lib/embed-bridge.ts onEmbedTheme) instead of reloading the iframe.
+  useEffect(() => onEmbedTheme((t) => { void setTheme(t) }), [setTheme])
   // const theme = state.theme
   // const themeColor = theme === 'light' ? '#fff' : '#000'
   // const themeAntiColor = theme === 'light' ? '#000' : '#fff'

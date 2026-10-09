@@ -44,6 +44,23 @@ type: project
   `data-exclude-hash` was added to both loaders (the app writes no hash;
   the docs headings are hash links).
 
+## Attributing the Oct 2-3 spike (state 2026-10-09)
+
+- Not the embed wrapper, not the docs, not hash changes (probes above).
+- Not search-engine indexing: Umami drops known bot user agents server
+  side (isbot), Googlebot and Bingbot included, and a crawler would show
+  one view per visit with a high bounce, while the spike is thousands of
+  views from a flat visitor count.
+- The desktop app (Electrobun, `views://app/index.html`, hostname "app",
+  not excluded by the loader) is tracked, but both updater logs
+  (`%LOCALAPPDATA%/com.iconem.terrain-viewer*/stable/updater.log`) show
+  one clean update each on Oct 2 and Oct 7, no relaunch loop.
+- What settles it: the Umami API. An API key (Umami Cloud: account
+  settings, API keys) in `.env` as `UMAMI_API_KEY` lets a script call
+  `https://api.umami.is/v1/websites/<id>/sessions?startAt=&endAt=` with
+  the `x-umami-api-key` header and list the sessions of Oct 2-3 by views,
+  with browser, OS, country and referrer. Without it: the Sessions page.
+
 ## If the quota keeps getting close
 
 1. Find the spike's session first (above); a bot or an embedder loop is

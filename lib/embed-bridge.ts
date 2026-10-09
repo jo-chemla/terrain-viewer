@@ -61,6 +61,26 @@ function isAllowedEmbedder(origin: string): boolean {
   }
 }
 
+// The embedder's origin once the bridge is up (null when standalone, or the
+// embedder is not allowed): the wrapper -> app messages below are accepted
+// from it only.
+let embedder: string | null = null
+
+/** Wrapper -> app: `{ type: "meta-app:theme", theme: "light" | "dark" }`
+ *  posted to the iframe switches the app's theme live. The wrapper used to
+ *  remount the iframe with a new `?theme=` to change it (a full reload, the
+ *  drawings and the camera lost, a second pageview). Returns the unsubscribe. */
+export function onEmbedTheme(apply: (theme: "light" | "dark") => void): () => void {
+  const onMessage = (event: MessageEvent) => {
+    if (!embedder || event.origin !== embedder) return
+    const data = event.data as { type?: string; theme?: string } | null
+    if (data?.type !== "meta-app:theme") return
+    if (data.theme === "light" || data.theme === "dark") apply(data.theme)
+  }
+  window.addEventListener("message", onMessage)
+  return () => window.removeEventListener("message", onMessage)
+}
+
 export function startEmbedBridge(): void {
   // Standalone (not iframed): window.parent === window, nothing to talk to.
   if (window.self === window.top) return
@@ -68,6 +88,7 @@ export function startEmbedBridge(): void {
 
   const embedderOrigin = new URL(document.referrer).origin
   if (!isAllowedEmbedder(embedderOrigin)) return
+  embedder = embedderOrigin
 
   // One handshake event per embedded session — which wrapper is hosting us.
   track("app-embed", { embedder: new URL(embedderOrigin).hostname })
