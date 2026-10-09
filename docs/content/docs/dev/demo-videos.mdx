@@ -11,6 +11,18 @@ The demo videos are made the same way as the [slide decks](/features/slide-decks
 
 The frames are captured by `scripts/capture.mjs`, not by agent-browser's own `record`, which dropped every map take ("encoder fell more than 500 ms behind capture") whatever the frame rate or size. `capture.mjs` attaches to the same Chrome over the DevTools protocol (`agent-browser get cdp-url`), runs `Page.startScreencast`, writes the frames with their timestamps and assembles them afterwards with FFmpeg's concat demuxer. Chrome only sends a frame when the page changes, so a take is 20 to 70 frames, which is right for an interface demo. Takes land in `recordings/`.
 
+## What works for a take (October 2026)
+
+Five takes of the same basic feature, recorded by delegated agents, settled the recipe. The scripts of the latest one (`take-v4.sh`, `take-v4.mjs`, under `.cache/recordings/`, not tracked) are the base to copy.
+
+- **Record the production site**, not a dev server: no dev widgets in frame, and no reload mid-take when Vite bundles a dependency on a mode's first toggle (the shims are pre-bundled now, but a dev server still reloads under other agents' edits).
+- **1920×1080 at 30 fps.** `set viewport 1920 1080` gives device pixel ratio 1 and full-size screencast frames; `capture.mjs` needs no change.
+- **A real cursor.** The page is captured without a pointer. Inject an `<img>` at the top layer, `pointer-events: none`, moved on `mousemove`, holding the Windows cursor itself: the 32 px frame cut out of `C:\Windows\Cursors\aero_arrow.cur` and saved as PNG (Pillow only opens the 128 px frame, so slice the directory entry by hand); hotspot at the tip, the arrow 12×19 px inside the frame, as Windows draws it. A hand-drawn arrow always looks slightly off.
+- **Natural motion.** Drive the pointer over the DevTools protocol in about 60 steps a second along eased, slightly curved paths with varied speed, never straight constant-speed lines. Something moves at every moment: the camera, the pointer or a control. Tooltips may show; they do not distract.
+- **Keep the hillshade on** under slope or any other mode: slope alone reads wrong. End a slope sequence with the maximum around 60 degrees, not 90, where the tint fades; then bring the hypsometric tint in and change its ramp and bounds.
+- **Traps.** Close the extra `chrome://newtab` tab before capture or `capture.mjs` records nothing; send wheel events without awaiting each one (awaiting made a 2 s zoom take 6.6 s); each element-position read mid-take costs about 0.3 s of a still pointer, so read what you need before the take; Chrome sends no frame for up to 0.3 s on a mode toggle or a slider press; dragging a slider makes the side panel see-through, which is the app's own transparent-panel behaviour. Load the app's state through the URL; localStorage must be written from a same-origin non-app URL (`/@vite/client` on dev) because the app overwrites it on first load.
+- **The report** of a recording agent starts with the absolute path of the MP4; a middle frame is optional.
+
 ## Cutting
 
 `src/Demo.tsx` is the cut: a title, the takes with captions on the clicks, focus-pull transitions, an outro. Each take's in-point, speed and click times are constants at the top of the file; change them after a new recording.
