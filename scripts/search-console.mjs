@@ -4,7 +4,7 @@
 // with node:crypto. Prints the sites the account sees, then for the property
 // the last N days (default 28) of search analytics by query, by page and by
 // country, and the sitemaps. Usage:
-//   node scripts/search-console.mjs [--days 28] [--site https://terrain-viewer.iconem.com/] [--json out.json]
+//   node scripts/search-console.mjs [--days 28] [--site https://terrain-viewer.iconem.com/] [--page <url>] [--json out.json]
 import fs from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
@@ -14,6 +14,7 @@ const opt = (name, dflt) => { const i = args.indexOf(name); return i === -1 ? df
 const days = Number(opt("--days", 28))
 const site = opt("--site", "https://terrain-viewer.iconem.com/")
 const jsonOut = opt("--json", "")
+const pageFilter = opt("--page", "") // only this page: the queries that land on it
 
 // .env of this checkout, else the main checkout's.
 const envFiles = [path.resolve(".env"), "C:/Dev/Iconem/terrain-viewer/.env"]
@@ -55,7 +56,7 @@ const end = new Date(); end.setUTCDate(end.getUTCDate() - 2) // Search Console l
 const start = new Date(end); start.setUTCDate(start.getUTCDate() - days)
 const fmt = (d) => d.toISOString().slice(0, 10)
 const enc = encodeURIComponent(site)
-const query = (dimensions, rowLimit = 50) => api(`https://www.googleapis.com/webmasters/v3/sites/${enc}/searchAnalytics/query`, { method: "POST", body: JSON.stringify({ startDate: fmt(start), endDate: fmt(end), dimensions, rowLimit }) })
+const query = (dimensions, rowLimit = 50) => api(`https://www.googleapis.com/webmasters/v3/sites/${enc}/searchAnalytics/query`, { method: "POST", body: JSON.stringify({ startDate: fmt(start), endDate: fmt(end), dimensions, rowLimit, ...(pageFilter ? { dimensionFilterGroups: [{ filters: [{ dimension: "page", operator: "equals", expression: pageFilter }] }] } : {}) }) })
 
 for (const dim of ["query", "page", "country", "device", "date"]) {
   try {

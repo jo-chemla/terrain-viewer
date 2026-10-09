@@ -22,6 +22,9 @@ Five takes of the same basic feature, recorded by delegated agents, settled the 
 - **Keep the hillshade on** under slope or any other mode: slope alone reads wrong. End a slope sequence with the maximum around 60 degrees, not 90, where the tint fades; then bring the hypsometric tint in and change its ramp and bounds.
 - **Traps.** Close the extra `chrome://newtab` tab before capture or `capture.mjs` records nothing; send wheel events without awaiting each one (awaiting made a 2 s zoom take 6.6 s); each element-position read mid-take costs about 0.3 s of a still pointer, so read what you need before the take; Chrome sends no frame for up to 0.3 s on a mode toggle or a slider press; dragging a slider makes the side panel see-through, which is the app's own transparent-panel behaviour. Load the app's state through the URL; localStorage must be written from a same-origin non-app URL (`/@vite/client` on dev) because the app overwrites it on first load.
 - **The report** of a recording agent starts with the absolute path of the MP4; a middle frame is optional.
+- **A known gap:** the injected cursor is always the arrow. The pointer never shows the hand over links and buttons or the resize shapes, because the capture has no pointer at all and the image is one static arrow. Reading the computed `cursor` style of the element under the pointer and swapping the image would fix it; not done yet.
+
+The reference take, a 29 s FHD tour of slope and hypsometric tint over Mont Blanc (October 2026), is kept in two places: its scripts under [`video/takes/basic-modes-v5/`](https://github.com/Iconem/terrain-viewer/tree/main/video/takes/basic-modes-v5) (the agent-browser driver, the rehearsal, the DevTools pointer script, the cursor image) and the MP4 on the [demo-takes release](https://github.com/Iconem/terrain-viewer/releases/tag/demo-takes).
 
 ## Cutting
 

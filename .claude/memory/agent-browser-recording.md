@@ -136,3 +136,13 @@ a wheel scroll of the sidebar back to the top, Elevation Hypso, a scroll-zoom.
 ## The fifth take (2026-10-10): basic-modes-v5-2026-10-10.mp4, take-v5.sh/.mjs
 - A "go to" arrow smooth-scrolls the sidebar for ~0.5-0.8 s: positions read during it are wrong (the slope drag missed, the ramp select never opened). Poll until two reads agree (`settled()` in take-v5.mjs), started un-awaited while the pointer drifts; rehearse the choreography once without capture (rehearse-v5.sh) before a recording run.
 - Hypso ramp bounds differ widely (bcyr, elevation, Sunset_Real are 0..100, usgs 0..1): pick one in metres for a bounds drag (GMT_globe -10000..10000, ETOPO1 -11000..8500). The URL `colorRamp` takes the lowercased key (`gmt_globe`), not the label.
+
+## Where the reference take lives (2026-10-10)
+
+Take five is the reference for automated takes. Its scripts are tracked in
+`video/takes/basic-modes-v5/` (take-v5.sh, take-v5.mjs, rehearse-v5.sh,
+aero_arrow.b64/png, a README on how it ran); the MP4 is an asset of the
+GitHub release `demo-takes` on Iconem/terrain-viewer, and a copy sits in
+the main checkout's video/recordings/ (ignored). Known gap: the injected
+cursor never changes shape (no hand over buttons and links); swapping the
+image from the computed `cursor` style under the pointer would fix it.
