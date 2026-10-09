@@ -1,5 +1,6 @@
 import { Check, Layers, ArrowRight } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { fallbackToOnline } from "@/lib/online-asset-fallback"
 import { useSetAtom } from "jotai"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { CopyModalLinkButton } from "./controls-components"
@@ -256,7 +257,7 @@ export function DataLayersModal({ open, onOpenChange, state, setState }: {
                           (the camera animation's, 640 x 918) stretched the
                           box and every card in its row with it. */}
                       <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-muted">
-                        <img src={thumbUrl(m.image)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                        <img src={thumbUrl(m.image)} alt="" loading="lazy" onError={fallbackToOnline} className="absolute inset-0 h-full w-full object-cover" />
                         {on && (
                           <span className="absolute right-1.5 top-1.5 rounded-full bg-primary p-0.5 text-primary-foreground shadow">
                             <Check className="h-3 w-3" />

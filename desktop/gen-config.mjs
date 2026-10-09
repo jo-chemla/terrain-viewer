@@ -37,7 +37,11 @@ if (docsArg === "bundled" && !docsExported) {
   process.exit(1)
 }
 const docsBundled = docsArg === "bundled" || (docsArg === "auto" && docsExported)
-const kept = files.filter((f) => docsBundled || !f.startsWith("docs/"))
+// The light build drops the docs export except the Data layers picker's
+// thumbnails (docs/screenshots/thumbs, under a megabyte): the picker is
+// part of the app. Its full-size pictures and the changelog's figures
+// load from the website instead (lib/online-asset-fallback.ts).
+const kept = files.filter((f) => docsBundled || !f.startsWith("docs/") || f.startsWith("docs/screenshots/thumbs/"))
 // The app version is the build day as YYYY.M.D (a valid three-part version
 // for the installers; the updater compares bundle hashes, not versions), so
 // the installed app reports the same day the About section shows.

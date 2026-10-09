@@ -47,6 +47,7 @@ import keyboardShortcutsRaw from "@/docs/content/docs/features/keyboard-shortcut
 import resourcesMaplibreRaw from "@/docs/content/docs/resources/maplibre.mdx?raw"
 import resourcesGeomorphometryRaw from "@/docs/content/docs/resources/geomorphometry.mdx?raw"
 import creditsRaw from "@/docs/content/docs/resources/credits.mdx?raw"
+import { fallbackToOnline } from "@/lib/online-asset-fallback"
 import vizModesDescriptionRaw from "@/docs/content/docs/features/visualization-modes-description.mdx?raw"
 
 // Single source of truth for these 4 sections lives in docs/content/docs/
@@ -193,6 +194,7 @@ function changelogMarkdownComponents(onImageClick: (src: string, alt?: string) =
         src={src}
         alt={alt}
         className="rounded border max-w-full my-2 cursor-zoom-in hover:opacity-90 transition-opacity"
+        onError={fallbackToOnline}
         onClick={() => onImageClick(src, alt)}
       />
     ),
@@ -1197,6 +1199,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               // image with no bars.
               style={{ width: "auto", height: "auto", maxWidth: "90vw", maxHeight: "90vh" }}
               className="block"
+              onError={fallbackToOnline}
             />
           </div>
         </div>,
