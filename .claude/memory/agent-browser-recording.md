@@ -89,3 +89,18 @@ take-v2.sh and take-v2.mjs next to it. Reusable parts:
 - The Vite mid-take reload was the node-polyfill shims being bundled on a
   mode's first toggle; vite.config.ts now pre-bundles them
   (optimizeDeps.include), so a dev take no longer needs the warm-up.
+
+## The third take (2026-10-09, production site): the base to reuse
+
+.cache/recordings/basic-modes-v3-2026-10-09.mp4 (16 s, 480 frames), scripts
+take-v3.sh and take-v3.mjs next to it: pan, tick Terrain Analysis, untick
+Hillshade, the mode's "go to" arrow, a slider drag (Slope Range), a
+scroll-zoom; eased curved pointer, a 12x19 px arrow cursor. Start from
+these scripts next time. Two more traps from its run 1:
+- **capture.mjs attaches to the first page** when none is localhost:5204;
+  agent-browser leaves a chrome://newtab tab first, so close the other
+  tabs in the prep step or the capture records nothing ("no frames").
+- **Do not await each wheel event** over CDP: waiting for Chrome's
+  confirmation made a 2 s zoom take 6.6 s. Fire and forget.
+- Chrome sends no frame for up to 0.3 s on a mode toggle or a slider
+  press: brief holds in the video that are not pauses in the script.
