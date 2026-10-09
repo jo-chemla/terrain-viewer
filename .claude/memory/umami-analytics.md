@@ -61,7 +61,19 @@ website_event.csv, event_data.csv). `scripts/umami-export-analyze.mjs <dir>
   guard and no `data-exclude-search`): every pan is a pageview sent to our
   website id, which is public in index.html. Since Sept 26, 22,284 of the
   query-carrying pageviews came from localhost and 10 from the real site.
-- Not bots, not the toolbox, not the desktop app, not us.
+- Not bots, not the toolbox, not the desktop app, not us. Their clone
+  predates lib/analytics.ts (2026-07-23: no custom event at all) and the
+  localhost guard on the tracker (2026-07-27), so it is three months old; their two custom terrain sources were created on 2026-10-01
+  (12:37 and 12:39 UTC, the ids are Date.now()) and their definitions
+  live in their localStorage only. The location comes from Umami's own
+  IP geolocation (US-MO, Kansas City): an ISP's point of presence or a
+  VPN as likely as a desk. No public fork of either repo is from there
+  (Harrydtt, pr116, fabiodr, luothink, link1412, none pushed since
+  August): a plain clone.
+- Both trackers now also carry `data-domains` (the real hostnames plus
+  "app" for the desktop), so any future clone or fork of a current build
+  stays silent wherever it runs. Hiding the website id in a GitHub secret
+  gains nothing: the browser must send to it, so it is in the shipped HTML.
 - **What stops it:** only a new website id (Umami: add a website, swap the
   id in index.html and docs/src/app/layout.tsx, delete the old website so
   its events are refused and no longer count on the account's quota). The

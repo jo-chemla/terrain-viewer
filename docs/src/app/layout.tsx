@@ -57,6 +57,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
             // A hash change counts as a pageview too (20 hash-only history calls
             // measured as 20 pageviews on 2026-10-09); the docs headings are hash links.
             s.setAttribute("data-exclude-hash", "true")
+            s.setAttribute("data-domains", "terrain-viewer.iconem.com,historical-satellite.iconem.com,jo-chemla.github.io")
             document.head.appendChild(s)
           })()`}
         </Script>

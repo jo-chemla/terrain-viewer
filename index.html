@@ -114,6 +114,10 @@
         // A hash change counts as a pageview too (20 hash-only history calls
         // measured as 20 pageviews on 2026-10-09); the docs headings are hash links.
         s.setAttribute("data-exclude-hash", "true")
+        // The tracker itself only reports from these hosts (any other clone,
+        // fork or LAN address stays silent even with this tag in place; the
+        // localhost guard above is the first line, this the second).
+        s.setAttribute("data-domains", "terrain-viewer.iconem.com,historical-satellite.iconem.com,jo-chemla.github.io,app")
         // A tag tells the loads apart in the dashboard (Filter by tag): the
         // desktop app (Electrobun serves views://app/, no http), and the
         // iframe embeds (the HeritageWatch and Anchise toolboxes), the rest web.

@@ -42,3 +42,16 @@ motion layer); this is what made it work.
   background; `StaggeredFadeUp` splits per character. Our copies have `inline` and
   `by="word"`. Remotion needs `Config.setChromiumOpenGlRenderer("angle")` for the
   shader backdrops and a `type` (not `interface`) for composition props.
+
+## Feedback on the first delegated screencast (2026-10-09)
+
+A T3 subagent (Opus 5.5) recorded a 27 s take of hillshade to slope over
+Mont Blanc with this pipeline (.cache/recordings/basic-slope-2026-10-09.mp4,
+its script take-slope.sh). Jonathan: a nice first try, but too static.
+**Next time:** about 15 s; keep the camera moving (a slow pan or zoom, a
+pitch into 3D) rather than holding a frame; show the cursor (capture.mjs
+has no cursor layer: draw one from the pointer position, or move the mouse
+in visible steps and overlay a cursor in Remotion); and no dev widgets
+(the FPS counter, the TanStack devtools button, the notification bell):
+record against a production build (pnpm build, serve dist) or hide them
+with a CSS injection before the take.
