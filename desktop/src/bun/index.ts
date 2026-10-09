@@ -5,8 +5,91 @@
 // (Mapterhorn, basemaps, WMS) still need the network.
 import { BrowserWindow, Utils, Updater } from "electrobun/main";
 import { dlopen, FFIType, ptr } from "bun:ffi";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
+
+// Windows groups and pins windows by AppUserModelID. The window belongs to
+// the runtime process (cottontail.exe, the process that owns the HWND), so
+// pinning the running app pinned cottontail.exe, which run on its own only
+// prints its usage. The fix is the same id on the process (set before any
+// window exists) and on the Start menu and Desktop shortcuts that target
+// launcher.exe: the shell then pins the shortcut. The shortcuts come from
+// the installer without the property, so a PowerShell script writes it once
+// per install (System.AppUserModel.ID on the .lnk, through IPropertyStore),
+// started with ShellExecuteW since the runtime has no child_process.
+// The id is <identifier>.<channel> from the install path
+// (%LOCALAPPDATA%\com.iconem.terrain-viewer-light\stable\app\bin).
+const channelRoot = join(dirname(process.execPath), "..", "..");
+const appUserModelId = `${basename(dirname(channelRoot))}.${basename(channelRoot)}`;
+const SET_AUMID_PS1 = String.raw`param([string]$Launcher, [string]$Id, [string]$Marker)
+$code = @"
+using System;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+[ComImport, Guid("00021401-0000-0000-C000-000000000046")]
+public class ShellLinkCo {}
+[StructLayout(LayoutKind.Sequential)]
+public struct PROPERTYKEY { public Guid fmtid; public uint pid; }
+[StructLayout(LayoutKind.Explicit, Size = 24)]
+public struct PROPVARIANT { [FieldOffset(0)] public ushort vt; [FieldOffset(8)] public IntPtr p; }
+[ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IPropertyStore {
+  [PreserveSig] int GetCount(out uint count);
+  [PreserveSig] int GetAt(uint i, out PROPERTYKEY key);
+  [PreserveSig] int GetValue(ref PROPERTYKEY key, out PROPVARIANT value);
+  [PreserveSig] int SetValue(ref PROPERTYKEY key, ref PROPVARIANT value);
+  [PreserveSig] int Commit();
+}
+public static class Aumid {
+  public static int Set(string lnk, string id) {
+    var link = new ShellLinkCo();
+    var file = (IPersistFile)link;
+    file.Load(lnk, 2);
+    var store = (IPropertyStore)link;
+    var key = new PROPERTYKEY { fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid = 5 };
+    var v = new PROPVARIANT { vt = 31, p = Marshal.StringToCoTaskMemUni(id) };
+    int hr = store.SetValue(ref key, ref v);
+    if (hr == 0) hr = store.Commit();
+    Marshal.FreeCoTaskMem(v.p);
+    if (hr == 0) file.Save(lnk, true);
+    return hr;
+  }
+}
+"@
+Add-Type -TypeDefinition $code
+$sh = New-Object -ComObject WScript.Shell
+$done = 0
+foreach ($d in @("$env:APPDATA\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\Desktop", "$env:PUBLIC\Desktop")) {
+  if (-not (Test-Path $d)) { continue }
+  foreach ($f in Get-ChildItem -Path $d -Filter *.lnk -ErrorAction SilentlyContinue) {
+    try { $l = $sh.CreateShortcut($f.FullName); if ($l.TargetPath -ieq $Launcher) { if ([Aumid]::Set($f.FullName, $Id) -eq 0) { $done++ } } } catch {}
+  }
+}
+if ($done -gt 0) { Set-Content -Path $Marker -Value ("{0} shortcut(s) {1}" -f $done, (Get-Date -Format o)) }
+`;
+function applyAppUserModelId() {
+  if (process.platform !== "win32") return;
+  try {
+    const shell32 = dlopen("shell32.dll", {
+      SetCurrentProcessExplicitAppUserModelID: { args: [FFIType.ptr], returns: FFIType.i32 },
+      ShellExecuteW: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.i32], returns: FFIType.ptr },
+    });
+    const kept: Buffer[] = [];
+    const wide = (text: string) => { const b = Buffer.from(text + "\0", "utf16le"); kept.push(b); return ptr(b); };
+    shell32.symbols.SetCurrentProcessExplicitAppUserModelID(wide(appUserModelId));
+    const marker = join(channelRoot, "aumid-shortcuts.txt");
+    if (!existsSync(marker)) {
+      const script = join(channelRoot, "set-aumid.ps1");
+      writeFileSync(script, SET_AUMID_PS1);
+      const launcher = join(dirname(process.execPath), "launcher.exe");
+      const args = `-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${script}" -Launcher "${launcher}" -Id "${appUserModelId}" -Marker "${marker}"`;
+      shell32.symbols.ShellExecuteW(null, wide("open"), wide("powershell.exe"), wide(args), null, 0);
+    }
+  } catch (e) {
+    console.warn("app user model id:", e);
+  }
+}
+applyAppUserModelId();
 
 const mainWindow = new BrowserWindow({
   title: "Terrain Viewer",

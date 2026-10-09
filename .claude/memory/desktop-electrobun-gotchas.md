@@ -17,3 +17,19 @@ Written 2026-10-02 after reproducing the "docs open in a strange window" report 
 **Why:** three hours were lost assuming the `new-window-open` handler ran; nothing in Electrobun's docs says Windows lacks it.
 
 **How to apply:** any new "open in browser" feature in the desktop app must go through the host-message route, not `window.open`; verify on the installed Windows build over CDP, not in the agent browser.
+
+**Pinning pinned cottontail.exe (2026-10-10).** The window belongs to the
+runtime process (cottontail.exe owns the HWND; launcher.exe only starts it),
+so pinning the running app to the taskbar pinned cottontail.exe, which run on
+its own prints its usage. Windows matches a running window to a Start menu
+shortcut by AppUserModelID; the installer's shortcuts (target launcher.exe)
+carry none. Fix in src/bun/index.ts: `SetCurrentProcessExplicitAppUserModelID`
+over shell32 before the window is created, with `<identifier>.<channel>`
+(com.iconem.terrain-viewer-light.stable), and once per install a PowerShell
+script (written to the channel root, started with ShellExecuteW since the
+runtime has no child_process) that sets System.AppUserModel.ID on every
+.lnk targeting launcher.exe through IShellLink's IPropertyStore (tested by
+hand on the installed light shortcuts: set 0, commit 0, read back). A marker
+file aumid-shortcuts.txt in the channel root stops the rerun. Not verified
+on an installed build yet: pin after the next update and check the pin's
+target is launcher.exe.
