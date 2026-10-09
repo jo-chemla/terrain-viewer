@@ -178,3 +178,6 @@ it in every cut.
 - **Transitions:** a short cross-fade or a plain cut, not focus pulls.
 - **Footer line** on cards, mono, muted: "terrain viewer · <deck> ·
   <site>", as the decks do.
+
+## The third historical take (2026-10-10): historical-grid-v3-2026-10-10.mp4, take-hist3.sh/.mjs
+- Side 2x1 straight to 3x2 (no 3x1 in between) shows four new views at once: D-F stayed white ~1.5 s in the capture although that exact grid was warmed by a page load; v2's 3x1 step spread the same whitening over two changes. If a take needs the 3x2 to appear clean, go through a 3x1 or keep the pointer busy elsewhere for that second and a half.
