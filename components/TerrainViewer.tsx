@@ -1303,7 +1303,12 @@ export function TerrainViewer() {
     // shape — index.html ships the static "Terrain Viewer" default, which is
     // wrong the moment historical mode is active (by hostname default or a
     // mid-session switch).
-    document.title = isHistoricalMode ? "Historical Satellite" : "Terrain Viewer"
+    // The full titles (what index.html ships, and what the historical host
+    // rewrites itself to): a bare "Historical Satellite" was what Google
+    // indexed the historical host under.
+    document.title = isHistoricalMode
+      ? "Historical Satellite Imagery: Esri Wayback, Google Earth and open archives by date"
+      : "Terrain Viewer: hillshade, LiDAR DEMs and historical imagery"
   }, [isHistoricalMode])
   // Snapshot taken the instant tellsFrozen flips to true — the currently
   // rendered candidates, querySourceFeatures'd off the live "tellsSource"

@@ -19,6 +19,18 @@
         var h = location.hostname
         if (h === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(h)) {
           document.querySelector('link[rel="canonical"]').href = location.origin + "/"
+          // The same HTML serves both hosts, so the historical host rewrites
+          // its own title, description and Open Graph tags here (Google and
+          // Bing render JavaScript; the no-JS shell below names both uses).
+          // Without this the host was indexed as an elevation viewer.
+          var title = "Historical Satellite Imagery: Esri Wayback, Google Earth and open archives by date"
+          var desc = "Free viewer for historical satellite and aerial imagery: Esri World Imagery Wayback, Google Earth timelapse, Bing dated imagery, national archives and open post-disaster data on one timeline, side by side or swiped."
+          document.title = title
+          var set = function (sel, value) { var el = document.querySelector(sel); if (el) el.setAttribute("content", value) }
+          set('meta[name="description"]', desc)
+          set('meta[property="og:title"]', title)
+          set('meta[property="og:description"]', desc)
+          set('meta[property="og:url"]', location.origin + "/")
         }
       })()
     </script>
@@ -156,9 +168,10 @@
     </style>
     <div id="root">
       <main class="shell">
-        <h1>Terrain Viewer</h1>
+        <h1>Terrain Viewer, and Historical Satellite</h1>
         <p>A free, open-source web viewer for elevation data by <a href="https://iconem.com">Iconem</a>, built on MapLibre GL JS. It shows terrain in 2D, 3D and on a globe with hillshade, hypsometric tint, contours, slope, aspect, curvature, local relief model, sky-view factor, openness and matcap or Phong lighting; compares sources side by side; and exports the DEM and every mode as GeoTIFF.</p>
         <p>It reads global terrain (Mapterhorn, AWS, Mapbox, MapTiler), national LiDAR and open-data services, and your own Cloud-Optimized GeoTIFF, GDAL VRT, WMS, ArcGIS LERC or Cesium quantized-mesh terrain, all in the browser. Every setting lives in the URL, so a link opens a place in a given mode.</p>
+        <p>The same app is <a href="https://historical-satellite.iconem.com/">Historical Satellite</a>: historical satellite and aerial imagery on a timeline, Esri World Imagery Wayback, Google Earth timelapse, Bing dated imagery, national archives and open post-disaster releases, in a grid of dated views, blended or swiped, with footprints of what covers the place. See <a href="/docs/features/historical-imagery/">Historical imagery</a> and <a href="/docs/features/historical-sources/">Historical sources</a>.</p>
         <p>This page needs JavaScript and WebGL. Documentation:</p>
         <ul>
           <li><a href="/docs/">Documentation home</a></li>

@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://terrain-viewer.iconem.com/sitemap.xml
+Sitemap: https://historical-satellite.iconem.com/sitemap-historical.xml
