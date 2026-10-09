@@ -181,3 +181,7 @@ it in every cut.
 
 ## The third historical take (2026-10-10): historical-grid-v3-2026-10-10.mp4, take-hist3.sh/.mjs
 - Side 2x1 straight to 3x2 (no 3x1 in between) shows four new views at once: D-F stayed white ~1.5 s in the capture although that exact grid was warmed by a page load; v2's 3x1 step spread the same whitening over two changes. If a take needs the 3x2 to appear clean, go through a 3x1 or keep the pointer busy elsewhere for that second and a half.
+
+## The sixth take (2026-10-10): basic-modes-v6-2026-10-10.mp4, take-v6.sh/.mjs (take five plus the Data layers picker)
+- After take five's hypso "go to" the Visualization Modes heading (and its Layers button) has scrolled out of the sidebar; the picker opened from the panel title bar's Layers copy. Warm the picker's 19 pictures with a page load on `?openDataLayers=true` and `img.loading = "eager"`; its scroll range at FHD is only ~636 px, so a 7 s wheel is slow and smooth.
+- Closing it with Escape hands focus back to the Layers button after the close animation, and its tooltip (delay 0) reopens and stays to the last frame. Blurring `document.activeElement` for 180 ms right after the Escape did not help (focus returns later). Untested next try: wait until the dialog element is gone plus ~300 ms, then blur.
