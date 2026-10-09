@@ -85,7 +85,15 @@ take-v2.sh and take-v2.mjs next to it. Reusable parts:
   looked odd: use a standard arrow cursor image (a plain black arrow with
   a white outline, 16 to 20 px, hotspot at its tip).
 - The subagent's report puts the **video path** (the MP4) first, as a link
-  in the thread, not a middle frame; the frame is optional.
+  in the thread, not a middle frame; the frame is optional. In the parent's
+  reply to Jonathan, write the absolute path in plain text too: a bare
+  <video> tag showed him nothing in T3 (2026-10-09).
+- Added 2026-10-09 after take three: **FHD** (1920x1080); **keep Hillshade
+  on** under slope or any mode (slope alone looks wrong); the cursor must
+  be the **real Windows cursor** (C:\Windows\Cursors\aero_arrow.cur
+  converted to PNG with Pillow, 32 px at FHD), not a drawn arrow; tooltips
+  are fine; a slope take ends with the max at 90 degrees, then Elevation
+  Hypso joins.
 - The Vite mid-take reload was the node-polyfill shims being bundled on a
   mode's first toggle; vite.config.ts now pre-bundles them
   (optimizeDeps.include), so a dev take no longer needs the warm-up.
