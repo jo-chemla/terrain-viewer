@@ -4,7 +4,7 @@ description: What each discovery file and tag does, and how to register the site
 ---
 
 <Callout title="Where the site's search data lives">
-[Google Search Console](https://search.google.com/u/1/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fterrain-viewer.iconem.com%2F) and [Bing Webmaster Tools](https://www.bing.com/webmasters/usermgmt?siteUrl=https://terrain-viewer.iconem.com/) hold the queries, clicks, backlinks and scan findings for terrain-viewer.iconem.com (owner access). Both finished their first processing on 2026-10-06. An agent can read them through their APIs. **Bing**: an API key from Settings → API access in Webmaster Tools; ours is `BING_WEBMASTER_API_KEY` in the repo's `.env` (the main checkout's, copied into each worktree; never committed), and `GetQueryStats` answers with it. **Google** (to do): create a service account in Google Cloud, enable the Search Console API on that project, add the service account's e-mail as a user on the property in Search Console, download its JSON key and put its path in `.env` as `GOOGLE_SEARCH_CONSOLE_KEY_FILE`.
+[Google Search Console](https://search.google.com/u/1/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fterrain-viewer.iconem.com%2F) and [Bing Webmaster Tools](https://www.bing.com/webmasters/usermgmt?siteUrl=https://terrain-viewer.iconem.com/) hold the queries, clicks, backlinks and scan findings for terrain-viewer.iconem.com (owner access). Both finished their first processing on 2026-10-06. An agent can read them through their APIs. **Bing**: an API key from Settings → API access in Webmaster Tools; ours is `BING_WEBMASTER_API_KEY` in the repo's `.env` (the main checkout's, copied into each worktree; never committed), and `GetQueryStats` answers with it. **Google**: a service account (project `mineral-math`, the Search Console API enabled, the account a full user of the property) whose JSON key sits outside every repo, its path in `.env` as `GOOGLE_SEARCH_CONSOLE_KEY_FILE`; `node scripts/search-console.mjs --days 28 --json .cache/sc.json` signs the OAuth JWT itself (no dependency) and prints queries, pages, countries, devices and the sitemap status.
 </Callout>
 
 The app is a single-page app: without JavaScript its page is nearly empty. These pieces make it findable by search engines and usable by AI assistants.
@@ -31,6 +31,10 @@ The app is a single-page app: without JavaScript its page is nearly empty. These
 2. Verify: for URL prefix, put the `google….html` file it gives in `public/` and deploy (or add its meta tag to `index.html`); for Domain, add the DNS TXT record.
 3. **Sitemaps**: submit `https://terrain-viewer.iconem.com/sitemap.xml`.
 4. **URL inspection**: request indexing of `/` and `/docs/`.
+
+### First read, 2026-10-09 (Sept 9 to Oct 7)
+
+Google: 70 clicks on 1,035 impressions, average position 7.6. The home page takes 50 clicks (129 impressions, 39 % CTR, position 3); the sun-position estimator 14 clicks on 159 impressions (position 11.6); every docs page under 2 clicks. By query: "terrain viewer" 30 clicks on 43 impressions at position 1.6, "analemma calculator" 8 on 35 at 6.5, then single impressions on long-tail terms (heightmap viewer, esri imagery wayback, ndsm, lerc, mapterhorn). Two MapTiler Wayback URL queries gave 23 impressions and no click. Desktop 852 impressions, mobile 172 with twice the CTR. Countries: the USA 344 impressions but 5 clicks; Canada, Argentina, Turkey, Spain, the UK and the Netherlands 4 to 7 clicks each. The sitemap was last read on 2026-10-08 with no error. Reading: the site ranks for its own name and for the sun tool; the feature pages get impressions at positions 5 to 8 and almost no clicks, so their titles and descriptions are what to work on next.
 
 ## Bing Webmaster Tools
 

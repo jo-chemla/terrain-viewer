@@ -51,3 +51,14 @@ type: reference
   that converter is the object to hand it. See also
   [[custom-stac-timeline-catalogs]] for the UTM GeoTIFFs served through
   titiler today.
+
+## Jonathan's direction (2026-10-09)
+
+Live client-side reprojection of rasters in other CRSs (COGs in UTM, the
+Yandex EPSG:3395 tiles, national WMTS grids) is to be handed to
+deck.gl-raster when it comes, not hand-rolled with proj4 in our protocols.
+Worth doing ourselves: **imported drawings** in a projected CRS (a
+shapefile, GeoPackage or GeoJSON with an EPSG code), reprojected to WGS84
+on import through proj4. The other ideas (coordinates shown or typed in
+UTM, MGRS or a national grid; WMS fallbacks in native CRS) were listed and
+not ruled out.

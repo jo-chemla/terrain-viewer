@@ -353,7 +353,17 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
   const isOpenKey = (key: string, fallback = false) => folds[key] ?? fallback
   // ELI leaves follow the view (the package is lazy: 14 MB of index chunks
   // only load once the group is opened).
-  const eliWanted = isOpenKey("cov:eli")
+  // Also wanted when the group's own box is ticked while folded (eliArmed:
+  // the leaves load, then all get selected), and when stored overlays
+  // already name ELI layers (their footprints need the index).
+  const [eliArmed, setEliArmed] = useState(false)
+  const eliWanted = isOpenKey("cov:eli") || eliArmed || selected.some((id) => id.startsWith("eli:"))
+  useEffect(() => {
+    if (!eliArmed || !eliInView.length) return
+    setEliArmed(false)
+    setMany(eliInView.filter((l) => l.countryCodes.length > 0).map((l) => `eli:${l.id}`), true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eliArmed, eliInView])
   useEffect(() => {
     if (!eliWanted) return
     const map = mapRef.current?.getMap()
@@ -389,7 +399,12 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
             onClick={() => setFolds((prev) => ({ ...prev, [`cov:${g.key}`]: !isOpen }))}>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
           </button>
-          <Checkbox id={`cov-g-${g.key}`} checked={all && leaves.length > 0} indeterminate={!all && on > 0} disabled={leaves.length === 0} onCheckedChange={(v) => setMany(leaves.map((l) => l.id), v === true)} className="cursor-pointer" />
+          <Checkbox id={`cov-g-${g.key}`} checked={all && leaves.length > 0} indeterminate={!all && on > 0} disabled={leaves.length === 0 && !(g.key === "eli" && !eliWanted)}
+            onCheckedChange={(v) => {
+              // ELI folded and not loaded yet: ticking the group loads the index for the view and selects what it lists.
+              if (g.key === "eli" && !leaves.length) { if (v === true) { setEliArmed(true); setFolds((prev) => ({ ...prev, "cov:eli": true })) }; return }
+              setMany(leaves.map((l) => l.id), v === true)
+            }} className="cursor-pointer" />
           {!mixed && !children.length && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.color }} />}
           <Label htmlFor={`cov-g-${g.key}`} className="text-[10px] uppercase tracking-wide text-muted-foreground cursor-pointer truncate flex-1" title={g.note}>{g.label}</Label>
           {leaves.length > 0 && <span className="text-[10px] text-muted-foreground tabular-nums">{on}/{leaves.length}</span>}
@@ -440,10 +455,13 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: 
   // A section header: its fold, and a box that takes every leaf under it
   // (indeterminate while only some are on), so a whole section can be
   // switched without opening it.
+  // The three roots (Terrain, Basemaps · Static, Basemaps · Historical) are
+  // parted by a solid rule, heavier than the dashed ones the historical
+  // tree draws between its own groups, so the levels read apart.
   const sectionHeader = (key: string, label: string) => {
     const { on, total, toggle } = sectionState(key)
     return (
-      <div className="flex w-full items-center gap-1 py-0.5">
+      <div className={`flex w-full items-center gap-1 py-0.5 ${key === "Terrain" ? "" : "mt-1.5 border-t-2 pt-1.5"}`}>
         <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpenKey(`sec:${key}`, true) ? "Collapse" : "Expand"} onClick={() => setFolds((prev) => ({ ...prev, [`sec:${key}`]: !(prev[`sec:${key}`] ?? true) }))}>
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpenKey(`sec:${key}`, true) ? "" : "-rotate-90"}`} />
         </button>

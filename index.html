@@ -116,9 +116,8 @@
         s.setAttribute("data-exclude-hash", "true")
         // A tag tells the loads apart in the dashboard (Filter by tag): the
         // desktop app (Electrobun serves views://app/, no http), and the
-        // iframe embeds (the HeritageWatch and Anchise toolboxes).
-        var tag = !/^https?:$/.test(location.protocol) ? "desktop" : window.self !== window.top ? "embed" : ""
-        if (tag) s.setAttribute("data-tag", tag)
+        // iframe embeds (the HeritageWatch and Anchise toolboxes), the rest web.
+        s.setAttribute("data-tag", !/^https?:$/.test(location.protocol) ? "desktop" : window.self !== window.top ? "embed" : "web")
         document.head.appendChild(s)
       })()
     </script>

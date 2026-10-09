@@ -64,11 +64,9 @@ type: project
 ## Tags (since 2026-10-09)
 
 The app loader sets `data-tag`: "desktop" when the protocol is not http(s)
-(Electrobun serves views://app/), "embed" when iframed. Umami's dashboard
-filters by tag (the Filter button), so desktop and toolbox loads can be
-told from the web ones. Plain web loads carry no tag. The API key is a
-paid-plan feature as far as known; a Sessions export or screenshot sorted
-by views is the free route to the Oct 2-3 session.
+(Electrobun serves views://app/), "embed" when iframed, "web" otherwise.
+Umami's dashboard filters by tag (the Filter button). The API key needs
+the Pro plan (confirmed 2026-10-09); Jonathan exports the data by hand.
 
 ## If the quota keeps getting close
 

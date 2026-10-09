@@ -230,7 +230,7 @@ export const HistoricalCatalogTree: React.FC<{
         </div>
       )}
       {nodes.map((n, i) => (
-        <div key={n.key} className={i && !bare ? "pt-1.5 border-t mt-1" : undefined}>{renderNode(n, !bare)}</div>
+        <div key={n.key} className={i && !bare ? (compact ? "pt-1 border-t border-dashed mt-1" : "pt-1.5 border-t mt-1") : undefined}>{renderNode(n, !bare)}</div>
       ))}
       {addOpen && (
         <AddTimelineCatalogDialog open={addOpen} onOpenChange={setAddOpen} onAdd={(entry) => {

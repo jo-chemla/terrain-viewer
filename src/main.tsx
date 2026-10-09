@@ -49,7 +49,7 @@ if (import.meta.env.DEV) {
     const title = "MapLibre is split across two versions"
     const body = `${what} Stop the dev server, delete node_modules/.vite and start it again (pnpm app --force).`
     console.error(`[dev] ${title}: ${body}`)
-    pushToast({ key: "maplibre-version-split", title, body, duration: 60_000, action: { label: "Reload", onClick: () => window.location.reload() } })
+    pushToast({ key: "maplibre-version-split", title, body, duration: 120_000, tone: "alert", action: { label: "Reload", onClick: () => window.location.reload() } })
   }
   if (installed !== running) explain(`Vite's dependency cache serves ${running} to the page while ${installed} is installed (and runs the worker).`)
   window.addEventListener("unhandledrejection", (e) => {
