@@ -38,3 +38,5 @@
 - [deck.gl-raster custom projections](deckgl-raster-custom-projections.md) — PR 694: COGs in polar stereographic and other planar projections on deck.gl v10, a route for polar DEM views; issue 322 on browser EPSG resolution (devseed epsg, clj-proj)
 - [Custom STAC catalogs on the timeline](custom-stac-timeline-catalogs.md) — My catalogs group (built 2026-10-08): lib/stac-crawl.ts shared loader, cat-stac- self-describing ids, the Proxy on TIMELINE_CATALOG_BY_ID and SOURCE_CONFIG, the dialog, what is unverified
 - [UI overflow rules](ui-overflow-rules.md) — why selects and dialogs kept overflowing (flex min-width auto, grid min-content tracks), the contract in components/ui, no fixed SelectTrigger widths, min-w-0 on every flex/grid parent
+- [Annotation tools survey](annotation-tools-survey.md) — before/after pair annotation (GeoLabel, CVAT, Label Studio, GroundWork), tasking (Tasking Manager, Mergin, Kart), editors, COG gateways (TiTiler, neoserver, GeoLens); the Oléron 1950/2024 magnifier example
+- [Umami analytics](umami-analytics.md) — dashboard, 100k events a month counting pageviews and custom events, the Oct 2-3 2026 pageview spike, what to check and trim
