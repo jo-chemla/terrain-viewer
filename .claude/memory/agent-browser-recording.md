@@ -153,3 +153,28 @@ image from the computed `cursor` style under the pointer would fix it.
 ## The second historical take (2026-10-10): historical-grid-v2-2026-10-10.mp4, take-hist2.sh/.mjs
 - URL keys: the terrain per view is `terrainSourceA..H` (state `sourceA..H`; `terrainSourceX=mapterhorn` on all views keeps the terrain name off the pills); the overlay blend is the `splitBlendModeEnabled` switch over `splitBlendMode` (default `difference`, so flipping the switch is enough); `matchColorsToA` works in side-by-side grids too, not only overlay. Switches: `label[for=<id>]`, then `[data-slot=switch]` in its `.justify-between` row.
 - Each layout change (Side 3x1, 3x2, the sort, the overlay after the grid) whitens the newly shown or resized views for 0.2-1 s while their tiles fade back in, even with the tiles in the HTTP cache. Warming inside the same page (`history.pushState` + `dispatchEvent(new PopStateEvent("popstate"))` drives nuqs without a reload) did not remove the flashes, and it kept every map mounted, so the renderer slowed the CDP-driven take by 8 s. Warm through separate page loads instead.
+
+## Remocn cuts follow the slide decks' look (Jonathan, 2026-10-10)
+
+The first cut (video/src/Demo2.tsx) used dark frosted caption cards and
+blurred white titles on black. Jonathan prefers the simplicity of the
+open-slide decks (slides/slides/*/index.tsx, the shared "deck kit"): follow
+it in every cut.
+- **Palette:** white background #ffffff, text #0a0a0a, soft #404040, muted
+  #6b6b6b, rules #e4e4e4, panel #f7f7f7, one accent #1A237E (light
+  #3F51B5). No gradients, no blur backdrops, no shader backgrounds.
+- **Type:** Geist (fallback Inter, system-ui); display weight 500, letter
+  spacing -0.01em; a mono eyebrow in small caps (20 px, 0.08em) for labels
+  like "TERRAIN VIEWER · HISTORICAL IMAGERY".
+- **Title and outro cards:** white, the deck's hero scale (the title at
+  about 120 px, a one-line subtitle at 32 to 40 px in muted), a hairline
+  rule, the accent only on one word or the rule. A plain fade, no
+  FocusBlurResolve.
+- **Captions on the takes:** a white panel (#ffffff at 0.92, hairline border
+  #e4e4e4, radius 12, padding 14 x 24) with dark text at 36 to 40 px,
+  weight 500, lower third over the map, never over the sidebar or the
+  timeline; one line each; StaggeredFadeUp by word is fine, kept subtle
+  (distance 8, stagger 2).
+- **Transitions:** a short cross-fade or a plain cut, not focus pulls.
+- **Footer line** on cards, mono, muted: "terrain viewer · <deck> ·
+  <site>", as the decks do.
