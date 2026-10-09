@@ -33,3 +33,11 @@ hand on the installed light shortcuts: set 0, commit 0, read back). A marker
 file aumid-shortcuts.txt in the channel root stops the rerun. Not verified
 on an installed build yet: pin after the next update and check the pin's
 target is launcher.exe.
+
+**Local COG in the installed app (2026-10-10).** Driving it over CDP works
+for file inputs too, but Playwright's `setInputFiles` refuses files over
+50 MB on a CDP connection: send `DOM.setFileInputFiles` on the input's node
+yourself (same machine, so the path works). The cog-local flow registers
+and selects a file in under a second; drawing needs an EPSG:3857 tiled
+file (the reader throws for a projected CRS and reads a geographic file's
+degrees as metres, which flew the map to null island before the toast).
