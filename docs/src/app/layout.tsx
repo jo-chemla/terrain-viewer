@@ -54,6 +54,9 @@ export default function Layout({ children }: LayoutProps<'/'>) {
             s.src = "https://cloud.umami.is/script.js"
             s.setAttribute("data-website-id", "89d911b9-9de7-4665-872e-5b91ff4b7b39")
             s.setAttribute("data-exclude-search", "true")
+            // A hash change counts as a pageview too (20 hash-only history calls
+            // measured as 20 pageviews on 2026-10-09); the docs headings are hash links.
+            s.setAttribute("data-exclude-hash", "true")
             document.head.appendChild(s)
           })()`}
         </Script>

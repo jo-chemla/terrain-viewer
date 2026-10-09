@@ -32,6 +32,18 @@ type: project
   7 % (chatgpt.com 54 visitors, second referrer after google.com), social
   5 %. Docs pages are 17 % of views; the app root 83 %.
 
+## Measured on 2026-10-09 (.cache/pw/umami-embed-probe.mjs, headless on prod)
+
+- The wrapper app.heritagewatch.ai/?app=terrain-viewer loads the app once
+  (1 pageview, app-embed, app-mode), nothing more over 40 s idle, nothing
+  on five camera drags (the wrapper mirrors lat/lng into its URL with
+  replaceState; it runs Vercel Analytics, not Umami). A theme toggle
+  remounts the iframe: one more load. So the wrapper is not a loop.
+- The docs: 1 pageview per page, 0 on scrolling, 1 per link navigation.
+- The app: 20 hash-only history calls gave 20 pageviews, so
+  `data-exclude-hash` was added to both loaders (the app writes no hash;
+  the docs headings are hash links).
+
 ## If the quota keeps getting close
 
 1. Find the spike's session first (above); a bot or an embedder loop is

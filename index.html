@@ -111,6 +111,9 @@
         // pageview. Pageviews are counted on the path only; what users do is
         // tracked with explicit events (lib/analytics.ts).
         s.setAttribute("data-exclude-search", "true")
+        // A hash change counts as a pageview too (20 hash-only history calls
+        // measured as 20 pageviews on 2026-10-09); the docs headings are hash links.
+        s.setAttribute("data-exclude-hash", "true")
         document.head.appendChild(s)
       })()
     </script>
