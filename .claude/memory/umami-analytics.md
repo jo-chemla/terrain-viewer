@@ -104,6 +104,19 @@ the Pro plan (confirmed 2026-10-09); Jonathan exports the data by hand.
   that browser carries the tag "owner" instead of web / embed / desktop
   (`?umamiTag=` clears it). Filter by tag in the dashboard. Each browser
   and profile needs it once.
+- The owner tag is per origin and per browser profile: set it on
+  terrain-viewer.iconem.com and historical-satellite.iconem.com in each
+  browser (localhost never reports, so not there). Documented on the dev
+  docs page Indexing and SEO, section Umami analytics.
+- Reading the 30-day export by id scheme: 320 selections of library
+  sources (124 distinct; nl-ahn-dtm 39, be-vlaanderen-dtm1 26, the IGN
+  LiDAR HD DSM and DTM, nl-ahn-dsm, at-tirol-dgm5, us-3dep, gedtm30,
+  sam-anadem) against 43 selections of URL-added ones (24 distinct ids,
+  20 sessions). The URLs pasted were mostly Jonathan's own tests (IGN
+  LiDAR HD WMS, the Dura Europos COGs, PDOK AHN, 3DEP, DEM differences);
+  visitors' own: NASA GIBS tile layers, a Zenodo Chamoli DEM, the Spanish
+  CNIG COG and IDEE terrain-rgb, the Canterbury 1 m tiles, Planet's Nepal
+  flood items on source.coop, BRGM geology WMS, ESA WorldCover.
 - `source-add` events carry `origin`: "library" when the added source keeps
   a library id (custom-<slug>, lib/custom-sources.json), "url" when it got
   custom-<timestamp> (the Add Source modal). The Properties tab of the

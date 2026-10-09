@@ -97,6 +97,11 @@ export default defineConfig({
   ],
   optimizeDeps: {
     exclude: ['@loaders.gl/geopackage', '@loaders.gl/core', 'sql.js'],
+    // The node polyfill shims are first imported by a lazy chunk (a
+    // visualization mode toggled later); without listing them here Vite
+    // bundles them on that first toggle and reloads the page mid-session
+    // ("new dependencies optimized"), which also broke screencast takes.
+    include: ['vite-plugin-node-polyfills/shims/buffer', 'vite-plugin-node-polyfills/shims/global', 'vite-plugin-node-polyfills/shims/process'],
   },
   ssr: {
     noExternal: ['@loaders.gl/geopackage', '@loaders.gl/core'],

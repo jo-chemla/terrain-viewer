@@ -73,3 +73,19 @@ take-v2.sh and take-v2.mjs next to it. Reusable parts:
 - Hover tooltips flash as the pointer crosses the modes list; route the
   pointer around the labels or pause under one on purpose.
 - The take and capture scripts must not share a log file (lines lost).
+
+## Standing instructions for screencasts (Jonathan, 2026-10-09)
+
+- **Record the production site** (https://terrain-viewer.iconem.com) unless
+  told otherwise: a dev server reloads under other agents' edits and on
+  Vite's late bundling, and shows dev widgets.
+- No pauses: keep something moving the whole take (camera, pointer, a
+  control). Cursor motion natural: eased, slightly curved, varied speed,
+  no straight constant-speed lines. The cursor drawn by the injected arrow
+  looked odd: use a standard arrow cursor image (a plain black arrow with
+  a white outline, 16 to 20 px, hotspot at its tip).
+- The subagent's report puts the **video path** (the MP4) first, as a link
+  in the thread, not a middle frame; the frame is optional.
+- The Vite mid-take reload was the node-polyfill shims being bundled on a
+  mode's first toggle; vite.config.ts now pre-bundles them
+  (optimizeDeps.include), so a dev take no longer needs the warm-up.

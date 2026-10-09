@@ -25,6 +25,10 @@ The app is a single-page app: without JavaScript its page is nearly empty. These
 
 **Search consoles.** Google Search Console and Bing Webmaster Tools are where the owner proves the site is theirs, submits the sitemap and sees what gets indexed. ChatGPT search draws largely on Bing's index, so Bing matters as much as Google here.
 
+## Umami analytics
+
+The app and the docs report to one Umami Cloud website, pageviews on the path only (no query string, no hash) and one custom event per intentional action (`lib/analytics.ts`). The website id is `VITE_UMAMI_WEBSITE_ID` in `.env`, not in the source: without it the tracker is not loaded, and the tracker only reports from the real hostnames, so a clone run elsewhere stays silent. Every load carries a tag: `web`, `embed` (inside the HeritageWatch or Anchise toolbox) or `desktop`. To keep your own sessions apart, open each site once with `?umamiTag=owner` appended to its URL: the tag is stored in that browser and its loads then carry `owner` instead, which the dashboard filters out with Filter, Tag. Storage is per origin and per browser profile, so do it on terrain-viewer.iconem.com and on historical-satellite.iconem.com, in each browser you use; localhost never reports. `?umamiTag=` with nothing after it clears the tag. The `source-add` event says whether a source came from the library or a pasted URL (`origin`). An export (Settings, Export) is read by `scripts/umami-export-analyze.mjs`, which lists the top sessions of given days.
+
 ## Google Search Console
 
 1. Open [search.google.com/search-console](https://search.google.com/search-console) and add a property: **URL prefix** `https://terrain-viewer.iconem.com/`, or **Domain** `iconem.com` for every subdomain.
