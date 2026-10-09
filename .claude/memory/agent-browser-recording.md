@@ -146,3 +146,6 @@ GitHub release `demo-takes` on Iconem/terrain-viewer, and a copy sits in
 the main checkout's video/recordings/ (ignored). Known gap: the injected
 cursor never changes shape (no hand over buttons and links); swapping the
 image from the computed `cursor` style under the pointer would fix it.
+
+## The historical take (2026-10-10): historical-grid-2026-10-10.mp4, take-hist.sh/.mjs
+- A historical view goes white until its date's tiles load: dragging a timeline handle across many ticks left a view white ~6 s, and zooming out a 3x2 grid showed white gaps. Click only ticks whose dates were warmed through the URL in the prep, and zoom in rather than out (the parent tiles cover it). A handle's new date reaches the URL ~0.5 s after the release; wait for it before "Sort views by date", or the sort click is lost.
