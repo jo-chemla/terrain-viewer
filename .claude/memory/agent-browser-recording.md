@@ -132,3 +132,7 @@ a wheel scroll of the sidebar back to the top, Elevation Hypso, a scroll-zoom.
 - With the slope max at 90 the slope tint over hillshade becomes faint.
 - Evaluating element positions mid-take (the slider thumbs, the hypso box
   after the scroll) costs ~0.3 s of pointer stillness each; keep them few.
+
+## The fifth take (2026-10-10): basic-modes-v5-2026-10-10.mp4, take-v5.sh/.mjs
+- A "go to" arrow smooth-scrolls the sidebar for ~0.5-0.8 s: positions read during it are wrong (the slope drag missed, the ramp select never opened). Poll until two reads agree (`settled()` in take-v5.mjs), started un-awaited while the pointer drifts; rehearse the choreography once without capture (rehearse-v5.sh) before a recording run.
+- Hypso ramp bounds differ widely (bcyr, elevation, Sunset_Real are 0..100, usgs 0..1): pick one in metres for a bounds drag (GMT_globe -10000..10000, ETOPO1 -11000..8500). The URL `colorRamp` takes the lowercased key (`gmt_globe`), not the label.
