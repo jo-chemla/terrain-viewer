@@ -1823,6 +1823,7 @@ export function TerrainViewer() {
     analyticsPrev.current = snapshot
   }, [state, customTerrainSources, customBasemapSources])
 
+  const sourceOrigin = (id?: string) => (id && /^custom-d+$/.test(id) ? "url" : "library")
   // "User added a new source" — a growth in the persisted custom-source lists.
   // The baseline is captured on the first run (jotai atomWithStorage hydrates
   // synchronously, so mount-time restores aren't miscounted as fresh adds).
@@ -1835,14 +1836,15 @@ export function TerrainViewer() {
       // creation — source-terrain (above) fires again every time the user
       // just re-selects an already-added source, which would otherwise
       // re-log the same url repeatedly.
-      track("source-add", { kind: "terrain", type: added?.type, url: added?.url })
+      // origin: a library pick keeps the library id (custom-<slug>, lib/custom-sources.json); a pasted URL gets custom-<timestamp>.
+      track("source-add", { kind: "terrain", type: added?.type, url: added?.url, origin: sourceOrigin(added?.id) })
     }
     prevTerrainCount.current = customTerrainSources.length
   }, [customTerrainSources])
   useEffect(() => {
     if (prevBasemapCount.current !== null && customBasemapSources.length > prevBasemapCount.current) {
       const added = customBasemapSources[customBasemapSources.length - 1]
-      track("source-add", { kind: "basemap", type: added?.type, url: added?.url })
+      track("source-add", { kind: "basemap", type: added?.type, url: added?.url, origin: sourceOrigin(added?.id) })
     }
     prevBasemapCount.current = customBasemapSources.length
   }, [customBasemapSources])

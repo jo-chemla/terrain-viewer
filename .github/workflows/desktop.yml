@@ -40,6 +40,14 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Create .env
+        # The build-time keys (map providers, the Umami website id), the same
+        # secret the Pages deploy uses.
+        shell: bash
+        run: |
+          cat <<EOF > .env
+          ${{ secrets.ENV_FILE_CONTENT }}
+          EOF
       - name: Build the web app and the docs
         # The docs export is merged into dist/docs the way the Pages deploy
         # does it, so gen-config.mjs bundles it and the Documentation button

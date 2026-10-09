@@ -87,6 +87,28 @@ The app loader sets `data-tag`: "desktop" when the protocol is not http(s)
 Umami's dashboard filters by tag (the Filter button). The API key needs
 the Pro plan (confirmed 2026-10-09); Jonathan exports the data by hand.
 
+## The website id, the owner tag, the source origin (2026-10-09)
+
+- The website id is no longer in the source: `VITE_UMAMI_WEBSITE_ID` in
+  `.env` (the main checkout's, copied to worktrees; the deploy and the
+  desktop workflows write .env from the `ENV_FILE_CONTENT` secret of both
+  repos, refreshed 2026-10-09 with `gh secret set ENV_FILE_CONTENT -R
+  <repo> < .env`). index.html reads it through Vite's
+  `%VITE_UMAMI_WEBSITE_ID%`, the docs layout from the process env or the
+  root .env at build time; absent, no tracker. A clone built without the
+  secret reports nowhere. **When Jonathan creates the new Umami website:**
+  put its id in the main .env, re-run the secret set on both repos, push
+  (the deploy picks it up), then delete the old website in Umami.
+- **Telling the owner apart:** open the app (or the docs) once with
+  `?umamiTag=owner`; the tag is stored in localStorage and every load from
+  that browser carries the tag "owner" instead of web / embed / desktop
+  (`?umamiTag=` clears it). Filter by tag in the dashboard. Each browser
+  and profile needs it once.
+- `source-add` events carry `origin`: "library" when the added source keeps
+  a library id (custom-<slug>, lib/custom-sources.json), "url" when it got
+  custom-<timestamp> (the Add Source modal). The Properties tab of the
+  Events page breaks the event down by it.
+
 ## If the quota keeps getting close
 
 1. Find the spike's session first (above); a bot or an embedder loop is

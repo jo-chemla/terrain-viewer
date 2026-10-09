@@ -101,10 +101,24 @@
         var host = location.hostname
         var isLocal = host === "localhost" || host === "127.0.0.1" || host === "::1" || host === ""
         if (isLocal) return
+        // The website id comes from the build's .env (VITE_UMAMI_WEBSITE_ID,
+        // the deploy's ENV_FILE_CONTENT secret), not from the source: a
+        // clone built without it reports nowhere. Vite fills the placeholder.
+        var websiteId = "%VITE_UMAMI_WEBSITE_ID%"
+        if (!/^[0-9a-f-]{36}$/.test(websiteId)) return
+        // One browser can mark itself: ?umamiTag=owner stores the tag
+        // (?umamiTag= clears it), and its loads then carry "owner" instead
+        // of web / embed / desktop, so the owner's own sessions filter out.
+        var ownTag = ""
+        try {
+          var m = location.search.match(/[?&]umamiTag=([^&]*)/)
+          if (m) { if (m[1]) localStorage.setItem("umamiTag", decodeURIComponent(m[1])); else localStorage.removeItem("umamiTag") }
+          ownTag = localStorage.getItem("umamiTag") || ""
+        } catch (e) {}
         var s = document.createElement("script")
         s.defer = true
         s.src = "https://cloud.umami.is/script.js"
-        s.setAttribute("data-website-id", "89d911b9-9de7-4665-872e-5b91ff4b7b39")
+        s.setAttribute("data-website-id", websiteId)
         // umami wraps history.pushState AND replaceState and records a
         // pageview whenever the URL changes. Every setting and every camera
         // move rewrites the query string (nuqs), so each pan counted as a
@@ -121,7 +135,7 @@
         // A tag tells the loads apart in the dashboard (Filter by tag): the
         // desktop app (Electrobun serves views://app/, no http), and the
         // iframe embeds (the HeritageWatch and Anchise toolboxes), the rest web.
-        s.setAttribute("data-tag", !/^https?:$/.test(location.protocol) ? "desktop" : window.self !== window.top ? "embed" : "web")
+        s.setAttribute("data-tag", ownTag || (!/^https?:$/.test(location.protocol) ? "desktop" : window.self !== window.top ? "embed" : "web"))
         document.head.appendChild(s)
       })()
     </script>

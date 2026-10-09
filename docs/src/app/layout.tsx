@@ -3,6 +3,23 @@ import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import { Provider } from '@/components/provider';
 import './global.css';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+// The Umami website id of the build: VITE_UMAMI_WEBSITE_ID from the process
+// env, else from the repo root .env (the Pages deploy writes it from the
+// ENV_FILE_CONTENT secret). Absent: the tracker is not loaded. Read at build
+// time (this layout is a server component of a static export).
+const umamiWebsiteId = (() => {
+  const fromEnv = process.env.VITE_UMAMI_WEBSITE_ID;
+  if (fromEnv) return fromEnv;
+  try {
+    const m = readFileSync(resolve(process.cwd(), '..', '.env'), 'utf8').match(/^VITE_UMAMI_WEBSITE_ID=([0-9a-f-]{36})s*$/m);
+    return m?.[1] ?? '';
+  } catch {
+    return '';
+  }
+})();
 
 const inter = Inter({
   subsets: ['latin'],
@@ -45,14 +62,21 @@ export default function Layout({ children }: LayoutProps<'/'>) {
         {/* Umami, the same website as the app (index.html), so docs visits
             and the app share one dashboard. Not on localhost, where every dev
             session would otherwise report into production. */}
-        <Script id="umami-loader" strategy="afterInteractive">
+        {umamiWebsiteId && <Script id="umami-loader" strategy="afterInteractive">
           {`(function () {
             var host = location.hostname
             if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "") return
+            var ownTag = ""
+            try {
+              var m = location.search.match(/[?&]umamiTag=([^&]*)/)
+              if (m) { if (m[1]) localStorage.setItem("umamiTag", decodeURIComponent(m[1])); else localStorage.removeItem("umamiTag") }
+              ownTag = localStorage.getItem("umamiTag") || ""
+            } catch (e) {}
             var s = document.createElement("script")
             s.defer = true
             s.src = "https://cloud.umami.is/script.js"
-            s.setAttribute("data-website-id", "89d911b9-9de7-4665-872e-5b91ff4b7b39")
+            s.setAttribute("data-website-id", "${umamiWebsiteId}")
+            s.setAttribute("data-tag", ownTag || "web")
             s.setAttribute("data-exclude-search", "true")
             // A hash change counts as a pageview too (20 hash-only history calls
             // measured as 20 pageviews on 2026-10-09); the docs headings are hash links.
@@ -60,7 +84,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
             s.setAttribute("data-domains", "terrain-viewer.iconem.com,historical-satellite.iconem.com,jo-chemla.github.io")
             document.head.appendChild(s)
           })()`}
-        </Script>
+        </Script>}
         <Script id="favicon-swap" strategy="beforeInteractive">
           {`(function () {
             var host = location.hostname
