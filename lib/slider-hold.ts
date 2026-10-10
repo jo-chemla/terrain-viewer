@@ -15,6 +15,11 @@
 // - `data-slider-held` — set here, on the unit(s), for the length of a drag.
 //   `data-slider-held="section"` holds the whole fade scope (the Hillshade
 //   XY pad keeps its whole section opaque).
+// - `data-fade-keep` — a direct child of the path that stays lit in the
+//   holding scope anyway (the Section header row, which names the section).
+//
+// While anything is held, the side panel card also drops its background to
+// 8% (the CSS, keyed on data-slider-held), so the map shows behind the group.
 //
 // Inside the scope that holds the control, the CSS fades every element that
 // neither is nor contains a held unit and whose parent contains one - the

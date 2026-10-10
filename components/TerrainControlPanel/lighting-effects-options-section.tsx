@@ -155,7 +155,8 @@ export const LightingEffectsOptionsSection: React.FC<{
                   ]}
                 />
               </div>
-              <Collapsible open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
+              {/* Same group key as the pad inside: its fold title stays lit with it. */}
+              <Collapsible data-slider-group="phong-light" open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                   Light Direction<ChevronDown className={`h-4 w-4 transition-transform ${isLightDirOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
@@ -315,7 +316,7 @@ export const LightingEffectsOptionsSection: React.FC<{
               for both kinds of shadow, so either works standalone. Debounced
               150 ms: terrain shadows recompute tiles per change. */}
           {(modeOnVisibleView(state, "showShadows") || modeOnVisibleView(state, "showBuildingShadows")) && advanced && (
-            <Collapsible open={isShadowLightDirOpen} onOpenChange={setIsShadowLightDirOpen}>
+            <Collapsible data-slider-group="shadow-light" open={isShadowLightDirOpen} onOpenChange={setIsShadowLightDirOpen}>
               <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
                 Light Direction (shared with Phong/Hillshade)<ChevronDown className={`h-4 w-4 transition-transform ${isShadowLightDirOpen ? "rotate-180" : ""}`} />
               </CollapsibleTrigger>

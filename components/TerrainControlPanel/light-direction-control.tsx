@@ -34,8 +34,9 @@ const SEASON_TICKS = [
 // fades, like SliderControl (a slider group, lib/slider-hold.ts), (b) shows an
 // arbitrary formatted value string rather than value.toFixed, and (c) can
 // render tick marks under the track. The Date/Time sliders share ONE sliderId
-// with the XY pad below - the group key - so that editing either day/time
-// keeps the pad (their visualization) lit too.
+// with the XY pad below and with the whole LightDirectionControl - the group
+// key - so that editing either day/time, or dragging the pad, keeps the whole
+// control lit (mode, lights, sliders, pad and its caption).
 const LightSlider: React.FC<{
   label: string; value: number; onChange: (v: number) => void
   min: number; max: number; step: number; sliderId: string
@@ -256,8 +257,11 @@ export const LightDirectionControl: React.FC<{
     }
   }, [useDatetime, sunToIllum, state.lightDayOfYear, state.lightTimeOfDay, state.illuminationDir, state.illuminationAlt, setState])
 
+  // One slider group for the whole control, keyed by sliderId like the pad
+  // and the Date/Time sliders inside it: any of them held keeps all of it
+  // opaque while the rest of the panel fades (lib/slider-hold.ts).
   return (
-    <div className="space-y-3">
+    <div data-slider-group={sliderId} className="space-y-3">
       {!hideDatetimeMode && (
         <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">Mode</Label>

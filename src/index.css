@@ -757,11 +757,20 @@
    2. In the scope that holds it, every element that neither is nor contains
       a held unit, and whose parent contains one, fades: the siblings along
       the path down to the control. Nothing inside a held unit fades, and a
-      scope held whole (data-slider-held="section") fades nothing. */
+      scope held whole (data-slider-held="section") fades nothing. The
+      scope's header row (data-fade-keep) stays lit, so the section being
+      edited is named.
+   3. The side panel card drops its background further than the 20% it
+      takes while any slider is active (TerrainControlPanel.tsx), so the map
+      shows through behind the held group, in every section and for the XY
+      pads alike. */
 :root:has([data-slider-held]) [data-fade-scope]:not([data-slider-held]):not(:has([data-slider-held])),
-[data-fade-scope]:not([data-slider-held]):has([data-slider-held]) *:has([data-slider-held]):not([data-slider-held], [data-slider-held] *) > :not([data-slider-held]):not(:has([data-slider-held])),
-[data-fade-scope]:not([data-slider-held]):has([data-slider-held]) > :not([data-slider-held]):not(:has([data-slider-held])) {
+[data-fade-scope]:not([data-slider-held]):has([data-slider-held]) *:has([data-slider-held]):not([data-slider-held], [data-slider-held] *) > :not([data-slider-held], [data-fade-keep]):not(:has([data-slider-held])),
+[data-fade-scope]:not([data-slider-held]):has([data-slider-held]) > :not([data-slider-held], [data-fade-keep]):not(:has([data-slider-held])) {
   opacity: 0.2;
+}
+#tour-sidepanel:has([data-slider-held]) {
+  background-color: color-mix(in oklab, var(--background) 8%, transparent);
 }
 [data-fade-scope],
 [data-slider-group] {

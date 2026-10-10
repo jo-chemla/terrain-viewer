@@ -280,10 +280,10 @@ export const Section: React.FC<{
     // title leaves it clear of that fade instead of sitting right under it.
     // data-fade-scope: while a slider is dragged (Transparent UI), this
     // section fades whole, or, when it holds the slider, all of it but the
-    // slider's group (lib/slider-hold.ts).
+    // slider's group and this header row (data-fade-keep, lib/slider-hold.ts).
     <div id={id} data-fade-scope="" className="space-y-2 scroll-mt-[100px]">
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
-        <div className="flex items-center justify-between w-full py-2 transition-opacity duration-150">
+        <div data-fade-keep="" className="flex items-center justify-between w-full py-2 transition-opacity duration-150">
           <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer flex items-center gap-3">
             <span className="text-left">{title}</span>
             {pulse && (
