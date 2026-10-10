@@ -1,5 +1,6 @@
 import type React from "react"
 import { useContext } from "react"
+import { useAtom } from "jotai"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
@@ -8,6 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { MobileSlider, DraftBoundInput, SectionIdContext } from "./controls-components"
 import { ElevationReferenceToggle } from "./elevation-reference-toggle"
 import { ColorAlphaSwatch } from "./color-picker"
+import { activeSliderAtom } from "@/lib/settings-atoms"
 import { cn } from "@/lib/utils"
 
 const TOGGLE_ITEM_CLASS = "flex-1 cursor-pointer text-muted-foreground font-normal data-pressed:bg-white data-pressed:font-bold data-pressed:text-foreground"
@@ -41,18 +43,20 @@ export const PlaneSlicerFields: React.FC<{
   const value = state[valueField] ?? 0
   const bounds = boundsFor(state.planeSlicerReferenceMode)
 
-  // A slider group like CheckboxWithSlider's master rows (the row stays
-  // opaque while its slider is dragged, lib/slider-hold.ts) — written out
-  // here since this row is a bespoke Switch rather than CheckboxWithSlider's
+  // Same "dim everything except the control being dragged" behavior
+  // CheckboxWithSlider gives every other master row — replicated by hand here
+  // since this row is a bespoke Switch rather than CheckboxWithSlider's
   // Checkbox, but ordered the same way (toggle, label, slider) for
   // consistency with every other master-row control in the sidebar.
+  const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const fullId = `${sectionId}:plane-slicer`
+  const isDimmed = activeSlider !== null && activeSlider !== fullId
 
   return (
     <div className="space-y-2">
       <Separator />
-      <div data-slider-group="" className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+      <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
         <Switch
           id="plane-slicer"
           checked={state.showPlaneSlicer}

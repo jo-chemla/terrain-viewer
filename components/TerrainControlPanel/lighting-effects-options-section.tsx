@@ -10,7 +10,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Section, CheckboxWithSlider, SliderControl, SegmentedToggle, AdvancedModeToggle } from "./controls-components"
 import { LightDirectionControl } from "./light-direction-control"
 import { useDebouncedState } from "./use-debounced-state"
-import { activeProjectConfigAtom, lightingEffectsAdvancedAtom } from "@/lib/settings-atoms"
+import { cn } from "@/lib/utils"
+import { activeSliderAtom, activeProjectConfigAtom, lightingEffectsAdvancedAtom } from "@/lib/settings-atoms"
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
 
 // Common width for the Phong toggle groups (see SegmentedToggle in
@@ -60,6 +61,16 @@ export const LightingEffectsOptionsSection: React.FC<{
   // surfaced here too so turning Shadows on alone doesn't require opening
   // Phong to move the light. Default closed (Phong's stays the primary).
   const [isShadowLightDirOpen, setIsShadowLightDirOpen] = useState(false)
+
+  // When ANY slider (a MobileSlider/SphericalXYPad) is actively being dragged,
+  // everything that isn't the active control dims (the transparent-UI "silence
+  // everything except what I'm editing" behavior). Toggle groups + section
+  // labels aren't sliders so they never set/own the active id — so dim them
+  // whenever an active slider exists. The datetime Date/Time sliders + the XY
+  // pad share the "phong-light" id, so editing them dims these toggle rows
+  // while keeping only the pad + sliders lit, as requested.
+  const [activeSlider] = useAtom(activeSliderAtom)
+  const dimWhenSliding = cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")
 
   // Same live-vs-raster debounce split as Phong below — "live" is a GPU
   // uniform with zero tile refetch (0ms), "raster" re-fetches a tile per
@@ -122,7 +133,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   phongRenderer / matcapRenderer URL parameters for captures. */}
               {/* Intensities — albedo/diffuse/specular, foldable, above Light Anchor. */}
               <Collapsible open={isIntensitiesOpen} onOpenChange={setIsIntensitiesOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+                <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
                   Intensities<ChevronDown className={`h-4 w-4 transition-transform ${isIntensitiesOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-1">
@@ -142,7 +153,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   Only 2D Fast (live) can do a true per-frame camera headlamp,
                   so this is disabled + forced to Absolute in 3D Slow (raster),
                   which always renders absolute (see TerrainViewer.tsx). */}
-              <div className="flex items-center justify-between gap-2">
+              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
                 <Label className="text-sm font-medium">Light Anchor</Label>
                 <SegmentedToggle
                   className={SEG_WIDTH}
@@ -156,7 +167,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                 />
               </div>
               <Collapsible open={isLightDirOpen} onOpenChange={setIsLightDirOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+                <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
                   Light Direction<ChevronDown className={`h-4 w-4 transition-transform ${isLightDirOpen ? "rotate-180" : ""}`} />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-1 overflow-visible">
@@ -254,7 +265,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   Same convention as Phong's toggle above. See
                   lib/matcap-live-gl-layer.ts's header for why the older
                   per-fragment reflected-ray construction was scrapped. */}
-              <div className="flex items-center justify-between gap-2">
+              <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
                 <Label className="text-sm font-medium">Light Anchor</Label>
                 <SegmentedToggle
                   className={SEG_WIDTH}
@@ -274,7 +285,7 @@ export const LightingEffectsOptionsSection: React.FC<{
         {/* ─── Shadows sub-group: terrain and buildings ─── */}
         {!hideShadows && (
         <div className="space-y-2">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Shadows</div>
+          <div className={cn("text-[10px] uppercase tracking-wide text-muted-foreground", dimWhenSliding)}>Shadows</div>
           <CheckboxWithSlider perView={perViewFor("showShadows")}
             id="lighting-shadows"
             label={
@@ -316,7 +327,7 @@ export const LightingEffectsOptionsSection: React.FC<{
               150 ms: terrain shadows recompute tiles per change. */}
           {(modeOnVisibleView(state, "showShadows") || modeOnVisibleView(state, "showBuildingShadows")) && advanced && (
             <Collapsible open={isShadowLightDirOpen} onOpenChange={setIsShadowLightDirOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer">
+              <CollapsibleTrigger className={cn("flex items-center justify-between w-full py-0.5 text-sm font-medium cursor-pointer", dimWhenSliding)}>
                 Light Direction (shared with Phong/Hillshade)<ChevronDown className={`h-4 w-4 transition-transform ${isShadowLightDirOpen ? "rotate-180" : ""}`} />
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-1 overflow-visible">

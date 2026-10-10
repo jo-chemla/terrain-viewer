@@ -4,7 +4,8 @@ import { Globe, RotateCcw, Home } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Section, SegmentedToggle, TooltipIconButton, MobileSlider } from "./controls-components"
+import { Slider } from "@/components/ui/slider"
+import { Section, SegmentedToggle, TooltipIconButton } from "./controls-components"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { ImportExportProjectDialog } from "./import-export-project-dialog"
 
@@ -69,7 +70,7 @@ export const GeneralSettings: React.FC<{
               </Button>
             </div>
           </div>
-          <MobileSlider sliderId="exaggeration" value={state.exaggeration} onValueChange={(value) => setState({ exaggeration: value })} min={0.1} max={10} step={0.1} className="cursor-pointer" />
+          <Slider value={state.exaggeration} onValueChange={(value) => setState({ exaggeration: value })} min={0.1} max={10} step={0.1} className="cursor-pointer" />
         </div>
       )}
     </Section>

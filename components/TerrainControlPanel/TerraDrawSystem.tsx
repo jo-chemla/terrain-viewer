@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Slider } from '@/components/ui/slider'
 import { Toggle } from '@/components/ui/toggle'
 import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -27,7 +28,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ColorAlphaSwatch } from './color-picker'
 import bbox from '@turf/bbox'
 import { v4 as uuidv4 } from 'uuid'
-import { Section, CheckboxWithSlider, GroupHeading, DraftBoundInput, MobileSlider } from './controls-components'
+import { Section, CheckboxWithSlider, GroupHeading, DraftBoundInput } from './controls-components'
 import { truncate as turf_truncate } from '@turf/truncate'
 import { downloadGeoJSON, downloadGeoJSONByLayer } from "@/lib/download-geojson"
 import { track } from "@/lib/analytics"
@@ -400,7 +401,7 @@ function fitBoundsWithinFence(map: maplibregl.Map, bounds: number[], options: Pa
     if (outsideFence(map, target)) {
         pushToast({
             key: "draw-outside-fence",
-            tone: "warn", title: `${what} is outside the map bounds`,
+            title: `${what} is outside the map bounds`,
             body: "The current bounds constraint keeps the map from flying there. Settings → Map bounds constraints → None releases it.",
             duration: 7000,
         })
@@ -1444,8 +1445,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                     <Tooltip>
                                         <TooltipTrigger
                                             render={
-                                                <MobileSlider
-                                                    sliderId={`draw-stroke-${layer.id}`}
+                                                <Slider
                                                     value={layer.strokeWidth}
                                                     onValueChange={(v) => setLayerStrokeWidth(layer.id, v as number)}
                                                     min={0.5}
