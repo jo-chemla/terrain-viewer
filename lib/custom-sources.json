@@ -1170,6 +1170,174 @@
             "infoUrl": "https://doi.org/10.1126/science.abh4455"
         },
         {
+            "id": "custom-cn-xinmo-2013-dem2",
+            "name": "CHN - Xinmo pre-landslide DEM 2m, WorldView-2 2012-2013 (SETSM) - COG",
+            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.112021.32648.1/raster/xinmoprelandslide_DEM.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -9999,
+            "minzoom": 12,
+            "loadWithSamples": false,
+            "bounds": [
+                103.6327,
+                32.0581,
+                103.6812,
+                32.0849
+            ],
+            "resolutionM": 2,
+            "description": "Xinmo valley (Maoxian, Sichuan) before the 24 June 2017 rock avalanche that buried Xinmo village: SETSM DEM from WorldView-2 stereo of December 2012 and September 2013, co-registered by the authors (Nuth and Kaab) to the post-event DEM. Atwood and West, OpenTopography OTDS.112021.32648.1, CC BY 4.0. 14 MB, tiled, CORS and ranges open; UTM 48N, so titiler. A filtered variant sits beside it (xinmoprelandslideflitered_DEM.tif, sic).",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.112021.32648.1"
+        },
+        {
+            "id": "custom-cn-xinmo-2017-dem2",
+            "name": "CHN - Xinmo post-landslide DEM 2m, WorldView-2 17 Jul 2017 (SETSM) - COG",
+            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.112021.32648.1/raster/Xinmopostlandslide_DEM.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -9999,
+            "minzoom": 12,
+            "loadWithSamples": false,
+            "bounds": [
+                103.6327,
+                32.0581,
+                103.6812,
+                32.0849
+            ],
+            "resolutionM": 2,
+            "description": "The same valley three weeks after the collapse, same grid as the pre-event DEM. CC BY 4.0. Verified: 3390 m to 3048 m at the source area (103.660 E, 32.083 N).",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.112021.32648.1"
+        },
+        {
+            "id": "custom-cn-xinmo-landslide",
+            "name": "CHN - Change: Xinmo 2017 landslide, DEM 2017 - 2013 - derived",
+            "url": "diff://custom-cn-xinmo-2017-dem2-custom-cn-xinmo-2013-dem2",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-cn-xinmo-2017-dem2",
+            "diffSubtrahendId": "custom-cn-xinmo-2013-dem2",
+            "loadWithSamples": false,
+            "bounds": [
+                103.6327,
+                32.0581,
+                103.6812,
+                32.0849
+            ],
+            "resolutionM": 2,
+            "description": "The 2017 Xinmo rock avalanche in elevation: the scar high on the ridge and the deposit across the valley floor. Post-event minus pre-event, co-registered by the authors. Atwood and West, OTDS.112021.32648.1.",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.112021.32648.1"
+        },
+        {
+            "id": "custom-np-melamchi-2021-01-dsm1",
+            "name": "NPL - Melamchi valley pre-flood DSM 1m, Pléiades Jan 2021 - COG",
+            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.102024.32645.1/raster/Melamchi_DSM_P05_202101.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -32768,
+            "minzoom": 13,
+            "loadWithSamples": false,
+            "bounds": [
+                85.491,
+                27.7096,
+                85.6268,
+                27.9937
+            ],
+            "resolutionM": 1,
+            "description": "Pléiades photogrammetric DSM of the lower Melamchi valley five months before the 15 June 2021 debris flood, one of twelve 2014-2024 DSMs by Chen, West et al. (Nature Geoscience 2024), OpenTopography OTDS.102024.32645.1, CC BY 4.0. Tiled Float32, no overviews, so titiler renders it from z13 only. CORS and ranges open; UTM 45N.",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.102024.32645.1"
+        },
+        {
+            "id": "custom-np-melamchi-2021-10-dsm1",
+            "name": "NPL - Melamchi valley post-flood DSM 1m, Pléiades Oct 2021 - COG",
+            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.102024.32645.1/raster/Melamchi_DSM_P06_202110.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -32768,
+            "minzoom": 13,
+            "loadWithSamples": false,
+            "bounds": [
+                85.4394,
+                27.71,
+                85.6265,
+                27.857
+            ],
+            "resolutionM": 1,
+            "description": "The same reach four months after the flood (P06). The upper valley, Melamchi headworks to the Bhemathang fan, is the second October 2021 file, Melamchi_DSM_P07_202110.tif (1.3 GB). CC BY 4.0.",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.102024.32645.1"
+        },
+        {
+            "id": "custom-np-melamchi-flood",
+            "name": "NPL - Change: Melamchi 2021 flood, DSM Oct 2021 - Jan 2021 - derived",
+            "url": "diff://custom-np-melamchi-2021-10-dsm1-custom-np-melamchi-2021-01-dsm1",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-np-melamchi-2021-10-dsm1",
+            "diffSubtrahendId": "custom-np-melamchi-2021-01-dsm1",
+            "loadWithSamples": false,
+            "bounds": [
+                85.491,
+                27.71,
+                85.6265,
+                27.857
+            ],
+            "resolutionM": 1,
+            "description": "Aggradation and bank erosion of the June 2021 Melamchi flood along the lower valley. Both DSMs come from the same Pléiades series; co-registration was not checked here. Usable from z13.",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.102024.32645.1"
+        },
+        {
+            "id": "custom-es-lapalma-2021-09-dsm05",
+            "name": "ESP - La Palma Cumbre Vieja eruption DSM 0.5m, UAS 26-27 Sep 2021 - COG",
+            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.062022.4083.1/raster/Cumbre_Vieja_DSM_SfM_09_2021_50cm_REGCAN95.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -3.4028234663852886e+38,
+            "minzoom": 13,
+            "loadWithSamples": false,
+            "bounds": [
+                -17.9055,
+                28.6089,
+                -17.8645,
+                28.6222
+            ],
+            "resolutionM": 0.5,
+            "description": "Drone structure-from-motion DSM of the Tajogaite vent area one week into the 2021 Cumbre Vieja eruption, by INGV (OTDS.062022.4083.1), CC BY 4.0. REGCAN95 / UTM 28N, so titiler; tiled, no overviews.",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.062022.4083.1"
+        },
+        {
+            "id": "custom-es-lapalma-2022-03-cone-dsm02",
+            "name": "ESP - La Palma Tajogaite cone DSM 0.2m, UAS March 2022 - COG",
+            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.022026.4083.1/raster/Tajogaite_cone_2022_03_DSM_20cm.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -3.4028234663852886e+38,
+            "minzoom": 13,
+            "loadWithSamples": false,
+            "bounds": [
+                -17.8749,
+                28.6106,
+                -17.8632,
+                28.6183
+            ],
+            "resolutionM": 0.2,
+            "description": "The new Tajogaite cone three months after the eruption ended, the first of six UAS surveys to July 2024 (OTDS.022026.4083.1 to .6), CC BY 4.0 (licence confirmed on the 2021/22 records, not opened for this series). Verified: summit area 1008 m, 78 m above the September 2021 surface. The full-area January 2022 DSM (OTDS.032022.4083.1, 1.4 GB BigTIFF) only renders on titiler at z17.",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.022026.4083.1"
+        },
+        {
+            "id": "custom-es-lapalma-cone-growth",
+            "name": "ESP - Change: Tajogaite cone growth, DSM Mar 2022 - Sep 2021 - derived",
+            "url": "diff://custom-es-lapalma-2022-03-cone-dsm02-custom-es-lapalma-2021-09-dsm05",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-es-lapalma-2022-03-cone-dsm02",
+            "diffSubtrahendId": "custom-es-lapalma-2021-09-dsm05",
+            "loadWithSamples": false,
+            "bounds": [
+                -17.8749,
+                28.6106,
+                -17.8645,
+                28.6183
+            ],
+            "resolutionM": 0.5,
+            "description": "How much the cone grew after its first week: up to about 80-90 m over the vent. The pre-eruption surface is not in either file; for the full cone height, difference the March 2022 DSM against Mapterhorn or AW3D30 instead.",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.022026.4083.1"
+        },
+        {
             "id": "custom-us-ridgecrest-pre-dsm2",
             "name": "USA - Ridgecrest pre-earthquake stereo DSM 2m, 2014-2016 - VRT",
             "url": "https://opentopography.s3.sdsc.edu/raster/CA19_Barn2Pre/CA19_Barn2Pre_hh.vrt",
