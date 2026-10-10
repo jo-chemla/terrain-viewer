@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect, forwardRef, createContext, useContext, useId, Fragment } from "react"
+import { useState, useEffect, useRef, forwardRef, createContext, useContext, useId, Fragment } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, Eye, EyeOff, Pin, ArrowRightToLine, Link2, Search, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -20,6 +20,7 @@ import { atom, useAtom, useSetAtom } from "jotai"
 import { cn } from "@/lib/utils"
 import { activeSliderAtom, transparentUiAtom, vizActivationAtom, revealSectionAtom , activeViewAtom } from "@/lib/settings-atoms"
 import { GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
+import { holdControl } from "@/lib/slider-hold"
 
 
 // ─── Active-slider atom (global, no prop drilling) ────────────────────────────
@@ -127,13 +128,21 @@ const MobileSliderInner = forwardRef<
   // pointerup somewhere else, this element's own onPointerUp never fires, and
   // the side panel stayed transparent until another slider was pressed and
   // released slowly. Only clears its own id, never a slider pressed since.
+  // holdControl keeps this slider's group (label, value, bound inputs)
+  // opaque while the rest of the panel fades - see lib/slider-hold.ts.
+  const releaseHoldRef = useRef<(() => void) | null>(null)
+  const releaseHold = () => { releaseHoldRef.current?.(); releaseHoldRef.current = null }
+  useEffect(() => releaseHold, [])
   const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (transparentUi) {
       setActiveSlider(id)
+      releaseHold()
+      releaseHoldRef.current = holdControl(e.currentTarget)
       const release = () => {
         window.removeEventListener("pointerup", release, true)
         window.removeEventListener("pointercancel", release, true)
         window.removeEventListener("blur", release)
+        releaseHold()
         setActiveSlider((current) => (current === id ? null : current))
       }
       window.addEventListener("pointerup", release, true)
@@ -143,10 +152,12 @@ const MobileSliderInner = forwardRef<
     onPointerDown?.(e as any)
   }
   const handlePointerUp = (e: React.PointerEvent<HTMLSpanElement>) => {
+    releaseHold()
     if (transparentUi) setActiveSlider(null)
     onPointerUp?.(e as any)
   }
   const handlePointerCancel = (e: React.PointerEvent<HTMLSpanElement>) => {
+    releaseHold()
     if (transparentUi) setActiveSlider(null)
     onPointerCancel?.(e as any)
   }
@@ -236,11 +247,8 @@ export const Section: React.FC<{
   headerChevron?: React.ReactNode
   children: React.ReactNode
 }> = ({ title, isOpen, onOpenChange, withSeparator = true, headerExtra, pulseKey, id, headerChevron, children }) => {
-  const [activeSlider] = useAtom(activeSliderAtom)
   const [vizActivation] = useAtom(vizActivationAtom)
   const autoId = useId()
-  const isMine = activeSlider !== null && activeSlider.startsWith(autoId + ":")
-  const dim = activeSlider !== null && !isMine
 
   // Breathing "just activated" dot — on for the remainder of 3s from the moment
   // this section's mode was switched on (works across the mount that toggling
@@ -270,12 +278,12 @@ export const Section: React.FC<{
     // scrollable — natively respected by scrollIntoView's `block: "start"`
     // (see product-tour.tsx), so a tour step landing on this section's own
     // title leaves it clear of that fade instead of sitting right under it.
-    <div id={id} className="space-y-2 scroll-mt-[100px]">
+    // data-fade-scope: while a slider is dragged (Transparent UI), this
+    // section fades whole, or, when it holds the slider, all of it but the
+    // slider's group (lib/slider-hold.ts).
+    <div id={id} data-fade-scope="" className="space-y-2 scroll-mt-[100px]">
       <Collapsible open={isOpen} onOpenChange={onOpenChange}>
-        <div className={cn(
-          "flex items-center justify-between w-full py-2 transition-opacity duration-150",
-          dim && "opacity-20"
-        )}>
+        <div className="flex items-center justify-between w-full py-2 transition-opacity duration-150">
           <CollapsibleTrigger className="flex-1 min-w-0 text-base font-medium text-left cursor-pointer flex items-center gap-3">
             <span className="text-left">{title}</span>
             {pulse && (
@@ -302,16 +310,13 @@ export const Section: React.FC<{
           </div>
         </div>
         <SectionIdContext.Provider value={autoId}>
-          <CollapsibleContent className={cn(
-            "space-y-2 pt-1 px-2 transition-opacity duration-150",
-            dim && "opacity-20"
-          )}>
+          <CollapsibleContent className="space-y-2 pt-1 px-2 transition-opacity duration-150">
             {children}
           </CollapsibleContent>
         </SectionIdContext.Provider>
       </Collapsible>
        {withSeparator && (
-         <Separator className={cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")} />
+         <Separator className="transition-opacity duration-150" />
       )}
     </div>
   )
@@ -563,13 +568,11 @@ export const SliderControl: React.FC<{
   suffix?: string; decimals?: number; disabled?: boolean; hideValue?: boolean
   sliderId?: string
 }> = ({ label, value, onChange, min, max, step, suffix = "", decimals = 0, disabled = false, hideValue = false, sliderId }) => {
-  const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const id = `${sectionId}:${sliderId ?? label}`
-  const isDimmed = activeSlider !== null && activeSlider !== id
 
   return (
-    <div className={cn("space-y-1 transition-opacity duration-150", isDimmed && "opacity-20")}>
+    <div data-slider-group="" className="space-y-1">
       <div className="flex items-center justify-between">
         <Label className="text-sm">{label}</Label>
         {!hideValue && <span className="text-sm text-muted-foreground">{value.toFixed(decimals)}{suffix}</span>}
@@ -638,18 +641,16 @@ export const CheckboxWithSlider: React.FC<{
    *  the view-grid toggle, one cell per map view. */
   perView?: { gridLayout: GridLayoutId; isActive: (side: ViewId) => boolean; onSelect: (side: ViewId) => void; onAll: () => void }
 }> = ({ id, label, checked, onCheckedChange, sliderValue = 0, onSliderChange = () => null, hideSlider = false, disabled = false, tooltip, gotoSection, perView }) => {
-  const [activeSlider] = useAtom(activeSliderAtom)
   const [activeView] = useAtom(activeViewAtom)
   const sectionId = useContext(SectionIdContext)
   const fullId = `${sectionId}:${id}`
-  const isDimmed = activeSlider !== null && activeSlider !== fullId
 
   // In per-view mode the checkbox is gone, so the label click puts the mode
   // on every view (the way a basemap label does), rather than toggling.
   const labelEl = <Label htmlFor={perView ? undefined : id} onClick={perView ? perView.onAll : undefined} className={`text-sm cursor-pointer ${hideSlider && !gotoSection ? "col-span-2" : ""}`}>{label}</Label>
 
   return (
-    <div className={cn("grid grid-cols-[auto_1fr_1fr] gap-2 items-center transition-opacity duration-150", isDimmed && "opacity-20")}>
+    <div data-slider-group="" className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
       {perView
         ? <SourceGridToggle gridLayout={perView.gridLayout} isActive={perView.isActive} onSelect={perView.onSelect} disabled={disabled} allowUnpress onlySide={activeView} />
         : <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} className="cursor-pointer" disabled={disabled} />}

@@ -86,6 +86,9 @@ export const HillshadeOptionsSection: React.FC<{
               // Constrain based on what the current method supports
               fixedAzimuth={fixedIlluminationDirection}
               fixedElevation={fixedIlluminationAltitude}
+              // Dragging the pad keeps this whole section opaque while the
+              // rest of the panel fades (Transparent UI).
+              holdWholeSection
             />
           </CollapsibleContent>
         </Collapsible>

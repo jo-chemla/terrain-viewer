@@ -3,6 +3,7 @@ import { useAtom } from "jotai"
 import { SectionIdContext } from "./controls-components"
 import { cn } from "@/lib/utils"
 import { transparentUiAtom, activeSliderAtom } from "@/lib/settings-atoms"
+import { holdControl } from "@/lib/slider-hold"
 import { yearlySunEnvelope, isSunPositionReachable, type AzElPoint } from "@/lib/solar-position"
 
 // Degrees of declination slack for the pill's unreachable-border check (see
@@ -43,6 +44,9 @@ interface SphericalXYPadProps {
    *  the primary colour unless `pillColor` is given. */
   extraPoints?: { azimuthDeg: number; elevationDeg: number; color: string; onChange: (v: { azimuthDeg: number; elevationDeg: number }) => void }[];
   pillColor?: string;
+  /** While dragged (Transparent UI), keep the whole enclosing section opaque
+   *  instead of only the pad and its group (Hillshade). */
+  holdWholeSection?: boolean;
 }
 
 export function SphericalXYPad({
@@ -62,13 +66,19 @@ export function SphericalXYPad({
   sunEnvelopeLat,
   extraPoints,
   pillColor,
+  holdWholeSection = false,
 }: SphericalXYPadProps) {
   const [transparentUi, setTransparentUi] = useAtom(transparentUiAtom)
   
-  const [activeSlider, setActiveSlider] = useAtom(activeSliderAtom)
+  const [, setActiveSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const fullSliderId = `${sectionId}:${sliderId}`
-  const isDimmed = activeSlider !== null && activeSlider !== fullSliderId
+  // Keeps the pad (or its whole section) opaque while the panel fades - see
+  // lib/slider-hold.ts. The pad is its own group, keyed by sliderId, so the
+  // Date/Time sliders sharing that id stay lit with it.
+  const releaseHoldRef = useRef<(() => void) | null>(null)
+  const releaseHold = () => { releaseHoldRef.current?.(); releaseHoldRef.current = null }
+  useEffect(() => releaseHold, [])
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -288,10 +298,9 @@ export function SphericalXYPad({
   return (
       <div
         ref={containerRef}
+        data-slider-group={sliderId}
         className={cn(
           "relative border border-border rounded-lg touch-none select-none cursor-pointer",
-          "transition-opacity duration-150",
-          isDimmed && "opacity-20",
           transparentUi && "bg-background/50"
         )}
         style={{ width, height, userSelect: 'none', WebkitUserSelect: 'none' }}
@@ -300,7 +309,11 @@ export function SphericalXYPad({
         e.currentTarget.setPointerCapture(e.pointerId);
         pickDragTarget(e);
         handlePointerMove(e);
-        if (transparentUi) setActiveSlider(fullSliderId)
+        if (transparentUi) {
+          setActiveSlider(fullSliderId)
+          releaseHold()
+          releaseHoldRef.current = holdControl(e.currentTarget, { wholeSection: holdWholeSection })
+        }
       }}
       onPointerMove={(e) => {
         if (e.currentTarget.hasPointerCapture(e.pointerId)) {
@@ -311,13 +324,16 @@ export function SphericalXYPad({
       onPointerUp={(e) => {
         e.preventDefault();
         e.currentTarget.releasePointerCapture(e.pointerId);
+        releaseHold()
         if (transparentUi) setActiveSlider(null)
       }}
       onPointerCancel={(e) => {
+        releaseHold()
         if (transparentUi) setActiveSlider(null)
       }}
       // Capture can be lost without a pointerup (window switch mid-drag).
       onLostPointerCapture={() => {
+        releaseHold()
         if (transparentUi) setActiveSlider((current) => (current === fullSliderId ? null : current))
       }}
     >

@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Slider } from "@/components/ui/slider"
 import {
-  colorRampTypeAtom, licenseFilterAtom, activeSliderAtom, hypsoAutoRangeRequestAtom
+  colorRampTypeAtom, licenseFilterAtom, hypsoAutoRangeRequestAtom
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat, buildCustomRampColors, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 // import { Section, TooltipIconButton } from "./controls-components"
@@ -644,9 +644,11 @@ export const HypsometricTintOptionsSection: React.FC<{
           />
         )}
 
-        {/* Custom min/max elevation */}
+        {/* Custom min/max elevation. One slider group: the Min/Max values
+            above the slider and the slider's own bounds below stay opaque
+            while it is dragged (lib/slider-hold.ts). */}
         {!isCustom && (
-        <div className="space-y-2">
+        <div data-slider-group="" className="space-y-2">
           <div className="w-full gap-1 flex items-center">
             <div className="flex-[2] flex items-center">
               <div className="flex items-center justify-between py-0.5 w-full">
@@ -821,13 +823,11 @@ const HypsoDoubleRangeSlider: React.FC<{
   state: any;
   setState: (updates: any) => void;
 }> = ({ sliderBounds, sliderValues, handleSliderChange, state, setState }) => {
-  const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const hypsoSliderId = `${sectionId}:hypso-range`
-  const isHypsoDimmed = activeSlider !== null && activeSlider !== hypsoSliderId
 
   return (
-    <div className={cn("px-2 transition-opacity duration-150", isHypsoDimmed && "opacity-20")}>
+    <div className="px-2">
       <MobileSlider
         sliderId={hypsoSliderId}
         min={sliderBounds.min}

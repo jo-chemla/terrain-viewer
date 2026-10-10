@@ -750,3 +750,20 @@
 *:has(+ * > .macro-separator:first-child) > [data-slot="separator"]:last-child {
   display: none;
 }
+/* ── Transparent UI: the dragged control stays opaque, the rest fades ──────
+   See lib/slider-hold.ts. Only present while a control is held, and only set
+   when the Transparent UI setting is on.
+   1. A fade scope (a Section) that does not hold the control fades whole.
+   2. In the scope that holds it, every element that neither is nor contains
+      a held unit, and whose parent contains one, fades: the siblings along
+      the path down to the control. Nothing inside a held unit fades, and a
+      scope held whole (data-slider-held="section") fades nothing. */
+:root:has([data-slider-held]) [data-fade-scope]:not([data-slider-held]):not(:has([data-slider-held])),
+[data-fade-scope]:not([data-slider-held]):has([data-slider-held]) *:has([data-slider-held]):not([data-slider-held], [data-slider-held] *) > :not([data-slider-held]):not(:has([data-slider-held])),
+[data-fade-scope]:not([data-slider-held]):has([data-slider-held]) > :not([data-slider-held]):not(:has([data-slider-held])) {
+  opacity: 0.2;
+}
+[data-fade-scope],
+[data-slider-group] {
+  transition: opacity 150ms;
+}
