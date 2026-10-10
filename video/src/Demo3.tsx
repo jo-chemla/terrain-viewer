@@ -11,7 +11,7 @@ import { TransitionSeries, linearTiming } from "@remotion/transitions"
 import { fade } from "@remotion/transitions/fade"
 
 export const FPS = 30
-const TRANSITION = 12
+export const TRANSITION = 12
 const TITLE = 90
 const CARD = 90
 const OUTRO = 120
@@ -59,7 +59,7 @@ const Card: React.FC<{ eyebrow: string; foot: string; n: number; fadeIn?: boolea
 const h1: CSSProperties = { margin: 0, fontFamily: SANS, fontSize: 120, fontWeight: 500, letterSpacing: "-0.04em", lineHeight: 1 }
 
 /** The deck's cover without its picture: the title, one muted line, a hairline rule. */
-const TitleCard: React.FC<{ eyebrow: string; title: ReactNode; subtitle: string; foot: string; n: number; fadeIn?: boolean }> = ({ eyebrow, title, subtitle, foot, n, fadeIn }) => (
+export const TitleCard: React.FC<{ eyebrow: string; title: ReactNode; subtitle: string; foot: string; n: number; fadeIn?: boolean }> = ({ eyebrow, title, subtitle, foot, n, fadeIn }) => (
   <Card eyebrow={eyebrow} foot={foot} n={n} fadeIn={fadeIn}>
     <div style={{ position: "absolute", left: PAD_X, right: PAD_X, bottom: 340 }}>
       <h1 style={h1}>{title}</h1>
@@ -70,7 +70,7 @@ const TitleCard: React.FC<{ eyebrow: string; title: ReactNode; subtitle: string;
 )
 
 /** The deck's closing: the title over ruled mono rows numbered in the accent. */
-const OutroCard: React.FC = () => (
+export const OutroCard: React.FC = () => (
   <Card eyebrow="Terrain Viewer" foot="terrain viewer · demo · terrain-viewer.iconem.com" n={3}>
     <h1 style={{ ...h1, position: "absolute", left: PAD_X, top: 260 }}>Free, open, no install</h1>
     <div style={{ position: "absolute", left: PAD_X, right: PAD_X, top: 520, borderBottom: `1px solid ${ink.rule}` }}>
@@ -93,7 +93,7 @@ const OutroCard: React.FC = () => (
 /** Where a caption sits: its centre x and its bottom edge, in frame pixels. */
 type Spot = { x: number; bottom: number; size?: number }
 type Beat = { at: number; to: number; text: string; spot?: Spot }
-type Take = { src: string; in: number; out: number; spot: Spot; beats: Beat[] }
+export type Take = { src: string; in: number; out: number; spot: Spot; beats: Beat[] }
 
 /** A white panel, one line of dark type, a plain fade with a 6 px rise. */
 const Caption: React.FC<{ text: string; spot: Spot; duration: number }> = ({ text, spot, duration }) => {
@@ -114,10 +114,10 @@ const Caption: React.FC<{ text: string; spot: Spot; duration: number }> = ({ tex
   )
 }
 
-const takeFrames = (t: Take) => Math.round((t.out - t.in) * FPS)
+export const takeFrames = (t: Take) => Math.round((t.out - t.in) * FPS)
 const toFrame = (t: Take, s: number) => Math.max(0, Math.round((s - t.in) * FPS))
 
-const TakeScene: React.FC<{ take: Take }> = ({ take }) => (
+export const TakeScene: React.FC<{ take: Take }> = ({ take }) => (
   <AbsoluteFill style={{ background: "#ffffff" }}>
     <OffthreadVideo src={staticFile(take.src)} startFrom={Math.round(take.in * FPS)} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
     {take.beats.map((b, i) => {
