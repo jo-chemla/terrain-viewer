@@ -91,13 +91,81 @@ function applyAppUserModelId() {
 }
 applyAppUserModelId();
 
+// The command line the user typed goes to launcher.exe, and Electrobun 2.0.2's
+// Windows launcher starts the main process (cottontail.exe main.js) without
+// passing it on: process.argv here holds only the runtime and main.js. So on
+// Windows the launcher's own command line is read back through ntdll
+// (NtQueryInformationProcess, ProcessCommandLineInformation = 60, Windows
+// 8.1+) from the pid the launcher exports as ELECTROBUN_LAUNCHER_PID, else
+// from this process's parent, and only when that process is launcher.exe.
+// Checked under the installed cottontail runtime on 2026-10-10
+// (.cache/desktop-test/launcher-args-probe.js): quoted paths with spaces come
+// back whole.
+// Windows rules: quotes group, \" is a literal quote, backslashes before a quote halve.
+function splitCommandLine(line: string): string[] {
+  const out: string[] = []; let cur = ""; let inQ = false; let any = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === "\\") {
+      let n = 0; while (line[i] === "\\") { n++; i++; }
+      if (line[i] === "\"") { cur += "\\".repeat(n >> 1); if (n & 1) { cur += "\""; } else { inQ = !inQ; } any = true; }
+      else { cur += "\\".repeat(n); i--; any = true; }
+    } else if (c === "\"") { inQ = !inQ; any = true; }
+    else if ((c === " " || c === "\t") && !inQ) { if (any) { out.push(cur); cur = ""; any = false; } }
+    else { cur += c; any = true; }
+  }
+  if (any) out.push(cur);
+  return out;
+}
+function launcherArgs(): string[] {
+  if (process.platform !== "win32") return [];
+  try {
+    const kernel32 = dlopen("kernel32.dll", {
+      OpenProcess: { args: [FFIType.u32, FFIType.i32, FFIType.u32], returns: FFIType.u64 },
+      CloseHandle: { args: [FFIType.u64], returns: FFIType.i32 },
+      GetCurrentProcess: { args: [], returns: FFIType.u64 },
+    });
+    const ntdll = dlopen("ntdll.dll", {
+      NtQueryInformationProcess: { args: [FFIType.u64, FFIType.u32, FFIType.ptr, FFIType.u32, FFIType.ptr], returns: FFIType.i32 },
+    });
+    let pid = Number(process.env.ELECTROBUN_LAUNCHER_PID || 0);
+    if (!pid) {
+      const info = new Uint8Array(48), ret = new Uint32Array(1);
+      if (ntdll.symbols.NtQueryInformationProcess(kernel32.symbols.GetCurrentProcess(), 0, ptr(info), 48, ptr(ret)) === 0)
+        pid = Number(new DataView(info.buffer).getBigUint64(40, true));
+    }
+    if (!pid) return [];
+    const handle = kernel32.symbols.OpenProcess(0x1000, 0, pid);
+    if (!handle) return [];
+    try {
+      const buf = new Uint8Array(65536), ret = new Uint32Array(1);
+      if (ntdll.symbols.NtQueryInformationProcess(handle, 60, ptr(buf), buf.length, ptr(ret)) !== 0) return [];
+      const view = new DataView(buf.buffer);
+      const length = view.getUint16(0, true);
+      const offset = Number(view.getBigUint64(8, true) - BigInt(ptr(buf)));
+      if (offset < 0 || offset + length > buf.length) return [];
+      const argv = splitCommandLine(new TextDecoder("utf-16le").decode(buf.subarray(offset, offset + length)));
+      if (!/launcher(\.exe)?$/i.test(argv[0] ?? "")) return [];
+      return argv.slice(1);
+    } finally {
+      kernel32.symbols.CloseHandle(handle);
+    }
+  } catch (e) {
+    console.warn("launcher args:", e);
+    return [];
+  }
+}
+// The arguments to read: the runtime's own after main.js (macOS, Linux, or
+// cottontail run by hand), then the launcher's.
+const commandArgs = [...process.argv.slice(1).filter((a) => !/main\.js$/i.test(a)), ...launcherArgs()];
+
 // A query string on the command line opens the app on that state, the way
 // a link does: launcher.exe "?lat=45.92&lng=7.03&zoom=11&viewMode=3d"
 // (or the full https://terrain-viewer.iconem.com/?... link: its query is
 // taken). Everything the URL API offers (docs/dev/url-api) works here:
 // sources, modes, projects, drawings by URL, bookmarks.
 const startQuery = (() => {
-  for (const arg of process.argv.slice(1)) {
+  for (const arg of commandArgs) {
     if (/^\?[^\s]+$/.test(arg)) return arg;
     if (/^https?:\/\//.test(arg)) { try { return new URL(arg).search; } catch { /* not a URL */ } }
   }
@@ -109,7 +177,7 @@ const startQuery = (() => {
 // given; the project's own view state wins where they overlap. The first
 // existing .json or .zip path is taken, relative to the working directory.
 let openFilePath = (() => {
-  for (const arg of process.argv.slice(1)) {
+  for (const arg of commandArgs) {
     if (!/\.(json|zip)$/i.test(arg)) continue;
     const path = resolve(arg);
     if (existsSync(path)) return path;
@@ -293,7 +361,10 @@ mainWindow.webview.on("host-message", (event: unknown) => {
   if (msg?.type === "fullscreen") mainWindow.setFullScreen(!!msg.on);
   if (msg?.type === "open-external") openUrl(msg.url);
   if (msg?.type === "apply-update") void Updater.applyUpdate();
-  if (msg?.type === "open-file-request") sendOpenFile();
+  // The page asks at every load; a request after the file was served is the
+  // reload that follows the import, so the served copy can go even when the
+  // page's "open-file-done" was lost in that reload.
+  if (msg?.type === "open-file-request") { if (openFileServed) removeOpenFile(); sendOpenFile(); }
   if (msg?.type === "open-file-done") removeOpenFile();
   // The page has loaded (or wants a refresh): replay the latest state.
   if (msg?.type === "update-status" && lastUpdateDetail) {

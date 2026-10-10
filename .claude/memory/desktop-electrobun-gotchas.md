@@ -69,3 +69,21 @@ also fixed the query argument's regexes, which
 had lost their backslashes (`/^?[^s]+$/`) so index.ts did not parse at all:
 run `node_modules/.bin/esbuild --loader=ts < desktop/src/bun/index.ts` after
 editing that file, since the desktop folder has no tsc here.
+
+**launcher.exe drops its arguments (2026-10-10, Electrobun 2.0.2, Windows).**
+Driven on the installed light build: `launcher.exe C:\...\project.json`
+starts `cottontail.exe "...\Resources\main.js"` with no further argument, so
+`process.argv` in the main process never sees what the user typed (both the
+query and the file argument did nothing). The launcher exports
+`ELECTROBUN_LAUNCHER_PID`; the main now reads that process's command line
+through ntdll `NtQueryInformationProcess(..., 60 /* ProcessCommandLineInformation */)`
+(fallback: the parent pid from ProcessBasicInformation, only if its argv[0]
+is launcher.exe) and splits it with the Windows quoting rules. The FFI calls
+were checked under the installed cottontail runtime with a standalone probe
+(`.cache/desktop-test/launcher-args-probe.js`): a quoted path with spaces
+and a `?lat=...` query came back whole. Runtime serving works: a file hard-
+linked into `Resources/app/views/app/open/` at runtime is served by
+views:// (flat read from disk, HTTP 200, content type text/javascript for
+.json, harmless). The served copy was sometimes left behind when the page's
+`open-file-done` got lost in the reload; the main now also removes it on
+the page's next `open-file-request` (the reload asks again).
