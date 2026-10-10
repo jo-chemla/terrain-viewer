@@ -132,13 +132,15 @@ export function initDesktopBridge(): void {
 }
 
 // A file on the desktop app's command line (launcher.exe C:\path\project.json,
-// a .zip project export or a plain sources list): the main process reads it
-// and, when the page asks ("open-file-request", here at load), dispatches
-// "tv-desktop-open-file" with { name, bytesBase64 }, or { name, error } when
-// it cannot send it (too large, unreadable). The main process answers once,
-// so the reload after the import does not import again. The import is the
-// Import button's (importProjectBytes); its toast is kept in sessionStorage
-// across the reload.
+// a .zip project export or a plain sources list): when the page asks
+// ("open-file-request", here at load), the main process places the file
+// under the app's own scheme and dispatches "tv-desktop-open-file" with
+// { name, url, size }, or { name, error } when it cannot (missing,
+// unreadable). The page fetches the URL as bytes, as the Import button reads
+// a File, so any size goes, then tells the main process to remove the copy
+// ("open-file-done"). The main process answers once, so the reload after
+// the import does not import again. The import is the Import button's
+// (importProjectBytes); its toast is kept in sessionStorage across the reload.
 const OPEN_FILE_TOAST_KEY = "tv-desktop-open-file-toast"
 function initOpenFile(): void {
   try {
@@ -150,16 +152,22 @@ function initOpenFile(): void {
     }
   } catch { /* storage off or a stale entry */ }
   window.addEventListener("tv-desktop-open-file", (ev) => {
-    const { name = "file", bytesBase64, error } = (ev as CustomEvent<{ name?: string; bytesBase64?: string; error?: string }>).detail ?? {}
+    const { name = "file", url, error } = (ev as CustomEvent<{ name?: string; url?: string; size?: number; error?: string }>).detail ?? {}
     const fail = (message: string) => pushToast({ key: "desktop-open-file", title: `Could not open ${name}`, body: message, tone: "alert", duration: 15000 })
-    if (error || !bytesBase64) { fail(error ?? "No content was received."); return }
-    let bytes: Uint8Array
-    try {
-      const binary = atob(bytesBase64)
-      bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    } catch { fail("The content did not decode."); return }
-    void importProjectBytes(name, bytes).then((result) => {
+    if (error || !url) { fail(error ?? "No file was received."); return }
+    void (async () => {
+      let bytes: Uint8Array
+      try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`The app could not read it back (${res.status}).`)
+        bytes = new Uint8Array(await res.arrayBuffer())
+      } catch (e) {
+        fail(e instanceof Error ? e.message : String(e))
+        return
+      } finally {
+        hostSend()?.({ type: "open-file-done" })
+      }
+      const result = await importProjectBytes(name, bytes)
       if (!result.ok) { fail(result.error); return }
       track("actions-project", { action: "import", via: "command-line" })
       const title = result.kind === "project" ? `Project ${name} imported` : `Sources from ${name} imported`
@@ -167,11 +175,11 @@ function initOpenFile(): void {
       // The project's view state goes over the current URL's parameters
       // (those of a query also given on the command line), the merge the
       // Import button's setState does.
-      const url = new URL(window.location.href)
-      if (result.viewState) for (const [k, v] of new URLSearchParams(result.viewState)) url.searchParams.set(k, v)
-      window.history.replaceState(window.history.state, "", url)
+      const next = new URL(window.location.href)
+      if (result.viewState) for (const [k, v] of new URLSearchParams(result.viewState)) next.searchParams.set(k, v)
+      window.history.replaceState(window.history.state, "", next)
       window.location.reload()
-    }, (e) => fail(String(e)))
+    })().catch((e) => fail(String(e)))
   })
   const ask = () => hostSend()?.({ type: "open-file-request" })
   ask()

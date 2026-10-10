@@ -5,8 +5,8 @@
 // (Mapterhorn, basemaps, WMS) still need the network.
 import { BrowserWindow, Utils, Updater } from "electrobun/main";
 import { dlopen, FFIType, ptr } from "bun:ffi";
-import { basename, dirname, join, resolve } from "node:path";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, statSync } from "node:fs";
+import { basename, dirname, extname, join, resolve } from "node:path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, statSync, linkSync, copyFileSync, rmSync } from "node:fs";
 
 // Windows groups and pins windows by AppUserModelID. The window belongs to
 // the runtime process (cottontail.exe, the process that owns the HWND), so
@@ -294,6 +294,7 @@ mainWindow.webview.on("host-message", (event: unknown) => {
   if (msg?.type === "open-external") openUrl(msg.url);
   if (msg?.type === "apply-update") void Updater.applyUpdate();
   if (msg?.type === "open-file-request") sendOpenFile();
+  if (msg?.type === "open-file-done") removeOpenFile();
   // The page has loaded (or wants a refresh): replay the latest state.
   if (msg?.type === "update-status" && lastUpdateDetail) {
     const { status, version, message, progress } = lastUpdateDetail;
@@ -301,38 +302,44 @@ mainWindow.webview.on("host-message", (event: unknown) => {
   }
 });
 
-// The file from the command line, sent once the page asks for it
+// The file from the command line, offered once the page asks for it
 // (host-message "open-file-request", lib/desktop-bridge.ts, at every load):
 // answered once, so the reload that follows the import does not import it
-// again. The bytes travel as base64 through executeJavascript, in 2 MB
-// pieces gathered on window.__tvOpenFile, then one "tv-desktop-open-file"
-// event with { name, bytesBase64 } (or { name, error }). A project zip with
-// bundled COGs can be large: above 50 MB the page gets the error instead.
-// The file crosses to the page as base64 text through executeJavascript in
-// 2 MB pieces, so the page holds the text and the bytes at once: 200 MB is
-// a few hundred MB of memory for a moment, fine on a desktop; beyond it
-// the Import button (a File read, no copy) is the way.
-const OPEN_FILE_MAX_BYTES = 200 * 1024 * 1024;
-const OPEN_FILE_CHUNK = 2 * 1024 * 1024;
+// again. The page reads it as bytes, the way the Import button reads a File,
+// so there is no size cap: the main process puts the file where the page's
+// own scheme serves it and sends the address. views://app/ is
+// Resources/app/views/app/, read flat from disk when there is no app.asar
+// (Electrobun's loadViewsFile), so a hard link (a copy when the file is on
+// another volume) in Resources/app/views/app/open/ is a same-origin URL.
+// The answer is one "tv-desktop-open-file" event with { name, url, size }
+// (or { name, error } when the file cannot be read or placed); the page
+// fetches the URL and sends "open-file-done", which removes the link. The
+// folder is also emptied at launch, in case a run stopped halfway.
+const openFileDir = join(dirname(process.execPath), "..", "Resources", "app", "views", "app", "open");
+try { rmSync(openFileDir, { recursive: true, force: true }); } catch {}
+let openFileServed = "";
 function sendOpenFile() {
   if (!openFilePath) return;
   const path = openFilePath;
   openFilePath = "";
   const name = basename(path);
-  const run = (js: string) => mainWindow.webview.executeJavascript(js);
-  const dispatch = (detail: string) => `window.dispatchEvent(new CustomEvent("tv-desktop-open-file", { detail: ${detail} }))`;
+  const dispatch = (detail: object) => mainWindow.webview.executeJavascript(`window.dispatchEvent(new CustomEvent("tv-desktop-open-file", { detail: ${JSON.stringify(detail)} }))`);
   try {
     const size = statSync(path).size;
-    if (size > OPEN_FILE_MAX_BYTES) {
-      run(dispatch(JSON.stringify({ name, error: `The file is ${Math.round(size / 1e6)} MB; the command line takes up to 200 MB. Use Import in General Settings instead.` })));
-      return;
-    }
-    const base64 = readFileSync(path).toString("base64");
-    run("window.__tvOpenFile = []");
-    for (let i = 0; i < base64.length; i += OPEN_FILE_CHUNK) run(`window.__tvOpenFile.push("${base64.slice(i, i + OPEN_FILE_CHUNK)}")`);
-    run(`{ const b = window.__tvOpenFile.join(""); delete window.__tvOpenFile; ${dispatch(`{ name: ${JSON.stringify(name)}, bytesBase64: b }`)} }`);
+    mkdirSync(openFileDir, { recursive: true });
+    // A fresh name per launch, so the webview never answers from its cache.
+    const served = `${Date.now().toString(36)}${extname(path).toLowerCase()}`;
+    const target = join(openFileDir, served);
+    try { linkSync(path, target); } catch { copyFileSync(path, target); }
+    openFileServed = target;
+    dispatch({ name, url: `views://app/open/${served}`, size });
   } catch (e) {
     console.warn("open file:", e);
-    try { run(dispatch(JSON.stringify({ name, error: String(e) }))); } catch {}
+    try { dispatch({ name, error: String(e) }); } catch {}
   }
+}
+function removeOpenFile() {
+  if (!openFileServed) return;
+  try { rmSync(openFileServed, { force: true }); } catch (e) { console.warn("open file cleanup:", e); }
+  openFileServed = "";
 }

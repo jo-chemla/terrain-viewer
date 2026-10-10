@@ -45,13 +45,27 @@ degrees as metres, which flew the map to null island before the toast).
 **Command-line file argument (2026-10-10).** `launcher.exe <path>.json|.zip`:
 the main process keeps the first existing path, the page asks with the
 host-message `open-file-request` at every load (lib/desktop-bridge.ts), the
-main answers once (so the import's reload does not re-import) with the bytes
-as base64 in 2 MB `executeJavascript` pieces on `window.__tvOpenFile`, then
-`tv-desktop-open-file` `{ name, bytesBase64 }` or `{ name, error }` (over
-50 MB). The page runs lib/project-export.ts `importProjectBytes`, the Import
-button's path. Checked on the dev server by dispatching the event; not yet on
-an installed build (argv reaching cottontail, the chunk order, the speed of
-a large script). The same commit fixed the query argument's regexes, which
+main answers once (so the import's reload does not re-import). First version
+sent the bytes as base64 in 2 MB `executeJavascript` pieces with a 200 MB cap;
+replaced the same day by a fetch: the main hard-links the file (copyFileSync
+when linkSync fails, another volume) into
+`<execDir>/../Resources/app/views/app/open/<base36 time>.<ext>` and dispatches
+`tv-desktop-open-file` `{ name, url: "views://app/open/<file>", size }` (or
+`{ name, error }`); the page fetches it (same origin), `arrayBuffer()`,
+sends `open-file-done` (the main removes the link), then runs
+lib/project-export.ts `importProjectBytes`, the Import button's path. The
+folder is emptied at launch too. Why it should serve: libNativeWrapper.dll
+(2.0.2, win) `loadViewsFile` tries app.asar first, then a flat read under
+`Resources/app/views/` (with a "path escapes views root" check), loads the
+whole file into an HGlobal stream (no Range, memory = file size), sets the
+Content-Type from the extension and `Access-Control-Allow-Origin: *`; the
+installed light build has no app.asar. Cottontail 0.6/0.7 has linkSync,
+copyFileSync, rmSync. Checked on the dev server (dispatching the event with
+a served URL); not yet on an installed build (argv reaching cottontail, the
+views:// read of the linked file, writing into a macOS .app bundle, which
+may be read-only or upset the ad-hoc signature; fallback if it fails: a
+one-shot server on 127.0.0.1 with CORS). The first version's commit
+also fixed the query argument's regexes, which
 had lost their backslashes (`/^?[^s]+$/`) so index.ts did not parse at all:
 run `node_modules/.bin/esbuild --loader=ts < desktop/src/bun/index.ts` after
 editing that file, since the desktop folder has no tsc here.
