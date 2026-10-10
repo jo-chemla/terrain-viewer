@@ -13,7 +13,7 @@ import Map, {
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { ToastHost, pushToast } from "@/components/ui/toast"
-import { ensureTitilerReachable, needsTitiler } from "@/lib/titiler-health"
+import { ensureTitilerReachable, needsTitiler, TITILER_CACHE_KEY } from "@/lib/titiler-health"
 
 import GeocoderControl from "./MapControls/GeocoderControl"
 import NavigationControlThemed from "./MapControls/NavigationControlThemed"
@@ -2577,7 +2577,7 @@ export function TerrainViewer() {
         // A titiler-pinned file is not in Web Mercator: ask titiler for the
         // WGS84 footprint instead of the in-browser reader.
         const bounds: Promise<number[] | undefined> = cogViaTitiler
-          ? fetch(`${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(viewA)}`).then((r) => r.json()).then((g: any) => g?.bbox ?? g?.properties?.bounds)
+          ? fetch(`${titilerEndpoint}/cog/info.geojson?${TITILER_CACHE_KEY}&url=${encodeURIComponent(viewA)}`).then((r) => r.json()).then((g: any) => g?.bbox ?? g?.properties?.bounds)
           : getCogMetadata(viewA).then((metadata: any) => metadata?.bbox)
         bounds.then((bbox) => {
           if (!bbox) return

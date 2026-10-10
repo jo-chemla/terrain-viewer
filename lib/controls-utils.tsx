@@ -124,7 +124,7 @@ export const useSourceConfig = () => {
 
   const getCustomBasemapUrl = useCallback((source: CustomBasemapSource): string => {
     if (source.type === "cog") {
-      return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodeURIComponent(source.url)}`
+      return `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${TITILER_CACHE_KEY}&url=${encodeURIComponent(source.url)}`
     }
     return source.url
   }, [titilerEndpoint])
@@ -184,6 +184,7 @@ import { domToBlob, domToCanvas } from "modern-screenshot"
 import type { MapRef } from "react-map-gl/maplibre"
 import { getDefaultStore } from "jotai"
 import { snapshotIncludeTimelineAtom } from "./settings-atoms"
+import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 
 export type ImageFormat = "png" | "jpeg"
 

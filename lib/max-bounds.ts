@@ -9,6 +9,7 @@ import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
 import { resolveLocalFileUrl, localFileId, getRegisteredLocalFile, validateLocalCogFile } from "./local-file-store"
 import { pushToast } from "@/components/ui/toast"
 import customSources from "./custom-sources.json"
+import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 
 // id -> shipped sample definition, across both terrain and basemap sample lists.
 const SAMPLE_SOURCES_BY_ID: Record<string, { bounds?: LngLatBoundsTuple }> = Object.fromEntries(
@@ -132,7 +133,7 @@ export async function resolveCustomSourceBounds(
         const metadata = await getCogMetadata(source.url)
         if (metadata?.bbox) return metadata.bbox as LngLatBoundsTuple
       } else {
-        const infoUrl = `${opts.titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
+        const infoUrl = `${opts.titilerEndpoint}/cog/info.geojson?${TITILER_CACHE_KEY}&url=${encodeURIComponent(source.url)}`
         const res = await fetch(infoUrl)
         const data = await res.json()
         const bbox = data.bbox ?? data.properties?.bounds

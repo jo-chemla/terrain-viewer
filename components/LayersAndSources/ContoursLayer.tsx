@@ -125,7 +125,7 @@ function buildTileUrl(
     }
     if (customSource.type === "cog") {
       return {
-        tileUrl: `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`,
+        tileUrl: `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${TITILER_CACHE_KEY}&nodata=0&resampling=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(customSource.url)}`,
         encoding: "mapbox",
         maxzoom: 14,
         tileSize: 256,
@@ -706,6 +706,7 @@ export function ContoursLayer({
 
 // ─── Tiny hook to force re-render ─────────────────────────────────────────────
 import { useState } from "react"
+import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 function useForceUpdate(): [number, React.Dispatch<React.SetStateAction<number>>] {
   return useState(0)
 }

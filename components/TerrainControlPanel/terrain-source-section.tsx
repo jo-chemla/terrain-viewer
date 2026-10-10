@@ -37,6 +37,7 @@ import { TooltipButton } from "./controls-components"
 import { JsonEditor } from "@/components/ui/json-editor"
 
 import customSources from "@/lib/custom-sources.json"
+import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
 
 export const TerrainSourceSection: React.FC<{
@@ -329,7 +330,7 @@ export const TerrainSourceSection: React.FC<{
           if (metadata.bbox) attemptFitBounds(metadata.bbox, force)
         })
       } else {
-        const infoUrl = `${titilerEndpoint}/cog/info.geojson?url=${encodeURIComponent(source.url)}`
+        const infoUrl = `${titilerEndpoint}/cog/info.geojson?${TITILER_CACHE_KEY}&url=${encodeURIComponent(source.url)}`
         const response = await fetch(infoUrl)
         const data = await response.json()
         const bbox = data.bbox ?? data.properties.bounds

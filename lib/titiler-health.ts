@@ -66,3 +66,12 @@ export function needsTitiler(
   // cog-local is always read in-browser (there is no URL for titiler to fetch).
   return !(useCogProtocolVsTitiler && !source.cogViaTitiler)
 }
+
+// titiler.xyz sits behind a CloudFront cache that stores each tile with the
+// Access-Control-Allow-Origin of whichever site asked first, for an hour, and
+// does not vary it by Origin: a tile first fetched from localhost is then
+// refused to terrain-viewer.iconem.com, and the layer draws nothing. A query
+// parameter naming this site keys the cache entry per origin (checked
+// 2026-10-10: same tile, two values, each origin got its own header). Titiler
+// ignores parameters it does not know, so a self-hosted endpoint is unaffected.
+export const TITILER_CACHE_KEY = `_origin=${encodeURIComponent(globalThis.location?.host || "none")}`

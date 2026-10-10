@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 
 /** Cooperative cancellation only — an already in-flight synchronous decode
  *  step (e.g. the pixel loop below, or geotiff.js resampling a read that's
@@ -163,7 +164,7 @@ export const DownloadSection: React.FC<{
     if (!sourceConfig) return ""
     const wmsXml = buildGdalWmsXml(sourceConfig.tileUrl, sourceConfig.tileSize)
     const bounds = getMapBounds()
-    return `${titilerEndpoint}/cog/bbox/${bounds.west},${bounds.south},${bounds.east},${bounds.north}/${maxResolution}x${maxResolution}.tif?url=${encodeURIComponent(wmsXml)}`
+    return `${titilerEndpoint}/cog/bbox/${bounds.west},${bounds.south},${bounds.east},${bounds.north}/${maxResolution}x${maxResolution}.tif?${TITILER_CACHE_KEY}&url=${encodeURIComponent(wmsXml)}`
   }, [state.sourceA, getSourceConfig, getMapBounds, maxResolution, titilerEndpoint])
 
   const copySnapshotToClipboard = useCallback(async () => {
