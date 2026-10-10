@@ -201,3 +201,7 @@ it in every cut.
 - Hover cursor: the injected cursor swaps to the Windows hand over links
   and buttons (aero_link.cur, cut like the arrow): see video/takes/
   basic-modes-v6 (cursor-hover.b64 and the swap in the injected script).
+
+## The fourth historical take (2026-10-10): historical-grid-v4-2026-10-10.mp4, take-hist4.sh/.mjs (in .cache/recordings)
+- The white refill after a layout change is not a cache miss. v3's warm-ups loaded lat 48.8565/lng 2.2975, but the opening pan lands at 48.8559/2.2996 (read `location.search` after the pan). Run 2 warmed that exact camera and loaded the exact 3x2 state twice, the second time right before the start, and the refill did not get shorter: Side 2x1 to 3x2 left C-F white 1.25 s (run 1) and 1.4 s (run 2). The 3x2 to overlay switch whitened the full-screen A for ~1.3 s in both runs. Only an app change can remove it (the new panes' tile load and fade); a cut has to hold over it with a caption.
+- `matchColorsToA` reaches the URL more than 100 ms after the switch click, so a log read right after the click lags one state behind. Check the toggles in the frames, not in the log.
