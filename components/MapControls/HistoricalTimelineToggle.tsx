@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 // background shadow-lg" outer look, "ghost" variant, no icon color
 // override) rather than approximating it — same rounded-square card, same
 // light background, same border/shadow weight, same icon color.
-export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx?: number; bottomPx?: number }> = ({ onExpand, widthPx, bottomPx }) => (
+export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx?: number; bottomPx?: number; leftPx?: number }> = ({ onExpand, widthPx, bottomPx, leftPx }) => (
   <TooltipProvider delay={0} timeout={0}>
     <Tooltip>
       <TooltipTrigger
@@ -31,7 +31,7 @@ export const HistoricalTimelineToggle: React.FC<{ onExpand: () => void; widthPx?
             // panel/minimap: every bottom overlay anchors to the app
             // surface, so they can never drift apart on mobile.
             className="absolute z-10 left-4 bottom-4 h-10 w-10 cursor-pointer rounded-md border bg-background shadow-lg hover:bg-accent"
-            style={{ ...(widthPx ? { width: widthPx } : {}), ...(bottomPx !== undefined ? { bottom: bottomPx } : {}) }}
+            style={{ ...(widthPx ? { width: widthPx } : {}), ...(bottomPx !== undefined ? { bottom: bottomPx } : {}), ...(leftPx !== undefined ? { left: leftPx } : {}) }}
             onClick={onExpand}
           >
             <Clock className="h-4 w-4" />

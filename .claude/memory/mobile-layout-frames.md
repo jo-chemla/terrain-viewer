@@ -69,6 +69,20 @@ full-width sheet along the root's bottom edge; landscape phones (wider than
   bar. "On the sheet" is `bottomSheetBarHeightAtom > 0` in all three files.
   Landscape and desktop measured unchanged (`.cache/pw/sheet-v2.mjs`,
   `sheet-v2-compare.mjs`).
+- **4 px side margins on the sheet layout (2026-10-10, Jonathan):** in
+  phone portrait the top-left control column, the minimap, the clock
+  toggle, the scale bar, the info button and the panels over the bar
+  (timeline, docked profile: `left-1 right-1`) sit
+  `BOTTOM_SHEET_EDGE_MARGIN_PX` (4) from the screen's sides and top, not
+  16. Two halves kept in step by hand: TerrainViewer's `ctrlSideMarginPx`
+  (minimap left, toggle `leftPx`, `--scale-right-offset`) and a
+  `(max-width: 639px) and (orientation: portrait)` block in src/index.css
+  (top-left controls' left margin and the first one's top margin 4 px; the
+  bottom-right controls' own 16 px right margin dropped, which made the
+  scale bar 32 px from the edge before). Vertical gaps unchanged (16 between
+  stacked controls, 8 above the bar, 16 above the timeline). Measured with
+  `.cache/pw/sheet-v3.mjs` / `sheet-v3-compare.mjs`: landscape and desktop
+  rects identical.
 - `getSidebarFootprintPx(open, isMobile, isBottomSheet)` is 0 for the sheet
   (no right-hand footprint).
 - `Card` (components/ui/card.tsx) is a plain React 18 function component: a

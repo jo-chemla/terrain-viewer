@@ -59,7 +59,7 @@ import { COLOR_SPACES } from "@/lib/histogram-matching";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile, useIsBottomSheet } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_HALF_FRACTION, BOTTOM_SHEET_STACK_GAP_PX } from "@/lib/layout-constants"
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_HALF_FRACTION, BOTTOM_SHEET_STACK_GAP_PX, BOTTOM_SHEET_EDGE_MARGIN_PX } from "@/lib/layout-constants"
 import { ArrowLeftRight, X } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
@@ -4615,7 +4615,12 @@ export function TerrainViewer() {
   // bottom edge.
   const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${MAP_CTRL_EDGE_MARGIN_PX + profileDockLift}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile, isBottomSheet)
-  const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
+  // The side margin of the floating edge controls: 4 px on the phone-portrait
+  // sheet layout (src/index.css drops the corner controls' own 16 px side
+  // margins there, so the scale bar and the info button are 4 px from the
+  // edge, not 16 + 16), 16 px elsewhere.
+  const ctrlSideMarginPx = isBottomSheet ? BOTTOM_SHEET_EDGE_MARGIN_PX : MAP_CTRL_EDGE_MARGIN_PX
+  const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${ctrlSideMarginPx}px`
 
   const availableSplitWidth = Math.max(0, splitContainerWidth - (isSidebarOpen && !isMobile ? sidebarFootprintPx : 0))
   // Pixel x-position of the overlay drag pill/gutter, in the same coordinate
@@ -5137,7 +5142,7 @@ export function TerrainViewer() {
           timeline panel anchor to, which is what keeps all three aligned on
           mobile where the two frames can differ. */}
       {!activeProjectConfig?.hideMapControls?.includes("minimap") && (
-        <div className="absolute z-10" style={{ bottom: minimapBottomOffset, left: `${MAP_CTRL_EDGE_MARGIN_PX}px` }}>
+        <div className="absolute z-10" style={{ bottom: minimapBottomOffset, left: `${ctrlSideMarginPx}px` }}>
           <MinimapInternal
             parentMap={mapRefs.A.current?.getMap()}
             position="bottom-left"
@@ -5196,7 +5201,7 @@ export function TerrainViewer() {
       )}
       <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
-        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} bottomPx={MAP_CTRL_EDGE_MARGIN_PX + profileDockLift} />
+        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} bottomPx={MAP_CTRL_EDGE_MARGIN_PX + profileDockLift} leftPx={ctrlSideMarginPx} />
       )}
       <TerrainControlPanel
         state={state}

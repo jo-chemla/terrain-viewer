@@ -310,7 +310,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const isMobile = useIsMobile()
   // The phone-portrait bottom sheet's collapsed bar is the lowest strip, and
   // it already pads the safe area. Over it this panel floats like the sheet:
-  // a small gap above the bar, the minimap's side margins, rounded corners.
+  // a small gap above the bar, the minimap's side margins (4 px there,
+  // BOTTOM_SHEET_EDGE_MARGIN_PX), rounded corners.
   const bottomSheetBarPx = useAtomValue(bottomSheetBarHeightAtom)
   const onBottomSheet = bottomSheetBarPx > 0
   const profileDockLift = profileDockLiftPx(useAtomValue(profileDockHeightAtom), isMobile, bottomSheetBarPx)
@@ -1855,7 +1856,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         // home indicator (needs viewport-fit=cover, set in index.html).
         "bottom-0 left-0 right-0 rounded-none max-h-[65dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]",
         "sm:bottom-4 sm:left-4 sm:right-[var(--timeline-right-offset)] sm:rounded-xl sm:max-h-none sm:overflow-visible sm:pb-0",
-        onBottomSheet && "left-4 right-4 rounded-2xl pb-0",
+        onBottomSheet && "left-1 right-1 rounded-2xl pb-0",
       )}
       style={{
         ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem",

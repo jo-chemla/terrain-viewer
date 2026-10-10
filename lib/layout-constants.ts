@@ -38,9 +38,17 @@ export const BOTTOM_SHEET_FULL_GAP_PX = 64
 export const bottomSheetBarHeightAtom = atom(0)
 /** The gap between the collapsed sheet's bar and the panel floating just
  *  above it (the timeline, or the docked profile). Those panels then keep
- *  the side margins of the minimap and the scale bar (16 px) and the sheet's
- *  rounded corners instead of running square to the screen edges. */
+ *  the side margins of the minimap and the scale bar and the sheet's rounded
+ *  corners instead of running square to the screen edges. */
 export const BOTTOM_SHEET_STACK_GAP_PX = 8
+/** On the phone-portrait sheet layout the map's edge controls (top-left
+ *  column, minimap, clock toggle, scale bar, info button) and the panels
+ *  over the sheet's bar sit this far from the screen's sides and top,
+ *  instead of MAP_CTRL_EDGE_MARGIN_PX: a 390 px screen has no 16 px to
+ *  spare. Vertical gaps between stacked panels are unchanged. The CSS half
+ *  is the `(max-width: 639px) and (orientation: portrait)` block in
+ *  src/index.css (useIsBottomSheet's query). */
+export const BOTTOM_SHEET_EDGE_MARGIN_PX = 4
 
 // Unified edge margin for MapLibre's own corner controls (nav/geolocate/
 // geocoder/minimap/scale) — matches the sidebar/timeline panel's own Tailwind

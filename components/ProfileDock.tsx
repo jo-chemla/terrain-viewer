@@ -59,7 +59,7 @@ export const ProfileDock: React.FC<{ isMobile: boolean; rightOffset: string }> =
       className={cn(
         "absolute z-10 border border-border bg-background/95 backdrop-blur-[2px] shadow-sm px-2 pt-1 pb-1.5 transition-[right] duration-150",
         isMobile ? "bottom-0 left-0 right-0 rounded-none pb-[calc(0.375rem+env(safe-area-inset-bottom))]" : "bottom-4 left-4 rounded-xl",
-        isMobile && bottomSheetBarPx > 0 && "left-4 right-4 rounded-2xl pb-1.5",
+        isMobile && bottomSheetBarPx > 0 && "left-1 right-1 rounded-2xl pb-1.5",
       )}
       style={isMobile ? (bottomSheetBarPx > 0 ? { bottom: bottomSheetBarPx + BOTTOM_SHEET_STACK_GAP_PX } : undefined) : { right: rightOffset }}
     >

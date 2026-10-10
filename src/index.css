@@ -566,6 +566,23 @@
 .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
   margin: 0 16px 16px 0 !important;
 }
+/* Phone portrait (the bottom-sheet layout, useIsBottomSheet's query): the
+   top-left column sits 4 px from the screen's top and left edges
+   (BOTTOM_SHEET_EDGE_MARGIN_PX), the gaps between its controls staying 16 px.
+   The bottom-right corner (scale bar, info button) loses its side margin:
+   its container is already placed 4 px from the edge by
+   --scale-right-offset (TerrainViewer.tsx). */
+@media (max-width: 639px) and (orientation: portrait) {
+  .maplibregl-ctrl-top-left .maplibregl-ctrl {
+    margin-left: 4px !important;
+  }
+  .maplibregl-ctrl-top-left .maplibregl-ctrl:first-child {
+    margin-top: 4px !important;
+  }
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+    margin-right: 0 !important;
+  }
+}
 
 /* Fix button-group highlighted color in dark theme — scoped to actual
    ToggleGroupItem buttons (data-slot="toggle-group-item"), not the broader
