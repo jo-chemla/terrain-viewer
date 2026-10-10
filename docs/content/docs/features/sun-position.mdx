@@ -43,6 +43,18 @@ The three views are Bryant Park, Manhattan, on June 21 (`lightDayOfYear=172`), a
 
 <p className="text-sm text-fd-muted-foreground italic">17:00, top-down view (pitch 0, zoom 17.25), sun at azimuth 270.8°, altitude 36.6°: the shadows swing to the east and the buildings west of the park (Sixth Avenue) now shade it; the panel shows the date and time sliders that drive the sun, with the day's sunrise and sunset under the time slider. Dragging the time slider repaints the shadows live · <a href="https://terrain-viewer.iconem.com/?viewMode=3d&lat=40.7536&lng=-73.9832&zoom=17.25&pitch=0&bearing=0&showHillshade=false&showRasterBasemap=true&basemapSource=osm&basemapSourceA=osm&showLightingEffects=true&showPhong=false&showBuildingShadows=true&buildingShadowOpacity=0.6&lightUseDatetime=true&lightDayOfYear=172&lightTimeOfDay=17&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a> (open the sidebar's Lighting Effects section and its Light Direction fold to see the panel)</p>
 
+### Flat footprints
+
+The same three hours with the buildings drawn flat, as 2D footprints with no extrusion. With flat footprints the whole shape of each shadow reads, from the building's foot to its tip. With the 3D blocks, even from straight above, each block is drawn in perspective and its top leans away from the centre of the view, covering part of its own shadow and of its neighbours'. The shadows themselves are the same in both sets; only the buildings drawn over them change.
+
+![Building shadows at 9:00 on June 21 over Bryant Park with the buildings drawn as flat footprints: the full length of the shadows cast west across the park and the streets](/screenshots/sun/building-shadows-manhattan-flat-0900.jpg)
+
+![Building shadows at 13:00 on June 21 over Bryant Park with flat footprints: short shadows on the north side of every block](/screenshots/sun/building-shadows-manhattan-flat-1300.jpg)
+
+![Building shadows at 17:00 on June 21 over Bryant Park with flat footprints: the shadows of the Sixth Avenue buildings fall east across the park](/screenshots/sun/building-shadows-manhattan-flat-1700.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">9:00, 13:00 and 17:00, same views and links as above. How these were made: the OSM basemap's <strong>3D</strong> switch (sidebar → Basemap, next to OSM) turned off, which hides the extruded blocks; the OpenFreeMap Liberty style's flat building fill only draws up to zoom 14, so for these pictures the screenshot script extended it to every zoom (<code>map.setLayerZoomRange</code>). In the app, the 3D switch off at zoom 17.25 shows the shadows with no footprints.</p>
+
 Building shadows need zoom 13 or closer and the Mercator projection. For shadows cast by the real shape of a building (a spire, a dome) and falling on slopes, use the **Terrain** shadows with a surface model (DSM) as the terrain source.
 
 <Callout title="Deliberately simple, not an ephemeris" type="info">
