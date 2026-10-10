@@ -1,6 +1,6 @@
 ---
 name: titiler-dem-gotchas
-description: What goes wrong with titiler-served DEMs (nodata sentinel must be passed, warp kernel defaults to nearest, maxzoom decides who upsamples) and how the DSM-minus-DTM derived source works
+description: What goes wrong with titiler-served DEMs (nodata sentinel must be passed, warp kernel defaults to nearest, maxzoom decides who upsamples, no coverage probe, CloudFront caches CORS per URL) and how the DSM-minus-DTM derived source works
 type: project
 ---
 
@@ -14,4 +14,8 @@ Learned 2026-09-18 on ANADEM (EPSG:4674) and GEDTM30 (EPSG:4326, 432 GB).
 
 **DSM − DTM.** `lib/demdiff-protocol.ts` (`demdiff://`) subtracts two upstream DEM tiles fetched through the viz protocols' shared decoded-tile cache and re-encodes Terrain-RGB. A `CustomTerrainSource` of `type: "dem-diff"` carries `diffMinuendId` / `diffSubtrahendId`; `useClientDemUpstream` resolves both operands by calling itself with `_nested = true` (one level, hooks called conditionally on a per-call-site constant), and `TerrainSources` uses the same hook for the primary source, so terrain and every viz mode read one derived grid. Not browser-tested when written.
 
-**How to apply:** when a titiler-served DEM "does not work" or looks blocky, check these three before anything else. See also [[national-terrain-sources]].
+**No coverage probe on titiler templates (2026-10-10).** `lib/tile-max-zoom.ts` probes one tile at the view centre rounded to 0.1 degree and lowers the source's maxzoom to the first zoom that answers. A titiler 404 only means "outside the file", so a file smaller than that rounding (La Palma cone DSM, 1 km) got maxzoom 12 under its minzoom 13 and drew nothing, with no console error. `isTitilerTemplate` now skips the probe, and a probed maxzoom never goes below the source's minzoom. titiler.xyz answers HEAD with 405 (`Allow: GET`) unless CloudFront has the GET cached, which is where the probe's "z20 405s" came from.
+
+**titiler.xyz CORS is cached per URL.** CloudFront caches `Access-Control-Allow-Origin` with the tile and sends no `Vary: Origin` (max-age 3600). The first origin to fetch a tile URL owns it for an hour: the same tile then fails CORS (`net::ERR_FAILED`) on localhost, the other deploys (github.io, historical-satellite) or a test script that sent another `Origin`. Use `--disable-web-security` in Playwright to test app behaviour through it, and do not `curl -H "Origin: ..."` production tile URLs.
+
+**How to apply:** when a titiler-served DEM "does not work" or looks blocky, check these before anything else. See also [[national-terrain-sources]].

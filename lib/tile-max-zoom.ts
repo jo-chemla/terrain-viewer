@@ -31,6 +31,21 @@ export function probeWorthwhile(viewZoom: number | null | undefined, configuredM
   return viewZoom >= configuredMaxzoom - MAX_STEP_DOWN
 }
 
+/** Whether a template is one titiler renders from a file (the cog/vrt/wms-raw
+ *  titiler branches of lib/source-builder.ts). Those are never probed: titiler
+ *  resamples the file at any zoom, so a 404 there only ever means "outside
+ *  the file", which the probe reads as "no detail at this zoom". The probe
+ *  point is the view centre rounded to 0.1 degrees, so for a file smaller
+ *  than that (the 1 km La Palma cone DSM, centre -17.869, 28.6145, probed at
+ *  -17.9, 28.6) every step down to z13 was outside the file and z12 was the
+ *  first tile to touch it: maxzoom became 12 under the entry's minzoom 13,
+ *  and maplibre requested nothing at all. titiler also answers HEAD with
+ *  405, so each step cost two requests. */
+export function isTitilerTemplate(template: string, titilerEndpoint: string): boolean {
+  const base = titilerEndpoint.replace(/\/+$/, "")
+  return base !== "" && template.startsWith(`${base}/`)
+}
+
 // Cached at a coarse zoom-6 tile bucket (~300km square at the equator) keyed
 // by URL template — panning within the same region resolves instantly from
 // cache instead of re-probing on every viewport-center change.

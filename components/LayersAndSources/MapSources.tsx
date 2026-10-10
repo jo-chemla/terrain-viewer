@@ -16,7 +16,7 @@ function withPaperRemoval(built: { url: string } | { tiles: string[]; scheme?: "
     return { ...built, tiles: [buildUnpaperUrl(built.tiles[0], { color: auto ? "auto" : rc.color, threshold: rc.threshold, hardness: rc.hardness, gain: rc.autoGain ?? 0.5, sample: sampleTileFor(source.bounds, source.minzoom) })] }
 }
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
-import { probeMaxZoomAt, probeWorthwhile } from "@/lib/tile-max-zoom"
+import { isTitilerTemplate, probeMaxZoomAt, probeWorthwhile } from "@/lib/tile-max-zoom"
 import { pushToast } from "@/components/ui/toast"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
@@ -400,12 +400,14 @@ export const TerrainSources = memo(({
         // would keep clamping this new one until its own probe resolves.
         setProbedMaxzoom(null)
         if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null || !probeNeeded) return
+        // A titiler tile exists at every zoom inside the file (see isTitilerTemplate).
+        if (isTitilerTemplate(probeTileUrl, titilerEndpoint)) return
         let cancelled = false
         probeMaxZoomAt(probeTileUrl, roundedLng, roundedLat, configuredMaxzoom).then((z) => {
             if (!cancelled) setProbedMaxzoom(z)
         })
         return () => { cancelled = true }
-    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng, probeNeeded])
+    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng, probeNeeded, titilerEndpoint])
 
     // Only ever lowers maxzoom (probedMaxzoom is always <= configuredMaxzoom by
     // construction) — clamping here just tells maplibre where to stop
@@ -416,7 +418,9 @@ export const TerrainSources = memo(({
     // different question from "what does THIS exact viewport have."
     const effectiveSourceConfig = useMemo(() => {
         if (!sourceConfig || probedMaxzoom == null || sourceConfig.maxzoom == null || probedMaxzoom >= sourceConfig.maxzoom) return sourceConfig
-        return { ...sourceConfig, maxzoom: probedMaxzoom }
+        // Never below the source's own minzoom: a maxzoom under minzoom makes
+        // maplibre request no tile at any zoom, so the source draws nothing.
+        return { ...sourceConfig, maxzoom: Math.max(probedMaxzoom, sourceConfig.minzoom ?? 0) }
     }, [sourceConfig, probedMaxzoom])
 
     if (!effectiveSourceConfig) return null
@@ -1075,16 +1079,17 @@ export const useClientDemUpstreamOne = (
         setProbedMaxzoom(null)
         if (roundedLat == null || roundedLng == null) return
         if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null || !probeNeeded) return
+        if (isTitilerTemplate(probeTileUrl, titilerEndpoint)) return
         let cancelled = false
         probeMaxZoomAt(probeTileUrl, roundedLng, roundedLat, configuredMaxzoom).then((z) => {
             if (!cancelled) setProbedMaxzoom(z)
         })
         return () => { cancelled = true }
-    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng, probeNeeded])
+    }, [probeTileUrl, configuredMaxzoom, roundedLat, roundedLng, probeNeeded, titilerEndpoint])
 
     return useMemo<ClientDemUpstream | null>(() => {
         if (!baseUpstream || probedMaxzoom == null || baseUpstream.maxzoom == null || probedMaxzoom >= baseUpstream.maxzoom) return baseUpstream
-        return { ...baseUpstream, maxzoom: probedMaxzoom }
+        return { ...baseUpstream, maxzoom: Math.max(probedMaxzoom, baseUpstream.minzoom ?? 0) }
     }, [baseUpstream, probedMaxzoom])
 }
 
