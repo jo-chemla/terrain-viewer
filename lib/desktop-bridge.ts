@@ -5,6 +5,8 @@
 // of this fires and `useDesktopUpdate()` stays at "idle".
 import { useSyncExternalStore } from "react"
 import { pushToast } from "@/components/ui/toast"
+import { importProjectBytes } from "@/lib/project-export"
+import { track } from "@/lib/analytics"
 
 type HostSend = (message: unknown) => void
 const hostSend = (): HostSend | undefined => (window as unknown as { __electrobunSendToHost?: HostSend }).__electrobunSendToHost
@@ -126,6 +128,54 @@ export function initDesktopBridge(): void {
   ask()
   setTimeout(ask, 3000)
   routeNewWindowsThroughHost()
+  initOpenFile()
+}
+
+// A file on the desktop app's command line (launcher.exe C:\path\project.json,
+// a .zip project export or a plain sources list): the main process reads it
+// and, when the page asks ("open-file-request", here at load), dispatches
+// "tv-desktop-open-file" with { name, bytesBase64 }, or { name, error } when
+// it cannot send it (too large, unreadable). The main process answers once,
+// so the reload after the import does not import again. The import is the
+// Import button's (importProjectBytes); its toast is kept in sessionStorage
+// across the reload.
+const OPEN_FILE_TOAST_KEY = "tv-desktop-open-file-toast"
+function initOpenFile(): void {
+  try {
+    const pending = sessionStorage.getItem(OPEN_FILE_TOAST_KEY)
+    if (pending) {
+      sessionStorage.removeItem(OPEN_FILE_TOAST_KEY)
+      const { title, body } = JSON.parse(pending) as { title: string; body?: string }
+      pushToast({ key: "desktop-open-file", title, body, duration: 10000 })
+    }
+  } catch { /* storage off or a stale entry */ }
+  window.addEventListener("tv-desktop-open-file", (ev) => {
+    const { name = "file", bytesBase64, error } = (ev as CustomEvent<{ name?: string; bytesBase64?: string; error?: string }>).detail ?? {}
+    const fail = (message: string) => pushToast({ key: "desktop-open-file", title: `Could not open ${name}`, body: message, tone: "alert", duration: 15000 })
+    if (error || !bytesBase64) { fail(error ?? "No content was received."); return }
+    let bytes: Uint8Array
+    try {
+      const binary = atob(bytesBase64)
+      bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    } catch { fail("The content did not decode."); return }
+    void importProjectBytes(name, bytes).then((result) => {
+      if (!result.ok) { fail(result.error); return }
+      track("actions-project", { action: "import", via: "command-line" })
+      const title = result.kind === "project" ? `Project ${name} imported` : `Sources from ${name} imported`
+      try { sessionStorage.setItem(OPEN_FILE_TOAST_KEY, JSON.stringify({ title, body: result.note })) } catch { /* toast lost, import kept */ }
+      // The project's view state goes over the current URL's parameters
+      // (those of a query also given on the command line), the merge the
+      // Import button's setState does.
+      const url = new URL(window.location.href)
+      if (result.viewState) for (const [k, v] of new URLSearchParams(result.viewState)) url.searchParams.set(k, v)
+      window.history.replaceState(window.history.state, "", url)
+      window.location.reload()
+    }, (e) => fail(String(e)))
+  })
+  const ask = () => hostSend()?.({ type: "open-file-request" })
+  ask()
+  setTimeout(ask, 3000)
 }
 
 // On Windows, Electrobun 2.0.2's WebView2 wrapper has no handler for the

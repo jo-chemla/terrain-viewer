@@ -26,7 +26,7 @@ Two nested options upgrade the export to a `.zip` archive:
 
 ## Importing
 
-**Import** accepts either form (`.json` or `.zip`) and merges it *on top of* what's already there: sources, bookmarks, and drawing layers upsert by id — re-importing a previously-exported project updates entries in place rather than duplicating them — while settings values simply overwrite. Bundled local-COG bytes are persisted into the browser's private storage so the sources work immediately.
+**Import** accepts either form (`.json` or `.zip`) and merges it *on top of* what's already there: sources, bookmarks, and drawing layers upsert by id — re-importing a previously-exported project updates entries in place rather than duplicating them — while settings values simply overwrite. Bundled local-COG bytes are persisted into the browser's private storage so the sources work immediately. A plain list of sources is accepted too (the formats are on the [Desktop page](/features/advanced/desktop#command-line), whose command line imports the same files).
 
 After applying everything, **the page reloads automatically** (imported values are written to storage directly, and already-mounted components only pick them up on a fresh load). If a bundled local file couldn't be persisted here — typically a large DEM exceeding this browser's storage quota — the status message says so, and that source will need its file re-selected.
 

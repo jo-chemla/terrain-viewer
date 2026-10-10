@@ -5,8 +5,8 @@
 // (Mapterhorn, basemaps, WMS) still need the network.
 import { BrowserWindow, Utils, Updater } from "electrobun/main";
 import { dlopen, FFIType, ptr } from "bun:ffi";
-import { basename, dirname, join } from "node:path";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, statSync } from "node:fs";
 
 // Windows groups and pins windows by AppUserModelID. The window belongs to
 // the runtime process (cottontail.exe, the process that owns the HWND), so
@@ -98,8 +98,21 @@ applyAppUserModelId();
 // sources, modes, projects, drawings by URL, bookmarks.
 const startQuery = (() => {
   for (const arg of process.argv.slice(1)) {
-    if (/^?[^s]+$/.test(arg)) return arg;
-    if (/^https?:///.test(arg)) { try { return new URL(arg).search; } catch { /* not a URL */ } }
+    if (/^\?[^\s]+$/.test(arg)) return arg;
+    if (/^https?:\/\//.test(arg)) { try { return new URL(arg).search; } catch { /* not a URL */ } }
+  }
+  return "";
+})();
+// A project file on the command line is imported the way General Settings'
+// Import button does: launcher.exe "C:\path\project.json" (a project
+// export, .json or .zip, or a plain sources list). Both arguments can be
+// given; the project's own view state wins where they overlap. The first
+// existing .json or .zip path is taken, relative to the working directory.
+let openFilePath = (() => {
+  for (const arg of process.argv.slice(1)) {
+    if (!/\.(json|zip)$/i.test(arg)) continue;
+    const path = resolve(arg);
+    if (existsSync(path)) return path;
   }
   return "";
 })();
@@ -280,9 +293,42 @@ mainWindow.webview.on("host-message", (event: unknown) => {
   if (msg?.type === "fullscreen") mainWindow.setFullScreen(!!msg.on);
   if (msg?.type === "open-external") openUrl(msg.url);
   if (msg?.type === "apply-update") void Updater.applyUpdate();
+  if (msg?.type === "open-file-request") sendOpenFile();
   // The page has loaded (or wants a refresh): replay the latest state.
   if (msg?.type === "update-status" && lastUpdateDetail) {
     const { status, version, message, progress } = lastUpdateDetail;
     announceUpdate(status, version, { message, progress });
   }
 });
+
+// The file from the command line, sent once the page asks for it
+// (host-message "open-file-request", lib/desktop-bridge.ts, at every load):
+// answered once, so the reload that follows the import does not import it
+// again. The bytes travel as base64 through executeJavascript, in 2 MB
+// pieces gathered on window.__tvOpenFile, then one "tv-desktop-open-file"
+// event with { name, bytesBase64 } (or { name, error }). A project zip with
+// bundled COGs can be large: above 50 MB the page gets the error instead.
+const OPEN_FILE_MAX_BYTES = 50 * 1024 * 1024;
+const OPEN_FILE_CHUNK = 2 * 1024 * 1024;
+function sendOpenFile() {
+  if (!openFilePath) return;
+  const path = openFilePath;
+  openFilePath = "";
+  const name = basename(path);
+  const run = (js: string) => mainWindow.webview.executeJavascript(js);
+  const dispatch = (detail: string) => `window.dispatchEvent(new CustomEvent("tv-desktop-open-file", { detail: ${detail} }))`;
+  try {
+    const size = statSync(path).size;
+    if (size > OPEN_FILE_MAX_BYTES) {
+      run(dispatch(JSON.stringify({ name, error: `The file is ${Math.round(size / 1e6)} MB; the command line takes up to 50 MB. Use Import in General Settings instead.` })));
+      return;
+    }
+    const base64 = readFileSync(path).toString("base64");
+    run("window.__tvOpenFile = []");
+    for (let i = 0; i < base64.length; i += OPEN_FILE_CHUNK) run(`window.__tvOpenFile.push("${base64.slice(i, i + OPEN_FILE_CHUNK)}")`);
+    run(`{ const b = window.__tvOpenFile.join(""); delete window.__tvOpenFile; ${dispatch(`{ name: ${JSON.stringify(name)}, bytesBase64: b }`)} }`);
+  } catch (e) {
+    console.warn("open file:", e);
+    try { run(dispatch(JSON.stringify({ name, error: String(e) }))); } catch {}
+  }
+}

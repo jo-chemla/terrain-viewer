@@ -456,3 +456,106 @@ export async function applyProjectImport(
   }
   return { persistedCogIds, failedCogIds }
 }
+
+// Zip files start with a "PK" local-file-header signature — cheap way to
+// tell a .zip archive (project.json + optional .cog.tiff blobs) apart from
+// a plain-JSON export without trusting the file's extension.
+export function looksLikeZip(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b
+}
+
+// Types only one of the two lists takes; "cog", "cog-local" and "tilejson"
+// exist in both, so an entry of those types needs an explicit `kind`.
+const TERRAIN_ONLY_TYPES = new Set(["terrainrgb", "terrarium", "vrt", "stac", "mosaicjson", "wms-raw", "dem-diff", "lerc", "quantized-mesh"])
+const BASEMAP_ONLY_TYPES = new Set(["tms", "wms", "wmts", "image", "image-local", "iiif"])
+
+/** A plain sources file, not a project export. Two shapes are read:
+ *  `{ customTerrainSources?, customBasemapSources? }` (the `sources` block
+ *  of a project export, and the keys of Settings > Save Project Preset's
+ *  snippet), or one array of entries, each with `kind: "terrain" | "basemap"`
+ *  (or no kind when its type belongs to one list only, so the array a
+ *  section's Batch Edit shows is read as is unless it holds COGs or
+ *  TileJSON). An entry needs a string `url` and `type`; `id` and `name`
+ *  default. Null when nothing usable is there. */
+export function parseSourcesFile(data: unknown): { sources: NonNullable<ProjectExportPayload["sources"]>; skipped: number } | null {
+  const terrain: CustomTerrainSource[] = []
+  const basemap: CustomBasemapSource[] = []
+  let skipped = 0
+  const stamp = Date.now().toString(36)
+  let generated = 0
+  const take = (entry: unknown, forced?: "terrain" | "basemap") => {
+    const e = entry as Record<string, unknown> | null
+    if (!e || typeof e !== "object" || typeof e.url !== "string" || typeof e.type !== "string") { skipped++; return }
+    const { kind: rawKind, ...rest } = e
+    const kind = forced
+      ?? (rawKind === "terrain" || rawKind === "basemap" ? rawKind : undefined)
+      ?? (TERRAIN_ONLY_TYPES.has(e.type) ? "terrain" : BASEMAP_ONLY_TYPES.has(e.type) ? "basemap" : undefined)
+    if (!kind) { skipped++; return }
+    const id = typeof e.id === "string" && e.id ? e.id : `imported-${stamp}-${generated++}`
+    const source = { ...rest, id, name: typeof e.name === "string" && e.name ? e.name : id }
+    if (kind === "terrain") terrain.push(source as unknown as CustomTerrainSource)
+    else basemap.push(source as unknown as CustomBasemapSource)
+  }
+  if (Array.isArray(data)) {
+    data.forEach((entry) => take(entry))
+  } else if (data && typeof data === "object") {
+    const o = data as Record<string, unknown>
+    if (!Array.isArray(o.customTerrainSources) && !Array.isArray(o.customBasemapSources)) return null
+    if (Array.isArray(o.customTerrainSources)) o.customTerrainSources.forEach((entry) => take(entry, "terrain"))
+    if (Array.isArray(o.customBasemapSources)) o.customBasemapSources.forEach((entry) => take(entry, "basemap"))
+  } else {
+    return null
+  }
+  if (!terrain.length && !basemap.length) return null
+  return { sources: { customTerrainSources: terrain, customBasemapSources: basemap }, skipped }
+}
+
+export type ProjectImportResult =
+  | {
+    ok: true
+    kind: "project" | "sources"
+    /** A caveat or a count for the user ("2 terrain sources added", local
+     *  files to re-select), without the "reloading" part. */
+    note?: string
+    /** The project's view state, a raw query string to apply before the
+     *  reload (see ProjectExportPayload.viewState). */
+    viewState?: string
+  }
+  | { ok: false; error: string }
+
+/** The Import button's whole path, for any caller holding the file's bytes
+ *  (the General Settings dialog, the desktop app's command line through
+ *  lib/desktop-bridge.ts): a project export (.json or .zip) or a plain
+ *  sources file (parseSourcesFile). Writes storage; the caller applies
+ *  `viewState` and reloads the page. */
+export async function importProjectBytes(name: string, bytes: Uint8Array): Promise<ProjectImportResult> {
+  const isZip = looksLikeZip(bytes)
+  let parsed: ReturnType<typeof parseProjectExportArchive>
+  try {
+    parsed = parseProjectExportArchive(bytes, isZip)
+  } catch {
+    return { ok: false, error: `"${name}" isn't a valid project export.` }
+  }
+  const { payload, cogBytesById, bookmarkThumbBytesById } = parsed
+  if (!payload || typeof payload !== "object" || !("version" in payload)) {
+    const plain = isZip ? null : parseSourcesFile(payload)
+    if (!plain) return { ok: false, error: `"${name}" doesn't look like a project export or a sources list.` }
+    await applyProjectImport({ version: PROJECT_EXPORT_VERSION, exportedAt: Date.now(), sources: plain.sources })
+    const t = plain.sources.customTerrainSources.length, b = plain.sources.customBasemapSources.length
+    const parts = [t && `${t} terrain source${t === 1 ? "" : "s"}`, b && `${b} basemap source${b === 1 ? "" : "s"}`].filter(Boolean).join(" and ")
+    const skipped = plain.skipped ? `, ${plain.skipped} entr${plain.skipped === 1 ? "y" : "ies"} skipped (no url or type, or a cog/tilejson without a kind)` : ""
+    return { ok: true, kind: "sources", note: `${parts} added${skipped}` }
+  }
+  const { failedCogIds } = await applyProjectImport(payload, cogBytesById, bookmarkThumbBytesById)
+  // Nothing bundled at all (plain export, or localCogs was left unchecked
+  // at export time) — the generic warning applies. The more specific one
+  // covers bytes that WERE bundled but failed to persist on THIS machine
+  // (e.g. OPFS quota).
+  const nothingBundled = hasLocalFileSources(payload.sources) && cogBytesById.size === 0
+  const note = failedCogIds.length
+    ? `${failedCogIds.length} local file${failedCogIds.length === 1 ? "" : "s"} failed to persist here — likely too large for this browser's storage; you'll need to re-select ${failedCogIds.length === 1 ? "it" : "them"}`
+    : nothingBundled
+      ? "some sources reference local files you'll need to re-select"
+      : undefined
+  return { ok: true, kind: "project", note, viewState: payload.viewState }
+}

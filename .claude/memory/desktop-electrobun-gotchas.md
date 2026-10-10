@@ -41,3 +41,17 @@ yourself (same machine, so the path works). The cog-local flow registers
 and selects a file in under a second; drawing needs an EPSG:3857 tiled
 file (the reader throws for a projected CRS and reads a geographic file's
 degrees as metres, which flew the map to null island before the toast).
+
+**Command-line file argument (2026-10-10).** `launcher.exe <path>.json|.zip`:
+the main process keeps the first existing path, the page asks with the
+host-message `open-file-request` at every load (lib/desktop-bridge.ts), the
+main answers once (so the import's reload does not re-import) with the bytes
+as base64 in 2 MB `executeJavascript` pieces on `window.__tvOpenFile`, then
+`tv-desktop-open-file` `{ name, bytesBase64 }` or `{ name, error }` (over
+50 MB). The page runs lib/project-export.ts `importProjectBytes`, the Import
+button's path. Checked on the dev server by dispatching the event; not yet on
+an installed build (argv reaching cottontail, the chunk order, the speed of
+a large script). The same commit fixed the query argument's regexes, which
+had lost their backslashes (`/^?[^s]+$/`) so index.ts did not parse at all:
+run `node_modules/.bin/esbuild --loader=ts < desktop/src/bun/index.ts` after
+editing that file, since the desktop folder has no tsc here.

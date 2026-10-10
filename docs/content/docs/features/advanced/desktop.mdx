@@ -17,6 +17,24 @@ On Windows the Setup file is one self-contained `.exe` (the payload is appended 
 
 The Portable zip needs no installation: unzip it anywhere and start `Terrain Viewer.cmd` (Windows) or `./terrain-viewer` (Linux); the program itself is `bin/launcher`, which has to stay next to `Resources/`. Nothing is written outside the folder except the webview's own profile.
 
+## Command line
+
+`launcher.exe` takes two kinds of argument, alone or together. It lives at `%LOCALAPPDATA%\com.iconem.terrain-viewer\stable\app\bin\launcher.exe` (`com.iconem.terrain-viewer-light` for the light build); in the Portable folder it is `bin\launcher.exe`.
+
+A query string, or a full link whose query is taken, opens the app on that state, the way the link opens the website. Everything the [URL API](/dev/url-api) offers works: camera, sources, modes, projects, drawings and bookmarks by URL. Quote it, since `&` means something to the shell:
+
+```bat
+launcher.exe "?lat=45.92&lng=7.03&zoom=11&viewMode=3d"
+```
+
+A path to a `.json` or `.zip` file imports it, the way **Import** in General Settings does ([Projects](/features/advanced/projects)): a project export (plain JSON, or a zip with bundled local COGs), or a plain list of sources, added to the custom terrain and basemap lists. The list is either `{ "customTerrainSources": [...], "customBasemapSources": [...] }` (the shape of a project export's sources and of Save Project Preset's snippet) or one array whose entries carry `"kind": "terrain"` or `"kind": "basemap"` (it may be left out when the type belongs to one list only, `terrarium` or `tms` for instance, but not for `cog`, `cog-local` or `tilejson`); each entry needs a `url` and a `type`. The app opens, imports the file, reloads once and says so in a toast. Give a full path; a relative one is resolved against the working directory:
+
+```bat
+launcher.exe "C:\Users\me\Documents\alps-project.zip"
+```
+
+With both arguments, the project's own view wins where the two set the same parameter. The file travels to the page in base64, so the command line takes files up to 50 MB; a larger one (a project with big bundled COGs) gets a toast pointing to the Import button instead.
+
 ## Updates
 
 Two rolling releases, one per build: `desktop-latest` holds the full build (installers, portable zips and its updater feed), `desktop-latest-light` the light build's. Electrobun names the feed after the channel (`stable-<platform>-update.json`), so the two builds cannot share one release. Both check their feed at every launch. The full build, in detail: `stable-<platform>-update.json` and the matching `.tar.zst` are uploaded next to the installers, and Electrobun's updater (`release.baseUrl` in the generated config) downloads a newer build in the background (a toast says so when the download starts: about 220 MB, a few minutes), shows a toast with **Restart now** once it is ready, and otherwise installs it at the following launch, quitting and relaunching through its update helper, which takes about half a minute. The About section shows the updater's state under the version line: checking, downloading with its percentage, downloaded and waiting for the next launch, installing, installed at this launch. Every step is also logged to `updater.log` next to the `app` folder (`%LOCALAPPDATA%\com.iconem.terrain-viewer\stable` on Windows). Builds made before 2026-10-02 have no feed address baked in and never update: install the current one once. The About section at the bottom of the sidebar shows the build day and commit; its **Is this the latest version?** link compares that commit with the newest commit on `main` and with the commit the `desktop-latest` bundles were built from, and links the release page. The light build has no feed and is replaced by downloading it again; so is the Portable folder, which the updater never touches (it only knows the installed copy).

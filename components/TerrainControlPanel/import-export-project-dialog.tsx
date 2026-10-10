@@ -21,7 +21,7 @@ import { drawingLayersAtom, drawingFeaturesAtom } from "./TerraDrawSystem"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { track } from "@/lib/analytics"
 import {
-  buildProjectExportArchive, applyProjectImport, hasLocalFileSources, parseProjectExportArchive,
+  buildProjectExportArchive, hasLocalFileSources, importProjectBytes,
   type ProjectExportSelection,
 } from "@/lib/project-export"
 
@@ -38,13 +38,6 @@ const CATEGORY_LABELS: Record<Category, string> = {
 }
 const DEFAULT_SELECTION: ProjectExportSelection = {
   sources: true, bookmarks: true, viewState: true, drawings: false, settings: false, localCogs: false, bookmarkThumbsInZip: false,
-}
-
-// Zip files start with a "PK" local-file-header signature — cheap way to
-// tell a .zip archive (project.json + optional .cog.tiff blobs) apart from
-// a plain-JSON export without trusting the file's extension.
-function looksLikeZip(bytes: Uint8Array): boolean {
-  return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b
 }
 
 export function ImportExportProjectDialog({ setState }: { setState: (updates: Record<string, unknown>) => void }) {
@@ -102,44 +95,26 @@ export function ImportExportProjectDialog({ setState }: { setState: (updates: Re
     )
   }, [selection, bookmarks, drawingLayers, drawingFeatures])
 
+  // The parsing and the storage writes live in lib/project-export.ts's
+  // importProjectBytes, shared with the desktop app's command line
+  // (lib/desktop-bridge.ts).
   const handleImportFile = useCallback((file: File) => {
     setError(null)
     setStatus(null)
     file.arrayBuffer().then(async (buf) => {
-      const bytes = new Uint8Array(buf)
-      let payload
-      let cogBytesById
-      let bookmarkThumbBytesById
-      try {
-        ({ payload, cogBytesById, bookmarkThumbBytesById } = parseProjectExportArchive(bytes, looksLikeZip(bytes)))
-      } catch {
-        setError(`"${file.name}" isn't a valid project export.`)
-        return
-      }
-      if (!payload || typeof payload !== "object" || !("version" in payload)) {
-        setError(`"${file.name}" doesn't look like a project export.`)
+      const result = await importProjectBytes(file.name, new Uint8Array(buf))
+      if (!result.ok) {
+        setError(result.error)
         return
       }
       track("actions-project", { action: "import" })
-      const { failedCogIds } = await applyProjectImport(payload, cogBytesById, bookmarkThumbBytesById)
-      // Nothing bundled at all (plain export, or localCogs was left
-      // unchecked at export time) — the pre-existing generic warning still
-      // applies. A more specific one below covers bytes that WERE bundled
-      // but failed to persist on THIS machine (e.g. OPFS quota).
-      const nothingBundled = hasLocalFileSources(payload.sources) && cogBytesById.size === 0
       // viewState is a raw query string (same convention as a Bookmark's own
       // `search` field) — parseBookmarkSearch decodes it through the exact
       // same nuqs parsers useQueryStates itself uses, so only fields it
       // actually contained get written; setState then carries that into the
       // URL ahead of the reload below (not localStorage).
-      if (payload.viewState) setState(parseBookmarkSearch(payload.viewState))
-      setStatus(
-        failedCogIds.length
-          ? `Imported — reloading… (${failedCogIds.length} local file${failedCogIds.length === 1 ? "" : "s"} failed to persist here — likely too large for this browser's storage; you'll need to re-select ${failedCogIds.length === 1 ? "it" : "them"})`
-          : nothingBundled
-            ? "Imported — reloading… (some sources reference local files you'll need to re-select)"
-            : "Imported — reloading…",
-      )
+      if (result.viewState) setState(parseBookmarkSearch(result.viewState))
+      setStatus(result.note ? `Imported — reloading… (${result.note})` : "Imported — reloading…")
       setTimeout(() => window.location.reload(), 600)
     })
   }, [setState])
