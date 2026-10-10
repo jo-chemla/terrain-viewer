@@ -340,6 +340,21 @@ export const TerrainSourceSection: React.FC<{
     }
   }, [titilerEndpoint, useCogProtocolVsTitiler, attemptFitBounds])
 
+  // A source just added (the Add Terrain modal, the Library, a project file)
+  // gets the pin's flight once, forced: a local COG used to leave the map
+  // where it was (or where the fence put it), blank, until the pin was
+  // clicked. The baseline is taken on mount so a restored list is not flown
+  // to; a growth of the list is an add.
+  const prevTerrainCountRef = useRef<number | null>(null)
+  useEffect(() => {
+    const n = customTerrainSources.length
+    if (prevTerrainCountRef.current !== null && n > prevTerrainCountRef.current) {
+      const added = customTerrainSources[n - 1]
+      if (added) void handleFitToBounds(added, true)
+    }
+    prevTerrainCountRef.current = n
+  }, [customTerrainSources, handleFitToBounds])
+
   const handleOpenBatchEdit = useCallback(() => {
     setBatchEditJson(JSON.stringify(customTerrainSources, null, 2))
     setBatchEditError("")
