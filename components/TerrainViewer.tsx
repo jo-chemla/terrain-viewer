@@ -58,8 +58,8 @@ import { HistogramMatchFilter } from "./MapControls/HistogramMatchFilter";
 import { COLOR_SPACES } from "@/lib/histogram-matching";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
-import { useIsMobile } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
+import { useIsMobile, useIsBottomSheet } from '@/hooks/use-mobile'
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_HALF_FRACTION } from "@/lib/layout-constants"
 import { ArrowLeftRight, X } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
@@ -1047,6 +1047,8 @@ export function TerrainViewer() {
   }, [])
   const viewStateUpdateTimer = useRef<NodeJS.Timeout | null>(null)
   const isMobile = useIsMobile()
+  // Phone in portrait: the side panel is a bottom sheet (TerrainControlPanel).
+  const isBottomSheet = useIsBottomSheet()
 
   // Split-screen A/B divider — tracked in real pixels (not a flex ratio) so
   // the divider can sit at a persisted fraction of the space actually
@@ -1149,6 +1151,9 @@ export function TerrainViewer() {
   // The docked elevation profile is the lowest bottom panel: it lifts the
   // timeline and every bottom control by its height (ProfileDock.tsx).
   const profileDockHeightPx = useAtomValue(profileDockHeightAtom)
+  // The collapsed bottom sheet's bar (0 without a sheet): the lowest strip of
+  // the bottom stack on a phone in portrait, below even the docked profile.
+  const bottomSheetBarPx = useAtomValue(bottomSheetBarHeightAtom)
   const [activeProjectConfig, setActiveProjectConfig] = useAtom(activeProjectConfigAtom)
   const [, setSectionOpen] = useAtom(sectionOpenAtom)
   const hasAppliedEmbedConfig = useRef(false)
@@ -3267,18 +3272,24 @@ export function TerrainViewer() {
   // shift would be sized against a wider box than its own visible portion —
   // so the same lat/lng/zoom would look centered at visibly different points
   // across panes. Per-row-rightmost-only padding fixes that.
-  const sidebarPaddingPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
+  const sidebarPaddingPx = getSidebarFootprintPx(isSidebarOpen, isMobile, isBottomSheet)
   // Same reasoning, bottom edge: the historical timeline panel docks along
   // the true bottom of the viewport (only ever clearing the LAST row's own
   // panes, see bottomRowViews above) — computed here (rather than reusing
   // measuredPanelClearance below, which feeds the CSS-var minimap/scale
   // offsets instead) since this needs a plain number for `padding`, not a
   // CSS length string, and needs to exist before mapPaddingFor is defined.
-  const profileDockLift = profileDockLiftPx(profileDockHeightPx, isMobile)
+  // The bottom sheet's collapsed bar lifts the whole stack like the profile.
+  const profileDockLift = profileDockLiftPx(profileDockHeightPx, isMobile) + bottomSheetBarPx
   const timelineBottomPaddingPx = historicalTimelineVisible
     ? Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX + profileDockLift)
-    // Profile alone: its own top edge.
-    : profileDockHeightPx > 0 ? Math.round((isMobile ? 0 : MAP_CTRL_EDGE_MARGIN_PX) + profileDockHeightPx) : 0
+    // Profile alone: its own top edge (and the sheet bar's, under it).
+    : (profileDockHeightPx > 0 ? Math.round((isMobile ? 0 : MAP_CTRL_EDGE_MARGIN_PX) + profileDockHeightPx) : 0) + bottomSheetBarPx
+  // An open bottom sheet covers the lower half (more at full, but then the
+  // map is a strip anyway): the camera centres in the half above it. Only
+  // the camera: the panes, the timeline and the controls stay where they are,
+  // under the sheet.
+  const bottomSheetCoverPx = isBottomSheet && isSidebarOpen ? Math.round(splitContainerHeight * BOTTOM_SHEET_HALF_FRACTION) : 0
 
   // Opening or closing the sidebar / timeline changes the space the grid has
   // to divide up, so every pane rect and the gutter between them jump to new
@@ -3309,7 +3320,7 @@ export function TerrainViewer() {
   const mapPaddingFor = useCallback(
     (side: ViewId) => ({
       top: 0,
-      bottom: bottomRowViews.includes(side) ? timelineBottomPaddingPx : 0,
+      bottom: bottomRowViews.includes(side) ? Math.max(timelineBottomPaddingPx, bottomSheetCoverPx) : 0,
       left: 0,
       // Overlay: both panes MUST share identical horizontal padding — they're
       // full-bleed stacked over the exact same viewport, so any difference
@@ -3324,7 +3335,7 @@ export function TerrainViewer() {
       // visibly jumped sideways on every Off/Side <-> Overlay switch.
       right: (isOverlaySplit || rightmostPerRow.includes(side)) ? sidebarPaddingPx : 0,
     }),
-    [isOverlaySplit, bottomRowViews.join(","), rightmostPerRow.join(","), sidebarPaddingPx, timelineBottomPaddingPx],
+    [isOverlaySplit, bottomRowViews.join(","), rightmostPerRow.join(","), sidebarPaddingPx, timelineBottomPaddingPx, bottomSheetCoverPx],
   )
 
   // Eased, to match the side/bottom panels' own open/close transition instead
@@ -4596,7 +4607,7 @@ export function TerrainViewer() {
   // clearance reasoning as the minimap above, since it also docks off the
   // bottom edge.
   const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${MAP_CTRL_EDGE_MARGIN_PX + profileDockLift}px`
-  const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile)
+  const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile, isBottomSheet)
   const scaleRightOffset = sidebarFootprintPx > 0 ? `${sidebarFootprintPx}px` : `${MAP_CTRL_EDGE_MARGIN_PX}px`
 
   const availableSplitWidth = Math.max(0, splitContainerWidth - (isSidebarOpen && !isMobile ? sidebarFootprintPx : 0))
@@ -4786,7 +4797,7 @@ export function TerrainViewer() {
       if (timelineSelectable) { setTimelineActiveSide(pane.side); setTimelineActiveOverlay(null) }
       setActiveView((cur) => (cur === pane.side ? null : pane.side))
     }
-    const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : profileDockHeightPx > 0 ? `${timelineBottomPaddingPx + 8}px` : "0.5rem"
+    const bottomClearance = historicalTimelineVisible ? measuredPanelClearance : timelineBottomPaddingPx > 0 ? `${timelineBottomPaddingPx + 8}px` : "0.5rem"
     // The rightmost column's own pane DOM box intentionally extends under the
     // floating sidebar (see paneLayouts/mapPaddingFor above) so its VISIBLE
     // portion matches every other pane's — centering on the full (partly

@@ -1,9 +1,9 @@
 import type React from "react"
 import { useState, useMemo, useCallback, useEffect, useRef  } from "react"
 import { useQueryStates } from "nuqs"
-import { useAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { PanelRightOpen, PanelRightClose, ChevronsDownUp, ChevronsUpDown, Home, ArrowLeftRight, Layers, BookOpen } from "lucide-react"
+import { PanelRightOpen, PanelRightClose, PanelBottomOpen, PanelBottomClose, ChevronsDownUp, ChevronsUpDown, Home, ArrowLeftRight, Layers, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -41,7 +41,8 @@ import { ElevationPickerSection } from "./ElevationPickerSection"
 import { GeorefSection } from "./GeorefSection"
 import { SunShadowCalculatorSection } from "./sun-shadow-calculator-section"
 import { SourceInfoSection } from "./SourceInfoSection"
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useIsMobile, useIsBottomSheet } from '@/hooks/use-mobile'
+import { bottomSheetSnapAtom, bottomSheetBarHeightAtom, BOTTOM_SHEET_HALF_FRACTION, BOTTOM_SHEET_FULL_GAP_PX, clamp, type BottomSheetSnap } from '@/lib/layout-constants'
 import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
 import { useShiftTapToggle } from '@/lib/use-shift-tap-toggle'
 import { useCtrlTapToggle } from '@/lib/use-ctrl-tap-toggle'
@@ -602,6 +603,113 @@ export function TerrainControlPanel({
     return () => { map.off("click", close) }
   }, [isMobile, isSidebarOpen, mapRef, setIsSidebarOpen])
 
+  // Phone in portrait: the panel is a bottom sheet (useIsBottomSheet).
+  // Collapsed = isSidebarOpen false, so the map tap above collapses it; open,
+  // it sits at half or full height (bottomSheetSnapAtom). The grab handle row
+  // (handle + title bar) drags between the three; a tap on it toggles
+  // collapsed / half. The collapsed bar's height goes to
+  // bottomSheetBarHeightAtom, which lifts the timeline, minimap and scale bar
+  // above it (TerrainViewer.tsx); an open sheet covers them.
+  const isBottomSheet = useIsBottomSheet()
+  const [sheetSnap, setSheetSnap] = useAtom(bottomSheetSnapAtom)
+  const setSheetBarHeight = useSetAtom(bottomSheetBarHeightAtom)
+  const sheetBarRef = useRef<HTMLDivElement>(null)
+  // The Card itself (a plain function component: a ref on it never reaches
+  // the DOM in React 18).
+  const sheetCard = () => sheetBarRef.current?.parentElement ?? null
+  // The title bar's own height, for the collapsed sheet's CSS height.
+  const [sheetBarPx, setSheetBarPx] = useState(0)
+  // Zero-width probe whose height is env(safe-area-inset-bottom), in px.
+  const safeAreaProbeRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const bar = sheetBarRef.current
+    const probe = safeAreaProbeRef.current
+    if (!isBottomSheet || !bar || !probe) { setSheetBarHeight(0); return }
+    const measure = () => {
+      const barPx = bar.getBoundingClientRect().height
+      setSheetBarPx(barPx)
+      setSheetBarHeight(Math.round(barPx + probe.getBoundingClientRect().height))
+    }
+    const ro = new ResizeObserver(measure)
+    ro.observe(bar)
+    ro.observe(probe)
+    measure()
+    return () => { ro.disconnect(); setSheetBarHeight(0) }
+  }, [isBottomSheet, setSheetBarHeight])
+  // The live height while the handle is dragged (null otherwise: the snap
+  // decides it, through CSS).
+  const [sheetDragPx, setSheetDragPx] = useState<number | null>(null)
+  const sheetDragRef = useRef<{ pointerId: number; startY: number; startH: number; h: number; moved: boolean; lastY: number; lastT: number; v: number } | null>(null)
+  const sheetSnapHeights = () => {
+    const card = sheetCard()
+    const rootH = (card?.offsetParent as HTMLElement | null)?.clientHeight ?? window.innerHeight
+    const collapsed = (card ? parseFloat(getComputedStyle(card).paddingBottom) : 0) + sheetBarPx
+    return { collapsed, half: rootH * BOTTOM_SHEET_HALF_FRACTION, full: rootH - BOTTOM_SHEET_FULL_GAP_PX }
+  }
+  const applySheetSnap = (snap: BottomSheetSnap | "collapsed") => {
+    if (snap === "collapsed") { setIsSidebarOpen(false); return }
+    setSheetSnap(snap)
+    setIsSidebarOpen(true)
+  }
+  const toggleSheet = () => applySheetSnap(isSidebarOpen ? "collapsed" : "half")
+  const onSheetPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    // The title (mode picker) and the icon buttons keep their own taps.
+    if ((e.target as HTMLElement).closest("button, a, h2, input, select, textarea")) return
+    const h = sheetCard()?.getBoundingClientRect().height ?? 0
+    sheetDragRef.current = { pointerId: e.pointerId, startY: e.clientY, startH: h, h, moved: false, lastY: e.clientY, lastT: e.timeStamp, v: 0 }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const onSheetPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = sheetDragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    const dy = e.clientY - d.startY
+    if (!d.moved && Math.abs(dy) < 6) return
+    d.moved = true
+    const { collapsed, full } = sheetSnapHeights()
+    d.h = clamp(d.startH - dy, collapsed, full)
+    // Upward speed in px/ms, smoothed, for a flick on release.
+    const dt = e.timeStamp - d.lastT
+    if (dt > 0) d.v = 0.7 * ((d.lastY - e.clientY) / dt) + 0.3 * d.v
+    d.lastY = e.clientY
+    d.lastT = e.timeStamp
+    setSheetDragPx(d.h)
+  }
+  const onSheetPointerEnd = (e: React.PointerEvent<HTMLDivElement>, cancelled = false) => {
+    const d = sheetDragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    sheetDragRef.current = null
+    if (!d.moved) { if (!cancelled) toggleSheet(); return }
+    setSheetDragPx(null)
+    const heights = sheetSnapHeights()
+    const order = ["collapsed", "half", "full"] as const
+    let snap = order.reduce((a, b) => Math.abs(heights[b] - d.h) < Math.abs(heights[a] - d.h) ? b : a)
+    // A flick goes to the next stop in its direction, past the nearest one.
+    if (Math.abs(d.v) > 0.5) {
+      const above = order.filter((k) => heights[k] > d.h + 1)
+      const below = order.filter((k) => heights[k] < d.h - 1)
+      snap = d.v > 0 ? (above[0] ?? "full") : (below[below.length - 1] ?? "collapsed")
+    }
+    applySheetSnap(snap)
+  }
+  const onSheetKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSheet() }
+    else if (e.key === "ArrowUp") { e.preventDefault(); applySheetSnap(isSidebarOpen ? "full" : "half") }
+    else if (e.key === "ArrowDown") { e.preventDefault(); applySheetSnap(isSidebarOpen && sheetSnap === "full" ? "half" : "collapsed") }
+  }
+  const sheetHeight = sheetDragPx != null
+    ? `${sheetDragPx}px`
+    : !isSidebarOpen
+      ? `calc(${sheetBarPx}px + env(safe-area-inset-bottom))`
+      : sheetSnap === "full"
+        ? `calc(100% - ${BOTTOM_SHEET_FULL_GAP_PX}px)`
+        : `${BOTTOM_SHEET_HALF_FRACTION * 100}%`
+  // A collapsed sheet's sections are clipped away; keep them out of the tab
+  // order and the accessibility tree too (inert is not a React 18 prop).
+  useEffect(() => {
+    scrollContainerRef.current?.toggleAttribute("inert", isBottomSheet && !isSidebarOpen)
+  }, [isBottomSheet, isSidebarOpen])
+
   useMemo(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
   }, [theme])
@@ -614,7 +722,7 @@ export function TerrainControlPanel({
           Shadow and the georeferencer stopped answering taps the moment the
           panel closed - on a phone, where the panel covers the map and has to
           be closed to reach it, the picker could never work at all. */}
-      {!isSidebarOpen && (
+      {!isSidebarOpen && !isBottomSheet && (
         <Tooltip>
           <TooltipTrigger
             render={
@@ -645,19 +753,57 @@ export function TerrainControlPanel({
           problem despite Card itself carrying `overflow-hidden`. */}
       <Card
         id="tour-sidepanel"
+        data-sheet-snap={isBottomSheet ? (isSidebarOpen ? sheetSnap : "collapsed") : undefined}
         className={cn(
           "absolute z-50 overflow-hidden flex flex-col p-0 gap-0 backdrop-blur-[2px] text-base",
-          "right-0 top-0 bottom-0 w-80 rounded-none",
-          "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+          isBottomSheet
+            // The bottom sheet: full width along the app's bottom edge, its
+            // height from the snap (or the finger, while dragged). The safe
+            // area pads the bottom, so the collapsed bar clears the iPhone
+            // home indicator.
+            ? cn(
+              "left-0 right-0 bottom-0 rounded-t-2xl rounded-b-none border-x-0 border-b-0 shadow-[0_-4px_16px_rgba(0,0,0,0.12)] pb-[env(safe-area-inset-bottom)]",
+              sheetDragPx == null ? "transition-[height,background-color] duration-200 ease-out" : "transition-[background-color] duration-150",
+            )
+            : cn(
+              "right-0 top-0 bottom-0 w-80 rounded-none",
+              "sm:right-4 sm:top-4 sm:bottom-4 sm:w-96 sm:rounded-xl",
+              "transition-[background-color] duration-150",
+            ),
           transparentUi && activeSlider
             ? "bg-background/20"
             : "bg-background/95",
-          "transition-[background-color] duration-150",
-          !isSidebarOpen && "hidden",
+          !isSidebarOpen && !isBottomSheet && "hidden",
         )}
-        aria-hidden={!isSidebarOpen || undefined}
+        style={isBottomSheet ? { height: sheetHeight } : undefined}
+        aria-hidden={(!isSidebarOpen && !isBottomSheet) || undefined}
       >
-        <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b">
+        {isBottomSheet && <div ref={safeAreaProbeRef} aria-hidden className="absolute left-0 bottom-0 w-0 h-[env(safe-area-inset-bottom)] pointer-events-none" />}
+        {/* In the sheet, the grab handle and the title bar are one drag
+            zone (touch-action none: the browser must not scroll or zoom
+            under the finger); the title and the icon buttons keep their taps. */}
+        <div
+          ref={sheetBarRef}
+          className={cn("shrink-0", isBottomSheet && "touch-none select-none")}
+          onPointerDown={isBottomSheet ? onSheetPointerDown : undefined}
+          onPointerMove={isBottomSheet ? onSheetPointerMove : undefined}
+          onPointerUp={isBottomSheet ? (e) => onSheetPointerEnd(e) : undefined}
+          onPointerCancel={isBottomSheet ? (e) => onSheetPointerEnd(e, true) : undefined}
+        >
+        {isBottomSheet && (
+          <div
+            data-sheet-handle
+            role="button"
+            tabIndex={0}
+            aria-label={isSidebarOpen ? "Collapse the panel (drag to resize)" : "Expand the panel (drag to resize)"}
+            aria-expanded={isSidebarOpen}
+            onKeyDown={onSheetKeyDown}
+            className="flex h-6 items-center justify-center cursor-grab active:cursor-grabbing"
+          >
+            <div className="h-1.5 w-10 rounded-full bg-muted-foreground/40" />
+          </div>
+        )}
+        <div className={cn("shrink-0 flex items-center justify-between px-4 pb-3 border-b", isBottomSheet ? "pt-0" : "pt-4")}>
           <Tooltip>
             <TooltipTrigger
               render={
@@ -698,12 +844,21 @@ export function TerrainControlPanel({
             <TooltipIconButton icon={BookOpen} tooltip="Documentation" href="docs/" />
             <DataLayersModal open={isDataLayersOpen} onOpenChange={setIsDataLayersOpen} state={state} setState={setState} />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
-            <TooltipIconButton
-              icon={PanelRightClose}
-              tooltip="Close sidebar"
-              onClick={() => setIsSidebarOpen(false)}
-            />
+            {isBottomSheet ? (
+              <TooltipIconButton
+                icon={isSidebarOpen ? PanelBottomClose : PanelBottomOpen}
+                tooltip={isSidebarOpen ? "Collapse the panel" : "Expand the panel"}
+                onClick={toggleSheet}
+              />
+            ) : (
+              <TooltipIconButton
+                icon={PanelRightClose}
+                tooltip="Close sidebar"
+                onClick={() => setIsSidebarOpen(false)}
+              />
+            )}
           </div>
+        </div>
         </div>
 
         <div

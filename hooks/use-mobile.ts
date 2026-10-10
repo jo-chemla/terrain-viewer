@@ -23,3 +23,23 @@ export function useIsMobile() {
 
   return !!isMobile
 }
+
+// A phone held upright: the side panel becomes a bottom sheet there
+// (TerrainControlPanel.tsx). Narrower than `sm:` AND taller than wide, so a
+// phone in landscape keeps its side panel: wider than 640 it is the desktop
+// one, and a small phone still wider than tall keeps today's mobile one.
+const BOTTOM_SHEET_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px) and (orientation: portrait)`
+
+export function useIsBottomSheet() {
+  const [isSheet, setIsSheet] = React.useState(false)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(BOTTOM_SHEET_QUERY)
+    const onChange = () => setIsSheet(mql.matches)
+    mql.addEventListener('change', onChange)
+    setIsSheet(mql.matches)
+    return () => mql.removeEventListener('change', onChange)
+  }, [])
+
+  return isSheet
+}

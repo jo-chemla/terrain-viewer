@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { useAtom } from "jotai"
 import type { MapRef } from "react-map-gl/maplibre"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsMobile, useIsBottomSheet } from "@/hooks/use-mobile"
 import { getSidebarFootprintPx } from "@/lib/layout-constants"
 
 // Visual diameter of the light dome overlay, anchored on the gesture's own
@@ -58,6 +58,7 @@ export const LightControlOverlay: React.FC<{
   const [active, setActive] = useState(false)
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
   const isMobile = useIsMobile()
+  const isBottomSheet = useIsBottomSheet()
   // Always-mounted (not conditional on `active`) so its bounds are available
   // the instant a gesture starts.
   const containerRef = useRef<HTMLDivElement>(null)
@@ -169,7 +170,7 @@ export const LightControlOverlay: React.FC<{
     }
   }, [active, mapRef])
 
-  const sidebarWidth = getSidebarFootprintPx(isSidebarOpen, isMobile)
+  const sidebarWidth = getSidebarFootprintPx(isSidebarOpen, isMobile, isBottomSheet)
 
   const pos = lightToXY(state.illuminationDir ?? 315, state.illuminationAlt ?? 45)
   const dotX = RADIUS + pos.x * RADIUS

@@ -1,6 +1,6 @@
 ---
 name: mobile-layout-frames
-description: Single shared bottom edge for all bottom overlays (root fixed inset-0, overlays absolute); no --vh hack; isMobile breakpoint matched to Tailwind sm (640)
+description: Single shared bottom edge for all bottom overlays (root fixed inset-0, overlays absolute); no --vh hack; isMobile breakpoint matched to Tailwind sm (640); the phone-portrait bottom sheet and its collapsed-bar lift
 type: project
 ---
 
@@ -34,3 +34,34 @@ edge with zero JS.
 - Minimap/scale clearance above the panel stays driven by the measured
   panel height ([[camera-sync]] is unrelated; see
   `historicalTimelinePanelHeightAtom` in lib/layout-constants.ts).
+
+## Phone portrait: the side panel is a bottom sheet (2026-10-10)
+
+`useIsBottomSheet()` (hooks/use-mobile.ts) = `(max-width: 639px) and
+(orientation: portrait)`. There the same TerrainControlPanel Card is a
+full-width sheet along the root's bottom edge; landscape phones (wider than
+640, so not even `isMobile`) and desktop keep the side panel untouched.
+
+- **States:** collapsed = `isSidebarOpenAtom` false (so the map tap that
+  closes the panel, the product tour that opens it and `?sidebarCollapsed`
+  keep working unchanged); open = `bottomSheetSnapAtom` "half" (50 % of the
+  root) or "full" (root minus 64 px). The snap atom is plain `atom`, not
+  stored. The handle + title bar is one drag zone (`touch-none`, pointer
+  capture; the title and icon buttons keep their taps); a tap toggles
+  collapsed/half, a flick (> 0.5 px/ms) goes to the next stop.
+- **The sheet is the bottom edge:** the collapsed bar's measured height
+  (handle + title row + `env(safe-area-inset-bottom)`, via a zero-width probe
+  div) goes to `bottomSheetBarHeightAtom` and is added to the same lift as
+  the docked profile (`profileDockLift` in TerrainViewer and the timeline
+  panel; ProfileDock sits on it). So collapsed, the timeline, minimap, scale
+  bar and timeline toggle sit just above the bar. Open, the sheet (z-50)
+  covers them without moving them, and the camera's bottom padding becomes
+  half the root height so the map centres in the visible half.
+- `getSidebarFootprintPx(open, isMobile, isBottomSheet)` is 0 for the sheet
+  (no right-hand footprint).
+- `Card` (components/ui/card.tsx) is a plain React 18 function component: a
+  `ref` on it never reaches the DOM. The sheet code reaches the Card as the
+  bar's `parentElement`.
+- Dev only: the React Scan toolbar (`#react-scan-root`) and the TanStack
+  devtools button cover the bottom of a phone screen and eat taps on the
+  handle; headless tests hide `#react-scan-root` (`.cache/pw/mobile-sheet.mjs`).

@@ -22,7 +22,7 @@ import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom, activeViewAtom } from "@/lib/settings-atoms"
-import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx } from "@/lib/layout-constants"
+import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -308,7 +308,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const hasPlanetKey = !!planetKey
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
   const isMobile = useIsMobile()
-  const profileDockLift = profileDockLiftPx(useAtomValue(profileDockHeightAtom), isMobile)
+  // The phone-portrait bottom sheet's collapsed bar is the lowest strip, and
+  // it already pads the safe area.
+  const bottomSheetBarPx = useAtomValue(bottomSheetBarHeightAtom)
+  const profileDockLift = profileDockLiftPx(useAtomValue(profileDockHeightAtom), isMobile) + bottomSheetBarPx
 
   // Grid/dual-mode shape — generalizes the old fixed A/B pair to every
   // active view (A-F) in the current gridLayout. "overlay" always compares
@@ -1850,6 +1853,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         // home indicator (needs viewport-fit=cover, set in index.html).
         "bottom-0 left-0 right-0 rounded-none max-h-[65dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]",
         "sm:bottom-4 sm:left-4 sm:right-[var(--timeline-right-offset)] sm:rounded-xl sm:max-h-none sm:overflow-visible sm:pb-0",
+        bottomSheetBarPx > 0 && "pb-0",
       )}
       style={{
         ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem",

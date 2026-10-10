@@ -13,10 +13,29 @@ export const SIDEBAR_WIDTH_DESKTOP = 384 // sm:w-96
 export const SIDEBAR_GAP_DESKTOP = 16 // sm:right-4
 export const SIDEBAR_FOOTPRINT_DESKTOP = SIDEBAR_WIDTH_DESKTOP + SIDEBAR_GAP_DESKTOP
 
-export function getSidebarFootprintPx(isSidebarOpen: boolean, isMobile: boolean): number {
-  if (!isSidebarOpen) return 0
+export function getSidebarFootprintPx(isSidebarOpen: boolean, isMobile: boolean, isBottomSheet = false): number {
+  if (!isSidebarOpen || isBottomSheet) return 0
   return isMobile ? SIDEBAR_WIDTH_MOBILE : SIDEBAR_FOOTPRINT_DESKTOP
 }
+
+// Phone in portrait (useIsBottomSheet): the side panel is a bottom sheet.
+// Collapsed is isSidebarOpenAtom false (so the map tap that closes the panel,
+// the tour that opens it and ?sidebarCollapsed all keep working); open, it
+// sits at one of two heights, held here. Ephemeral: every load opens at half.
+export type BottomSheetSnap = "half" | "full"
+export const bottomSheetSnapAtom = atom<BottomSheetSnap>("half")
+/** The open sheet's height as a fraction of the app's height at "half". */
+export const BOTTOM_SHEET_HALF_FRACTION = 0.5
+/** The map strip left above the sheet at "full", below the top safe area. */
+export const BOTTOM_SHEET_FULL_GAP_PX = 64
+/** The collapsed sheet's height (grab handle + title row + bottom safe
+ *  area), measured by TerrainControlPanel; 0 when there is no sheet. The
+ *  sheet is the lowest panel of the bottom stack: this lifts the profile
+ *  dock, the timeline panel and every bottom control, the same way
+ *  profileDockHeightAtom does, so with the sheet collapsed they sit just
+ *  above its bar. An open sheet covers them (it is on top) without moving
+ *  them. */
+export const bottomSheetBarHeightAtom = atom(0)
 
 // Unified edge margin for MapLibre's own corner controls (nav/geolocate/
 // geocoder/minimap/scale) — matches the sidebar/timeline panel's own Tailwind
