@@ -308,7 +308,11 @@ mainWindow.webview.on("host-message", (event: unknown) => {
 // pieces gathered on window.__tvOpenFile, then one "tv-desktop-open-file"
 // event with { name, bytesBase64 } (or { name, error }). A project zip with
 // bundled COGs can be large: above 50 MB the page gets the error instead.
-const OPEN_FILE_MAX_BYTES = 50 * 1024 * 1024;
+// The file crosses to the page as base64 text through executeJavascript in
+// 2 MB pieces, so the page holds the text and the bytes at once: 200 MB is
+// a few hundred MB of memory for a moment, fine on a desktop; beyond it
+// the Import button (a File read, no copy) is the way.
+const OPEN_FILE_MAX_BYTES = 200 * 1024 * 1024;
 const OPEN_FILE_CHUNK = 2 * 1024 * 1024;
 function sendOpenFile() {
   if (!openFilePath) return;
@@ -320,7 +324,7 @@ function sendOpenFile() {
   try {
     const size = statSync(path).size;
     if (size > OPEN_FILE_MAX_BYTES) {
-      run(dispatch(JSON.stringify({ name, error: `The file is ${Math.round(size / 1e6)} MB; the command line takes up to 50 MB. Use Import in General Settings instead.` })));
+      run(dispatch(JSON.stringify({ name, error: `The file is ${Math.round(size / 1e6)} MB; the command line takes up to 200 MB. Use Import in General Settings instead.` })));
       return;
     }
     const base64 = readFileSync(path).toString("base64");
