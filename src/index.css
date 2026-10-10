@@ -772,6 +772,15 @@
 #tour-sidepanel:has([data-slider-held]) {
   background-color: color-mix(in oklab, var(--background) 8%, transparent);
 }
+/* 4. The section that holds the control keeps a background of its own, about
+      halfway between the held card (8%) and the resting one (95%), so the
+      held group reads on a panel while the other sections are see-through. */
+[data-fade-scope]:has([data-slider-held]),
+[data-fade-scope][data-slider-held] {
+  background-color: color-mix(in oklab, var(--background) 60%, transparent);
+  border-radius: 0.75rem;
+  transition: background-color 150ms, opacity 150ms;
+}
 [data-fade-scope],
 [data-slider-group] {
   transition: opacity 150ms;

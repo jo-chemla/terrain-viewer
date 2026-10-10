@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>WMS raw elevation Float32 as Maplibre raster-dem</title>
+    <title>Raw elevation from a WMS as MapLibre terrain: IGN LiDAR HD DSM and DTM, Float32 GeoTIFF to raster-dem</title>
+    <meta name="description" content="A single-page demo: read raw Float32 elevation from a WMS GetMap (French IGN LiDAR HD DSM and DTM on the Géoplateforme, or any WMS returning image/tiff), decode it in the browser with geotiff.js and feed it to MapLibre as raster-dem through a custom protocol, for hillshade and 3D terrain. The technique behind Terrain Viewer's wms-raw sources.">
+    <link rel="canonical" href="https://terrain-viewer.iconem.com/maplibre-raster-dem-wms-float32-generic.html">
     <meta charset='utf-8'>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css' />

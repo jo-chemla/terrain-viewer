@@ -41,7 +41,7 @@ export async function ensureTitilerReachable(endpoint: string): Promise<boolean>
   if (!ok) {
     pushToast({
       key: "titiler-unreachable",
-      tone: "alert", title: "Reprojection service unreachable",
+      tone: "warn", title: "Reprojection service unreachable",
       body: `This source is not in Web Mercator, so its tiles are reprojected by titiler at ${base} — which is not answering. The layer will stay blank. Settings → Streaming Settings lets you point at another endpoint.`,
       duration: 10000,
     })
