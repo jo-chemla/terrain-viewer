@@ -185,3 +185,19 @@ it in every cut.
 ## The sixth take (2026-10-10): basic-modes-v6-2026-10-10.mp4, take-v6.sh/.mjs (take five plus the Data layers picker)
 - After take five's hypso "go to" the Visualization Modes heading (and its Layers button) has scrolled out of the sidebar; the picker opened from the panel title bar's Layers copy. Warm the picker's 19 pictures with a page load on `?openDataLayers=true` and `img.loading = "eager"`; its scroll range at FHD is only ~636 px, so a 7 s wheel is slow and smooth.
 - Closing it with Escape hands focus back to the Layers button after the close animation, and its tooltip (delay 0) reopens and stays to the last frame. Blurring `document.activeElement` for 180 ms right after the Escape did not help (focus returns later). Untested next try: wait until the dialog element is gone plus ~300 ms, then blur.
+
+## Feedback on the deck-look cut (Jonathan, 2026-10-10): the next cut and takes
+
+- **Cards a little longer** (full page, as they are): about 4 s each.
+- **Subtitles in a narrator's voice**, not labels: "We add slope over the
+  hillshade, then narrow its range to 60 degrees", "Now the hypsometric
+  tint, with another ramp and bounds from 1,400 to 4,300 m", "Six dated
+  views of the Champ de Mars, sorted by date". One or two short sentences,
+  readable: give each action in the TAKE more time (longer holds after a
+  change, slower sweeps) so the subtitle has 4 to 6 s on screen.
+- **The historical take never shows a 3x1**: only 1x1, 2x1 and 3x2. The
+  white refill of the 3x2 is to be handled by a longer warm-up of the exact
+  grid state (and a longer hold after the switch), not by a 3x1 step.
+- Hover cursor: the injected cursor swaps to the Windows hand over links
+  and buttons (aero_link.cur, cut like the arrow): see video/takes/
+  basic-modes-v6 (cursor-hover.b64 and the swap in the injected script).

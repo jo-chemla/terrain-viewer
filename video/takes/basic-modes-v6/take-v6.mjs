@@ -9,6 +9,10 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 const HERE = dirname(fileURLToPath(import.meta.url))
 const CURSOR = "data:image/png;base64," + readFileSync(join(HERE, "aero_arrow.b64"), "utf8").trim()
+// The hand over links and buttons: the Windows link cursor (aero_link.cur, 32 px
+// frame, hotspot 6,0), swapped in from the computed cursor style under the pointer.
+const HOVER = "data:image/png;base64," + readFileSync(join(HERE, "cursor-hover.b64"), "utf8").trim()
+const HOVER_HOTSPOT = (readFileSync(join(HERE, "cursor-hover.hotspot"), "utf8").trim().split(",")).map(Number)
 const [wsUrl, mode] = process.argv.slice(2)
 const ws = new WebSocket(wsUrl)
 let id = 0
@@ -34,8 +38,19 @@ const PREP = `(() => {
     const c = document.createElement("img"); c.id = "tv-cursor"; c.src = ${JSON.stringify(CURSOR)}
     c.style.cssText = "position:fixed;left:0;top:0;width:32px;height:32px;z-index:2147483647;pointer-events:none;transform:translate(-100px,-100px);image-rendering:pixelated;"
     document.documentElement.appendChild(c)
-    // hotspot (0,0): the arrow's tip is the image's top-left pixel
-    addEventListener("mousemove", (e) => { c.style.transform = "translate(" + e.clientX + "px," + e.clientY + "px)" }, true)
+    // hotspot (0,0): the arrow's tip is the image's top-left pixel; the hand's
+    // is at HOVER_HOTSPOT. The shape follows the computed cursor style of the
+    // element under the pointer (pointer -> hand), read on every move.
+    const ARROW = c.src, HAND = ${JSON.stringify(HOVER)}, HX = ${HOVER_HOTSPOT[0]}, HY = ${HOVER_HOTSPOT[1]}
+    addEventListener("mousemove", (e) => {
+      c.style.visibility = "hidden"
+      const el = document.elementFromPoint(e.clientX, e.clientY)
+      c.style.visibility = ""
+      const hand = !!el && getComputedStyle(el).cursor === "pointer"
+      if (hand && c.src !== HAND) c.src = HAND; else if (!hand && c.src !== ARROW) c.src = ARROW
+      const dx = hand ? HX : 0, dy = hand ? HY : 0
+      c.style.transform = "translate(" + (e.clientX - dx) + "px," + (e.clientY - dy) + "px)"
+    }, true)
   }
   window.__takeMarker = true
   return TARGETS()

@@ -91,9 +91,21 @@ function applyAppUserModelId() {
 }
 applyAppUserModelId();
 
+// A query string on the command line opens the app on that state, the way
+// a link does: launcher.exe "?lat=45.92&lng=7.03&zoom=11&viewMode=3d"
+// (or the full https://terrain-viewer.iconem.com/?... link: its query is
+// taken). Everything the URL API offers (docs/dev/url-api) works here:
+// sources, modes, projects, drawings by URL, bookmarks.
+const startQuery = (() => {
+  for (const arg of process.argv.slice(1)) {
+    if (/^?[^s]+$/.test(arg)) return arg;
+    if (/^https?:///.test(arg)) { try { return new URL(arg).search; } catch { /* not a URL */ } }
+  }
+  return "";
+})();
 const mainWindow = new BrowserWindow({
   title: "Terrain Viewer",
-  url: "views://app/index.html",
+  url: "views://app/index.html" + startQuery,
   frame: {
     width: 1400,
     height: 900,

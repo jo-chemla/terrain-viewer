@@ -7,6 +7,7 @@ import { getCogMetadata } from "@geomatico/maplibre-cog-protocol"
 import { getVrtInfo } from "./vrt-protocol"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
 import { resolveLocalFileUrl, localFileId, getRegisteredLocalFile, validateLocalCogFile } from "./local-file-store"
+import { pushToast } from "@/components/ui/toast"
 import customSources from "./custom-sources.json"
 
 // id -> shipped sample definition, across both terrain and basemap sample lists.
@@ -104,12 +105,16 @@ export async function resolveCustomSourceBounds(
     // geographic file's degrees for metres); the section's fit toasts it.
     const file = getRegisteredLocalFile(localFileId(source.url))
     const check = file ? await validateLocalCogFile(file) : null
-    if (check?.epsg != null && check.epsg !== 3857) return null
+    if (check?.epsg != null && check.epsg !== 3857) {
+      pushToast({ key: `local-cog-${source.id}`, tone: "alert", title: "This file will not draw", body: `${source.name} is in EPSG:${check.epsg}, not Web Mercator (EPSG:3857); the in-browser reader does not reproject. Re-export it: gdalwarp -t_srs EPSG:3857 -of COG in.tif out.tif`, duration: 20000 })
+      return null
+    }
     try {
       const metadata = await getCogMetadata(resolvedUrl)
       if (metadata?.bbox) return metadata.bbox as LngLatBoundsTuple
     } catch (error) {
       console.error("Failed to fetch local COG bounds for max-bounds:", error)
+      pushToast({ key: `local-cog-${source.id}`, tone: "alert", title: "This file cannot be read", body: String((error as Error)?.message ?? error), duration: 20000 })
     }
     return null
   }
