@@ -13,6 +13,8 @@
 
 #### Details
 
+In short, since October 8: STAC catalogs on the timeline with Planet's heritage release; the historical export in any CRS with width × height and an availability check; the Umami spike found (an old clone on localhost) and the website id moved to the build environment, with tags and an owner tag; the Search Console and Bing scripts, three page titles rewritten, the historical host's own search metadata and sitemap; the toolbox embed fixes; a MapLibre version guard and pre-bundled shims on the dev server; the coverage tree, toast and switch fixes; Bing's date as one truth; the desktop pin, update size, pictures, env step and command-line arguments; Add to Home Screen; the local COG warnings and toast; the screencast pipeline with its takes and cuts.
+
 - `lib/epsg3395-protocol.ts`: the two grids share their columns, so a Web Mercator tile reads the one or two EPSG:3395 tiles of the same x and interpolates between rows. Checked headless against Esri World Imagery on four tiles (Moscow z11 and z14, Istanbul z12, Tashkent z9): zero residual row shift, normalised cross-correlation 0.62 to 0.82, where the raw tile scores about 0.
 - Library entry only (`basemap-yandex-sat`, not loaded with the samples); the Add Source modal does not offer the type. Docs: Custom Protocols lists the scheme.
 - Local COG files: the Add Terrain modal lists every problem of a file (its projection and its layout, where the strip warning used to hide the projection one), and a selected file the in-browser reader cannot draw (a UTM or a geographic file, the reader draws EPSG:3857 only) says so in a toast with the gdalwarp line instead of a silent blank map or a flight to null island.

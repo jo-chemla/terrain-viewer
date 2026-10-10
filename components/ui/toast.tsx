@@ -26,8 +26,10 @@ export interface Toast {
    *  and dismisses the toast. */
   action?: { label: string; onClick: () => void }
   /** "alert": red border and text, for something that must be noticed (a
-   *  dev-server misconfiguration, a lost export). Default: quiet. */
-  tone?: "quiet" | "alert"
+   *  dev-server misconfiguration, a lost export). "warn": amber, for a
+   *  caveat that does not stop anything (a slow file, a partial export),
+   *  readable on both themes. Default: quiet. */
+  tone?: "quiet" | "alert" | "warn"
 }
 
 type Entry = Toast & { id: number }
@@ -82,14 +84,15 @@ const ToastItem: React.FC<{ toast: Entry }> = ({ toast }) => {
         "animate-in fade-in slide-in-from-bottom-2 duration-200",
         "max-w-[360px]",
         toast.tone === "alert" && "border-destructive bg-destructive/10",
+        toast.tone === "warn" && "border-amber-500/60 bg-amber-500/10",
       )}
     >
       {/* The one way out, so a text selection never dismisses. */}
       <button type="button" aria-label="Dismiss" className="absolute right-1.5 top-1.5 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); dismissToast(toast.id) }}>
         <X className="h-3.5 w-3.5" />
       </button>
-      <p className={cn("pr-5 text-sm font-medium", toast.tone === "alert" ? "text-destructive" : "text-popover-foreground")}>{toast.title}</p>
-      {toast.body && <div className={cn("mt-0.5 text-xs", toast.tone === "alert" ? "text-destructive/90" : "text-muted-foreground")}>{toast.body}</div>}
+      <p className={cn("pr-5 text-sm font-medium", toast.tone === "alert" ? "text-destructive" : toast.tone === "warn" ? "text-amber-700 dark:text-amber-300" : "text-popover-foreground")}>{toast.title}</p>
+      {toast.body && <div className={cn("mt-0.5 text-xs", toast.tone === "alert" ? "text-destructive/90" : toast.tone === "warn" ? "text-amber-800/90 dark:text-amber-200/90" : "text-muted-foreground")}>{toast.body}</div>}
       {toast.action && (
         <button
           type="button"
