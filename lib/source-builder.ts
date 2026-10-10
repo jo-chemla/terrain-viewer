@@ -94,7 +94,7 @@ export function buildRasterTileSource(params: {
       if (useCogProtocol) return { tiles: [buildVrtUrl(url)] }
       return {
         tiles: [
-          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${titilerNodata ?? -999}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`,
+          `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?&nodata=${encodeURIComponent(String(titilerNodata ?? -999))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`,
         ],
       }
 
