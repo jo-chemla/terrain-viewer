@@ -24,7 +24,6 @@ import { CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH, StreamTarget } fro
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Slider } from "@/components/ui/slider"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
@@ -32,7 +31,7 @@ import type { MapRef } from "react-map-gl/maplibre"
 import { Play, Pause, Check, Video, Download } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Section, GroupHeading } from "./controls-components"
+import { Section, GroupHeading, MobileSlider } from "./controls-components"
 import { atomWithStorage } from "jotai/utils"
 import { useAtom, useAtomValue } from "jotai"
 import { track } from "@/lib/analytics"
@@ -1153,7 +1152,8 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
         <span className="text-xs tabular-nums text-muted-foreground w-10 shrink-0">
           {canPlay ? `${(progress * durationMs / 1000).toFixed(1)}s` : "0.0s"}
         </span>
-        <Slider
+        <MobileSlider
+          sliderId="camera-animation-progress"
           min={0} max={100} step={0.5}
           value={Math.round(progress * 100)}
           onValueChange={(v) => handleScrub(v as number)}

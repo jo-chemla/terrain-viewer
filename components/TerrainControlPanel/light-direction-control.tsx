@@ -13,7 +13,7 @@ import { SphericalXYPad } from "./XYPad"
 import { ColorAlphaSwatch } from "./color-picker"
 import { useDebouncedState, useDebouncedLightDir } from "./use-debounced-state"
 import { cn } from "@/lib/utils"
-import { activeSliderAtom, activeProjectConfigAtom } from "@/lib/settings-atoms"
+import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { solarPosition, inverseSunPosition, dayLength, formatDayOfYear, formatHour, dayOfYearToDate, dayOfYearFromDate } from "@/lib/solar-position"
 import { utcOffsetHoursAt, utcInstantForDayOfYear } from "@/lib/timezone"
 
@@ -30,12 +30,12 @@ const SEASON_TICKS = [
   { value: 355, label: "Win" }, // ~Dec 21 solstice
 ]
 
-// A slider row that (a) participates in the "dim everything except the control
-// being edited" behavior exactly like SliderControl (composes the same
-// section-scoped id + reads activeSliderAtom), (b) shows an arbitrary formatted
-// value string rather than value.toFixed, and (c) can render tick marks under
-// the track. The Date/Time sliders share ONE sliderId with the XY pad below so
-// that editing either day/time keeps the pad (their visualization) lit too.
+// A slider row that (a) stays opaque while dragged as the rest of the panel
+// fades, like SliderControl (a slider group, lib/slider-hold.ts), (b) shows an
+// arbitrary formatted value string rather than value.toFixed, and (c) can
+// render tick marks under the track. The Date/Time sliders share ONE sliderId
+// with the XY pad below - the group key - so that editing either day/time
+// keeps the pad (their visualization) lit too.
 const LightSlider: React.FC<{
   label: string; value: number; onChange: (v: number) => void
   min: number; max: number; step: number; sliderId: string
@@ -45,12 +45,10 @@ const LightSlider: React.FC<{
   // pinned to the right via the row's own justify-between.
   labelExtra?: React.ReactNode
 }> = ({ label, value, onChange, min, max, step, sliderId, displayValue, displayNode, ticks, labelExtra }) => {
-  const [activeSlider] = useAtom(activeSliderAtom)
   const sectionId = useContext(SectionIdContext)
   const id = `${sectionId}:${sliderId}`
-  const isDimmed = activeSlider !== null && activeSlider !== id
   return (
-    <div className={cn("space-y-1 transition-opacity duration-150", isDimmed && "opacity-20")}>
+    <div data-slider-group={sliderId} className="space-y-1">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Label className="text-sm">{label}</Label>
@@ -116,6 +114,9 @@ export const LightDirectionControl: React.FC<{
   /** Phong only: the Lights 1 / 2 / 3 row, per-light colours and the extra
    *  pills on the pad (phongLightCount, phongLightNDir/Alt/Color). */
   multiLight?: boolean
+  /** Dragging the pad keeps the whole section opaque (Hillshade), not only
+   *  the pad and the Date/Time sliders. */
+  holdWholeSection?: boolean
 }> = ({
   state, setState, sliderId,
   debounceMs = 150,
@@ -126,8 +127,8 @@ export const LightDirectionControl: React.FC<{
   padFoldable = false,
   cameraRelative = false,
   multiLight = false,
+  holdWholeSection = false,
 }) => {
-  const [activeSlider] = useAtom(activeSliderAtom)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   // Project embeds can pin the light to Free mode ("lightDatetimeMode" in
   // hiddenSections): the Free/Datetime toggle row disappears and the control
@@ -137,7 +138,6 @@ export const LightDirectionControl: React.FC<{
   // Expanded by default even when foldable — padFoldable only controls
   // whether the fold toggle exists at all, not the pad's initial visibility.
   const [showPad, setShowPad] = useState(true)
-  const dimWhenSliding = cn("transition-opacity duration-150", activeSlider !== null && "opacity-20")
 
   // Granularity the Time slider/setter/popover all agree on — quarter-hour by
   // default (Hillshade/Phong), or down to real minutes for a precise caller.
@@ -259,7 +259,7 @@ export const LightDirectionControl: React.FC<{
   return (
     <div className="space-y-3">
       {!hideDatetimeMode && (
-        <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+        <div className="flex items-center justify-between gap-2">
           <Label className="text-sm font-medium">Mode</Label>
           <SegmentedToggle
             className={SEG_WIDTH}
@@ -275,7 +275,7 @@ export const LightDirectionControl: React.FC<{
 
       {multiLight && !useDatetime && (
         <div className="space-y-2">
-          <div className={cn("flex items-center justify-between gap-2", dimWhenSliding)}>
+          <div className="flex items-center justify-between gap-2">
             <Label className="text-sm font-medium">Lights</Label>
             <div className="flex items-center gap-1.5">
               {[1, 2, 3].slice(0, Math.min(3, Math.max(1, state.phongLightCount ?? 1))).map((i) => (
@@ -463,6 +463,7 @@ export const LightDirectionControl: React.FC<{
             azimuthRange={azimuthRange}
             elevationRange={elevationRange}
             sliderId={sliderId}
+            holdWholeSection={holdWholeSection}
             value={lightDir}
             onChange={setLightDir}
             fixedAzimuth={fixedAzimuth}
