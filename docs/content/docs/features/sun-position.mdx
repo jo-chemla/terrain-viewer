@@ -53,7 +53,7 @@ The same three hours with the buildings drawn flat, as 2D footprints with no ext
 
 ![Building shadows at 17:00 on June 21 over Bryant Park with flat footprints: the shadows of the Sixth Avenue buildings fall east across the park](/screenshots/sun/building-shadows-manhattan-flat-1700.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">9:00, 13:00 and 17:00, same views and links as above. How these were made: the OSM basemap's <strong>3D</strong> switch (sidebar → Basemap, next to OSM) turned off, which hides the extruded blocks; the OpenFreeMap Liberty style's flat building fill only draws up to zoom 14, so for these pictures the screenshot script extended it to every zoom (<code>map.setLayerZoomRange</code>). In the app, the 3D switch off at zoom 17.25 shows the shadows with no footprints.</p>
+<p className="text-sm text-fd-muted-foreground italic">9:00, 13:00 and 17:00, same views and links as above. How these were made: the OSM basemap's <strong>3D</strong> switch (sidebar → Basemap, next to OSM) turned off, which hides the extruded blocks; the OpenFreeMap Liberty style draws its flat footprints only up to zoom 14, so with the switch off the app extends them to every zoom and the buildings stay drawn flat.</p>
 
 Building shadows need zoom 13 or closer and the Mercator projection. For shadows cast by the real shape of a building (a spire, a dome) and falling on slopes, use the **Terrain** shadows with a surface model (DSM) as the terrain source.
 

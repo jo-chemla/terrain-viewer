@@ -63,6 +63,14 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number; visible?: boolean 
     const id = `${PREFIX}building-3d`
     if (!map?.getStyle() || !map.getLayer(id)) return
     map.setLayoutProperty(id, "visibility", buildings3d ? "visible" : "none")
+    // Liberty's flat footprint layer stops at z14 (the extrusion takes over
+    // above). With the extrusion off, extend the footprints to every zoom so
+    // the buildings stay drawn flat; restore the style's own range with it on.
+    const flat = `${PREFIX}building`
+    const flatLayer = map.getLayer(flat)
+    if (flatLayer) {
+      try { map.setLayerZoomRange(flat, flatLayer.minzoom ?? 13, buildings3d ? 14 : 24) } catch { /* style changed */ }
+    }
   }, [mapRef, buildings3d, installed])
 
   // "Basemap" viz toggle: hide every Liberty layer.
