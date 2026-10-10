@@ -83,20 +83,22 @@ const ToastItem: React.FC<{ toast: Entry }> = ({ toast }) => {
         "pointer-events-auto relative select-text rounded-md border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur",
         "animate-in fade-in slide-in-from-bottom-2 duration-200",
         "max-w-[360px]",
-        toast.tone === "alert" && "border-destructive bg-destructive/10",
-        toast.tone === "warn" && "border-amber-500/60 bg-amber-500/10",
+        // Tinted but opaque: the tint is mixed into the popover colour, so the
+        // map (a scale bar, a label) never shows through the text.
+        toast.tone === "alert" && "border-red-500/70 bg-[color-mix(in_oklab,var(--color-red-500)_12%,var(--popover))] dark:bg-[color-mix(in_oklab,var(--color-red-500)_18%,var(--popover))]",
+        toast.tone === "warn" && "border-amber-500/70 bg-[color-mix(in_oklab,var(--color-amber-500)_14%,var(--popover))] dark:bg-[color-mix(in_oklab,var(--color-amber-500)_16%,var(--popover))]",
       )}
     >
       {/* The one way out, so a text selection never dismisses. */}
       <button type="button" aria-label="Dismiss" className="absolute right-1.5 top-1.5 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); dismissToast(toast.id) }}>
         <X className="h-3.5 w-3.5" />
       </button>
-      <p className={cn("pr-5 text-sm font-medium", toast.tone === "alert" ? "text-destructive" : toast.tone === "warn" ? "text-amber-700 dark:text-amber-300" : "text-popover-foreground")}>{toast.title}</p>
-      {toast.body && <div className={cn("mt-0.5 text-xs", toast.tone === "alert" ? "text-destructive/90" : toast.tone === "warn" ? "text-amber-800/90 dark:text-amber-200/90" : "text-muted-foreground")}>{toast.body}</div>}
+      <p className={cn("pr-5 text-sm font-medium", toast.tone === "alert" ? "text-red-700 dark:text-red-300" : toast.tone === "warn" ? "text-amber-800 dark:text-amber-300" : "text-popover-foreground")}>{toast.title}</p>
+      {toast.body && <div className={cn("mt-0.5 text-xs", toast.tone === "alert" ? "text-red-900 dark:text-red-100" : toast.tone === "warn" ? "text-amber-900 dark:text-amber-100" : "text-muted-foreground")}>{toast.body}</div>}
       {toast.action && (
         <button
           type="button"
-          className="mt-2.5 mx-auto block rounded-md border bg-background px-6 py-1.5 text-sm font-semibold text-popover-foreground shadow-sm hover:bg-accent cursor-pointer"
+          className={cn("mt-2.5 mx-auto block rounded-md border bg-background px-6 py-1.5 text-sm font-semibold text-popover-foreground shadow-sm hover:bg-accent cursor-pointer", toast.tone === "alert" && "border-red-500/70", toast.tone === "warn" && "border-amber-500/70")}
           onClick={(e) => { e.stopPropagation(); dismissToast(toast.id); toast.action!.onClick() }}
         >
           {toast.action.label}
