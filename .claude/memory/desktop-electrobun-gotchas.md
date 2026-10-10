@@ -87,3 +87,8 @@ views:// (flat read from disk, HTTP 200, content type text/javascript for
 .json, harmless). The served copy was sometimes left behind when the page's
 `open-file-done` got lost in the reload; the main now also removes it on
 the page's next `open-file-request` (the reload asks again).
+Verified on the installed light build after 0433462 (2026-10-10, run4):
+project file, sources list, query, and a path with a space all work through
+launcher.exe; the served copy is gone within about a second of the reload.
+The launcher's working directory is `...\stable\app\bin`, so relative file
+paths resolve there: the docs ask for a full path.
