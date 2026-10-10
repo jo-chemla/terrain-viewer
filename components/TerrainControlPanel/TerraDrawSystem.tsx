@@ -400,7 +400,7 @@ function fitBoundsWithinFence(map: maplibregl.Map, bounds: number[], options: Pa
     if (outsideFence(map, target)) {
         pushToast({
             key: "draw-outside-fence",
-            title: `${what} is outside the map bounds`,
+            tone: "warn", title: `${what} is outside the map bounds`,
             body: "The current bounds constraint keeps the map from flying there. Settings → Map bounds constraints → None releases it.",
             duration: 7000,
         })

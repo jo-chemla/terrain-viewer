@@ -118,7 +118,7 @@ export function initDesktopBridge(): void {
     } else if (next.status === "installed") {
       pushToast({ key: "desktop-update", title: "Updated", body: `${v} was installed at this launch.`, duration: 8000 })
     } else if (next.status === "error") {
-      pushToast({ key: "desktop-update", title: "Update check failed", body: next.message ?? "", duration: 8000 })
+      pushToast({ key: "desktop-update", tone: "alert", title: "Update check failed", body: next.message ?? "", duration: 8000 })
     }
   })
   // Ask for the state the main process reached before the page loaded (the

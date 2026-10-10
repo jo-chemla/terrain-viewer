@@ -1131,43 +1131,79 @@
             "infoUrl": "https://doi.org/10.7910/DVN/C98DVS"
         },
         {
-            "id": "custom-in-chamoli-2015-dem2",
-            "name": "IND - Chamoli pre-event DEM 2m, Sept 2015 composite - COG",
-            "url": "https://zenodo.org/records/4554647/files/Chamoli_Sept2015_Composite_DEM2m_wmean.tif",
+            "id": "custom-us-kilauea-2018-07-dtm05",
+            "name": "USA - Kilauea summit after the 2018 caldera collapse, lidar DTM 0.5m, July 2018 - COG",
+            "url": "https://opentopography.s3.sdsc.edu/raster/HI18_KilaueaJL/HI18_KilaueaJL_be/20180711_kilauea_summit_dtm_filled.tif",
             "type": "cog",
             "cogViaTitiler": true,
+            "titilerNodata": -9999,
+            "minzoom": 12,
             "loadWithSamples": false,
-            "bounds": [79.4839, 30.3434, 79.7989, 30.5811],
-            "resolutionM": 2,
-            "description": "Pre-event 2 m composite DEM of the Ronti and Rishiganga valleys from WorldView stereo, September 2015, by D. Shean for Shugar et al. 2021. UTM 44N, ellipsoidal heights, on Zenodo (doi:10.5281/zenodo.4554647), read through titiler.",
-            "infoUrl": "https://doi.org/10.5281/zenodo.4554647",
-            "minzoom": 11
+            "bounds": [
+                -155.3117,
+                19.3788,
+                -155.0884,
+                19.456
+            ],
+            "resolutionM": 0.5,
+            "description": "Kilauea's summit on 8-12 July 2018, mid-way through the May-August caldera collapse: helicopter lidar by CRREL, the University of Houston and the USGS (FEMA / State of Hawaii funding), hosted by OpenTopography (OTSDEM.072018.6635.1). Tiled Float64 with five overviews, CORS and range requests open; EPSG:6635 (NAD83(PA11) / UTM 5N), so pinned to titiler. Verified: Halemaumau floor 592 m, against 1054 m in the 2009 survey. Nodata -9999. Licence not stated on the OpenTopography record. The whole July survey, including the Puna lava flows, is the VRT R/HI18_KilaueaJL/HI18_KilaueaJL_be.vrt (titiler only from z15).",
+            "infoUrl": "https://portal.opentopography.org/raster?opentopoID=OTSDEM.072018.6635.1"
         },
         {
-            "id": "custom-in-chamoli-2021-dem2",
-            "name": "IND - Chamoli post-event DEM 2m, 10-11 Feb 2021 composite - COG",
-            "url": "https://zenodo.org/records/4558692/files/Chamoli_Feb2021_Composite_DEM2m_order_PHR_wmean.tif",
-            "type": "cog",
+            "id": "custom-us-kilauea-2009-dsm1",
+            "name": "USA - Kilauea summit before the collapse, lidar first-return 1m, June 2009 - VRT via titiler",
+            "url": "https://opentopography.s3.sdsc.edu/raster/HI09_Big_Island/HI09_Big_Island_hh.vrt",
+            "type": "vrt",
             "cogViaTitiler": true,
+            "titilerNodata": -3.4028234663852886e+38,
+            "minzoom": 16,
             "loadWithSamples": false,
-            "bounds": [79.4839, 30.3434, 79.7989, 30.5811],
-            "resolutionM": 2,
-            "description": "Post-event 2 m composite DEM from WorldView, GeoEye and Pleiades stereo of 10-11 February 2021, three days after the 7 February rock and ice avalanche, aligned by its authors to the 2015 DEM (doi:10.5281/zenodo.4558692). No overviews, so it is slow below zoom 12.",
-            "infoUrl": "https://doi.org/10.5281/zenodo.4558692",
-            "minzoom": 11
+            "bounds": [
+                -155.6127,
+                19.2326,
+                -155.1784,
+                19.6333
+            ],
+            "resolutionM": 1,
+            "description": "The 2009 Big Island lidar (OTSDEM.032012.32605.1, CC BY 4.0), highest-hit surface, as an OpenTopography VRT over ArcGrid (.adf) tiles. The in-browser vrt:// reader cannot read ArcGrid, hence titiler; titiler.xyz renders it only from z16 (z13-15 time out). Verified: Halemaumau 1054 m.",
+            "infoUrl": "https://portal.opentopography.org/raster?opentopoID=OTSDEM.032012.32605.1"
         },
         {
-            "id": "custom-in-chamoli-avalanche",
-            "name": "IND - Change: Chamoli 2021 rock and ice avalanche, DEM 2021 - 2015 - derived",
-            "url": "diff://custom-in-chamoli-2021-dem2-custom-in-chamoli-2015-dem2",
+            "id": "custom-us-kilauea-collapse-vs-aw3d30",
+            "name": "USA - Change: Kilauea 2018 caldera collapse, July 2018 DTM - AW3D30 (2006-2011) - derived",
+            "url": "diff://custom-us-kilauea-2018-07-dtm05-custom-global-aw3d30",
             "type": "dem-diff",
-            "diffMinuendId": "custom-in-chamoli-2021-dem2",
-            "diffSubtrahendId": "custom-in-chamoli-2015-dem2",
+            "diffMinuendId": "custom-us-kilauea-2018-07-dtm05",
+            "diffSubtrahendId": "custom-global-aw3d30",
             "loadWithSamples": false,
-            "bounds": [79.4839, 30.3434, 79.7989, 30.5811],
-            "resolutionM": 2,
-            "description": "The 2021 Chamoli disaster in elevation: the Ronti Peak scar where about 27 million cubic metres of rock and glacier ice detached, and the deposits downstream. Post-event minus pre-event composite, co-registered by the authors. Shugar et al. 2021, doi:10.1126/science.abh4455.",
-            "infoUrl": "https://doi.org/10.1126/science.abh4455"
+            "bounds": [
+                -155.3117,
+                19.3788,
+                -155.0884,
+                19.456
+            ],
+            "resolutionM": 30,
+            "description": "The 2018 summit collapse at overview zooms: July 2018 lidar minus JAXA's 30 m AW3D30 (2006-2011, before the collapse). Expect several hundred metres of lowering over Halemaumau. The vertical datums (NAD83(PA11) and EGM96) were not reconciled, so set diffOffsetM after reading a stable area. For 1 m detail from z16, difference against custom-us-kilauea-2009-dsm1 instead.",
+            "infoUrl": "https://www.usgs.gov/volcanoes/kilauea/2018-lower-east-rift-zone-eruption-and-summit-collapse"
+        },
+        {
+            "id": "custom-us-eaton-dsm-change-2016-2025",
+            "name": "USA - Change: Eaton Fire 2025, lidar DSM 2025 - 2016, 1m (authors' difference) - COG",
+            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.022025.32611.1/raster/difference_dsm_eaton_2025_2016_aligned_1m_cog.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -3.4028234663852886e+38,
+            "minzoom": 11,
+            "loadWithSamples": false,
+            "bounds": [
+                -118.1947,
+                34.1501,
+                -117.998,
+                34.2566
+            ],
+            "resolutionM": 1,
+            "description": "Post-fire (January 2025) minus pre-fire (2016) lidar surface over Altadena and the Eaton burn, co-registered by the authors (OTDS.022025.32611.1), CC0. A real COG with six overviews. It spans eight years, so tree growth and construction are mixed with burned buildings. The aligned pre-fire DSM/DTM are COGs too; the post-fire rasters are strip GeoTIFFs. Palisades has the same set.",
+            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.022025.32611.1"
         },
         {
             "id": "custom-cn-xinmo-2013-dem2",

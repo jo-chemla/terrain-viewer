@@ -200,7 +200,7 @@ export const GeorefSection: React.FC<{
       } else if (existing?.type === "image-local") {
         url = existing.url
       } else {
-        pushToast({ key: "georef", title: "The picture is no longer available", body: "Open it again." })
+        pushToast({ key: "georef", tone: "alert", title: "The picture is no longer available", body: "Open it again." })
         return
       }
       type = "image-local"

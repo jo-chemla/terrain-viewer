@@ -50,7 +50,7 @@ export const DiffOffsetControl: React.FC<{ sourceId: string; mapRef: React.RefOb
   const measure = useCallback(async () => {
     const map = mapRef.current?.getMap()
     if (!map || !opA || !opB) {
-      pushToast({ key: "ndsm-offset", title: "Cannot sample the difference yet", body: "Both operands have to be resolvable first — one is still loading its metadata, or is itself a difference." })
+      pushToast({ key: "ndsm-offset", tone: "warn", title: "Cannot sample the difference yet", body: "Both operands have to be resolvable first — one is still loading its metadata, or is itself a difference." })
       return
     }
     setBusy(true)
@@ -100,7 +100,7 @@ export const DiffOffsetControl: React.FC<{ sourceId: string; mapRef: React.RefOb
         }
       }))
       if (samples.length < 50) {
-        pushToast({ key: "ndsm-offset", title: "Not enough overlap on screen", body: `Only ${samples.length} pixels had both operands here. Move to where both sources have data and try again.` })
+        pushToast({ key: "ndsm-offset", tone: "warn", title: "Not enough overlap on screen", body: `Only ${samples.length} pixels had both operands here. Move to where both sources have data and try again.` })
         return
       }
       samples.sort((p, q) => p - q)

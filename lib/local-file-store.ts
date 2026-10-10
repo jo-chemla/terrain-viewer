@@ -126,6 +126,10 @@ export interface LocalCogValidation {
   hasOverviews: boolean
   /** EPSG code of the COG's own CRS, when readable from its GeoKeys. */
   epsg: number | null
+  /** The GDAL_NODATA tag, when the file has one (-9999, -1e6, NaN...). */
+  nodata: number | null
+  /** STATISTICS_MINIMUM from the GDAL metadata, when written (gdalinfo -stats). */
+  minimum: number | null
 }
 
 // A handful of real user-picked files (a Copernicus DSM export, several
@@ -165,7 +169,11 @@ export async function validateLocalCogFile(file: File): Promise<LocalCogValidati
     const imageCount = await tiff.getImageCount()
     const geoKeys = image.getGeoKeys()
     const epsg = geoKeys?.ProjectedCSTypeGeoKey ?? geoKeys?.GeographicTypeGeoKey ?? null
-    return { isTiled: image.isTiled, hasOverviews: imageCount > 1, epsg }
+    const nodataRaw = image.getGDALNoData()
+    const nodata = typeof nodataRaw === "number" && !Number.isNaN(nodataRaw) ? nodataRaw : null
+    let minimum: number | null = null
+    try { const m = (image.getGDALMetadata() ?? {}) as Record<string, string>; const v = parseFloat(m.STATISTICS_MINIMUM); if (isFinite(v)) minimum = v } catch { /* no metadata */ }
+    return { isTiled: image.isTiled, hasOverviews: imageCount > 1, epsg, nodata, minimum }
   } catch {
     return null
   }

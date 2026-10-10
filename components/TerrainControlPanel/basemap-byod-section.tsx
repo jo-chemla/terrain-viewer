@@ -365,7 +365,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
       return
     }
     const url = source.type === "image-local" ? resolveLocalFileUrl(localFileId(source.url)) : source.url
-    if (!url) { pushToast({ key: "georef", title: "The picture is not available in this session", body: "Re-select its file first (the row offers it)." }); return }
+    if (!url) { pushToast({ key: "georef", tone: "alert", title: "The picture is not available in this session", body: "Re-select its file first (the row offers it)." }); return }
     setGeorefImage({ url, width: g.width, height: g.height, name: source.name, fromDisk: source.type === "image-local" })
     setGeorefEditingId(source.id)
     setGeorefActive(true)

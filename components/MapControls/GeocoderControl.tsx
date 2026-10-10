@@ -376,7 +376,7 @@ export default function GeocoderControl({
           const escapeLabel = requestFenceEscape(targetBounds, false);
           pushToast({
             key: "geocoder-outside-fence",
-            title: "That result is outside the map bounds",
+            tone: "warn", title: "That result is outside the map bounds",
             body: `“${result?.place_name ?? result?.text ?? "The result"}” is outside the current bounds constraint, so the map did not fly there. Settings → Map bounds constraints → None releases it.`,
             duration: escapeLabel ? 12000 : 7000,
             action: escapeLabel ? { label: escapeLabel, onClick: () => { requestFenceEscape(targetBounds, true); } } : undefined,

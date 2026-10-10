@@ -183,7 +183,7 @@ const CopyUrlButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
     } catch {
       pushToast({
         key: "clipboard",
-        title: "Could not copy to the clipboard",
+        tone: "alert", title: "Could not copy to the clipboard",
         body: "The browser refused the write — this usually means the page is not focused, or clipboard permission is blocked. Select the text and copy it by hand.",
       })
     }
@@ -236,7 +236,7 @@ const IframeSnippet: React.FC<{ pageUrl: string }> = ({ pageUrl }) => {
     } catch {
       pushToast({
         key: "clipboard",
-        title: "Could not copy to the clipboard",
+        tone: "alert", title: "Could not copy to the clipboard",
         body: "The browser refused the write — this usually means the page is not focused, or clipboard permission is blocked. Select the text and copy it by hand.",
       })
     }
@@ -294,7 +294,7 @@ const CopyUrlWithPanelsButton: React.FC<{ pageUrl: string }> = ({ pageUrl }) => 
     } catch {
       pushToast({
         key: "clipboard",
-        title: "Could not copy to the clipboard",
+        tone: "alert", title: "Could not copy to the clipboard",
         body: "The browser refused the write — this usually means the page is not focused, or clipboard permission is blocked. Select the text and copy it by hand.",
       })
     }
@@ -433,7 +433,7 @@ const ShortUrlDisplay: React.FC<{ shortUrl: string }> = ({ shortUrl }) => {
     } catch {
       pushToast({
         key: "clipboard",
-        title: "Could not copy to the clipboard",
+        tone: "alert", title: "Could not copy to the clipboard",
         body: "The browser refused the write — this usually means the page is not focused, or clipboard permission is blocked. Select the text and copy it by hand.",
       })
     }

@@ -268,7 +268,7 @@ function watchForStalledTiles(map: maplibregl.Map) {
     ))
     pushToast({
       key: "tiles-stalled",
-      title: "Some tiles have stopped arriving",
+      tone: "warn", title: "Some tiles have stopped arriving",
       body: <>{list} {names.length === 1 ? "has" : "have"} been waiting on tiles for over 20 seconds. The source may be down, or the tile queue is wedged behind slow requests. Reloading keeps your view: it is all in the URL.</>,
       duration: 15000,
       action: { label: "Reload", onClick: () => window.location.reload() },
@@ -1116,7 +1116,7 @@ export function TerrainViewer() {
       const names = all.filter((s) => missing.includes(localFileId(s.url))).map((s) => s.name)
       pushToast({
         key: "local-cog-not-restored",
-        title: missing.length === 1 ? "A local file could not be restored" : `${missing.length} local files could not be restored`,
+        tone: "alert", title: missing.length === 1 ? "A local file could not be restored" : `${missing.length} local files could not be restored`,
         body: `${names.slice(0, 3).join(", ")}${names.length > 3 ? `, +${names.length - 3} more` : ""} — the browser no longer has the bytes. Use “Re-select file…” on the source to pick it again.`,
         duration: 9000,
       })
@@ -2892,7 +2892,7 @@ export function TerrainViewer() {
     const status = e?.error?.status
     if (status === 429 && /titiler/i.test(String(url)) && Date.now() - titilerToastRef.current > 60000) {
       titilerToastRef.current = Date.now()
-      pushToast({ key: "titiler-429", title: "The COG server is rate-limited", body: "titiler.xyz, the default, is Development Seed's public demo and answers 429 when busy. Set your own TiTiler endpoint in Settings → Streaming to draw these tiles.", duration: 12000 })
+      pushToast({ key: "titiler-429", tone: "warn", title: "The COG server is rate-limited", body: "titiler.xyz, the default, is Development Seed's public demo and answers 429 when busy. Set your own TiTiler endpoint in Settings → Streaming to draw these tiles.", duration: 12000 })
     }
   }, [])
   useEffect(() => {

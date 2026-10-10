@@ -197,7 +197,7 @@ export const DownloadSection: React.FC<{
         console.error("Failed to capture screenshot")
         pushToast({
           key: "snapshot",
-          title: "Snapshot failed",
+          tone: "alert", title: "Snapshot failed",
           body: "The map canvas could not be read. This usually means the WebGL context was lost — reload and try again.",
         })
         return
@@ -233,13 +233,13 @@ export const DownloadSection: React.FC<{
         saveAs(new Blob([worldFileFor(georef)], { type: "text/plain" }), `${filename}.jgw`)
         saveAs(new Blob([await crsWkt(georef.epsg)], { type: "text/plain" }), `${filename}.prj`)
         const residual = residualWarning(georef.epsg, georef.maxResidualPx, "view")
-        if (residual) pushToast({ key: "snapshot-crs", title: "World file is approximate", body: residual })
+        if (residual) pushToast({ key: "snapshot-crs", tone: "warn", title: "World file is approximate", body: residual })
       }
     } catch (error) {
       console.error("Failed to download screenshot:", error)
       pushToast({
         key: "snapshot",
-        title: "Snapshot failed",
+        tone: "alert", title: "Snapshot failed",
         body: error instanceof Error ? error.message : String(error),
       })
     }
@@ -262,7 +262,7 @@ export const DownloadSection: React.FC<{
     const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, epsg === 3857 ? toMercatorBbox(bbox) : bbox, epsg, georef)], { type: "image/tiff" })
     saveAs(blob, `${filename}.tif`)
     const residual = georef ? residualWarning(georef.epsg, georef.maxResidualPx, "view") : null
-    if (residual) pushToast({ key: "dem-crs", title: "Georeferencing is approximate", body: residual })
+    if (residual) pushToast({ key: "dem-crs", tone: "warn", title: "Georeferencing is approximate", body: residual })
   }, [exportCrs])
 
   const exportDTMClientSide = useCallback(async (signal: AbortSignal, filename?: string) => {

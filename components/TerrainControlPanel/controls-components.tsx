@@ -607,7 +607,7 @@ export const GotoOptionsButton: React.FC<{ section: string; className?: string; 
               if (!modeActive) {
                 toast({
                   key: `goto-inactive-${section}`,
-                  title: "Turn the mode on first",
+                  tone: "warn", title: "Turn the mode on first",
                   body: `Tick the checkbox to enable ${typeof modeLabel === "string" ? modeLabel : "this mode"}, then jump to its options.`,
                 })
                 return
@@ -696,7 +696,7 @@ export const CopyModalLinkButton: React.FC<{ param: string; value: string; label
         url.searchParams.set(param, value)
         navigator.clipboard?.writeText(url.toString()).then(
           () => toast({ key: "copy-modal-link", title: "Link copied", body: `Opens ${label} on arrival.` }),
-          () => toast({ key: "copy-modal-link", title: "Could not copy", body: url.toString() }),
+          () => toast({ key: "copy-modal-link", tone: "alert", title: "Could not copy", body: url.toString() }),
         )
       }}
     />

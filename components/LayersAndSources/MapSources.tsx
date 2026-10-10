@@ -244,7 +244,7 @@ export const TerrainSources = memo(({
             const name = customSource?.name ?? (typeof source === "string" ? source : "this source")
             pushToast({
                 key: `zoom-in:${typeof source === "string" ? source : name}`,
-                title: `Zoom in to z${Math.ceil(zoomFloor!)} for ${name}`,
+                tone: "warn", title: `Zoom in to z${Math.ceil(zoomFloor!)} for ${name}`,
                 body: vrtInfo?.minzoom != null && customSource?.minzoom == null
                     ? "Below that, one tile spans more of the mosaic's files than the browser will read, so nothing loads rather than everything blurring."
                     : "This source does not serve tiles below that zoom.",

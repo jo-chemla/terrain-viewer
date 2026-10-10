@@ -70,6 +70,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
             try {
               var m = location.search.match(/[?&]umamiTag=([^&]*)/)
               if (m) { if (m[1]) localStorage.setItem("umamiTag", decodeURIComponent(m[1])); else localStorage.removeItem("umamiTag") }
+              if (m) { try { var u = new URL(location.href); u.searchParams.delete("umamiTag"); history.replaceState(history.state, "", u.toString()) } catch (e) {} }
               ownTag = localStorage.getItem("umamiTag") || ""
             } catch (e) {}
             var s = document.createElement("script")

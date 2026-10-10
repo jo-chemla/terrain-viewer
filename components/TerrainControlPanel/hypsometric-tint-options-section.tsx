@@ -411,7 +411,7 @@ export const HypsometricTintOptionsSection: React.FC<{
       if (++tries < 20) timer = setTimeout(tick, 300)
       else toast({
         key: "hypso-auto-range-no-tiles",
-        title: "No terrain tiles decoded in view yet",
+        tone: "warn", title: "No terrain tiles decoded in view yet",
         body: "The elevation range is read from the terrain tiles on screen. Wait for the source to finish loading, then try again.",
       })
     }

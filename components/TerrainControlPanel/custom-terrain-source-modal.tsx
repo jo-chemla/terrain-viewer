@@ -247,6 +247,15 @@ export const CustomTerrainSourceModal: React.FC<{
         lines.push("This file has no overviews (only one resolution level) — it'll work, but zoomed-out views will be slower to render since every zoom reads from the same full-resolution data.")
       }
       if (lines.length) setLocalFileWarning(lines.join(" "))
+      // The file's own no-data, prefilled as the floor (at or below it is a
+      // hole) with the file's minimum as the fill when the stats are
+      // written, else 0: a -1e6 hole used to reach the terrain as a
+      // million-metre pit (black hillshade rims, walls in 3D). The step at
+      // the hole edge remains; a mask would need the reader to emit one.
+      if (result.nodata !== null && nodataFloor === "" && nodataFill === "") {
+        setNodataFloor(String(result.nodata))
+        setNodataFill(String(result.minimum ?? 0))
+      }
     })
   }, [name, registerLocalFile])
 
