@@ -22,7 +22,7 @@ import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom, activeViewAtom } from "@/lib/settings-atoms"
-import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom } from "@/lib/layout-constants"
+import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_STACK_GAP_PX } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -309,9 +309,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
   const isMobile = useIsMobile()
   // The phone-portrait bottom sheet's collapsed bar is the lowest strip, and
-  // it already pads the safe area.
+  // it already pads the safe area. Over it this panel floats like the sheet:
+  // a small gap above the bar, the minimap's side margins, rounded corners.
   const bottomSheetBarPx = useAtomValue(bottomSheetBarHeightAtom)
-  const profileDockLift = profileDockLiftPx(useAtomValue(profileDockHeightAtom), isMobile) + bottomSheetBarPx
+  const onBottomSheet = bottomSheetBarPx > 0
+  const profileDockLift = profileDockLiftPx(useAtomValue(profileDockHeightAtom), isMobile, bottomSheetBarPx)
 
   // Grid/dual-mode shape — generalizes the old fixed A/B pair to every
   // active view (A-F) in the current gridLayout. "overlay" always compares
@@ -1853,12 +1855,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         // home indicator (needs viewport-fit=cover, set in index.html).
         "bottom-0 left-0 right-0 rounded-none max-h-[65dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]",
         "sm:bottom-4 sm:left-4 sm:right-[var(--timeline-right-offset)] sm:rounded-xl sm:max-h-none sm:overflow-visible sm:pb-0",
-        bottomSheetBarPx > 0 && "pb-0",
+        onBottomSheet && "left-4 right-4 rounded-2xl pb-0",
       )}
       style={{
         ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem",
         // The docked elevation profile is the lowest panel: sit on it.
-        ...(profileDockLift > 0 ? { bottom: (isMobile ? 0 : 16) + profileDockLift } : {}),
+        ...(profileDockLift > 0 ? { bottom: (onBottomSheet ? BOTTOM_SHEET_STACK_GAP_PX : isMobile ? 0 : 16) + profileDockLift } : {}),
       }}
     >
       {controlsExpanded ? (

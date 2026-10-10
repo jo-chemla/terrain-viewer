@@ -59,7 +59,7 @@ import { COLOR_SPACES } from "@/lib/histogram-matching";
 import { HistoricalTimelineToggle } from "./MapControls/HistoricalTimelineToggle";
 import { SplitPill } from "./MapControls/SplitResizeHandle";
 import { useIsMobile, useIsBottomSheet } from '@/hooks/use-mobile'
-import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_HALF_FRACTION } from "@/lib/layout-constants"
+import { getSidebarFootprintPx, MAP_CTRL_EDGE_MARGIN_PX, splitRatioAtom, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX, clamp, historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, colorizeMapBordersInsetAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_HALF_FRACTION, BOTTOM_SHEET_STACK_GAP_PX } from "@/lib/layout-constants"
 import { ArrowLeftRight, X } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
@@ -3280,11 +3280,18 @@ export function TerrainViewer() {
   // offsets instead) since this needs a plain number for `padding`, not a
   // CSS length string, and needs to exist before mapPaddingFor is defined.
   // The bottom sheet's collapsed bar lifts the whole stack like the profile.
-  const profileDockLift = profileDockLiftPx(profileDockHeightPx, isMobile) + bottomSheetBarPx
+  const profileDockLift = profileDockLiftPx(profileDockHeightPx, isMobile, bottomSheetBarPx)
+  // The timeline panel's own margin above what it sits on: bottom-4, or a
+  // small gap over the sheet's bar (historical-timeline-panel.tsx). Full-
+  // bleed on a phone without the sheet it is 0, but the clearances below
+  // have always counted 16 there.
+  const timelineDockGapPx = bottomSheetBarPx > 0 ? BOTTOM_SHEET_STACK_GAP_PX : MAP_CTRL_EDGE_MARGIN_PX
   const timelineBottomPaddingPx = historicalTimelineVisible
-    ? Math.round(historicalTimelinePanelHeightPx + PANEL_CLEARANCE_GAP_PX + profileDockLift)
+    ? Math.round(historicalTimelinePanelHeightPx + timelineDockGapPx + profileDockLift)
     // Profile alone: its own top edge (and the sheet bar's, under it).
-    : (profileDockHeightPx > 0 ? Math.round((isMobile ? 0 : MAP_CTRL_EDGE_MARGIN_PX) + profileDockHeightPx) : 0) + bottomSheetBarPx
+    : profileDockHeightPx > 0
+      ? Math.round((bottomSheetBarPx > 0 ? BOTTOM_SHEET_STACK_GAP_PX : isMobile ? 0 : MAP_CTRL_EDGE_MARGIN_PX) + profileDockHeightPx) + bottomSheetBarPx
+      : bottomSheetBarPx
   // An open bottom sheet covers the lower half (more at full, but then the
   // map is a strip anyway): the camera centres in the half above it. Only
   // the camera: the panes, the timeline and the controls stay where they are,
@@ -4591,7 +4598,7 @@ export function TerrainViewer() {
   // (below) correctly accounts for both its own 56px footprint AND a
   // separate 16px gap on top of that.
   const measuredPanelClearance = historicalTimelinePanelHeightPx > 0
-    ? `${Math.round(historicalTimelinePanelHeightPx + MAP_CTRL_EDGE_MARGIN_PX + PANEL_CLEARANCE_GAP_PX + profileDockLift)}px`
+    ? `${Math.round(historicalTimelinePanelHeightPx + timelineDockGapPx + PANEL_CLEARANCE_GAP_PX + profileDockLift)}px`
     : `calc(13rem + ${profileDockLift}px)` // panel hasn't reported a real height yet (first paint) — reasonable fallback
   const minimapBottomOffset = !historicalTimelineActive
     ? `${MAP_CTRL_EDGE_MARGIN_PX + profileDockLift}px`

@@ -57,6 +57,18 @@ full-width sheet along the root's bottom edge; landscape phones (wider than
   bar and timeline toggle sit just above the bar. Open, the sheet (z-50)
   covers them without moving them, and the camera's bottom padding becomes
   half the root height so the map centres in the visible half.
+- **Panels over the bar float like the sheet (2026-10-10, Jonathan's
+  feedback):** over the collapsed bar, the timeline panel and the docked
+  profile are not full-bleed: `left-4 right-4` (the minimap's and the scale
+  bar's 16 px), `rounded-2xl` (the sheet's `rounded-t-2xl` radius), and
+  `BOTTOM_SHEET_STACK_GAP_PX` (8) above the bar. `profileDockLiftPx(h,
+  isMobile, sheetBarPx)` returns bar + profile + that gap, and TerrainViewer's
+  `timelineDockGapPx` (8 on the sheet, else the 16 the clearances always
+  counted) puts the minimap and scale bar 16 px above the timeline. The
+  clock toggle and the minimap without a timeline stay at 16 px above the
+  bar. "On the sheet" is `bottomSheetBarHeightAtom > 0` in all three files.
+  Landscape and desktop measured unchanged (`.cache/pw/sheet-v2.mjs`,
+  `sheet-v2-compare.mjs`).
 - `getSidebarFootprintPx(open, isMobile, isBottomSheet)` is 0 for the sheet
   (no right-hand footprint).
 - `Card` (components/ui/card.tsx) is a plain React 18 function component: a

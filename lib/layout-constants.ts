@@ -36,6 +36,11 @@ export const BOTTOM_SHEET_FULL_GAP_PX = 64
  *  above its bar. An open sheet covers them (it is on top) without moving
  *  them. */
 export const bottomSheetBarHeightAtom = atom(0)
+/** The gap between the collapsed sheet's bar and the panel floating just
+ *  above it (the timeline, or the docked profile). Those panels then keep
+ *  the side margins of the minimap and the scale bar (16 px) and the sheet's
+ *  rounded corners instead of running square to the screen edges. */
+export const BOTTOM_SHEET_STACK_GAP_PX = 8
 
 // Unified edge margin for MapLibre's own corner controls (nav/geolocate/
 // geocoder/minimap/scale) — matches the sidebar/timeline panel's own Tailwind
@@ -95,9 +100,11 @@ export const historicalTimelinePanelHeightAtom = atom(0)
  *  when not shown: the lowest panel of the bottom stack, which lifts the
  *  timeline panel and every bottom control by this much. */
 export const profileDockHeightAtom = atom(0)
-/** How far the docked profile lifts the panels and controls above it. */
-export const profileDockLiftPx = (heightPx: number, isMobile: boolean): number =>
-  heightPx > 0 ? Math.round(heightPx + (isMobile ? 0 : 12)) : 0
+/** How far the docked profile lifts the panels and controls above it, on
+ *  top of the phone-portrait sheet's collapsed bar when there is one (the
+ *  profile then floats BOTTOM_SHEET_STACK_GAP_PX above that bar). */
+export const profileDockLiftPx = (heightPx: number, isMobile: boolean, sheetBarPx = 0): number =>
+  sheetBarPx + (heightPx > 0 ? Math.round(heightPx + (sheetBarPx > 0 ? BOTTOM_SHEET_STACK_GAP_PX : isMobile ? 0 : 12)) : 0)
 
 // Which view the historical timeline's arrow keys / track clicks act on.
 // Shared (it used to be the panel's own useState) so each map pane's letter

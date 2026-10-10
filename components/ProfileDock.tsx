@@ -13,7 +13,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { PanelBottomClose } from "lucide-react"
 import { ElevationProfileChart } from "@/components/TerrainControlPanel/elevation-profile-chart"
 import { profileChartAtom, profileDockedAtom, profileHoverIndexAtom } from "@/lib/settings-atoms"
-import { profileDockHeightAtom, bottomSheetBarHeightAtom } from "@/lib/layout-constants"
+import { profileDockHeightAtom, bottomSheetBarHeightAtom, BOTTOM_SHEET_STACK_GAP_PX } from "@/lib/layout-constants"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
@@ -22,8 +22,9 @@ export const ProfileDock: React.FC<{ isMobile: boolean; rightOffset: string }> =
   const chart = useAtomValue(profileChartAtom)
   const setHover = useSetAtom(profileHoverIndexAtom)
   const setHeight = useSetAtom(profileDockHeightAtom)
-  // On a phone in portrait it sits on the bottom sheet's collapsed bar,
-  // which already pads the safe area.
+  // On a phone in portrait it floats just above the bottom sheet's collapsed
+  // bar (which already pads the safe area), with the sheet's look: the
+  // minimap's side margins and rounded corners.
   const bottomSheetBarPx = useAtomValue(bottomSheetBarHeightAtom)
   const observerRef = useRef<ResizeObserver | null>(null)
   // A callback ref: the panel mounts and unmounts with the chart, and its
@@ -58,9 +59,9 @@ export const ProfileDock: React.FC<{ isMobile: boolean; rightOffset: string }> =
       className={cn(
         "absolute z-10 border border-border bg-background/95 backdrop-blur-[2px] shadow-sm px-2 pt-1 pb-1.5 transition-[right] duration-150",
         isMobile ? "bottom-0 left-0 right-0 rounded-none pb-[calc(0.375rem+env(safe-area-inset-bottom))]" : "bottom-4 left-4 rounded-xl",
-        isMobile && bottomSheetBarPx > 0 && "pb-1.5",
+        isMobile && bottomSheetBarPx > 0 && "left-4 right-4 rounded-2xl pb-1.5",
       )}
-      style={isMobile ? (bottomSheetBarPx > 0 ? { bottom: bottomSheetBarPx } : undefined) : { right: rightOffset }}
+      style={isMobile ? (bottomSheetBarPx > 0 ? { bottom: bottomSheetBarPx + BOTTOM_SHEET_STACK_GAP_PX } : undefined) : { right: rightOffset }}
     >
       <div className="flex items-center justify-between gap-2 pb-0.5">
         <span className="text-[11px] font-medium text-muted-foreground truncate">Elevation profile<span className="hidden sm:inline"> · hover for the point on the map, wheel to zoom, drag to pan</span><span className="sm:hidden"> · drag along it for the point on the map</span></span>
