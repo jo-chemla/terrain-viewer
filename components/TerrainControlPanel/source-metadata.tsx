@@ -30,7 +30,10 @@ const isUrl = (v: unknown) => typeof v === "string" && /^https?:\/\//.test(v)
 // through /cog/info (width, height, crs as an OGC URI); the others through
 // the file's own header with geotiff.js: a remote COG by range requests, a
 // local one from its File. Null until known, or when there is no file.
-type RasterInfo = { width: number; height: number; crs: string | null }
+// A failed read is shown too (Jonathan, 2026-10-12: a basemap COG whose
+// file had gone showed nothing, and nothing said why): the row then
+// carries the reason, titiler's detail or the fetch error.
+type RasterInfo = { width: number; height: number; crs: string | null } | { error: string }
 
 /** "http://www.opengis.net/def/crs/EPSG/0/4083" or "EPSG:4083" → "EPSG:4083". */
 const crsLabel = (v: unknown): string | null => {
@@ -50,11 +53,18 @@ function useRasterInfo(source: Record<string, any>): RasterInfo | null {
     let cancelled = false
     const done = (r: RasterInfo | null) => { if (!cancelled && r) setInfo(r) }
     const throughTitiler = type === "vrt" || (type === "cog" && (cogViaTitiler || !viaProtocol))
+    const fail = (e: unknown) => done({ error: e instanceof Error ? e.message : String(e) })
     if (throughTitiler) {
       fetch(`${titilerEndpoint}/cog/info?${TITILER_CACHE_KEY}&url=${encodeURIComponent(url)}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => done(d && Number.isFinite(d.width) && Number.isFinite(d.height) ? { width: d.width, height: d.height, crs: crsLabel(d.crs) } : null))
-        .catch(() => { /* no info, no rows */ })
+        .then(async (r) => {
+          const d = await r.json().catch(() => null)
+          // titiler answers 500 with the file's own failure in `detail`
+          // ("HTTP response code: 404" for a file that is gone).
+          if (!r.ok) throw new Error(`titiler ${r.status}${d?.detail ? `: ${d.detail}` : ""}`)
+          return d
+        })
+        .then((d) => done(d && Number.isFinite(d.width) && Number.isFinite(d.height) ? { width: d.width, height: d.height, crs: crsLabel(d.crs) } : { error: "titiler gave no size" }))
+        .catch(fail)
     } else {
       (async () => {
         const geotiff = await import("geotiff")
@@ -65,7 +75,7 @@ function useRasterInfo(source: Record<string, any>): RasterInfo | null {
         const keys = (image.getGeoKeys() ?? {}) as Record<string, number | undefined>
         const epsg = keys.ProjectedCSTypeGeoKey ?? keys.GeographicTypeGeoKey
         done({ width: image.getWidth(), height: image.getHeight(), crs: epsg ? `EPSG:${epsg}` : null })
-      })().catch(() => { /* no info, no rows */ })
+      })().catch(fail)
     }
     return () => { cancelled = true }
   }, [type, url, cogViaTitiler, viaProtocol, titilerEndpoint])
@@ -84,13 +94,19 @@ export const SourceMetadataRows: React.FC<{ source: Record<string, any>; classNa
           <dd className="min-w-0 break-words">{gsdText(gsd)}{gsd.estimated ? " — estimated from the max zoom" : ""}</dd>
         </div>
       )}
-      {raster && (
+      {raster && "error" in raster && (
+        <div className="contents">
+          <dt className="text-muted-foreground">Raster size</dt>
+          <dd className="min-w-0 break-words text-destructive">not readable: {raster.error}</dd>
+        </div>
+      )}
+      {raster && "width" in raster && (
         <div className="contents">
           <dt className="text-muted-foreground">Raster size</dt>
           <dd className="min-w-0 break-words tabular-nums">{raster.width.toLocaleString()} × {raster.height.toLocaleString()} px</dd>
         </div>
       )}
-      {raster?.crs && (
+      {raster && "crs" in raster && raster.crs && (
         <div className="contents">
           <dt className="text-muted-foreground">CRS</dt>
           <dd className="min-w-0 break-words">{raster.crs}</dd>

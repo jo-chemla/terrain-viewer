@@ -248,7 +248,11 @@ export const TerrainSourceSection: React.FC<{
   // there, picking a worldwide source never moves you (it has no bounds, so this
   // is never called), and coming back to a country you are already zoomed inside
   // leaves your view alone rather than pulling back out to the whole country.
-  const attemptFitBounds = useCallback((bbox: [number, number, number, number], force = false) => {
+  // `minzoom`: a source that only serves from some zoom (the Kilauea 2018
+  // VRT, from z13) must be landed on at that zoom at least; a fit of its
+  // whole extent that comes out further away would show nothing (Jonathan,
+  // 2026-10-12: "cannot land on it").
+  const attemptFitBounds = useCallback((bbox: [number, number, number, number], force = false, minzoom?: number) => {
     if (!mapRef.current) return
     const [west, south, east, north] = bbox
     if (!force) {
@@ -272,7 +276,15 @@ export const TerrainSourceSection: React.FC<{
     // still fenced to the previous country would clamp the flight the sync
     // hands it and stay behind.
     if (map.getMaxBounds()) applyBoundedViewAll(map, [west, south, east, north])
-    map.fitBounds([[west, south], [east, north]], { padding: fitPaddingFor(map), speed: 6 })
+    const padding = fitPaddingFor(map)
+    if (minzoom !== undefined) {
+      const cam = map.cameraForBounds([[west, south], [east, north]], { padding })
+      if (cam && typeof cam.zoom === "number" && cam.zoom < minzoom) {
+        map.flyTo({ center: cam.center, zoom: minzoom, speed: 6 })
+        return
+      }
+    }
+    map.fitBounds([[west, south], [east, north]], { padding, speed: 6 })
   }, [mapRef])
 
   const handleFitToBounds = useCallback(async (source: CustomTerrainSource, force = false) => {
@@ -283,14 +295,14 @@ export const TerrainSourceSection: React.FC<{
     // type-specific detection below and fit to nothing.
     const staticBounds = staticBoundsFor(source)
     if (staticBounds) {
-      attemptFitBounds(staticBounds, force)
+      attemptFitBounds(staticBounds, force, source.minzoom)
       return
     }
     if (source.type === 'tilejson') {
       try {
         const response = await fetch(source.url)
         const data = await response.json()
-        if (data.bounds) attemptFitBounds(data.bounds, force)
+        if (data.bounds) attemptFitBounds(data.bounds, force, source.minzoom)
       } catch (error) {
         console.error("Failed to fetch TileJSON bounds:", error)
       }
@@ -313,7 +325,7 @@ export const TerrainSourceSection: React.FC<{
       }
       try {
         const metadata = await getCogMetadata(resolvedUrl)
-        if (metadata.bbox) attemptFitBounds(metadata.bbox, force)
+        if (metadata.bbox) attemptFitBounds(metadata.bbox, force, source.minzoom)
       } catch (error) {
         console.error("Failed to fetch local COG bounds:", error)
         pushToast({ key: `local-cog-${source.id}`, tone: "alert", title: "This file cannot be read", body: String((error as Error)?.message ?? error), duration: 20000 })
@@ -327,14 +339,14 @@ export const TerrainSourceSection: React.FC<{
       // its native-CRS bbox read as Mercator metres and fit to the wrong place.
       if (useCogProtocolVsTitiler && !source.cogViaTitiler) {
         getCogMetadata(source.url).then(metadata => {
-          if (metadata.bbox) attemptFitBounds(metadata.bbox, force)
+          if (metadata.bbox) attemptFitBounds(metadata.bbox, force, source.minzoom)
         })
       } else {
         const infoUrl = `${titilerEndpoint}/cog/info.geojson?${TITILER_CACHE_KEY}&url=${encodeURIComponent(source.url)}`
         const response = await fetch(infoUrl)
         const data = await response.json()
         const bbox = data.bbox ?? data.properties.bounds
-        if (bbox) attemptFitBounds(bbox, force)
+        if (bbox) attemptFitBounds(bbox, force, source.minzoom)
       }
     } catch (error) {
       console.error("Failed to fetch COG bounds:", error)

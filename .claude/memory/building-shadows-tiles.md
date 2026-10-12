@@ -22,6 +22,15 @@ in the docs' 17:00 Bryant Park pictures is a different thing: with the sun at
 azimuth 271° every shadow's north edge is horizontal, and that edge is the
 true sweep of a 131 m building on 6th Avenue (way 2653127730).
 
+**Cost (2026-10-12, Jonathan asked whether the off-screen fetch is too
+heavy):** a Manhattan z14 tile is 350 to 730 KB, the densest there is, and a
+z14 tile spans about 1.9 km at that latitude. A z17 view covers about one
+tile; widened by 600 m / tan(altitude) each side it needs 3 to 4 tiles at a
+45° sun (about 2 MB) and up to 16 at a 10° sun (the 3 km cap, about 8 MB),
+once per area: the tiles share their URLs with the OpenFreeMap basemap so
+the browser's HTTP cache serves them when that basemap is on, and the LRU
+keeps 200 decoded tiles. Kept.
+
 **How to apply:** the raw z14 tiles clip at 64/4096 (coordinates span -64 to
 4160), MapLibre's overzoom slices at 128/4096; `isClipEdge` checks the z14
 lines with 64/4096. Do not reintroduce a map source for the footprints. A lower

@@ -26,6 +26,8 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | [Per-variant update feed](#electrobun-per-variant-update-feed) | Electrobun | Drafted 2026-10-07, not posted | Two GitHub releases, one per build |
 | [A browser OAuth client](#planet-a-browser-oauth-client) | Planet | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
 | [renderToTerrainTile: the plan past experimental](#maplibre-rendertoterraintile-the-plan-past-experimental) | MapLibre, [PR 8588](https://github.com/maplibre/maplibre-gl-js/pull/8588) | Drafted 2026-10-07, not posted | Own meshes for Phong and Matcap; Allmaps from its tile server when tilted |
+| [The launcher's command line, handed to the app](#electrobun-the-launchers-command-line-handed-to-the-app) | Electrobun | Drafted 2026-10-12, not posted | The main process reads the launcher's command line through ntdll |
+| [A height for no-data pixels in the terrain encoder](#geomatico-a-height-for-no-data-pixels-in-the-terrain-encoder) | geomatico/maplibre-cog-protocol, after [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) | Drafted 2026-10-12, not posted | Our own protocol rewrites the tiles (a second decode) |
 
 ## MapLibre: renderToTerrainTile, the plan past experimental
 
@@ -62,3 +64,15 @@ The update feed is named after the channel (`stable-<platform>-update.json`, the
 **Insights Platform STAC (api.planet.com/x/data): a way for a browser app to get an access token**
 
 The STAC API takes only an OpenID access token; a `PLAK` API key answers 401 there (it works on the Data API v1 and the tile service). The documentation says the Planet CLI and SDK are the only interactive OAuth clients for now, and that machine-to-machine tokens for `api.planet.com` are in progress. A web app can therefore only ask users to run `planet auth print-access-token` and paste the result, every two hours or so. Proposal, either: self-service registration of a public OAuth client (authorization code with PKCE, the app's own redirect URI), or accepting the API key on `/x/data` as the Data API v1 does. CORS on `/x/data` is already open, so nothing else is missing.
+
+## Electrobun: the launcher's command line, handed to the app
+
+**Windows launcher: pass the command-line arguments to the main process (file associations, "open with", a shortcut with arguments)**
+
+On Windows (Electrobun 2.0.2) `launcher.exe` starts the Bun main process without its own arguments: a file dropped on the executable, a registered file type opened from Explorer, or `launcher.exe "C:\path\project.zip"` all reach `process.argv` as nothing. The main process has no supported way to learn what it was launched with. We read the launcher's command line ourselves through `ntdll` (`NtQueryInformationProcess` with `ProcessCommandLineInformation` on `ELECTROBUN_LAUNCHER_PID`, or the parent when it is `launcher.exe`) and split it with Windows quoting rules; it works but it is a reach into another process. Proposal: forward the launcher's arguments to the main process (as `process.argv` entries after the script, or an `ELECTROBUN_ARGS` JSON variable), and on macOS and Linux the same for `open -a` / `xdg-open` with a file, so one `Electroview`-side event ("open-file" with the paths) covers the three platforms. Happy to send a PR for the Windows part.
+
+## geomatico: a height for no-data pixels in the terrain encoder
+
+**renderTerrain: a configurable height for no-data pixels, or a nearest-valid fill, instead of 0 m**
+
+Since [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) (0.10.0) no-data pixels in a DEM are encoded as 0 m: `((isFinite(h) && !noData ? h : 0) + 10000) / 0.1`. That is right for a coastline, but a mountain DSM with holes (a drone survey, a lidar strip, a nodata collar around a rotated footprint) then shows a cliff dropping to sea level at every hole edge, and the hillshade draws black outlines along them. In Terrain Viewer we work around it by rewriting the tiles through our own protocol, which doubles the decode. Proposal: an option on the protocol, for example `cogProtocol({ terrainNoDataHeight })` or a URL fragment such as `#dem+nodata=-100`, with 0 as the default for compatibility; better still, a "nearest valid" fill so a hole takes the height of its edge. A fixed height already removes the walls for a per-file choice. Happy to send a PR for whichever form you prefer.

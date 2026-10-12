@@ -8,8 +8,11 @@ type: feedback
 
 - Set 2026-10-07, for the next session and again on 2026-10-08: the
   **Upstream requests** page, http://localhost:5204/docs/dev/upstream-requests/
-  (four drafted requests to Allmaps, Electrobun and Planet, and the earlier
-  items). The user posts them; when posted, update the status column.
+  (seven drafted requests: Allmaps ×2, Electrobun ×2 (update feed per
+  variant; the launcher's command line handed to the app, added 2026-10-12),
+  Planet, MapLibre PR 8588, geomatico no-data height (added 2026-10-12), and
+  the earlier items). The user posts them; when posted, update the status
+  column.
 - Open since 2026-10-09: **backlinks** have no API; ask Jonathan for a
   manual export of the Search Console Links report when they matter.
 - Set 2026-10-10: the **historical host as a Search Console property**

@@ -1384,7 +1384,14 @@
   "one_line": "Repeat topography during the eruption gives 0.9-1.4 km3 of lava (dense-rock equivalent), 0.4 km3 of it on land, with effusion rates rising to 200 m3/s or more by mid-June.",
   "group": "Volcanoes",
   "oa_url": null,
-  "cites": []
+  "cites": [],
+  "change": {
+   "id": "custom-us-hi-kilauea-2018-lava",
+   "range": 40,
+   "lat": 19.4865,
+   "lng": -154.8795,
+   "zoom": 15
+  }
  },
  {
   "category": "Earth surface processes",

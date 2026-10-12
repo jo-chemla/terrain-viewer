@@ -1027,6 +1027,32 @@
             "infoUrl": "https://doi.org/10.1016/j.epsl.2017.06.048"
         },
         {
+            "id": "custom-us-hi-kilauea-2018-dtm05",
+            "name": "USA - Kilauea lower East Rift Zone lidar DTM 0.5m, July 2018 - VRT",
+            "url": "https://opentopography.s3.sdsc.edu/raster/HI18_KilaueaJL/HI18_KilaueaJL_be.vrt",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "bounds": [-155.3126, 19.3761, -154.8025, 19.5305],
+            "resolutionM": 0.5,
+            "description": "USGS lidar of the 2018 lower East Rift Zone eruption, flown 8-12 July 2018 while the eruption was still going (it ended in August). Hosted by OpenTopography (doi:10.5069/G9M32SV1); NAD83(PA11) / UTM 5N, NAVD88 heights. A 107k x 33k mosaic without overviews: titiler serves it from zoom 13 (a second or two a tile); further out the read fails, so the view lands at zoom 13.",
+            "infoUrl": "https://doi.org/10.5069/G9M32SV1",
+            "minzoom": 13
+        },
+        {
+            "id": "custom-us-hi-kilauea-2018-lava",
+            "name": "USA - Change: Kilauea 2018 lava, lidar July 2018 - AWS Terrain Tiles (pre-2018) - derived",
+            "url": "diff://custom-us-hi-kilauea-2018-dtm05-aws",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-us-hi-kilauea-2018-dtm05",
+            "diffSubtrahendId": "aws",
+            "loadWithSamples": false,
+            "bounds": [-155.3126, 19.3761, -154.8025, 19.5305],
+            "resolutionM": 1,
+            "description": "Lava thickness of the 2018 lower East Rift Zone eruption, roughly: the July 2018 lidar minus AWS Terrain Tiles, which over Hawaii carry the USGS elevation model assembled before 2017. Coarse (about 10 m) against 0.5 m lidar, so edges and cliffs show resampling noise; the lava fields of Kapoho and Leilani Estates stand out by tens of metres. Dietterich et al. 2021, doi:10.1007/s00445-021-01443-6. From zoom 13, as the lidar.",
+            "infoUrl": "https://doi.org/10.1007/s00445-021-01443-6",
+            "minzoom": 13
+        },
+        {
             "id": "custom-is-fagradalsfjall-2020-strip",
             "name": "ISL - Fagradalsfjall ArcticDEM strip 2m, 21 Aug 2020 - COG",
             "url": "https://pgc-opendata-dems.s3.us-west-2.amazonaws.com/arcticdem/strips/s2s041/2m/n63w023/SETSM_s2s041_WV03_20200821_104001005E288B00_1040010061BF1600_2m_lsf_seg1_dem.tif",
@@ -1290,60 +1316,6 @@
             "resolutionM": 1,
             "description": "Aggradation and bank erosion of the June 2021 Melamchi flood along the lower valley. Both DSMs come from the same Pléiades series; co-registration was not checked here. Usable from z13.",
             "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.102024.32645.1"
-        },
-        {
-            "id": "custom-es-lapalma-2021-09-dsm05",
-            "name": "ESP - La Palma Cumbre Vieja eruption DSM 0.5m, UAS 26-27 Sep 2021 - COG",
-            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.062022.4083.1/raster/Cumbre_Vieja_DSM_SfM_09_2021_50cm_REGCAN95.tif",
-            "type": "cog",
-            "cogViaTitiler": true,
-            "titilerNodata": -3.4028234663852886e+38,
-            "loadWithSamples": false,
-            "bounds": [
-                -17.9055,
-                28.6089,
-                -17.8645,
-                28.6222
-            ],
-            "resolutionM": 0.5,
-            "description": "Drone structure-from-motion DSM of the Tajogaite vent area one week into the 2021 Cumbre Vieja eruption, by INGV (OTDS.062022.4083.1), CC BY 4.0. REGCAN95 / UTM 28N, so titiler; tiled, no overviews, so each tile reads the whole file (a few seconds, at any zoom).",
-            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.062022.4083.1"
-        },
-        {
-            "id": "custom-es-lapalma-2022-03-cone-dsm02",
-            "name": "ESP - La Palma Tajogaite cone DSM 0.2m, UAS March 2022 - COG",
-            "url": "https://opentopography.s3.sdsc.edu/dataspace/OTDS.022026.4083.1/raster/Tajogaite_cone_2022_03_DSM_20cm.tif",
-            "type": "cog",
-            "cogViaTitiler": true,
-            "titilerNodata": -3.4028234663852886e+38,
-            "loadWithSamples": false,
-            "bounds": [
-                -17.8749,
-                28.6106,
-                -17.8632,
-                28.6183
-            ],
-            "resolutionM": 0.2,
-            "description": "The new Tajogaite cone three months after the eruption ended, the first of six UAS surveys to July 2024 (OTDS.022026.4083.1 to .6), CC BY 4.0 (licence confirmed on the 2021/22 records, not opened for this series). Verified: summit area 1008 m, 78 m above the September 2021 surface. The full-area January 2022 DSM (OTDS.032022.4083.1, 1.4 GB BigTIFF) only renders on titiler at z17.",
-            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.022026.4083.1"
-        },
-        {
-            "id": "custom-es-lapalma-cone-growth",
-            "name": "ESP - Change: Tajogaite cone growth, DSM Mar 2022 - Sep 2021 - derived",
-            "url": "diff://custom-es-lapalma-2022-03-cone-dsm02-custom-es-lapalma-2021-09-dsm05",
-            "type": "dem-diff",
-            "diffMinuendId": "custom-es-lapalma-2022-03-cone-dsm02",
-            "diffSubtrahendId": "custom-es-lapalma-2021-09-dsm05",
-            "loadWithSamples": false,
-            "bounds": [
-                -17.8749,
-                28.6106,
-                -17.8645,
-                28.6183
-            ],
-            "resolutionM": 0.5,
-            "description": "How much the cone grew after its first week: up to about 80-90 m over the vent. The pre-eruption surface is not in either file; for the full cone height, difference the March 2022 DSM against Mapterhorn or AW3D30 instead.",
-            "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.022026.4083.1"
         },
         {
             "id": "custom-us-ridgecrest-pre-dsm2",
