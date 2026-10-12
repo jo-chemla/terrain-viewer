@@ -1027,32 +1027,6 @@
             "infoUrl": "https://doi.org/10.1016/j.epsl.2017.06.048"
         },
         {
-            "id": "custom-us-hi-kilauea-2018-dtm05",
-            "name": "USA - Kilauea lower East Rift Zone lidar DTM 0.5m, July 2018 - VRT",
-            "url": "https://opentopography.s3.sdsc.edu/raster/HI18_KilaueaJL/HI18_KilaueaJL_be.vrt",
-            "type": "vrt",
-            "loadWithSamples": false,
-            "bounds": [-155.3126, 19.3761, -154.8025, 19.5305],
-            "resolutionM": 0.5,
-            "description": "USGS lidar of the 2018 lower East Rift Zone eruption, flown 8-12 July 2018 while the eruption was still going (it ended in August). Hosted by OpenTopography (doi:10.5069/G9M32SV1); NAD83(PA11) / UTM 5N, NAVD88 heights. The mosaic has no overviews, so it only loads from zoom 15.",
-            "infoUrl": "https://doi.org/10.5069/G9M32SV1",
-            "minzoom": 15
-        },
-        {
-            "id": "custom-us-hi-kilauea-2018-lava",
-            "name": "USA - Change: Kilauea 2018 lava, lidar July 2018 - AWS Terrain Tiles (pre-2018) - derived",
-            "url": "diff://custom-us-hi-kilauea-2018-dtm05-aws",
-            "type": "dem-diff",
-            "diffMinuendId": "custom-us-hi-kilauea-2018-dtm05",
-            "diffSubtrahendId": "aws",
-            "loadWithSamples": false,
-            "bounds": [-155.3126, 19.3761, -154.8025, 19.5305],
-            "resolutionM": 1,
-            "description": "Lava thickness of the 2018 lower East Rift Zone eruption, roughly: the July 2018 lidar minus AWS Terrain Tiles, which over Hawaii carry the USGS elevation model assembled before 2017. Coarse (about 10 m) against 0.5 m lidar, so edges and cliffs show resampling noise; the lava fields of Kapoho and Leilani Estates stand out by tens of metres. Dietterich et al. 2021, doi:10.1007/s00445-021-01443-6.",
-            "infoUrl": "https://doi.org/10.1007/s00445-021-01443-6",
-            "minzoom": 15
-        },
-        {
             "id": "custom-is-fagradalsfjall-2020-strip",
             "name": "ISL - Fagradalsfjall ArcticDEM strip 2m, 21 Aug 2020 - COG",
             "url": "https://pgc-opendata-dems.s3.us-west-2.amazonaws.com/arcticdem/strips/s2s041/2m/n63w023/SETSM_s2s041_WV03_20200821_104001005E288B00_1040010061BF1600_2m_lsf_seg1_dem.tif",
@@ -1324,7 +1298,6 @@
             "type": "cog",
             "cogViaTitiler": true,
             "titilerNodata": -3.4028234663852886e+38,
-            "minzoom": 13,
             "loadWithSamples": false,
             "bounds": [
                 -17.9055,
@@ -1333,7 +1306,7 @@
                 28.6222
             ],
             "resolutionM": 0.5,
-            "description": "Drone structure-from-motion DSM of the Tajogaite vent area one week into the 2021 Cumbre Vieja eruption, by INGV (OTDS.062022.4083.1), CC BY 4.0. REGCAN95 / UTM 28N, so titiler; tiled, no overviews.",
+            "description": "Drone structure-from-motion DSM of the Tajogaite vent area one week into the 2021 Cumbre Vieja eruption, by INGV (OTDS.062022.4083.1), CC BY 4.0. REGCAN95 / UTM 28N, so titiler; tiled, no overviews, so each tile reads the whole file (a few seconds, at any zoom).",
             "infoUrl": "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.062022.4083.1"
         },
         {
@@ -1343,7 +1316,6 @@
             "type": "cog",
             "cogViaTitiler": true,
             "titilerNodata": -3.4028234663852886e+38,
-            "minzoom": 13,
             "loadWithSamples": false,
             "bounds": [
                 -17.8749,
