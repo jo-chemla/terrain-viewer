@@ -4598,22 +4598,27 @@ export function TerrainViewer() {
   // (below) correctly accounts for both its own 56px footprint AND a
   // separate 16px gap on top of that.
   const measuredPanelClearance = historicalTimelinePanelHeightPx > 0
-    ? `${Math.round(historicalTimelinePanelHeightPx + timelineDockGapPx + PANEL_CLEARANCE_GAP_PX + profileDockLift)}px`
+    // On the phone sheet the gap above the timeline is the sheet's 8 px too
+    // (every gap there equals the 8 px side margin, Jonathan 2026-10-12).
+    ? `${Math.round(historicalTimelinePanelHeightPx + timelineDockGapPx + (bottomSheetBarPx > 0 ? timelineDockGapPx : PANEL_CLEARANCE_GAP_PX) + profileDockLift)}px`
     : `calc(13rem + ${profileDockLift}px)` // panel hasn't reported a real height yet (first paint) — reasonable fallback
+  // On the phone sheet the gap above the collapsed bar is the sheet's 8 px
+  // (timelineDockGapPx), as between the stacked controls; 16 elsewhere.
   const minimapBottomOffset = !historicalTimelineActive
-    ? `${MAP_CTRL_EDGE_MARGIN_PX + profileDockLift}px`
+    ? `${timelineDockGapPx + profileDockLift}px`
     : state.historicalTimelineCollapsed
       // HistoricalTimelineToggle sits at bottom-4 (16px) with h-10 (40px) —
       // its own top edge is already 56px up from the viewport bottom, so the
       // minimap needs 56px + the same 16px gap every other clearance here
       // uses, not just 56px (which put the minimap flush against the toggle
       // button with zero gap between them).
-      ? `calc(4.5rem + ${profileDockLift}px)`
+      // On the sheet both gaps are 8: 8 + 40 + 8 = 56 px.
+      ? `${timelineDockGapPx * 2 + 40 + profileDockLift}px`
       : measuredPanelClearance
   // Bottom-right corner (attribution+scale) needs the same historical-panel
   // clearance reasoning as the minimap above, since it also docks off the
   // bottom edge.
-  const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${MAP_CTRL_EDGE_MARGIN_PX + profileDockLift}px`
+  const scaleBottomOffset = historicalTimelineVisible ? measuredPanelClearance : `${timelineDockGapPx + profileDockLift}px`
   const sidebarFootprintPx = getSidebarFootprintPx(isSidebarOpen, isMobile, isBottomSheet)
   // The side margin of the floating edge controls: 4 px on the phone-portrait
   // sheet layout (src/index.css drops the corner controls' own 16 px side
@@ -5201,7 +5206,7 @@ export function TerrainViewer() {
       )}
       <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
-        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} bottomPx={MAP_CTRL_EDGE_MARGIN_PX + profileDockLift} leftPx={ctrlSideMarginPx} />
+        <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} bottomPx={timelineDockGapPx + profileDockLift} leftPx={ctrlSideMarginPx} />
       )}
       <TerrainControlPanel
         state={state}

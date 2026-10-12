@@ -47,7 +47,15 @@ function Slider<Value extends number | readonly number[]>({
       value={value}
       min={min}
       max={max}
-      thumbAlignment="edge"
+      // "center" (Base UI's default), not "edge": in edge mode the thumb is
+      // placed from a measurement of the track and the thumb (ResizeObserver
+      // plus a layout effect) and stays `visibility: hidden` until that
+      // measurement is finite. Jonathan (Chrome on a Pixel 10 Pro, 2026-10-12)
+      // saw every thumb missing on the phone sheet expanded to full until a
+      // slider was touched (a value change re-measures): a measure taken
+      // while the track had no width. Center mode is a percentage, nothing
+      // to measure, and matches the indicator drawn below by percentage.
+      thumbAlignment="center"
       className={cn(
         'relative flex w-full items-center data-disabled:opacity-50',
         className,

@@ -100,3 +100,21 @@ full-width sheet along the root's bottom edge; landscape phones (wider than
   gap above the bar was already 8. Phone landscape: the timeline's source
   pills stay on one scrollable line (the `sm-tall` variant in src/index.css:
   wrapping needs min-width 640 and min-height 501).
+- **Every vertical gap on the sheet is 8 too (2026-10-12, later the same
+  day):** the clock toggle, the scale bar and the minimap sit
+  `timelineDockGapPx` (8 on the sheet) above the collapsed bar, not 16, and
+  the minimap and scale bar sit 8 above the timeline panel (the
+  `PANEL_CLEARANCE_GAP_PX` 16 only off the sheet). Measured with
+  `.cache/pw/sheet-v3.mjs` into `.cache/mobile-sheet/v6`: toggle bottom 763
+  over a bar at 771, scale bottom 600 over a timeline at 608; landscape and
+  desktop rects identical to before.
+- **Slider thumbs hidden on a Pixel (2026-10-12):** on Chrome Android
+  (Pixel 10 Pro) every slider thumb was missing with the sheet at full until
+  a slider was touched. Not reproduced in Chrome or WebKit emulation. The
+  app's Slider used Base UI's `thumbAlignment="edge"`, where the thumb is
+  placed from a measurement (ResizeObserver + layout effect) and stays
+  `visibility: hidden` until the measurement is finite; a measure while the
+  track had no width gives NaN and only a value change re-measures. Now
+  `thumbAlignment="center"` (Base UI's default): a percentage, nothing to
+  measure, and it lines up with the indicator the wrapper draws by
+  percentage. Jonathan is to confirm on the phone.
