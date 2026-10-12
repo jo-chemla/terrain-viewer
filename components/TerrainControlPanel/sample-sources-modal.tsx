@@ -138,7 +138,7 @@ function kindOf(name: string): { label: string; title: string } | null {
  */
 export function SampleSourcesModal<T extends SampleLike>({
   open, onOpenChange, title, samples, current, setCurrent, compareToMapterhorn = false,
-  stacTarget, onBrowseStac,
+  stacTarget, onBrowseStac, onAdded,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -154,6 +154,9 @@ export function SampleSourcesModal<T extends SampleLike>({
    *  open the Add dialog on its STAC tab. Omit and the section is read-only
    *  links. */
   onBrowseStac?: (presetId: string) => void
+  /** The entries just added (the rows clicked, not the operands a difference
+   *  pulls in), for the caller to select one. */
+  onAdded?: (added: readonly T[]) => void
 }) {
   // Which catalogs the Add dialog's own picker offers. Stored as the
   // exclusions (see disabledStacPresetsAtom) so a catalog added in a later
@@ -230,6 +233,7 @@ export function SampleSourcesModal<T extends SampleLike>({
     const all = [...operands, ...entries]
     const ids = new Set(all.map((s) => s.id))
     setCurrent([...current.filter((s) => !ids.has(s.id)), ...all])
+    onAdded?.(entries)
   }
   const remove = (entries: readonly T[]) => {
     const ids = new Set(entries.map((s) => s.id))

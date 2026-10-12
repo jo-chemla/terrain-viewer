@@ -429,17 +429,18 @@ export const TerrainSourceSection: React.FC<{
             )}
             <TooltipProvider>
               <div id="tour-byod-terrain-row" className="flex gap-2">
-                <TooltipButton
-                  icon={Plus}
-                  label="Add Terrain"
-                  tooltip="Add a new custom terrain source"
-                  onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}
-                />
+                {/* Library first: the usual way in (Jonathan, 2026-10-12). */}
                 <TooltipButton
                   icon={Library}
                   label="Library"
                   tooltip="Pick from the library of national and global terrain datasets"
                   onClick={handleLoadSample}
+                />
+                <TooltipButton
+                  icon={Plus}
+                  label="Add Terrain"
+                  tooltip="Add a new custom terrain source"
+                  onClick={() => { setEditingSource(null); setIsAddSourceModalOpen(true) }}
                 />
                 {editMode && (
                   <Tooltip>
@@ -520,6 +521,17 @@ export const TerrainSourceSection: React.FC<{
         onOpenChange={setIsSampleModalOpen}
         title="Terrain dataset library"
         stacTarget="terrain"
+        // One entry added by its own row (the terrain, or its nDSM) becomes
+        // the terrain, as a source from the Add dialog does; a section's
+        // "add all" selects nothing. Resolved from the entry itself, as in
+        // handleSaveCustomSource: the list in this closure is one add stale.
+        onAdded={(entries) => {
+          if (entries.length !== 1) return
+          const s = entries[0]
+          setState(fanOutWhenSingle(state, s.linkedBasemapId
+            ? (state.basemapPerView ? { sourceA: s.id, basemapSourceA: s.linkedBasemapId } : { sourceA: s.id, basemapSource: s.linkedBasemapId })
+            : { sourceA: s.id }))
+        }}
         onBrowseStac={(presetId) => {
         // The Add dialog reads its own type back from the "last type" atom
         // when it opens for a NEW source, so pointing that at "stac" is all it

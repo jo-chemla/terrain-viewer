@@ -430,18 +430,18 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
           <TooltipProvider>
             <div className="flex gap-2">
               <TooltipButton
-                icon={Plus}
-                label="Add Basemap"
-                className="flex-1 min-w-0"
-                tooltip="Add a new custom basemap source"
-                onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}
-              />
-              <TooltipButton
                 icon={Library}
                 label="Library"
                 className="flex-1 min-w-0"
                 tooltip="Pick from the library of sample basemaps"
                 onClick={handleLoadSample}
+              />
+              <TooltipButton
+                icon={Plus}
+                label="Add Basemap"
+                className="flex-1 min-w-0"
+                tooltip="Add a new custom basemap source"
+                onClick={() => { setEditingBasemap(null); setIsAddBasemapModalOpen(true) }}
               />
               {/* Edit mode: on, each row shows edit and delete and the
                   batch JSON editor is offered; off, rows show info, fit and
