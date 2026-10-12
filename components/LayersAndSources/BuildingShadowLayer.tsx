@@ -5,8 +5,12 @@
 // never darken twice), the footprints are cut back out (roofs stay lit), and
 // the mask is composited over the map. Heights come from OpenFreeMap's
 // OpenMapTiles "building" layer (render_height, from OSM height or levels),
-// available from z13, through a vector source of this layer's own: the OSM
-// vector basemap need not be on.
+// through z14 tiles this layer fetches and decodes itself
+// (lib/building-tiles.ts), over the viewport widened by the longest shadow
+// a building can cast at the current sun height: the OSM vector basemap
+// need not be on, and a tower just off screen towards the sun still casts
+// its shadow in (MapLibre's own vector source only holds the tiles under
+// the viewport, each cut at its edge).
 //
 // The geometry (positions in Web Mercator, each vertex's sweep length per
 // unit of 1/tan) is rebuilt only when the map settles or building tiles
@@ -16,33 +20,32 @@
 // shadows cast by real shapes (a spire, a dome) and falling on slopes, the
 // terrain Shadows mode with a surface model (DSM) source is the way.
 import { memo, useEffect, useRef } from "react"
-import { Layer, Source, useMap } from "react-map-gl/maplibre"
+import { useMap } from "react-map-gl/maplibre"
 import * as maplibregl from "maplibre-gl"
 import type { CustomLayerInterface, CustomRenderMethodInput } from "maplibre-gl"
 import earcut, { flatten } from "earcut"
 import { LAYER_SLOTS } from "./MapLayers"
+import { BUILDING_TILE_BUFFER, BUILDING_TILE_ZOOM, abortBuildingTilesExcept, cachedBuildingTile, requestBuildingTile, tileKey, type BuildingPolygon } from "@/lib/building-tiles"
 
-const SRC = "osm-buildings-for-shadows"
-const PROBE_LAYER = "osm-buildings-for-shadows-probe"
 const LAYER_ID = "osm-building-shadows"
-// OpenFreeMap's TileJSON: a versioned tile URL behind a stable name.
-const OPENFREEMAP_TILEJSON = "https://tiles.openfreemap.org/planet"
 const MIN_ZOOM = 13
 // Past this, a low sun's shadow is longer than anything useful to draw.
 const MAX_SHADOW_M = 600
+// How far past the viewport buildings are fetched: the longest shadow at
+// the current sun height, capped (a sun near the horizon would otherwise
+// ask for the whole city).
+const MAX_REACH_M = 3000
+// Tiles per rebuild at most: a tilted view's bounds can reach the horizon.
+const MAX_TILES = 64
 
-// Vector tiles cut buildings at tile edges plus a buffer, and MapLibre cuts
-// the z14 data again for each overzoomed tile: those cut edges are not walls.
-// They run exactly along a tile line (z14 and up) offset by the buffer, 1/128
-// of a z14 tile, which a real wall practically never does.
+// The z14 tiles cut buildings at tile edges plus a buffer: those cut edges
+// are not walls. They run exactly along a z14 tile line offset by the
+// buffer, which a real wall practically never does. (Both halves of a cut
+// building come from the two tiles, so their sweeps union to the whole.)
 function isClipEdge(x0: number, y0: number, x1: number, y1: number): boolean {
   const onCut = (v: number) => {
-    for (let z = 14; z <= 22; z++) {
-      const u = v * 2 ** z, d = Math.abs(u - Math.round(u)), buffer = 2 ** (z - 14) / 128
-      if (buffer >= 0.5) break
-      if (d < 1e-3 || Math.abs(d - buffer) < 1e-3) return true
-    }
-    return false
+    const u = v * 2 ** BUILDING_TILE_ZOOM, d = Math.abs(u - Math.round(u))
+    return d < 1e-3 || Math.abs(d - BUILDING_TILE_BUFFER) < 1e-3
   }
   return (x0 === x1 && onCut(x0)) || (y0 === y1 && onCut(y0))
 }
@@ -87,30 +90,51 @@ function compile(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgr
 }
 
 type Geometry = { origin: [number, number]; sweep: Float32Array; sweepCount: number; roof: Float32Array; roofCount: number }
+type TileRange = { x0: number; x1: number; y0: number; y1: number }
 
-/** Sweep geometry for the buildings in the loaded tiles. */
-function buildGeometry(map: maplibregl.Map): Geometry | null {
-  const features = map.querySourceFeatures(SRC, { sourceLayer: "building" })
-  if (!features.length) return null
+const contains = (outer: TileRange, inner: TileRange) => outer.x0 <= inner.x0 && outer.x1 >= inner.x1 && outer.y0 <= inner.y0 && outer.y1 >= inner.y1
+
+/**
+ * The z14 tiles whose buildings can shade the viewport: its bounds widened
+ * by the longest shadow at this sun height, in tile units, clamped to
+ * MAX_TILES around the centre.
+ */
+function neededTiles(map: maplibregl.Map, altitude: number): TileRange | null {
+  if (map.getZoom() < MIN_ZOOM - 0.5) return null
+  const n = 2 ** BUILDING_TILE_ZOOM
+  const b = map.getBounds()
+  const sw = maplibregl.MercatorCoordinate.fromLngLat(b.getSouthWest()), ne = maplibregl.MercatorCoordinate.fromLngLat(b.getNorthEast())
+  const c = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter())
+  const reachM = Math.min(MAX_REACH_M, MAX_SHADOW_M / Math.tan((Math.max(altitude, 1) * Math.PI) / 180))
+  const reach = reachM / (40075016.686 * Math.cos((map.getCenter().lat * Math.PI) / 180))
+  const clamp = (v: number) => Math.min(n - 1, Math.max(0, v))
+  const range: TileRange = {
+    x0: clamp(Math.floor((sw.x - reach) * n)), x1: clamp(Math.floor((ne.x + reach) * n)),
+    y0: clamp(Math.floor((ne.y - reach) * n)), y1: clamp(Math.floor((sw.y + reach) * n)),
+  }
+  const side = Math.floor(Math.sqrt(MAX_TILES))
+  if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) > MAX_TILES) {
+    const cx = Math.floor(c.x * n), cy = Math.floor(c.y * n), half = Math.floor(side / 2)
+    range.x0 = Math.max(range.x0, cx - half); range.x1 = Math.min(range.x1, cx - half + side - 1)
+    range.y0 = Math.max(range.y0, cy - half); range.y1 = Math.min(range.y1, cy - half + side - 1)
+  }
+  return range
+}
+
+/** Sweep geometry for the buildings of the given tiles. */
+function buildGeometry(map: maplibregl.Map, tiles: BuildingPolygon[][]): Geometry | null {
   const c = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter())
   const origin: [number, number] = [c.x, c.y]
   const sweep: number[] = [], roof: number[] = []
   const seen = new Set<string>()
-  for (const f of features) {
-    const g = f.geometry
-    if (g.type !== "Polygon" && g.type !== "MultiPolygon") continue
-    const h = Number(f.properties?.render_height ?? 0)
-    if (!(h > 0)) continue
-    const polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates
-    for (const poly of polys) {
-      const outer = poly[0]
-      if (!outer?.length) continue
-      // Mercator units per metre at this latitude: the vertex's sweep per
-      // unit of 1/tan(altitude).
-      const lat = outer[0][1]
-      const s = Math.min(MAX_SHADOW_M, h) / (40075016.686 * Math.cos((lat * Math.PI) / 180))
-      const rings = poly.map((ring) => ring.map(([lng, la]) => { const m = maplibregl.MercatorCoordinate.fromLngLat([lng, la]); return [m.x - origin[0], m.y - origin[1]] as [number, number] }))
-      // The same building piece can come from two overzoomed tiles.
+  for (const tile of tiles) {
+    for (const { rings: absRings, height: h } of tile) {
+      // Mercator units per metre at this latitude (cos(lat) from the
+      // Mercator y): the vertex's sweep per unit of 1/tan(altitude).
+      const cosLat = 1 / Math.cosh(Math.PI * (1 - 2 * absRings[0][0][1]))
+      const s = Math.min(MAX_SHADOW_M, h) / (40075016.686 * cosLat)
+      const rings = absRings.map((ring) => ring.map(([x, y]) => [x - origin[0], y - origin[1]] as [number, number]))
+      // A building inside two tiles' buffers comes whole from both.
       const key = `${rings[0][0][0].toFixed(9)},${rings[0][0][1].toFixed(9)},${rings[0].length},${h}`
       if (seen.has(key)) continue
       seen.add(key)
@@ -154,6 +178,9 @@ class ShadowLayer implements CustomLayerInterface {
   private texSize: [number, number] = [0, 0]
   private geometry: Geometry | null = null
   private drawn = false
+  // The tiles the last rebuild asked for (a fetch finishing outside it is stale).
+  private range: TileRange | null = null
+  private timer: ReturnType<typeof setTimeout> | undefined
 
   onAdd(map: maplibregl.Map, gl: WebGL2RenderingContext) {
     this.map = map; this.gl = gl
@@ -171,12 +198,51 @@ class ShadowLayer implements CustomLayerInterface {
     if (this.maskProgram) gl.deleteProgram(this.maskProgram)
     if (this.blitProgram) gl.deleteProgram(this.blitProgram)
     this.map = null; this.gl = null
+    this.dispose()
   }
-  /** The map settled or building tiles arrived: read the buildings again. */
+  dispose() {
+    clearTimeout(this.timer)
+    this.range = null
+    abortBuildingTilesExcept(this, new Set())
+  }
+  /** A rebuild once things settle (the map, a burst of arriving tiles). */
+  schedule() {
+    clearTimeout(this.timer)
+    this.timer = setTimeout(() => this.rebuild(), 150)
+  }
+  /** The light moved: a lower sun may need buildings from further away. */
+  setLight(azimuth: number, altitude: number) {
+    this.azimuth = azimuth; this.altitude = altitude
+    const map = this.map
+    if (!map) return
+    const range = neededTiles(map, altitude)
+    if (range && (!this.range || !contains(this.range, range))) this.schedule()
+  }
+  /**
+   * The map settled or building tiles arrived: build the geometry from the
+   * cached tiles over the widened viewport, fetching the missing ones (each
+   * arrival schedules another rebuild; fetches no longer needed are aborted).
+   */
   rebuild() {
     const map = this.map, gl = this.gl
     if (!map || !gl) return
-    this.geometry = map.getZoom() >= MIN_ZOOM - 0.5 && map.getSource(SRC) ? buildGeometry(map) : null
+    const range = (this.range = neededTiles(map, this.altitude))
+    const tiles: BuildingPolygon[][] = []
+    const keep = new Set<string>()
+    if (range) {
+      for (let x = range.x0; x <= range.x1; x++) for (let y = range.y0; y <= range.y1; y++) {
+        const key = tileKey(x, y)
+        keep.add(key)
+        const tile = cachedBuildingTile(x, y)
+        if (tile) tiles.push(tile)
+        else void requestBuildingTile(x, y, this).then((result) => {
+          const r = this.range
+          if (result && this.map && r && x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) this.schedule()
+        })
+      }
+    }
+    abortBuildingTilesExcept(this, keep)
+    this.geometry = tiles.length ? buildGeometry(map, tiles) : null
     if (this.geometry) {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.sweepBuf); gl.bufferData(gl.ARRAY_BUFFER, this.geometry.sweep, gl.STATIC_DRAW)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.roofBuf); gl.bufferData(gl.ARRAY_BUFFER, this.geometry.roof, gl.STATIC_DRAW)
@@ -276,9 +342,7 @@ export const BuildingShadowLayer = memo(({ enabled, opacity, sunAzimuth, sunAlti
     if (!enabled || !map) return
     const layer = new ShadowLayer()
     layerRef.current = layer
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const schedule = () => { clearTimeout(timer); timer = setTimeout(() => layer.rebuild(), 150) }
-    const onData = (e: any) => { if (e.sourceId === SRC && e.isSourceLoaded) schedule() }
+    const schedule = () => layer.schedule()
     const add = () => {
       if (map.getLayer(LAYER_ID) || !map.getLayer(LAYER_SLOTS.SHADOWS)) return
       map.addLayer(layer, LAYER_SLOTS.SHADOWS)
@@ -287,31 +351,24 @@ export const BuildingShadowLayer = memo(({ enabled, opacity, sunAzimuth, sunAlti
     add()
     map.on("styledata", add)
     map.on("moveend", schedule)
-    map.on("sourcedata", onData)
     return () => {
-      clearTimeout(timer)
-      map.off("styledata", add); map.off("moveend", schedule); map.off("sourcedata", onData)
+      map.off("styledata", add); map.off("moveend", schedule)
       layerRef.current = null
       if (map.style && map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID)
+      layer.dispose()
     }
   }, [enabled, mapRef])
 
   useEffect(() => {
     const layer = layerRef.current
     if (!layer) return
-    layer.azimuth = sunAzimuth; layer.altitude = sunAltitude
+    layer.setLight(sunAzimuth, sunAltitude)
     const [r, g, b] = hexToRgb(color)
     layer.color = [r, g, b, opacity]
     mapRef?.getMap()?.triggerRepaint()
   }, [sunAzimuth, sunAltitude, opacity, color, mapRef, enabled])
 
-  if (!enabled) return null
-  return (
-    // The buildings themselves, drawn invisibly so their tiles load and
-    // querySourceFeatures can read them.
-    <Source id={SRC} type="vector" url={OPENFREEMAP_TILEJSON}>
-      <Layer id={PROBE_LAYER} type="fill" source-layer="building" minzoom={MIN_ZOOM} beforeId={LAYER_SLOTS.SHADOWS} paint={{ "fill-opacity": 0 }} />
-    </Source>
-  )
+  // The tiles are fetched by the layer itself: nothing to mount in the style.
+  return null
 })
 BuildingShadowLayer.displayName = "BuildingShadowLayer"

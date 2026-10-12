@@ -43,3 +43,4 @@
 - [Umami analytics](umami-analytics.md) — dashboard, quota, the Oct 2-3 spike (an old clone on localhost), tags, the website id from the env, the owner tag, the export script
 - [Transparent UI slider hold](transparent-ui-slider-hold.md) — the dragged control stays opaque while the panel fades: lib/slider-hold.ts + CSS, group = nearest data-slider-group or the slider's parent, Hillshade pad holds its section; no per-component opacity
 - [Event DEM research](event-dems-research.md) — pre/post disaster DEMs checked for the library (URLs, CRS, COG, CORS, titiler, licences, draft entries); Xinmo, Melamchi and La Palma added 2026-10-10; the Zenodo Chamoli pair fails on titiler
+- [Building shadows tiles](building-shadows-tiles.md) - the shadows fetch their own z14 OpenFreeMap tiles around the viewport; querySourceFeatures only saw the loaded z17 slices (shadows cut on a tile line, off-screen towers cast nothing)
