@@ -82,10 +82,13 @@ function useRasterInfo(source: Record<string, any>): RasterInfo | null {
   return info
 }
 
-export const SourceMetadataRows: React.FC<{ source: Record<string, any>; className?: string }> = ({ source, className }) => {
+/** `raster`: the dialog reads it once (for its title pill) and hands it
+ *  down; the rows read it themselves elsewhere. */
+export const SourceMetadataRows: React.FC<{ source: Record<string, any>; className?: string; raster?: RasterInfo | null }> = ({ source, className, raster: given }) => {
   const keys = Object.keys(source).filter((k) => !SKIP.has(k) && source[k] !== undefined && source[k] !== null && source[k] !== "")
   const gsd = sourceGsd(source)
-  const raster = useRasterInfo(source)
+  const own = useRasterInfo(given === undefined ? source : {})
+  const raster = given === undefined ? own : given
   return (
     <dl className={className ?? "grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs"}>
       {gsd && (
@@ -131,7 +134,10 @@ export const SourceMetadataDialog: React.FC<{
   source: Record<string, any> | null
   onClose: () => void
   onFit?: (source: any) => void
-}> = ({ source, onClose, onFit }) => (
+}> = ({ source, onClose, onFit }) => {
+  const raster = useRasterInfo(source ?? {})
+  const unreadable = raster && "error" in raster
+  return (
   <Dialog open={!!source} onOpenChange={(o) => { if (!o) onClose() }}>
     <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto overflow-x-hidden">
       {/* min-w-0: the dialog is a grid, and a grid item's automatic minimum
@@ -139,16 +145,23 @@ export const SourceMetadataDialog: React.FC<{
           whole title; the column then grew past the dialog and every row
           overflowed with it. pr-6 keeps the title off the close button. */}
       <DialogHeader className="min-w-0 pr-6">
-        <DialogTitle className="truncate">{source?.name ?? "Source"}</DialogTitle>
+        <DialogTitle className="flex items-center gap-2 min-w-0">
+          <span className="truncate min-w-0">{source?.name ?? "Source"}</span>
+          {/* A file that cannot be read is said at the top, not only in a
+              row below (Jonathan, 2026-10-12: "a red pill next to the
+              title"); the row carries the reason. */}
+          {unreadable && <span className="shrink-0 rounded-full bg-destructive/15 text-destructive px-2 py-0.5 text-[11px] font-medium" title={raster.error}>file not readable</span>}
+        </DialogTitle>
         <DialogDescription>Everything this source carries. Switch the sources' edit mode on to change it.</DialogDescription>
       </DialogHeader>
-      {source && <SourceMetadataRows source={source} />}
+      {source && <SourceMetadataRows source={source} raster={raster} />}
       {source && onFit && (source.bounds || ["cog", "cog-local", "vrt", "tilejson"].includes(source.type)) && (
         <Button size="sm" variant="outline" className="cursor-pointer self-start" onClick={() => { onFit(source); onClose() }}><MapPin className="h-3.5 w-3.5 mr-1" />Fit to its extent</Button>
       )}
     </DialogContent>
   </Dialog>
-)
+  )
+}
 
 /** State helper: which source's dialog is open. */
 export function useSourceInfoDialog() {

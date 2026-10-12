@@ -36,7 +36,10 @@ const MAX_SHADOW_M = 600
 // ask for the whole city).
 const MAX_REACH_M = 3000
 // Tiles per rebuild at most: a tilted view's bounds can reach the horizon.
-const MAX_TILES = 64
+// 16 (a 4 x 4 window around the centre) is what a z17 view needs with the
+// sun at 10 degrees (3 km reach, z14 tiles of about 1.9 km): Jonathan,
+// 2026-10-12, "16 tiles at a sun as low as 10 degrees, not more".
+const MAX_TILES = 16
 
 // The z14 tiles cut buildings at tile edges plus a buffer: those cut edges
 // are not walls. They run exactly along a z14 tile line offset by the

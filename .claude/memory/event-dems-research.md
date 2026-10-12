@@ -338,3 +338,5 @@ Runner-up entry (LA fires), if wanted:
 - **Mapterhorn's source and vintage** over Hawaii and La Palma, which decides whether a "post − Mapterhorn" difference is a real before/after. Not checked: decoding its WebP tiles was out of scope.
 - **The Melamchi DSMs' vertical datum and co-registration** between P05 and P06.
 - **Search coverage.** Not checked: the Google Earth Engine community catalog, Source Cooperative (beyond a web search), the WA DNR lidar portal, the IGN Spain / GRAFCAN post-eruption lidar for La Palma, the Shisper Zenodo record, and the ULAKBIM Türkiye record.
+
+**Kilauea 2018 LERZ lidar, artefacts at fissure 8 (2026-10-12):** terraces and triangular facets at z17 and up around Leilani Estates' fissure 8 cone are in the file itself (a titiler tile with a colormap shows them; AWS beside it is smooth): the survey flew during the eruption, the point cloud has holes at the vent and channel, and the bare-earth gridding filled them with flat patches and TIN facets. Said in the library description; nothing to fix in the viewer.

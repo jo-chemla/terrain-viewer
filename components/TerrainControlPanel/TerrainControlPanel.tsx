@@ -154,11 +154,14 @@ const sidebarScrollAtom = atomWithStorage("sidebarScroll", 0)
 // separator. Independent of per-section sectionOpenAtom (folding a group just
 // hides its sections; each section's own open/closed state is preserved
 // underneath and reappears as-is when the group is expanded again).
-export const MACRO_GROUP_KEYS = ["Sources", "Options", "Detectors", "Tools"] as const
+// "General" (2026-10-12, Jonathan) heads the top sections: General
+// Settings, Visualization Modes, Compare and Blend, Bookmarks, Download. A
+// stored record from before it has no General key: read it as open.
+export const MACRO_GROUP_KEYS = ["General", "Sources", "Options", "Detectors", "Tools"] as const
 export type MacroGroupKey = (typeof MACRO_GROUP_KEYS)[number]
-type MacroGroupOpenState = Record<MacroGroupKey, boolean>
+type MacroGroupOpenState = Partial<Record<MacroGroupKey, boolean>>
 export const macroGroupOpenAtom = atomWithStorage<MacroGroupOpenState>("macroGroupOpen", {
-  Sources: true, Options: true, Detectors: true, Tools: true,
+  General: true, Sources: true, Options: true, Detectors: true, Tools: true,
 })
 
 interface TerrainControlPanelProps {
@@ -448,7 +451,8 @@ export function TerrainControlPanel({
     }, 120)
     return () => clearTimeout(t)
   }, [revealSection, setRevealSection, setIsSidebarOpen, setMacroGroupOpen, setSectionOpen])
-  const toggleMacroGroup = (key: MacroGroupKey) => setMacroGroupOpen((prev) => ({ ...prev, [key]: !prev[key] }))
+  const groupOpen = (key: MacroGroupKey) => macroGroupOpen[key] !== false
+  const toggleMacroGroup = (key: MacroGroupKey) => setMacroGroupOpen((prev) => ({ ...prev, [key]: !groupOpen(key) }))
 
   // Mound Candidates (Detectors) only shows in the sidebar while both its
   // beta flag AND its own Visualization Modes master checkbox
@@ -870,6 +874,11 @@ export function TerrainControlPanel({
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-4 space-y-2"
           style={{ maskImage: scrollMask, WebkitMaskImage: scrollMask }}
         >
+        {/* The top sections under a "General" group row like the others
+            (Jonathan, 2026-10-12), folding them together. */}
+        <MacroSeparator label="General" isOpen={groupOpen("General")} onToggle={() => toggleMacroGroup("General")} />
+        {groupOpen("General") && (
+          <>
         <GeneralSettings state={state} setState={setState} isOpen={sectionOpen.general} onOpenChange={toggle("general")} historicalMode={historicalMode} mapRef={mapRef} onGoHome={handleGoHome} />
         {/* Compare and Blend sits right under General Settings in historical
             mode, where comparing dates is the point, and under Visualization
@@ -887,6 +896,8 @@ export function TerrainControlPanel({
           <BookmarksSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.bookmarks} onOpenChange={toggle("bookmarks")} />
         )}
         <DownloadSection state={state} setState={setState} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} historicalMode={historicalMode} />
+          </>
+        )}
         {/* Whole "Sources" group (label+chevron row AND its sections) is hidden
             when the project config hides source panels — otherwise the chevron/
             label row would sit there with nothing to expand. Historical mode
@@ -895,8 +906,8 @@ export function TerrainControlPanel({
             reachable, just ungrouped rather than under a "Sources" label. */}
         {!hideSourcePanels && !historicalMode && (
           <>
-            <MacroSeparator label="Sources" isOpen={macroGroupOpen.Sources} onToggle={() => toggleMacroGroup("Sources")} />
-            {macroGroupOpen.Sources && (
+            <MacroSeparator label="Sources" isOpen={groupOpen("Sources")} onToggle={() => toggleMacroGroup("Sources")} />
+            {groupOpen("Sources") && (
               <>
                 <TerrainSourceSection state={state} setState={setState} getTilesUrl={getTilesUrl} getMapBounds={getMapBounds} mapRef={mapRef} isOpen={sectionOpen.terrainSource} onOpenChange={toggle("terrainSource")} />
                 <RasterBasemapSection state={state} setState={setBasemapState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={!hiddenSections.includes("sourceInfo")} />
@@ -921,9 +932,9 @@ export function TerrainControlPanel({
             analysis/lighting/background) is terrain-only — historical mode has
             no elevation source to derive any of it from. */}
         {!historicalMode && optionsHasContent && (
-          <MacroSeparator label="Options" isOpen={macroGroupOpen.Options} onToggle={() => toggleMacroGroup("Options")} />
+          <MacroSeparator label="Options" isOpen={groupOpen("Options")} onToggle={() => toggleMacroGroup("Options")} />
         )}
-        {!historicalMode && optionsHasContent && macroGroupOpen.Options && (
+        {!historicalMode && optionsHasContent && groupOpen("Options") && (
           <>
             {!hiddenSections.includes("contour") && (
               <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
@@ -958,9 +969,9 @@ export function TerrainControlPanel({
           </>
         )}
         {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && (
-          <MacroSeparator label="Detectors" isOpen={macroGroupOpen.Detectors} onToggle={() => toggleMacroGroup("Detectors")} />
+          <MacroSeparator label="Detectors" isOpen={groupOpen("Detectors")} onToggle={() => toggleMacroGroup("Detectors")} />
         )}
-        {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && macroGroupOpen.Detectors && (
+        {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && groupOpen("Detectors") && (
           <DetectorMoundsSection
             state={state}
             setState={setState}
@@ -977,8 +988,8 @@ export function TerrainControlPanel({
             own Tools step can spotlight the whole group as one block instead
             of just the separator's own thin label row. */}
         <div id="tour-tools-group" className="space-y-2 scroll-mt-[100px]">
-          <MacroSeparator label="Tools" isOpen={macroGroupOpen.Tools} onToggle={() => toggleMacroGroup("Tools")} />
-          {macroGroupOpen.Tools && (
+          <MacroSeparator label="Tools" isOpen={groupOpen("Tools")} onToggle={() => toggleMacroGroup("Tools")} />
+          {groupOpen("Tools") && (
             <>
               {/* Wrappers only exist to give the level-2 Tools walkthrough a
                   stable anchor per tool (product-tour.tsx's TOOLS_STEPS). */}

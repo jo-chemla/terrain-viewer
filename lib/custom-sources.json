@@ -1034,7 +1034,7 @@
             "loadWithSamples": false,
             "bounds": [-155.3126, 19.3761, -154.8025, 19.5305],
             "resolutionM": 0.5,
-            "description": "USGS lidar of the 2018 lower East Rift Zone eruption, flown 8-12 July 2018 while the eruption was still going (it ended in August). Hosted by OpenTopography (doi:10.5069/G9M32SV1); NAD83(PA11) / UTM 5N, NAVD88 heights. A 107k x 33k mosaic without overviews: titiler serves it from zoom 13 (a second or two a tile); further out the read fails, so the view lands at zoom 13.",
+            "description": "USGS lidar of the 2018 lower East Rift Zone eruption, flown 8-12 July 2018 while the eruption was still going (it ended in August). Hosted by OpenTopography (doi:10.5069/G9M32SV1); NAD83(PA11) / UTM 5N, NAVD88 heights. A 107k x 33k mosaic without overviews: titiler serves it from zoom 13 (a second or two a tile); further out the read fails, so the view lands at zoom 13. Flown while fissure 8 was fountaining: around the vent and the channel the survey has holes (no returns through fume and hot lava), and the bare-earth gridding filled them with flat patches and planar facets, which show as terraces and triangles from zoom 17 up.",
             "infoUrl": "https://doi.org/10.5069/G9M32SV1",
             "minzoom": 13
         },
