@@ -789,14 +789,29 @@
 #tour-sidepanel:has([data-slider-held]) {
   background-color: color-mix(in oklab, var(--background) 8%, transparent);
 }
-/* 4. The section that holds the control keeps a background of its own, about
-      halfway between the held card (8%) and the resting one (95%), so the
-      held group reads on a panel while the other sections are see-through. */
-[data-fade-scope]:has([data-slider-held]),
-[data-fade-scope][data-slider-held] {
+/* 4. The held unit alone (the slider with its label and bound inputs, or
+      the pad) sits on a band about halfway between the held card (8%) and the
+      resting one (95%), stretched to the card's side edges (the distances
+      measured on press, lib/slider-hold.ts; the panel's 16 px padding when
+      unmeasured), so it reads on a panel while the rest is see-through. A
+      section held whole (the Hillshade pad) gets the band over the section.
+      Jonathan, 2026-10-12: the band on the whole section was too much.
+      The band is a pseudo-element behind the unit, not padding, so nothing
+      moves when the drag starts; a unit held inside a held unit (the light
+      pad in a held Lighting fold) draws no second band. */
+[data-slider-held] {
+  position: relative;
+  isolation: isolate;
+}
+[data-slider-held]::before {
+  content: "";
+  position: absolute;
+  inset: -0.5rem calc(-1 * var(--hold-r, 1rem)) -0.5rem calc(-1 * var(--hold-l, 1rem));
+  z-index: -1;
   background-color: color-mix(in oklab, var(--background) 60%, transparent);
-  border-radius: 0.75rem;
-  transition: background-color 150ms, opacity 150ms;
+}
+[data-slider-held] [data-slider-held]::before {
+  display: none;
 }
 [data-fade-scope],
 [data-slider-group] {

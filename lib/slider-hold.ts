@@ -19,7 +19,10 @@
 //   holding scope anyway (the Section header row, which names the section).
 //
 // While anything is held, the side panel card also drops its background to
-// 8% (the CSS, keyed on data-slider-held), so the map shows behind the group.
+// 8% (the CSS, keyed on data-slider-held), so the map shows behind the group,
+// and the held unit draws a band (a ::before) reaching the card's side edges:
+// the distances are measured here (--hold-l, --hold-r), since a unit nested
+// in a bordered row sits further in than the panel's padding.
 //
 // Inside the scope that holds the control, the CSS fades every element that
 // neither is nor contains a held unit and whose parent contains one - the
@@ -46,6 +49,19 @@ export function holdControl(control: Element | null, opts: { wholeSection?: bool
       : [group ?? control.parentElement ?? control]
   }
   const value = opts.wholeSection ? "section" : ""
-  for (const u of units) u.setAttribute(SLIDER_HELD_ATTR, value)
-  return () => { for (const u of units) u.removeAttribute(SLIDER_HELD_ATTR) }
+  const card = control.closest("#tour-sidepanel")?.getBoundingClientRect()
+  for (const u of units) {
+    u.setAttribute(SLIDER_HELD_ATTR, value)
+    if (card && u instanceof HTMLElement) {
+      const r = u.getBoundingClientRect()
+      u.style.setProperty("--hold-l", `${Math.max(0, r.left - card.left)}px`)
+      u.style.setProperty("--hold-r", `${Math.max(0, card.right - r.right)}px`)
+    }
+  }
+  return () => {
+    for (const u of units) {
+      u.removeAttribute(SLIDER_HELD_ATTR)
+      if (u instanceof HTMLElement) { u.style.removeProperty("--hold-l"); u.style.removeProperty("--hold-r") }
+    }
+  }
 }
