@@ -2,6 +2,10 @@
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
+/* Wide and tall enough for a wrapping row: not a phone in landscape
+   (wider than sm but about 400 px high), where the Historical Timeline's
+   source pills stay on one scrollable line as on a phone upright. */
+@custom-variant sm-tall (@media (min-width: 640px) and (min-height: 501px));
 
 :root {
   --background: oklch(1 0 0);
@@ -567,17 +571,15 @@
   margin: 0 16px 16px 0 !important;
 }
 /* Phone portrait (the bottom-sheet layout, useIsBottomSheet's query): the
-   top-left column sits 4 px from the screen's top and left edges
-   (BOTTOM_SHEET_EDGE_MARGIN_PX), the gaps between its controls staying 16 px.
-   The bottom-right corner (scale bar, info button) loses its side margin:
-   its container is already placed 4 px from the edge by
-   --scale-right-offset (TerrainViewer.tsx). */
+   top-left column sits 8 px from the screen's top and left edges
+   (BOTTOM_SHEET_EDGE_MARGIN_PX), and the gaps between its controls are the
+   same 8 px (Jonathan, 2026-10-12: the rows' gap matches the side margin;
+   4 px before, with 16 px gaps). The bottom-right corner (scale bar, info
+   button) loses its side margin: its container is already placed 8 px from
+   the edge by --scale-right-offset (TerrainViewer.tsx). */
 @media (max-width: 639px) and (orientation: portrait) {
   .maplibregl-ctrl-top-left .maplibregl-ctrl {
-    margin-left: 4px !important;
-  }
-  .maplibregl-ctrl-top-left .maplibregl-ctrl:first-child {
-    margin-top: 4px !important;
+    margin: 8px 0 0 8px !important;
   }
   .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
     margin-right: 0 !important;
@@ -789,6 +791,12 @@
 #tour-sidepanel:has([data-slider-held]) {
   background-color: color-mix(in oklab, var(--background) 8%, transparent);
 }
+/* The macro-group rows (SOURCES, OPTIONS, DETECTORS, TOOLS and the closing
+   line) are not sections, so rule 1 misses them: they fade on their own
+   (Jonathan, 2026-10-12: "make sources also see through"). */
+:root:has([data-slider-held]) .macro-separator {
+  opacity: 0.2;
+}
 /* 4. The held unit alone (the slider with its label and bound inputs, or
       the pad) sits on a band about halfway between the held card (8%) and the
       resting one (95%), stretched to the card's side edges (the distances
@@ -814,6 +822,7 @@
   display: none;
 }
 [data-fade-scope],
-[data-slider-group] {
+[data-slider-group],
+.macro-separator {
   transition: opacity 150ms;
 }

@@ -310,7 +310,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const isMobile = useIsMobile()
   // The phone-portrait bottom sheet's collapsed bar is the lowest strip, and
   // it already pads the safe area. Over it this panel floats like the sheet:
-  // a small gap above the bar, the minimap's side margins (4 px there,
+  // a small gap above the bar, the minimap's side margins (8 px there,
   // BOTTOM_SHEET_EDGE_MARGIN_PX), rounded corners.
   const bottomSheetBarPx = useAtomValue(bottomSheetBarHeightAtom)
   const onBottomSheet = bottomSheetBarPx > 0
@@ -1856,7 +1856,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         // home indicator (needs viewport-fit=cover, set in index.html).
         "bottom-0 left-0 right-0 rounded-none max-h-[65dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]",
         "sm:bottom-4 sm:left-4 sm:right-[var(--timeline-right-offset)] sm:rounded-xl sm:max-h-none sm:overflow-visible sm:pb-0",
-        onBottomSheet && "left-1 right-1 rounded-2xl pb-0",
+        onBottomSheet && "left-2 right-2 rounded-2xl pb-0",
       )}
       style={{
         ["--timeline-right-offset" as any]: isSidebarOpen && !isMobile ? "26rem" : "1rem",
@@ -1870,12 +1870,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
               present, a phone-width header wrapped the pill row into 6+
               stacked lines and the panel ballooned to half the screen (the
               reported mobile overflow). Mobile keeps every pill reachable in
-              a single horizontally-scrollable line instead. */}
+              a single horizontally-scrollable line instead, and so does a
+              phone in landscape (wider than sm, but about 400 px high: the
+              sm-tall variant, src/index.css; Jonathan, 2026-10-12). */}
           <div className="flex items-center gap-1.5 shrink-0">
             <h2 className="hidden sm:block text-sm font-semibold shrink-0">Historical Timeline</h2>
             {compareButton}
           </div>
-          <div className="flex items-center gap-1.5 min-w-0 flex-nowrap overflow-x-auto justify-start sm:flex-wrap sm:overflow-x-visible sm:justify-end">
+          <div className="flex items-center gap-1.5 min-w-0 flex-nowrap overflow-x-auto justify-start sm-tall:flex-wrap sm-tall:overflow-x-visible sm-tall:justify-end">
             {visibleSourceIds.map((id) => {
               const active = timelineSourcesForPills.includes(id)
               const cfg = SOURCE_CONFIG[id]

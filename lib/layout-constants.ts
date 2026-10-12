@@ -45,10 +45,11 @@ export const BOTTOM_SHEET_STACK_GAP_PX = 8
  *  column, minimap, clock toggle, scale bar, info button) and the panels
  *  over the sheet's bar sit this far from the screen's sides and top,
  *  instead of MAP_CTRL_EDGE_MARGIN_PX: a 390 px screen has no 16 px to
- *  spare. Vertical gaps between stacked panels are unchanged. The CSS half
- *  is the `(max-width: 639px) and (orientation: portrait)` block in
- *  src/index.css (useIsBottomSheet's query). */
-export const BOTTOM_SHEET_EDGE_MARGIN_PX = 4
+ *  spare. The gaps between the stacked top-left controls are the same
+ *  (8 px, after 4 px with 16 px gaps on 2026-10-10). The CSS half is the
+ *  `(max-width: 639px) and (orientation: portrait)` block in src/index.css
+ *  (useIsBottomSheet's query). */
+export const BOTTOM_SHEET_EDGE_MARGIN_PX = 8
 
 // Unified edge margin for MapLibre's own corner controls (nav/geolocate/
 // geocoder/minimap/scale) — matches the sidebar/timeline panel's own Tailwind

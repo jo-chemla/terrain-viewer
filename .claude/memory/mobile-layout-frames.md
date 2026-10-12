@@ -91,3 +91,12 @@ full-width sheet along the root's bottom edge; landscape phones (wider than
 - Dev only: the React Scan toolbar (`#react-scan-root`) and the TanStack
   devtools button cover the bottom of a phone screen and eat taps on the
   handle; headless tests hide `#react-scan-root` (`.cache/pw/mobile-sheet.mjs`).
+- **8 px (2026-10-12, Jonathan):** the 4 px margins above became 8 px
+  (`BOTTOM_SHEET_EDGE_MARGIN_PX`, the portrait block in src/index.css,
+  `left-2 right-2` on the timeline and the docked profile), and the gaps
+  between the stacked top-left controls match the side margin (8 px: margin
+  `8px 0 0 8px` on every control there, not 16). Jonathan saw 4 px as good
+  and asked for 8 to compare, with the row gap equal to the side margin. The
+  gap above the bar was already 8. Phone landscape: the timeline's source
+  pills stay on one scrollable line (the `sm-tall` variant in src/index.css:
+  wrapping needs min-width 640 and min-height 501).
