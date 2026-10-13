@@ -7,7 +7,8 @@
     "dev": "node scripts/build-url-params.mjs && next dev -p 3100",
     "start": "serve out -l 3100",
     "types:check": "next typegen && tsc --noEmit",
-    "lint": "eslint"
+    "lint": "eslint",
+    "studio": "fumadocs-studio"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -39,6 +40,8 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@fumadocs-editor/studio": "^0.2.4",
+    "@fumadocs-editor/ui": "^0.5.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/mdx": "^2.0.14",
     "@types/node": "^26.6.3",
