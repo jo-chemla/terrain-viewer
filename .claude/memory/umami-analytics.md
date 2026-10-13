@@ -80,6 +80,25 @@ website_event.csv, event_data.csv). `scripts/umami-export-analyze.mjs <dir>
   dashboard history before the swap is lost (the exports keep it). The
   tags and the hash/search exclusions do nothing for an old build.
 
+## PostHog as an alternative (evaluated 2026-10-13)
+
+Jonathan is weighing a move to PostHog. Free tiers as read on
+2026-10-13: Umami Cloud Hobby is 100k events a month, 1 website, 6 months
+of retention, no API, no team members, and a stored event property counts
+as an event too (umami.is/pricing). PostHog's free plan is 1M events a
+month shared by product and web analytics, 5,000 web session replays
+(2,500 mobile), 1M feature-flag requests, 100k exceptions, 1,500 survey
+responses, no card, replays kept one month, and events over the
+allowance are dropped (not billed) until a card is added, then
+$0.00005 an event. PostHog's snippet is heavier (about 50 kB plus
+replay) and autocaptures clicks and pageviews by default; it is EU- or
+US-hosted by choice, needs a cookie banner unless configured cookieless
+(persistence "memory"), and its pageview-on-pushState needs
+`capture_pageview: "history_change"` plus a search-stripping
+`sanitize_properties` to reproduce the exclusions here. The posthog
+pages were JS-rendered, the numbers come from PostHog's own comparison
+pages, re-check posthog.com/pricing before deciding.
+
 ## Tags (since 2026-10-09)
 
 The app loader sets `data-tag`: "desktop" when the protocol is not http(s)
@@ -103,7 +122,9 @@ the Pro plan (confirmed 2026-10-09); Jonathan exports the data by hand.
   `?umamiTag=owner`; the tag is stored in localStorage and every load from
   that browser carries the tag "owner" instead of web / embed / desktop
   (`?umamiTag=` clears it). Filter by tag in the dashboard. Each browser
-  and profile needs it once.
+  and profile needs it once. `?umamiTag=hwai` is the same mechanism for
+  the heritagewatch.ai colleagues (set once in their browsers), so their
+  sessions filter apart from the embed traffic of their users.
 - The owner tag is per origin and per browser profile: set it on
   terrain-viewer.iconem.com and historical-satellite.iconem.com in each
   browser (localhost never reports, so not there). Documented on the dev
