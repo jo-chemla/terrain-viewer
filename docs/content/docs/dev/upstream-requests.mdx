@@ -28,6 +28,10 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | [renderToTerrainTile: the plan past experimental](#maplibre-rendertoterraintile-the-plan-past-experimental) | MapLibre, [PR 8588](https://github.com/maplibre/maplibre-gl-js/pull/8588) (merged 2026-10-04, closed [issue 8586](https://github.com/maplibre/maplibre-gl-js/issues/8586); HarelM asked for real-use feedback before the API leaves experimental, so the comment is wanted) | Drafted 2026-10-07, not posted | Own meshes for Phong and Matcap; Allmaps from its tile server when tilted |
 | [The launcher's command line, handed to the app](#electrobun-the-launchers-command-line-handed-to-the-app) | Electrobun, a comment on [issue 483](https://github.com/blackboardsh/electrobun/issues/483) (the same request, open since 2026-07; [issue 554](https://github.com/blackboardsh/electrobun/issues/554) is the Linux side) | Drafted 2026-10-12, not posted | The main process reads the launcher's command line through ntdll |
 | [A height for no-data pixels in the terrain encoder](#geomatico-a-height-for-no-data-pixels-in-the-terrain-encoder) | geomatico/maplibre-cog-protocol, after [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) | Drafted 2026-10-12, not posted | Our own protocol rewrites the tiles (a second decode) |
+| [The page actions under a Next basePath](#fumadocs-the-page-actions-under-a-next-basepath) | Fumadocs, new bug report; no issue on it ([issue 2545](https://github.com/fuma-nama/fumadocs/issues/2545), closed 2025-11, is Astro's base and a different fix) | Drafted 2026-10-13, not posted | `page-actions.tsx`, a copy of the popover that prefixes both URLs ([Fumadocs customization](/dev/fumadocs-customization#base-path-fixes)) |
+| [A sidebar title apart from the page title](#fumadocs-a-sidebar-title-apart-from-the-page-title) | Fumadocs, new issue after [our comment on discussion 307](https://github.com/fuma-nama/fumadocs/discussions/307#discussioncomment-18902027) (the 2024 ask, no field since) | Drafted 2026-10-13, not posted; a PR is offered | A `sidebarTitle` field and a loader plugin in `source.ts` (17 pages) |
+| [Foldable sections that stay in the table of contents](#fumadocs-foldable-sections-that-stay-in-the-table-of-contents) | Fumadocs, a discussion (Ideas); nothing on it, Accordions are the stock answer | Drafted 2026-10-13, not posted | `foldable-sections.tsx`, a chevron on every h2 of the reference pages |
+| [A lightbox and a gallery for prose images](#fumadocs-a-lightbox-and-a-gallery-for-prose-images) | Fumadocs, new issue; nothing on lightbox, gallery or carousel, `ImageZoom` is one image at a time | Drafted 2026-10-13, not posted | `lightbox.tsx` and `gallery.tsx` ([Fumadocs customization](/dev/fumadocs-customization#content-components)) |
 
 ## MapLibre: renderToTerrainTile, the plan past experimental
 
@@ -96,3 +100,46 @@ A new issue (the nearest thread is [issue 14](https://github.com/geomatico/mapli
 **A bilinear option when a tile is served from a coarser overview**
 
 When a z/x/y tile is requested past the finest level a COG holds, the reader fills the 256 px tile from a coarser level by nearest neighbour, so a terrain tile shows 2 x 2 or 4 x 4 blocks and the hillshade computed from it draws a staircase. Terrain Viewer (terrain-viewer.iconem.com) renders slope, aspect and hillshade from `cog://` DEMs, and the blocks show on every national DEM coarser than the view. Proposal: a `resampling` option on the protocol (`nearest` as today, `bilinear`, perhaps `cubic`), as a URL fragment (`#dem+resampling=bilinear`) or a `cogProtocol({ resampling })` setting, applied when the requested resolution is finer than the source level. For a DEM the interpolation belongs on the heights before encoding: interpolating the encoded RGB bytes would mix the channels. We work around it by requesting the parent tile and interpolating in our own protocol. Happy to send a PR.
+
+## Fumadocs: the page actions under a Next basePath
+
+A bug report, with the two lines of `fumadocs-ui/dist/layouts/shared/page-actions.js` (16.15.17) quoted:
+
+**ViewOptionsPopover and MarkdownCopyButton ignore Next's basePath**
+
+Our docs (terrain-viewer.iconem.com/docs, Next 16, `basePath: "/docs"`, static export) use the stock page actions. Two of their URLs come out without the base path.
+
+1. `withBasePath(href)` only knows Vite: it prepends `import.meta.env.BASE_URL` when that exists and nothing otherwise. Under Next the helper is a no-op, so `View as Markdown` and the copy button fetch `/llms.mdx/...` instead of `/docs/llms.mdx/...`, a 404 on the static host. The llms integration page does not say the caller has to prefix `markdownUrl` itself.
+2. `ViewOptionsPopover` builds the `Read {url}` prompt from `usePathname()` on the server and `window.location.href` on the client. Next's `usePathname` excludes the base path, so the prerendered HTML (what a static export serves until hydration, and what a crawler reads) links the AI assistants to `terrain-viewer.iconem.com/changelog`, which is the app, not the docs page. The `pageUrl` prop papers over it page by page.
+
+Suggested fix: let the framework adapter carry the base path. Next inlines `process.env.__NEXT_ROUTER_BASEPATH` into client bundles, so `NextProvider` can pass it to `FrameworkProvider` without any config, and `withBasePath` reads it from the framework context instead of `import.meta.env`. The same context value would fix the server-side `pageUrl`. We carry a copy of the popover in the meantime (`docs/src/components/page-actions.tsx` in Iconem/terrain-viewer); happy to turn it into a PR.
+
+## Fumadocs: a sidebar title apart from the page title
+
+A new issue (feature request), after [our comment on discussion 307](https://github.com/fuma-nama/fumadocs/discussions/307#discussioncomment-18902027):
+
+**A `sidebarTitle` frontmatter field (a short name for the page tree, `title` kept for the page)**
+
+A page's `title` does four jobs today: the sidebar entry, the breadcrumb, the H1 and the `<title>` tag (so the search index and the OG image too). The first two want three words, the last two want the long, descriptive, search-facing sentence. We rewrote our titles for search last week ("Esri Wayback: 10 years of historical satellite imagery, by date, in a terrain viewer") and the sidebar wrapped every one over three lines. Docusaurus has `sidebar_label`, Mintlify and Nextra `sidebarTitle`, Starlight `sidebar.label`; discussion 307 asked for it in 2024 and the answer was to add a field yourself.
+
+With source plugins in place now, the ask is small: a `sidebarTitle?: string` on `pageSchema`, and either the page-tree builder reading it for `node.name`, or a shipped plugin next to `status-badges` doing the same. Breadcrumbs follow the node name for free; `title` keeps everything else. The plugin we run is 15 lines (`docs/src/lib/source.ts` in Iconem/terrain-viewer, a `transformPageTree.file` hook reading the frontmatter through `this.storage.read`); I can send it as a PR with the schema field and a line on the page-conventions page if you say which of the two shapes you prefer.
+
+## Fumadocs: foldable sections that stay in the table of contents
+
+A discussion in Ideas (the shape is open; an Accordion is what the docs would answer today):
+
+**Collapsible h2 sections that keep their headings in the TOC and their anchors**
+
+Our reference pages (a 130-row research references list, a national-datasets survey, the URL state reference) are long and grouped by h2. Readers want to fold the groups they are not reading. `Accordions` do the folding, but an accordion item's title is not a heading: it leaves the table of contents, loses its `#anchor`, and a hash link into a folded one lands on nothing. So we attach a chevron to every `h2` of those pages at mount (`docs/src/components/foldable-sections.tsx` in Iconem/terrain-viewer, 70 lines): the chevron hides everything to the next h2, the TOC still lists the heading, a TOC click or a `#hash` into a folded section unfolds it first, and the heading stays in the search index and in `llms.txt`.
+
+Would a `<Foldable>` wrapper around normal headings, or a page-level `foldable: true` frontmatter flag handled by the page component, fit Fumadocs? The rule that matters is that folding is presentation only: the heading remains a heading for the TOC, anchors, search and markdown export.
+
+## Fumadocs: a lightbox and a gallery for prose images
+
+A new issue (feature request):
+
+**A page lightbox for prose images (loop, captions, video), and a gallery component**
+
+`ImageZoom` enlarges one image at a time with react-medium-image-zoom. Documentation with many screenshots wants the next step: click any image of the page to open it large, left and right arrows (and swipes) to move through every image of the page in order, Escape to close, the image's caption as the title, links in the caption still clickable, and `<video>` elements in the same loop. We built that over the stock MDX pipeline (`docs/src/components/lightbox.tsx` in Iconem/terrain-viewer, 240 lines): the MDX `img` component tags each image with `data-lightbox`, a provider around the page body listens for clicks and keys, and the caption (the italic paragraph after the image, remark's standalone-image shape) is read into the title, links and all. Beside it `gallery.tsx` is a hero image plus a filmstrip of thumbnails, grouped, sharing the page lightbox, since Fumadocs has no gallery or carousel primitive.
+
+Proposed: a `<Lightbox>` provider in `fumadocs-ui/components` (or an option on `ImageZoom`) that groups every zoomable image of a page into one loop with keyboard and swipe navigation, caption as title, and video support; and a `<Gallery>` taking an array of `{ src, alt, title, href }`. Both could sit on react-medium-image-zoom's controlled API, or on a plain dialog as ours does. Happy to contribute either if the shape is agreed first.
