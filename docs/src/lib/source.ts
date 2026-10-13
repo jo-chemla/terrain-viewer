@@ -3,11 +3,37 @@ import { lucideIconsPlugin } from 'fumadocs-core/source/plugins/lucide-icons';
 import { docsContentRoute, docsImageRoute, docsRoute } from './shared';
 import { defineDocs } from 'fumadocs-mdx/macro';
 import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
+import { z } from 'zod';
+import type { LoaderPlugin } from 'fumadocs-core/source';
+
+// `sidebarTitle` in a page's frontmatter is the short name the sidebar and
+// the breadcrumbs show; `title` stays the long one for the <title> tag, the
+// H1, the search index and the Open Graph image, where the extra words
+// earn clicks. Without it the sidebar wraps a 90-character title over
+// three lines.
+const pageSchemaWithSidebarTitle = pageSchema.extend({
+  sidebarTitle: z.string().optional(),
+});
+
+function sidebarTitlePlugin(): LoaderPlugin {
+  return {
+    name: 'terrain-viewer:sidebar-title',
+    transformPageTree: {
+      file(node, filePath) {
+        if (!filePath) return node;
+        const file = this.storage.read(filePath);
+        const short = file?.format === 'page' ? (file.data as { sidebarTitle?: unknown }).sidebarTitle : undefined;
+        if (typeof short === 'string' && short) node.name = short;
+        return node;
+      },
+    },
+  };
+}
 
 const docs = defineDocs({
   dir: 'content/docs',
   docs: {
-    schema: pageSchema,
+    schema: pageSchemaWithSidebarTitle,
     postprocess: {
       includeProcessedMarkdown: true,
     },
@@ -23,7 +49,7 @@ export const source = loader({
   source: docs.toFumadocsSource(),
   // `icon: <LucideName>` in a page's frontmatter draws that icon before its
   // sidebar entry, outline and in the text colour.
-  plugins: [lucideIconsPlugin()],
+  plugins: [lucideIconsPlugin(), sidebarTitlePlugin()],
 });
 
 export function getPageImageUrl(page: (typeof source)['$inferPage']) {
