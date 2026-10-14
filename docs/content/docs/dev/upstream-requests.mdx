@@ -12,7 +12,6 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | [Custom-protocol fetch through the main thread](#maplibre-contour-a-follow-up-on-issue-434), with [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts) as the example | maplibre-contour, [issue 434](https://github.com/onthegomap/maplibre-contour/issues/434) (ours, no answer yet) | To comment, drafted 2026-10-13 |
 | [A sweep of national sources finer than what is ingested](#mapterhorn-a-comment-on-issue-27), with the [National Datasets](/features/national-datasets#finer-than-mapterhorn) comparison as the reference | Mapterhorn, [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (17 comments, live; [295](https://github.com/mapterhorn/mapterhorn/issues/295) Flanders links stale and [304](https://github.com/mapterhorn/mapterhorn/issues/304) Italy 5 m are the related threads) | To comment, drafted 2026-10-13 |
 | `https://terrain-viewer.iconem.com` as an allowed origin on the Almond Blossom PMTiles host, so the library's [impasto entries](/dev/vendored-protocols#pmtiles) work without a local proxy | Lars Maxfield (impasto.dev) | Not to be sent yet |
-| [Bilinear upsampling past the finest overview level](#geomatico-bilinear-upsampling-past-the-finest-overview-level) | geomatico/maplibre-cog-protocol, new issue; [issue 14](https://github.com/geomatico/maplibre-cog-protocol/issues/14) (closed 2024) was overview-level rounding | Drafted 2026-10-13, pictures added 2026-10-14 | The source maxzoom floored to the COG's finest level, so MapLibre overzooms (a blur, no rings) |
 | Sparse tiles and the Esri placeholder tile; 3D Tiles | MapLibre, [PR 8335](https://github.com/maplibre/maplibre-gl-js/pull/8335), [PR 8567](https://github.com/maplibre/maplibre-gl-js/pull/8567) | Commented |
 | MapLibre 6 support and label placement | geogrid-maplibre-gl, [issue 18](https://github.com/falseinput/geogrid-maplibre-gl/issues/18) | Posted |
 | A browser option for remote DEMs | geospatial-skills, [issue 7](https://github.com/isaaccorley/geospatial-skills/issues/7) | Posted |
@@ -22,6 +21,7 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | The launcher's command line handed to the main process (Windows 2.0.2 confirmed, the ntdll workaround, 554 as the Linux twin) | Electrobun, a comment on [issue 483](https://github.com/blackboardsh/electrobun/issues/483#issuecomment-6169050660) | Commented 2026-10-14 |
 | A per-variant update feed name, so the full and light builds share one release and `release.baseUrl` | Electrobun, [issue 577](https://github.com/blackboardsh/electrobun/issues/577) | Posted 2026-10-14 |
 | renderToTerrainTile: the plan past experimental (our Phong, Matcap and building-shadow custom layers, the Allmaps draping on 666, three API questions) | MapLibre, a comment on [PR 8588](https://github.com/maplibre/maplibre-gl-js/pull/8588#issuecomment-6170538399) | Commented 2026-10-14 |
+| Bilinear upsampling past the finest overview level (two pictures, a [hosted reproduction](https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/?mode=protocol)); ours is the source maxzoom floored to the finest level in `lib/cog-metadata.ts` | geomatico/maplibre-cog-protocol, [issue 56](https://github.com/geomatico/maplibre-cog-protocol/issues/56) | Posted 2026-10-14 |
 
 ## Drafted
 
@@ -29,7 +29,7 @@ What we need from projects we depend on, written once, kept here, and linked whe
 |---|---|---|---|
 | [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
 | [A browser OAuth client](#planet-a-browser-oauth-client) | Planet, the [community forum](https://community.planet.com/data-access-and-management-apis-99) (Data Access and Management APIs) or developer support; no tracker. Checked 2026-10-13: the docs still say interactive client registration is not released, but the Account page's OAuth Clients panel has an SPA option, try it before posting | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
-| [A height for no-data pixels in the terrain encoder](#geomatico-a-height-for-no-data-pixels-in-the-terrain-encoder) | geomatico/maplibre-cog-protocol, after [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) | Drafted 2026-10-12, not posted | Our own protocol rewrites the tiles (a second decode) |
+| [A configurable no-data height](#geomatico-a-configurable-no-data-height) | geomatico/maplibre-cog-protocol, after [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) | Drafted 2026-10-12, not posted | Our own protocol rewrites the tiles (a second decode) |
 | [The page actions under a Next basePath](#fumadocs-the-page-actions-under-a-next-basepath) | Fumadocs, new bug report; no issue on it ([issue 2545](https://github.com/fuma-nama/fumadocs/issues/2545), closed 2025-11, is Astro's base and a different fix) | Drafted 2026-10-13, kept for later | `page-actions.tsx`, a copy of the popover that prefixes both URLs ([Fumadocs integration](/dev/fumadocs-customization#base-path-fixes)) |
 
 ## Allmaps: plain images as a resource
@@ -44,11 +44,17 @@ Terrain Viewer's Image Georeferencer places a plain image (a figure from a paper
 
 The STAC API takes only an OpenID access token; a `PLAK` API key answers 401 there (it works on the Data API v1 and the tile service). The documentation says the Planet CLI and SDK are the only interactive OAuth clients for now, and that machine-to-machine tokens for `api.planet.com` are in progress. A web app can therefore only ask users to run `planet auth print-access-token` and paste the result, every two hours or so. Proposal, either: self-service registration of a public OAuth client (authorization code with PKCE, the app's own redirect URI), or accepting the API key on `/x/data` as the Data API v1 does. CORS on `/x/data` is already open, so nothing else is missing.
 
-## geomatico: a height for no-data pixels in the terrain encoder
+## geomatico: a configurable no-data height
 
-**renderTerrain: a configurable height for no-data pixels, or a nearest-valid fill, instead of 0 m**
+A new issue, a follow-up of [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51):
 
-Since [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) (0.10.0) no-data pixels in a DEM are encoded as 0 m: `((isFinite(h) && !noData ? h : 0) + 10000) / 0.1`. That is right for a coastline, but a mountain DSM with holes (a drone survey, a lidar strip, a nodata collar around a rotated footprint) then shows a cliff dropping to sea level at every hole edge, and the hillshade draws black outlines along them. In Terrain Viewer we work around it by rewriting the tiles through our own protocol, which doubles the decode. Proposal: an option on the protocol, for example `cogProtocol({ terrainNoDataHeight })` or a URL fragment such as `#dem+nodata=-100`, with 0 as the default for compatibility; better still, a "nearest valid" fill so a hole takes the height of its edge. A fixed height already removes the walls for a per-file choice. Happy to send a PR for whichever form you prefer.
+**Configurable no-data height**
+
+Since [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) (0.10.0) no-data pixels in a DEM are encoded as 0 m: `((isFinite(h) && !noData ? h : 0) + 10000) / 0.1`. That is right for a coastline, but a mountain DSM with holes (a drone survey, a lidar strip, a nodata collar around a rotated footprint) then shows a cliff dropping to sea level at every hole edge, and the hillshade draws black outlines along them.
+
+Proposal: let the caller choose the height a no-data pixel gets, with 0 as the default for compatibility: `cogProtocol({ terrainNoDataHeight })` or a URL fragment such as `#dem+nodata=-100`, either a fixed value or a keyword like `min` for the tile's lowest valid height, so a hole sits at the foot of its surroundings instead of at sea level.
+
+Workaround in terrain-viewer: the tiles go through our own protocol with a user-set floor and fill ([`lib/nodata.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/nodata.ts)), a second decode per tile. Happy to send a PR.
 
 ## maplibre-contour: a follow-up on issue 434
 
@@ -61,22 +67,6 @@ A comment on our own [issue 434](https://github.com/onthegomap/maplibre-contour/
 A comment on [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (possible data sources; Wallonia and the Dutch orthophoto WMS were the last two suggestions):
 
 > We keep a surveyed list of national elevation endpoints for Terrain Viewer, with the Mapterhorn resolution next to each: https://terrain-viewer.iconem.com/docs/features/national-datasets/. Three countries publish a finer national grid than the one ingested today, all as open services: Czechia (CUZK DMR 5G, 2 m against 5 m), the Netherlands (AHN DTM, 0.5 m against 5 m) and Norway (Kartverket NDH, 0.25 m against 1 m). The page also lists what a browser cannot consume but a pipeline might (Portugal and Sweden have open STAC indexes with the rasters behind auth), the regional sources finer than their national grid (Queensland's 0.5 to 1 m LiDAR mosaic among them), and the licence of each. Every row is a reproduced request, not a catalog entry. Mexico INEGI's 5 m MDE from my earlier comment is still download-only.
-
-## geomatico: bilinear upsampling past the finest overview level
-
-A new issue (the nearest thread is [issue 14](https://github.com/geomatico/maplibre-cog-protocol/issues/14), closed in 2024, where the blur came from overview-level rounding). The two pictures come from a reproduction page, hosted at [https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/](https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/?mode=protocol) (a plain MapLibre 6.13 page with the protocol's UMD build from unpkg; a link at the bottom switches between the two modes; source in [`scripts/upstream/cog-upsampling/`](https://github.com/Iconem/terrain-viewer/tree/main/scripts/upstream/cog-upsampling), shot with the GPU Chrome on 2026-10-14):
-
-**Bilinear upsampling past the finest overview level**
-
-When a z/x/y tile is requested past the finest level a COG holds, the tile is filled from that level by nearest neighbour, so every source cell becomes a flat block and the hillshade computed from the tile draws rings at the block edges, plus seams at the tile borders. The same view twice (z22.5 over a 10 cm drone DSM whose finest level is z20, hillshade by MapLibre 6.13). Live reproduction, switchable between the two: https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/?mode=protocol
-
-| maplibre-cog-protocol 0.10.0 upsampling (source maxzoom above the COG's finest level) | MapLibre overzooming the last tile itself (source maxzoom at the finest level) |
-|---|---|
-| ![nearest-neighbour blocks: rings and seams](https://raw.githubusercontent.com/Iconem/terrain-viewer/main/docs/public/screenshots/upstream/cog-upsampling-protocol.png) | ![a uniform blur](https://raw.githubusercontent.com/Iconem/terrain-viewer/main/docs/public/screenshots/upstream/cog-upsampling-overzoom.png) |
-
-Proposal: a `resampling` option (`nearest` as today, `bilinear`, perhaps `cubic`), as a URL fragment (`#dem+resampling=bilinear`) or a `cogProtocol({ resampling })` setting, applied when the requested resolution is finer than the source level. For a DEM the interpolation belongs on the heights before encoding: interpolating the encoded RGB bytes would mix the channels.
-
-Workaround in Terrain Viewer: the source's `maxzoom` is floored to the COG's finest level ([`zoomRangeFromMetadata` in `lib/cog-metadata.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/cog-metadata.ts)), so MapLibre stretches the last tile on the GPU instead of asking the protocol for finer ones: the uniform blur on the right, no rings or seams, but no bilinear heights either, and the modes that read the heights (slope, curvature) see the same flat cells. Happy to send a PR.
 
 ## Fumadocs: the page actions under a Next basePath
 
