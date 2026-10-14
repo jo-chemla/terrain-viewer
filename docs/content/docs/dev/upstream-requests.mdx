@@ -18,12 +18,12 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | A browser option for remote DEMs | geospatial-skills, [issue 7](https://github.com/isaaccorley/geospatial-skills/issues/7) | Posted |
 | A lightbox and a gallery for prose images (loop, captions, video; a hero plus filmstrip gallery), ours in `lightbox.tsx` and `gallery.tsx` ([Fumadocs integration](/dev/fumadocs-customization#content-components)) | Fumadocs, [issue 3697](https://github.com/fuma-nama/fumadocs/issues/3697) | Shipped 2026-10-14 in [16.17.3](https://github.com/fuma-nama/fumadocs/releases/tag/fumadocs%4016.17.3): a `<Lightbox>` wrapper over `ImageZoom` images (arrow keys, swipe, side buttons, counter, caption from `title` or a `caption` prop), no loop, no video, no gallery component |
 | A sidebar title apart from the page title (`sidebarTitle`, as Docusaurus, Mintlify, Nextra and Starlight have), ours a loader plugin in `source.ts` | Fumadocs, [discussion 307](https://github.com/fuma-nama/fumadocs/discussions/307#discussioncomment-18902027) | Commented 2026-10-13, no separate issue |
+| WarpedMapLayer with pitch, then terrain and globe (the view step from projected geo to screen is a 2D affine transform; MapLibre's `modelViewProjectionMatrix` in its place; 8588 for terrain once stable; globe last), with a comment on [issue 622](https://github.com/allmaps/allmaps/issues/622#issuecomment-6165540295) showing the app | Allmaps, [issue 666](https://github.com/allmaps/allmaps/issues/666) | Posted 2026-10-14 |
 
 ## Drafted
 
 | Request | To | Status | Our workaround |
 |---|---|---|---|
-| [WarpedMapLayer: pitch, globe and terrain](#allmaps-warpedmaplayer-pitch-globe-and-terrain) | Allmaps | Drafted 2026-10-07, not posted | Tilted views draw the map from Allmaps' tile server |
 | [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
 | [Per-variant update feed](#electrobun-per-variant-update-feed) | Electrobun | Drafted 2026-10-07, not posted | Two GitHub releases, one per build |
 | [A browser OAuth client](#planet-a-browser-oauth-client) | Planet, the [community forum](https://community.planet.com/data-access-and-management-apis-99) (Data Access and Management APIs) or developer support; no tracker. Checked 2026-10-13: the docs still say interactive client registration is not released, but the Account page's OAuth Clients panel has an SPA option, try it before posting | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
@@ -37,18 +37,6 @@ What we need from projects we depend on, written once, kept here, and linked whe
 A comment for PR 8588, short:
 
 > Thanks for this, it is the hook we were missing. We build Terrain Viewer (terrain-viewer.iconem.com, MapLibre 6.13) and plan to use `renderToTerrainTile` for three things: draping Allmaps' warped old maps on terrain at any pitch, live Phong and Matcap shading computed in the custom layer (view-dependent, so `terrainTileRevision` bumps on every camera move), and cast shadows of buildings. Before we build on it: what is the plan for taking it out of experimental, and what might change? In particular whether per-tile calls could get the camera (for view-dependent terms), whether a revision bump on every frame is the intended way to drape something view-dependent or a `renderToTerrainTile` per frame is coming, and whether the clip-space convention (tile corners at ±1) and the `{ tileID, width, height }` arguments are settled. Happy to report back from a real use.
-
-## Allmaps: WarpedMapLayer, pitch, globe and terrain
-
-**WarpedMapLayer (MapLibre): render with MapLibre's projection, for pitch, globe and terrain**
-
-`WarpedMapLayer.render()` rebuilds a flat `Viewport` from the four unprojected canvas corners, the centre, the scale and the bearing. With `map.getPitch() > 0` the warped map is drawn flat over the tilted view, in the wrong place (the README says pitch is unsupported), and on the globe projection it cannot follow the curvature.
-
-MapLibre already hands a custom layer everything needed. In MapLibre 5 and 6, `render(gl, args)` receives `args.modelViewProjectionMatrix` and `args.defaultProjectionData` (the uniforms of MapLibre's own projection), plus `args.shaderData`: a `vertexShaderPrelude` exposing `projectTile()` and the `define`s of the current projection (Mercator or globe). Proposal: let the WebGL2 renderer take that, either a matrix (Web Mercator to clip space) as an alternative to `Viewport`, or better, MapLibre's prelude so the triangle vertices go through `projectTile()`. That gives pitch on Mercator and correct placement on the globe with one code path. Draping on terrain would follow once a custom layer can be rendered into MapLibre's terrain render-to-texture.
-
-MapLibre 6.13 adds a simpler route for terrain ([#8588](https://github.com/maplibre/maplibre-gl-js/pull/8588), experimental): `renderToTerrainTile(gl, { tileID, width, height })` is called per terrain tile, in that tile's flat clip space, and MapLibre drapes the result. `WarpedMapLayer` could implement it by rendering a flat `Viewport` of each tile, which the renderer already supports; two things in `WebGL2Renderer` get in the way: `#renderInternal` sets `gl.viewport` to the canvas size, and the visible-tile fetching follows the last viewport rendered. Exposing a render-to-target call (viewport size and framebuffer as given) and keeping tile fetching tied to the main view would be enough.
-
-Context: Terrain Viewer (MapLibre 6.13, `@allmaps/maplibre` 1.0.0-beta.44) shows Allmaps maps as overlays on 3D terrain. While the view is tilted we switch to `allmaps.xyz` tiles, which tilt and drape but are less sharp than the in-browser warp.
 
 ## Allmaps: plain images as a resource
 
