@@ -22,6 +22,7 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | A per-variant update feed name, so the full and light builds share one release and `release.baseUrl` | Electrobun, [issue 577](https://github.com/blackboardsh/electrobun/issues/577) | Posted 2026-10-14 |
 | renderToTerrainTile: the plan past experimental (our Phong, Matcap and building-shadow custom layers, the Allmaps draping on 666, three API questions) | MapLibre, a comment on [PR 8588](https://github.com/maplibre/maplibre-gl-js/pull/8588#issuecomment-6170538399) | Commented 2026-10-14 |
 | Bilinear upsampling past the finest overview level (two pictures, a [hosted reproduction](https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/?mode=protocol)); ours is the source maxzoom floored to the finest level in `lib/cog-metadata.ts` | geomatico/maplibre-cog-protocol, [issue 56](https://github.com/geomatico/maplibre-cog-protocol/issues/56) | Posted 2026-10-14 |
+| A configurable no-data height in the terrain encoder (a value or the tile minimum instead of 0 m); ours is a floor and fill in `lib/nodata.ts` through our own protocol | geomatico/maplibre-cog-protocol, [issue 57](https://github.com/geomatico/maplibre-cog-protocol/issues/57) | Posted 2026-10-14 |
 
 ## Drafted
 
@@ -29,7 +30,6 @@ What we need from projects we depend on, written once, kept here, and linked whe
 |---|---|---|---|
 | [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
 | [A browser OAuth client](#planet-a-browser-oauth-client) | Planet, the [community forum](https://community.planet.com/data-access-and-management-apis-99) (Data Access and Management APIs) or developer support; no tracker. Checked 2026-10-13: the docs still say interactive client registration is not released, but the Account page's OAuth Clients panel has an SPA option, try it before posting | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
-| [A configurable no-data height](#geomatico-a-configurable-no-data-height) | geomatico/maplibre-cog-protocol, after [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) | Drafted 2026-10-12, not posted | Our own protocol rewrites the tiles (a second decode) |
 | [The page actions under a Next basePath](#fumadocs-the-page-actions-under-a-next-basepath) | Fumadocs, new bug report; no issue on it ([issue 2545](https://github.com/fuma-nama/fumadocs/issues/2545), closed 2025-11, is Astro's base and a different fix) | Drafted 2026-10-13, kept for later | `page-actions.tsx`, a copy of the popover that prefixes both URLs ([Fumadocs integration](/dev/fumadocs-customization#base-path-fixes)) |
 
 ## Allmaps: plain images as a resource
@@ -43,18 +43,6 @@ Terrain Viewer's Image Georeferencer places a plain image (a figure from a paper
 **Insights Platform STAC (api.planet.com/x/data): a way for a browser app to get an access token**
 
 The STAC API takes only an OpenID access token; a `PLAK` API key answers 401 there (it works on the Data API v1 and the tile service). The documentation says the Planet CLI and SDK are the only interactive OAuth clients for now, and that machine-to-machine tokens for `api.planet.com` are in progress. A web app can therefore only ask users to run `planet auth print-access-token` and paste the result, every two hours or so. Proposal, either: self-service registration of a public OAuth client (authorization code with PKCE, the app's own redirect URI), or accepting the API key on `/x/data` as the Data API v1 does. CORS on `/x/data` is already open, so nothing else is missing.
-
-## geomatico: a configurable no-data height
-
-A new issue, a follow-up of [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51):
-
-**Configurable no-data height**
-
-Since [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) (0.10.0) no-data pixels in a DEM are encoded as 0 m: `((isFinite(h) && !noData ? h : 0) + 10000) / 0.1`. That is right for a coastline, but a mountain DSM with holes (a drone survey, a lidar strip, a nodata collar around a rotated footprint) then shows a cliff dropping to sea level at every hole edge, and the hillshade draws black outlines along them.
-
-Proposal: let the caller choose the height a no-data pixel gets, with 0 as the default for compatibility: `cogProtocol({ terrainNoDataHeight })` or a URL fragment such as `#dem+nodata=-100`, either a fixed value or a keyword like `min` for the tile's lowest valid height, so a hole sits at the foot of its surroundings instead of at sea level.
-
-Workaround in terrain-viewer: the tiles go through our own protocol with a user-set floor and fill ([`lib/nodata.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/nodata.ts)), a second decode per tile. Happy to send a PR.
 
 ## maplibre-contour: a follow-up on issue 434
 
