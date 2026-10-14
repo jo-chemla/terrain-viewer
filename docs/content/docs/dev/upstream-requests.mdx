@@ -21,6 +21,7 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | WarpedMapLayer with pitch, then terrain and globe (the view step from projected geo to screen is a 2D affine transform; MapLibre's `modelViewProjectionMatrix` in its place; 8588 for terrain once stable; globe last), with a comment on [issue 622](https://github.com/allmaps/allmaps/issues/622#issuecomment-6165540295) showing the app | Allmaps, [issue 666](https://github.com/allmaps/allmaps/issues/666) | Posted 2026-10-14 |
 | The launcher's command line handed to the main process (Windows 2.0.2 confirmed, the ntdll workaround, 554 as the Linux twin) | Electrobun, a comment on [issue 483](https://github.com/blackboardsh/electrobun/issues/483#issuecomment-6169050660) | Commented 2026-10-14 |
 | A per-variant update feed name, so the full and light builds share one release and `release.baseUrl` | Electrobun, [issue 577](https://github.com/blackboardsh/electrobun/issues/577) | Posted 2026-10-14 |
+| renderToTerrainTile: the plan past experimental (our Phong, Matcap and building-shadow custom layers, the Allmaps draping on 666, three API questions) | MapLibre, a comment on [PR 8588](https://github.com/maplibre/maplibre-gl-js/pull/8588#issuecomment-6170538399) | Commented 2026-10-14 |
 
 ## Drafted
 
@@ -28,15 +29,8 @@ What we need from projects we depend on, written once, kept here, and linked whe
 |---|---|---|---|
 | [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
 | [A browser OAuth client](#planet-a-browser-oauth-client) | Planet, the [community forum](https://community.planet.com/data-access-and-management-apis-99) (Data Access and Management APIs) or developer support; no tracker. Checked 2026-10-13: the docs still say interactive client registration is not released, but the Account page's OAuth Clients panel has an SPA option, try it before posting | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
-| [renderToTerrainTile: the plan past experimental](#maplibre-rendertoterraintile-the-plan-past-experimental) | MapLibre, [PR 8588](https://github.com/maplibre/maplibre-gl-js/pull/8588) (merged 2026-10-04, closed [issue 8586](https://github.com/maplibre/maplibre-gl-js/issues/8586); HarelM asked for real-use feedback before the API leaves experimental, so the comment is wanted) | Drafted 2026-10-07, not posted | Own meshes for Phong and Matcap; Allmaps from its tile server when tilted |
 | [A height for no-data pixels in the terrain encoder](#geomatico-a-height-for-no-data-pixels-in-the-terrain-encoder) | geomatico/maplibre-cog-protocol, after [PR 51](https://github.com/geomatico/maplibre-cog-protocol/pull/51) | Drafted 2026-10-12, not posted | Our own protocol rewrites the tiles (a second decode) |
 | [The page actions under a Next basePath](#fumadocs-the-page-actions-under-a-next-basepath) | Fumadocs, new bug report; no issue on it ([issue 2545](https://github.com/fuma-nama/fumadocs/issues/2545), closed 2025-11, is Astro's base and a different fix) | Drafted 2026-10-13, kept for later | `page-actions.tsx`, a copy of the popover that prefixes both URLs ([Fumadocs integration](/dev/fumadocs-customization#base-path-fixes)) |
-
-## MapLibre: renderToTerrainTile, the plan past experimental
-
-A comment for PR 8588, short:
-
-> Thanks for this, it is the hook we were missing. We build Terrain Viewer (terrain-viewer.iconem.com, MapLibre 6.13) and plan to use `renderToTerrainTile` for three things: draping Allmaps' warped old maps on terrain at any pitch, live Phong and Matcap shading computed in the custom layer (view-dependent, so `terrainTileRevision` bumps on every camera move), and cast shadows of buildings. Before we build on it: what is the plan for taking it out of experimental, and what might change? In particular whether per-tile calls could get the camera (for view-dependent terms), whether a revision bump on every frame is the intended way to drape something view-dependent or a `renderToTerrainTile` per frame is coming, and whether the clip-space convention (tile corners at ±1) and the `{ tileID, width, height }` arguments are settled. Happy to report back from a real use.
 
 ## Allmaps: plain images as a resource
 
