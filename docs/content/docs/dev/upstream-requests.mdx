@@ -5,12 +5,20 @@ description: Feature requests to the libraries and services Terrain Viewer build
 
 What we need from projects we depend on, written once, kept here, and linked when posted. Each entry says what we do in the meantime. The community posts and venues are on [Advocacy](/dev/advocacy).
 
-## Posted, or ready to post
+## Drafted
+
+| Request | To | Status | Our workaround |
+|---|---|---|---|
+| [Custom-protocol fetch through the main thread](#maplibre-contour-a-follow-up-on-issue-434), with [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts) as the example | maplibre-contour, [issue 434](https://github.com/onthegomap/maplibre-contour/issues/434) (ours, no answer yet) | To comment, drafted 2026-10-13 | Contours fetch their DEM through the registry, decoded on the main thread |
+| [A sweep of national sources finer than what is ingested](#mapterhorn-a-comment-on-issue-27), with the [National Datasets](/features/national-datasets) comparison as the reference | Mapterhorn, [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (17 comments, live; 295 Flanders links stale and 304 Italy 5 m are the related threads) | To comment, drafted 2026-10-13 | The finer national grids are served through our own protocols |
+| [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
+| [A browser OAuth client](#planet-a-browser-oauth-client) | Planet, the [community forum](https://community.planet.com/data-access-and-management-apis-99) (Data Access and Management APIs) or developer support; no tracker. Checked 2026-10-13: the docs still say interactive client registration is not released, but the Account page's OAuth Clients panel has an SPA option, try it before posting | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
+| [The page actions under a Next basePath](#fumadocs-the-page-actions-under-a-next-basepath) | Fumadocs, new bug report; no issue on it ([issue 2545](https://github.com/fuma-nama/fumadocs/issues/2545), closed 2025-11, is Astro's base and a different fix) | Drafted 2026-10-13, kept for later | `page-actions.tsx`, a copy of the popover that prefixes both URLs ([Fumadocs integration](/dev/fumadocs-customization#base-path-fixes)) |
+
+## Posted
 
 | Request | To | Status |
 |---|---|---|
-| [Custom-protocol fetch through the main thread](#maplibre-contour-a-follow-up-on-issue-434), with [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts) as the example | maplibre-contour, [issue 434](https://github.com/onthegomap/maplibre-contour/issues/434) (ours, no answer yet) | To comment, drafted 2026-10-13 |
-| [A sweep of national sources finer than what is ingested](#mapterhorn-a-comment-on-issue-27), with the [National Datasets](/features/national-datasets#finer-than-mapterhorn) comparison as the reference | Mapterhorn, [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (17 comments, live; [295](https://github.com/mapterhorn/mapterhorn/issues/295) Flanders links stale and [304](https://github.com/mapterhorn/mapterhorn/issues/304) Italy 5 m are the related threads) | To comment, drafted 2026-10-13 |
 | `https://terrain-viewer.iconem.com` as an allowed origin on the Almond Blossom PMTiles host, so the library's [impasto entries](/dev/vendored-protocols#pmtiles) work without a local proxy | Lars Maxfield (impasto.dev) | Not to be sent yet |
 | Sparse tiles and the Esri placeholder tile; 3D Tiles | MapLibre, [PR 8335](https://github.com/maplibre/maplibre-gl-js/pull/8335), [PR 8567](https://github.com/maplibre/maplibre-gl-js/pull/8567) | Commented |
 | MapLibre 6 support and label placement | geogrid-maplibre-gl, [issue 18](https://github.com/falseinput/geogrid-maplibre-gl/issues/18) | Posted |
@@ -23,14 +31,6 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | renderToTerrainTile: the plan past experimental (our Phong, Matcap and building-shadow custom layers, the Allmaps draping on 666, three API questions) | MapLibre, a comment on [PR 8588](https://github.com/maplibre/maplibre-gl-js/pull/8588#issuecomment-6170538399) | Commented 2026-10-14 |
 | Bilinear upsampling past the finest overview level (two pictures, a [hosted reproduction](https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/?mode=protocol)); ours is the source maxzoom floored to the finest level in `lib/cog-metadata.ts` | geomatico/maplibre-cog-protocol, [issue 56](https://github.com/geomatico/maplibre-cog-protocol/issues/56) | Posted 2026-10-14 |
 | A configurable no-data height in the terrain encoder (a value or the tile minimum instead of 0 m); ours is a floor and fill in `lib/nodata.ts` through our own protocol | geomatico/maplibre-cog-protocol, [issue 57](https://github.com/geomatico/maplibre-cog-protocol/issues/57) | Posted 2026-10-14 |
-
-## Drafted
-
-| Request | To | Status | Our workaround |
-|---|---|---|---|
-| [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
-| [A browser OAuth client](#planet-a-browser-oauth-client) | Planet, the [community forum](https://community.planet.com/data-access-and-management-apis-99) (Data Access and Management APIs) or developer support; no tracker. Checked 2026-10-13: the docs still say interactive client registration is not released, but the Account page's OAuth Clients panel has an SPA option, try it before posting | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
-| [The page actions under a Next basePath](#fumadocs-the-page-actions-under-a-next-basepath) | Fumadocs, new bug report; no issue on it ([issue 2545](https://github.com/fuma-nama/fumadocs/issues/2545), closed 2025-11, is Astro's base and a different fix) | Drafted 2026-10-13, kept for later | `page-actions.tsx`, a copy of the popover that prefixes both URLs ([Fumadocs integration](/dev/fumadocs-customization#base-path-fixes)) |
 
 ## Allmaps: plain images as a resource
 
