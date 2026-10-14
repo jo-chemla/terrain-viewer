@@ -1,9 +1,10 @@
 ---
-title: Demo videos
+title: Making the demo videos
+sidebarTitle: Making the videos
 description: How the demo videos are made by agents — takes recorded with agent-browser and a DevTools screencast, cut in Remotion with Remocn components, and the commands that run the pipeline
 ---
 
-The demo videos are made the same way as the [slide decks](/features/slide-decks): by an agent, from the real app. The pipeline lives in `video/`, a Remotion workspace with its own install, outside the pnpm workspace, like `slides/`.
+The [demo videos](/features/demo-videos) are made the same way as the [slide decks](/features/slide-decks): by an agent, from the real app. The pipeline lives in `video/`, a Remotion workspace with its own install, outside the pnpm workspace, like `slides/`.
 
 ## Recording
 
@@ -24,7 +25,7 @@ Five takes of the same basic feature, recorded by delegated agents, settled the 
 - **The report** of a recording agent starts with the absolute path of the MP4; a middle frame is optional.
 - **A known gap:** the injected cursor is always the arrow. The pointer never shows the hand over links and buttons or the resize shapes, because the capture has no pointer at all and the image is one static arrow. Reading the computed `cursor` style of the element under the pointer and swapping the image would fix it; not done yet.
 
-The reference take, a 29 s FHD tour of slope and hypsometric tint over Mont Blanc (October 2026), is kept in two places: its scripts under [`video/takes/basic-modes-v5/`](https://github.com/Iconem/terrain-viewer/tree/main/video/takes/basic-modes-v5) (the agent-browser driver, the rehearsal, the DevTools pointer script, the cursor image) and the MP4 on the [demo-takes release](https://github.com/Iconem/terrain-viewer/releases/tag/demo-takes).
+Every take is kept in two places: its scripts under [`video/takes/<name>/`](https://github.com/Iconem/terrain-viewer/tree/main/video/takes) (the agent-browser driver with its warm-up loads, the DevTools pointer script, the cursor images) and the MP4 on the [demo-takes release](https://github.com/Iconem/terrain-viewer/releases/tag/demo-takes). The current ones are `basic-modes-v8` (51 s, Mont Blanc) and `historical-grid-v5` (84 s, the Champ de Mars), recorded on 2026-10-14; a take script runs from its own directory against `.cache/recordings/`, and `scripts/posters.sh` cuts the poster frames for the Demo videos page from the MP4s.
 
 ## Cutting
 
@@ -34,7 +35,7 @@ The motion components under `src/components/remocn/` are [Remocn](https://remocn
 
 ## The cut's look
 
-The cuts follow the slide decks' kit (`slides/slides/*/index.tsx`): white cards, Geist, hairline rules, soft panels, one accent (#1A237E), a mono eyebrow for labels. Captions are a white panel with dark text in the lower third of the map, clear of the sidebar and the timeline; title and outro cards are white with a plain fade; transitions are cross-fades or cuts. No frosted or blurred backdrops, no shader backgrounds. `Demo4` is the current cut (October 2026, 142 s: take v7 and the historical take v4 paced for narrator subtitles, cards of about 4 s; the render is on the demo-takes release); `Demo3` and `Demo2` are the earlier ones, kept for reference. Geist is loaded from `video/public/fonts/`, Geist Mono from the machine, where the whole Geist family is installed for the user.
+The cuts follow the slide decks' kit (`slides/slides/*/index.tsx`): white cards, Geist, hairline rules, soft panels, one accent (#1A237E), a mono eyebrow for labels. Captions are a white panel with dark text in the lower third of the map, clear of the sidebar and the timeline; title and outro cards are white with a plain fade; transitions are cross-fades or cuts. No frosted or blurred backdrops, no shader backgrounds. `Demo5` is the current cut (2026-10-14, about 150 s: the basic take v8 and the historical take v5, both re-recorded after the see-through panel fix, paced for narrator subtitles, cards of about 4 s; the render is on the demo-takes release and plays on the [Demo videos](/features/demo-videos) page); `Demo4`, `Demo3` and `Demo2` are the earlier ones, kept for reference. Geist is loaded from `video/public/fonts/`, Geist Mono from the machine, where the whole Geist family is installed for the user.
 
 ## Commands
 

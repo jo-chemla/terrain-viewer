@@ -209,3 +209,19 @@ it in every cut.
 ## The seventh take (2026-10-10): basic-modes-v7-2026-10-10.mp4, take-v7.sh/.mjs (in .cache/recordings; take six slower, with the hand)
 - The Layers tooltip after Escape: poll (un-awaited) until `#tour-data-layers` is gone (~260 ms after the Escape), wait 300 ms, then blur `document.activeElement` (the Layers button), while the pointer already moves over the map. The tooltip still flashes ~0.5 s as focus returns, then stays closed: the last 2 s are clean. A blur before the dialog is gone does nothing (take six).
 - Timing: count a "hold" from the change to the next visible change, including the walk to the next control; separate 3 s idles after each step made the rehearsal 70 s. The hand shows on checkboxes, go-to arrows, the select trigger and the title-bar buttons, but not on the select's options (their computed cursor is `default`).
+
+## The 2026-10-14 retakes: basic-modes-v8 and historical-grid-v5
+
+Both re-recorded after the see-through panel fix (the held slider keeps its
+band, the rest of the panel fades), scripts under video/takes/, run from the
+take directory (`TAKE=$(dirname "$0")`) with the outputs in .cache/recordings/.
+- historical v5: Match Colors on/off/on/off (four clicks, ends off), and a
+  last beat after the Difference blend's pan: the overlay divider dragged
+  from x 800 towards 1470 stops at **x 1292**, the app's maximum split
+  ratio with the sidebar open; nothing white showed at that edge in the
+  capture (the difference region is dark there).
+- The capture tail adds ~3 s after the script's "end" mark; video seconds
+  are the log marks plus ~0.4 s. Demo5.tsx has the beats.
+- The docs' Demo videos page (features/demo-videos) streams the release
+  MP4s in a <video> behind a poster (video/scripts/posters.sh); release
+  assets come as application/octet-stream with byte ranges and play fine.

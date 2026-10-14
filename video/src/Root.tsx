@@ -3,6 +3,7 @@ import { Demo, demoDuration, FPS, type DemoProps } from "./Demo"
 import { Demo2, demo2Duration } from "./Demo2"
 import { Demo3, demo3Duration } from "./Demo3"
 import { Demo4, demo4Duration } from "./Demo4"
+import { Demo5, demo5Duration } from "./Demo5"
 import clips from "../public/clips.json"
 
 // The clips' lengths in frames, written by scripts/prepare-clips.mjs from
@@ -18,5 +19,7 @@ export const Root: React.FC = () => (
     <Composition id="Demo3" component={Demo3} width={1920} height={1080} fps={FPS} durationInFrames={demo3Duration()} />
     {/* 2026-10-10, third cut: basic modes v7 and historical grid v4, 1x, narrator subtitles; in- and out-points in Demo4.tsx. */}
     <Composition id="Demo4" component={Demo4} width={1920} height={1080} fps={FPS} durationInFrames={demo4Duration()} />
+    {/* 2026-10-14, fourth cut: basic modes v8 and historical grid v5 (after the see-through fix), the divider sweep at the end; in- and out-points in Demo5.tsx. */}
+    <Composition id="Demo5" component={Demo5} width={1920} height={1080} fps={FPS} durationInFrames={demo5Duration()} />
   </>
 )
