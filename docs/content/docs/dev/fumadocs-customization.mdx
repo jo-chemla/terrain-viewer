@@ -1,9 +1,19 @@
 ---
-title: Fumadocs customization
-description: What this documentation site adds on top of a stock Fumadocs install — components, generators, and the Next base-path fixes
+title: Fumadocs integration
+description: How this documentation site uses Fumadocs — the visual editor (Studio), the added components and generators, and the Next base-path fixes
 ---
 
-The docs are a Next.js app under `docs/`, on [Fumadocs](https://fumadocs.dev) with the Base UI preset, exported statically and served by the main app under `/docs`. Everything below is what was added to the stock setup; the rest is Fumadocs as shipped.
+The docs are a Next.js app under `docs/`, on [Fumadocs](https://fumadocs.dev) with the Base UI preset, exported statically and served by the main app under `/docs`. The visual editor comes first, then everything that was added to the stock setup; the rest is Fumadocs as shipped.
+
+## Visual editing with Fumadocs Studio
+
+[Fumadocs Editor](https://editor.fumadocs.dev) (experimental, 0.x since 2026-01) edits MDX visually with the files as the source of truth. Its standalone form, Studio, needs no change to the site: it opens `content/docs` in a browser, autosaves to disk, merges edits made in a code editor into the open document, and the normal commit and deploy publish the result. Checked on 2026-10-13 against every page here: all 75 parse, an unedited page serializes back byte for byte, and a one-word edit changes one line, except on the three pages whose prose sits inside a raw `<section>` wrapper (this one's references page, equations, the advocacy post drafts), where the whole wrapper is re-indented.
+
+```bash
+cd docs && pnpm studio        # Node 24 or later (nvm use 24); opens http://localhost:5180
+```
+
+`fumadocs-studio.config.tsx` next to the content turns on math (`$` blocks are plain text otherwise) and registers component specs: the editor never runs the site's components, a spec gives it a light stand-in to draw in visual mode while the source tab keeps the raw JSX. `Gallery` is drawn from its `groups` literal (hero and filmstrip); the data-driven components (the reference tables, the changelog, the embed builder, the maps) are labelled cards. Callout, Cards, Tabs, Accordions, Steps and Files come with the editor. The config's `server` entry points at `fumadocs-studio.server.mjs`, the Node-only half: it serves `docs/public` so the screenshots show in visual mode (prose images are written `/screenshots/...`, the Gallery literals `/docs/screenshots/...`, and a middleware drops that prefix). A component without a spec shows its tags as text with the children editable; imports, expressions and anything unknown round-trip verbatim. Studio edits existing files only: create, rename and delete pages in the code editor.
 
 ## Content components
 
@@ -40,16 +50,6 @@ The site runs under `basePath: "/docs"`, which two stock pieces did not handle:
 
 - `page-actions.tsx` replaces Fumadocs' "Open in …" / "View as Markdown" menu, whose URLs dropped the base path.
 - `mdx.tsx` leaves root-relative links to static assets as plain anchors, so a link to a file the main app serves is not rewritten into the docs subtree.
-
-## Visual editing with Fumadocs Studio
-
-[Fumadocs Editor](https://editor.fumadocs.dev) (experimental, 0.x since 2026-01) edits MDX visually with the files as the source of truth. Its standalone form, Studio, needs no change to the site: it opens `content/docs` in a browser, autosaves to disk, merges edits made in a code editor into the open document, and the normal commit and deploy publish the result. Checked on 2026-10-13 against every page here: all 75 parse, an unedited page serializes back byte for byte, and a one-word edit changes one line, except on the three pages whose prose sits inside a raw `<section>` wrapper (this one's references page, equations, the advocacy post drafts), where the whole wrapper is re-indented.
-
-```bash
-cd docs && pnpm studio        # Node 24 or later (nvm use 24); opens http://localhost:5180
-```
-
-`fumadocs-studio.config.tsx` next to the content turns on math (`$` blocks are plain text otherwise) and registers component specs: the editor never runs the site's components, a spec gives it a light stand-in to draw in visual mode while the source tab keeps the raw JSX. `Gallery` is drawn from its `groups` literal (hero and filmstrip); the data-driven components (the reference tables, the changelog, the embed builder, the maps) are labelled cards. Callout, Cards, Tabs, Accordions, Steps and Files come with the editor. The config's `server` entry points at `fumadocs-studio.server.mjs`, the Node-only half: it serves `docs/public` so the screenshots show in visual mode (prose images are written `/screenshots/...`, the Gallery literals `/docs/screenshots/...`, and a middleware drops that prefix). A component without a spec shows its tags as text with the children editable; imports, expressions and anything unknown round-trip verbatim. Studio edits existing files only: create, rename and delete pages in the code editor.
 
 ## Other
 
