@@ -2,11 +2,11 @@
 
 // The demo videos, served from the demo-takes GitHub release (an MP4 is 30 to
 // 100 MB, too heavy for the docs deploy): the narrated cut first, then the raw
-// takes it was cut from. One entry per take family and one per cut, the latest
-// recording only; the earlier versions stay on the release for reference.
+// takes it was cut from. One entry per take family and one per cut.
 // A video is mounted with preload="none" behind its poster, so the page costs
 // nothing until a play button is pressed; the browser then streams the asset
-// by byte ranges (the release host accepts them).
+// by byte ranges (the release host accepts them). The release keeps only the
+// current cut and takes; a superseded recording is deleted when a new one lands.
 //
 // The posters are frames of the videos, written by video/scripts/posters.sh
 // into docs/public/screenshots/videos/. Relative paths like the slide decks':

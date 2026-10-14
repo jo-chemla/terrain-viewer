@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build-url-params.mjs && node scripts/build-stac-catalog.mjs && next build",
-    "dev": "node scripts/build-url-params.mjs && next dev -p 3100",
+    "dev": "node scripts/build-url-params.mjs && concurrently -k -n next,studio -c magenta,blue \"next dev -p 3100\" \"fumadocs-studio --no-open\"",
     "start": "serve out -l 3100",
     "types:check": "next typegen && tsc --noEmit",
     "lint": "eslint",
-    "studio": "fumadocs-studio"
+    "studio": "fumadocs-studio",
+    "dev:next": "node scripts/build-url-params.mjs && next dev -p 3100"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -52,6 +53,7 @@
     "postcss": "^8.5.28",
     "serve": "^14.2.6",
     "tailwindcss": "^4.3.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "concurrently": "^10.0.5"
   }
 }

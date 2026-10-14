@@ -220,14 +220,15 @@ ws.onopen = async () => {
   console.log("sorted search", await evaluate("location.search"))
   p = sleep(150).then(() => settled(SWITCH("match-colors-to-a")))
   await moveTo(1000, 520, 1200, { bend: -0.15, curve: easeSoft }); await drift(2000, 50)   // hold over the sorted grid
-  // (5) Match Colors on, off, on, off, ~2 s a state (four clicks, ends off)
+  // (5) Match Colors on, off, on, ~2 s a state: three clicks, so it ends ON and the Difference blend that
+  // follows compares matched colours (the 2026-10-14 recording had four clicks and ended off; next recording).
   const mc = await p
   console.log("match switch", JSON.stringify(mc))
   await moveTo(mc[0], mc[1], 1100, { bend: -0.15 })
   await sleep(120); mark("(5) switch hover " + await cur())
-  for (let k = 0; k < 4; k++) {
+  for (let k = 0; k < 3; k++) {
     await click(); mark("(5) match colors " + await evaluate(STATE))
-    if (k === 3) break
+    if (k === 2) break
     await moveTo(mc[0] + 14 + (k % 2) * 6, mc[1] + 12, 650, { bend: 0.3, curve: easeSoft })
     await moveTo(mc[0], mc[1], 650, { bend: 0.3, curve: easeSoft })
     await sleep(80)
@@ -248,12 +249,13 @@ ws.onopen = async () => {
   await moveTo(pos[0] + 120, pos[1] + 40, 3000, { bend: 0.06, curve: easeSoft })
   await sleep(40); await release(); mark("(6) pan end")
   await moveTo(pos[0] - 40, pos[1] + 20, 1200, { bend: 0.2, curve: easeSoft }); await drift(1800, 30)
-  // (7) the divider swept almost to the right edge of the map (the sidebar starts near x 1520), slowly, and held there
+  // (7) the divider swept to the right, slowly, and held there. The app clamps the split at x 1292 with the
+  // sidebar open (the 2026-10-14 recording aimed at 1470 and stopped there), so aim at the reachable spot.
   const dv2 = await settled(DIVIDER)
   console.log("divider", JSON.stringify(dv2))
   await moveTo(dv2[0], 470, 1100, { bend: -0.15, curve: easeSoft })
   await sleep(150); mark("(7) divider hover " + await cur()); await press(); mark("(7) divider drag " + JSON.stringify(dv2))
-  await moveTo(1470, 476, 4200, { bend: 0.02, curve: easeSoft })
+  await moveTo(1288, 476, 4200, { bend: 0.02, curve: easeSoft })
   await sleep(300); await release(); mark("(7) divider at right edge " + await evaluate(DIVIDER))
   await moveTo(1300, 560, 1300, { bend: 0.25, curve: easeSoft }); await drift(3200, 35)
   mark("end")

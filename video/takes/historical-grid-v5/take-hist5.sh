@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Historical imagery take v5 (v4 re-recorded on 2026-10-14 after the see-through panel fix; Match Colors on/off/on/off, four clicks; at the end the overlay divider swept almost to the right edge of the map under the Difference blend), production historical host, 1920x1080: the Champ de Mars (Paris 2024).
+# Historical imagery take v5 (v4 re-recorded on 2026-10-14 after the see-through panel fix; Match Colors on/off/on, three clicks, so the Difference blend at the end compares matched colours; then the overlay divider swept to the app's maximum split, x 1292). The 2026-10-14 recording on the release has four clicks (blend with Match Colors off) and the sweep aimed past the clamp; the script is corrected for the next recording, production historical host, 1920x1080: the Champ de Mars (Paris 2024).
 # Split off on Esri Wayback 2024-10-05 with a slow pan; the 2x1 overlay (A Wayback, B Bing), the swipe divider
 # both ways, three Wayback ticks for A (2013, 2017, 2025); Side and straight to the 3x2 grid (never a 3x1), E and
 # F moved on the timeline, Sort views by date, Match Colors on/off/on/off/on; back to the overlay, Difference blend.

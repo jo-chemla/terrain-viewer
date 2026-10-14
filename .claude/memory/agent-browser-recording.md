@@ -215,11 +215,13 @@ it in every cut.
 Both re-recorded after the see-through panel fix (the held slider keeps its
 band, the rest of the panel fades), scripts under video/takes/, run from the
 take directory (`TAKE=$(dirname "$0")`) with the outputs in .cache/recordings/.
-- historical v5: Match Colors on/off/on/off (four clicks, ends off), and a
-  last beat after the Difference blend's pan: the overlay divider dragged
-  from x 800 towards 1470 stops at **x 1292**, the app's maximum split
-  ratio with the sidebar open; nothing white showed at that edge in the
-  capture (the difference region is dark there).
+- historical v5 as recorded: Match Colors on/off/on/off (four clicks, ends
+  off, so the Difference blend ran unmatched: Jonathan wants it ON there),
+  and a last beat after the blend's pan: the overlay divider dragged from
+  x 800 towards 1470 stops at **x 1292**, the app's maximum split ratio
+  with the sidebar open; nothing white showed at that edge. The script is
+  corrected for the next recording (three clicks, the sweep aimed at 1288);
+  the release MP4 and Demo5's beats are the four-click recording.
 - The capture tail adds ~3 s after the script's "end" mark; video seconds
   are the log marks plus ~0.4 s. Demo5.tsx has the beats.
 - The docs' Demo videos page (features/demo-videos) streams the release
