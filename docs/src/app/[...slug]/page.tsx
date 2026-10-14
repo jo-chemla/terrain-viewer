@@ -5,14 +5,14 @@ import {
   DocsPage,
   DocsTitle,
   MarkdownCopyButton,
+  ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page';
 import { notFound } from 'next/navigation';
 import { getMDXComponents } from '@/components/mdx';
 import { LightboxProvider } from '@/components/lightbox';
-import { DocsViewOptions } from '@/components/page-actions';
 import type { Metadata } from 'next';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
-import { docsBasePath, gitConfig } from '@/lib/shared';
+import { gitConfig } from '@/lib/shared';
 import { changelogToc } from '@/components/changelog-list';
 
 export default async function Page(props: PageProps<'/[...slug]'>) {
@@ -21,13 +21,13 @@ export default async function Page(props: PageProps<'/[...slug]'>) {
   if (!page) notFound();
 
   const MDX = page.data.body;
-  // basePath-prefixed here, once: fumadocs' MarkdownCopyButton fetches this
-  // verbatim (its withBasePath() is a no-op under Next — it reads Vite's
-  // import.meta.env, see page-actions.tsx), and DocsViewOptions (our
-  // basePath-aware ViewOptionsPopover replacement, same file) links it as
-  // "View as Markdown". Without the prefix both resolved to the
-  // non-existent un-prefixed /llms.mdx/... path in the deployed export.
-  const markdownUrl = docsBasePath + getPageMarkdownUrl(page).url;
+  // Without the base path: the stock buttons add it themselves through
+  // import.meta.env.BASE_URL, which Next's Turbopack derives from basePath
+  // since 16.3 (vercel/next.js#96225). Prefixing it here, as the site did from
+  // 2026-08-20 to 2026-10-14 with a copy of the popover, made the Copy
+  // Markdown fetch /docs/docs/llms.mdx/... once that Next shipped.
+  // Checked 2026-10-14 on the static export: both buttons carry /docs once.
+  const markdownUrl = getPageMarkdownUrl(page).url;
   // The changelog's entries come from CHANGELOG.md at build time, not from
   // MDX headings, so its right-hand ToC is built from the same file.
   const toc = params.slug.join('/') === 'changelog' ? changelogToc() : page.data.toc;
@@ -38,7 +38,7 @@ export default async function Page(props: PageProps<'/[...slug]'>) {
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
       <div className="flex flex-row gap-2 items-center border-b pb-6">
         <MarkdownCopyButton markdownUrl={markdownUrl} />
-        <DocsViewOptions
+        <ViewOptionsPopover
           markdownUrl={markdownUrl}
           // The docs app lives in the repo's docs/ SUBDIRECTORY — page.path
           // is relative to content/docs inside it, so the blob URL needs the

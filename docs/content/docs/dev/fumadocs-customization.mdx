@@ -46,10 +46,11 @@ Some pages are the single source of truth for text the app shows: `features/keyb
 
 ## Base-path fixes
 
-The site runs under `basePath: "/docs"`, which two stock pieces did not handle:
+The site runs under `basePath: "/docs"`, which one stock piece does not handle:
 
-- `page-actions.tsx` replaces Fumadocs' "Open in …" / "View as Markdown" menu, whose URLs dropped the base path.
 - `mdx.tsx` leaves root-relative links to static assets as plain anchors, so a link to a file the main app serves is not rewritten into the docs subtree.
+
+The page actions (Copy Markdown, Open in ChatGPT and the others) are the stock ones since 2026-10-14. Their `withBasePath` reads `import.meta.env.BASE_URL`, which Next's Turbopack derives from `basePath` since Next 16.3 (vercel/next.js#96225, 2026-08), so the markdown URL is passed to them without the base path. The site carried its own copy of the popover with a pre-prefixed URL from 2026-08-20; once Next 16.3 was in, that pre-prefixing doubled the base path on the Copy Markdown fetch, which is why the copy went.
 
 ## Other
 

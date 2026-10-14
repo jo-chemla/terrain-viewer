@@ -13,7 +13,10 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | [A sweep of national sources finer than what is ingested](#mapterhorn-a-comment-on-issue-27), with the [National Datasets](/features/national-datasets) comparison as the reference | Mapterhorn, [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (17 comments, live; 295 Flanders links stale and 304 Italy 5 m are the related threads) | To comment, drafted 2026-10-13 | The finer national grids are served through our own protocols |
 | [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07, not posted | The Image Georeferencer offers only the fits MapLibre draws from four corners |
 | [A browser OAuth client](#planet-a-browser-oauth-client) | Planet, the [community forum](https://community.planet.com/data-access-and-management-apis-99) (Data Access and Management APIs) or developer support; no tracker. Checked 2026-10-13: the docs still say interactive client registration is not released, but the Account page's OAuth Clients panel has an SPA option, try it before posting | Drafted 2026-10-07, not posted | Paste the CLI's access token in Settings |
-| [The page actions under a Next basePath](#fumadocs-the-page-actions-under-a-next-basepath) | Fumadocs, new bug report; no issue on it ([issue 2545](https://github.com/fuma-nama/fumadocs/issues/2545), closed 2025-11, is Astro's base and a different fix) | Drafted 2026-10-13, kept for later | `page-actions.tsx`, a copy of the popover that prefixes both URLs ([Fumadocs integration](/dev/fumadocs-customization#base-path-fixes)) |
+
+### Withdrawn
+
+- **Fumadocs, the page actions under a Next basePath** (drafted 2026-10-13): not a Fumadocs bug any more. `withBasePath` reads `import.meta.env.BASE_URL`, which Next's Turbopack derives from `basePath` since Next 16.3 (vercel/next.js#96225, merged 2026-07-28, released 2026-08-03). Checked on 2026-10-14 by clicking the stock buttons on a static export built with fumadocs-ui 16.17.3 and Next 16.3.7, in headless Chrome: Copy Markdown fetched `/docs/llms.mdx/...`, View as Markdown linked it with the base path, the assistant links used the page's full URL. The popover's content is not server-rendered, so the `usePathname` point never showed either. Our own copy of the popover, written on 2026-08-20 against Next 16.3.0, had become the bug: its pre-prefixed URL doubled to `/docs/docs/llms.mdx/...` on the Copy Markdown fetch; dropped the same day.
 
 ## Posted
 
@@ -55,16 +58,3 @@ A comment on our own [issue 434](https://github.com/onthegomap/maplibre-contour/
 A comment on [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (possible data sources; Wallonia and the Dutch orthophoto WMS were the last two suggestions):
 
 > We keep a surveyed list of national elevation endpoints for Terrain Viewer, with the Mapterhorn resolution next to each: https://terrain-viewer.iconem.com/docs/features/national-datasets/. Three countries publish a finer national grid than the one ingested today, all as open services: Czechia (CUZK DMR 5G, 2 m against 5 m), the Netherlands (AHN DTM, 0.5 m against 5 m) and Norway (Kartverket NDH, 0.25 m against 1 m). The page also lists what a browser cannot consume but a pipeline might (Portugal and Sweden have open STAC indexes with the rasters behind auth), the regional sources finer than their national grid (Queensland's 0.5 to 1 m LiDAR mosaic among them), and the licence of each. Every row is a reproduced request, not a catalog entry. Mexico INEGI's 5 m MDE from my earlier comment is still download-only.
-
-## Fumadocs: the page actions under a Next basePath
-
-A bug report, with the two lines of `fumadocs-ui/dist/layouts/shared/page-actions.js` (16.15.17) quoted:
-
-**ViewOptionsPopover and MarkdownCopyButton ignore Next's basePath**
-
-Our docs (terrain-viewer.iconem.com/docs, Next 16, `basePath: "/docs"`, static export) use the stock page actions. Two of their URLs come out without the base path.
-
-1. `withBasePath(href)` only knows Vite: it prepends `import.meta.env.BASE_URL` when that exists and nothing otherwise. Under Next the helper is a no-op, so `View as Markdown` and the copy button fetch `/llms.mdx/...` instead of `/docs/llms.mdx/...`, a 404 on the static host. The llms integration page does not say the caller has to prefix `markdownUrl` itself.
-2. `ViewOptionsPopover` builds the `Read {url}` prompt from `usePathname()` on the server and `window.location.href` on the client. Next's `usePathname` excludes the base path, so the prerendered HTML (what a static export serves until hydration, and what a crawler reads) links the AI assistants to `terrain-viewer.iconem.com/changelog`, which is the app, not the docs page. The `pageUrl` prop papers over it page by page.
-
-Suggested fix: let the framework adapter carry the base path. Next inlines `process.env.__NEXT_ROUTER_BASEPATH` into client bundles, so `NextProvider` can pass it to `FrameworkProvider` without any config, and `withBasePath` reads it from the framework context instead of `import.meta.env`. The same context value would fix the server-side `pageUrl`. We carry a copy of the popover in the meantime (`docs/src/components/page-actions.tsx` in Iconem/terrain-viewer); happy to turn it into a PR.
