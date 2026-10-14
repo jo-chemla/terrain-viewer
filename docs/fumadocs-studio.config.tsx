@@ -6,9 +6,8 @@
 import { defineConfig } from '@fumadocs-editor/studio';
 import { fumadocsUiComponents, type UiComponentSpec } from '@fumadocs-editor/ui';
 
-// Screenshots are root-relative to the main app (/docs/screenshots/...),
-// which Studio does not serve; the published site has every one of them.
-const SITE = 'https://terrain-viewer.iconem.com';
+// Screenshots live in docs/public, served by the server module below (the
+// Gallery literals already carry the site's /docs prefix, it strips it).
 
 interface GalleryItem { title: string; image: string; alt: string; href?: string }
 interface GalleryGroup { category?: string; items: GalleryItem[] }
@@ -27,10 +26,10 @@ const gallerySpec: UiComponentSpec = {
         {groups.map((g, gi) => (
           <div key={gi} style={{ display: 'grid', gap: 6 }}>
             {g.category && <b>{g.category}</b>}
-            {g.items[0] && <img src={SITE + g.items[0].image} alt={g.items[0].alt} title={g.items[0].title} style={{ width: '100%', borderRadius: 6 }} />}
+            {g.items[0] && <img src={g.items[0].image} alt={g.items[0].alt} title={g.items[0].title} style={{ width: '100%', borderRadius: 6 }} />}
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
               {g.items.map((it, i) => (
-                <img key={i} src={SITE + it.image} alt={it.alt} title={it.title} style={{ height: 56, borderRadius: 4, flex: 'none' }} />
+                <img key={i} src={it.image} alt={it.alt} title={it.title} style={{ height: 56, borderRadius: 4, flex: 'none' }} />
               ))}
             </div>
           </div>
@@ -55,6 +54,7 @@ const leaf = (name: string, label: string): UiComponentSpec => ({
 
 export default defineConfig({
   root: 'content/docs',
+  server: './fumadocs-studio.server.mjs',
   syntax: { math: true },
   components: [
     ...fumadocsUiComponents,
