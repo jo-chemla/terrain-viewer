@@ -64,11 +64,11 @@ A comment on [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (pos
 
 ## geomatico: bilinear upsampling past the finest overview level
 
-A new issue (the nearest thread is [issue 14](https://github.com/geomatico/maplibre-cog-protocol/issues/14), closed in 2024, where the blur came from overview-level rounding). The two pictures come from the reproduction page in [`scripts/upstream/cog-upsampling/`](https://github.com/Iconem/terrain-viewer/tree/main/scripts/upstream/cog-upsampling) (a plain MapLibre 6.13 page with the protocol's UMD build, shot with the GPU Chrome on 2026-10-14):
+A new issue (the nearest thread is [issue 14](https://github.com/geomatico/maplibre-cog-protocol/issues/14), closed in 2024, where the blur came from overview-level rounding). The two pictures come from a reproduction page, hosted at [https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/](https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/?mode=protocol) (a plain MapLibre 6.13 page with the protocol's UMD build from unpkg; a link at the bottom switches between the two modes; source in [`scripts/upstream/cog-upsampling/`](https://github.com/Iconem/terrain-viewer/tree/main/scripts/upstream/cog-upsampling), shot with the GPU Chrome on 2026-10-14):
 
 **Bilinear upsampling past the finest overview level**
 
-When a z/x/y tile is requested past the finest level a COG holds, the tile is filled from that level by nearest neighbour, so every source cell becomes a flat block and the hillshade computed from the tile draws rings at the block edges, plus seams at the tile borders. The same view twice (z22.5 over a 10 cm drone DSM whose finest level is z20, hillshade by MapLibre 6.13; [reproduction page](https://github.com/Iconem/terrain-viewer/tree/main/scripts/upstream/cog-upsampling)):
+When a z/x/y tile is requested past the finest level a COG holds, the tile is filled from that level by nearest neighbour, so every source cell becomes a flat block and the hillshade computed from the tile draws rings at the block edges, plus seams at the tile borders. The same view twice (z22.5 over a 10 cm drone DSM whose finest level is z20, hillshade by MapLibre 6.13). Live reproduction, switchable between the two: https://terrain-viewer.iconem.com/docs/upstream/cog-upsampling/?mode=protocol
 
 | maplibre-cog-protocol 0.10.0 upsampling (source maxzoom above the COG's finest level) | MapLibre overzooming the last tile itself (source maxzoom at the finest level) |
 |---|---|
