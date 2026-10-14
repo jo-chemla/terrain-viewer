@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>maplibre-cog-protocol: upsampling past the finest overview</title>
+<link rel="stylesheet" href="/node_modules/maplibre-gl/dist/maplibre-gl.css">
+<style>
+  html, body, #map { margin: 0; height: 100%; width: 100%; }
+  #label { position: absolute; left: 12px; top: 12px; z-index: 2; background: #fff; color: #111; font: 15px/1.4 system-ui, sans-serif; padding: 8px 12px; border-radius: 6px; box-shadow: 0 1px 4px #0003; max-width: 760px }
+  #label b { font-weight: 600 }
+</style>
+</head>
+<body>
+<div id="label">loading the COG header…</div>
+<div id="map"></div>
+<script>window.__errors=[];addEventListener("error",e=>__errors.push(String(e.message||e)));addEventListener("unhandledrejection",e=>__errors.push("rej "+String(e.reason)));</script>
+<script src="/node_modules/@geomatico/maplibre-cog-protocol/dist/index.js"></script>
+<script type="module">
+  import * as maplibregl from "/node_modules/maplibre-gl/dist/maplibre-gl.mjs";
+  // A Web Mercator COG DSM (maplibre-cog-protocol reads EPSG:3857 only): the
+  // 10 cm drone DSM of Amphipolis, Greece, from Terrain Viewer's library.
+  const q = new URLSearchParams(location.search);
+  const COG = q.get("cog") || "https://3d.iconem.com/greece/amphipolis/Amphipolis_general_dsm_10cm_cog_cropped_alpha-remapped_plus80_clamped_cog.tif";
+  const mode = q.get("mode") || "protocol";          // protocol | maplibre
+  const past = Number(q.get("past") || 2.5);         // zoom levels past the finest overview
+  const meta = await MaplibreCOGProtocol.getCogMetadata(COG);
+  const finest = Math.max(...meta.images.filter((i) => !i.isMask).map((i) => i.zoom));
+  const native = Math.floor(finest);
+  const [w, s, e, n] = meta.bbox;
+  const center = [q.get("lng") ? Number(q.get("lng")) : (w + e) / 2, q.get("lat") ? Number(q.get("lat")) : (s + n) / 2];
+  const zoom = Number(q.get("zoom") || (native + past).toFixed(2));
+  // "protocol": the source's maxzoom sits above the COG's finest level, so the
+  // z tiles are produced by the protocol, which fills them from the finest
+  // level by nearest neighbour. "maplibre": maxzoom is the finest level, so
+  // MapLibre stretches the last tile itself on the GPU.
+  const maxzoom = mode === "protocol" ? Math.min(24, native + 6) : native;
+  window.__info = { finest, native, zoom, maxzoom, center, mode, bbox: meta.bbox };
+  document.getElementById("label").innerHTML = mode === "protocol"
+    ? `<b>maplibre-cog-protocol 0.10.0</b>, source maxzoom ${maxzoom}: the protocol fills z${zoom} tiles from the COG's finest level (z${finest.toFixed(1)}) by nearest neighbour`
+    : `<b>source maxzoom ${maxzoom}</b> (the COG's finest level, z${finest.toFixed(1)}): MapLibre 6.13 overzooms the last tile itself, view z${zoom}`;
+  maplibregl.addProtocol("cog", MaplibreCOGProtocol.cogProtocol);
+  const map = new maplibregl.Map({
+    container: "map", maxZoom: 24,
+    style: { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#dcdcdc" } }] },
+    center, zoom, pitch: 0, bearing: 0, attributionControl: false, fadeDuration: 0,
+  });
+  map.on("load", () => {
+    map.addSource("dem", { type: "raster-dem", tiles: [`cog://${COG}#dem/{z}/{x}/{y}`], tileSize: 256, encoding: "mapbox", minzoom: Math.max(0, native - 8), maxzoom });
+    map.addLayer({ id: "hs", type: "hillshade", source: "dem", paint: { "hillshade-exaggeration": 0.7, "hillshade-shadow-color": "#2b2b2b", "hillshade-highlight-color": "#ffffff", "hillshade-accent-color": "#000000" } });
+  });
+  map.on("error", (e) => __errors.push("map " + (e.error && e.error.message || e)));
+  map.on("idle", () => { window.__idle = true; });
+</script>
+</body>
+</html>
