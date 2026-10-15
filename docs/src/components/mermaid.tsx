@@ -32,7 +32,7 @@ export function Mermaid({ chart }: { chart: string }) {
     );
   }
   return (
-    <div className="my-6 overflow-x-auto [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full">
+    <div className="my-6 overflow-x-auto [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-none">
       <div className="dark:hidden" dangerouslySetInnerHTML={{ __html: light }} />
       <div className="hidden dark:block" dangerouslySetInnerHTML={{ __html: dark }} />
     </div>
