@@ -4,7 +4,7 @@ icon: Clapperboard
 description: The narrated demo of Terrain Viewer and the raw screencast takes it was cut from, recorded by agents from the production site, served from the demo-takes release
 ---
 
-import { DemoCut, DemoTakes } from "@/components/demo-videos";
+import { DemoCut, DemoTakes, DemoManual } from "@/components/demo-videos";
 
 The videos are made the same way as the [slide decks](/features/slide-decks): by an agent, from the real app. An agent drives the production site with [agent-browser](https://github.com/vercel-labs/agent-browser) in a headless Chrome on the GPU, a DevTools screencast captures the frames, and the cut adds title cards and a narrator's subtitles in [Remotion](https://www.remotion.dev) with [Remocn](https://remocn.dev) motion components. The files live on the [demo-takes release](https://github.com/Iconem/terrain-viewer/releases/tag/demo-takes) and stream from there; the scripts of every take are under [`video/takes/`](https://github.com/Iconem/terrain-viewer/tree/main/video/takes).
 
@@ -17,6 +17,12 @@ The videos are made the same way as the [slide decks](/features/slide-decks): by
 Each take is one continuous recording at 1920 × 1080 and 30 fps, with the real Windows cursor drawn in, no cuts, no speed change. The cut above plays them at 1x.
 
 <DemoTakes />
+
+## By hand
+
+Screencasts recorded at the desk rather than by the pipeline, converted to MP4 and kept on the same release.
+
+<DemoManual />
 
 ## Making them
 

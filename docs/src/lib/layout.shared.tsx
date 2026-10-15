@@ -1,12 +1,18 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 import { Mountain } from 'lucide-react';
 import { appName, gitConfig } from './shared';
+import { AppIconButton } from '@/components/app-icon-button';
 
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      // JSX supported
-      title: appName,
+      // The app button sits before the name; the name stays Fumadocs' link to the docs root.
+      title: (
+        <span className="inline-flex items-center">
+          <AppIconButton />
+          {appName}
+        </span>
+      ),
     },
     links: [
       {

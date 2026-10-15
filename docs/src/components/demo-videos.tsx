@@ -9,8 +9,7 @@
 // current cut and takes; a superseded recording is deleted when a new one lands.
 //
 // The posters are frames of the videos, written by video/scripts/posters.sh
-// into docs/public/screenshots/videos/. Relative paths like the slide decks':
-// this page sits at /docs/features/demo-videos/.
+// into docs/public/screenshots/videos/.
 import { useState } from "react";
 
 const RELEASE = "https://github.com/Iconem/terrain-viewer/releases/download/demo-takes/";
@@ -63,7 +62,8 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).
 
 function Player({ v }: { v: Video }) {
   const [on, setOn] = useState(false);
-  const poster = `../../screenshots/videos/${v.id}.jpg`;
+  // Absolute with the /docs basePath by hand (a plain <img src> never gets it from Next): the player is on the home page too, where a page-relative path would miss.
+  const poster = `/docs/screenshots/videos/${v.id}.jpg`;
   return (
     <div className="not-prose my-4">
       <div className="relative aspect-video overflow-hidden rounded-lg border bg-black">
@@ -94,6 +94,33 @@ function Player({ v }: { v: Video }) {
           </>
         )}
       </p>
+    </div>
+  );
+}
+
+// Screencasts recorded by hand, not by the pipeline: a .mov from the desktop,
+// converted to 1080p-class 30 fps MP4 with ffmpeg and put on the same release.
+export const MANUAL: Video[] = [
+  {
+    id: "draw-before-after-coastline",
+    file: "draw-before-after-coastline-2026-10-15.mp4",
+    title: "A coastline before and after, traced",
+    seconds: 119,
+    recorded: "2026-10-15",
+    about: "By hand, in Historical Satellite: Google Earth 2011 against Esri 2025 in the overlay with Match Colors, then the old shoreline traced as a line with the Drawing tool and the divider swiped across it, so the reclaimed land reads at a glance.",
+  },
+];
+
+export function DemoManual() {
+  return (
+    <div>
+      {MANUAL.map((v) => (
+        <div key={v.id} className="my-8">
+          <h3 className="mb-1 text-lg font-semibold">{v.title}</h3>
+          <p className="my-0 text-sm text-fd-muted-foreground">{v.about}</p>
+          <Player v={v} />
+        </div>
+      ))}
     </div>
   );
 }
