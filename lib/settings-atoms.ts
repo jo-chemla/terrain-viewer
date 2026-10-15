@@ -213,7 +213,7 @@ export const addBasemapRequestAtom = atom<{ url: string; nonce: number } | null>
  *  or a search or file type picked last. Persisted; edit mode ignores it. */
 export const customBasemapLastTypeAtom = atomWithStorage<string>("customBasemapLastType", "auto")
 /** OpenFreeMap Liberty (the "OSM" basemap): extruded 3D buildings from z14. */
-export const osmBuildings3dAtom = atomWithStorage<boolean>("osmBuildings3d", true)
+export const osmBuildings3dAtom = atomWithStorage<boolean>("osmBuildings3d", false)
 /** Last "Add Dataset" type in the terrain modal (Auto on first run). */
 export const customTerrainLastTypeAtom = atomWithStorage<string>("customTerrainLastType", "auto")
 

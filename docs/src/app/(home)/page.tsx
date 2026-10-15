@@ -74,8 +74,8 @@ export default function HomePage() {
       {/* The narrated demo, from the Demo videos page's player: a poster
           until pressed, then the MP4 streams from the demo-takes release. */}
       <section className="mx-auto w-full max-w-6xl px-6 pt-16">
-        <h2 className="text-center text-2xl font-semibold tracking-tight">Demo video</h2>
-        <p className="mt-2 text-center text-fd-muted-foreground">Slope and hypsometric tint over Mont Blanc, then the Champ de Mars across fifteen years of imagery.</p>
+        <h2 className="text-2xl font-semibold tracking-tight">Demo video</h2>
+        <p className="mt-2 text-fd-muted-foreground">Slope and hypsometric tint over Mont Blanc, then the Champ de Mars across fifteen years of imagery.</p>
         <DemoCut />
       </section>
 

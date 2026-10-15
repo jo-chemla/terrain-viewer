@@ -11,7 +11,7 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { GripHorizontal, X, ChevronDown, Maximize2 } from "lucide-react"
+import { GripHorizontal, X, ChevronDown, Maximize2, Scaling, Diamond, Scan, Spline } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -56,6 +56,15 @@ function pairUp(imagePts: ImagePt[], mapPts: MapPt[]): GeorefGcp[] {
 
 function fmtM(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(m >= 10000 ? 0 : 1)} km` : `${m.toFixed(1)} m`
+}
+
+// One glyph per fit, so the non-rigid ones read at a glance: a square with its
+// diagonal (similarity keeps the shape), a sheared square (affine), a frame
+// seen in perspective (projective), a bending curve (the two non-rigid fits).
+const GEOREF_ICONS = { scaling: Scaling, diamond: Diamond, scan: Scan, spline: Spline } as const
+function GeorefTypeIcon({ type }: { type: GeorefType }) {
+  const Icon = GEOREF_ICONS[GEOREF_TYPES.find((t) => t.value === type)?.icon ?? "scaling"]
+  return <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
 }
 
 export const GeorefSection: React.FC<{
@@ -360,9 +369,9 @@ export const GeorefSection: React.FC<{
             <div className="flex items-center gap-2">
               <Label className="shrink-0 text-sm font-medium">Transform</Label>
               <Select value={type} items={Object.fromEntries(GEOREF_TYPES.map((t) => [t.value, t.label]))} onValueChange={(v) => v && setState({ georefType: v })}>
-                <SelectTrigger className="h-8 flex-1 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 flex-1 text-sm"><GeorefTypeIcon type={type} /><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {GEOREF_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  {GEOREF_TYPES.map((t) => <SelectItem key={t.value} value={t.value}><span className="flex items-center gap-2"><GeorefTypeIcon type={t.value} />{t.label}</span></SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

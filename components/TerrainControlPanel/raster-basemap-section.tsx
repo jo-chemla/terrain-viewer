@@ -5,6 +5,7 @@ import { osmBuildings3dAtom } from "@/lib/settings-atoms"
 import { ChevronDown } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -197,15 +198,19 @@ export const RasterBasemapSection: React.FC<{
                         />
                         <TooltipContent><p>Set all views to {label}</p></TooltipContent>
                       </Tooltip>
-                      {value === "osm" && (
-                        <span className="flex items-center gap-1 shrink-0">
-                          <Tooltip><TooltipTrigger render={<span className="text-[10px] text-muted-foreground cursor-default">3D</span>} /><TooltipContent><p>Extruded 3D buildings (OpenFreeMap Liberty, from z14)</p></TooltipContent></Tooltip>
-                          <Switch checked={osmBuildings3d} onCheckedChange={setOsmBuildings3d} className="cursor-pointer scale-75" />
-                        </span>
-                      )}
                     </div>
                   )
                 })}
+                {/* The 3D buildings are an overlay of their own, not a property of the
+                    OSM row: OpenFreeMap Liberty's extrusion layer over whatever basemap is
+                    selected (a checkbox, like the overlays, ahead of further 3D overlays). */}
+                <div className="flex items-center gap-2 min-w-0 py-1">
+                  <Checkbox id="osm-buildings-3d" checked={osmBuildings3d} onCheckedChange={(c) => setOsmBuildings3d(c === true)} className="cursor-pointer shrink-0" />
+                  <Tooltip>
+                    <TooltipTrigger render={<Label htmlFor="osm-buildings-3d" className="flex-1 text-sm cursor-pointer truncate min-w-0">OSM 3D buildings</Label>} />
+                    <TooltipContent><p>Extruded OSM buildings (OpenFreeMap Liberty, from z14), drawn over any basemap</p></TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
             ) : (
               <div className="space-y-1">
@@ -231,15 +236,19 @@ export const RasterBasemapSection: React.FC<{
                           <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
                         )}
                       </Label>
-                      {value === "osm" && (
-                        <span className="flex items-center gap-1 shrink-0">
-                          <Tooltip><TooltipTrigger render={<span className="text-[10px] text-muted-foreground cursor-default">3D</span>} /><TooltipContent><p>Extruded 3D buildings (OpenFreeMap Liberty, from z14)</p></TooltipContent></Tooltip>
-                          <Switch checked={osmBuildings3d} onCheckedChange={setOsmBuildings3d} className="cursor-pointer scale-75" />
-                        </span>
-                      )}
                     </div>
                   ))}
                 </RadioGroup>
+              {/* The 3D buildings are an overlay of their own, not a property of the
+                  OSM row: OpenFreeMap Liberty's extrusion layer over whatever basemap is
+                  selected (a checkbox, like the overlays, ahead of further 3D overlays). */}
+              <div className="flex items-center gap-2 min-w-0 py-1">
+                <Checkbox id="osm-buildings-3d" checked={osmBuildings3d} onCheckedChange={(c) => setOsmBuildings3d(c === true)} className="cursor-pointer shrink-0" />
+                <Tooltip>
+                  <TooltipTrigger render={<Label htmlFor="osm-buildings-3d" className="flex-1 text-sm cursor-pointer truncate min-w-0">OSM 3D buildings</Label>} />
+                  <TooltipContent><p>Extruded OSM buildings (OpenFreeMap Liberty, from z14), drawn over any basemap</p></TooltipContent>
+                </Tooltip>
+              </div>
               </div>
             )
           ) : (

@@ -8,10 +8,17 @@
 // own light and dark tokens. Covered diagram types: flowchart, class,
 // sequence, state, entity relationship, gantt; the docs use the first two.
 // A diagram the library cannot parse falls back to its source in a code block.
+// The SVG's stylesheet reads --muted, --border, --line and --surface with
+// colour-mix fallbacks; the docs' own tokens define --muted and --border as
+// background colours, which made the edge labels and class members vanish in
+// both themes. The wrapper sets those four to `initial` so the fallbacks apply.
+import type React from 'react';
 import { renderMermaidSVG } from 'beautiful-mermaid';
 
 const LIGHT = { bg: '#ffffff', fg: '#0a0a0a', accent: '#1a237e', font: 'Geist, Inter, system-ui, sans-serif', transparent: true } as const;
 const DARK = { bg: '#0a0a0a', fg: '#fafafa', accent: '#8c9eff', font: 'Geist, Inter, system-ui, sans-serif', transparent: true } as const;
+
+const RESET = { '--muted': 'initial', '--border': 'initial', '--line': 'initial', '--surface': 'initial' } as React.CSSProperties;
 
 function render(chart: string, colors: typeof LIGHT | typeof DARK): string | null {
   try {
@@ -32,7 +39,7 @@ export function Mermaid({ chart }: { chart: string }) {
     );
   }
   return (
-    <div className="my-6 overflow-x-auto [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-none">
+    <div className="my-6 overflow-x-auto [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-none" style={RESET}>
       <div className="dark:hidden" dangerouslySetInnerHTML={{ __html: light }} />
       <div className="hidden dark:block" dangerouslySetInnerHTML={{ __html: dark }} />
     </div>
