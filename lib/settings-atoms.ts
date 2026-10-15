@@ -214,6 +214,15 @@ export const addBasemapRequestAtom = atom<{ url: string; nonce: number } | null>
 export const customBasemapLastTypeAtom = atomWithStorage<string>("customBasemapLastType", "auto")
 /** OpenFreeMap Liberty (the "OSM" basemap): extruded 3D buildings from z14. */
 export const osmBuildings3dAtom = atomWithStorage<boolean>("osmBuildings3d", false)
+/** How the OSM 3D buildings are drawn (the cog beside their checkbox): a fill
+ *  colour (Liberty's warm grey, white, black or one of your own), an opacity,
+ *  and the footprint outlines, a line layer drawn under each building's base.
+ *  MapLibre's fill-extrusion has no edges of its own, so the walls and roofs
+ *  stay plain; a pale fill at a low opacity with outlines reads as a wireframe
+ *  of footprints. */
+export type OsmBuildingsStyle = { color: "grey" | "white" | "black" | "custom"; custom: string; opacity: number; outlines: boolean }
+export const OSM_BUILDINGS_STYLE_DEFAULT: OsmBuildingsStyle = { color: "grey", custom: "#d8d2c9", opacity: 0.8, outlines: false }
+export const osmBuildingsStyleAtom = atomWithStorage<OsmBuildingsStyle>("osmBuildingsStyle", OSM_BUILDINGS_STYLE_DEFAULT)
 /** Last "Add Dataset" type in the terrain modal (Auto on first run). */
 export const customTerrainLastTypeAtom = atomWithStorage<string>("customTerrainLastType", "auto")
 

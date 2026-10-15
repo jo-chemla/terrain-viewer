@@ -11,7 +11,7 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { GripHorizontal, X, ChevronDown, Maximize2, Scaling, Diamond, Scan, Spline } from "lucide-react"
+import { GripHorizontal, X, ChevronDown, Maximize2, Scaling, Spline } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -59,9 +59,16 @@ function fmtM(m: number): string {
 }
 
 // One glyph per fit, so the non-rigid ones read at a glance: a square with its
-// diagonal (similarity keeps the shape), a sheared square (affine), a frame
-// seen in perspective (projective), a bending curve (the two non-rigid fits).
-const GEOREF_ICONS = { scaling: Scaling, diamond: Diamond, scan: Scan, spline: Spline } as const
+// diagonal (similarity keeps the shape), a parallelogram (affine shears it), a
+// trapezoid (projective, a square seen at an angle), a bending curve (the two
+// non-rigid fits). Lucide has no parallelogram or trapezoid: two inline SVGs
+// on its 24-grid, drawn like its icons.
+const glyph = (d: string) => function Glyph(p: React.SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d={d} /></svg>
+}
+const Parallelogram = glyph("M3 18 8 6h13l-5 12Z")
+const Trapezoid = glyph("M3 18 8 6h8l5 12Z")
+const GEOREF_ICONS = { scaling: Scaling, parallelogram: Parallelogram, trapezoid: Trapezoid, spline: Spline } as const
 function GeorefTypeIcon({ type }: { type: GeorefType }) {
   const Icon = GEOREF_ICONS[GEOREF_TYPES.find((t) => t.value === type)?.icon ?? "scaling"]
   return <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />

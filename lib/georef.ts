@@ -23,10 +23,10 @@ export type GeorefType = "helmert" | "polynomial1" | "polynomial2" | "thinPlateS
 
 // icon: a lucide icon name drawn before the label in the fit select (GeorefSection):
 // the rigid fits keep their shape, the two non-rigid ones bend (a spline).
-export const GEOREF_TYPES: { value: GeorefType; label: string; minPoints: number; hint: string; icon: "scaling" | "diamond" | "scan" | "spline" }[] = [
+export const GEOREF_TYPES: { value: GeorefType; label: string; minPoints: number; hint: string; icon: "scaling" | "parallelogram" | "trapezoid" | "spline" }[] = [
   { value: "helmert", label: "Similarity (2+ points)", icon: "scaling", minPoints: 2, hint: "Move, scale, rotate. Shapes kept. The usual choice for a map figure or a drawn plan." },
-  { value: "polynomial1", label: "Affine (3+ points)", icon: "diamond", minPoints: 3, hint: "Adds shear and different scales in x and y. Still exact on screen." },
-  { value: "projective", label: "Projective (4+ points)", icon: "scan", minPoints: 4, hint: "A photograph of a flat map taken at an angle. Exact at the corners; the inside is close for small tilts." },
+  { value: "polynomial1", label: "Affine (3+ points)", icon: "parallelogram", minPoints: 3, hint: "Adds shear and different scales in x and y. Still exact on screen." },
+  { value: "projective", label: "Projective (4+ points)", icon: "trapezoid", minPoints: 4, hint: "A photograph of a flat map taken at an angle. Exact at the corners; the inside is close for small tilts." },
   // The bending fits: MapLibre draws an image from four corners, so these
   // warp the pixels first (lib/georef-warp.ts), beta.
   { value: "polynomial2", label: "Polynomial 2, non-rigid (beta, 6+ points)", icon: "spline", minPoints: 6, hint: "A bending fit. The image is warped pixel by pixel in the browser before it is placed (up to 2048 px a side), so the inside follows the points too, not only the corners. Beta: the exported world file keeps the affine through the corners only." },

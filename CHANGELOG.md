@@ -4,7 +4,7 @@
 
 #### TL;DR
 
-- **The app**: building shadows drape on 3D terrain (MapLibre 6.13's new per-tile hook), OSM 3D buildings as a checkbox at the end of the basemap list that draws them over any basemap (off by default), B toggles the Overlay blend, a Bookmarks row in the storage settings, the see-through panel keeps the held control on its own band, a bottom sheet on phones, nine event DEMs and the Kilauea lidar in the library, the desktop launcher takes a project file.
+- **The app**: building shadows drape on 3D terrain (MapLibre 6.13's new per-tile hook), OSM 3D buildings as a checkbox at the end of the basemap list that draws them over any basemap (off by default) with a cog for their colour, opacity and footprint outlines, an icon per fit in the Image Georeferencer, B toggles the Overlay blend, a Bookmarks row in the storage settings, the see-through panel keeps the held control on its own band, a bottom sheet on phones, nine event DEMs and the Kilauea lidar in the library, the desktop launcher takes a project file.
 - **The docs**: a real home page with the demo embedded, a Demo videos page (the narrated cut, the two takes, a screencast by hand), Fumadocs Studio for visual editing with an Edit in Studio button, Fumadocs 16.17.3 with the stock page actions back, diagrams rendered at build time, app buttons in the header and the sidebar, short sidebar titles.
 
 #### Details
@@ -12,7 +12,8 @@
 In short, since October 8: the hard building shadows follow the relief, and the docs site got a front door and a video page.
 
 - Building shadows on terrain: the layer implements MapLibre 6.13's experimental `renderToTerrainTile`, drawing its mask per terrain tile so MapLibre drapes it; the sweep length stays the flat-ground one. The footprints come from z14 OpenFreeMap tiles the layer fetches itself for the viewport widened by the longest shadow, so a tower just off screen still casts in. Sun Position documents it.
-- OSM 3D buildings over any basemap: the 3D switch that sat on the OpenStreetMap row is now a checkbox at the end of the basemap list, off by default, which installs OpenFreeMap Liberty's extrusion layer alone above Google, Esri or a terrain-only view, instead of only with the OSM basemap.
+- OSM 3D buildings over any basemap: the 3D switch that sat on the OpenStreetMap row is now a checkbox at the end of the basemap list, off by default, which installs OpenFreeMap Liberty's extrusion layer alone above Google, Esri or a terrain-only view, instead of only with the OSM basemap. A cog beside it sets their look: Liberty's grey, white, black or a custom colour, the opacity, and footprint outlines (a line under each base; MapLibre's extrusions have no edges of their own).
+- Image Georeferencer: an icon per fit in the Transform select, a square for similarity, a parallelogram for affine, a trapezoid for projective, a bending curve for the two non-rigid fits.
 - B toggles the Blend Mode effect of the Overlay split (the picked mode stays); the switch tooltip and the Keyboard Shortcuts page say so.
 - Settings, Browser Local Storage Persistence: a Bookmarks row with the count, the views, the stored size and a Clear (confirmed), beside the two OPFS stores.
 - See-through panel: the held slider or pad keeps a band of its own while the card drops to 8%; the macro-group rows fade with the rest. Phone portrait: the side panel is a bottom sheet, the timeline floats over it, 8 px margins everywhere.
@@ -21,7 +22,7 @@ In short, since October 8: the hard building shadows follow the relief, and the 
 - Docs home: the Sky-View Factor picture as the hero, Launch the app and Read the docs side by side, quick links, the narrated demo embedded, feature cards of one aspect ratio.
 - Demo videos page: the 145 s narrated cut, the two takes it was cut from (re-recorded after the see-through fix) and a screencast by hand, streamed from the demo-takes release behind poster frames; the release keeps the current files only.
 - Fumadocs Studio: `pnpm docs` starts the visual editor beside Next; a config draws our components (Gallery from its literal, the data tables as cards) in visual mode and serves the screenshots; an Edit in Studio button appears on a localhost docs server when a Studio answers.
-- Fumadocs 16.17.3: the stock page actions are back, since Next 16.3's Turbopack gives them the base path (our copy had started doubling it). Diagrams render at build time with beautiful-mermaid, no Mermaid runtime in the browser, readable in both colour schemes. A `sidebarTitle` field gives seventeen pages a short sidebar name. A mountain button in the header and before the sidebar title opens the app.
+- Fumadocs 16.17.3: the stock page actions are back, since Next 16.3's Turbopack gives them the base path (our copy had started doubling it). Diagrams render at build time with beautiful-mermaid, no Mermaid runtime in the browser, readable in both colour schemes. A `sidebarTitle` field gives seventeen pages a short sidebar name. The Setup page moved to `/dev/setup`; `/dev` is a landing of the developer section. A mountain button in the header and before the sidebar title opens the app.
 - Analytics and search: Umami reports from the real hostnames only with the website id from the build environment, the early-October spike explained (a local clone); a Bing Webmaster script; page titles rewritten for search; the historical host gets its own title and Open Graph tags.
 
 # Changelog — Yandex, Historical Imagery Out of Beta, Guarded Match Colors

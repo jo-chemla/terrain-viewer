@@ -1,11 +1,15 @@
 import type React from "react"
 import { useMemo, useCallback, useState } from "react"
 import { useAtom } from "jotai"
-import { osmBuildings3dAtom } from "@/lib/settings-atoms"
-import { ChevronDown } from "lucide-react"
+import { osmBuildings3dAtom, osmBuildingsStyleAtom, OSM_BUILDINGS_STYLE_DEFAULT, type OsmBuildingsStyle } from "@/lib/settings-atoms"
+import { ChevronDown, Settings2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -54,6 +58,66 @@ export const BASEMAP_SHORT_LABELS: Record<string, string> = Object.fromEntries(
 // that local .env var is present — see settings-atoms.ts.
 const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom, maptiler: maptilerKeyAtom, planet: planetKeyAtom } as const
 
+// The 3D buildings are an overlay of their own, not a property of the OSM row:
+// OpenFreeMap Liberty's extrusion layer over whatever basemap is selected (a
+// checkbox after a separator, like the overlays, ahead of further 3D overlays
+// such as COPC or 3D Tiles). The cog opens their style.
+const BUILDING_COLOR_LABELS: Record<OsmBuildingsStyle["color"], string> = { grey: "Grey (Liberty)", white: "White", black: "Black", custom: "Custom" }
+const OsmBuildingsRow: React.FC = () => {
+  const [on, setOn] = useAtom(osmBuildings3dAtom)
+  const [style, setStyle] = useAtom(osmBuildingsStyleAtom)
+  const patch = (p: Partial<OsmBuildingsStyle>) => setStyle((s) => ({ ...OSM_BUILDINGS_STYLE_DEFAULT, ...s, ...p }))
+  const color = style.color ?? "grey"
+  return (
+    <>
+      <Separator className="my-1" />
+      <div className="flex items-center gap-2 min-w-0 py-1">
+        <Checkbox id="osm-buildings-3d" checked={on} onCheckedChange={(c) => setOn(c === true)} className="cursor-pointer shrink-0" />
+        <Tooltip>
+          <TooltipTrigger render={<Label htmlFor="osm-buildings-3d" className="flex-1 text-sm cursor-pointer truncate min-w-0">OSM 3D buildings</Label>} />
+          <TooltipContent><p>Extruded OSM buildings (OpenFreeMap Liberty, from z14), drawn over any basemap</p></TooltipContent>
+        </Tooltip>
+        <Popover>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <PopoverTrigger
+                  render={
+                    <button type="button" aria-label="3D buildings style" className="cursor-pointer p-1 rounded shrink-0 text-muted-foreground hover:text-foreground">
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                  }
+                />
+              }
+            />
+            <TooltipContent><p>Colour, opacity and outlines of the 3D buildings</p></TooltipContent>
+          </Tooltip>
+          <PopoverContent className="w-64 space-y-3" align="end">
+            <div className="flex items-center gap-2 min-w-0">
+              <Label className="text-sm shrink-0">Colour</Label>
+              <Select value={color} items={BUILDING_COLOR_LABELS} onValueChange={(v) => v && patch({ color: v as OsmBuildingsStyle["color"] })}>
+                <SelectTrigger className="h-8 flex-1 min-w-0 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(BUILDING_COLOR_LABELS) as OsmBuildingsStyle["color"][]).map((k) => <SelectItem key={k} value={k}>{BUILDING_COLOR_LABELS[k]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {color === "custom" && (
+                <Input type="color" value={style.custom ?? OSM_BUILDINGS_STYLE_DEFAULT.custom} onChange={(e) => patch({ custom: e.target.value })} className="h-8 w-9 p-1 cursor-pointer shrink-0" title="Fill colour" />
+              )}
+            </div>
+            <SliderControl label="Opacity" value={Math.round((style.opacity ?? 0.8) * 100)} onChange={(v) => patch({ opacity: v / 100 })} min={0} max={100} step={5} suffix="%" sliderId="osmBuildingsOpacity" />
+            <div className="flex items-center gap-2">
+              <Checkbox id="osm-buildings-outlines" checked={!!style.outlines} onCheckedChange={(c) => patch({ outlines: c === true })} className="cursor-pointer shrink-0" />
+              <Label htmlFor="osm-buildings-outlines" className="text-sm cursor-pointer">Footprint outlines</Label>
+            </div>
+            <p className="text-xs text-muted-foreground">A line under each building's base. MapLibre's extrusions have no edges of their own, so walls and roofs stay plain; white at a low opacity with outlines reads as a wireframe of footprints.</p>
+          </PopoverContent>
+        </Popover>
+      </div>
+    </>
+  )
+}
+
 export const RasterBasemapSection: React.FC<{
   state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef>;
   isOpen: boolean
@@ -76,7 +140,6 @@ export const RasterBasemapSection: React.FC<{
   // too, not just a static "always current" implication.
   const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
 
-  const [osmBuildings3d, setOsmBuildings3d] = useAtom(osmBuildings3dAtom)
   const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, maptiler: maptilerKey, planet: planetKey }
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS
@@ -201,16 +264,7 @@ export const RasterBasemapSection: React.FC<{
                     </div>
                   )
                 })}
-                {/* The 3D buildings are an overlay of their own, not a property of the
-                    OSM row: OpenFreeMap Liberty's extrusion layer over whatever basemap is
-                    selected (a checkbox, like the overlays, ahead of further 3D overlays). */}
-                <div className="flex items-center gap-2 min-w-0 py-1">
-                  <Checkbox id="osm-buildings-3d" checked={osmBuildings3d} onCheckedChange={(c) => setOsmBuildings3d(c === true)} className="cursor-pointer shrink-0" />
-                  <Tooltip>
-                    <TooltipTrigger render={<Label htmlFor="osm-buildings-3d" className="flex-1 text-sm cursor-pointer truncate min-w-0">OSM 3D buildings</Label>} />
-                    <TooltipContent><p>Extruded OSM buildings (OpenFreeMap Liberty, from z14), drawn over any basemap</p></TooltipContent>
-                  </Tooltip>
-                </div>
+                <OsmBuildingsRow />
               </div>
             ) : (
               <div className="space-y-1">
@@ -239,16 +293,7 @@ export const RasterBasemapSection: React.FC<{
                     </div>
                   ))}
                 </RadioGroup>
-              {/* The 3D buildings are an overlay of their own, not a property of the
-                  OSM row: OpenFreeMap Liberty's extrusion layer over whatever basemap is
-                  selected (a checkbox, like the overlays, ahead of further 3D overlays). */}
-              <div className="flex items-center gap-2 min-w-0 py-1">
-                <Checkbox id="osm-buildings-3d" checked={osmBuildings3d} onCheckedChange={(c) => setOsmBuildings3d(c === true)} className="cursor-pointer shrink-0" />
-                <Tooltip>
-                  <TooltipTrigger render={<Label htmlFor="osm-buildings-3d" className="flex-1 text-sm cursor-pointer truncate min-w-0">OSM 3D buildings</Label>} />
-                  <TooltipContent><p>Extruded OSM buildings (OpenFreeMap Liberty, from z14), drawn over any basemap</p></TooltipContent>
-                </Tooltip>
-              </div>
+              <OsmBuildingsRow />
               </div>
             )
           ) : (

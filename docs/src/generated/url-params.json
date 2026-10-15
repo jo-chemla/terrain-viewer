@@ -3848,7 +3848,13 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "osmBuildings3d",
-      "default": "true",
+      "default": "false",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "osmBuildingsStyle",
+      "default": "OSM_BUILDINGS_STYLE_DEFAULT",
       "note": ""
     },
     {
