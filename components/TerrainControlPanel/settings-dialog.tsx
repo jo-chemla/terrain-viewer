@@ -1,4 +1,5 @@
 import type React from "react"
+import { bookmarksAtom } from "@/lib/bookmarks"
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
@@ -490,6 +491,17 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
     refreshOpfsVectorSummary()
   }, [refreshOpfsVectorSummary])
 
+  // Bookmarks live in localStorage (bookmarksAtom, key "bookmarks"), always
+  // kept: a count, the stored size and a Clear next to the two OPFS stores.
+  const [bookmarks, setBookmarks] = useAtom(bookmarksAtom)
+  const bookmarksBytes = useMemo(() => {
+    try { return new Blob([localStorage.getItem("bookmarks") ?? ""]).size } catch { return 0 }
+  }, [bookmarks])
+  const bookmarkViews = useMemo(() => bookmarks.reduce((n, b) => n + (Array.isArray((b as any).views) ? (b as any).views.length : 1), 0), [bookmarks])
+  const handleClearBookmarks = useCallback(() => {
+    if (window.confirm(`Delete all ${bookmarks.length} bookmarks from this browser? The featured presets stay.`)) setBookmarks([])
+  }, [bookmarks.length, setBookmarks])
+
   // Names match each var's VITE_-prefixed .env counterpart exactly (see .env) —
   // so a key=value block can be copy-pasted either direction just by adding or
   // stripping "VITE_", rather than needing a mental mapping between the two.
@@ -870,6 +882,25 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Bookmarks</Label>
+              <span className="text-xs text-muted-foreground block">
+                Your bookmarks (the Bookmarks section, Save View) are kept in this browser's localStorage, always; that section's Export writes them to a file to move or back them up.
+              </span>
+              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">
+                <span>
+                  {bookmarks.length === 0
+                    ? "No bookmarks saved yet"
+                    : `${bookmarks.length} bookmark${bookmarks.length === 1 ? "" : "s"}, ${bookmarkViews} view${bookmarkViews === 1 ? "" : "s"} — ${formatBytes(bookmarksBytes)}`}
+                </span>
+                {bookmarks.length > 0 && (
+                  <Button variant="ghost" size="sm" className="h-6 p-4 cursor-pointer text-muted-foreground hover:bg-transparent hover:text-destructive border hover:border-destructive" onClick={handleClearBookmarks}>
+                    <Trash2 className="h-3 w-3 mr-1" /> Clear
+                  </Button>
+                )}
+              </div>
             </div>
           </CollapsibleSection>
 

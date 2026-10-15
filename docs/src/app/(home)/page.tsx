@@ -44,13 +44,13 @@ const FEATURES = [
 export default function HomePage() {
   return (
     <main className="flex flex-col">
-      {/* The hero: the app over the Alps (overview-hero.jpg without its
-          sidebar, cropped by ffmpeg into home-hero.jpg), darkened at the
+      {/* The hero: the Sky-View Factor picture of the modes page, pinned to
+          its top edge, darkened at the
           bottom so the words read, two equal calls to action (the app first,
           it is what the docs describe), and three quick links underneath. */}
       <section className="relative overflow-hidden border-b">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/docs/screenshots/home-hero.jpg" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover" />
+        <img src="/docs/screenshots/viz-modes/svf.jpg" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover object-top" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/35 via-black/55 to-black/80" />
         <div className="relative mx-auto max-w-4xl px-6 py-28 text-center text-white sm:py-36">
           <p className="mb-4 font-mono text-xs uppercase tracking-[0.2em] text-white/70">Terrain Viewer · docs</p>
@@ -73,7 +73,7 @@ export default function HomePage() {
 
       {/* The narrated demo, from the Demo videos page's player: a poster
           until pressed, then the MP4 streams from the demo-takes release. */}
-      <section className="mx-auto w-full max-w-4xl px-6 pt-16">
+      <section className="mx-auto w-full max-w-6xl px-6 pt-16">
         <h2 className="text-center text-2xl font-semibold tracking-tight">Two and a half minutes of it</h2>
         <p className="mt-2 text-center text-fd-muted-foreground">Slope and hypsometric tint over Mont Blanc, then the Champ de Mars across fifteen years of imagery.</p>
         <DemoCut />

@@ -15,10 +15,14 @@
 // The geometry (positions in Web Mercator, each vertex's sweep length per
 // unit of 1/tan) is rebuilt only when the map settles or building tiles
 // arrive; the light is two uniforms, so moving it costs one repaint, and
-// panning costs nothing. Mercator only (not globe); over 3D terrain the
-// shadows stay on the flat plane the buildings' feet are drawn on. For
-// shadows cast by real shapes (a spire, a dome) and falling on slopes, the
-// terrain Shadows mode with a surface model (DSM) source is the way.
+// panning costs nothing. Mercator only (not globe). With terrain on, MapLibre
+// 6.13's experimental renderToTerrainTile hook is used instead of render():
+// the same mask is drawn per terrain tile, in that tile's flat clip space,
+// and MapLibre drapes it over the relief with its fills and lines; the
+// footprints and sweeps still sit on the flat plane the buildings' feet are
+// drawn on (a shadow falling up a slope is not shortened). For shadows cast
+// by real shapes (a spire, a dome) and falling on slopes, the terrain Shadows
+// mode with a surface model (DSM) source is the way.
 import { memo, useEffect, useRef } from "react"
 import { useMap } from "react-map-gl/maplibre"
 import * as maplibregl from "maplibre-gl"
@@ -179,6 +183,13 @@ class ShadowLayer implements CustomLayerInterface {
   private fbo: WebGLFramebuffer | null = null
   private tex: WebGLTexture | null = null
   private texSize: [number, number] = [0, 0]
+  // The per-tile mask for renderToTerrainTile (the screen mask above is sized to the canvas).
+  private tileFbo: WebGLFramebuffer | null = null
+  private tileTex: WebGLTexture | null = null
+  private tileTexSize: [number, number] = [0, 0]
+  // Bumped whenever the drape would change (geometry, light, colour), so
+  // MapLibre redraws its terrain tiles; read by MapLibre, see the interface.
+  terrainTileRevision = 0
   private geometry: Geometry | null = null
   private drawn = false
   // The tiles the last rebuild asked for (a fetch finishing outside it is stale).
@@ -193,11 +204,14 @@ class ShadowLayer implements CustomLayerInterface {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
     this.fbo = gl.createFramebuffer(); this.tex = gl.createTexture()
+    this.tileFbo = gl.createFramebuffer(); this.tileTex = gl.createTexture()
   }
   onRemove(_map: maplibregl.Map, gl: WebGL2RenderingContext) {
     for (const b of [this.sweepBuf, this.roofBuf, this.quadBuf]) if (b) gl.deleteBuffer(b)
     if (this.fbo) gl.deleteFramebuffer(this.fbo)
     if (this.tex) gl.deleteTexture(this.tex)
+    if (this.tileFbo) gl.deleteFramebuffer(this.tileFbo)
+    if (this.tileTex) gl.deleteTexture(this.tileTex)
     if (this.maskProgram) gl.deleteProgram(this.maskProgram)
     if (this.blitProgram) gl.deleteProgram(this.blitProgram)
     this.map = null; this.gl = null
@@ -216,6 +230,7 @@ class ShadowLayer implements CustomLayerInterface {
   /** The light moved: a lower sun may need buildings from further away. */
   setLight(azimuth: number, altitude: number) {
     this.azimuth = azimuth; this.altitude = altitude
+    this.terrainTileRevision++
     const map = this.map
     if (!map) return
     const range = neededTiles(map, altitude)
@@ -250,6 +265,7 @@ class ShadowLayer implements CustomLayerInterface {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.sweepBuf); gl.bufferData(gl.ARRAY_BUFFER, this.geometry.sweep, gl.STATIC_DRAW)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.roofBuf); gl.bufferData(gl.ARRAY_BUFFER, this.geometry.roof, gl.STATIC_DRAW)
     }
+    this.terrainTileRevision++
     map.triggerRepaint()
   }
   private ensureTexture(gl: WebGL2RenderingContext) {
@@ -304,6 +320,78 @@ class ShadowLayer implements CustomLayerInterface {
     gl.bindFramebuffer(gl.FRAMEBUFFER, prevFbo)
     gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3])
     this.drawn = true
+  }
+  /** The mask of the sweeps minus the footprints, into the bound framebuffer, with u_matrix given. */
+  private drawMask(gl: WebGL2RenderingContext, g: Geometry, matrix: Float32Array) {
+    gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.STENCIL_TEST); gl.disable(gl.CULL_FACE)
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT)
+    const away = ((this.azimuth + 180) * Math.PI) / 180
+    const k = 1 / Math.tan((this.altitude * Math.PI) / 180)
+    const p = this.maskProgram!
+    gl.useProgram(p)
+    gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_matrix"), false, matrix)
+    gl.uniform2f(gl.getUniformLocation(p, "u_dir"), Math.sin(away) * k, -Math.cos(away) * k)
+    const aPos = gl.getAttribLocation(p, "a_pos"), aSweep = gl.getAttribLocation(p, "a_sweep")
+    const draw = (buf: WebGLBuffer | null, count: number, value: number) => {
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+      gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 12, 0)
+      gl.enableVertexAttribArray(aSweep); gl.vertexAttribPointer(aSweep, 1, gl.FLOAT, false, 12, 8)
+      gl.uniform1f(gl.getUniformLocation(p, "u_value"), value)
+      gl.drawArrays(gl.TRIANGLES, 0, count)
+    }
+    draw(this.sweepBuf, g.sweepCount, 1)
+    draw(this.roofBuf, g.roofCount, 0)
+    gl.disableVertexAttribArray(aPos); gl.disableVertexAttribArray(aSweep)
+  }
+  /** The mask composited in the shadow colour over whatever framebuffer is bound (the canvas, or a terrain tile). */
+  private blit(gl: WebGL2RenderingContext, tex: WebGLTexture | null) {
+    const p = this.blitProgram!
+    gl.useProgram(p)
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.STENCIL_TEST)
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex)
+    gl.uniform1i(gl.getUniformLocation(p, "u_mask"), 0)
+    gl.uniform4fv(gl.getUniformLocation(p, "u_color"), this.color)
+    const aPos = gl.getAttribLocation(p, "a_pos")
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf)
+    gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0)
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+    gl.disableVertexAttribArray(aPos)
+  }
+  /**
+   * With terrain on, MapLibre calls this per terrain tile instead of render():
+   * the tile's framebuffer is bound, clip (-1, -1) is its south-west corner
+   * and (1, 1) its north-east. The sweep geometry is in Mercator units
+   * relative to its origin, so the matrix is a plain scale and offset from
+   * the tile's Mercator bounds, composed in float64 before it is stored. The
+   * mask goes through the per-tile texture first, as on screen, so overlapping
+   * sweeps never darken twice; then it is composited into the tile.
+   */
+  renderToTerrainTile(gl: WebGL2RenderingContext, { tileID, width, height }: { tileID: { canonical: { z: number; x: number; y: number } }; width: number; height: number }) {
+    const g = this.geometry
+    if (!g || this.altitude <= 0.5) return
+    const { z, x, y } = tileID.canonical
+    const size = 1 / 2 ** z
+    const sx = 2 / size, sy = -2 / size
+    const [ox, oy] = g.origin
+    const matrix = new Float32Array([sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, (ox - x * size) * sx - 1, (oy - y * size) * sy + 1, 0, 1])
+    const prevFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING)
+    const prevViewport = gl.getParameter(gl.VIEWPORT) as Int32Array
+    if (this.tileTexSize[0] !== width || this.tileTexSize[1] !== height) {
+      this.tileTexSize = [width, height]
+      gl.bindTexture(gl.TEXTURE_2D, this.tileTex)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, width, height, 0, gl.RED, gl.UNSIGNED_BYTE, null)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.tileFbo)
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tileTex, 0)
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.tileFbo)
+    gl.viewport(0, 0, width, height)
+    this.drawMask(gl, g, matrix)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, prevFbo)
+    gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3])
+    this.blit(gl, this.tileTex)
   }
   render(gl: WebGL2RenderingContext) {
     if (!this.drawn) return
@@ -368,6 +456,7 @@ export const BuildingShadowLayer = memo(({ enabled, opacity, sunAzimuth, sunAlti
     layer.setLight(sunAzimuth, sunAltitude)
     const [r, g, b] = hexToRgb(color)
     layer.color = [r, g, b, opacity]
+    layer.terrainTileRevision++
     mapRef?.getMap()?.triggerRepaint()
   }, [sunAzimuth, sunAltitude, opacity, color, mapRef, enabled])
 

@@ -15,7 +15,7 @@ export function AppIconButton() {
       title="Open the app"
       aria-label="Open the app"
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open("/", "_blank", "noopener"); }}
-      className="mr-1.5 inline-flex size-6 items-center justify-center rounded-md border bg-fd-background text-fd-muted-foreground hover:text-fd-foreground hover:bg-fd-accent"
+      className="mr-1.5 inline-flex size-6 cursor-pointer items-center justify-center rounded-md border bg-fd-background text-fd-muted-foreground hover:text-fd-foreground hover:bg-fd-accent"
     >
       <Mountain className="size-3.5" />
     </button>
