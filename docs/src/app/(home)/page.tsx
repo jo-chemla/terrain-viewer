@@ -28,15 +28,15 @@ const FEATURES = [
   {
     title: 'Historical Imagery',
     body: 'Browse decades of historical satellite imagery (Wayback, HLS, Google Earth Historical, Planet) along a draggable timeline, per view.',
-    image: '/docs/screenshots/historical-timeline.jpg',
-    alt: 'Scrubbing the historical imagery timeline',
+    image: '/docs/screenshots/timeline-tick-card.jpg',
+    alt: 'The historical timeline with a tick card open',
     href: '/features/historical-imagery',
   },
   {
     title: 'Split Screen & N-Map Compare',
     body: 'Side-by-side, overlay/blend, or up to an 8-view grid to compare terrain sources, basemaps, or historical dates against each other.',
-    image: '/docs/screenshots/n-grid.jpg',
-    alt: 'Comparing basemap sources side-by-side',
+    image: '/docs/screenshots/split-modes/viz-grid-4x2.jpg',
+    alt: 'Eight visualization modes in a 4 by 2 grid',
     href: '/features/split-modes',
   },
 ];
@@ -74,7 +74,7 @@ export default function HomePage() {
       {/* The narrated demo, from the Demo videos page's player: a poster
           until pressed, then the MP4 streams from the demo-takes release. */}
       <section className="mx-auto w-full max-w-6xl px-6 pt-16">
-        <h2 className="text-center text-2xl font-semibold tracking-tight">Two and a half minutes of it</h2>
+        <h2 className="text-center text-2xl font-semibold tracking-tight">Demo video</h2>
         <p className="mt-2 text-center text-fd-muted-foreground">Slope and hypsometric tint over Mont Blanc, then the Champ de Mars across fifteen years of imagery.</p>
         <DemoCut />
       </section>

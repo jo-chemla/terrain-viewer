@@ -1,10 +1,10 @@
 import { memo, useMemo, useState, useEffect, useRef } from "react"
-import { VectorBasemapLayer } from "./VectorBasemapLayer"
+import { VectorBasemapLayer, OsmBuildingsLayer } from "./VectorBasemapLayer"
 import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
-import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, allmapsRemoveColorAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, osmBuildings3dAtom, allmapsRemoveColorAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
 import { buildUnpaperUrl, sampleTileFor } from "@/lib/unpaper-protocol"
 
 /** A scanned map's tile template through unpaper:// when the paper removal
@@ -495,6 +495,7 @@ export const RasterBasemapSource = memo(({
 }) => {
     const [useCogProtocol] = useAtom(useCogProtocolVsTitilerAtom)
     const cesiumDetailOffset = useAtomValue(cesiumDetailOffsetAtom)
+    const osmBuildings3d = useAtomValue(osmBuildings3dAtom)
     // Unused directly — read so this component re-renders when a local COG file
     // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
     useAtomValue(localFileVersionAtom)
@@ -608,9 +609,13 @@ export const RasterBasemapSource = memo(({
     // "osm" is OpenFreeMap's Liberty vector style, not raster tiles: the
     // layers are inserted at the basemap slot by VectorBasemapLayer.
     if (basemapSource === "osm") return <VectorBasemapLayer visible={vectorVisible} opacity={vectorOpacity} />
-    if (!sourceProps) return null
+    // The 3D switch next to OSM draws the extruded buildings over any other
+    // basemap too (and over a terrain-only view): Liberty's extrusion layer alone.
+    const buildings = osmBuildings3d ? <OsmBuildingsLayer /> : null
+    if (!sourceProps) return buildings
 
-    return (
+    return (<>
+        {buildings}
         <Source
             id="raster-basemap-source"
             // resolvedCogUrl in the key: re-picking a different file for the same
@@ -631,7 +636,7 @@ export const RasterBasemapSource = memo(({
             maxzoom={zoomRange.maxzoom}
             {...sourceProps}
         />
-    )
+    </>)
 })
 RasterBasemapSource.displayName = "RasterBasemapSource"
 

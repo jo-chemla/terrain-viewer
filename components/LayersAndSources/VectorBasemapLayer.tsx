@@ -104,3 +104,40 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number; visible?: boolean 
 
   return null
 }
+
+/**
+ * The 3D buildings alone, over any other basemap: when the "3D" switch next
+ * to OSM (OpenFreeMap Liberty) is on but another basemap is selected, this
+ * installs Liberty's OpenMapTiles source and its fill-extrusion layer only,
+ * above the basemap slot, so the extruded buildings draw over Google, Esri or
+ * a terrain-only view. Removed on unmount; the switch off unmounts it.
+ */
+export const OsmBuildingsLayer: React.FC = () => {
+  const { current: mapRef } = useMap()
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    if (!map) return
+    let cancelled = false
+    const added: { sources: string[]; layers: string[] } = { sources: [], layers: [] }
+    const install = (style: StyleSpecification) => {
+      if (cancelled || !map.getStyle()) return
+      const layer = style.layers.find((l) => l.id === "building-3d") as (LayerSpecification & { source?: string }) | undefined
+      if (!layer?.source) return
+      const sid = PREFIX + layer.source
+      if (!map.getSource(sid)) { map.addSource(sid, style.sources[layer.source] as SourceSpecification); added.sources.push(sid) }
+      const lid = `${PREFIX}building-3d-only`
+      if (!map.getLayer(lid)) {
+        const before = map.getLayer(LAYER_SLOTS.OVERLAYS) ? LAYER_SLOTS.OVERLAYS : undefined
+        try { map.addLayer({ ...layer, id: lid, source: sid } as LayerSpecification, before); added.layers.push(lid) } catch { /* style changed */ }
+      }
+    }
+    loadStyle().then(install).catch(() => {})
+    return () => {
+      cancelled = true
+      if (!map.getStyle()) return
+      for (const id of added.layers) { try { if (map.getLayer(id)) map.removeLayer(id) } catch { /* torn down */ } }
+      for (const id of added.sources) { try { if (map.getSource(id)) map.removeSource(id) } catch { /* torn down */ } }
+    }
+  }, [mapRef])
+  return null
+}

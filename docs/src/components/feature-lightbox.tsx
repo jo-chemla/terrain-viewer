@@ -22,7 +22,7 @@ export function FeatureGrid({ features }: { features: Feature[] }) {
             src={f.image}
             alt={f.alt}
             loading="lazy"
-            className="w-full rounded-xl border object-cover transition-opacity group-hover:opacity-90"
+            className="aspect-video w-full rounded-xl border object-cover object-top transition-opacity group-hover:opacity-90"
           />
           <h2 className="text-lg font-semibold group-hover:underline">{f.title}</h2>
           <p className="text-sm text-fd-muted-foreground">{f.body}</p>

@@ -24,7 +24,7 @@ Used from MDX, registered in `docs/src/components/mdx.tsx` or imported per page.
 | Lightbox | `lightbox.tsx`, `feature-lightbox.tsx` | Every prose image is click-to-open; the page's images form one loop with left/right arrow keys. `mdx.tsx` tags each `img` for it. |
 | Gallery | `gallery.tsx` | Multi-image rows with captions, grouped, sharing the page lightbox. |
 | VizModeGrid | `viz-mode-grid.tsx` | The visualization modes matrix with thumbnails and links into the app. |
-| Mermaid | `mermaid.tsx` | Client-side Mermaid diagrams from fenced blocks (`remarkMdxMermaid` in `source.config.ts`). |
+| Mermaid | `mermaid.tsx` | Diagrams from fenced blocks (`remarkMdxMermaid` in `source.config.ts`) rendered at build time with [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid): no Mermaid runtime in the browser, one SVG per colour scheme in the static HTML (since 2026-10-15; flowchart, class, sequence, state, ER and gantt only). |
 | NationalDatasetsTable | `national-datasets-table.tsx` | The national terrain sources page: a world map of coverage (`world-110m.json`, built by `scripts/build-world-110m.mjs`) plus the sortable table, both read from the app's `lib/custom-sources.json` at build time. |
 | EmbedBuilder | `embed-builder.tsx` | The link / iframe builder on the [Embedding](/features/embedding) page; can start from a pasted link. |
 | ProjectConfigTable | `project-config-table.tsx` | The `ProjectConfig` interface rendered from `lib/project-config.ts` with `fumadocs-typescript`'s `AutoTypeTable`, JSDoc included. |
