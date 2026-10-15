@@ -55,6 +55,15 @@ export const RAW: Video[] = [
     about: "Esri Wayback 2024 with a pan; the overlay swipe against Bing; three more dates from the timeline; six dated views in a grid, two of them re-dated by their handles, sorted by date; Match Colors on and off; the Difference blend, its divider swept to the edge.",
     scripts: "historical-grid-v5",
   },
+  {
+    id: "coastline-draw-v1",
+    file: "coastline-draw-v1-2026-10-15.mp4",
+    title: "A coastline before and after, traced",
+    seconds: 94,
+    recorded: "2026-10-15",
+    about: "Historical Satellite on the Sharjah coast at Al Hamriyah: Google Earth 2013 zoomed onto a beach, Bing 2022 in the overlay with Match Colors and the Difference blend, then the 2013 shoreline traced as a line with the Drawing tool, the views swapped and the 2022 shoreline traced in a second layer, so the eroded strip reads at a glance. The first take played from a JSON by scripts/take.mjs.",
+    scripts: "coastline-draw-v1",
+  },
 ];
 
 const linkClass = "font-medium underline underline-offset-4 decoration-fd-primary/40 hover:decoration-fd-primary";
@@ -94,33 +103,6 @@ function Player({ v }: { v: Video }) {
           </>
         )}
       </p>
-    </div>
-  );
-}
-
-// Screencasts recorded by hand, not by the pipeline: a .mov from the desktop,
-// converted to 1080p-class 30 fps MP4 with ffmpeg and put on the same release.
-export const MANUAL: Video[] = [
-  {
-    id: "draw-before-after-coastline",
-    file: "draw-before-after-coastline-2026-10-15.mp4",
-    title: "A coastline before and after, traced",
-    seconds: 119,
-    recorded: "2026-10-15",
-    about: "By hand, in Historical Satellite: Google Earth 2011 against Esri 2025 in the overlay with Match Colors, then the old shoreline traced as a line with the Drawing tool and the divider swiped across it, so the reclaimed land reads at a glance.",
-  },
-];
-
-export function DemoManual() {
-  return (
-    <div>
-      {MANUAL.map((v) => (
-        <div key={v.id} className="my-8">
-          <h3 className="mb-1 text-lg font-semibold">{v.title}</h3>
-          <p className="my-0 text-sm text-fd-muted-foreground">{v.about}</p>
-          <Player v={v} />
-        </div>
-      ))}
     </div>
   );
 }

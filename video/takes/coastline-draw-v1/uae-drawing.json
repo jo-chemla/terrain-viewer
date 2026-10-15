@@ -1,0 +1,483 @@
+{
+ "name": "uae-drawing",
+ "site": "https://historical-satellite.iconem.com",
+ "spot": {
+  "x": 760,
+  "bottom": 230
+ },
+ "storage": {
+  "sectionOpen": "{\"general\": false, \"comparisonMix\": true, \"visualizationModes\": false, \"rasterBasemap\": false, \"bookmarks\": false, \"download\": false, \"sourceInfo\": false, \"drawing\": true, \"sunShadowCalculator\": false, \"footer\": false}"
+ },
+ "start": {
+  "appMode": "historical",
+  "viewMode": "2d",
+  "pitch": 0,
+  "bearing": 0,
+  "lat": 25.5138,
+  "lng": 55.5197,
+  "showHillshade": false,
+  "showRasterBasemap": true,
+  "showContours": false,
+  "basemapSourceA": "historical",
+  "historicalActiveSourceA": "ge-historical",
+  "dateA": 1366243200000,
+  "basemapSourceB": "bing",
+  "dateB": 1295049600000,
+  "splitRatio": 0.515,
+  "sidebarCollapsed": false,
+  "zoom": 13.5,
+  "splitStyle": "off"
+ },
+ "warmup": [
+  {
+   "zoom": 15.65,
+   "lat": 25.515,
+   "lng": 55.5195,
+   "splitStyle": "overlay",
+   "matchColorsToA": true,
+   "basemapSourceA": "bing",
+   "dateA": 1295049600000,
+   "basemapSourceB": "historical",
+   "historicalActiveSourceB": "ge-historical",
+   "dateB": 1366243200000
+  },
+  {
+   "zoom": 15.65,
+   "lat": 25.515,
+   "lng": 55.5195,
+   "splitStyle": "overlay",
+   "matchColorsToA": true
+  },
+  {
+   "zoom": 16.54,
+   "splitStyle": "overlay",
+   "matchColorsToA": true,
+   "splitBlendModeEnabled": true
+  },
+  {
+   "zoom": 16.54,
+   "splitStyle": "overlay",
+   "matchColorsToA": true
+  },
+  {
+   "basemapSourceA": "bing",
+   "dateA": 1295049600000,
+   "historicalActiveSourceA": "wayback",
+   "basemapSourceB": "historical",
+   "historicalActiveSourceB": "ge-historical",
+   "dateB": 1366243200000,
+   "zoom": 16.54,
+   "splitStyle": "overlay"
+  },
+  {
+   "zoom": 16.54,
+   "splitStyle": "overlay"
+  },
+  {
+   "zoom": 15,
+   "splitStyle": "off"
+  }
+ ],
+ "warm_s": 10,
+ "steps": [
+  {
+   "caption": "Côte des EAU : Google Earth, avril 2013"
+  },
+  {
+   "move": [
+    700,
+    430
+   ],
+   "ms": 700,
+   "soft": true
+  },
+  {
+   "hold": 900,
+   "r": 25
+  },
+  {
+   "camera": {
+    "zoom": 16.54,
+    "center": [
+     55.5197,
+     25.5138
+    ]
+   },
+   "ms": 7000,
+   "linear": false
+  },
+  {
+   "caption": "Zoom sur la zone"
+  },
+  {
+   "move": [
+    760,
+    470
+   ],
+   "ms": 1500,
+   "soft": true
+  },
+  {
+   "hold": 5800,
+   "r": 30
+  },
+  {
+   "caption": "Overlay : 2013 à gauche, Bing mai 2022 à droite"
+  },
+  {
+   "click": {
+    "button": "Overlay"
+   },
+   "ms": 1300,
+   "bend": -0.14
+  },
+  {
+   "move": [
+    1000,
+    560
+   ],
+   "ms": 1000,
+   "soft": true
+  },
+  {
+   "drag": {
+    "divider": true,
+    "y": 470
+   },
+   "ms": 1100,
+   "path": [
+    {
+     "to": [
+      330,
+      480
+     ],
+     "ms": 2300,
+     "pause": 400
+    },
+    {
+     "to": [
+      1250,
+      470
+     ],
+     "ms": 2900,
+     "pause": 400
+    },
+    {
+     "to": [
+      780,
+      474
+     ],
+     "ms": 1200
+    }
+   ]
+  },
+  {
+   "hold": 700,
+   "r": 25
+  },
+  {
+   "caption": "Match Colors : une seule palette"
+  },
+  {
+   "click": {
+    "switch": "match-colors-to-a"
+   },
+   "ms": 1300,
+   "bend": -0.15
+  },
+  {
+   "move": [
+    1000,
+    520
+   ],
+   "ms": 1000,
+   "soft": true
+  },
+  {
+   "hold": 2600,
+   "r": 35
+  },
+  {
+   "caption": "Blend mode Difference : les changements ressortent"
+  },
+  {
+   "click": {
+    "switch": "split-blend-mode-enabled"
+   },
+   "ms": 1300,
+   "bend": 0.12
+  },
+  {
+   "move": [
+    1000,
+    540
+   ],
+   "ms": 1000,
+   "soft": true
+  },
+  {
+   "hold": 3000,
+   "r": 35
+  },
+  {
+   "caption": "Retour au mode normal"
+  },
+  {
+   "click": {
+    "switch": "split-blend-mode-enabled"
+   },
+   "ms": 1300,
+   "bend": -0.12
+  },
+  {
+   "move": [
+    1000,
+    540
+   ],
+   "ms": 900,
+   "soft": true
+  },
+  {
+   "hold": 1200,
+   "r": 30
+  },
+  {
+   "caption": "Cadrage sur la zone à relever"
+  },
+  {
+   "camera": {
+    "zoom": 15.65,
+    "center": [
+     55.5195,
+     25.515
+    ]
+   },
+   "ms": 2600,
+   "linear": false
+  },
+  {
+   "hold": 2800,
+   "r": 25
+  },
+  {
+   "caption": "Rideau à droite : l'image de 2013 en grand"
+  },
+  {
+   "drag": {
+    "divider": true,
+    "y": 470
+   },
+   "ms": 1100,
+   "path": [
+    {
+     "to": {
+      "lnglat": [
+       55.5211,
+       25.515
+      ],
+      "dx": 120,
+      "y": 470
+     },
+     "ms": 2200,
+     "pause": 200
+    }
+   ]
+  },
+  {
+   "hold": 600,
+   "r": 20
+  },
+  {
+   "caption": "Tracé 1 (Layer 1) sur l'image de 2013"
+  },
+  {
+   "ms": 1400,
+   "bend": 0.12,
+   "ensure": "Line"
+  },
+  {
+   "draw": [
+    [
+     55.5150861,
+     25.5110131
+    ],
+    [
+     55.515972,
+     25.5111976
+    ],
+    [
+     55.5167386,
+     25.5117972
+    ],
+    [
+     55.5172242,
+     25.5122431
+    ],
+    [
+     55.5180334,
+     25.5133423
+    ],
+    [
+     55.5189192,
+     25.5149567
+    ],
+    [
+     55.5201032,
+     25.5169015
+    ],
+    [
+     55.5209124,
+     25.5190539
+    ]
+   ],
+   "first_ms": 1300,
+   "ms": 600
+  },
+  {
+   "move": {
+    "rel": [
+     160,
+     60
+    ]
+   },
+   "ms": 900,
+   "soft": true
+  },
+  {
+   "hold": 1500,
+   "r": 25
+  },
+  {
+   "caption": "Inversion des vues : 2022 passe à gauche"
+  },
+  {
+   "click": {
+    "swap": "B"
+   },
+   "ms": 1400,
+   "bend": -0.12
+  },
+  {
+   "move": {
+    "rel": [
+     -200,
+     -200
+    ]
+   },
+   "ms": 1000,
+   "soft": true
+  },
+  {
+   "hold": 1500,
+   "r": 25
+  },
+  {
+   "drag": {
+    "divider": true,
+    "y": 470
+   },
+   "ms": 1100,
+   "path": [
+    {
+     "to": {
+      "lnglat": [
+       55.5211,
+       25.515
+      ],
+      "dx": 120,
+      "y": 470
+     },
+     "ms": 1600,
+     "pause": 200
+    }
+   ]
+  },
+  {
+   "caption": "Tracé 2 (Layer 2) sur l'image de 2022"
+  },
+  {
+   "click": {
+    "button": "Add Layer"
+   },
+   "ms": 1400,
+   "bend": 0.12
+  },
+  {
+   "ms": 900,
+   "bend": 0.15,
+   "ensure": "Line"
+  },
+  {
+   "draw": [
+    [
+     55.5151057,
+     25.5110051
+    ],
+    [
+     55.5159588,
+     25.5111716
+    ],
+    [
+     55.516805,
+     25.5117966
+    ],
+    [
+     55.5172189,
+     25.5119261
+    ],
+    [
+     55.5179639,
+     25.5128824
+    ],
+    [
+     55.5180964,
+     25.5131713
+    ],
+    [
+     55.5185489,
+     25.5135797
+    ],
+    [
+     55.5191229,
+     25.5144513
+    ],
+    [
+     55.5193372,
+     25.5149153
+    ],
+    [
+     55.5196692,
+     25.5154772
+    ],
+    [
+     55.5203311,
+     25.5167739
+    ],
+    [
+     55.5207128,
+     25.5176617
+    ],
+    [
+     55.5210376,
+     25.5188982
+    ]
+   ],
+   "first_ms": 1300,
+   "ms": 500
+  },
+  {
+   "move": {
+    "rel": [
+     160,
+     60
+    ]
+   },
+   "ms": 900,
+   "soft": true
+  },
+  {
+   "hold": 3500,
+   "r": 30
+  }
+ ]
+}

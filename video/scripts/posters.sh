@@ -11,3 +11,4 @@ shot() { ffmpeg -y -loglevel error -ss "$3" -i "$SRC/$2" -frames:v 1 -vf scale=1
 shot demo-v5 terrain-viewer-demo-v5-2026-10-14.mp4 5
 shot basic-modes-v8 basic-modes-v8-2026-10-14.mp4 12
 shot historical-grid-v5 historical-grid-v5-2026-10-14.mp4 40
+shot coastline-draw-v1 coastline-draw-v1-2026-10-15.mp4 90

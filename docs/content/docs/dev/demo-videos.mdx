@@ -25,7 +25,28 @@ Five takes of the same basic feature, recorded by delegated agents, settled the 
 - **The report** of a recording agent starts with the absolute path of the MP4; a middle frame is optional.
 - **A known gap:** the injected cursor is always the arrow. The pointer never shows the hand over links and buttons or the resize shapes, because the capture has no pointer at all and the image is one static arrow. Reading the computed `cursor` style of the element under the pointer and swapping the image would fix it; not done yet.
 
-Every take is kept in two places: its scripts under [`video/takes/<name>/`](https://github.com/Iconem/terrain-viewer/tree/main/video/takes) (the agent-browser driver with its warm-up loads, the DevTools pointer script, the cursor images) and the MP4 on the [demo-takes release](https://github.com/Iconem/terrain-viewer/releases/tag/demo-takes). The current ones are `basic-modes-v8` (51 s, Mont Blanc) and `historical-grid-v5` (84 s, the Champ de Mars), recorded on 2026-10-14; a take script runs from its own directory against `.cache/recordings/`, and `scripts/posters.sh` cuts the poster frames for the Demo videos page from the MP4s.
+Every take is kept in two places: its scripts under [`video/takes/<name>/`](https://github.com/Iconem/terrain-viewer/tree/main/video/takes) (the agent-browser driver with its warm-up loads, the DevTools pointer script, the cursor images) and the MP4 on the [demo-takes release](https://github.com/Iconem/terrain-viewer/releases/tag/demo-takes). The current ones are `basic-modes-v8` (51 s, Mont Blanc) and `historical-grid-v5` (84 s, the Champ de Mars), recorded on 2026-10-14, and `coastline-draw-v1` (94 s, the Sharjah coast, a declarative take, 2026-10-15); a take script runs from its own directory against `.cache/recordings/`, and `scripts/posters.sh` cuts the poster frames for the Demo videos page from the MP4s.
+
+## Declarative takes
+
+Since 2026-10-15 a take can also be a JSON file played by a generic runner, instead of a pair of scripts written by hand: `scripts/take.sh <take.json> rehearse|record [<clip>]` does what `take-hist5.sh` does (the agent-browser session on the GPU at 1920 × 1080, the localStorage written from `/robots.txt`, one page load per warm-up state, `cdp-url`, the capture) and `scripts/take.mjs` plays the steps over the DevTools websocket with the real cursor, the eased pointer paths and the control lookup of the hand-written takes. The first one is `takes/coastline-draw-v1/uae-drawing.json`, a port of Jonathan's `tv_take.py` recipe (Python and Playwright on a Mac) to this pipeline; the format is the same, so a take written for one runs on the other. In record mode the captions' seconds are written to `<clip>.json` next to the MP4, for a cut to pick up; nothing is drawn into the frame.
+
+The JSON holds `name`, `site`, `storage` (localStorage keys), `start` (the app's URL keys; a date key accepts `"2014-01-01"`), `warmup` (overrides of `start`, loaded before the take), `warm_s`, `spot` (where a cut puts the captions) and `steps`, one key each; their durations come from the pointer's moves.
+
+| step | example |
+|---|---|
+| caption | `{"caption": "Hypsometric tint"}` |
+| move | `{"move": [700, 430], "ms": 800, "soft": true}` or `{"move": {"rel": [40, -20]}}` |
+| click | `{"click": {"label": "color-relief"}, "ms": 1200}` |
+| drag | `{"drag": {"divider": true, "y": 470}, "path": [{"to": [330, 480], "ms": 2300, "pause": 500}]}`; `"drag": "here"` starts from the current position (a map pan) |
+| wheel | `{"wheel": {"ms": 2200, "peak": -3, "drift": [-30, 20]}}` |
+| hold, moving | `{"hold": 2500, "r": 35}` |
+| camera (not awaited) | `{"camera": {"bearing": 25, "pitch": 66, "zoom": 13.1}, "ms": 20000}` |
+| ensure | `{"ensure": "Line"}`: a toggle button clicked only when it is not active |
+| draw | `{"draw": [[lng, lat], ...]}`: one click per vertex of a Drawing line, the last one twice to finish |
+| key | `{"key": "Escape"}` |
+
+A target is a control: `{"label": id}` a mode's checkbox through its `label[for]`, `{"go": id}` its options arrow, `{"button": "Side"}`, `{"aria": "Grid layout 2 by 2"}`, `{"switch": "match-colors-to-a"}`, `{"combobox": "^(Normal|Difference)"}` and `{"option": "Multiply"}`, `{"section": "Compare and Blend"}`, `{"divider": true}`, `{"tick": {"date": "2011-05-07", "source": "ge"}}` a timeline tick, `{"swap": "B"}` and `{"pill": "B"}` on a view's label, `{"handle": "B"}` on the timeline, `{"lnglat": [lng, lat]}` a point of the map (projected through view A's map, reached through the React fiber), `{"css": "…"}`, `{"text": "…"}`; each accepts `dx`, `dy`, `x` and `y`. A target out of the sidebar's view is scrolled to and read again until two reads agree, while the pointer keeps moving.
 
 ## Cutting
 
