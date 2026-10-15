@@ -13,6 +13,7 @@ import { LightboxProvider } from '@/components/lightbox';
 import type { Metadata } from 'next';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 import { gitConfig } from '@/lib/shared';
+import { StudioLink } from '@/components/studio-link';
 import { changelogToc } from '@/components/changelog-list';
 
 export default async function Page(props: PageProps<'/[...slug]'>) {
@@ -46,6 +47,7 @@ export default async function Page(props: PageProps<'/[...slug]'>) {
           // the repo layout, the URL is assembled right here).
           githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/docs/content/docs/${page.path}`}
         />
+        <StudioLink path={page.path} />
       </div>
       <DocsBody>
         <LightboxProvider>

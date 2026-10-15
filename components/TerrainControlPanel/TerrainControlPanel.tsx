@@ -47,6 +47,7 @@ import { useSpaceToggleContext } from '@/lib/use-space-toggle-context'
 import { useShiftTapToggle } from '@/lib/use-shift-tap-toggle'
 import { useCtrlTapToggle } from '@/lib/use-ctrl-tap-toggle'
 import { useGeocoderShortcut } from '@/lib/use-geocoder-shortcut'
+import { useBlendToggleShortcut } from "@/lib/use-blend-toggle-shortcut"
 import { useUrlStateHistory } from "@/lib/use-url-state-history"
 import { cn } from "@/lib/utils"
 
@@ -278,6 +279,9 @@ export function TerrainControlPanel({
   useShiftTapToggle(() => setState({ showRasterBasemap: !state.showRasterBasemap }), !historicalMode)
   // Ctrl/Cmd+K jumps focus to the geocoder search box from anywhere.
   useGeocoderShortcut()
+  // B flips the Overlay split's Blend Mode effect on and off (the switch in
+  // Compare and Blend); the picked mode stays. See the hook.
+  useBlendToggleShortcut(state.splitStyle === "overlay", () => setState({ splitBlendModeEnabled: !state.splitBlendModeEnabled }))
   // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or +Y) walk the URL state back and
   // forth: every control's change, camera excluded. See the hook.
   useUrlStateHistory(state, setState, (pose) => {

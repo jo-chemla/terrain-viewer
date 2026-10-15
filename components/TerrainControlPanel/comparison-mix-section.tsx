@@ -229,7 +229,7 @@ export const ComparisonMixSection: React.FC<{
                     </span>
                   }
                 />
-                <TooltipContent><p>Turn the blend mode effect on or off — the picker below stays fully usable either way, so you can line up a different mode (dimmed while off, since it won't apply yet) without losing the current one first.</p></TooltipContent>
+                <TooltipContent><p>Turn the blend mode effect on or off (shortcut: B) — the picker below stays fully usable either way, so you can line up a different mode (dimmed while off, since it won't apply yet) without losing the current one first.</p></TooltipContent>
               </Tooltip>
               <Label htmlFor="split-blend-mode-enabled" className="text-sm font-medium cursor-pointer">Blend Mode</Label>
             </div>
