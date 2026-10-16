@@ -1,0 +1,35 @@
+{
+  "pair_id": "amphipolis_pair_001",
+  "crs": "EPSG:3857",
+  "geotransform": [
+    2654181.544225475,
+    0.4525658986979127,
+    0.0,
+    4986456.737311063,
+    0.0,
+    -0.4525658986979127
+  ],
+  "width": 1024,
+  "height": 1024,
+  "classes": [
+    "no-change",
+    "destruction",
+    "construction",
+    "modification"
+  ],
+  "before": {
+    "id": "esri_world_imagery",
+    "date": "unknown",
+    "url": "http://host.docker.internal:8010/cog/bbox/2654181.544225475,4985993.309830796,2654644.9717057412,4986456.737311063/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654181.544225475,4985993.309830796,2654644.9717057412,4986456.737311063/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654181.544225475,4985993.309830796,2654644.9717057412,4986456.737311063/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+  },
+  "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024",
+    "url": "https://titiler.xyz/cog/bbox/2654181.544225475,4985993.309830796,2654644.9717057412,4986456.737311063/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654181.544225475,4985993.309830796,2654644.9717057412,4986456.737311063/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654181.544225475,4985993.309830796,2654644.9717057412,4986456.737311063/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "source_cog": "https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif"
+  }
+}

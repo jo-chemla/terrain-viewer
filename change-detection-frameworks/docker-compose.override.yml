@@ -1,0 +1,5 @@
+# Port and network glue for the included CVAT stack. 8080 is often taken, so CVAT is published on 8085.
+services:
+  traefik:
+    ports: !override
+      - "8085:8080"

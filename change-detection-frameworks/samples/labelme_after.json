@@ -1,0 +1,94 @@
+{
+  "version": "7.8.1",
+  "flags": {},
+  "shapes": [
+    {
+      "label": "construction",
+      "points": [
+        [
+          400.0,
+          420.0
+        ],
+        [
+          470.0,
+          420.0
+        ],
+        [
+          470.0,
+          480.0
+        ],
+        [
+          400.0,
+          480.0
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "polygon",
+      "flags": {
+        "drawn_on_after": true
+      },
+      "mask": null
+    },
+    {
+      "label": "no-change",
+      "points": [
+        [
+          540.7179487179487,
+          347.6923076923077
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "point",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "no-change",
+      "points": [
+        [
+          781.7435897435898,
+          234.8717948717949
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "point",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "destruction",
+      "points": [
+        [
+          919.1794871794873,
+          309.7435897435897
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "point",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "destruction",
+      "points": [
+        [
+          738.6666666666667,
+          471.7948717948718
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "point",
+      "flags": {},
+      "mask": null
+    }
+  ],
+  "imagePath": "amphipolis_pair_001_2_after_amphipolis_rgb_10cm.tif",
+  "imageData": null,
+  "imageHeight": 1024,
+  "imageWidth": 1024
+}

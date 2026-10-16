@@ -1,0 +1,6 @@
+requests
+rasterio
+pyproj
+shapely
+label-studio-sdk
+cvat-sdk

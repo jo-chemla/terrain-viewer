@@ -1,0 +1,49 @@
+# One stack for the whole workflow: TiTiler (chips from any GDAL source), the CVAT frame-name shim,
+# Label Studio, and CVAT pulled in from its own repository.
+#
+#   git clone --depth 1 https://github.com/cvat-ai/cvat.git        # once, next to this file
+#   docker compose up -d                                           # everything, CVAT included
+#   docker compose up -d titiler chip-shim label-studio            # without CVAT
+#
+# Ports: TiTiler 8010, shim 8020, Label Studio 8081, CVAT 8085 (open CVAT as http://localhost:8085, the router matches the host name).
+# Put GDAL source files (TMS or WMS XML, local GeoTIFFs) in ./data, they are /data/<file> inside TiTiler.
+# Then: python cdtasks.py plan --sources sources.json ...  with "titiler": {"servers": "http://titiler", "local": "http://127.0.0.1:8010"}
+# and "cvat_shim": "http://chip-shim:8020", since CVAT and the shim share this network.
+
+include:
+  - path: ./cvat/docker-compose.yml
+    env_file: ./cvat.env
+
+services:
+  titiler:
+    image: ghcr.io/developmentseed/titiler:latest
+    ports: ["8010:80"]
+    volumes: ["./data:/data:ro"]
+    environment:
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "YES"
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: .tif,.tiff,.vrt,.xml,.jp2
+      TITILER_API_CORS_ORIGINS: "*"
+    restart: unless-stopped
+
+  chip-shim:
+    # CVAT names frames after the URL path, every TiTiler bbox URL ends in the same file name: this gives each chip its own path.
+    image: python:3.12-slim
+    command: sh -c "pip install -q requests && python /app/chip_proxy.py 8020"
+    volumes: ["./chip_proxy.py:/app/chip_proxy.py:ro"]
+    ports: ["8020:8020"]
+    restart: unless-stopped
+
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    ports: ["8081:8080"]
+    volumes: ["label-studio-data:/label-studio/data"]
+    environment:
+      LABEL_STUDIO_USERNAME: ${LS_USERNAME:-analyst@example.com}
+      LABEL_STUDIO_PASSWORD: ${LS_PASSWORD:-change-me-please}
+      LABEL_STUDIO_USER_TOKEN: ${LS_API_KEY:-change-me-token}
+      LABEL_STUDIO_HOST: http://localhost:8081
+    restart: unless-stopped
+
+volumes:
+  label-studio-data:

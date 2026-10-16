@@ -1,0 +1,10 @@
+
+<View>
+  <Header value="Pair $pair_id : before = $before_id ($before_date), after = $after_id ($after_date). Hotkeys 1-4 = class."/>
+  <View style="display:flex; gap:8px">
+    <View style="flex:1"><Header value="BEFORE"/><Image name="before" value="$before" zoom="true" zoomControl="true" rotateControl="false"/></View>
+    <View style="flex:1"><Header value="AFTER"/><Image name="after" value="$after" zoom="true" zoomControl="true" rotateControl="false"/></View>
+  </View>
+  <PolygonLabels name="change_before" toName="before" strokeWidth="2"><Label value="no-change"/><Label value="destruction"/><Label value="construction"/><Label value="modification"/></PolygonLabels>
+  <PolygonLabels name="change_after" toName="after" strokeWidth="2"><Label value="no-change"/><Label value="destruction"/><Label value="construction"/><Label value="modification"/></PolygonLabels>
+</View>

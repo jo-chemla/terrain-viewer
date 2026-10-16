@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<annotations>
+  <version>1.1</version>
+  <meta>
+    <task>
+      <id>3</id>
+      <name>Change detection amphipolis_pair_001</name>
+      <size>2</size>
+      <mode>annotation</mode>
+      <overlap>0</overlap>
+      <bugtracker></bugtracker>
+      <created>2026-10-16 09:34:13.421306+00:00</created>
+      <updated>2026-10-16 09:34:18.893516+00:00</updated>
+      <subset>default</subset>
+      <start_frame>0</start_frame>
+      <stop_frame>1</stop_frame>
+      <frame_filter></frame_filter>
+      <segments>
+        <segment>
+          <id>1</id>
+          <start>0</start>
+          <stop>1</stop>
+          <url>http://localhost:8085/api/tasks/3/dataset/export/api/jobs/1</url>
+        </segment>
+      </segments>
+      <owner>
+        <username>admin</username>
+        <email>admin@example.com</email>
+      </owner>
+      <assignee></assignee>
+      <labels>
+        <label>
+          <name>no-change</name>
+          <color>#3dc93c</color>
+          <type>polygon</type>
+          <attributes>
+            <attribute>
+              <name>drawn_on</name>
+              <mutable>False</mutable>
+              <input_type>select</input_type>
+              <default_value>after</default_value>
+              <values>before
+after</values>
+            </attribute>
+          </attributes>
+        </label>
+        <label>
+          <name>destruction</name>
+          <color>#947f08</color>
+          <type>polygon</type>
+          <attributes>
+            <attribute>
+              <name>drawn_on</name>
+              <mutable>False</mutable>
+              <input_type>select</input_type>
+              <default_value>after</default_value>
+              <values>before
+after</values>
+            </attribute>
+          </attributes>
+        </label>
+        <label>
+          <name>construction</name>
+          <color>#806000</color>
+          <type>polygon</type>
+          <attributes>
+            <attribute>
+              <name>drawn_on</name>
+              <mutable>False</mutable>
+              <input_type>select</input_type>
+              <default_value>after</default_value>
+              <values>before
+after</values>
+            </attribute>
+          </attributes>
+        </label>
+        <label>
+          <name>modification</name>
+          <color>#8afa8a</color>
+          <type>polygon</type>
+          <attributes>
+            <attribute>
+              <name>drawn_on</name>
+              <mutable>False</mutable>
+              <input_type>select</input_type>
+              <default_value>after</default_value>
+              <values>before
+after</values>
+            </attribute>
+          </attributes>
+        </label>
+      </labels>
+    </task>
+    <dumped>2026-10-16 09:34:19.734357+00:00</dumped>
+  </meta>
+  <image id="0" name="amphipolis_pair_001_1_before_esri_world_imagery.png" width="1024" height="1024">
+  </image>
+  <image id="1" name="amphipolis_pair_001_2_after_amphipolis_rgb_10cm.png" width="1024" height="1024">
+    <polygon label="construction" source="manual" occluded="0" points="400.00,420.00;470.00,420.00;470.00,480.00;400.00,480.00" z_order="0">
+      <attribute name="drawn_on">after</attribute>
+    </polygon>
+  </image>
+</annotations>

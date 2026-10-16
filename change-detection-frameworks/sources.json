@@ -1,0 +1,12 @@
+{
+  "_comment": "Basemap dates are nominal: Esri, Google and Bing do not expose the capture date per tile. Check each provider's terms before annotating on its tiles.",
+  "titiler": {"servers": "http://host.docker.internal:8010", "local": "http://127.0.0.1:8010"},
+  "cvat_shim": "http://host.docker.internal:8020",
+  "classes": ["no-change", "destruction", "construction", "modification"],
+  "sources": [
+    {"id": "esri_world_imagery", "date": "2016-01-01", "url": "/data/esri_tms18.xml"},
+    {"id": "google_satellite",   "date": "2019-01-01", "url": "/data/google_sat_tms.xml"},
+    {"id": "bing_aerial",        "date": "2021-01-01", "url": "/data/bing_aerial_quadkey.xml"},
+    {"id": "amphipolis_rgb_10cm", "date": "2024-06-01", "url": "https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif"}
+  ]
+}

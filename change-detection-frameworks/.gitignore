@@ -1,0 +1,10 @@
+chips/
+labelme_files/
+out/
+exports/
+state_*.json
+*.zip
+*.log
+lsdata/
+cvat/
+data/*.tif

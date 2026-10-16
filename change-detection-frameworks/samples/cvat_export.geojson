@@ -1,0 +1,51 @@
+{
+ "type": "FeatureCollection",
+ "crs": {
+  "type": "name",
+  "properties": {
+   "name": "urn:ogc:def:crs:EPSG::3857"
+  }
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       2654362.5705849538,
+       4986266.65963361
+      ],
+      [
+       2654394.2501978627,
+       4986266.65963361
+      ],
+      [
+       2654394.2501978627,
+       4986239.505679688
+      ],
+      [
+       2654362.5705849538,
+       4986239.505679688
+      ],
+      [
+       2654362.5705849538,
+       4986266.65963361
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "class": "construction",
+    "drawn_on": "after",
+    "pair_id": "amphipolis_pair_001",
+    "before_id": "esri_world_imagery",
+    "before_date": "unknown",
+    "after_id": "amphipolis_rgb_10cm",
+    "after_date": "2024",
+    "frame": "amphipolis_pair_001_2_after_amphipolis_rgb_10cm.png"
+   }
+  }
+ ]
+}

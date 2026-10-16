@@ -1,0 +1,1068 @@
+{
+ "name": "amph",
+ "crs": "EPSG:3857",
+ "chip": 1024,
+ "gsd_m": 0.5,
+ "pixel_size_m": 0.660730315749072,
+ "overlap": 0.1,
+ "aoi": [
+  2653634.0215300554,
+  4985386.562422283,
+  2655192.494401161,
+  4987004.709993535
+ ],
+ "grid": [
+  3,
+  3
+ ],
+ "classes": [
+  "no-change",
+  "destruction",
+  "construction",
+  "modification"
+ ],
+ "cvat_shim": "http://host.docker.internal:8020",
+ "sources": [
+  {
+   "id": "esri_world_imagery",
+   "date": "2016-01-01",
+   "url": "/data/esri_tms18.xml"
+  },
+  {
+   "id": "google_satellite",
+   "date": "2019-01-01",
+   "url": "/data/google_sat_tms.xml"
+  },
+  {
+   "id": "bing_aerial",
+   "date": "2021-01-01",
+   "url": "/data/bing_aerial_quadkey.xml"
+  },
+  {
+   "id": "amphipolis_rgb_10cm",
+   "date": "2024-06-01",
+   "url": "https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif"
+  }
+ ],
+ "cells": [
+  {
+   "cell_id": "amph_r00c00",
+   "row": 0,
+   "col": 0,
+   "bbox": [
+    2653634.0215300554,
+    4986328.122150208,
+    2654310.6093733823,
+    4987004.709993535
+   ],
+   "geotransform": [
+    2653634.0215300554,
+    0.660730315749072,
+    0.0,
+    4987004.709993535,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  },
+  {
+   "cell_id": "amph_r00c01",
+   "row": 0,
+   "col": 1,
+   "bbox": [
+    2654242.9505890496,
+    4986328.122150208,
+    2654919.5384323765,
+    4987004.709993535
+   ],
+   "geotransform": [
+    2654242.9505890496,
+    0.660730315749072,
+    0.0,
+    4987004.709993535,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  },
+  {
+   "cell_id": "amph_r00c02",
+   "row": 0,
+   "col": 2,
+   "bbox": [
+    2654851.8796480442,
+    4986328.122150208,
+    2655528.467491371,
+    4987004.709993535
+   ],
+   "geotransform": [
+    2654851.8796480442,
+    0.660730315749072,
+    0.0,
+    4987004.709993535,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  },
+  {
+   "cell_id": "amph_r01c00",
+   "row": 1,
+   "col": 0,
+   "bbox": [
+    2653634.0215300554,
+    4985719.193091214,
+    2654310.6093733823,
+    4986395.780934541
+   ],
+   "geotransform": [
+    2653634.0215300554,
+    0.660730315749072,
+    0.0,
+    4986395.780934541,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  },
+  {
+   "cell_id": "amph_r01c01",
+   "row": 1,
+   "col": 1,
+   "bbox": [
+    2654242.9505890496,
+    4985719.193091214,
+    2654919.5384323765,
+    4986395.780934541
+   ],
+   "geotransform": [
+    2654242.9505890496,
+    0.660730315749072,
+    0.0,
+    4986395.780934541,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  },
+  {
+   "cell_id": "amph_r01c02",
+   "row": 1,
+   "col": 2,
+   "bbox": [
+    2654851.8796480442,
+    4985719.193091214,
+    2655528.467491371,
+    4986395.780934541
+   ],
+   "geotransform": [
+    2654851.8796480442,
+    0.660730315749072,
+    0.0,
+    4986395.780934541,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  },
+  {
+   "cell_id": "amph_r02c00",
+   "row": 2,
+   "col": 0,
+   "bbox": [
+    2653634.0215300554,
+    4985110.26403222,
+    2654310.6093733823,
+    4985786.851875546
+   ],
+   "geotransform": [
+    2653634.0215300554,
+    0.660730315749072,
+    0.0,
+    4985786.851875546,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  },
+  {
+   "cell_id": "amph_r02c01",
+   "row": 2,
+   "col": 1,
+   "bbox": [
+    2654242.9505890496,
+    4985110.26403222,
+    2654919.5384323765,
+    4985786.851875546
+   ],
+   "geotransform": [
+    2654242.9505890496,
+    0.660730315749072,
+    0.0,
+    4985786.851875546,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  },
+  {
+   "cell_id": "amph_r02c02",
+   "row": 2,
+   "col": 2,
+   "bbox": [
+    2654851.8796480442,
+    4985110.26403222,
+    2655528.467491371,
+    4985786.851875546
+   ],
+   "geotransform": [
+    2654851.8796480442,
+    0.660730315749072,
+    0.0,
+    4985786.851875546,
+    0.0,
+    -0.660730315749072
+   ],
+   "dates": [
+    {
+     "id": "esri_world_imagery",
+     "date": "2016-01-01",
+     "index": 0,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "google_satellite",
+     "date": "2019-01-01",
+     "index": 1,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "bing_aerial",
+     "date": "2021-01-01",
+     "index": 2,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    },
+    {
+     "id": "amphipolis_rgb_10cm",
+     "date": "2024-06-01",
+     "index": 3,
+     "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+     "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+    }
+   ]
+  }
+ ],
+ "units": [
+  {
+   "unit_id": "amph_r00c00__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r00c00",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r00c00__google_satellite__bing_aerial",
+   "cell_id": "amph_r00c00",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r00c00__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r00c00",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4986328.122150208,2654310.6093733823,4987004.709993535/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r00c01__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r00c01",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r00c01__google_satellite__bing_aerial",
+   "cell_id": "amph_r00c01",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r00c01__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r00c01",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4986328.122150208,2654919.5384323765,4987004.709993535/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r00c02__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r00c02",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r00c02__google_satellite__bing_aerial",
+   "cell_id": "amph_r00c02",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r00c02__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r00c02",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4986328.122150208,2655528.467491371,4987004.709993535/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c00__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r01c00",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c00__google_satellite__bing_aerial",
+   "cell_id": "amph_r01c00",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c00__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r01c00",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985719.193091214,2654310.6093733823,4986395.780934541/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c01__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r01c01",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c01__google_satellite__bing_aerial",
+   "cell_id": "amph_r01c01",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c01__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r01c01",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985719.193091214,2654919.5384323765,4986395.780934541/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c02__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r01c02",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c02__google_satellite__bing_aerial",
+   "cell_id": "amph_r01c02",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r01c02__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r01c02",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985719.193091214,2655528.467491371,4986395.780934541/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c00__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r02c00",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c00__google_satellite__bing_aerial",
+   "cell_id": "amph_r02c00",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c00__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r02c00",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2653634.0215300554,4985110.26403222,2654310.6093733823,4985786.851875546/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c01__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r02c01",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c01__google_satellite__bing_aerial",
+   "cell_id": "amph_r02c01",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c01__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r02c01",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654242.9505890496,4985110.26403222,2654919.5384323765,4985786.851875546/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c02__esri_world_imagery__google_satellite",
+   "cell_id": "amph_r02c02",
+   "before": {
+    "id": "esri_world_imagery",
+    "date": "2016-01-01",
+    "index": 0,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c02__google_satellite__bing_aerial",
+   "cell_id": "amph_r02c02",
+   "before": {
+    "id": "google_satellite",
+    "date": "2019-01-01",
+    "index": 1,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=/data/google_sat_tms.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  },
+  {
+   "unit_id": "amph_r02c02__bing_aerial__amphipolis_rgb_10cm",
+   "cell_id": "amph_r02c02",
+   "before": {
+    "id": "bing_aerial",
+    "date": "2021-01-01",
+    "index": 2,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=/data/bing_aerial_quadkey.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   },
+   "after": {
+    "id": "amphipolis_rgb_10cm",
+    "date": "2024-06-01",
+    "index": 3,
+    "url": "http://host.docker.internal:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "url_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+    "tif_local": "http://127.0.0.1:8010/cog/bbox/2654851.8796480442,4985110.26403222,2655528.467491371,4985786.851875546/1024x1024.tif?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857"
+   }
+  }
+ ]
+}

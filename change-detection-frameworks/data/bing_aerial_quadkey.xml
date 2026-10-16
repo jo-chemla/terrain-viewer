@@ -1,0 +1,8 @@
+<GDAL_WMS>
+  <!-- Bing aerial through GDAL's VirtualEarth minidriver, which builds the quadkey from x, y, z. Check Bing's terms for your use. -->
+  <Service name="VirtualEarth">
+    <ServerUrl>https://ecn.t${server_num}.tiles.virtualearth.net/tiles/a${quadkey}.jpeg?g=14000</ServerUrl>
+  </Service>
+  <MaxConnections>8</MaxConnections><Timeout>60</Timeout>
+  <Cache><Path>/tmp/gdalwmscache</Path></Cache>
+</GDAL_WMS>

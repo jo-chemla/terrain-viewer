@@ -1,0 +1,22 @@
+[
+  {
+    "data": {
+      "pair_id": "amphipolis_pair_001",
+      "crs": "EPSG:3857",
+      "geotransform": [
+        2654181.544225475,
+        0.4525658986979127,
+        0.0,
+        4986456.737311063,
+        0.0,
+        -0.4525658986979127
+      ],
+      "before": "http://127.0.0.1:8010/cog/bbox/2654181.544225475,4985993.309830796,2654644.9717057412,4986456.737311063/1024x1024.png?url=/data/esri_tms18.xml&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+      "before_id": "esri_world_imagery",
+      "before_date": "unknown",
+      "after": "http://127.0.0.1:8010/cog/bbox/2654181.544225475,4985993.309830796,2654644.9717057412,4986456.737311063/1024x1024.png?url=https://3d.iconem.com/greece/amphipolis/Amphipolis_general_rgb_10cm_cog_cropped_alpha.tif&coord_crs=EPSG:3857&dst_crs=EPSG:3857",
+      "after_id": "amphipolis_rgb_10cm",
+      "after_date": "2024"
+    }
+  }
+]
