@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Moon, PanelRightClose, PanelRightOpen, Sun } from 'lucide-react';
+import { ExternalLink, Moon, PanelRightOpen, Sun } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
@@ -143,6 +143,9 @@ export function App() {
   const onStep = !!currentStep && (currentStep.node === ui.node || !currentStep.node);
   const product = data.products[0];
   const source = data.meta.source ? data.meta.source.replace(/^.*@/, '@').slice(0, 8) : '';
+  // The header link is contextual: the selected screen's own URL state when there is one, else the app's front door.
+  const openNode = ui.node && data.nodes[ui.node]?.url ? data.nodes[ui.node] : null;
+  const openUrl = openNode?.url ?? data.meta.base;
 
   return (
     <TooltipProvider>
@@ -157,13 +160,8 @@ export function App() {
           </Tabs>
           <span className="flex-1" />
           <Button variant="ghost" size="icon-sm" onClick={toggle} aria-label={dark ? 'Light mode' : 'Dark mode'} title={dark ? 'Light mode' : 'Dark mode'}>{dark ? <Sun /> : <Moon />}</Button>
-          {ui.view === 'map' && (
-            <Button variant="ghost" size="icon-sm" className="hidden lg:inline-flex" onClick={toggleInspector} aria-label={inspectorOpen ? 'Hide the inspector' : 'Show the inspector'} title={inspectorOpen ? 'Hide the inspector' : 'Show the inspector'}>
-              {inspectorOpen ? <PanelRightClose /> : <PanelRightOpen />}
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" nativeButton={false} render={<a href={data.meta.base} target="_blank" rel="noreferrer" />}>
-            Open Terrain Viewer <ExternalLink />
+          <Button variant="ghost" size="sm" nativeButton={false} render={<a href={openUrl} target="_blank" rel="noreferrer" />} title={openNode ? `Open Terrain Viewer in this state: ${openNode.label}` : 'Open Terrain Viewer'}>
+            {openNode ? <>Open this state in Terrain Viewer</> : <>Open Terrain Viewer</>} <ExternalLink />
           </Button>
         </header>
 
@@ -171,6 +169,11 @@ export function App() {
           <SidebarProvider className="min-h-0 flex-1" style={{ '--sidebar-width': '18rem' } as React.CSSProperties}>
             <Sitemap data={data} selected={ui.node} path={path} onSelect={selectNode} />
             <SidebarInset className="min-h-0 min-w-0">
+              {!inspectorOpen && (
+                <Button variant="outline" size="icon-sm" className="absolute right-3 top-3 z-10 hidden shadow-sm lg:inline-flex" onClick={toggleInspector} aria-label="Show the inspector" title="Show the inspector">
+                  <PanelRightOpen />
+                </Button>
+              )}
               <Stage data={data} nodeId={ui.node} step={!onStep || currentStep?.node ? null : currentStep} flow={flow} onSelect={selectNode} />
               {flow ? (
                 <Player data={data} flow={flow} flows={data.flows} path={path} step={ui.step ?? 1} onStep={onStep} nodeId={ui.node}
