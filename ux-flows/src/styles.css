@@ -1,0 +1,34 @@
+/* The viewer is styled with the app's Tailwind + shadcn tokens (src/index.css). What is left here is what Tailwind
+   cannot reach: Mermaid's generated SVG and the Canvas arrows, both keyed on theme variables where it matters. */
+
+/* Flows view: the diagram paper stays light; the path and selection use the same blue as the step badges. */
+.diagram svg { display: block; margin: 0 auto; }
+.diagram g.node rect, .diagram g.node polygon { stroke-width: 1.5px; }
+.diagram g.node.decision polygon { fill: #fff6d6 !important; stroke: #c8a84b !important; }
+.diagram g.node.no-shot rect { stroke-dasharray: 4 3; }
+.diagram g.node.on-path rect, .diagram g.node.on-path polygon { stroke: #3b82f6 !important; stroke-width: 3px; filter: drop-shadow(0 0 4px rgba(59, 130, 246, .5)); }
+.diagram g.node.selected rect { fill: #e8f0fe !important; }
+.diagram g.node:hover rect, .diagram g.node:hover polygon { fill: #f1f5fb !important; }
+.diagram path.on-path { stroke: #3b82f6 !important; stroke-width: 3px !important; }
+.diagram .edgeLabel { font-size: 12px; }
+
+/* Canvas view: a dotted board, arrows in the muted foreground until a box is hovered. */
+.board-host { background: radial-gradient(circle, color-mix(in oklch, var(--muted-foreground) 35%, transparent) 1px, transparent 1px) 0 0 / 24px 24px, var(--background); }
+.arrow { fill: none; stroke: var(--muted-foreground); stroke-width: 1.5; transition: opacity .15s, stroke .15s; }
+.arrow.w-main { stroke-width: 2.5; }
+.arrow.w-optional { stroke-dasharray: 5 4; }
+.arrow.in { stroke: #3b82f6; stroke-width: 3; }
+.arrow.out { stroke: #f59e0b; stroke-width: 3; }
+.arrow.dim { opacity: .15; }
+.arrhead { fill: var(--muted-foreground); }
+.arrhead.in { fill: #3b82f6; }
+.arrhead.out { fill: #f59e0b; }
+.arrhead.dim { fill: var(--muted-foreground); opacity: .15; }
+.arrow-label { font-size: 11px; fill: var(--foreground); paint-order: stroke; stroke: var(--background); stroke-width: 4px; stroke-linejoin: round; }
+.arrow-label.in { fill: #3b82f6; }
+.arrow-label.out { fill: #f59e0b; }
+
+/* Every interactive element shows a pointer, including shadcn's tabs, selects, sidebar items and toggles, which
+   ship with the default cursor; disabled ones go back to the arrow. */
+#root :is(button, a[href], [role='button'], [role='tab'], [role='option'], [role='combobox'], [role='treeitem'], [role='radio'], [role='switch'], summary, label[for], input[type='search']):not(:disabled, [aria-disabled='true'], [data-disabled]) { cursor: pointer; }
+#root input[type='search'] { cursor: text; }

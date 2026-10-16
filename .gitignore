@@ -55,3 +55,6 @@ video/node_modules/
 video/out/
 video/recordings/
 video/public/clip-*.mp4
+
+# UX flows captures (ux-flows/scripts/capture.mjs): published as release assets, never committed
+/ux-flows/out/

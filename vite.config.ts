@@ -186,6 +186,15 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     copyPublicDir: true,
+    // /ux-flows/ is a second page of this Vite build (ux-flows/index.html → dist/ux-flows/index.html): the UX
+    // flows viewer, a small React app that reads a data.json and screenshots published as release assets by
+    // .github/workflows/ux-flows-capture.yml. The dev server serves it at /ux-flows/ from the same entry.
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        'ux-flows': fileURLToPath(new URL('./ux-flows/index.html', import.meta.url)),
+      },
+    },
   },
   // lib/cog-contour-worker.ts (new Worker(..., { type: "module" }) in
   // lib/cog-contour-protocol.ts) itself imports other modules, so Rollup

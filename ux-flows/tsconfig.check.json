@@ -1,0 +1,1 @@
+{ "extends": "../tsconfig.json", "include": ["src", "../vite-env.d.ts", "../types"], "compilerOptions": { "plugins": [], "incremental": false, "types": ["vite/client"] } }

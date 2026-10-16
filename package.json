@@ -33,7 +33,9 @@
     "flai-coverage": "node docs/scripts/build-flai-coverage.mjs",
     "esri-3d-coverage": "node docs/scripts/build-esri-3d-coverage.mjs",
     "opentopo-coverage": "node scripts/build-opentopo-coverage.mjs",
-    "open-buildings-vrt": "node docs/scripts/build-open-buildings-vrt.mjs"
+    "open-buildings-vrt": "node docs/scripts/build-open-buildings-vrt.mjs",
+    "ux-flows:capture": "node ux-flows/scripts/capture.mjs",
+    "ux-flows:data": "node ux-flows/scripts/build-data.mjs"
   },
   "packageManager": "pnpm@10.20.0",
   "dependencies": {
@@ -81,6 +83,7 @@
     "maplibre-gl": "^6.13.0",
     "maplibre-xy": "^1.1.0",
     "mediabunny": "^1.61.3",
+    "mermaid": "^11.16.1",
     "modern-screenshot": "4.7.0",
     "nuqs": "^2.10.1",
     "pako": "^3.0.2",
@@ -123,10 +126,12 @@
     "@types/tinycolor2": "^1.4.6",
     "@types/tz-lookup": "^6.1.2",
     "@types/vt-pbf": "^3.1.1",
+    "agent-browser": "^0.27.0",
     "concurrently": "^10.0.5",
     "ffmpeg-static": "^5.3.0",
     "knip": "^6.40.0",
     "react-scan": "^0.5.7",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.1.17",
     "typescript": "^5"
   }

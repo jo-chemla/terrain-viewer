@@ -1,0 +1,78 @@
+name: UX flows capture
+
+# Shoots every screen of ux-flows/maps/screens.json with agent-browser (URL states, plus the scripted in-app
+# actions for the states the URL cannot carry), builds data.json, and publishes the lot as the assets of the
+# `ux-flows-latest` release, which the /ux-flows page reads. Nothing is committed and the app is not built here:
+# by default the screens are shot against production. Manual only for now.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: App to capture (the screens are shot against it)
+        default: https://terrain-viewer.iconem.com/
+        required: true
+      screens:
+        description: Space-separated screen ids to redo (empty = every screen)
+        default: ''
+        required: false
+
+permissions:
+  contents: write # creating and updating the ux-flows-latest release
+
+concurrency:
+  group: ux-flows-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Install the browser
+        run: pnpm exec agent-browser install --with-deps
+      - name: Capture
+        env:
+          UX_FLOWS_BASE_URL: ${{ inputs.base_url }}
+          AB_BIN: pnpm exec agent-browser
+        run: node ux-flows/scripts/capture.mjs ${{ inputs.screens }}
+      - name: Build data.json
+        env:
+          UX_FLOWS_SOURCE: ${{ github.repository }}@${{ github.sha }}
+        run: node ux-flows/scripts/build-data.mjs | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Report
+        shell: bash
+        run: |
+          node -e '
+            const m = require("./ux-flows/out/captures.json");
+            const rows = Object.entries(m.screens).map(([id, c]) => `| ${id} | ${c.file ? "ok" : "FAILED"} | ${c.ms ?? ""} | ${c.error ?? ""} |`);
+            console.log("| screen | result | ms | error |\n|---|---|---|---|\n" + rows.join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish as the ux-flows-latest release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=ux-flows-latest
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --prerelease --title "UX flows captures (latest)" \
+              --notes "Screenshots and data.json read by /ux-flows. Replaced on every run of the UX flows capture workflow; not a software release."
+          fi
+          gh release edit "$tag" --notes "Screenshots and data.json read by /ux-flows. Captured $(date -u +%Y-%m-%dT%H:%MZ) from ${{ github.repository }}@${{ github.sha }} against ${{ inputs.base_url }}. Replaced on every run of the UX flows capture workflow; not a software release."
+          # Stale assets (a removed screen) would otherwise linger: upload the current set with --clobber, then delete
+          # any asset not in out/.
+          gh release upload "$tag" ux-flows/out/data.json ux-flows/out/captures.json ux-flows/out/*.webp --clobber
+          for asset in $(gh release view "$tag" --json assets --jq '.assets[].name'); do
+            [ -e "ux-flows/out/$asset" ] || gh release delete-asset "$tag" "$asset" --yes
+          done

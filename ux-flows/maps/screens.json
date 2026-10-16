@@ -1,0 +1,361 @@
+{
+  "product": {
+    "id": "tv",
+    "label": "Terrain Viewer",
+    "base": "https://terrain-viewer.iconem.com/"
+  },
+  "defaults": "viewMode=2d",
+  "groups": [
+    {
+      "id": "compare",
+      "label": "Compare two sources",
+      "summary": "Split, overlay and blend two views over the Veluwe: Esri imagery on A, Google on B, Mapterhorn vs AHN 0.5 m terrain. The Compare and Blend section is open and scrolled to."
+    },
+    {
+      "id": "compare.overlay",
+      "parent": "compare",
+      "label": "Overlay"
+    },
+    {
+      "id": "compare.side",
+      "parent": "compare",
+      "label": "Side by side"
+    },
+    {
+      "id": "relief",
+      "label": "Relief visualization",
+      "summary": "Local relief model, sky-view factor and openness over the Matterhorn (Mapterhorn, 2D), with the Relief Visualization section open."
+    },
+    {
+      "id": "picker",
+      "label": "Elevation picker and slicer",
+      "summary": "Tools: Elevation Picker over Zermatt. Two picked points, their profile in the side panel and docked under the map, routed paths, line of sight with a mast, then the plane slicer. Picks are app actions scripted with agent-browser, not URL state."
+    }
+  ],
+  "screens": [
+    {
+      "id": "cmp_single",
+      "group": "compare",
+      "label": "Single view",
+      "kind": "screen",
+      "how": "The viewer with one terrain source, hillshade and the Esri raster basemap on; Compare and Blend open.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_overlay",
+      "group": "compare.overlay",
+      "label": "Overlay with slider",
+      "kind": "state",
+      "how": "Compare: Split style set to Overlay; AHN terrain and the Google basemap on B.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&basemapSourceA=esri&basemapSourceB=google&splitStyle=overlay&splitRatio=0.5&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_overlay_match",
+      "group": "compare.overlay",
+      "label": "Colours matched to A",
+      "kind": "state",
+      "how": "Match Colors (View A as reference) switched on.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&basemapSourceA=esri&basemapSourceB=google&splitStyle=overlay&splitRatio=0.5&matchColorsToA=true&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_overlay_blend",
+      "group": "compare.overlay",
+      "label": "Difference blend",
+      "kind": "state",
+      "how": "Blend mode set to Difference and enabled.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&basemapSourceA=esri&basemapSourceB=google&splitStyle=overlay&splitRatio=0.5&matchColorsToA=true&splitBlendMode=difference&splitBlendModeEnabled=true&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_overlay_slider",
+      "group": "compare.overlay",
+      "label": "Slider at 30%",
+      "kind": "state",
+      "how": "The overlay slider dragged to 30% of the width.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&basemapSourceA=esri&basemapSourceB=google&splitStyle=overlay&matchColorsToA=true&splitBlendMode=difference&splitBlendModeEnabled=true&splitRatio=0.3&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_overlay_blend_off",
+      "group": "compare.overlay",
+      "label": "Blend toggled off",
+      "kind": "state",
+      "how": "The blend toggle switched off: a plain overlay again, the picked mode kept.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&basemapSourceA=esri&basemapSourceB=google&splitStyle=overlay&matchColorsToA=true&splitBlendMode=difference&splitBlendModeEnabled=false&splitRatio=0.3&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_side",
+      "group": "compare.side",
+      "label": "Side by side, 2×1",
+      "kind": "state",
+      "how": "Compare: Split style set to Side by side, divider at 50%.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&basemapSourceA=esri&basemapSourceB=google&splitStyle=side-by-side&splitRatio=0.5&gridLayout=2x1&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_side_2x2",
+      "group": "compare.side",
+      "label": "Four views, 2×2",
+      "kind": "state",
+      "how": "Grid layout set to 2×2.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&basemapSourceA=esri&basemapSourceB=google&splitStyle=side-by-side&splitRatio=0.5&gridLayout=2x2&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_side_historical",
+      "group": "compare.side",
+      "label": "Historical imagery, 2×2",
+      "kind": "state",
+      "how": "App mode switched to Historical. A keeps Esri; B is Esri Wayback in June 2016, C Google Earth historical in June 2005, D Esri Wayback in June 2023. The timeline appears below the views.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&splitStyle=side-by-side&splitRatio=0.5&gridLayout=2x2&appMode=historical&basemapSourceA=esri&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1464739200000&basemapSourceC=historical&historicalActiveSourceC=ge-historical&dateC=1117584000000&basemapSourceD=historical&historicalActiveSourceD=wayback&dateD=1685577600000&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "cmp_side_match",
+      "group": "compare.side",
+      "label": "Colours matched to A (side by side)",
+      "kind": "state",
+      "how": "Match Colors switched on in side-by-side. The URL reference documents it as overlay-only; this capture shows what happens.",
+      "params": "zoom=14&lat=52.2&lng=5.85&place=Veluwe&terrainSourceA=mapterhorn&terrainSourceB=custom-nl-ahn-dtm&showRasterBasemap=true&splitStyle=side-by-side&splitRatio=0.5&gridLayout=2x2&appMode=historical&basemapSourceA=esri&basemapSourceB=historical&historicalActiveSourceB=wayback&dateB=1464739200000&basemapSourceC=historical&historicalActiveSourceC=ge-historical&dateC=1117584000000&basemapSourceD=historical&historicalActiveSourceD=wayback&dateD=1685577600000&matchColorsToA=true&openSections=comparisonMix&scrollTo=comparisonMix"
+    },
+    {
+      "id": "rv_hillshade",
+      "group": "relief",
+      "label": "Hillshade only",
+      "kind": "screen",
+      "how": "The Matterhorn in 2D on Mapterhorn, hillshade on, the Hillshade section open.",
+      "params": "zoom=13&lat=45.9763&lng=7.6586&place=Matterhorn&terrainSourceA=mapterhorn&openSections=hillshade&scrollTo=hillshade"
+    },
+    {
+      "id": "rv_on",
+      "group": "relief",
+      "label": "Relief visualization on",
+      "kind": "state",
+      "how": "The Relief Visualization section switched on and scrolled to; LRM is its default sub-mode.",
+      "params": "zoom=13&lat=45.9763&lng=7.6586&place=Matterhorn&terrainSourceA=mapterhorn&showReliefVisualization=true&openSections=reliefVisualization&scrollTo=reliefVisualization"
+    },
+    {
+      "id": "rv_lrm",
+      "group": "relief",
+      "label": "Local relief model",
+      "kind": "state",
+      "how": "LRM sub-mode, default range −20 to 20 m, its card in view.",
+      "params": "zoom=13&lat=45.9763&lng=7.6586&place=Matterhorn&terrainSourceA=mapterhorn&showReliefVisualization=true&showLrm=true&openSections=reliefVisualization&scrollTo=reliefVisualization"
+    },
+    {
+      "id": "rv_lrm_bounds",
+      "group": "relief",
+      "label": "LRM range ±80 m",
+      "kind": "state",
+      "how": "The LRM range bounds widened to ±80 m, the scale of alpine ridges and moraines.",
+      "params": "zoom=13&lat=45.9763&lng=7.6586&place=Matterhorn&terrainSourceA=mapterhorn&showReliefVisualization=true&showLrm=true&lrmMin=-80&lrmMax=80&openSections=reliefVisualization&scrollTo=reliefVisualization"
+    },
+    {
+      "id": "rv_svf",
+      "group": "relief",
+      "label": "Sky-view factor",
+      "kind": "state",
+      "how": "SVF sub-mode chosen instead of LRM, its card in view.",
+      "params": "zoom=13&lat=45.9763&lng=7.6586&place=Matterhorn&terrainSourceA=mapterhorn&showReliefVisualization=true&showLrm=false&showSvf=true&openSections=reliefVisualization&scrollTo=reliefVisualization"
+    },
+    {
+      "id": "rv_openness",
+      "group": "relief",
+      "label": "Openness",
+      "kind": "state",
+      "how": "Openness (positive) sub-mode chosen, default range ±15, its card in view.",
+      "params": "zoom=13&lat=45.9763&lng=7.6586&place=Matterhorn&terrainSourceA=mapterhorn&showReliefVisualization=true&showLrm=false&showOpenness=true&openSections=reliefVisualization&scrollTo=reliefVisualization"
+    },
+    {
+      "id": "rv_openness_bounds",
+      "group": "relief",
+      "label": "Openness range ±40",
+      "kind": "state",
+      "how": "The openness range bounds widened to ±40.",
+      "params": "zoom=13&lat=45.9763&lng=7.6586&place=Matterhorn&terrainSourceA=mapterhorn&showReliefVisualization=true&showLrm=false&showOpenness=true&opennessMin=-40&opennessMax=40&openSections=reliefVisualization&scrollTo=reliefVisualization"
+    },
+    {
+      "id": "ep_open",
+      "group": "picker",
+      "label": "Elevation picker open",
+      "kind": "screen",
+      "how": "Zermatt on Esri imagery; Tools: Elevation Picker section open and scrolled to.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker"
+    },
+    {
+      "id": "ep_points",
+      "group": "picker",
+      "label": "Two points, profile in the side panel",
+      "kind": "state",
+      "how": "Pick elevation on click, then two clicks on the map: Zermatt and the ridge to the north-east. Both points, the distance, the elevation difference and the straight-line profile show in the side panel.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker",
+      "actions": [
+        {
+          "find": "switch \"Pick elevation on click\"",
+          "do": "click"
+        },
+        {
+          "mouse": [
+            300,
+            450
+          ]
+        },
+        {
+          "wait": 2500
+        },
+        {
+          "mouse": [
+            760,
+            300
+          ]
+        },
+        {
+          "wait": 4000
+        },
+        {
+          "find": "button \"Dock under the map\"",
+          "do": "scroll"
+        }
+      ]
+    },
+    {
+      "id": "ep_dock",
+      "group": "picker",
+      "label": "Profile docked under the map",
+      "kind": "state",
+      "how": "Dock under the map: the profile moves to a strip along the bottom of the map.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker",
+      "actionsFrom": "ep_points",
+      "actions": [
+        {
+          "find": "button \"Dock under the map\"",
+          "do": "click",
+          "settle": 2500
+        }
+      ]
+    },
+    {
+      "id": "ep_brouter",
+      "group": "picker",
+      "label": "Path: BRouter, hiking",
+      "kind": "state",
+      "how": "Path switched from Straight line to BRouter: the profile follows the hiking route between the two points.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker",
+      "actionsFrom": "ep_dock",
+      "actions": [
+        {
+          "find": "combobox .*Straight line",
+          "do": "click",
+          "settle": 800
+        },
+        {
+          "find": "option \"BRouter\"",
+          "do": "click",
+          "settle": 9000
+        }
+      ]
+    },
+    {
+      "id": "ep_brouter_bike",
+      "group": "picker",
+      "label": "Routing profile: bike",
+      "kind": "state",
+      "how": "Routing profile switched to Bike / trekking.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker",
+      "actionsFrom": "ep_brouter",
+      "actions": [
+        {
+          "find": "combobox .*Hiking / foot",
+          "do": "click",
+          "settle": 800
+        },
+        {
+          "find": "option \"Bike / trekking\"",
+          "do": "click",
+          "settle": 9000
+        }
+      ]
+    },
+    {
+      "id": "ep_valhalla",
+      "group": "picker",
+      "label": "Path: Valhalla",
+      "kind": "state",
+      "how": "Path switched to the Valhalla router instead.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker",
+      "actionsFrom": "ep_dock",
+      "actions": [
+        {
+          "find": "combobox .*Straight line",
+          "do": "click",
+          "settle": 800
+        },
+        {
+          "find": "option \"Valhalla\"",
+          "do": "click",
+          "settle": 9000
+        }
+      ]
+    },
+    {
+      "id": "ep_mast",
+      "group": "picker",
+      "label": "Line of sight with a 30 m mast",
+      "kind": "state",
+      "how": "Mast height set to 30 m: the line of sight is recomputed and reported as blocked or clear.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker",
+      "actionsFrom": "ep_brouter",
+      "actions": [
+        {
+          "find": "spinbutton \"Mast height\"",
+          "do": "fill",
+          "value": "30",
+          "settle": 2500
+        }
+      ]
+    },
+    {
+      "id": "ep_slicer",
+      "group": "picker",
+      "label": "Plane slicer: flood below 2100 m",
+      "kind": "state",
+      "how": "Points cleared; plane slicer on, Below, 2100 m: the valley floor fills with blue.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker&showPlaneSlicer=true&planeSlicerReferenceMode=absolute&planeSlicerSide=below&planeSlicerValue=2100&planeSlicerOpacity=0.45"
+    },
+    {
+      "id": "ep_slicer_raise",
+      "group": "picker",
+      "label": "Water rises to 2600 m",
+      "kind": "state",
+      "how": "The slicer value dragged up to 2600 m.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker&showPlaneSlicer=true&planeSlicerReferenceMode=absolute&planeSlicerSide=below&planeSlicerValue=2600&planeSlicerOpacity=0.45"
+    },
+    {
+      "id": "ep_slicer_color",
+      "group": "picker",
+      "label": "Slicer colour and opacity",
+      "kind": "state",
+      "how": "Slicer colour changed to red, opacity to 0.7.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker&showPlaneSlicer=true&planeSlicerReferenceMode=absolute&planeSlicerSide=below&planeSlicerValue=2600&planeSlicerOpacity=0.7&planeSlicerColor=%23ef4444"
+    },
+    {
+      "id": "ep_slicer_3d",
+      "group": "picker",
+      "label": "Flooded valley in 3D",
+      "kind": "state",
+      "how": "View mode switched to 3D, pitched, the same 2600 m slice.",
+      "params": "viewMode=3d&pitch=55&bearing=-56&zoom=12.5&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&showPlaneSlicer=true&planeSlicerReferenceMode=absolute&planeSlicerSide=below&planeSlicerValue=2600&planeSlicerOpacity=0.7&planeSlicerColor=%23ef4444&openSections=elevationPicker&scrollTo=elevationPicker"
+    },
+    {
+      "id": "ep_slicer_above",
+      "group": "picker",
+      "label": "Peaks above 3500 m",
+      "kind": "state",
+      "how": "Side switched to Above, 3500 m: only the high peaks are tinted.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker&showPlaneSlicer=true&planeSlicerReferenceMode=absolute&planeSlicerSide=above&planeSlicerValue=3500&planeSlicerOpacity=0.55"
+    },
+    {
+      "id": "ep_slicer_lrm",
+      "group": "picker",
+      "label": "Hollows below the local relief",
+      "kind": "state",
+      "how": "Reference switched to LRM, below −10 m: local hollows rather than an absolute height.",
+      "params": "zoom=12.8&lat=46.0038&lng=7.6892&place=Zermatt&terrainSourceA=mapterhorn&showRasterBasemap=true&basemapSourceA=esri&openSections=elevationPicker&scrollTo=elevationPicker&showPlaneSlicer=true&planeSlicerReferenceMode=lrm&planeSlicerSide=below&planeSlicerValueLrm=-10&planeSlicerOpacity=0.55"
+    }
+  ]
+}
