@@ -51,10 +51,11 @@ function writeHash(s: UiState) {
   if (location.hash !== next) history.pushState(null, '', next);
 }
 
-// Where data.json and the screenshots live. They are build outputs, never committed: in production the capture
-// workflow publishes them as assets of the `ux-flows-latest` release; in dev they are ux-flows/out/ as written by
-// `pnpm ux-flows:capture`. `?assets=<url>` points the viewer at any other folder, such as a dated release.
-const RELEASE_ASSETS = 'https://github.com/Iconem/terrain-viewer/releases/download/ux-flows-latest/';
+// Where data.json and the screenshots live. They are build outputs, never on main: in production the capture
+// workflow pushes them to the orphan `ux-flows-assets` branch, read through raw.githubusercontent.com (release
+// downloads send no CORS headers, so a fetch of data.json from a release is blocked); in dev they are
+// ux-flows/out/ as written by `pnpm ux-flows:capture`. `?assets=<url>` points the viewer at any other folder.
+const RELEASE_ASSETS = 'https://raw.githubusercontent.com/Iconem/terrain-viewer/ux-flows-assets/';
 function assetBase(): string {
   const asked = new URLSearchParams(location.search).get('assets');
   const base = asked ?? (import.meta.env.DEV ? './out/' : RELEASE_ASSETS);

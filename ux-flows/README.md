@@ -16,7 +16,7 @@ Two sets of text files under `maps/` are the source of truth. Everything the pag
 - **`screens.json`** is the registry of screens: id, group, label, the "how you get there" sentence, the URL parameters that produce the state, and for a few screens the agent-browser actions to replay. The sitemap tree, the groups, the inspector's URL state table and every capture URL come from it.
 - **`compare.md`, `relief.md`, `picker.md`** are the flows: an intro, notes and one Mermaid `flowchart TD` block each, whose node ids are screen ids from the registry. Arrow style carries meaning (thick `==>` main route, thin `-->` alternative, dotted `-.->` way back), diamond `{ }` nodes are decisions. The Flows diagram, the player's steps and branches, the Canvas arrows and the "reached from / leads to" links are all derived from those blocks.
 
-`scripts/build-data.mjs` joins the two with the capture manifest into `data.json`, the only thing the viewer reads. That file and the screenshots are build outputs, published as release assets, never committed. To add or change a screen or a flow, edit those files and recapture. The Mermaid parser handles the subset used there: node declarations with `[ ]`, `{ }` and `([ ])` shapes, the three arrow styles and `|label|` edge labels; subgraphs and styling directives are not supported.
+`scripts/build-data.mjs` joins the two with the capture manifest into `data.json`, the only thing the viewer reads. That file and the screenshots are build outputs, published to the `ux-flows-assets` branch and as release assets, never on `main`. To add or change a screen or a flow, edit those files and recapture. The Mermaid parser handles the subset used there: node declarations with `[ ]`, `{ }` and `([ ])` shapes, the three arrow styles and `|label|` edge labels; subgraphs and styling directives are not supported.
 
 ## Where things are
 
@@ -27,12 +27,13 @@ ux-flows/scripts/capture.mjs agent-browser: open each screen's URL at 1440×900,
 ux-flows/scripts/build-data.mjs  parses the flows + registry + out/captures.json into out/data.json
 ux-flows/src/                the viewer (React): Map (sitemap, stage, inspector, player), Canvas, Flows (Mermaid)
 ux-flows/index.html          second entry of the app's Vite build → dist/ux-flows/index.html, i.e. /ux-flows/
-ux-flows/out/                captures and data.json: gitignored, published as release assets
-.github/workflows/ux-flows-capture.yml  manual workflow: capture, build data.json, publish to the ux-flows-latest release
+ux-flows/out/                captures and data.json: gitignored, published to the ux-flows-assets branch and the release
+.github/workflows/ux-flows-capture.yml  manual workflow: capture, build data.json, publish to the ux-flows-assets branch and the ux-flows-latest release
 ```
 
-The viewer reads `data.json` and the screenshots from one base: in production the assets of the
-`ux-flows-latest` GitHub release, in dev `ux-flows/out/`. `?assets=<url>` points it elsewhere.
+The viewer reads `data.json` and the screenshots from one base: in production the orphan `ux-flows-assets`
+branch through raw.githubusercontent.com (release downloads send no CORS headers, so the page cannot fetch
+`data.json` from the release, which is kept for people), in dev `ux-flows/out/`. `?assets=<url>` points it elsewhere.
 Nothing from a capture run is committed, and the app build never captures anything: `/ux-flows` is
 a few hundred KB of viewer that deploys with the app like any other page.
 
