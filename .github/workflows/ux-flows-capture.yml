@@ -1,11 +1,11 @@
 name: UX flows capture
 
 # Shoots every screen of ux-flows/maps/screens.json with agent-browser (URL states, plus the scripted in-app
-# actions for the states the URL cannot carry), builds data.json, and publishes the lot twice: to the orphan
-# `ux-flows-assets` branch (one commit, replaced on every run), which the /ux-flows page reads through
-# raw.githubusercontent.com because release downloads send no CORS headers, and as the assets of the
-# `ux-flows-latest` release for people. Nothing lands on main and the app is not built here: by default the
-# screens are shot against production. Manual only for now.
+# actions for the states the URL cannot carry), builds data.json, publishes the lot as the assets of the
+# `ux-flows-latest` release (replaced on every run), then dispatches the Pages deploy, which copies those assets
+# into dist/ux-flows/captures/ so the page reads them from its own origin (release downloads send no CORS
+# headers, so a browser cannot fetch data.json from the release itself). Nothing is committed and the app is not
+# built here; by default the screens are shot against production. Manual only for now.
 on:
   workflow_dispatch:
     inputs:
@@ -19,7 +19,8 @@ on:
         required: false
 
 permissions:
-  contents: write # pushing the ux-flows-assets branch, creating and updating the ux-flows-latest release
+  contents: write # creating and updating the ux-flows-latest release
+  actions: write # dispatching the Pages deploy once the assets are published
 
 concurrency:
   group: ux-flows-capture
@@ -60,22 +61,6 @@ jobs:
             const rows = Object.entries(m.screens).map(([id, c]) => `| ${id} | ${c.file ? "ok" : "FAILED"} | ${c.ms ?? ""} | ${c.error ?? ""} |`);
             console.log("| screen | result | ms | error |\n|---|---|---|---|\n" + rows.join("\n"));
           ' >> "$GITHUB_STEP_SUMMARY"
-      - name: Publish to the ux-flows-assets branch
-        # An orphan branch holding only the current captures, force-pushed, so the page reads them from
-        # raw.githubusercontent.com (CORS on) and the history never grows: one commit, replaced each run.
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f ux-flows/out/capture-debug.txt
-          cd ux-flows/out
-          git init -q -b ux-flows-assets
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "UX flows captures from ${{ github.repository }}@${{ github.sha }} against ${{ inputs.base_url }}, $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -f -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ux-flows-assets
       - name: Publish as the ux-flows-latest release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -94,3 +79,8 @@ jobs:
           for asset in $(gh release view "$tag" --json assets --jq '.assets[].name'); do
             [ -e "ux-flows/out/$asset" ] || gh release delete-asset "$tag" "$asset" --yes
           done
+      - name: Deploy the site with the new captures
+        # The Pages build copies the release assets into dist/ux-flows/captures/; nothing else changes.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-gh-page-on-push.yml --ref main

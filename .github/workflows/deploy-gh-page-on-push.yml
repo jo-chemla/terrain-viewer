@@ -64,6 +64,21 @@ jobs:
       - name: Build
         run: |
           pnpm build
+      - name: Add the UX flows captures
+        # /ux-flows reads data.json and the screenshots from its own origin (dist/ux-flows/captures/). They are
+        # the assets of the ux-flows-latest release, published by the UX flows capture workflow, which ends by
+        # dispatching this deploy. No release yet: the page says so itself.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view ux-flows-latest >/dev/null 2>&1; then
+            mkdir -p dist/ux-flows/captures
+            gh release download ux-flows-latest --dir dist/ux-flows/captures --clobber
+            echo "UX flows: $(ls dist/ux-flows/captures | wc -l) files from the ux-flows-latest release"
+          else
+            echo "::notice title=UX flows::no ux-flows-latest release yet; /ux-flows shows its load message until the capture workflow has run"
+          fi
       - name: Build docs
         run: |
           pnpm run docs:build

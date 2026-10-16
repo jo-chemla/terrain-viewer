@@ -51,11 +51,12 @@ function writeHash(s: UiState) {
   if (location.hash !== next) history.pushState(null, '', next);
 }
 
-// Where data.json and the screenshots live. They are build outputs, never on main: in production the capture
-// workflow pushes them to the orphan `ux-flows-assets` branch, read through raw.githubusercontent.com (release
-// downloads send no CORS headers, so a fetch of data.json from a release is blocked); in dev they are
-// ux-flows/out/ as written by `pnpm ux-flows:capture`. `?assets=<url>` points the viewer at any other folder.
-const RELEASE_ASSETS = 'https://raw.githubusercontent.com/Iconem/terrain-viewer/ux-flows-assets/';
+// Where data.json and the screenshots live. They are build outputs, never committed: the capture workflow
+// publishes them as the assets of the `ux-flows-latest` release and the Pages deploy copies them into
+// ./captures/ beside this page (a browser cannot fetch data.json from the release itself: no CORS headers
+// there). In dev they are ux-flows/out/ as written by `pnpm ux-flows:capture`. `?assets=<url>` points the
+// viewer at any other folder.
+const RELEASE_ASSETS = './captures/';
 function assetBase(): string {
   const asked = new URLSearchParams(location.search).get('assets');
   const base = asked ?? (import.meta.env.DEV ? './out/' : RELEASE_ASSETS);
@@ -93,7 +94,9 @@ export function App() {
       const s = readHash(d);
       if (!s.node) s.node = firstScreen(d);
       setData(d); setUi(s);
-    }).catch((e) => setError(`Could not load ${base}data.json: ${e.message}. Run "pnpm ux-flows:capture" and "pnpm ux-flows:data" for a local copy, or pass ?assets=<url>.`));
+    }).catch((e) => setError(import.meta.env.DEV
+      ? `Could not load ${base}data.json: ${e.message}. Run "pnpm ux-flows:capture" and "pnpm ux-flows:data" for a local copy, or pass ?assets=<url>.`
+      : `No captures on this site yet (${base}data.json: ${e.message}). Run the "UX flows capture" workflow in the repository's Actions tab; it publishes the screens and redeploys the site.`));
   }, []);
   useEffect(() => {
     if (!data) return;
