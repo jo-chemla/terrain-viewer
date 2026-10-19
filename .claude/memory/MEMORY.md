@@ -47,3 +47,4 @@
 - [Sprint handoff 2026-10-12](handoff-2026-10-12.md) — see-through panel, phone sheet at 8 px, slider thumbs, Library first and raster size/CRS, building shadows from own tiles, Kilauea back and La Palma out, GENERAL group; the seven upstream drafts to post, ordered by complexity, and the left items
 - [Fumadocs page actions and basePath](fumadocs-page-actions-basepath.md) — stock buttons handle /docs since Next 16.3 (Turbopack import.meta.env.BASE_URL); never pre-prefix markdownUrl; draft withdrawn 2026-10-14
 - [Building shadows on terrain](building-shadows-terrain-drape.md) — renderToTerrainTile drape (6.13, experimental), per-tile mask, revision bumps, headless verification recipe
+- [Google Earth Historical as-of snap](ge-historical-as-of-snap.md) — per-level date lists (yearly Landsat mosaics to L13, captures from L14), tiles draw exact-or-ancestor, the timeline snaps the date on zoom-in only; no provider classification

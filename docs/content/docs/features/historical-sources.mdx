@@ -13,7 +13,7 @@ The sidebar's **Historical Imagery** basemap entry covers these. Which one rende
 | Provider | What it holds | Resolution class |
 |---|---|---|
 | [ESRI Wayback](https://livingatlas.arcgis.com/wayback/) | Dated releases of ESRI World Imagery. See the [dev page](/dev/esri-wayback) for how a date is resolved to a release. | VHR |
-| [Google Earth Historical](https://github.com/Iconem/GE_TimeMachine) | Occasional very old captures for well-covered areas, through a reverse-engineered `gehist://` protocol scaffolded from Iconem's own GE_TimeMachine. See the [protocol deep dive](/dev/ge-historical). | VHR |
+| [Google Earth Historical](https://github.com/Iconem/GE_TimeMachine) | Occasional very old captures for well-covered areas, through a reverse-engineered `gehist://` protocol scaffolded from Iconem's own GE_TimeMachine. At low zooms its ticks are yearly Landsat mosaics; zooming in moves the handle to the sharp capture drawn, see [which date is drawn as you zoom](/dev/ge-historical#which-date-is-drawn-as-you-zoom). | VHR |
 | [Bing Aerial](https://www.bing.com/maps/aerial) | No date archive: one live mosaic, which contributes its single current capture date. | VHR |
 | [Planet Monthly Mosaic](https://www.planet.com/products/basemap/) | Monthly mosaics. Needs a Planet API key (Settings → API Keys). | Medium |
 | [NASA HLS](https://hls.gsfc.nasa.gov/) | Harmonized Landsat and Sentinel-2: monthly, coarser resolution. | Medium |

@@ -28,6 +28,10 @@ Visible only on the MapLibre/COG-protocol path. Elevation tiles are quantized in
 
 Client-side GeoTIFF export: the browser range-reads and mosaics tiles/COGs directly, bypassing Titiler's server-side size cap. Works for COG, Terrain-RGB, and Terrarium sources — including a [local COG file](/features/byod#local-offline-cog-terrain-sources) that no server could reach.
 
+### HiDPI Google Earth Tiles
+
+On by default. [Google Earth Historical](/dev/ge-historical) tiles come from Google's plate-carrée grid, where a tile spans as many degrees of latitude as of longitude, while a Web Mercator tile spans cos(latitude) times fewer: built from the same level, a tile is exact across and stretched down by 1.5× at Paris, 2× at 60°. This switch builds each tile from one level finer into a 512 px image, a downsample everywhere below 60° and the 2× image a HiDPI screen can show. Four times the Keyhole fetches; turn it off on a slow connection. [Which date is drawn as you zoom](/dev/ge-historical#which-date-is-drawn-as-you-zoom) covers the other reason a Google Earth view can look soft, a date not listed at that level.
+
 ### Cache Computed Viz-Mode Tiles
 
 Keeps finished computed tiles (Terrain Analysis, detectors, …) in an in-memory cache of up to ~96 MB, so toggling a mode off and back on redisplays instantly instead of recomputing every visible tile. Costs memory, saves recompute — turn it off on low-RAM machines.

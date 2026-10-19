@@ -273,6 +273,11 @@ export const highResTerrainAtom = atomWithStorage("highResTerrain", true)
 // makes re-toggling a mode instant instead of recomputing every visible tile.
 // On by default; off reclaims the memory (up to ~96MB) and reverts to recompute.
 export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
+// Google Earth Historical tiles built from one Keyhole level finer into 512 px
+// images (Settings → Streaming): no vertical stretch away from the equator and
+// a 2x image for HiDPI screens, for four times the Keyhole fetches. Read by
+// MapSources.tsx into the gehist:// tile URL (lib/ge-historical.ts).
+export const geHiDpiTilesAtom = atomWithStorage("geHiDpiTiles", true)
 // Basic/Advanced toggle, one per section (Terrain Analysis / Relief
 // Visualization — terrain-analysis-section.tsx / relief-visualization-section.tsx):
 // in "basic" mode each sub-mode collapses to just its checkbox/title/opacity

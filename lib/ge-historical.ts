@@ -18,6 +18,8 @@ import { useEffect, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import { registerGEHistorical } from "./ge-timemachine/ge-historical.js"
 import { quantizeLocation } from "./wayback"
+import { useAtomValue } from "jotai"
+import { geHiDpiTilesAtom } from "./settings-atoms"
 
 let geInstance: ReturnType<typeof registerGEHistorical> | null = null
 
@@ -35,10 +37,13 @@ function getGe() {
   return geInstance
 }
 
-export function geHistoricalTileSource(dateMs: number): { tiles: string[]; tileSize: number; maxzoom: number; attribution: string } {
+/** `hd`: 512 px tiles built from Keyhole level z + 1 (Settings → Streaming,
+ *  geHiDpiTilesAtom), see _buildMercatorTile in the library. The flag rides
+ *  in the tile URL, so toggling it changes `tiles` and MapLibre refetches. */
+export function geHistoricalTileSource(dateMs: number, hd = false): { tiles: string[]; tileSize: number; maxzoom: number; attribution: string } {
   const ge = getGe()
   const d = new Date(dateMs)
-  const spec = ge.makeRasterSource({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() })
+  const spec = ge.makeRasterSource({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }, { hd })
   // A constant pointer, not makeRasterSource's own generic "Imagery ©
   // Google" — the REAL per-tile provider (e.g. "Google Earth - CNES /
   // Airbus", resolved from Google's own dbRoot, see
@@ -54,7 +59,8 @@ export function geHistoricalTileSource(dateMs: number): { tiles: string[]; tileS
  *  same path the gehist:// protocol handler takes, minus MapLibre. For the
  *  Export Multi mosaic, which cannot fetch() a custom scheme. Throws when
  *  Google has no tile for that date/level, so the caller's zoom step-down
- *  can try a coarser level rather than writing a transparent frame. */
+ *  can try a coarser level rather than writing a transparent frame. Always
+ *  the 256 px build: the mosaic lays tiles out at that size. */
 export async function fetchGeHistoricalTileBlob(z: number, x: number, y: number, dateMs: number, signal?: AbortSignal): Promise<Blob> {
   const ge = getGe()
   const d = new Date(dateMs)
@@ -67,15 +73,36 @@ export async function fetchGeHistoricalTileBlob(z: number, x: number, y: number,
 
 const LOCAL_DATES_DEBOUNCE_MS = 400
 
+/** The Keyhole level the tiles on screen are built from at a viewport zoom:
+ *  MapLibre requests tile zoom round(zoom) + 1 for a 256 px raster source
+ *  (RasterTileSource.roundZoom, covering_tiles.ts), and the HiDPI build
+ *  takes one level more (_buildMercatorTile). The date lists are read at
+ *  this level, not at the viewport zoom, or the timeline kept the yearly
+ *  mosaics' ticks while the tiles were already the sharp captures from a
+ *  finer node, and the snap to the capture drawn came two zooms late. */
+export function geKeyholeLevelForZoom(zoom: number, hd: boolean): number {
+  return Math.max(1, Math.min(23, Math.round(zoom) + 1 + (hd ? 1 : 0)))
+}
+
 /** Real per-location capture dates from Google's own IMAGERY_HISTORY layer
  *  for the Keyhole tile at (latitude, longitude, zoom) — not synthetic,
  *  unlike lib/hls.ts's placeholder ticks. */
-export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { items: { dateMs: number; label: string }[]; loading: boolean } {
+export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { items: { dateMs: number; label: string }[]; coarserDates: Set<number>; loading: boolean } {
   // Quarter-tile input quantization — same "don't re-query center metadata
   // for a move too small to change it" reasoning as lib/wayback.ts's
   // quantizeLocation (see its comment).
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
+  const hd = useAtomValue(geHiDpiTilesAtom)
   const [items, setItems] = useState<{ dateMs: number; label: string }[]>([])
+  // The dates the ancestors of this node list and this node does not: a
+  // selected date found only there means the view zoomed in past the
+  // imagery's own levels (the protocol would climb to it and upscale), which
+  // is when the timeline snaps the date to this level's newest capture on or
+  // before it. A date listed nowhere up the chain (a sharp capture, seen from
+  // a coarse zoom) is kept, and the protocol draws the newest mosaic on or
+  // before it. The ancestors' packets were loaded by the walk to this node,
+  // so reading them costs no request.
+  const [coarserDates, setCoarserDates] = useState<Set<number>>(() => new Set())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -85,7 +112,7 @@ export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, 
       try {
         const ge = getGe()
         await ge.ready()
-        const level = Math.max(1, Math.min(23, Math.round(zoom)))
+        const level = geKeyholeLevelForZoom(zoom, hd)
         const { path } = ge.keyholePathAtLngLat(longitude, latitude, level)
         const dated = await ge.getDatesForPath(path)
         if (cancelled) return
@@ -98,16 +125,28 @@ export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, 
             label: `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`,
           }))
           .sort((a: any, b: any) => a.dateMs - b.dateMs)
+        const own = new Set(mapped.map((d: { dateMs: number }) => d.dateMs))
+        const above = new Set<number>()
+        for (let up = 1; path.length - up >= 2; up++) {
+          const anc = await ge.getDatesForPath(path.slice(0, path.length - up))
+          for (const d of anc as any[]) {
+            if (!d.packed) continue
+            const ms = Date.UTC(d.year, d.month - 1, d.day)
+            if (!own.has(ms)) above.add(ms)
+          }
+        }
+        if (cancelled) return
         setItems(mapped)
+        setCoarserDates(above)
         setLoading(false)
       } catch {
         if (!cancelled) setLoading(false)
       }
     }, LOCAL_DATES_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [latitude, longitude, zoom])
+  }, [latitude, longitude, zoom, hd])
 
-  return { items, loading }
+  return { items, coarserDates, loading }
 }
 
 /**
@@ -121,6 +160,8 @@ export async function listGeHistoricalTicksInRange(
 ): Promise<{ dateMs: number; label: string }[]> {
   const ge = getGe()
   await ge.ready()
+  // The caller's zoom is the tile zoom of its own 256 px build, so the
+  // level is read as is, not through geKeyholeLevelForZoom.
   const level = Math.max(1, Math.min(23, Math.round(zoom)))
   const { path } = ge.keyholePathAtLngLat(longitude, latitude, level)
   const dated = await ge.getDatesForPath(path)
@@ -151,6 +192,7 @@ const GE_FALLBACK_ATTRIBUTION = "Imagery © Google"
  *  historical tile for). */
 export function useGeHistoricalDynamicAttribution(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, dateMs: number): string {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
+  const hd = useAtomValue(geHiDpiTilesAtom)
   const [attribution, setAttribution] = useState(GE_FALLBACK_ATTRIBUTION)
 
   useEffect(() => {
@@ -159,7 +201,7 @@ export function useGeHistoricalDynamicAttribution(latitudeRaw: number, longitude
       try {
         const ge = getGe()
         await ge.ready()
-        const level = Math.max(1, Math.min(23, Math.round(zoom)))
+        const level = geKeyholeLevelForZoom(zoom, hd)
         const { path } = ge.keyholePathAtLngLat(longitude, latitude, level)
         const dated = await ge.getDatesForPath(path)
         if (cancelled || !dated.length) return
@@ -182,7 +224,7 @@ export function useGeHistoricalDynamicAttribution(latitudeRaw: number, longitude
       }
     }, LOCAL_DATES_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [latitude, longitude, zoom, dateMs])
+  }, [latitude, longitude, zoom, dateMs, hd])
 
   return attribution
 }

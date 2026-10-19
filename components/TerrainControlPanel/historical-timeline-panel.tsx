@@ -508,27 +508,50 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => syntheticHlsTicks().map((t) => ({ source: "hls", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
-  const { items: rawGeItems, loading: geDatesLoading } = useGeHistoricalDates(state.lat, state.lng, state.zoom)
+  const { items: rawGeItems, coarserDates: geCoarserDates, loading: geDatesLoading } = useGeHistoricalDates(state.lat, state.lng, state.zoom)
   const geTicks = useMemo<TimelineTick[]>(
     () => rawGeItems.map((t) => ({ source: "ge-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [rawGeItems],
   )
-  // A view asked for a date past Google Earth's newest capture here (a link
-  // saying "today", like the docs' old-against-recent comparisons) resolves
-  // to that newest capture once the dates are in, so the timeline shows the
-  // real date of the imagery on screen rather than the date asked for.
+  // Google Earth's date lists are per tile and per level: the coarse nodes
+  // list the yearly Landsat / Copernicus mosaics, the fine ones the sharp
+  // captures. The protocol draws the exact date, climbing to a coarser node
+  // when this level does not list it (lib/ge-timemachine/ge-historical.js,
+  // _pickTileForPath), so a mosaic picked at a low zoom stayed blurry on
+  // zooming in, with sharp captures of the same year a tick away. Once the
+  // dates for the settled camera are in, each Google Earth view's date is
+  // moved, Google Earth's own "as of" rule, so the handle always says what
+  // is drawn:
+  //  - listed at this level: kept (a capture that covers the view centre);
+  //  - listed only by an ancestor (zoomed in past the mosaic's levels): the
+  //    newest capture on or before it here, or with nothing that old the
+  //    oldest one, the same choice _pickDate makes for the tiles;
+  //  - listed nowhere up the chain (a sharp capture seen from a coarse zoom,
+  //    or a typed date): kept, so zooming out and back in returns to the
+  //    capture, while the tiles meanwhile show the newest mosaic on or
+  //    before it. Only a date past the newest capture here (a link saying
+  //    "today") comes down to that newest capture.
   useEffect(() => {
     if (geDatesLoading || !rawGeItems.length) return
-    const newest = Math.max(...rawGeItems.map((t) => t.dateMs))
+    const newest = rawGeItems[rawGeItems.length - 1].dateMs
+    const listed = new Set(rawGeItems.map((t) => t.dateMs))
+    const asOf = (dateMs: number) => {
+      let best = -Infinity
+      for (const t of rawGeItems) if (t.dateMs <= dateMs && t.dateMs > best) best = t.dateMs
+      return best === -Infinity ? rawGeItems[0].dateMs : best
+    }
     const patch: Record<string, number> = {}
     for (const side of activeViews) {
       if (activeBasemapSourceFor(side) !== "ge-historical") continue
       const field = viewFieldName(side, "date", state.basemapPerView)
-      if (state[field] > newest + 86400000) patch[field] = newest
+      const date = state[field]
+      if (!date || listed.has(date)) continue
+      if (date > newest + 86400000) patch[field] = newest
+      else if (geCoarserDates.has(date)) patch[field] = asOf(date)
     }
     if (Object.keys(patch).length) setState(patch)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geDatesLoading, rawGeItems, activeViews.join(",")])
+  }, [geDatesLoading, rawGeItems, geCoarserDates, activeViews.join(",")])
   // Real monthly mosaics (see lib/planet.ts) — only generated once a Planet
   // API key is set; otherwise this source simply contributes no ticks and
   // its pill is hidden below.
@@ -773,6 +796,16 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const ref = activeBasemapSourceFor(side)
       const own = allTicks.find((t) => t.ref === ref) ?? tickByRef.current.get(ref) ?? catalogTick(ref)
       if (own) return own
+    }
+    // A Google Earth view keeps a sharp capture's date at zooms whose node
+    // lists only the yearly mosaics (the snap above); its tiles then show
+    // the newest mosaic on or before that date, so the handle sits on that
+    // tick rather than on the nearest one, which could be the year after.
+    if (source === "ge-historical") {
+      const date = dateForSide(side)
+      let asOf: TimelineTick | null = null
+      for (const t of allTicks) if (t.source === source && t.dateMs <= date && (!asOf || t.dateMs > asOf.dateMs)) asOf = t
+      if (asOf) return asOf
     }
     return findNearestTick(source, dateForSide(side)) ?? newestTickFor(source)
     // eslint-disable-next-line react-hooks/exhaustive-deps

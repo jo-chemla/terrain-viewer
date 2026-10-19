@@ -12,6 +12,12 @@ The built-ins on this page are **worldwide** tilesets. For the government LiDAR 
 
 Every built-in terrain source streams `raster-dem` tiles (Terrarium or Mapbox Terrain-RGB encoding) — pick one from Sources → Terrain, or click its **ⓘ** (info) icon there for the same summary shown here plus a ready-to-run GDAL export command.
 
+<Callout title="Heights are above the geoid, not the ellipsoid" type="info">
+Every built-in DEM here publishes **orthometric** heights, metres above mean sea level: Mapterhorn's Copernicus GLO-30 base is on the EGM2008 geoid, and the national lidar it swaps in stays on each country's own datum, within a metre or so of that. A GNSS receiver, a 3D Tiles model or Cesium's globe count from the **WGS84 ellipsoid** instead, and the two differ by the geoid undulation: from about −106 m (south of India) to +85 m (around Iceland), +45 m in the Netherlands, +48 m in the Alps. Inside this app nothing moves, since every source sits on the same plane; the offset shows up when an ellipsoidal DEM ([ArcticDEM and REMA](/features/national-datasets), [Cesium World Terrain](/dev/quantized-mesh-protocol), Re:Earth) is compared with an orthometric one, which is what the [Difference source's bias check](/dev/demdiff-protocol#the-size-of-the-offset-tells-you-what-it-is) is for; the library ships the EGM96 and EGM2008 grids as terrain sources for the conversion.
+
+The converse, Mapterhorn on an ellipsoidal globe, is what Bert Temme's [cesium-mapterhorn-provider PR 3](https://github.com/bertt/cesium-mapterhorn-provider/pull/3) solves, and it is the reference for the method: a `verticalReference: "ellipsoid"` option samples the EGM2008 2.5′ geoid grid as a Cloud Optimized GeoTIFF from [cdn.proj.org](https://cdn.proj.org/us_nga_egm08_25.tif) through HTTP range requests (the file is 80 MB, a view loads only the tiles under it), nine by nine points per terrain tile interpolated bilinearly, the same approach as Re:Earth Terrain, checked against its `heights.json` to the millimetre at four points. Should this app ever drape terrain under ellipsoidal 3D Tiles, that is the recipe.
+</Callout>
+
 ![The Terrain source info dialog — link, encoding, and a ready-to-run GDAL/TMS export command](/screenshots/terrain-source-info.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">Terrain source info dialog (Mapterhorn) — Patagonia, Chile — <a href="https://terrain-viewer.iconem.com/?viewMode=3d&zoom=8.19&lat=-50.5503&lng=-73.4654&bearing=20&showHillshade=true&hillshadeMethod=standard&hillshadeOpacity=1&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
@@ -40,7 +46,6 @@ A composite of multiple high-resolution DEMs curated by MapTiler's geodata team 
 
 The original open Tilezen/Joerd dataset (built by Mapzen, continuing as an AWS Open Data Registry mirror after Mapzen's shutdown) — the only built-in source with genuine **ocean bathymetry**: land elevation (SRTM at mid/high zoom, GMTED2010 at low zoom) is blended with global ETOPO1 bathymetry everywhere water replaces a zero-elevation gap, plus regional high-resolution inserts (US 3DEP/NED, ArcticDEM, EU-DEM, Canada's CDEM, and more). No API key needed.
 
-<Callout title="Which dataset is actually under my cursor?" type="info">
 ### Esri World Elevation — LERC
 
 Esri's global best-available blend (Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, GEBCO, Land Information New Zealand, Ordnance Survey and others), in its **TopoBathy** form: land *and* seafloor as one continuous surface, so a hypsometric ramp or a 3D view reads across a coastline instead of stopping at it. The second built-in with real bathymetry, alongside AWS Terrain Tiles.
@@ -53,6 +58,7 @@ A land-only variant, with the ocean flat at 0 m rather than the seafloor, is in 
 These are Esri ArcGIS services. They answer without a token and with CORS open, but Esri's Terms of Use contemplate use with ArcGIS products, and consuming them from a non-Esri client is not clearly granted — worth checking before relying on one in anything published.
 </Callout>
 
+<Callout title="Which dataset is actually under my cursor?" type="info">
 The **Sources Coverage** section (Sources group in the sidebar, under Basemap) hints at exactly that for the terrain/basemap that's currently exposed at your viewport — e.g. which of Mapterhorn's composited national LiDAR datasets is active at that location (vs. its global Copernicus GLO-30 fallback), or which date/release the active ESRI imagery resolves to. Handy for knowing whether you're looking at a genuinely high-resolution local dataset or a coarser global default.
 </Callout>
 

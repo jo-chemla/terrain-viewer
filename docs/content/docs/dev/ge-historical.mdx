@@ -163,8 +163,49 @@ There's no imperative `setDate()` call — `geHistoricalTileSource(dateMs)` call
 
 **Registries.** `ge-historical` is registered into `HISTORICAL_BASEMAP_IDS` (`lib/historical-sources.ts`) and `EXPORT_SOURCE_IDS` (`lib/historical-export-sources.ts`), so `listExportTicks("ge-historical", ...)` can call the same `listGeHistoricalTicksInRange`/`geHistoricalTileSource` pair the live map uses to feed batch export (`lib/export-multi.ts`) without a mounted component.
 
+## Which date is drawn as you zoom
+
+A node's date list belongs to its level. Over the Sharjah coast at Al Hamriyah the coarse nodes list only the yearly Landsat / Copernicus mosaics, and from level 14 the list is the sharp captures, with a single mosaic still hanging on (read with `getDatesForPath` on 2026-10-19):
+
+| Level | Dates listed | Providers |
+|---|---|---|
+| 6 to 13 | 37, one per year 1984 to 2020, each dated 31 December | Landsat / Copernicus |
+| 14 | 47 | Maxar 39, Airbus 5, CNES / Airbus 2, Landsat / Copernicus 1 (1985) |
+| 15 to 18 | 39 to 41 | Maxar, Airbus, CNES / Airbus |
+| 19 | 36 | the same, the oldest Maxar captures gone |
+
+So a date picked on the timeline at one zoom is often absent from the node at another, and two rules decide what happens.
+
+**The tiles keep the date honest.** `_pickTileForPath` draws the node's own capture of exactly the set date; failing that, the nearest ancestor's capture of that date, cropped and upscaled; and only when no node up to the root lists the date, the newest capture on or before it at this level (with nothing that old, the oldest). Nothing newer than the slider is ever drawn. An earlier "nearest date" pick had the view drift onto 2012 imagery while the slider said 2010.
+
+**The timeline moves the date to what is drawn.** With that rule alone, a mosaic picked at a low zoom stayed blurry on zooming in: the exact 31 December date was found on an ancestor and upscaled, while sharp captures of the same year sat a tick away. Once the dates of the settled camera are in, `historical-timeline-panel.tsx` adjusts each Google Earth view's date, Google Earth's own "as of" behaviour:
+
+- listed at this level: kept, the capture covers the view centre;
+- listed only by an ancestor, so the view zoomed in past the imagery's levels: the newest capture on or before it here, or with nothing that old the oldest one, the same choice the tiles make;
+- listed nowhere up the chain, a sharp capture seen from a coarse zoom or a typed date: kept. The tiles meanwhile show the newest mosaic on or before it, and the handle sits on that mosaic's tick; zooming back in returns to the capture, so repeated zooms never drift;
+- past the newest capture here (a link saying "today"): that newest capture.
+
+The hook `useGeHistoricalDates` returns the ancestors' dates beside the node's own for this; the ancestors' packets were loaded by the walk, so it costs no request. It reads the node at the level the tiles on screen are built from, not at the viewport zoom: MapLibre requests tile zoom round(zoom) + 1 for a 256 px raster source, and the HiDPI build below takes one level more, so at viewport zoom 12 the list is level 14's. Read at the viewport zoom, the timeline kept the mosaics' ticks while the tiles were already the sharp captures, and the snap came two zooms late. Neighbouring tiles that do not list the chosen capture still climb to an ancestor and draw soft, which the handle's date then explains: the capture does not cover the whole view.
+
+## Tile resolution: level z or z + 1
+
+A Keyhole level-z tile spans 360 / 2^z degrees of longitude and of latitude in 256 px; a Mercator z tile spans that longitude but cos(lat) times that latitude. Horizontally the two grids have the same 2^z columns, so a tile built from level z is exact across. Vertically its 256·cos(lat) source rows are stretched onto 256 output rows:
+
+| Latitude | Vertical upscale |
+|---|---|
+| 25° (Sharjah) | 1.10× |
+| 45° (Lyon) | 1.41× |
+| 49° (Paris) | 1.52× |
+| 60° (Oslo) | 2.00× |
+
+The HiDPI switch in [Streaming Settings](/features/advanced/streaming-settings#hidpi-google-earth-tiles), on by default, has `_buildMercatorTile` take level z + 1 instead, two Keyhole columns and two or three rows, and emit a 512 px image while the source still declares `tileSize: 256`: MapLibre requests the same z, draws the image at 256 CSS px (a downsample below 60°, the vertical stretch gone) and a HiDPI screen shows all 512. The flag rides in the tile URL (`hd=1`), so toggling it changes the source's `tiles` and MapLibre refetches. The quadtree walk rarely grows, since a packet spans four levels; the Keyhole fetches do, four per tile instead of one. The finished-tile cache is bounded in bytes (64 MB) rather than tiles for this reason. The Export Multi mosaic keeps the 256 px build, since it lays tiles out at that size.
+
+![The same ground at Paris, zoom 17, built from level z against level z + 1: the centre quarter of the 256 px tile enlarged four times beside the centre quarter of the 512 px tile enlarged twice](/screenshots/ge-tile-level-z-vs-z1.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Zoom 17 over the Louvre, the newest capture, the same ground at the same output size: the centre quarter of the level-z tile (left) beside the centre quarter of the level z + 1 tile (right), read back from <code>getMercatorTile</code> in the browser on 2026-10-19. The build took 26 ms against 43 ms.</p>
+
 ## Limitations
 
-- Coverage is sparse and mostly appears at higher zooms — "no dated history" for a tile is a coverage signal, not an error.
-- Vertical reprojection (WGS84-square → Web-Mercator) scales linearly within a tile — sub-pixel error at high zoom.
+- Coverage is sparse and mostly appears at higher zooms — "no dated history" for a tile is a coverage signal, not an error. At low zooms the ticks are the yearly Landsat / Copernicus mosaics, see above.
+- Vertical reprojection (WGS84-square → Web-Mercator) is piecewise linear in 8 px bands — sub-pixel error at high zoom. Built from level z the tile is stretched 1 / cos(lat) vertically, see above.
 - Google's endpoints are undocumented and may change without notice; request shapes mirror GEHistoricalImagery's.

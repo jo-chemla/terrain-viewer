@@ -4,7 +4,7 @@ import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
 import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
-import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, osmBuildings3dAtom, allmapsRemoveColorAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, osmBuildings3dAtom, allmapsRemoveColorAtom, geHiDpiTilesAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
 import { buildUnpaperUrl, sampleTileFor } from "@/lib/unpaper-protocol"
 
 /** A scanned map's tile template through unpaper:// when the paper removal
@@ -519,6 +519,7 @@ export const RasterBasemapSource = memo(({
         : null
 
     const removeColor = useAtomValue(allmapsRemoveColorAtom)
+    const geHiDpi = useAtomValue(geHiDpiTilesAtom)
     const sourceProps = useMemo(() => {
         // "None": overlays only, no base imagery underneath.
         if (basemapSource === "none") return null
@@ -567,7 +568,7 @@ export const RasterBasemapSource = memo(({
             // (lib/ge-historical.ts) for the same reason as the wayback
             // branch above — the real per-tile provider lives in the
             // sidebar's Source Info section instead (useGeHistoricalDynamicAttribution).
-            return geHistoricalTileSource(target)
+            return geHistoricalTileSource(target, geHiDpi)
         }
 
         if (basemapSource === "planet") {
@@ -589,7 +590,7 @@ export const RasterBasemapSource = memo(({
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemapSource] }
-    }, [customBasemap, basemapSource, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl, removeColor])
+    }, [customBasemap, basemapSource, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl, removeColor, geHiDpi])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }

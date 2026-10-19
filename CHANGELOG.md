@@ -1,3 +1,18 @@
+# Changelog — Google Earth Dates Follow the Zoom
+
+<!-- released: 2026-10-19 -->
+
+#### TL;DR
+
+- **The app**: a Google Earth Historical view zoomed in from a yearly Landsat mosaic now moves its date to the sharp capture drawn, instead of upscaling the mosaic; its tiles are built one level finer into 512 px images (HiDPI Google Earth Tiles, on by default in Streaming Settings), so they are no longer stretched vertically away from the equator.
+- **The docs**: a note on vertical references atop Terrain Sources (orthometric heights everywhere, the ellipsoid conversion from cesium-mapterhorn-provider), and a section on which Google Earth date is drawn as you zoom.
+
+#### Details
+
+- Google Earth Historical: the date lists are per tile and per level, yearly Landsat / Copernicus mosaics at low zooms, the sharp captures from about level 14. The tiles still draw the exact date, climbing to a coarser node when this level does not list it, so a mosaic picked at a low zoom was upscaled on zooming in with sharp captures a tick away. Once the camera settles, a date listed only by an ancestor moves to this level's newest capture on or before it, Google Earth's own "as of" rule; a sharp capture's date is kept at low zooms, where the tiles show the newest mosaic on or before it and the handle sits on that mosaic's tick, so repeated zooms never drift. The handle of a Google Earth view sits on the newest tick on or before its date rather than the nearest. The date list is read at the level the tiles are built from (one above the viewport zoom, two with HiDPI tiles), so the ticks switch from the mosaics to the captures where the tiles do.
+- Google Earth Historical tiles were built from the Keyhole level matching the Mercator zoom, which is exact across but, the Keyhole grid being plate carrée, stretched down by 1 / cos(latitude): 1.5× at Paris, 2× at 60°. HiDPI Google Earth Tiles in Streaming Settings, on by default, builds each tile from one level finer into a 512 px image (a downsample below 60°, and a 2× image on HiDPI screens), for four times the Keyhole fetches; the finished-tile cache is bounded in bytes. The protocol page's Tile resolution section has the arithmetic.
+- Terrain Sources: a note that every built-in DEM is orthometric, how far the WGS84 ellipsoid sits from it, where the offset bites (ellipsoidal sources in a Difference), and Bert Temme's EGM2008 conversion in cesium-mapterhorn-provider PR 3 as the reference method. The Esri World Elevation section had been nested inside the Sources Coverage callout; it stands on its own again.
+
 # Changelog — Shadows on Terrain, the Docs Home and Demo Videos
 
 <!-- released: 2026-10-15 -->

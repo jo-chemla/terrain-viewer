@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
-  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom,
+  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, geHiDpiTilesAtom,
   customThemesAtom,
   isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
@@ -328,6 +328,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [highResTerrain, setHighResTerrain] = useAtom(highResTerrainAtom)
   const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
   const [cacheVizTiles, setCacheVizTiles] = useAtom(cacheVizTilesAtom)
+  const [geHiDpiTiles, setGeHiDpiTiles] = useAtom(geHiDpiTilesAtom)
   const [persistLocalCogs, setPersistLocalCogs] = useAtom(persistLocalCogsAtom)
   const [persistVectorLayers, setPersistVectorLayers] = useAtom(persistVectorLayersAtom)
   const opfsSupported = isOpfsSupported()
@@ -760,6 +761,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 />
               </div>
             )}
+
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="ge-hidpi-tiles">HiDPI Google Earth Tiles</Label>
+                <span className="text-xs text-muted-foreground">
+                  Slower: builds each Google Earth Historical tile from one level finer, four times the fetches, so it is sharp away from the equator and on HiDPI screens
+                </span>
+              </div>
+              <Switch
+                id="ge-hidpi-tiles"
+                checked={geHiDpiTiles}
+                className="cursor-pointer"
+                onCheckedChange={setGeHiDpiTiles}
+              />
+            </div>
 
             <div className="flex items-center justify-between pt-2">
               <div className="flex flex-col gap-1">
