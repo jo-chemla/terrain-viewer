@@ -4729,7 +4729,10 @@ export function TerrainViewer() {
   // when they draw different basemaps. Same source everywhere: the letter
   // and the distinct modes carry the pill.
   const terrainIdOf = (side: ViewId): string => stateAny[`source${side}`] ?? state.sourceA
-  const terrainDiffers = isSplit && (state.pillTerrain === "always" || (state.pillTerrain === "auto" && new Set(activeViewIds.map(terrainIdOf)).size > 1))
+  // Historical imagery mode never names the terrain: the pill is about the
+  // imagery there, whatever DEM sits under it (and the Pills setting is a
+  // terrain-mode control).
+  const terrainDiffers = !isHistoricalMode && isSplit && (state.pillTerrain === "always" || (state.pillTerrain === "auto" && new Set(activeViewIds.map(terrainIdOf)).size > 1))
   const basemapKeyOf = (side: ViewId): string => { const r = perViewResolved[side]; return r ? `${r.basemapSource}|${r.date ?? ""}` : "" }
   const basemapDiffers = isSplit && (state.pillBasemap === "always" || (state.pillBasemap === "auto" && new Set(activeViewIds.map(basemapKeyOf)).size > 1))
   const datePillFor = (pane: PaneLayout): React.ReactNode => {
