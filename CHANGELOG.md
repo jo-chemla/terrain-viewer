@@ -1,3 +1,15 @@
+# Changelog — COG Sources End Where the File Does
+
+<!-- released: 2026-10-20 -->
+
+#### TL;DR
+
+- **The app**: a COG streamed in the browser lets the protocol's own TileJSON declare its finest level, so MapLibre stretches the last real tile past it instead of the protocol upsampling blocks; applies to terrain, basemap and overlay COGs alike.
+
+#### Details
+
+- COG sources (geomatico protocol): the Source was declared by its `cog://` URL, which makes the protocol answer a TileJSON with the file's finest level as maxzoom, but an explicit maxzoom was passed alongside it, 22 for a basemap, 19 for an overlay, the detected level for the terrain, and an explicit value overrides the TileJSON. Past the finest level MapLibre then asked the protocol for tiles it had to upsample, drawing flat blocks with rings in the hillshade and seams at tile borders. The explicit value is dropped for cog:// sources, as Oscar Fonts explained on [maplibre-cog-protocol issue 56](https://github.com/geomatico/maplibre-cog-protocol/issues/56#issuecomment-6285706300): MapLibre now reuses the finest tile and magnifies it on the GPU, as it does for every Terrain-RGB tileset. A Max Zoom typed in the source's Advanced fields still wins, and a centimetre file whose finest level lies past z22 keeps that ceiling, below MapLibre's z25 tile limit. The camera's own zoom cap is unchanged.
+
 # Changelog — Google Earth Dates Follow the Zoom
 
 <!-- released: 2026-10-19 -->

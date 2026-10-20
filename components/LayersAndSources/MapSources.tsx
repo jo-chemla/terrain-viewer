@@ -20,7 +20,7 @@ import { isTitilerTemplate, probeMaxZoomAt, probeWorthwhile } from "@/lib/tile-m
 import { pushToast } from "@/components/ui/toast"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
-import { useCogMetadata, zoomRangeFromMetadata, type CogMetadata } from "@/lib/cog-metadata"
+import { useCogMetadata, zoomRangeFromMetadata, cogSourceMaxzoomCap, type CogMetadata } from "@/lib/cog-metadata"
 import { elevationToTerrainrgb, elevationToTerrarium, resolveCustomEncoding } from "@/lib/elevation-encoding"
 import { resolveNodata, isSentinel, appendNodataMarkers } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
@@ -345,6 +345,7 @@ export const TerrainSources = memo(({
             const customEncoding = customSource.type === 'terrarium' || customSource.type === 'terrainrgb'
                 ? resolveCustomEncoding(customSource)
                 : null
+            const sourceMaxzoom = isCogProtocol ? (customSource.maxzoom ?? cogSourceMaxzoomCap(metadata)) : maxzoom
             return {
                 type: "raster-dem",
                 // wms-raw's URL requests a fixed WIDTH/HEIGHT (e.g. 514 = 512 + 1px buffer per side)
@@ -356,7 +357,14 @@ export const TerrainSources = memo(({
                 // ("minzoom: number expected, undefined found"), which dropped
                 // every derived layer of the source.
                 ...(effectiveMinzoom != null ? { minzoom: effectiveMinzoom } : {}),
-                ...(maxzoom != null ? { maxzoom } : {}),
+                // A cog:// source is declared by `url`, so the protocol's own
+                // TileJSON carries the finest level and MapLibre overzooms its
+                // last tile past it, instead of the protocol upsampling blocks
+                // (geomatico/maplibre-cog-protocol issue 56). An explicit
+                // maxzoom would override that TileJSON, so only a user-set
+                // ceiling, or the z22 safety cap, is passed; the detected
+                // range above still clamps the camera (onZoomRangeChange).
+                ...(sourceMaxzoom != null ? { maxzoom: sourceMaxzoom } : {}),
                 encoding: customEncoding ? 'custom' : encoding,
                 ...(customEncoding ?? {}),
                 ...("tiles" in built ? { ...built, tiles: built.tiles.map((t) => withQuantizedMeshDetail(t, cesiumDetailOffset)) } : built),
@@ -517,6 +525,9 @@ export const RasterBasemapSource = memo(({
     const resolvedCogUrl = isCogLocal
         ? (customBasemap ? resolveLocalFileUrl(localFileId(customBasemap.url)) : null)
         : null
+    // Streamed by the in-browser cog:// protocol: declared by `url`, so its
+    // TileJSON sets the finest level (see TerrainSources above).
+    const isCogProtocolBasemap = isCogLocal || (customBasemap?.type === "cog" && useCogProtocol && !customBasemap.cogViaTitiler)
 
     const removeColor = useAtomValue(allmapsRemoveColorAtom)
     const geHiDpi = useAtomValue(geHiDpiTilesAtom)
@@ -633,8 +644,12 @@ export const RasterBasemapSource = memo(({
             // declared (e.g. a WMTS layer only published up to z6), causing
             // requests past its real tile pyramid. zoomRange already computes
             // the correct value for both the custom and built-in cases.
+            // A cog:// basemap only gets a maxzoom the user set: the 22
+            // fallback overrode the protocol's TileJSON and had it upsample
+            // the finest level into blocks (geomatico/maplibre-cog-protocol
+            // issue 56); without it MapLibre overzooms the last tile.
             minzoom={zoomRange.minzoom}
-            maxzoom={zoomRange.maxzoom}
+            {...(isCogProtocolBasemap && customBasemap?.maxzoom == null ? {} : { maxzoom: zoomRange.maxzoom })}
             {...sourceProps}
         />
     </>)
@@ -705,7 +720,9 @@ export const OverlayBasemapSources = memo(({
                         // narrower) maxzoom, since buildRasterTileSource never
                         // includes one for a plain custom source.
                         minzoom={source.minzoom ?? 0}
-                        maxzoom={source.maxzoom ?? 19}
+                        // A cog:// overlay leaves maxzoom to the protocol's
+                        // TileJSON unless the user set one (see RasterBasemapSource).
+                        {...(source.maxzoom == null && (isCogLocal || (source.type === "cog" && useCogProtocol && !source.cogViaTitiler)) ? {} : { maxzoom: source.maxzoom ?? 19 })}
                         {...sourceProps}
                     />
                 )

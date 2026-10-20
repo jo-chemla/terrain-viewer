@@ -92,6 +92,24 @@ export function formatGsd(meters: number): string {
     return `${meters.toFixed(decimals)} m`
 }
 
+/** The explicit `maxzoom` a cog:// Source still needs, or undefined to let the
+ *  protocol's own TileJSON declare it.
+ *
+ *  A `url: "cog://..."` source gets its zoom range from the protocol's TileJSON
+ *  (CogReader.getTilejson: maxzoom = the finest level, rounded), and MapLibre
+ *  then overzooms that last level itself instead of asking the protocol for
+ *  finer tiles it would have to upsample (geomatico/maplibre-cog-protocol
+ *  issue 56). An explicit `maxzoom` prop overrides the TileJSON, so the Source
+ *  must NOT carry one for the autodiscovery to work. The one exception is the
+ *  z25 tile-coordinate limit: a centimetre drone file reports a finest level
+ *  past MAX_SAFE_COG_ZOOM, and terrain sampling that deep throws ("z=27
+ *  outside of bounds"), so only then is the ceiling pinned explicitly. */
+export function cogSourceMaxzoomCap(metadata: CogMetadata | null): number | undefined {
+    if (!metadata?.images?.length) return undefined
+    const zooms = metadata.images.filter(img => !img.isMask).map(img => img.zoom)
+    return Math.round(Math.max(...zooms)) > MAX_SAFE_COG_ZOOM ? MAX_SAFE_COG_ZOOM : undefined
+}
+
 export function zoomRangeFromMetadata(metadata: CogMetadata | null): { minzoom: number; maxzoom: number } {
     if (!metadata?.images?.length) return { minzoom: 0, maxzoom: 20 }
     const zooms = metadata.images.filter(img => !img.isMask).map(img => img.zoom)
