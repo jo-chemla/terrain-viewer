@@ -21,8 +21,8 @@
 // capabilities, and every layer answered an image with CORS for a tile in its
 // area; services that failed are listed in the docs (Basemaps and Historical).
 import catalogJson from "./national-historical-catalog.json" with { type: "json" }
-import { TIMELAPSE_YEARS, TIMELAPSE_MAXZOOM, timelapseTileUrl } from "./google-timelapse"
-import { PC_COLLECTIONS, pcMosaicTileUrl, pcQuarters, pcMonths } from "./pc-mosaic"
+import { TIMELAPSE_YEARS, TIMELAPSE_MAXZOOM, timelapseTileUrl } from "./google-timelapse.ts"
+import { PC_COLLECTIONS, pcMosaicTileUrl, pcQuarters, pcMonths } from "./pc-mosaic.ts"
 
 export type Bbox = [number, number, number, number]
 
