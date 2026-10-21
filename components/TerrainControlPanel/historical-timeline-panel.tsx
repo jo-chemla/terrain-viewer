@@ -1389,7 +1389,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // rendered at all is pure noise. Historical mode always shows imagery,
   // so it keeps the panel (plus the rasterBasemapOff warning below for the
   // edge cases).
-  const panelVisible = activeViews.some(showFor) && !collapsed
+  // Historical mode keeps the panel whatever the views sit on, so it can
+  // always be reached (mirrors TerrainViewer.tsx's historicalTimelineActive).
+  const panelVisible = (activeViews.some(showFor) || state.appMode === "historical") && !collapsed
     && (state.appMode === "historical" || state.showRasterBasemap)
   // The primary basemap SOURCE is always mounted regardless of this toggle
   // (RasterBasemapSource in MapSources.tsx) — but its LAYER's visibility is

@@ -94,6 +94,8 @@ import { thresholdProtocol, lumaProtocol } from '@/lib/threshold-protocol'
 import { isobandProtocol } from '@/lib/isoband-protocol'
 import { unpaperProtocol } from '@/lib/unpaper-protocol'
 import { epsg3395Protocol } from '@/lib/epsg3395-protocol'
+import { googleTimelapseProtocol } from '@/lib/google-timelapse'
+import { pcMosaicProtocol } from '@/lib/pc-mosaic'
 import { ISOLINE_MEASURE_IDS } from '@/lib/isoline-measures'
 import { IsolineLayers } from './LayersAndSources/IsolineLayers'
 import { parseSourceNames, parseSourceMeta } from '@/lib/portable-share-url'
@@ -1905,6 +1907,8 @@ export function TerrainViewer() {
     registerProtocol('isoband', withTileResultCache(isobandProtocol))
     registerProtocol('unpaper', withTileResultCache(unpaperProtocol))
     registerProtocol('epsg3395', withTileResultCache(epsg3395Protocol))
+    registerProtocol('gtimelapse', withTileResultCache(googleTimelapseProtocol))
+    registerProtocol('pcmosaic', withTileResultCache(pcMosaicProtocol))
     registerProtocol('roughness', withTileResultCache(roughnessProtocol))
     registerProtocol('blobness', withTileResultCache(blobnessProtocol))
     // withSlowTileStats composes INSIDE withTileResultCache so it measures the
@@ -3232,8 +3236,13 @@ export function TerrainViewer() {
   // rendered at all, so a timeline scrubbing an invisible layer is noise.
   // (Historical mode always shows the basemap; see the opacity forcing in
   // the per-view render below.) The panel mirrors this same gate itself.
-  const historicalTimelineActive = isHistoricalSourceActive(state)
-    && (isHistoricalMode || state.showRasterBasemap)
+  // In historical mode the timeline is always reachable (the panel, or the
+  // collapsed toggle): with every source pill off and the view moved to a
+  // plain basemap, nothing was left on screen to bring it back, and only a
+  // Bing capture date could (Jonathan, 2026-10-21). A view not on a
+  // historical source shows no handle; a tick click puts it on one.
+  const historicalTimelineActive = isHistoricalMode
+    || (isHistoricalSourceActive(state) && state.showRasterBasemap)
   const historicalTimelineVisible = historicalTimelineActive && !state.historicalTimelineCollapsed
   const isBasemapCustom = customBasemapSources.some(s => s.id === activeBasemapSourceA)
 

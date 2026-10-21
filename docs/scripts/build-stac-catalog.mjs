@@ -71,6 +71,9 @@ const isoYear = (y) => `${String(y).padStart(4, "0")}-01-01T00:00:00Z`
 // A tile URL as a web-map link: xyz templates, WMS (base + layers), WMTS.
 function tileLinks(url, type, extra = {}) {
   if (!url) return []
+  // An in-app scheme (gtimelapse://, the viewer's video tiles decoded in the
+  // browser): nothing a STAC client could fetch, the about link stays.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) return []
   const u = url.startsWith("http") ? url : `https://${url}`
   if (type === "wms" || /request=GetMap/i.test(u)) {
     const [base, query = ""] = u.split("?")
@@ -288,7 +291,7 @@ if (!OFFLINE) {
       }))
     }
   }
-  collection("national-historical", { title: "National and regional historical imagery", description: "Year series of orthophotos and historical maps from about 70 national, regional and city mapping agencies, browser-friendly (CORS, Web Mercator, no key), as on Terrain Viewer's timeline: Spain and its regions, Portugal, France's regions, Italy's regions, Germany's Länder, Austria, Switzerland, Belgium, the Netherlands, Luxembourg, Slovenia, Lithuania, Cyprus, Slovakia, Canada, the United States, Australia, Taiwan, Japan, Brazil and Landsat WELD. A year's layer may cover only part of the extent.", items, keywords: ["historical", "orthophoto", "aerial"] })
+  collection("national-historical", { title: "National and regional historical imagery", description: "Year series of orthophotos and historical maps from about 70 national, regional and city mapping agencies, browser-friendly (CORS, Web Mercator, no key), as on Terrain Viewer's timeline: Spain and its regions, Portugal, France's regions, Italy's regions, Germany's Länder, Austria, Switzerland, Belgium, the Netherlands, Luxembourg, Slovenia, Lithuania, Cyprus, Slovakia, Canada, the United States, Australia, Taiwan, Japan, Brazil, Google Earth Timelapse and Landsat WELD. A year's layer may cover only part of the extent.", items, keywords: ["historical", "orthophoto", "aerial"] })
 }
 
 // ── Catalogs searched per view (links only) ──────────────────────────────

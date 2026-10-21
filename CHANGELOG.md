@@ -1,3 +1,19 @@
+# Changelog — Four Decades a Year at a Time
+
+<!-- released: 2026-10-21 -->
+
+#### TL;DR
+
+- **The app**: Google Earth Timelapse joins the timeline's global catalogs: one cloud-free mosaic a year from 1984 to 2022, 30 m then about 19 m, under the Medium res pill, read from the viewer's own video tiles by a new `gtimelapse://` protocol.
+- **The app**: two more World catalogs next to Timelapse, Landsat a quarter at a time since 1982 and Sentinel-2 a month at a time since 2016, the window's least cloudy scenes mosaicked on the fly by Microsoft Planetary Computer, no key, through a `pcmosaic://` protocol.
+- **The docs**: a dev page on the Timelapse protocol and on how Google builds the mosaics, another on the two on-the-fly tilers (NASA VEDA's titiler-cmr behind the HLS pill, Planetary Computer behind the new catalogs), and the NASA Ames Stereo Pipeline and Geopera Parallax noted for making a DEM from stereo imagery.
+
+#### Details
+
+- Google Earth Timelapse: Google published the annual mosaics behind its Timelapse viewer in the Earth Engine Data Catalog under CC BY 4.0, but Earth Engine only serves tiles to a signed-in project. The viewer itself reads one VP9 WebM video per tile from a public bucket, 512 px, five frames a second, a frame per year from 1984. The `gtimelapse://` protocol fetches the video of a tile once, seeks a video element to the year's frame and hands MapLibre a quadrant of it as a 256 px tile, so changing the year re-seeks cached videos and fetches nothing. The catalog, under Historical · Global next to Landsat WELD, gives a tick per year everywhere; every layer covers the globe, so no tile is probed at the view's centre. The bucket is the viewer's, not a documented endpoint, and the mosaics are balanced for the eye, not radiometric; before 1999 a gap in the archive is interpolated between the neighbouring years, so a sudden change inside a gap looks gradual. See [Google Earth Timelapse](https://terrain-viewer.iconem.com/docs/dev/google-timelapse).
+- Planetary Computer catalogs: Microsoft Planetary Computer's data API tiles any STAC search over its catalog, keyless, once the search is registered with a POST. The `pcmosaic://` protocol registers one search per window, scenes with at most 10 % cloud sorted least cloudy first, and a second at 60 % for the tiles no clean scene covers, then fetches tiles by search id. Two catalogs under Catalogs › World, next to Google Earth Timelapse: Landsat 4 to 9 Collection 2, a layer a quarter from 1982 Q4 (30 m, tiles from zoom 8), and Sentinel-2 L2A true colour, a layer a month from January 2016 (10 m, from zoom 9). For each pixel the API draws the first scene in sort order that has data there, so scene seams and some cloud remain, unlike Timelapse's median mosaics. The NASA HLS pill, which has composited Harmonized Landsat Sentinel-2 granules through NASA VEDA's titiler-cmr since it was added, is documented on the same page: a 30 day window around a monthly tick, from 2016. See [On-the-fly mosaics](https://terrain-viewer.iconem.com/docs/dev/on-the-fly-mosaics).
+- Docs: [Compared with other tools](https://terrain-viewer.iconem.com/docs/resources/compared-with-other-tools) gains a note on making a DEM from stereo satellite pairs with the NASA Ames Stereo Pipeline, and on Geopera Parallax, a neural matcher that replaces its dense-matching step.
+
 # Changelog — COG Sources End Where the File Does
 
 <!-- released: 2026-10-20 -->

@@ -1,0 +1,83 @@
+---
+title: On-the-fly Mosaics, titiler-cmr and Planetary Computer
+sidebarTitle: On-the-fly mosaics
+description: How the NASA HLS pill composites granules through NASA VEDA's titiler-cmr, and how the Planetary Computer catalogs tile a STAC search over Landsat and Sentinel-2 through the pcmosaic:// protocol
+---
+
+Three medium-resolution series on the [historical timeline](/features/historical-sources) are not tile pyramids anyone published. They are composited the moment a tile is asked for, by a dynamic tiler that searches a scene catalog for the window, reads the matching Cloud-Optimized GeoTIFFs by range request, and renders the tile:
+
+| Series | Where on the timeline | Catalog searched | Tiler | Window |
+|---|---|---|---|---|
+| NASA HLS | the **NASA HLS** pill | NASA CMR, collection HLSS30 v2.0 | [titiler-cmr](https://developmentseed.org/titiler-cmr/), NASA VEDA's instance | 15 days either side of the date, from 2016 |
+| Landsat 1982+ quarterly | **Catalogs › World**, with Google Earth Timelapse | Planetary Computer STAC, `landsat-c2-l2` | Planetary Computer data API | a calendar quarter, from 1982 Q4 |
+| Sentinel-2 2016+ monthly | same | Planetary Computer STAC, `sentinel-2-l2a` | Planetary Computer data API | a calendar month, from January 2016 |
+
+Both tilers are public and keyless from the browser, and both are services someone else runs for their own catalog, not a contract: a slow tile or an outage is theirs to fix. [Google Earth Timelapse](/dev/google-timelapse) is the opposite kind of source, one finished frame a year, and sits next to the Planetary Computer catalogs so a place can be read both ways.
+
+## titiler-cmr, behind the NASA HLS pill
+
+[titiler-cmr](https://github.com/developmentseed/titiler-cmr) is Development Seed's [titiler](https://developmentseed.org/titiler/) with NASA's [Common Metadata Repository](https://cmr.earthdata.nasa.gov) (CMR) as its backend: a tile request names a CMR collection by concept id and a time range, the server runs the granule search, and reads the granules' assets, GeoTIFFs with the `rasterio` backend or NetCDF and HDF5 with the `xarray` one. NASA VEDA runs a public instance at `openveda.cloud/api/titiler-cmr`, with a staging twin at `staging.openveda.cloud`; Development Seed's [titiler-cmr browser](https://developmentseed.org/titiler-cmr-browser/) is a front end on that same endpoint, configured for HLS and NISAR.
+
+The data behind HLS lives at NASA's LP DAAC and needs an Earthdata login to read; the VEDA instance holds those credentials server-side, which is why the browser needs none. The instance is a demo of VEDA's, not an SLA.
+
+The pill (`lib/hls.ts`) asks for one true-colour mosaic per date:
+
+```
+https://openveda.cloud/api/titiler-cmr/rasterio/tiles/WebMercatorQuad/{z}/{x}/{y}
+  ?collection_concept_id=C2021957295-LPCLOUD      HLSS30 v2.0, the Sentinel-2 half of HLS
+  &temporal=<date - 15 d>/<date + 15 d>
+  &assets=B04&assets=B03&assets=B02                red, green, blue
+  &rescale=0,3000 ×3                               surface reflectance ×10000: the usual stretch
+  &color_formula=Gamma RGB 1.3 Saturation 1.5 Sigmoidal RGB 8 0.35
+```
+
+- **HLSS30, not HLSL30.** The Sentinel-2 half revisits every 5 days against Landsat's 16, so a 30 day window nearly always has cloud-free pixels. Both halves are 30 m; the HLS algorithm resamples Sentinel-2 onto Landsat's grid, which is why "10 m Sentinel-2" is not what HLS gives.
+- **The window, not a date.** A tile is whatever granules fall in the 30 days, in catalog order: no cloud filter and no cloud-first sort are sent today, titiler-cmr accepts `cloud_cover` and `sort_key` for that. Scene seams show where two granules meet.
+- **Ticks are synthetic.** One a month from January 2016, the date at the middle of its own window; nothing checks that a granule exists at the view's centre. HLS exists from 2013 for the Landsat half; the ticks start where Sentinel-2 coverage is dense.
+- **Zoom.** Served down to zoom 0, but a low-zoom tile means many granules read; the source is declared to zoom 16 and the tiles are 256 px.
+
+## Planetary Computer, behind the two World catalogs
+
+[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) keeps a [STAC API](https://planetarycomputer.microsoft.com/api/stac/v1) over its catalog (Landsat Collection 2, Sentinel-2 L2A, NAIP, HLS 2.0, DEMs and more, the assets in Azure Blob Storage) and a data API that tiles it: [titiler-pgstac](https://github.com/stac-utils/titiler-pgstac) behind `planetarycomputer.microsoft.com/api/data/v1`. Reading an asset normally needs a SAS token from the SAS API; the data API signs its own reads, so the browser sends none, and the register and tiles endpoints answer with an open CORS header.
+
+A mosaic is a registered search:
+
+```
+POST /api/data/v1/mosaic/register
+{ "collections": ["landsat-c2-l2"],
+  "datetime": "1990-04-01T00:00:00Z/1990-06-30T23:59:59Z",
+  "filter-lang": "cql2-json",
+  "filter": { "op": "<=", "args": [{ "property": "eo:cloud_cover" }, 10] },
+  "sortby": [{ "field": "eo:cloud_cover", "direction": "asc" }] }
+→ { "searchid": "5dee14b3…" }
+
+GET /api/data/v1/mosaic/5dee14b3…/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png
+  ?assets=red&assets=green&assets=blue&nodata=0&collection=landsat-c2-l2
+  &color_formula=gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55
+```
+
+The search id is a hash of the search, so registering the same window again is free. For a tile the API lists the search's items that intersect it, in the sort order, and fills pixels from the first item that has data there (`pixel_selection=first`): the least cloudy scene wins where scenes overlap, and the scene edges, marked by `nodata=0`, let the next scene show through. That is a least-cloudy-scene mosaic, not the per-pixel median of a Timelapse year: seams follow Landsat paths and Sentinel-2 granules, and a scene that is 8 % cloudy brings its 8 % along. Below a zoom of 8 for Landsat and 9 for Sentinel-2 the API answers 204, empty, rather than read hundreds of scenes.
+
+The protocol (`lib/pc-mosaic.ts`) exists because the registration is a POST, which a MapLibre `tiles` template cannot send:
+
+```
+pcmosaic://landsat-c2-l2/{z}/{x}/{y}?from=1990-04-01&to=1990-06-30
+pcmosaic://sentinel-2-l2a/{z}/{x}/{y}?from=2024-08-01&to=2024-08-31
+```
+
+- **Two searches a window.** Scenes with at most 10 % cloud first; when no such scene covers the tile (an overcast quarter, a rainy month: June 2024 over Paris has none) the handler registers the same window at 60 % and tries again, so the tile draws, cloudier, rather than stays blank. Both ids are cached for the session.
+- **Landsat** is rendered from the `red`, `green` and `blue` surface-reflectance assets with Planetary Computer's own "Natural color" formula, 30 m, declared to zoom 13. Landsat 4 TM's first scene is 22 August 1982; Landsat 1 to 5 MSS (1972 to 1992, 60 m, no blue band) sits in `landsat-c2-l1` and is not offered.
+- **Sentinel-2** uses the L2A product's own true-colour image, the `visual` asset, 10 m, declared to zoom 15. Planetary Computer holds Level-2A from 2016 for most of the world, with 2015 scenes in places.
+- **In the catalog** (`lib/national-historical.ts`) each window is a layer of a `complete` source: every layer covers the globe, so the timeline lists them all without probing a tile at the view's centre. The Landsat catalog has a layer a quarter, the Sentinel-2 one a layer a month, and both sit under the Medium res pill.
+- **Not in Export Multi.** The export dialog lists the timeline's own pills; catalog layers, these included, are picked on the map.
+
+## What to expect of each
+
+| | NASA HLS | Planetary Computer Landsat | Planetary Computer Sentinel-2 | Google Earth Timelapse |
+|---|---|---|---|---|
+| Pixel | 30 m | 30 m | 10 m | 30 m, 19 m from 2015 |
+| From | 2016 (2013 for Landsat) | 1982 | 2016 | 1984 |
+| Window | 30 days | a quarter | a month | a year |
+| Cloud | none removed | least cloudy scene first | least cloudy scene first | per-pixel median, gap-filled |
+| Seams | granule edges | scene edges | granule edges | none |
+| First tile | a few seconds | 1 to 2 s, plus the registration | under a second | the video download |
