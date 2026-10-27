@@ -34,6 +34,7 @@ export const VisualizationModesSection: React.FC<{
   const hideContours = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
   const hideTerrainAnalysis = activeProjectConfig?.hiddenSections?.includes("terrainAnalysis") ?? false
   const hideReliefVisualization = activeProjectConfig?.hiddenSections?.includes("reliefVisualization") ?? false
+  const hideTellsDetector = activeProjectConfig?.hiddenSections?.includes("tellsDetector") ?? false
 
   return (
     <Section
@@ -139,7 +140,7 @@ export const VisualizationModesSection: React.FC<{
       {(state.viewMode === "3d" || state.viewMode === "globe") && (
         <CheckboxWithSlider perView={perViewFor("showBackground")} id="background" gotoSection="background" checked={state.showBackground} onCheckedChange={(checked) => setState({ showBackground: checked })} label="Background + Fog/Sky" sliderValue={state.backgroundOpacity} onSliderChange={(value) => setState({ backgroundOpacity: value })} hideSlider />
       )}
-      {state.tellsBeta && (
+      {state.tellsBeta && !hideTellsDetector && (
         <>
           <Separator className="bg-foreground/33" />
           <CheckboxWithSlider perView={perViewFor("showTellsDetector")}

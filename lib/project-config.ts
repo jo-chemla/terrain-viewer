@@ -50,8 +50,9 @@ export interface ProjectConfig {
    *  "openIn" hide those two individual General Settings rows, "hillshadeAdvanced"
    *  the advanced half of Hillshade Options, "sourceInfo"/"sunShadowCalculator"
    *  their Tools-group panels, "lightDatetimeMode" the Free/Datetime selector on
-   *  every light-direction pad (pinning the light to Free), and "shadows" the
-   *  Shadows sub-mode inside Lighting Effects. */
+   *  every light-direction pad (pinning the light to Free), "shadows" the
+   *  Shadows sub-mode inside Lighting Effects, and "tellsDetector" the Mound
+   *  Detector row in Visualization Modes together with its Detectors group. */
   hiddenSections?: string[]
   /** Custom terrain/basemap sources this project depends on (e.g. referenced by id
    *  in initialState.sourceA/basemapSource) — merged by id into the visitor's

@@ -469,11 +469,14 @@ export function TerrainControlPanel({
   // Visualization Modes master switch. Live, not latched: unchecking the Viz
   // Modes checkbox hides the section again immediately — that's the one
   // control meant to do that; tellsMarkersVisible never does.
-  const showDetectors = state.tellsBeta && state.showTellsDetector
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const [vizModePinned] = useAtom(vizModePinnedAtom)
   const hideSourcePanels = activeProjectConfig?.hideSourcePanels ?? false
   const hiddenSections = activeProjectConfig?.hiddenSections ?? []
+  // A project can hide the mound detector on its own ("tellsDetector"), and
+  // hiding Terrain Analysis still takes the Detectors group with it.
+  const showDetectors = state.tellsBeta && state.showTellsDetector
+    && !hiddenSections.includes("tellsDetector") && !hiddenSections.includes("terrainAnalysis")
 
   // Each section in the Options group returns null unless its viz mode is on
   // (Hillshade→showHillshade, Elevation Hypso→showColorRelief, etc.), so with
@@ -972,10 +975,10 @@ export function TerrainControlPanel({
             <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
           </>
         )}
-        {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && (
+        {!historicalMode && showDetectors && (
           <MacroSeparator label="Detectors" isOpen={groupOpen("Detectors")} onToggle={() => toggleMacroGroup("Detectors")} />
         )}
-        {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && groupOpen("Detectors") && (
+        {!historicalMode && showDetectors && groupOpen("Detectors") && (
           <DetectorMoundsSection
             state={state}
             setState={setState}
@@ -985,7 +988,7 @@ export function TerrainControlPanel({
             mapRef={mapRef}
           />
         )}
-        {!historicalMode && !hiddenSections.includes("terrainAnalysis") && showDetectors && <MacroSeparator />}
+        {!historicalMode && showDetectors && <MacroSeparator />}
         {/* Single id spanning the separator AND every section below it (own
             "space-y-2" replicates the scroll container's own spacing, lost by
             wrapping — see controls-components.tsx) — so the product tour's
