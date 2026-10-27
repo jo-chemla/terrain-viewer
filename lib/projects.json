@@ -20,7 +20,7 @@
   "mapterhorn-globe": {
     "id": "mapterhorn-globe",
     "name": "Mapterhorn Globe",
-    "description": "Minimal globe view zoomed out to the whole world, Mapterhorn as the only terrain source, source pickers and Image Georeferencer hidden.",
+    "description": "Minimal globe view zoomed out to the whole world, Mapterhorn as the only terrain source, source pickers and Image Georeferencer hidden, GMT Globe hypsometric ramp.",
     "initialViewMode": "globe",
     "hideSourcePanels": true,
     "hiddenSections": ["georef"],
@@ -32,6 +32,7 @@
       "pitch": 0,
       "bearing": 0,
       "showColorRelief": true,
+      "colorRamp": "gmt-globe",
       "colorReliefOpacity": 0.2
     },
     "initialSections": {
