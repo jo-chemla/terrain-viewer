@@ -4,7 +4,7 @@ import customSources from "./custom-sources.json"
  * How a sample terrain source compares with Mapterhorn, the default built-in
  * terrain, over the same area. Mapterhorn ingests each country's finest BULK
  * data; these sources stream from the agency's live API, which is sometimes
- * finer (Norway 0.25 m vs 1 m), sometimes coarser (Italy 10 m vs 1 m), and
+ * finer (Netherlands 0.5 m vs 5 m), sometimes coarser (Italy 10 m vs 1 m), and
  * sometimes the only data at all (Mexico, Uruguay: Mapterhorn has no national
  * source there and falls back to global 30 m).
  *

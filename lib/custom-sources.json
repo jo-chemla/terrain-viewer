@@ -728,24 +728,24 @@
         },
         {
             "id": "custom-no-kartverket-dom1",
-            "name": "NOR - Kartverket NDH DOM 0.25m (surface) - ImageServer raw Float32",
+            "name": "NOR - Kartverket NDH DOM 1m (surface, served at 0.25m) - ImageServer raw Float32",
             "url": "hoydedata.no/arcgis/rest/services/DOM/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&f=image",
             "type": "wms-raw",
             "maxzoom": 19,
             "bounds": [4.0, 57.8, 31.6, 71.4],
-            "description": "Surface (first-return) counterpart of the Kartverket DTM above, same 0.25m grid. CC BY 4.0 Kartverket.",
-            "resolutionM": 0.25,
+            "description": "Surface (first-return) counterpart of the Kartverket DTM above: the same 1m DOM product, resampled by the ImageServer to a 0.25m request grid. CC BY 4.0 Kartverket.",
+            "resolutionM": 1,
             "infoUrl": "https://www.kartverket.no/en/api-and-data/terrengdata"
         },
         {
             "id": "custom-no-kartverket-dtm1",
-            "name": "NOR - Kartverket NDH DTM 0.25m - ImageServer raw Float32",
+            "name": "NOR - Kartverket NDH DTM 1m (served at 0.25m) - ImageServer raw Float32",
             "url": "hoydedata.no/arcgis/rest/services/DTM/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&f=image",
             "type": "wms-raw",
             "maxzoom": 19,
             "bounds": [4.0, 57.8, 31.6, 71.4],
-            "description": "Nasjonal detaljert hoydemodell, 0.25m nationwide terrain model via hoydedata.no ArcGIS ImageServer - four times the resolution of the 1m Geonorge WCS this replaced, and it answers at every zoom (the WCS failed below z7). CORS is open to any origin. Verified: Galdhopiggen 2468.2 m against a true 2469 m; Preikestolen tile peaks at 692.6 m. CC BY 4.0 Kartverket.",
-            "resolutionM": 0.25,
+            "description": "Nasjonal detaljert hoydemodell via the hoydedata.no ArcGIS ImageServer. The product is the 1m DTM 1 (the same grid Mapterhorn ingests); the server resamples it to the 0.25m grid requested, so it looks four times finer than the 1m Geonorge WCS this replaced without carrying more information, and it answers at every zoom (the WCS failed below z7). CORS is open to any origin. Verified: Galdhopiggen 2468.2 m against a true 2469 m; Preikestolen tile peaks at 692.6 m. CC BY 4.0 Kartverket.",
+            "resolutionM": 1,
             "infoUrl": "https://www.kartverket.no/en/geodataarbeid/nasjonal-detaljert-hoydemodell"
         },
         {

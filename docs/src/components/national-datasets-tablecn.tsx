@@ -145,7 +145,12 @@ const isSubNational = (s: Source) => {
 const isSurfaceModel = (s: Source) => /\(surface\)|\bn?DSM\b|\bDOM\b/.test(s.name) && !/bare-earth DTM/.test(s.name);
 
 function bucketOf(ours: number | null, mh: number | null | undefined): NationalRow["bucket"] {
-  if (mh === null || mh === undefined) return "new";
+  // No national entry: Mapterhorn serves GLO-30 there, so anything finer than
+  // 30 m is new data, and a 30 m source (Uruguay) is the same grid re-served.
+  if (mh === null || mh === undefined) {
+    if (ours === null || ours < 30) return "new";
+    return ours > 30 ? "coarser" : "same";
+  }
   if (ours === null) return "same";
   return ours < mh ? "finer" : ours > mh ? "coarser" : "same";
 }

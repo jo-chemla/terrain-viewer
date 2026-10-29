@@ -34,7 +34,7 @@ Only a minority are an actual upgrade. That is worth stating plainly, because it
 
 Mapterhorn ingests whatever an agency publishes in **bulk**: multi-terabyte download archives, S3 buckets, hundreds of thousands of tiles. Agencies routinely publish their finest LiDAR that way while exposing only a coarser, cheaper product over a live API — Italy publishes 1 m regional LiDAR for download but serves TINITALY at 10 m; Spain's PNOA LiDAR is 0.5 m in bulk while the IDEE tile service is ~5 m. So Mapterhorn can be finer.
 
-It runs the other way too. Norway's `hoydedata.no` ImageServer resamples a 0.25 m grid on demand, four times finer than the 1 m product Mapterhorn downloaded. And where an agency publishes no bulk data at all, Mapterhorn has nothing to ingest and falls back to global 30 m, so any working API wins by default.
+It runs the other way too. The Netherlands' PDOK WCS serves AHN at its native 0.5 m while Mapterhorn ingested the 5 m grid, and Czechia's ČÚZK ImageServer streams DMR 5G at 2 m against 5 m. Not every apparent gain is one, though: Norway's `hoydedata.no` ImageServer happily resamples to a 0.25 m request grid, but the product behind it is the same 1 m DTM Mapterhorn downloaded, so it is graded at 1 m here. And where an agency publishes no bulk data at all, Mapterhorn has nothing to ingest and falls back to global 30 m, so any working API wins by default.
 
 One caveat on both sides: Mapterhorn's delivered detail is also capped by its tileset's max zoom, whereas these APIs resample to whatever window is asked for.
 

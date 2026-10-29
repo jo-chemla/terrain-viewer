@@ -74,8 +74,8 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-mx-inegi-cem": { res: "~15 m", coverage: "Nationwide (clips above ~5553 m)" },
   "custom-nl-ahn-dtm": { res: "0.5 m", coverage: "Nationwide" },
   "custom-nl-ahn-dsm": { res: "0.5 m", coverage: "Nationwide" },
-  "custom-no-kartverket-dtm1": { res: "0.25 m", coverage: "Nationwide (excl. Svalbard)" },
-  "custom-no-kartverket-dom1": { res: "0.25 m", coverage: "Nationwide (excl. Svalbard)" },
+  "custom-no-kartverket-dtm1": { res: "1 m (API resamples to 0.25 m)", coverage: "Nationwide (excl. Svalbard)" },
+  "custom-no-kartverket-dom1": { res: "1 m (API resamples to 0.25 m)", coverage: "Nationwide (excl. Svalbard)" },
   "custom-africa-deafrica-cop30": { res: "30 m", coverage: "All of Africa + Arabia from one endpoint" },
   "custom-nz-linz-dem1": { res: "1 m", coverage: "Regional 1 m LiDAR over an 8 m national base" },
   "custom-ca-ontario-dtm05": { res: "0.5 m", coverage: "Ontario, surveyed LiDAR blocks only" },
@@ -94,7 +94,7 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-global-aw3d30": { res: "30 m", coverage: "Global 82 N–82 S, JAXA optical-stereo DSM (via titiler)" },
   "custom-global-aw3d30-minus-mapterhorn": { res: "30 m", coverage: "Global — AW3D30 minus Mapterhorn" },
   "custom-us-ny-dem1": { res: "1 m", coverage: "New York State, newest LiDAR on top (metres, verified)" },
-  "custom-lt-klaipeda-dtm05": { res: "0.5 m", coverage: "Klaipėda city only (LERC tiles; licence unclear)" },
+  "custom-lt-klaipeda-dtm05": { res: "0.5 m", coverage: "Klaipėda city only (LERC tiles)" },
   "custom-us-hi-dtm1-lerc": { res: "1 m", coverage: "Hawaii, LiDAR-covered parts of all islands (LERC tile cache)" },
   "custom-us-hi-maui-dtm03-lerc": { res: "0.3 m", coverage: "Maui and Molokai, 2019 (LERC tile cache)" },
   "custom-us-hi-dsm1": { res: "1 m", coverage: "Hawaii surface model, same footprint as the DTM" },
@@ -105,7 +105,7 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-us-ak-ifsar-dtm5": { res: "5 m", coverage: "Alaska statewide IfSAR terrain" },
   "custom-us-ak-ifsar-dsm5": { res: "5 m", coverage: "Alaska statewide IfSAR surface" },
   "custom-us-ak-ifsar-ndsm": { res: "5 m", coverage: "Alaska — IfSAR DSM minus DTM" },
-  "custom-au-sa-murray-dtm05": { res: "0.5 m", coverage: "River Murray corridor, SA border to Murray Mouth (licence unclear on the service)" },
+  "custom-au-sa-murray-dtm05": { res: "0.5 m", coverage: "River Murray corridor, SA border to Murray Mouth" },
   "custom-mx-aguadafenix-dsm": { res: "0.5 m", coverage: "Middle Usumacinta survey area, canopy surface" },
   "custom-mx-aguadafenix-ndsm": { res: "0.5 m", coverage: "Middle Usumacinta — canopy height" },
   "custom-tz-msimbazi-dtm05": { res: "0.5 m", coverage: "Lower Msimbazi valley, Dar es Salaam (~3.6 × 3.6 km)" },
@@ -126,6 +126,110 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-1763115512226": { res: "1 m", coverage: "Mainland France (RGE ALTI, community repack)" },
   "custom-1763118373252": { res: "1 m", coverage: "Mainland France (same data, via titiler)" },
 };
+
+// Licence of each dataset and whether Mapterhorn could ingest it. Mapterhorn's
+// bar (wipfli, mapterhorn#27): "roughly CC BY", an attribution-only open
+// licence with no clause letting the publisher change the terms at will. Hong
+// Kong fails on exactly that clause. ok: true = compatible, false = not (or no
+// licence published at all, which comes to the same for an ingest pipeline).
+// Verified against the publisher's own page, not the catalogue mirroring it.
+type Licence = { label: string; ok: boolean; note?: string; url?: string };
+const LICENCE: Record<string, Licence> = {
+  // Compatible
+  "custom-at-tirol-dgm5": { label: "CC BY 4.0", ok: true, url: "https://creativecommons.org/licenses/by/4.0/" },
+  "custom-be-vlaanderen-dtm1": { label: "Flemish model licence for free reuse v1.0", ok: true, note: "attribution only; already in Mapterhorn", url: "https://www.vlaanderen.be/digitaal-vlaanderen/onze-oplossingen/open-data/voorwaarden-voor-het-hergebruik-van-overheidsinformatie/modellicentie-gratis-hergebruik" },
+  "custom-be-vlaanderen-dsm1": { label: "Flemish model licence for free reuse v1.0", ok: true, url: "https://www.vlaanderen.be/digitaal-vlaanderen/onze-oplossingen/open-data/voorwaarden-voor-het-hergebruik-van-overheidsinformatie/modellicentie-gratis-hergebruik" },
+  "custom-be-vlaanderen-ndsm": { label: "Flemish model licence for free reuse v1.0", ok: true, url: "https://www.vlaanderen.be/digitaal-vlaanderen/onze-oplossingen/open-data/voorwaarden-voor-het-hergebruik-van-overheidsinformatie/modellicentie-gratis-hergebruik" },
+  "custom-ca-nrcan-mrdem30": { label: "Open Government Licence – Canada", ok: true, url: "https://open.canada.ca/en/open-government-licence-canada" },
+  "custom-ch-swissaltiregio": { label: "swisstopo open government data (free use, attribution)", ok: true, url: "https://www.swisstopo.admin.ch/en/terms-and-conditions" },
+  "custom-ch-swisstopo-terrain3d-qm": { label: "swisstopo open government data (free use, attribution)", ok: true, url: "https://www.swisstopo.admin.ch/en/terms-and-conditions" },
+  "custom-cz-cuzk-dmr5g": { label: "CC BY 4.0", ok: true, note: "ČÚZK open data since 2020; a 1–2 m grid from the same TIN would be the gain", url: "https://geoportal.cuzk.gov.cz/Default.aspx?mode=TextMeta&text=podminkyPouziti&side=podminky" },
+  "custom-cz-cuzk-dmp05": { label: "CC BY 4.0", ok: true, url: "https://geoportal.cuzk.gov.cz/Default.aspx?mode=TextMeta&text=podminkyPouziti&side=podminky" },
+  "custom-1762932753467": { label: "CC BY 4.0 (IGN/CNIG scne.es)", ok: true, url: "https://www.ign.es/web/ign/portal/politica-datos" },
+  "custom-1762932753466": { label: "CC BY 4.0 (Junta de Andalucía)", ok: true, url: "https://www.juntadeandalucia.es/medioambiente/portal/acceso-rediam" },
+  "custom-ee-maaamet-dtm1": { label: "Estonian Land Board open data licence", ok: true, note: "attribution only; already in Mapterhorn", url: "https://geoportaal.maaamet.ee/eng/spatial-data/licences-p542.html" },
+  "custom-fi-nls-dem10": { label: "CC BY 4.0", ok: true, url: "https://www.maanmittauslaitos.fi/en/opendata-licence-cc40" },
+  "custom-ign-lidarhd-dtm-wms-raw": { label: "Licence Ouverte 2.0", ok: true, url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/" },
+  "custom-ign-lidarhd-dsm-wms-raw": { label: "Licence Ouverte 2.0", ok: true, url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/" },
+  "custom-fr-ign-lidarhd-nhm": { label: "Licence Ouverte 2.0", ok: true, url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/" },
+  "custom-fr-ign-lidarhd-minus-rgealti": { label: "Licence Ouverte 2.0", ok: true, url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/" },
+  "custom-fr-ign-rgealti-highres": { label: "Licence Ouverte 2.0", ok: true, url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/" },
+  "custom-fr-ign-lidarhd-reunion": { label: "Licence Ouverte 2.0", ok: true, url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/" },
+  "custom-1763115512226": { label: "Licence Ouverte 2.0 (IGN data, community repack)", ok: true, url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/" },
+  "custom-1763118373252": { label: "Licence Ouverte 2.0 (IGN data, community repack)", ok: true, url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/" },
+  "custom-fo-us-dsm25": { label: "Umhvørvisstovan open data terms", ok: true, note: "already in Mapterhorn", url: "https://www.foroyakort.fo/um-foeroyakort/terms-and-conditions-in-english" },
+  "custom-uk-ea-lidar-dtm1": { label: "Open Government Licence v3", ok: true, url: "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" },
+  "custom-it-tinitaly": { label: "CC BY 4.0", ok: true, url: "https://tinitaly.pi.ingv.it/" },
+  "custom-jp-gsj-terrainrgb": { label: "GSI terms of use (CC BY 4.0-compatible)", ok: true, url: "https://www.gsi.go.jp/ENGLISH/page_e30286.html" },
+  "custom-nl-ahn-dtm": { label: "CC0", ok: true, note: "Mapterhorn ingests AHN at 5 m; the 0.5 m grid is the same licence", url: "https://www.ahn.nl/" },
+  "custom-nl-ahn-dsm": { label: "CC0", ok: true, url: "https://www.ahn.nl/" },
+  "custom-nl-ahn-nhm": { label: "CC0", ok: true, url: "https://www.ahn.nl/" },
+  "custom-no-kartverket-dtm1": { label: "CC BY 4.0 (© Kartverket)", ok: true, url: "https://www.kartverket.no/en/api-and-data/terms-of-use" },
+  "custom-no-kartverket-dom1": { label: "CC BY 4.0 (© Kartverket)", ok: true, url: "https://www.kartverket.no/en/api-and-data/terms-of-use" },
+  "custom-nz-linz-dem1": { label: "CC BY 4.0", ok: true, url: "https://www.linz.govt.nz/products-services/data/licensing-and-using-data" },
+  "custom-uy-ideuy-mdt30": { label: "Licencia de Datos Abiertos Uruguay", ok: true, note: "attribution only, no revocation clause; but 30 m, so no gain over GLO-30", url: "https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/politicas-y-gestion/licencia-datos-abiertos" },
+  "custom-us-3dep": { label: "US public domain", ok: true, url: "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits" },
+  "custom-us-3dep-wms": { label: "US public domain", ok: true, url: "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits" },
+  "custom-us-ak-ifsar-dtm5": { label: "US public domain (DGGS / USGS)", ok: true, url: "https://elevation.alaska.gov/" },
+  "custom-us-ak-ifsar-dsm5": { label: "US public domain (DGGS / USGS)", ok: true, url: "https://elevation.alaska.gov/" },
+  "custom-us-ak-ifsar-ndsm": { label: "US public domain (DGGS / USGS)", ok: true, url: "https://elevation.alaska.gov/" },
+  "custom-us-ny-dem1": { label: "Public domain (NYS GIS Program Office)", ok: true, url: "https://gis.ny.gov/elevation" },
+  "custom-ca-nb-dtm1": { label: "GeoNB Open Data Licence (OGL)", ok: true, url: "https://geonb.snb.ca/documents/license/geonb_license_e.pdf" },
+  "custom-ca-nb-dsm1": { label: "GeoNB Open Data Licence (OGL)", ok: true, url: "https://geonb.snb.ca/documents/license/geonb_license_e.pdf" },
+  "custom-ca-nb-ndsm": { label: "GeoNB Open Data Licence (OGL)", ok: true, url: "https://geonb.snb.ca/documents/license/geonb_license_e.pdf" },
+  "custom-ca-ontario-dtm05": { label: "Open Government Licence – Ontario", ok: true, url: "https://www.ontario.ca/page/open-government-licence-ontario" },
+  "custom-au-nsw-dem5": { label: "CC BY 4.0", ok: true, url: "https://www.data.nsw.gov.au/data/dataset/1-437c0697e6524d8ebf10ad0d915bc219" },
+  "custom-au-qld-dem": { label: "CC BY 3.0 AU", ok: true, note: "Mapterhorn already takes CC BY 3.0 for Tasmania", url: "https://www.data.qld.gov.au/dataset/queensland-elevation-dem-public-time-series-service" },
+  "custom-de-nrw-dgm1": { label: "Datenlizenz Deutschland – Zero 2.0", ok: true, url: "https://www.govdata.de/dl-de/zero-2-0" },
+  "custom-mx-aguadafenix-lidar": { label: "CC BY 4.0 (OpenTopography)", ok: true, url: "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1" },
+  "custom-mx-aguadafenix-dsm": { label: "CC BY 4.0 (OpenTopography)", ok: true, url: "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1" },
+  "custom-mx-aguadafenix-ndsm": { label: "CC BY 4.0 (OpenTopography)", ok: true, url: "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1" },
+  "custom-tz-msimbazi-dtm05": { label: "CC BY 4.0", ok: true, note: "the record's free-text field also pastes ODbL boilerplate", url: "https://crd.resilienceacademy.ac.tz/catalog/#/dataset/880" },
+  "custom-tz-msimbazi-uav-dsm05": { label: "CC BY 4.0", ok: true, note: "the record's free-text field also pastes ODbL boilerplate", url: "https://crd.resilienceacademy.ac.tz/catalog/#/dataset/882" },
+  "custom-tz-msimbazi-ndsm": { label: "CC BY 4.0", ok: true, url: "https://crd.resilienceacademy.ac.tz/catalog/#/dataset/880" },
+  "custom-np-bhotekoshi-dsm-rasuwagadhi": { label: "CC BY 4.0 (Geopera)", ok: true, url: "https://github.com/geo-pera/bhotekoshi-2026-reconstruction" },
+  "custom-np-bhotekoshi-dh-rasuwagadhi": { label: "CC BY 4.0 (Geopera)", ok: true, url: "https://github.com/geo-pera/bhotekoshi-2026-reconstruction" },
+  "custom-np-bhotekoshi-dsm-syabrubesi": { label: "CC BY 4.0 (Geopera)", ok: true, url: "https://github.com/geo-pera/bhotekoshi-2026-reconstruction" },
+  "custom-np-bhotekoshi-dh-syabrubesi": { label: "CC BY 4.0 (Geopera)", ok: true, url: "https://github.com/geo-pera/bhotekoshi-2026-reconstruction" },
+  "custom-np-bhotekoshi-change-rasuwagadhi-vs-mapterhorn": { label: "CC BY 4.0 (Geopera)", ok: true, url: "https://github.com/geo-pera/bhotekoshi-2026-reconstruction" },
+  "custom-np-bhotekoshi-change-syabrubesi-vs-mapterhorn": { label: "CC BY 4.0 (Geopera)", ok: true, url: "https://github.com/geo-pera/bhotekoshi-2026-reconstruction" },
+  "custom-cn-xinmo-2013-dem2": { label: "CC BY 4.0 (OpenTopography Data Space)", ok: true, url: "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.112021.32648.1" },
+  "custom-cn-xinmo-2017-dem2": { label: "CC BY 4.0 (OpenTopography Data Space)", ok: true, url: "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.112021.32648.1" },
+  "custom-cn-xinmo-landslide": { label: "CC BY 4.0 (OpenTopography Data Space)", ok: true, url: "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.112021.32648.1" },
+  "custom-np-melamchi-2021-01-dsm1": { label: "CC BY 4.0 (OpenTopography Data Space)", ok: true, url: "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.102024.32645.1" },
+  "custom-np-melamchi-2021-10-dsm1": { label: "CC BY 4.0 (OpenTopography Data Space)", ok: true, url: "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.102024.32645.1" },
+  "custom-np-melamchi-flood": { label: "CC BY 4.0 (OpenTopography Data Space)", ok: true, url: "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.102024.32645.1" },
+  "custom-us-eaton-dsm-change-2016-2025": { label: "CC BY 4.0 (OpenTopography Data Space)", ok: true, url: "https://portal.opentopography.org/dataspace/dataset?opentopoID=OTDS.022025.32611.1" },
+  "custom-us-kilauea-2009-dsm1": { label: "CC BY 4.0 (OpenTopography, NCALM)", ok: true, url: "https://portal.opentopography.org/raster?opentopoID=OTSDEM.032012.32605.1" },
+  // Not compatible
+  "custom-hk-landsd-dtm5": { label: "DATA.GOV.HK terms", ok: false, note: "terms 'may be revised and/or amended from time to time without prior notice', the clause Mapterhorn rejects", url: "https://data.gov.hk/en/terms-and-conditions" },
+  "custom-mx-inegi-cem": { label: "INEGI Términos de Libre Uso", ok: false, note: "attribution-only and commercial use allowed, but INEGI 'se reserva el derecho a modificar en cualquier momento los presentes Términos'", url: "https://www.inegi.org.mx/inegi/terminos.html" },
+  "custom-idn-big-demnas": { label: "No published licence", ok: false, note: "download needs an Ina-Geoportal account; BIG's terms (resale banned) only show inside the app and no CC or open-data licence is stated anywhere", url: "https://tanahair.indonesia.go.id/portal-web/termcondition" },
+  "custom-ht-cnigs-dtm15": { label: "Not provided", ok: false, note: "OpenTopography lists the use licence as 'Not Provided'; HaitiData's catalogue is offline and CNIGS publishes no terms. data.gov's harvest says CC BY 4.0, but that is a feed default", url: "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.082021.32618.1" },
+  "custom-lt-klaipeda-dtm05": { label: "Municipal copyright, no licence", ok: false, url: "https://www.geoportal.lt/geoportal/" },
+  "custom-us-hi-dtm1-lerc": { label: "Hawaii Statewide GIS terms (no re-sale)", ok: false, note: "public data but 'any use except re-sale', a restriction CC BY does not carry. The same LiDAR is public domain in 3DEP at 1 m, which Mapterhorn already has", url: "https://geoportal.hawaii.gov/" },
+  "custom-us-hi-maui-dtm03-lerc": { label: "Hawaii Statewide GIS terms (no re-sale)", ok: false, note: "public data but 'any use except re-sale', a restriction CC BY does not carry", url: "https://geoportal.hawaii.gov/" },
+  "custom-us-hi-dsm1": { label: "Hawaii Statewide GIS terms (no re-sale)", ok: false, url: "https://geoportal.hawaii.gov/" },
+  "custom-us-hi-ndsm": { label: "Hawaii Statewide GIS terms (no re-sale)", ok: false, url: "https://geoportal.hawaii.gov/" },
+  "custom-au-sa-murray-dtm05": { label: "None on the service", ok: false, note: "MDBA claims Commonwealth IP without naming a licence; the same survey is CC BY 4.0 on the Elvis portal", url: "https://gis.mdba.gov.au/arcgis/rest/services/ELEVATION" },
+  "custom-us-kilauea-2018-07-dtm05": { label: "Not provided", ok: false, note: "OpenTopography lists the use licence as 'Not Provided'", url: "https://portal.opentopography.org/raster?opentopoID=OTSDEM.072018.6635.1" },
+  "custom-us-kilauea-collapse-vs-aw3d30": { label: "Not provided", ok: false, note: "inherits the July 2018 survey's missing licence", url: "https://portal.opentopography.org/raster?opentopoID=OTSDEM.072018.6635.1" },
+};
+
+/** The licence cell: a green tick for a Mapterhorn-compatible licence, a red
+ *  cross for an incompatible or missing one, a grey question mark when the
+ *  dataset was never checked. The dagger marks a hover note with the reason. */
+function LicenceCell({ id }: { id: string }) {
+  const l = LICENCE[id];
+  if (!l) return <td title="Licence not checked yet">❔ —</td>;
+  const text = l.url ? <a href={l.url} target="_blank" rel="noopener noreferrer">{l.label}</a> : l.label;
+  return <td title={l.note}>{l.ok ? "✅" : "❌"} {text}{l.note ? <span className="text-fd-muted-foreground"> †</span> : null}</td>;
+}
+
+/** Compatible rows first, unchecked next, incompatible at the bottom of each
+ *  table; the sort is stable, so the ISO order survives inside each band. */
+const licenceRank = (id: string) => { const ok = LICENCE[id]?.ok; return ok === true ? 0 : ok === false ? 2 : 1; };
+const byLicence = <T extends { s: { id: string } }>(rows: T[]) => [...rows].sort((a, b) => licenceRank(a.s.id) - licenceRank(b.s.id));
 
 // How each source is fetched, in the terms the rest of the docs use.
 const SERVING: Record<string, string> = {
@@ -314,7 +418,12 @@ function splitSurface(rows: Row[]): { terrain: Row[]; surface: Row[] } {
 
 /** Which bucket a source falls into versus Mapterhorn's best ingested resolution. */
 function bucketOf(r: Row): "new" | "finer" | "same" | "coarser" {
-  if (r.mh === null || r.mh === undefined) return "new";
+  // No national entry: Mapterhorn serves GLO-30 there, so anything finer than
+  // 30 m is new data, and a 30 m source (Uruguay) is the same grid re-served.
+  if (r.mh === null || r.mh === undefined) {
+    if (r.ours === null || r.ours < GLO30) return "new";
+    return r.ours > GLO30 ? "coarser" : "same";
+  }
   if (r.ours === null) return "same";
   return r.ours < r.mh ? "finer" : r.ours > r.mh ? "coarser" : "same";
 }
@@ -444,11 +553,11 @@ export function NationalDatasetsTable({ group }: { group?: (typeof GROUPS)[numbe
               <thead>
                 <tr>
                   <th>ISO A3</th><th>Country</th><th>Dataset</th><th>View</th><th>Coverage</th>
-                  <th>API resolution</th><th>Mapterhorn</th><th>Bulk download</th><th>Served as</th><th>Endpoint</th>
+                  <th>API resolution</th><th>Mapterhorn</th><th>Bulk download</th><th>Licence</th><th>Served as</th><th>Endpoint</th>
                 </tr>
               </thead>
               <tbody>
-                {group.map(({ s, iso, mh }) => {
+                {byLicence(group).map(({ s, iso, mh }) => {
                   const facts = FACTS[s.id];
                   return (
                     <tr key={s.id}>
@@ -458,8 +567,9 @@ export function NationalDatasetsTable({ group }: { group?: (typeof GROUPS)[numbe
                       <td><OpenLink s={s} label={`${COUNTRY[iso] ?? iso} ${s.name.replace(ISO_RE, "")}`} /></td>
                       <td>{facts?.coverage ?? "—"}</td>
                       <td>{facts?.res ?? "—"}</td>
-                      <td>{mh === null || mh === undefined ? "not ingested" : `${mh} m`}</td>
+                      <td>{mh === null || mh === undefined ? (g.key === "new" ? "not ingested" : `GLO-30 fallback, ${GLO30} m`) : `${mh} m`}</td>
                       <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : facts?.res ? "same" : "—"}</td>
+                      <LicenceCell id={s.id} />
                       <td>{SERVING_LABEL(s.type)}</td>
                       <td>
                         <a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a>
@@ -488,6 +598,13 @@ export function NationalDatasetsFootnote() {
         The sample picker in the app can regrade by either.
       </p>
       <p className="text-xs text-fd-muted-foreground">
+        <em>Licence</em> is whether Mapterhorn could ingest the dataset under its own rule: an attribution-only open licence
+        with no clause letting the publisher rewrite the terms at will, roughly CC BY (see{" "}
+        <a href="https://github.com/mapterhorn/mapterhorn/issues/27#issuecomment-6507782195" target="_blank" rel="noopener noreferrer">wipfli&apos;s note</a>).
+        ✅ compatible (CC BY, CC0, OGL, Licence Ouverte, public domain and the like); ❌ incompatible, or no licence published.
+        Incompatible rows sit at the bottom of each table; † marks a hover note with the reason.
+      </p>
+      <p className="text-xs text-fd-muted-foreground">
         {rows.length} national datasets, generated at build time from{" "}
         <a href="https://github.com/Iconem/terrain-viewer/blob/main/lib/custom-sources.json" target="_blank" rel="noopener noreferrer">
           <code>lib/custom-sources.json</code>
@@ -507,10 +624,10 @@ export function SubNationalTable() {
     <div className="overflow-x-auto">
       <table className="text-sm">
         <thead>
-          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>View</th><th>Coverage</th><th>API resolution</th><th>Mapterhorn</th><th>Bulk download</th><th>Served as</th><th>Endpoint</th></tr>
+          <tr><th>ISO A3</th><th>Region</th><th>Dataset</th><th>View</th><th>Coverage</th><th>API resolution</th><th>Mapterhorn</th><th>Bulk download</th><th>Licence</th><th>Served as</th><th>Endpoint</th></tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
+          {byLicence(rows).map((r) => {
             const { s, iso, mh } = r;
             return (
             <tr key={s.id}>
@@ -522,6 +639,7 @@ export function SubNationalTable() {
               <td>{FACTS[s.id]?.res ?? "—"}</td>
               <td>{mh === null || mh === undefined ? "not ingested" : <><Trend dir={bucketOf(r) === "coarser" ? "down" : bucketOf(r) === "same" ? "same" : "up"} /> {mh} m</>}</td>
               <td>{s.bulkResolutionM !== undefined ? `${s.bulkResolutionM} m` : FACTS[s.id]?.res ? "same" : "—"}</td>
+              <LicenceCell id={s.id} />
               <td>{SERVING_LABEL(s.type)}</td>
               <td><a href={endpointOf(s.url)} target="_blank" rel="noopener noreferrer">{hostOf(s.url)}</a></td>
             </tr>
@@ -531,6 +649,7 @@ export function SubNationalTable() {
       </table>
       <p className="text-xs text-fd-muted-foreground">
         <em>Mapterhorn</em> is its finest source anywhere in the country, which may not be this region: the chevron compares the two.{" "}
+        <em>Licence</em> reads as in the national tables: ✅ Mapterhorn-compatible, ❌ not, † hover for the reason.{" "}
         {rows.length} regional datasets. Kept out of <em>Load Sample Sources</em> so the list stays
         national, but each remains importable with a <code>?terrainSourceA=&lt;id&gt;</code> link.
       </p>
