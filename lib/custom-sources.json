@@ -53,7 +53,7 @@
         },
         {
             "id": "custom-be-vlaanderen-dtm1",
-            "name": "BEL - Digitaal Vlaanderen DHMV II DTM 1m - WCS raw Float32",
+            "name": "BEL - Flanders Digitaal Vlaanderen DHMV II DTM 1m - WCS raw Float32",
             "url": "geo.api.vlaanderen.be/el-dtm/wcs?service=WCS&version=1.0.0&request=GetCoverage&coverage=EL.GridCoverage.DTM&CRS=EPSG:3857&RESPONSE_CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514&FORMAT=GeoTIFF",
             "type": "wms-raw",
             "maxzoom": 19,
@@ -66,7 +66,7 @@
         },
         {
             "id": "custom-be-vlaanderen-dsm1",
-            "name": "BEL - Digitaal Vlaanderen DHMV II DSM 1m (surface) - WCS raw Float32",
+            "name": "BEL - Flanders Digitaal Vlaanderen DHMV II DSM 1m (surface) - WCS raw Float32",
             "url": "geo.api.vlaanderen.be/el-dsm/wcs?service=WCS&version=1.0.0&request=GetCoverage&coverage=EL.GridCoverage.DSM&CRS=EPSG:3857&RESPONSE_CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514&FORMAT=GeoTIFF",
             "type": "wms-raw",
             "maxzoom": 19,
@@ -79,7 +79,7 @@
         },
         {
             "id": "custom-be-vlaanderen-ndsm",
-            "name": "BEL - nDSM Digitaal Vlaanderen DHMV II DSM − DTM 1m - derived",
+            "name": "BEL - nDSM Flanders Digitaal Vlaanderen DHMV II DSM − DTM 1m - derived",
             "url": "diff://custom-be-vlaanderen-dsm1-custom-be-vlaanderen-dtm1",
             "type": "dem-diff",
             "diffMinuendId": "custom-be-vlaanderen-dsm1",
