@@ -152,6 +152,24 @@
             "infoUrl": "https://geoportal.cuzk.gov.cz/Default.aspx?mode=TextMeta&side=vyskopis&metadataID=CZ-CUZK-DMR5G-V"
         },
         {
+            "id": "custom-cz-cuzk-ndsm",
+            "name": "CZE - nDSM CUZK DMP 1G DSM − DMR 5G DTM 0.5m - derived",
+            "url": "diff://custom-cz-cuzk-dmp05-custom-cz-cuzk-dmr5g",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-cz-cuzk-dmp05",
+            "diffSubtrahendId": "custom-cz-cuzk-dmr5g",
+            "loadWithSamples": false,
+            "bounds": [
+                12.0,
+                48.5,
+                18.9,
+                51.1
+            ],
+            "resolutionM": 0.5,
+            "description": "Normalised height model of Czechia from the two CUZK ImageServers (DMP 1G surface minus DMR 5G terrain), subtracted tile by tile in the browser: buildings and canopy at their height above ground, the ground itself at 0. The DSM comes from image correlation rather than lidar, so canopy heights are smoother than in a lidar nDSM. Try a 0-40 m ramp. Both operands are added with it.",
+            "infoUrl": "https://geoportal.cuzk.gov.cz/Default.aspx?mode=TextMeta&side=vyskopis&metadataID=CZ-CUZK-DMP1G-V"
+        },
+        {
             "id": "custom-1762932753467",
             "name": "ESP - TerrainRGB Nuevo servicio XYZ del Modelo Digital de Elevaciones de España:",
             "url": "https://xyz-mdt.idee.es/1.0.0/raster-dem/{z}/{x}/{y}.png",
