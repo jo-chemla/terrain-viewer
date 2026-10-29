@@ -1704,6 +1704,17 @@
             "description": "ČÚZK national orthophoto of Czechia, 12.5-25 cm, Web Mercator tile cache. Current only (CENIA's 1950s orthophoto is EPSG:5514 only). Checked 2026-10-05."
         },
         {
+            "id": "basemap-nl-pdok-luchtfoto-hr",
+            "name": "NLD - PDOK Luchtfoto Actueel HR 8 cm (current year)",
+            "url": "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg",
+            "type": "tms",
+            "maxzoom": 21,
+            "loadWithSamples": false,
+            "bounds": [3.2, 50.7, 7.3, 53.7],
+            "infoUrl": "https://www.pdok.nl/introductie/-/article/luchtfoto-pdok",
+            "description": "The most recent nationwide orthophoto of the Netherlands at 7.5 to 8 cm (Beeldmateriaal Nederland, open data CC BY 4.0), as PDOK's WMTS in Web Mercator, keyless with open CORS; the layer always points at the latest flown year. Pairs with the NLD AHN terrain sources. The year-by-year Luchtfoto layers (2016 to today) are on the historical timeline's Netherlands catalog. Checked 2026-10-29."
+        },
+        {
             "id": "basemap-pl-ortofotomapa",
             "name": "POL - Geoportal Ortofotomapa (current)",
             "url": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTOFOTOMAPA&STYLE=default&FORMAT=image/jpeg&TILEMATRIXSET=EPSG:3857&TILEMATRIX=EPSG:3857:{z}&TILEROW={y}&TILECOL={x}",
