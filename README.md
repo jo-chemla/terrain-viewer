@@ -175,7 +175,7 @@ This project was inspired by:
 - [Impasto CAS Viewer](https://impasto.dev/)
 - Codetard threejs terrain demos [ui](https://x.com/codetaur/status/1968896182744207599), [modes](https://x.com/codetaur/status/1967783305866252557) and [TSL/webgpu globe](https://x.com/codetaur/status/1986614344957006075) + [threegs repo](https://github.com/ngwnos/threegs)
 
-Know a good terrain tileset (Terrain-RGB or Terrarium encoded) that isn't in the built-in source list? [Suggest it](https://github.com/mapterhorn/mapterhorn/issues/27).
+Know a good terrain tileset (Terrain-RGB or Terrarium encoded) that isn't in the built-in source list? [Suggest it](https://github.com/Iconem/terrain-viewer/issues/29).
 
 ## License
 

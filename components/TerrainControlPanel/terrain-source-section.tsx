@@ -522,7 +522,7 @@ export const TerrainSourceSection: React.FC<{
           variant="ghost"
           size="sm"
           className="w-full mt-2 text-muted-foreground cursor-pointer"
-          onClick={() => window.open("https://github.com/mapterhorn/mapterhorn/issues/27", "_blank")}
+          onClick={() => window.open("https://github.com/Iconem/terrain-viewer/issues/29", "_blank")}
         >
           <Lightbulb className="h-4 w-4 mr-1" /> Suggest a new terrain source
         </Button>
