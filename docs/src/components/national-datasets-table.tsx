@@ -69,6 +69,8 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-idn-big-demnas": { res: "~8 m", coverage: "Nationwide" },
   "custom-au-qld-dem": { res: "0.5–1 m", coverage: "Queensland only" },
   "custom-be-vlaanderen-dtm1": { res: "1 m", coverage: "Flanders only (not Wallonia/Brussels)" },
+  "custom-be-vlaanderen-dsm1": { res: "1 m", coverage: "Flanders only (not Wallonia/Brussels)" },
+  "custom-be-vlaanderen-ndsm": { res: "1 m", coverage: "Flanders only (not Wallonia/Brussels)" },
   "custom-mx-inegi-cem": { res: "~15 m", coverage: "Nationwide (clips above ~5553 m)" },
   "custom-nl-ahn-dtm": { res: "0.5 m", coverage: "Nationwide" },
   "custom-nl-ahn-dsm": { res: "0.5 m", coverage: "Nationwide" },
@@ -172,7 +174,7 @@ const EVENT_PAIRS = /^custom-(nz-kaikoura|us-hi-kilauea-2018|is-fagradalsfjall|u
 const SUB_NATIONAL = new Set([
   "custom-au-nsw-dem5", "custom-au-qld-dem", "custom-ca-ontario-dtm05",
   "custom-de-nrw-dgm1", "custom-mx-aguadafenix-lidar", "custom-at-tirol-dgm5",
-  "custom-be-vlaanderen-dtm1", "custom-1762932753466", "custom-fr-ign-lidarhd-reunion",
+  "custom-be-vlaanderen-dtm1", "custom-be-vlaanderen-dsm1", "custom-be-vlaanderen-ndsm", "custom-1762932753466", "custom-fr-ign-lidarhd-reunion",
   "custom-us-hi-dtm1-lerc", "custom-us-hi-dsm1", "custom-us-hi-ndsm",
   "custom-us-hi-maui-dtm03-lerc", "custom-us-ak-ifsar-dtm5", "custom-us-ak-ifsar-dsm5",
   "custom-us-ak-ifsar-ndsm", "custom-us-ny-dem1", "custom-ca-nb-dtm1",

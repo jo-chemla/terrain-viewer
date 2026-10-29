@@ -65,6 +65,32 @@
             "infoUrl": "https://www.vlaanderen.be/datavindplaats/catalogus/digitaal-hoogtemodel-vlaanderen-ii-dtm-raster-1-m"
         },
         {
+            "id": "custom-be-vlaanderen-dsm1",
+            "name": "BEL - Digitaal Vlaanderen DHMV II DSM 1m (surface) - WCS raw Float32",
+            "url": "geo.api.vlaanderen.be/el-dsm/wcs?service=WCS&version=1.0.0&request=GetCoverage&coverage=EL.GridCoverage.DSM&CRS=EPSG:3857&RESPONSE_CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514&FORMAT=GeoTIFF",
+            "type": "wms-raw",
+            "maxzoom": 19,
+            "nodataFloor": -100,
+            "nodataFill": 0,
+            "bounds": [2.5, 50.6, 5.9, 51.5],
+            "description": "FLANDERS ONLY. The surface-model twin of the DHMV II DTM (first returns: canopy and buildings), same 2013-2015 LiDAR campaign, same 1 m grid, served raw as Float32 by the el-dsm WCS (open CORS, Gratis Open Data Licentie Vlaanderen). Together with the DTM it makes a canopy/building-height nDSM - see the derived entry. NoData -9999.",
+            "resolutionM": 1,
+            "infoUrl": "https://www.vlaanderen.be/datavindplaats/catalogus/digitaal-hoogtemodel-vlaanderen-ii-dsm-raster-1-m"
+        },
+        {
+            "id": "custom-be-vlaanderen-ndsm",
+            "name": "BEL - nDSM Digitaal Vlaanderen DHMV II DSM − DTM 1m - derived",
+            "url": "diff://custom-be-vlaanderen-dsm1-custom-be-vlaanderen-dtm1",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-be-vlaanderen-dsm1",
+            "diffSubtrahendId": "custom-be-vlaanderen-dtm1",
+            "loadWithSamples": false,
+            "bounds": [2.5, 50.6, 5.9, 51.5],
+            "resolutionM": 1,
+            "description": "Normalised height model of Flanders from the two Digitaal Vlaanderen WCS services (DHMV II surface minus terrain), subtracted tile by tile in the browser: buildings, trees and hedgerows at their height above ground, the ground itself at 0. Try a 0-40 m ramp. Both operands are added with it.",
+            "infoUrl": "https://www.vlaanderen.be/datavindplaats/catalogus/digitaal-hoogtemodel-vlaanderen-ii-dsm-raster-1-m"
+        },
+        {
             "id": "custom-ca-nrcan-mrdem30",
             "name": "CAN - NRCan MRDEM 30m DTM - single national COG",
             "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
