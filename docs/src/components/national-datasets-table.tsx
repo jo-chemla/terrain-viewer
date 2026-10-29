@@ -291,9 +291,10 @@ function loadRows(): Row[] {
     // NOT filtered on loadWithSamples: several entries are deliberately kept out
     // of "Load Sample Sources" (sub-national, or project scans) while still being
     // documented and still importable by permalink. Only the site-specific scans
-    // are dropped, since they are not national elevation products at all.
+    // are dropped, since they are not national elevation products at all, as
+    // are the "ART - " painting scans, whose prefix is not a country.
     .filter((r): r is { s: Source; iso: string } =>
-      Boolean(r.iso) && r.iso !== "AFR" && !PROJECT_SCANS.has(r.s.id) && !EVENT_PAIRS.test(r.s.id))
+      Boolean(r.iso) && r.iso !== "AFR" && r.iso !== "ART" && !PROJECT_SCANS.has(r.s.id) && !EVENT_PAIRS.test(r.s.id))
     .map(({ s, iso }) => ({ s, iso, ours: s.resolutionM ?? parseRes(FACTS[s.id]?.res), mh: MAPTERHORN_RES[iso] }))
     .sort((a, b) => a.iso.localeCompare(b.iso) || a.s.name.localeCompare(b.s.name));
 }

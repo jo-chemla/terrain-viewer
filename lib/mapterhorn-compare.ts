@@ -47,6 +47,9 @@ export function resolutionOf(source: { resolutionM?: number; bulkResolutionM?: n
 export function compareWithMapterhorn(source: { name: string; resolutionM?: number; bulkResolutionM?: number }, metric: ResolutionMetric = "api"): MapterhornComparison | null {
   const ours = resolutionOf(source, metric)
   if (ours === undefined) return null
+  // Non-geographic scans (a painting as terrain, "ART - ..."): the grid is
+  // microns and the world is fake, so there is nothing to compare.
+  if (/^ART - /.test(source.name)) return null
   // Bathymetry has no Mapterhorn counterpart at all - it is land-only.
   if (/bathymetr/i.test(source.name)) return { verdict: "new", ours, theirs: GLO30 }
   if (/bare-earth DTM from the GLO-30/i.test(source.name)) return { verdict: "bareearth", ours, theirs: GLO30 }
