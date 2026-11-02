@@ -69,6 +69,8 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-fr-ign-lidarhd-reunion": { res: "0.5 m", coverage: "Réunion only" },
   "custom-fr-ign-lidarhd-minus-rgealti": { res: "1 m", coverage: "Mainland + Corsica — ground change between the two IGN DTM generations" },
   "custom-hk-landsd-dtm5": { res: "5 m", coverage: "Hong Kong SAR (LERC tiles, includes elevated roads)" },
+  "custom-hk-cedd-dtm05": { res: "0.5 m", coverage: "Hong Kong SAR, 2020 helicopter LiDAR, bare earth" },
+  "custom-hk-cedd-dsm5": { res: "5 m", coverage: "Hong Kong SAR, 2020 LiDAR surface (LERC tiles)" },
   "custom-global-aw3d30": { res: "30 m", coverage: "Global 82 N–82 S, JAXA optical-stereo DSM (via titiler)" },
   "custom-global-aw3d30-minus-mapterhorn": { res: "30 m", coverage: "Global — AW3D30 minus Mapterhorn" },
   "custom-us-ny-dem1": { res: "1 m", coverage: "New York State, newest LiDAR on top (metres, verified)" },

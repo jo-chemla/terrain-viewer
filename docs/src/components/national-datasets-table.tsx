@@ -91,7 +91,9 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-fr-ign-rgealti-highres": { res: "1–5 m", coverage: "Mainland + Réunion, Guadeloupe, Martinique, Guyane, Mayotte, St-Pierre-et-Miquelon" },
   "custom-fr-ign-lidarhd-reunion": { res: "0.5 m", coverage: "Réunion only" },
   "custom-fr-ign-lidarhd-minus-rgealti": { res: "1 m", coverage: "Mainland + Corsica — ground change between the two IGN DTM generations" },
-  "custom-hk-landsd-dtm5": { res: "5 m", coverage: "Hong Kong SAR (LERC tiles, includes elevated roads); CEDD 2020 LiDAR DTM/DSM at 0.5 m is bulk-only" },
+  "custom-hk-landsd-dtm5": { res: "5 m", coverage: "Hong Kong SAR (LERC tiles, includes elevated roads)" },
+  "custom-hk-cedd-dtm05": { res: "0.5 m", coverage: "Hong Kong SAR, 2020 helicopter LiDAR, bare earth" },
+  "custom-hk-cedd-dsm5": { res: "5 m", coverage: "Hong Kong SAR, 2020 LiDAR surface (LERC tiles)" },
   "custom-global-aw3d30": { res: "30 m", coverage: "Global 82 N–82 S, JAXA optical-stereo DSM (via titiler)" },
   "custom-global-aw3d30-minus-mapterhorn": { res: "30 m", coverage: "Global — AW3D30 minus Mapterhorn" },
   "custom-us-ny-dem1": { res: "1 m", coverage: "New York State, newest LiDAR on top (metres, verified)" },
@@ -205,6 +207,8 @@ const LICENCE: Record<string, Licence> = {
   "custom-us-kilauea-2009-dsm1": { label: "CC BY 4.0 (OpenTopography, NCALM)", ok: true, url: "https://portal.opentopography.org/raster?opentopoID=OTSDEM.032012.32605.1" },
   // Not compatible
   "custom-hk-landsd-dtm5": { label: "DATA.GOV.HK terms", ok: false, note: "terms 'may be revised and/or amended from time to time without prior notice', the clause Mapterhorn rejects; already on its EXCLUDED list", url: "https://data.gov.hk/en/terms-and-conditions" },
+  "custom-hk-cedd-dtm05": { label: "DATA.GOV.HK terms", ok: false, note: "terms 'may be revised and/or amended from time to time without prior notice', the clause Mapterhorn rejects; already on its EXCLUDED list", url: "https://data.gov.hk/en/terms-and-conditions" },
+  "custom-hk-cedd-dsm5": { label: "DATA.GOV.HK terms", ok: false, note: "terms 'may be revised and/or amended from time to time without prior notice', the clause Mapterhorn rejects; already on its EXCLUDED list", url: "https://data.gov.hk/en/terms-and-conditions" },
   "custom-mx-inegi-cem": { label: "INEGI Términos de Libre Uso", ok: false, note: "attribution-only and commercial use allowed, but INEGI 'se reserva el derecho a modificar en cualquier momento los presentes Términos'", url: "https://www.inegi.org.mx/inegi/terminos.html" },
   "custom-idn-big-demnas": { label: "No published licence", ok: false, note: "download needs an Ina-Geoportal account; BIG's terms (resale banned) only show inside the app and no CC or open-data licence is stated anywhere", url: "https://tanahair.indonesia.go.id/portal-web/termcondition" },
   "custom-ht-cnigs-dtm15": { label: "Not provided", ok: false, note: "OpenTopography lists the use licence as 'Not Provided'; HaitiData's catalogue is offline and CNIGS publishes no terms. data.gov's harvest says CC BY 4.0, but that is a feed default", url: "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.082021.32618.1" },
@@ -916,8 +920,6 @@ export function NationalCoverageMap({ region = "world" }: { region?: "world" | "
 const UNUSABLE: {
   iso: string; country: string; product: string; served: string; reason: string;
 }[] = [
-  { iso: "HKG", country: "Hong Kong", product: "CEDD 2020 LiDAR DTM and DSM 0.5 m", served: "Zipped GeoTIFF tiles",
-    reason: "Territory-wide helicopter LiDAR (Dec 2019 to Feb 2020) published on CSDI in late 2025: 3,253 DTM and 3,310 DSM tiles of 750 x 600 m, Float32 at 0.5 m in EPSG:2326, each a 5-6 MB zip on bulkdata.csdi.gov.hk with no CORS and no raster service behind it (the CSDI server only exposes the tile index). Free and direct to download, so it would be a pipeline's job, but the DATA.GOV.HK terms are the revocable kind Mapterhorn already excludes Hong Kong for. The 5 m LandsD DTM stays the live source." },
   { iso: "COL", country: "Colombia", product: "IGAC municipal MDT/MDS", served: "504 ArcGIS ImageServers",
     reason: "Live, CORS-clean, correct metadata — and the pixels are synthetic. Every Ov_i02_L0* overview is corrupt above 10 m/px, and below it the base rasters decode to an 8-value dither oscillating between the service's own minValues and maxValues. Confirmed by reading raw IEEE floats out of the uncompressed TIFF without GDAL. Worth reporting to IGAC." },
   { iso: "ECU", country: "Ecuador", product: "IGM mapabase:igmdtm", served: "Cascaded WMS",
