@@ -299,6 +299,19 @@
             "infoUrl": "https://portal.csdi.gov.hk/csdi-webpage/dataset/cedd_rcd_1629267205233_87895"
         },
         {
+            "id": "custom-hk-cedd-ndsm",
+            "name": "HKG - nDSM CEDD 2020 LiDAR DSM 5m − DTM 0.5m - derived",
+            "url": "diff://custom-hk-cedd-dsm5-custom-hk-cedd-dtm05",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-hk-cedd-dsm5",
+            "diffSubtrahendId": "custom-hk-cedd-dtm05",
+            "loadWithSamples": false,
+            "bounds": [113.82, 22.13, 114.45, 22.57],
+            "resolutionM": 5,
+            "description": "Building and canopy height over Hong Kong from one survey: the 5 m DSM tiles minus the 0.5 m DTM, subtracted tile by tile in the browser. The detail is limited by the 5 m DSM, so footprints are soft and narrow towers read low. Try a 0-100 m ramp. Both operands are added with it. Licence: DATA.GOV.HK terms (attribution required; terms may be revised without notice).",
+            "infoUrl": "https://portal.csdi.gov.hk/csdi-webpage/dataset/cedd_rcd_1629267205233_87895"
+        },
+        {
             "id": "custom-us-hi-dtm1-lerc",
             "name": "USA - Hawaii statewide LiDAR DTM 1m - LERC",
             "url": "https://geodata.hawaii.gov/arcgis/rest/services/SoH_Imagery/Hawaii_DTM_elevation/ImageServer/tile/{z}/{y}/{x}",
