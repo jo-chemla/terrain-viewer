@@ -269,8 +269,9 @@
             "type": "lerc",
             "maxzoom": 16,
             "bounds": [113.83, 22.15, 114.45, 22.57],
-            "description": "Hong Kong SAR's 5 m DTM from the Lands Department (DATA.GOV.HK, CSDI), republished by Esri China (Hong Kong) as a LERC-tiled elevation ImageServer and decoded in the browser by lerc://. Includes elevated roads and bridges (it is not strictly bare earth). Verified: Float32 single band, 20 LODs declared, real tiles to z15-16 over Victoria Peak, 404 past that; CORS open. Mapterhorn has no Hong Kong source, so this is 5 m where the default is GLO-30. Licence: DATA.GOV.HK terms (attribution required).",
+            "description": "Hong Kong SAR's 5 m DTM from the Lands Department (DATA.GOV.HK, CSDI), republished by Esri China (Hong Kong) as a LERC-tiled elevation ImageServer and decoded in the browser by lerc://. Includes elevated roads and bridges (it is not strictly bare earth). Verified: Float32 single band, 20 LODs declared, real tiles to z15-16 over Victoria Peak, 404 past that; CORS open. Mapterhorn has no Hong Kong source, so this is 5 m where the default is GLO-30. Finer data exists in bulk only: CEDD's 2020 helicopter LiDAR DTM and DSM at 0.5 m (Float32 GeoTIFF, EPSG:2326, about 3,300 zipped 750 x 600 m tiles per product on bulkdata.csdi.gov.hk, no CORS), so it cannot be streamed here. Licence: DATA.GOV.HK terms (attribution required; terms may be revised without notice, which is why Mapterhorn excludes Hong Kong).",
             "resolutionM": 5,
+            "bulkResolutionM": 0.5,
             "infoUrl": "https://data.gov.hk/en-data/dataset/hk-landsd-openmap-5m-grid-dtm"
         },
         {

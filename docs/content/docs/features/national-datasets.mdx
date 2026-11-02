@@ -82,6 +82,8 @@ Beyond the table, a long tail of countries publishes nothing retrievable at all.
 
 This is exactly the gap Mapterhorn fills. It ingests several of these under licence — Portugal's 0.5 m and Sweden's 1 m are both in its source catalog — so those countries already render at national resolution in this app through the Mapterhorn tileset, just not by talking to the agency live. Greece is the one case where the data isn't open at all, and falls back to global 30 m.
 
+Not every bulk product is worth proposing, though. Mapterhorn records what it has already declined in [`EXCLUDED.md`](https://github.com/mapterhorn/mapterhorn/blob/main/source-catalog/EXCLUDED.md): Lithuania's 5 m DTM and the Azores for non-commercial terms, and Hong Kong because the DATA.GOV.HK terms can be revised at any time. That last one covers the newest entry in the table above — CEDD's 0.5 m LiDAR is free to download and ten times finer than the 5 m grid the library streams, but the same terms apply, so it is for your own pipeline, not a Mapterhorn request. The red rows in the licence column are the rest of that list in the making.
+
 ## Global and non-DTM
 
 Datasets that are not one country's terrain model: worldwide and polar products, the global model behind every gap, and the surface models of the countries above.
