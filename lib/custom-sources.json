@@ -536,6 +536,19 @@
             "infoUrl": "https://gis.ny.gov/elevation"
         },
         {
+            "id": "custom-lt-hnit-dtm1",
+            "name": "LTU - DTM-LT 1m (HNIT-Baltic) - ImageServer raw Float32",
+            "url": "utility.arcgis.com/usrsvcs/servers/fef66dec83c14b0295180ecafa662aa0/rest/services/DTM_LT2020/ImageServer/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=514,514&format=tiff&pixelType=F32&noData=-9999&noDataInterpretation=esriNoDataMatchAny&f=image",
+            "type": "wms-raw",
+            "maxzoom": 18,
+            "nodataFloor": -100,
+            "nodataFill": 0,
+            "bounds": [20.9, 53.85, 26.85, 56.46],
+            "resolutionM": 1,
+            "description": "Lithuania's national LiDAR terrain model at a 1 m grid, from the National Land Service data, published by HNIT-Baltic as a public ArcGIS Online item. Verified: no token, CORS open, Float32, 292 m in the south-east hills. Licence: HNIT-Baltic's item terms allow non-commercial use only and only inside the Esri ArcGIS software environment, and bar distribution. This viewer is non-commercial but it is not ArcGIS, so the second condition is not met. The National Land Service also publishes a 5 m GRID.zip on inspire-geoportal.lt (non-commercial, 6.5 GB, no live service).",
+            "infoUrl": "https://www.arcgis.com/home/item.html?id=fef66dec83c14b0295180ecafa662aa0"
+        },
+        {
             "id": "custom-lt-klaipeda-dtm05",
             "name": "LTU - Klaipeda city LiDAR DTM 0.5m - LERC",
             "url": "https://tiles.arcgis.com/tiles/iXKkToITHRQyyZyN/arcgis/rest/services/Reljefo_modelis/ImageServer/tile/{z}/{y}/{x}",
@@ -543,7 +556,7 @@
             "maxzoom": 19,
             "bounds": [20.9, 55.6, 21.35, 55.83],
             "resolutionM": 0.5,
-            "description": "Klaipeda's 2017 city LiDAR terrain model as a LERC elevation tile cache in Web Mercator (verified: image/lerc, CORS, 24 LODs). Mapterhorn has Lithuania only via the 20 m national grid, so this is 40x finer - over one city. LICENCE UNCLEAR: the service carries a municipal copyright notice and no explicit open licence, unlike the national HNIT-Baltic services which are explicitly restricted to Esri clients and non-commercial use. Check before publishing with it. The national 1 m DTM is NOT included here for exactly that reason.",
+            "description": "Klaipeda's 2017 city LiDAR terrain model as a LERC elevation tile cache in Web Mercator (verified: image/lerc, CORS, 24 LODs). Mapterhorn has no Lithuanian source, so the default here is GLO-30. LICENCE UNCLEAR: the service carries a municipal copyright notice and no explicit open licence, unlike the national HNIT-Baltic services which are explicitly restricted to Esri clients and non-commercial use. Check before publishing with it. The national 1 m DTM is its own entry, with those terms noted.",
             "infoUrl": "https://www.geoportal.lt/geoportal/"
         },
         {

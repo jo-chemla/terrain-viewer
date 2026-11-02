@@ -74,6 +74,7 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-global-aw3d30": { res: "30 m", coverage: "Global 82 N–82 S, JAXA optical-stereo DSM (via titiler)" },
   "custom-global-aw3d30-minus-mapterhorn": { res: "30 m", coverage: "Global — AW3D30 minus Mapterhorn" },
   "custom-us-ny-dem1": { res: "1 m", coverage: "New York State, newest LiDAR on top (metres, verified)" },
+  "custom-lt-hnit-dtm1": { res: "1 m", coverage: "Nationwide LiDAR terrain (HNIT-Baltic ArcGIS item)" },
   "custom-lt-klaipeda-dtm05": { res: "0.5 m", coverage: "Klaipėda city only (LERC tiles; licence unclear)" },
   "custom-us-hi-dtm1-lerc": { res: "1 m", coverage: "Hawaii, LiDAR-covered parts of all islands (LERC tile cache)" },
   "custom-us-hi-maui-dtm03-lerc": { res: "0.3 m", coverage: "Maui and Molokai, 2019 (LERC tile cache)" },
