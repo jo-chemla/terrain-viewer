@@ -179,5 +179,5 @@ Know a good terrain tileset (Terrain-RGB or Terrarium encoded) that isn't in the
 
 ## License
 
-MIT License - feel free to use this project for any purpose.
+[MIT License](LICENSE) - feel free to use this project for any purpose.
 
