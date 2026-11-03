@@ -164,7 +164,9 @@ const CHEVRON_EXPAND_FRACTION = 0.2
 
 const PAGE_LOADED_MS = Date.now()
 // The pill's own pastel green is too faint for a thin tick, dashed above all.
-const WAYBACK_TICK_COLOR = "#15803d"
+const WAYBACK_TICK_COLOR = "#82bc8a"
+// The dashes run end to end, the middle two shorter: 8-3-7-3-7-3-8 of a 40 px tick.
+const WAYBACK_DASHES = `linear-gradient(to bottom, ${[[0, 8], [11, 18], [21, 28], [31, 39]].map(([a, b], i) => `${i ? `transparent ${a}px, ` : ""}${WAYBACK_TICK_COLOR} ${a}px, ${WAYBACK_TICK_COLOR} ${b}px, transparent ${b}px`).join(", ")})`
 
 // A Wayback tick's own release/mosaic label (t.label, from releaseDateLabel)
 // is a catalog-wide publish date — the REAL per-tile imagery date can differ
@@ -188,12 +190,13 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
             // the same day as Wayback's/GE's own latest, in particular).
             onPointerDown={(e) => { e.stopPropagation(); onSelect() }}
             className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-11 cursor-pointer"
+            data-wayback-release={tick.releaseNum}
             style={{ left: `${leftPct}%` }}
           >
             <div
               className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
               style={tick.provisional
-                ? { background: `repeating-linear-gradient(to bottom, ${WAYBACK_TICK_COLOR} 0 9px, transparent 9px 12px)` }
+                ? { background: WAYBACK_DASHES }
                 : { backgroundColor: WAYBACK_TICK_COLOR }}
             />
           </div>
