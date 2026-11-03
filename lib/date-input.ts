@@ -46,6 +46,7 @@ export function isoFromUtcMs(ms: number): string {
 }
 
 const DAY_MS = 86_400_000
+const PLAIN_DAY_MARGIN_MS = 120_000
 
 /** A catalog's date string -> ms. A time with no zone is read as UTC, not as
  *  the visitor's own clock, so one item has one date on every machine. */
@@ -53,12 +54,12 @@ export function parseUtcMs(value: string): number {
   return Date.parse(/T\d{2}(:?\d{2}(:?\d{2}(\.\d+)?)?)?$/.test(value) ? `${value}Z` : value)
 }
 
-/** Whether a timestamp carries a time of day. Midnight, or a second either
+/** Whether a timestamp carries a time of day. Midnight, or two minutes either
  *  side of it, is how catalogs write a plain day (NOAA's 00:00:01, an extent's
- *  23:59:59), so those count as no time. */
+ *  23:59:59), and few satellites pass then, so those count as no time. */
 export function hasUtcTime(ms: number): boolean {
   const sinceMidnight = ((ms % DAY_MS) + DAY_MS) % DAY_MS
-  return sinceMidnight > 1000 && sinceMidnight < DAY_MS - 1000
+  return sinceMidnight > PLAIN_DAY_MARGIN_MS && sinceMidnight < DAY_MS - PLAIN_DAY_MARGIN_MS
 }
 
 /** "YYYY-MM-DD HH:MM:SS" of a timestamp's UTC fields, without seconds when they are zero. */

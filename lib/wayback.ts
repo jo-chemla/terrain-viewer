@@ -6,7 +6,7 @@
 // URL-template fixup MapLibre needs.
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { getWaybackItems, getWaybackItemsWithLocalChanges, getMetadata, type WaybackItem, type WaybackMetadata } from "@esri/wayback-core"
+import { getWaybackItems, getMetadata, getWaybackServiceBaseURL, long2tile, lat2tile, type WaybackItem, type WaybackMetadata } from "@esri/wayback-core"
 
 export type { WaybackItem }
 
@@ -58,35 +58,125 @@ export function quantizeLocation(latitude: number, longitude: number, zoom: numb
   }
 }
 
-// Local-changes detection is per-(lat,lng,zoom) and genuinely expensive (it
-// compares candidate tiles across the whole release catalog at this exact
-// spot) — shared across every caller at the same rounded location/zoom via a
-// keyed cache of in-flight/resolved promises, the same idea as
-// cachedItemsPromise above. This matters because MORE than one thing needs
-// this now: the timeline panel (to draw ticks) AND each side's own
-// RasterBasemapSource (to resolve state.dateA/dateB to an actual release
-// number, see useResolvedWaybackRelease below) — without sharing, dual-mode
-// with both sides on Wayback would trigger this same expensive scan 3x over
-// for one location.
-const localChangesPromiseCache = new Map<string, Promise<WaybackItem[]>>()
+function locationKey(latitude: number, longitude: number, zoom: number): string {
+  return `${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
+}
+
+// What the walk and the dates found, kept between sessions: a release's imagery
+// date at a place never changes, and a walk only ages when a new release comes
+// out. Capped to the 300 most recent places of each, about 130 KB of the 5 MB
+// or so a browser allows: a place's walk and dates
+// take about 450 bytes in all. Oldest out first, by insertion order.
+const STORE_KEY = "waybackDates.v1"
+const STORE_MAX_PLACES = 300
+type WaybackStore = {
+  /** tile -> [newest release when walked, ...releases with their own imagery, newest first] */
+  walks: Record<string, number[]>
+  /** location -> release -> imagery date (ms) */
+  dates: Record<string, Record<string, number>>
+}
+const store: WaybackStore = (() => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null")
+    if (parsed?.walks && parsed?.dates) return parsed
+  } catch { /* unreadable or unavailable: start empty */ }
+  return { walks: {}, dates: {} }
+})()
+let storeTimer: ReturnType<typeof setTimeout> | null = null
+function saveStoreSoon() {
+  if (storeTimer) return
+  storeTimer = setTimeout(() => {
+    storeTimer = null
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)) } catch { /* full or unavailable: this session's memory still has it */ }
+  }, 1000)
+}
+function capPlaces(places: Record<string, unknown>) {
+  const keys = Object.keys(places)
+  for (let i = 0; i < keys.length - STORE_MAX_PLACES; i++) delete places[keys[i]]
+}
+
+// The walk: which releases have their own imagery at a tile. Each tilemap
+// answer names the release to ask next, so it cannot run in parallel (20 to 30
+// requests at 150 ms, 4 s). @esri/wayback-core's getWaybackItemsWithLocalChanges
+// walks the same way but only answers at the end; this one reports each step,
+// so ticks can appear while it runs and dates can start before it ends, and it
+// is keyed by tile, what the answer depends on, not by the point inside it.
+// Shared by every caller: the timeline panel draws ticks from it, each side's
+// RasterBasemapSource resolves its date to a release number with it.
+interface WaybackWalk {
+  items: WaybackItem[]
+  /** How many of `items` are final. The last run of same-size releases can still move to an older one. */
+  settledCount: number
+  done: boolean
+  promise: Promise<WaybackItem[]>
+  listeners: Set<() => void>
+}
+const walks = new Map<string, WaybackWalk>()
+
+// Consecutive releases with a tile of the same size count as one image, kept at
+// its oldest: a same-size heuristic with no image fetch per candidate, the
+// SDK's onlyUseSizeToFilterDuplicates. Up to z11 it keeps them all, as the SDK does.
+function distinctReleases(found: { releaseNum: number; size: number }[], level: number): { releases: number[]; settled: number } {
+  if (level <= 11) return { releases: found.map((f) => f.releaseNum), settled: found.length }
+  const releases: number[] = []
+  found.forEach((f, i) => {
+    if (i > 0 && f.size === found[i - 1].size) releases[releases.length - 1] = f.releaseNum
+    else releases.push(f.releaseNum)
+  })
+  return { releases, settled: Math.max(0, releases.length - 1) }
+}
+
+function startWalk(latitude: number, longitude: number, zoom: number): WaybackWalk {
+  const level = Math.round(zoom)
+  const column = long2tile(longitude, level)
+  const row = lat2tile(latitude, level)
+  const tileKey = `${level}/${column}/${row}`
+  const existing = walks.get(tileKey)
+  if (existing) return existing
+  const walk: WaybackWalk = { items: [], settledCount: 0, done: false, promise: Promise.resolve([]), listeners: new Set() }
+  const report = () => { for (const listener of walk.listeners) listener() }
+  walk.promise = (async () => {
+    if (!cachedItemsPromise) cachedItemsPromise = getWaybackItems()
+    const catalog = await cachedItemsPromise
+    const byRelease = new Map(catalog.map((it) => [it.releaseNum, it]))
+    const newest = catalog[0].releaseNum
+    const stored = store.walks[tileKey]
+    if (stored?.[0] === newest) {
+      walk.items = stored.slice(1).map((n) => byRelease.get(n)).filter((it): it is WaybackItem => !!it)
+    } else {
+      const baseUrl = getWaybackServiceBaseURL()
+      const found: { releaseNum: number; size: number }[] = []
+      let next: number | undefined = newest
+      while (next) {
+        const r: Response = await fetch(`${baseUrl}/tilemap/${next}/${level}/${row}/${column}`)
+        const j = (await r.json()) as { data: number[]; select?: number[]; size?: number[] }
+        if (!j.data[0]) break
+        const releaseNum: number = j.select?.[0] ? +j.select[0] : next
+        found.push({ releaseNum, size: j.size?.[0] ?? 0 })
+        const { releases, settled } = distinctReleases(found, level)
+        walk.items = releases.map((n) => byRelease.get(n)).filter((it): it is WaybackItem => !!it)
+        walk.settledCount = settled
+        report()
+        next = catalog[catalog.findIndex((it) => it.releaseNum === releaseNum) + 1]?.releaseNum
+      }
+      delete store.walks[tileKey]
+      store.walks[tileKey] = [newest, ...walk.items.map((it) => it.releaseNum)]
+      capPlaces(store.walks)
+      saveStoreSoon()
+    }
+    walk.settledCount = walk.items.length
+    walk.done = true
+    report()
+    return walk.items
+  })()
+  walks.set(tileKey, walk)
+  // Don't cache a failure: a network blip shouldn't poison this tile for the session.
+  walk.promise.catch(() => { walks.delete(tileKey); walk.done = true; report() })
+  return walk
+}
+
 function getCachedLocalChanges(latitude: number, longitude: number, zoom: number): Promise<WaybackItem[]> {
-  const key = `${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
-  let promise = localChangesPromiseCache.get(key)
-  if (!promise) {
-    promise = getWaybackItemsWithLocalChanges(
-      { latitude, longitude },
-      Math.round(zoom),
-      // Trades a small chance of missing a genuinely-unique-but-same-tile-
-      // size release for a much cheaper check (no image data fetch per
-      // candidate) — worth it for a query that reruns on every pan.
-      { onlyUseSizeToFilterDuplicates: true },
-    )
-    localChangesPromiseCache.set(key, promise)
-    // Don't cache a failure — a transient network error shouldn't poison
-    // this location for the rest of the session.
-    promise.catch(() => localChangesPromiseCache.delete(key))
-  }
-  return promise
+  return startWalk(latitude, longitude, zoom).promise
 }
 
 /**
@@ -95,9 +185,7 @@ function getCachedLocalChanges(latitude: number, longitude: number, zoom: number
  * imagery as their neighbor at any given spot. This is what the timeline's
  * ticks are built from (real imagery dates, not "the layer exists" dates).
  */
-/** `enabled` exists because this is NOT a cheap hook: @esri/wayback-core
- *  resolves "which releases actually changed here" by walking every release's
- *  tilemap at this location, so one settled camera position is dozens of
+/** `enabled` exists because this is NOT a cheap hook: one new tile is dozens of
  *  requests to Esri's servers. It used to run unconditionally from General
  *  Settings — which is mounted in every mode — purely so the "Open in…"
  *  button could pre-resolve the latest release number for ONE of its
@@ -105,26 +193,38 @@ function getCachedLocalChanges(latitude: number, longitude: number, zoom: number
  *  imagery and nothing Esri anywhere on the map, kept hitting
  *  wayback.maptiles.arcgis.com on every pan. Callers that only want the
  *  release number now pass enabled=false until it is actually wanted. */
-export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, enabled = true): { items: WaybackItem[]; loading: boolean } {
+export interface WaybackLocalChanges {
+  items: WaybackItem[]
+  /** How many of `items` are final, and so worth a date lookup. */
+  settledCount: number
+  /** The location `items` belong to: the previous place's stay up until the new walk reports. */
+  key: string
+  loading: boolean
+}
+export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, enabled = true): WaybackLocalChanges {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
-  const [items, setItems] = useState<WaybackItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const key = locationKey(latitude, longitude, zoom)
+  const [result, setResult] = useState<WaybackLocalChanges>({ items: [], settledCount: 0, key: "", loading: true })
 
   useEffect(() => {
     // Drop the items too: a stale list would keep useWaybackRealCaptureDates
     // resolving dates (and its spinner spinning) after the ESRI pill is off.
-    if (!enabled) { setItems([]); setLoading(false); return }
-    let cancelled = false
-    setLoading(true)
+    if (!enabled) { setResult({ items: [], settledCount: 0, key, loading: false }); return }
+    let unsubscribe = () => {}
+    setResult((prev) => (prev.loading ? prev : { ...prev, loading: true }))
     const timer = setTimeout(() => {
-      getCachedLocalChanges(latitude, longitude, zoom)
-        .then((result) => { if (!cancelled) { setItems(result); setLoading(false) } })
-        .catch(() => { if (!cancelled) setLoading(false) })
+      const walk = startWalk(latitude, longitude, zoom)
+      const update = () => {
+        if (walk.items.length || walk.done) setResult({ items: walk.items, settledCount: walk.settledCount, key, loading: !walk.done })
+      }
+      walk.listeners.add(update)
+      unsubscribe = () => walk.listeners.delete(update)
+      update()
     }, LOCAL_CHANGES_DEBOUNCE_MS)
-    return () => { cancelled = true; clearTimeout(timer) }
-  }, [latitude, longitude, zoom, enabled])
+    return () => { clearTimeout(timer); unsubscribe() }
+  }, [key, enabled])
 
-  return { items, loading }
+  return result
 }
 
 // Module-level cache for per-tick real-capture-metadata lookups — both the
@@ -185,8 +285,18 @@ async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: n
  *  multi's listWaybackTicksInRange — can get the dateMs half too, without
  *  needing a second network call. */
 export async function fetchWaybackCaptureMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<{ dateMs: number; label: string } | null> {
-  const meta = await fetchWaybackFullMeta(latitude, longitude, zoom, releaseNumber)
-  return meta ? { dateMs: meta.date, label: new Date(meta.date).toISOString().slice(0, 10) } : null
+  const place = locationKey(latitude, longitude, zoom)
+  const stored = store.dates[place]?.[releaseNumber]
+  const dateMs = stored ?? (await fetchWaybackFullMeta(latitude, longitude, zoom, releaseNumber))?.date
+  if (dateMs == null) return null
+  if (stored == null) {
+    const dates = store.dates[place] ?? {}
+    delete store.dates[place]
+    store.dates[place] = { ...dates, [releaseNumber]: dateMs }
+    capPlaces(store.dates)
+    saveStoreSoon()
+  }
+  return { dateMs, label: new Date(dateMs).toISOString().slice(0, 10) }
 }
 
 /** Plain (non-hook) fetch + cache, used by useWaybackCaptureDate below and by
@@ -215,14 +325,12 @@ export async function fetchWaybackCaptureLabel(latitude: number, longitude: numb
  * so ticks now populate progressively as each one's real date actually
  * arrives, instead of all-or-nothing.
  *
- * Debounced (same LOCAL_CHANGES_DEBOUNCE_MS window as the rest of this file)
- * — @esri/wayback-core's getMetadata has no AbortSignal/cancellation option
- * at all, so an in-flight request genuinely can't be aborted once started;
- * debouncing is the closest practical equivalent, making sure a quick
- * "zoom out to the world, zoom back into a location" never actually STARTS
- * a batch of requests for the transient in-between viewport.
+ * Only asks about releases of THIS place that are final. The walk's own debounce
+ * already keeps a transient viewport from starting anything (getMetadata can't
+ * be aborted once started), so this adds no second one, which cost 400 ms on
+ * every new place. Lookups start as releases settle, alongside the walk.
  */
-export function useWaybackRealCaptureDates(items: WaybackItem[], latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { resolved: Record<number, { dateMs: number; label: string }>; loading: boolean } {
+export function useWaybackRealCaptureDates(walk: WaybackLocalChanges, latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { resolved: Record<number, { dateMs: number; label: string }>; loading: boolean } {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const [resolved, setResolved] = useState<Record<number, { dateMs: number; label: string }>>({})
   const [loading, setLoading] = useState(false)
@@ -237,10 +345,13 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitudeRaw: nu
   // date, which could — even though the user changed nothing — briefly pick
   // a DIFFERENT release as "nearest" and unmount/remount the raster source
   // for it, reading as an unprompted reload mid-pan.
-  const coarseKey = `${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
+  const coarseKey = locationKey(latitude, longitude, zoom)
+  const isThisPlace = walk.key === coarseKey
+  const settledCount = isThisPlace ? walk.settledCount : 0
 
   useEffect(() => {
-    if (!items.length) { setResolved({}); setLoading(false); return }
+    const items = walk.items.slice(0, settledCount)
+    if (!walk.items.length) { setResolved({}); setLoading(walk.loading); return }
     let cancelled = false
     // Deliberately NOT reset to {} here — the release a timeline handle is
     // currently sitting on needs to stay resolved (and its tick stay on the
@@ -251,39 +362,37 @@ export function useWaybackRealCaptureDates(items: WaybackItem[], latitudeRaw: nu
     // and only ones that turn out to genuinely not be part of that fresh set
     // at all — never merely because a fetch is still in flight.
     setLoading(true)
-    const freshReleaseNums = new Set(items.map((i) => i.releaseNum))
-    const timer = setTimeout(() => {
-      let remaining = items.length
-      for (const item of items) {
-        fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum).then((meta) => {
-          if (cancelled) return
-          if (meta) setResolved((prev) => ({ ...prev, [item.releaseNum]: meta }))
-          remaining -= 1
-          if (remaining === 0) {
-            setLoading(false)
-            setResolved((prev) => {
-              let changed = false
-              const next: Record<number, { dateMs: number; label: string }> = {}
-              for (const [key, value] of Object.entries(prev)) {
-                const releaseNum = Number(key)
-                if (freshReleaseNums.has(releaseNum)) next[releaseNum] = value
-                else changed = true
-              }
-              return changed ? next : prev
-            })
-          }
-        })
-      }
-    }, LOCAL_CHANGES_DEBOUNCE_MS)
-    return () => { cancelled = true; clearTimeout(timer) }
-    // items is a fresh array identity every render of its own caller — keying
-    // off coarseKey (which only changes once the view settles somewhere
-    // genuinely new) plus items.length (a new release appearing/
-    // disappearing) is enough to refetch exactly when the real candidate set
-    // changes, without needing items itself (or the raw lat/lng/zoom) in the
-    // dependency array.
+    const walkFinished = isThisPlace && !walk.loading
+    const freshReleaseNums = new Set(walk.items.map((i) => i.releaseNum))
+    let remaining = items.length
+    const settle = () => {
+      if (remaining > 0 || !walkFinished) return
+      setLoading(false)
+      setResolved((prev) => {
+        let changed = false
+        const next: Record<number, { dateMs: number; label: string }> = {}
+        for (const [key, value] of Object.entries(prev)) {
+          const releaseNum = Number(key)
+          if (freshReleaseNums.has(releaseNum)) next[releaseNum] = value
+          else changed = true
+        }
+        return changed ? next : prev
+      })
+    }
+    for (const item of items) {
+      fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum).then((meta) => {
+        if (cancelled) return
+        if (meta) setResolved((prev) => (prev[item.releaseNum]?.dateMs === meta.dateMs ? prev : { ...prev, [item.releaseNum]: meta }))
+        remaining -= 1
+        settle()
+      })
+    }
+    settle()
+    return () => { cancelled = true }
+    // walk.items is only new when the walk reported, and those are the three
+    // values that say so: the place, how many releases are final, whether it ended.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coarseKey, items.length])
+  }, [coarseKey, settledCount, isThisPlace, walk.loading, walk.items.length])
 
   return { resolved, loading }
 }
@@ -332,8 +441,9 @@ export function waybackTileUrl(item: WaybackItem): string {
  * Wayback exactly like every other source: a single date, nothing more.
  */
 export function useResolvedWaybackRelease(latitude: number, longitude: number, zoom: number, targetDateMs: number): { item: WaybackItem | null; loading: boolean } {
-  const { items, loading: itemsLoading } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
-  const { resolved, loading: datesLoading } = useWaybackRealCaptureDates(items, latitude, longitude, zoom)
+  const walk = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
+  const { items, loading: itemsLoading } = walk
+  const { resolved, loading: datesLoading } = useWaybackRealCaptureDates(walk, latitude, longitude, zoom)
 
   // The last pick, held STABLE while the real capture dates are still
   // streaming in: useWaybackRealCaptureDates resolves each release's real
