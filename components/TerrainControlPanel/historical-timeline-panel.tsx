@@ -11,6 +11,7 @@ import { atomWithStorage } from "jotai/utils"
 import { ChevronDown, ChevronLeft, ChevronRight, Link2, Settings2, Loader2, TriangleAlert, ArrowDownNarrowWide, History, Columns2, Layers2 } from "lucide-react"
 import type { MapRef } from "react-map-gl/maplibre"
 import { cn } from "@/lib/utils"
+import { formatUtcDate, hasUtcTime } from "@/lib/date-input"
 import { track } from "@/lib/analytics"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { OpenInLinksButton } from "./open-in-links"
@@ -122,7 +123,7 @@ function tickItemName(t: TimelineTick): string | null {
 function tickHeadline(t: TimelineTick): string {
   const iso = new Date(t.dateMs).toISOString()
   // Daily captures (drone, disaster) keep the day; yearly series the year.
-  const jan1 = iso.slice(5, 10) === "01-01"
+  const jan1 = iso.slice(5, 10) === "01-01" && !hasUtcTime(t.dateMs)
   const date = t.source in TIMELINE_CATALOG_BY_ID ? (jan1 ? iso.slice(0, 4) : iso.slice(0, 10)) : iso.slice(0, 7)
   return `${SOURCE_CONFIG[t.source]?.shortLabel ?? t.source} ${date}`
 }
@@ -189,7 +190,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
       {/* Date first, then source, then which view(s) (if any) it's active
           on — same order as the generic tick tooltip below. */}
       <TooltipContent>
-        <div>{new Date(tick.dateMs).toISOString().slice(0, 10)}</div>
+        <div>{formatUtcDate(tick.dateMs)}</div>
         <div>{SOURCE_CONFIG.wayback.label}</div>
         <div className="text-[10px] text-gray-400 mt-0.5">Mosaic: {tick.label}</div>
         {activeSides.length > 0 && <div className="text-[10px] text-gray-400">Map {activeSides.join(", ")}</div>}
@@ -2387,6 +2388,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             isOn={(side) => !!tickCard.tick.ref && ((picksKeep || catalogBasemap(tickCard.tick.ref)?.role === "overlay") ? ((state[side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`] as string[] | undefined) ?? []).includes(tickCard.tick.ref) : activeBasemapSourceFor(side) === tickCard.tick.ref)}
             kept={!!tickCard.tick.ref && customBasemaps.some((b) => b.id === tickCard.tick.ref && !b.transient)}
             bounds={tickCard.tick.ref ? catalogBasemap(tickCard.tick.ref)?.bounds : undefined}
+            viewCenter={[state.lng, state.lat]}
             onFit={() => { const b = tickCard.tick.ref ? catalogBasemap(tickCard.tick.ref)?.bounds : undefined; if (b) mapRef.current?.getMap()?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 }) }}
             onSend={(side) => sendTickTo(tickCard.tick, side, picksKeep || catalogBasemap(tickCard.tick.ref!)?.role === "overlay" ? "overlay" : "basemap")}
             onKeep={() => { keepTick(tickCard.tick); sendTickTo(tickCard.tick, resolveSide(), "overlay") }}
