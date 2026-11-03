@@ -20,7 +20,15 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, sta
 // The id is <identifier>.<channel> from the install path
 // (%LOCALAPPDATA%\com.iconem.terrain-viewer-light\stable\app\bin).
 const channelRoot = join(dirname(process.execPath), "..", "..");
-const appUserModelId = `${basename(dirname(channelRoot))}.${basename(channelRoot)}`;
+// Electrobun only updates an app under %LOCALAPPDATA%\<identifier>\<channel>
+// (~/.local/share on Linux; a macOS bundle updates wherever it is). A winget or
+// portable copy lives elsewhere, where the updater refuses it and the channel
+// root is just the parent folder, so it skips the check (winget upgrades it, a
+// portable copy is replaced by hand) and keeps its files in its own folder,
+// which the uninstaller removes.
+const selfUpdating = process.platform === "darwin" || basename(dirname(channelRoot)).startsWith("com.iconem.");
+const stateDir = selfUpdating ? channelRoot : join(dirname(process.execPath), "..");
+const appUserModelId = selfUpdating ? `${basename(dirname(channelRoot))}.${basename(channelRoot)}` : "Iconem.TerrainViewer";
 const SET_AUMID_PS1 = String.raw`param([string]$Launcher, [string]$Id, [string]$Marker)
 $code = @"
 using System;
@@ -77,9 +85,9 @@ function applyAppUserModelId() {
     const kept: Buffer[] = [];
     const wide = (text: string) => { const b = Buffer.from(text + "\0", "utf16le"); kept.push(b); return ptr(b); };
     shell32.symbols.SetCurrentProcessExplicitAppUserModelID(wide(appUserModelId));
-    const marker = join(channelRoot, "aumid-shortcuts.txt");
+    const marker = join(stateDir, "aumid-shortcuts.txt");
     if (!existsSync(marker)) {
-      const script = join(channelRoot, "set-aumid.ps1");
+      const script = join(stateDir, "set-aumid.ps1");
       writeFileSync(script, SET_AUMID_PS1);
       const launcher = join(dirname(process.execPath), "launcher.exe");
       const args = `-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${script}" -Launcher "${launcher}" -Id "${appUserModelId}" -Marker "${marker}"`;
@@ -234,14 +242,7 @@ applyWindowIcon(mainWindow);
 // no feed and skips this; the dev channel never reports updates.
 // The launcher does not forward the main process's console, so updater
 // lines also go to <channel root>/updater.log, readable after a failed apply.
-// Electrobun only updates an app under %LOCALAPPDATA%\\<identifier>\\<channel>
-// (~/.local/share on Linux; a macOS bundle updates wherever it is). A winget or
-// portable copy lives elsewhere, and the updater refuses it, so it stays quiet:
-// winget upgrades it, and a portable copy is replaced by hand. Its log then
-// stays in its own folder, which the uninstaller removes.
-const channelRoot = join(dirname(process.execPath), "..", "..");
-const selfUpdating = process.platform === "darwin" || basename(dirname(channelRoot)).startsWith("com.iconem.");
-const updaterLogPath = selfUpdating ? join(channelRoot, "updater.log") : join(dirname(process.execPath), "..", "updater.log");
+const updaterLogPath = join(stateDir, "updater.log");
 function ulog(...parts: unknown[]) {
   const line = `${new Date().toISOString()} ${parts.map((p) => (typeof p === "string" ? p : JSON.stringify(p))).join(" ")}`;
   console.log("[updater]", line);
