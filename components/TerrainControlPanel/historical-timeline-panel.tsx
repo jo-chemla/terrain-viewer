@@ -163,6 +163,8 @@ const WHEEL_GESTURE_TIMEOUT_MS = 200
 const CHEVRON_EXPAND_FRACTION = 0.2
 
 const PAGE_LOADED_MS = Date.now()
+// The pill's own pastel green is too faint for a thin tick, dashed above all.
+const WAYBACK_TICK_COLOR = "#15803d"
 
 // A Wayback tick's own release/mosaic label (t.label, from releaseDateLabel)
 // is a catalog-wide publish date — the REAL per-tile imagery date can differ
@@ -191,8 +193,8 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
             <div
               className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
               style={tick.provisional
-                ? { background: `repeating-linear-gradient(to bottom, ${SOURCE_CONFIG.wayback.color} 0 3px, transparent 3px 4px)`, opacity: 0.6 }
-                : { backgroundColor: SOURCE_CONFIG.wayback.color, opacity: 0.85 }}
+                ? { background: `repeating-linear-gradient(to bottom, ${WAYBACK_TICK_COLOR} 0 9px, transparent 9px 12px)` }
+                : { backgroundColor: WAYBACK_TICK_COLOR }}
             />
           </div>
         }
@@ -481,9 +483,9 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // rawWaybackItems is already empty when waybackWanted is false, so this
   // resolves nothing - no extra gate needed, it is one fetch per release.
   const { resolved: waybackRealDates, loading: waybackDatesLoading } = useWaybackRealCaptureDates(waybackWalk, state.lat, state.lng, state.zoom)
-  // While these load, the axis and any handle on ESRI hold still (see fullMin
-  // and resolveDisplayTick): each answer used to rescale the axis and move the
-  // handle to a new nearest tick, thirty times in eight seconds on a new place.
+  // While these load, a handle on ESRI holds still (see resolveDisplayTick), and
+  // the axis does until the timeline is clicked (see fullMin): each answer used to
+  // rescale the axis and move the handle, thirty times in eight seconds on a new place.
   const waybackSettling = waybackWanted && (waybackWalk.loading || waybackDatesLoading)
   // key is the tick's real dateMs (same convention as every other source
   // now — see the state.date/dateA-F consolidation) rather than the release
@@ -958,12 +960,25 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Once the user has actually zoomed/panned (viewWindow set), this floor
   // no longer applies at all — see effectiveMin below.
   const DEFAULT_VIEW_FLOOR_MS = Date.UTC(2010, 0, 1)
-  // While ESRI's ticks load, the last settled axis stays, so the timeline adapts
-  // once, at the end. Before any has settled, from the floor below up to today.
-  const settledDomain = useRef({ min: DEFAULT_VIEW_FLOOR_MS, max: PAGE_LOADED_MS })
-  if (!waybackSettling && items.length) settledDomain.current = { min: items[0].dateMs, max: items[items.length - 1].dateMs }
-  const fullMin = waybackSettling ? settledDomain.current.min : items[0]?.dateMs ?? 0
-  const fullMax = waybackSettling ? settledDomain.current.max : items[items.length - 1]?.dateMs ?? fullMin + 1
+  // With ESRI's ticks on, the axis only changes when the user acts on the timeline
+  // (a click, the wheel, a pill), taking in what has loaded by then or, mid-load,
+  // when the load ends. Ticks outside it stay hidden until then. It starts from
+  // the floor below up to today.
+  const heldDomain = useRef({ min: DEFAULT_VIEW_FLOOR_MS, max: PAGE_LOADED_MS })
+  const adaptAxisWanted = useRef(false)
+  const [, bumpAxis] = useState(0)
+  const adaptAxis = useCallback(() => { adaptAxisWanted.current = true; bumpAxis((n) => n + 1) }, [])
+  if (items.length && adaptAxisWanted.current && !waybackSettling) {
+    adaptAxisWanted.current = false
+    heldDomain.current = { min: items[0].dateMs, max: items[items.length - 1].dateMs }
+  }
+  const pillsKey = `${timelineSourcesForPills.join()}|${selectedCatalogs.join()}|${resolutionClasses.join()}`
+  const lastPillsKey = useRef(pillsKey)
+  useEffect(() => {
+    if (lastPillsKey.current !== pillsKey) { lastPillsKey.current = pillsKey; adaptAxis() }
+  }, [pillsKey, adaptAxis])
+  const fullMin = waybackWanted ? heldDomain.current.min : items[0]?.dateMs ?? 0
+  const fullMax = waybackWanted ? heldDomain.current.max : items[items.length - 1]?.dateMs ?? fullMin + 1
   const fullSpan = Math.max(1, fullMax - fullMin)
   const defaultMin = fullMax > DEFAULT_VIEW_FLOOR_MS ? Math.max(fullMin, DEFAULT_VIEW_FLOOR_MS) : fullMin
   // The actual reachable zoom-out/pan boundary — every fullMin/fullMax used
@@ -1531,6 +1546,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       hasZoomedRef.current = true
+      adaptAxis()
       // Base this event's math off whatever's still PENDING (not yet
       // flushed to React state) rather than the last committed render's
       // wheelStateRef snapshot, whenever one exists — otherwise several
@@ -1910,6 +1926,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     <div
       ref={setPanelRef}
       id="tour-historical-timeline"
+      onPointerUp={adaptAxis}
       className={cn(
         // `absolute` (inside TerrainViewer's fixed inset-0 root), not
         // `fixed` — so this panel's bottom edge is by construction the SAME

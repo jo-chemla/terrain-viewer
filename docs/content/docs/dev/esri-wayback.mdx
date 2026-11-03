@@ -42,7 +42,7 @@ The release catalog is fetched once per app session via a module-level cached pr
 
 **Provisional ticks.** A release found by the walk stands at its release date, dashed, until its imagery date arrives from the metadata service, one request per release, then moves there. Picking a dashed tick picks that release; the view's date follows it when the real date arrives. Esri's metadata has holes: a release can have no dated record at one level and one a level finer, so up to three finer levels are asked. A release with none stays dashed, and its tooltip says Esri gives no date.
 
-**The axis holds still.** While the walk and the dates load, the timeline keeps its last settled range, and a view on ESRI keeps its handle at its own date, so each answer does not rescale the axis and move the handle. The timeline adapts once, when they have all answered.
+**The axis holds still.** While the walk and the dates load, a view on ESRI keeps its handle at its own date. With ESRI's ticks on, the timeline keeps its range, from 2010 to today at first, until the user clicks it, zooms it or changes a pill; ticks outside that range stay hidden until then.
 
 **Between sessions.** Walks and imagery dates are kept in local storage (`waybackDates.v1`), 300 places at most, about 130 KB. A release's imagery date at a place never changes, and a walk only ages when a new release comes out, so a place seen before sends no request.
 
