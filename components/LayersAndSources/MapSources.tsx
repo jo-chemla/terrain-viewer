@@ -467,6 +467,10 @@ TerrainSources.displayName = "TerrainSources"
 // intermediate values into the one the user actually lands on, short enough
 // that a single deliberate click/step still feels instant.
 const RASTER_SOURCE_DEBOUNCE_MS = 150
+// Planet tiles draw down a quota, and every month is a full screen of new ones
+// (45 at 1920x1080): a month is only asked for once the timeline rests on it,
+// not while stepping or dragging past it.
+const PLANET_DATE_DEBOUNCE_MS = 800
 
 export const RasterBasemapSource = memo(({
     // basemapSource, mapboxKey, hereKey, customBasemapSources, titilerEndpoint,
@@ -509,7 +513,7 @@ export const RasterBasemapSource = memo(({
     useAtomValue(localFileVersionAtom)
 
     const basemapSource = useDebouncedValue(rawBasemapSource, RASTER_SOURCE_DEBOUNCE_MS)
-    const date = useDebouncedValue(rawDate, RASTER_SOURCE_DEBOUNCE_MS)
+    const date = useDebouncedValue(rawDate, rawBasemapSource === "planet" ? PLANET_DATE_DEBOUNCE_MS : RASTER_SOURCE_DEBOUNCE_MS)
     // Only actually resolves network-side when basemapSource === "wayback" —
     // see useResolvedWaybackRelease's own hooks, which no-op (return null,
     // items.length 0) when `date` is falsy regardless of source, so calling
