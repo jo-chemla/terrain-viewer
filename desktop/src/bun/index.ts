@@ -234,7 +234,14 @@ applyWindowIcon(mainWindow);
 // no feed and skips this; the dev channel never reports updates.
 // The launcher does not forward the main process's console, so updater
 // lines also go to <channel root>/updater.log, readable after a failed apply.
-const updaterLogPath = join(dirname(process.execPath), "..", "..", "updater.log");
+// Electrobun only updates an app under %LOCALAPPDATA%\\<identifier>\\<channel>
+// (~/.local/share on Linux; a macOS bundle updates wherever it is). A winget or
+// portable copy lives elsewhere, and the updater refuses it, so it stays quiet:
+// winget upgrades it, and a portable copy is replaced by hand. Its log then
+// stays in its own folder, which the uninstaller removes.
+const channelRoot = join(dirname(process.execPath), "..", "..");
+const selfUpdating = process.platform === "darwin" || basename(dirname(channelRoot)).startsWith("com.iconem.");
+const updaterLogPath = selfUpdating ? join(channelRoot, "updater.log") : join(dirname(process.execPath), "..", "updater.log");
 function ulog(...parts: unknown[]) {
   const line = `${new Date().toISOString()} ${parts.map((p) => (typeof p === "string" ? p : JSON.stringify(p))).join(" ")}`;
   console.log("[updater]", line);
@@ -272,6 +279,7 @@ async function updateOnLaunch() {
   try {
     const local = await Updater.getLocalInfo();
     if (!local.baseUrl || local.channel === "dev") { ulog("no feed (baseUrl empty) or dev channel"); return; }
+    if (!selfUpdating) { ulog("outside the managed update directory: updates come from the package manager"); return; }
     const info = await Updater.checkForUpdate();
     ulog("check", info);
     feedVersion = info.version ?? "";
