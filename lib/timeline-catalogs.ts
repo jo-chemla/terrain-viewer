@@ -28,6 +28,7 @@
 //     a STAC API or a static catalog.json, optionally one collection), through
 //     the same STAC loader as HOT; their ids carry the endpoint (stacCatalogId),
 //     so a shared link resolves in a browser that never saved them.
+import { captureTileUrl, hasCapture, updateCapture } from "./capture-mosaic"
 import type { ViewId } from "./grid-layouts"
 import { atom, getDefaultStore } from "jotai"
 import type { FeatureCollection } from "geojson"
@@ -374,7 +375,7 @@ function stacAssetHref(assets: Record<string, any> | undefined, prefer: string[]
  *  (and the timeline's window, when on); a static tree is crawled with its
  *  collections' extents as the filter (lib/stac-crawl.ts, cached for the
  *  session). One tick per acquisition: Maxar and Vantor cut a capture into
- *  many tiles, the tile under the view centre stands for it. */
+ *  many tiles, drawn together (lib/capture-mosaic.ts). */
 async function stacTicks(catalog: string, spec: StacSpec, bbox: Bbox, signal?: AbortSignal, range?: [number, number]): Promise<CatalogTick[]> {
   const def = TIMELINE_CATALOG_BY_ID[catalog]
   const base = trimSlash(spec.endpoint)
@@ -408,7 +409,7 @@ async function stacTicks(catalog: string, spec: StacSpec, bbox: Bbox, signal?: A
     groups.get(g)!.push(f)
   }
   const ticks: CatalogTick[] = []
-  for (const items of groups.values()) {
+  for (const [group, items] of groups) {
     const f = items.find((x) => Array.isArray(x.bbox) && containsPt(x.bbox as Bbox, cx, cy)) ?? items[0]
     const p: any = f.properties ?? {}
     const href = stacAssetHref(f.assets, spec.assetKeys)
@@ -422,8 +423,20 @@ async function stacTicks(catalog: string, spec: StacSpec, bbox: Bbox, signal?: A
     const info = spec.kind === "api" && f.collection ? `${base}/collections/${f.collection}/items/${encodeURIComponent(f.id)}` : f.links?.find((l) => l.rel === "self")?.href ?? spec.endpoint
     const thumb = f.assets?.thumbnail?.href ?? f.assets?.preview?.href
     const licence = spec.licence ?? (typeof p.license === "string" ? p.license : undefined)
-    ticks.push(register(catalog, f.id, dateMs, label, cogSource(`${def.label} · ${title} · ${date}`, href, f.bbox as Bbox | undefined, `${def.label}, ${date}${p.gsd ? `, ${Number(p.gsd).toFixed(2)} m` : ""}`, info),
-      { gsd: Number.isFinite(Number(p.gsd)) ? Number(p.gsd) : undefined, thumb, provider: def.label, licence }))
+    const description = `${def.label}, ${date}${p.gsd ? `, ${Number(p.gsd).toFixed(2)} m` : ""}`
+    const name = `${def.label} · ${title} · ${date}`
+    const meta = { gsd: Number.isFinite(Number(p.gsd)) ? Number(p.gsd) : undefined, thumb, provider: def.label, licence }
+    // Several COGs of one pass: drawn together, under one id whatever the view.
+    const captureId = `${catalog}|${group}`
+    if (items.length > 1 || hasCapture(captureId)) {
+      const cogs = items.flatMap((it) => { const c = stacAssetHref(it.assets, spec.assetKeys); return c && Array.isArray(it.bbox) ? [{ href: c, bbox: it.bbox as Bbox }] : [] })
+      if (cogs.length) {
+        const bounds = updateCapture(captureId, cogs, bbox)
+        ticks.push(register(catalog, group, dateMs, label, { name, url: captureTileUrl(captureId), type: "tms", role: "basemap", bounds, description, infoUrl: info, maxzoom: 21 } as Omit<CustomBasemapSource, "id">, meta))
+        continue
+      }
+    }
+    ticks.push(register(catalog, f.id, dateMs, label, cogSource(name, href, f.bbox as Bbox | undefined, description, info), meta))
   }
   return ticks
 }

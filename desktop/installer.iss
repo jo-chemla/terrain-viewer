@@ -17,7 +17,7 @@ AppPublisher=Iconem
 AppPublisherURL=https://iconem.com/
 AppSupportURL=https://github.com/Iconem/terrain-viewer/issues
 AppUpdatesURL=https://github.com/Iconem/terrain-viewer/releases
-DefaultDirName={autopf}\Terrain Viewer
+DefaultDirName={userpf}\Terrain Viewer
 DisableDirPage=auto
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
@@ -38,6 +38,10 @@ Source: "icons\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Terrain Viewer"; Filename: "{app}\bin\launcher.exe"; WorkingDir: "{app}\bin"; IconFilename: "{app}\icon.ico"
+
+[UninstallDelete]
+; The app writes its log and temp files next to the launcher.
+Type: filesandordirs; Name: "{app}"
 
 [Run]
 Filename: "{app}\bin\launcher.exe"; Description: "Start Terrain Viewer"; Flags: nowait postinstall skipifsilent
