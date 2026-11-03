@@ -38,6 +38,7 @@ import { loadAllmapsCoverage, allmapsMeta } from "./coverage-overlays"
 
 const ALLMAPS_ANNOTATIONS = "https://annotations.allmaps.org"
 import { gsdFromZoom } from "./gsd"
+import { formatUtcDate, isoFromUtcMs, parseUtcMs } from "./date-input"
 import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, loadNationalLayers, type NatLayer, type NatSource } from "./national-historical"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
@@ -325,7 +326,7 @@ function register(catalog: string, itemKey: string, dateMs: number, label: strin
   // No declared resolution: one pixel at the source's max zoom, at its extent's latitude.
   const lat = source.bounds ? (source.bounds[1] + source.bounds[3]) / 2 : 0
   const gsd = meta?.gsd ?? (source.maxzoom ? gsdFromZoom(source.maxzoom, lat, 256) : undefined)
-  const tick: CatalogTick = { source: catalog, key: dateMs, dateMs, label, ref: id, meta: { date: new Date(dateMs).toISOString().slice(0, 10), url: source.infoUrl, ...meta, gsd } }
+  const tick: CatalogTick = { source: catalog, key: dateMs, dateMs, label, ref: id, meta: { date: formatUtcDate(dateMs), url: source.infoUrl, ...meta, gsd } }
   ticksByRef.set(id, tick)
   return tick
 }
@@ -402,7 +403,7 @@ async function stacTicks(catalog: string, spec: StacSpec, bbox: Bbox, signal?: A
     const p: any = f.properties ?? {}
     const dt = p.datetime ?? p.start_datetime ?? p.end_datetime
     if (!dt) continue
-    const g = `${String(dt).slice(0, 10)}|${p.catalog_id ?? p.title ?? p.event ?? f.id}`
+    const g = `${isoFromUtcMs(parseUtcMs(String(dt)))}|${p.catalog_id ?? p.title ?? p.event ?? f.id}`
     if (!groups.has(g)) groups.set(g, [])
     groups.get(g)!.push(f)
   }
@@ -413,10 +414,10 @@ async function stacTicks(catalog: string, spec: StacSpec, bbox: Bbox, signal?: A
     const href = stacAssetHref(f.assets, spec.assetKeys)
     if (!href) continue
     const dt = String(p.datetime ?? p.start_datetime ?? p.end_datetime)
-    const dateMs = Date.parse(dt)
+    const dateMs = parseUtcMs(dt)
     if (!Number.isFinite(dateMs)) continue
     const title = p.title ?? p.event ?? f.id
-    const date = dt.slice(0, 10)
+    const date = isoFromUtcMs(dateMs)
     const label = `${def.short} · ${title} · ${date}${items.length > 1 ? ` · ${items.length} tiles` : ""}`
     const info = spec.kind === "api" && f.collection ? `${base}/collections/${f.collection}/items/${encodeURIComponent(f.id)}` : f.links?.find((l) => l.rel === "self")?.href ?? spec.endpoint
     const thumb = f.assets?.thumbnail?.href ?? f.assets?.preview?.href
@@ -474,9 +475,9 @@ async function planetTicks(bbox: Bbox, signal?: AbortSignal): Promise<CatalogTic
     const asset = cogAssetHref(pick.it.assets, ["ortho_visual", "visual", "analytic"])
     if (!asset) continue
     const hrefAbs = new URL(asset, pick.href).href
-    const dateMs = Date.parse(c.dt)
+    const dateMs = parseUtcMs(c.dt)
     if (!Number.isFinite(dateMs)) continue
-    const date = c.dt.slice(0, 10)
+    const date = isoFromUtcMs(dateMs)
     const thumbRel = pick.it.assets?.thumbnail?.href
     ticks.push(register("cat-planet", pick.it.id ?? c.url, dateMs, `Planet DD · ${c.title} · ${date}`, cogSource(`Planet · ${c.title} · ${date}`, hrefAbs, pick.it.bbox, `Planet disaster data, ${c.title}, ${date}`, "https://www.planet.com/disasterdata/"),
       { thumb: thumbRel ? new URL(thumbRel, pick.href).href : undefined, provider: "Planet", licence: "CC BY-NC 4.0", gsd: Number(pick.it.properties?.gsd) || undefined }))

@@ -8,6 +8,7 @@ import { stacCatalogId } from "@/lib/timeline-catalogs"
 import { pushToast } from "@/components/ui/toast"
 import { Combobox } from "@base-ui/react/combobox"
 import { cn } from "@/lib/utils"
+import { formatUtcDate, isoFromUtcMs, parseUtcMs } from "@/lib/date-input"
 import { planetKeyAtom } from "@/lib/settings-atoms"
 import { useAtomValue, useAtom, getDefaultStore } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom, type SavedStacCatalog } from "@/lib/settings-atoms"
@@ -597,8 +598,8 @@ export const StacSearchPanel: React.FC<{
           const assets = cogAssets(it)
           if (!assets.length && !planetTiles) return null
           const p = it.properties ?? {}
-          const dateOf = (k: string) => (typeof p[k] === "string" ? (p[k] as string).slice(0, 10) : "")
-          const when = dateOf("datetime") || dateOf("start_datetime")
+          const whenMs = [p.datetime, p.start_datetime].map((v) => (typeof v === "string" ? parseUtcMs(v) : NaN)).find(Number.isFinite)
+          const when = whenMs === undefined ? "" : isoFromUtcMs(whenMs)
           // Human title when the item carries one (OpenAerialMap, VEDA), the
           // id (often a uuid or a tile code) otherwise.
           const title = typeof p.title === "string" && p.title.trim() ? (p.title as string) : it.id
@@ -608,7 +609,7 @@ export const StacSearchPanel: React.FC<{
           return (
             <div key={it.id} className="p-2 rounded-md hover:bg-muted/60 space-y-1">
               <div className="text-sm truncate" title={it.id}>{title}</div>
-              <div className="text-[11px] text-muted-foreground truncate">{[it.collection, when, gsd, cloud, producer].filter(Boolean).join(" · ")} · {planetTiles && !assets.length ? "tiles from tiles.planet.com" : `${assets.length} COG asset${assets.length === 1 ? "" : "s"}`}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{[it.collection, whenMs === undefined ? "" : formatUtcDate(whenMs), gsd, cloud, producer].filter(Boolean).join(" · ")} · {planetTiles && !assets.length ? "tiles from tiles.planet.com" : `${assets.length} COG asset${assets.length === 1 ? "" : "s"}`}</div>
               <div className="flex flex-wrap gap-1">
                 {planetTiles && !assets.length && (() => {
                   const href = planetTileUrl(it)

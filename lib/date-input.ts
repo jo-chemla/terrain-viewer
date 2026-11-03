@@ -45,6 +45,40 @@ export function isoFromUtcMs(ms: number): string {
   return toIso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
 }
 
+const DAY_MS = 86_400_000
+
+/** A catalog's date string -> ms. A time with no zone is read as UTC, not as
+ *  the visitor's own clock, so one item has one date on every machine. */
+export function parseUtcMs(value: string): number {
+  return Date.parse(/T\d{2}(:?\d{2}(:?\d{2}(\.\d+)?)?)?$/.test(value) ? `${value}Z` : value)
+}
+
+/** Whether a timestamp carries a time of day. Midnight, or a second either
+ *  side of it, is how catalogs write a plain day (NOAA's 00:00:01, an extent's
+ *  23:59:59), so those count as no time. */
+export function hasUtcTime(ms: number): boolean {
+  const sinceMidnight = ((ms % DAY_MS) + DAY_MS) % DAY_MS
+  return sinceMidnight > 1000 && sinceMidnight < DAY_MS - 1000
+}
+
+/** "YYYY-MM-DD HH:MM:SS" of a timestamp's UTC fields, without seconds when they are zero. */
+function dayAndClock(ms: number): string {
+  const clock = new Date(ms).toISOString().slice(11, 19)
+  return `${isoFromUtcMs(ms)} ${clock.endsWith(":00") ? clock.slice(0, 5) : clock}`
+}
+
+/** A timestamp for display: "2023-04-18" when it is a plain day, "2023-04-18 10:32:41 UTC" otherwise. */
+export function formatUtcDate(ms: number): string {
+  return hasUtcTime(ms) ? `${dayAndClock(ms)} UTC` : isoFromUtcMs(ms)
+}
+
+/** The same instant on a clock `offsetHours` from UTC: "2023-04-18 16:02:41 (UTC+5:30)". */
+export function formatAtOffset(ms: number, offsetHours: number): string {
+  const minutes = Math.round(Math.abs(offsetHours) * 60)
+  const offset = `${offsetHours < 0 ? "-" : "+"}${Math.floor(minutes / 60)}${minutes % 60 ? `:${pad2(minutes % 60)}` : ""}`
+  return `${dayAndClock(ms + offsetHours * 3_600_000)} (UTC${offset})`
+}
+
 /** "YYYY-MM-DD" -> ms at UTC midnight (start) or 23:59:59 (end of day). */
 export function utcMsFromIso(iso: string, edge: "start" | "end" = "start"): number {
   const m = ISO_DATE_RE.exec(iso)

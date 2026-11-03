@@ -14,6 +14,8 @@ import { SourceGridToggle } from "./controls-components"
 import { cn } from "@/lib/utils"
 import type { TickMeta } from "@/lib/timeline-catalogs"
 import { gsdLabel } from "@/lib/gsd"
+import { formatAtOffset, hasUtcTime } from "@/lib/date-input"
+import { utcOffsetHoursAt } from "@/lib/timezone"
 
 export const TickCard: React.FC<{
   tick: { source: string; dateMs: number; label: string; ref?: string; meta?: TickMeta }
@@ -32,14 +34,19 @@ export const TickCard: React.FC<{
   kept: boolean
   /** The item's extent, for the frame button. */
   bounds?: [number, number, number, number]
+  /** [lng, lat]: where an item without an extent reads its local time. */
+  viewCenter: [number, number]
   onSend: (side: ViewId) => void
   onFit?: () => void
   onKeep: () => void
   onEnter: () => void
   onLeave: () => void
-}> = ({ tick, left, top, sourceLabel, headline, itemName, activeSides, views, gridLayout, asOverlay, isOn, kept, bounds, onSend, onFit, onKeep, onEnter, onLeave }) => {
+}> = ({ tick, left, top, sourceLabel, headline, itemName, activeSides, views, gridLayout, asOverlay, isOn, kept, bounds, viewCenter, onSend, onFit, onKeep, onEnter, onLeave }) => {
   const m = tick.meta
   const catalogItem = !!tick.ref
+  // The capture's clock at the item's centre: what the shadows on it follow.
+  const [localLng, localLat] = bounds ? [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2] : viewCenter
+  const localTime = hasUtcTime(tick.dateMs) ? formatAtOffset(tick.dateMs, utcOffsetHoursAt(localLat, localLng, new Date(tick.dateMs))) : null
   return createPortal(
     <div
       className="fixed z-[60] w-72 -translate-x-1/2 -translate-y-full rounded-md border bg-popover p-2 text-xs shadow-md"
@@ -53,6 +60,7 @@ export const TickCard: React.FC<{
         <div className="text-[10px] text-muted-foreground mt-0.5 space-y-0.5">
           {m.gsd ? <div><span className="font-medium text-foreground/80">GSD:</span> {gsdLabel(m.gsd)}/px</div> : null}
           {m.date ? <div><span className="font-medium text-foreground/80">Date:</span> {m.date}</div> : null}
+          {m.date && localTime ? <div><span className="font-medium text-foreground/80">Local:</span> {localTime}</div> : null}
           {m.provider ? <div><span className="font-medium text-foreground/80">Source:</span> {m.provider}</div> : null}
           {m.licence ? <div><span className="font-medium text-foreground/80">Licence:</span> {m.licence}</div> : null}
         </div>
