@@ -1,7 +1,7 @@
 ---
 title: On-the-fly Mosaics, titiler-cmr and Planetary Computer
 sidebarTitle: On-the-fly mosaics
-description: How the NASA HLS pill composites granules through NASA VEDA's titiler-cmr, and how the Planetary Computer catalogs tile a STAC search over Landsat and Sentinel-2 through the pcmosaic:// protocol
+description: How the NASA HLS pill composites granules through NASA VEDA's titiler-cmr, how the Planetary Computer catalogs tile a STAC search over Landsat and Sentinel-2 through the pcmosaic:// protocol, and how a Maxar, Vantor or NOAA capture is drawn from its COGs through capture://
 ---
 
 Three medium-resolution series on the [historical timeline](/features/historical-sources) are not tile pyramids anyone published. They are composited the moment a tile is asked for, by a dynamic tiler that searches a scene catalog for the window, reads the matching Cloud-Optimized GeoTIFFs by range request, and renders the tile:
@@ -70,6 +70,24 @@ pcmosaic://sentinel-2-l2a/{z}/{x}/{y}?from=2024-08-01&to=2024-08-31
 - **Sentinel-2** uses the L2A product's own true-colour image, the `visual` asset, 10 m, declared to zoom 15. Planetary Computer holds Level-2A from 2016 for most of the world, with 2015 scenes in places.
 - **In the catalog** (`lib/national-historical.ts`) each window is a layer of a `complete` source: every layer covers the globe, so the timeline lists them all without probing a tile at the view's centre. The Landsat catalog has a layer a quarter, the Sentinel-2 one a layer a month, and both sit under the Medium res pill.
 - **Not in Export Multi.** The export dialog lists the timeline's own pills; catalog layers, these included, are picked on the map.
+
+## Capture mosaics: one satellite pass from many COGs
+
+The third kind has no tiler of its own and no search behind each tile. [Maxar and Vantor Open Data](/dev/post-crisis-response) publish one satellite pass (one `catalog_id`) as a grid of Cloud-Optimized GeoTIFFs about 5 km across, and NOAA a flight as frames, so the COG under the view centre alone stops at its own edge. Around Kahramanmaraş in 2023, single passes show as 30 COGs in a small search.
+
+`lib/capture-mosaic.ts` draws them as one basemap, with one source for the tick:
+
+```
+capture://<catalog>|<date>|<catalog_id>/{z}/{x}/{y}
+```
+
+- **Grouping.** The timeline's STAC search groups items by day and `catalog_id` (then title or event) into one tick. A group of several gets a capture source; a single item stays a plain COG source.
+- **Only what a tile touches.** A map tile asks [titiler](https://developmentseed.org/titiler/) for the COGs whose extent overlaps it, 1 to 4 once zoomed in, and composites the answers on a canvas in the browser, nearest COG on top. Only the map tiles in view cost anything, so no request goes out for the rest of the pass.
+- **A cap of 25 COGs.** The nearest to the latest view, which keeps a low zoom over a long pass bounded.
+- **It grows with the view.** Later searches add the COGs they find. A tile outside everything searched so far waits up to 3 s for the search of the new view; a tile inside it with no COG is simply empty.
+- **Seams.** It is a mosaic of one pass, with no colour balancing: within a pass the seams are slight, since it is one sensor at one time.
+
+The source is transient like every STAC tick: a shared link does not bring it back, since a catalog query would have to find it again.
 
 ## What to expect of each
 

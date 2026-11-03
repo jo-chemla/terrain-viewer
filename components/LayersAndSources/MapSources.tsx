@@ -47,7 +47,8 @@ import { buildShadowProtocolUrl } from "@/lib/shadow-protocol"
 import { useResolvedWaybackRelease, waybackTileUrl } from "@/lib/wayback"
 import { hlsTileUrl } from "@/lib/hls"
 import { geHistoricalTileSource } from "@/lib/ge-historical"
-import { planetTileUrl, PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
+import { PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
+import { planetProtocolUrl } from "@/lib/planet-tiles"
 import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
@@ -588,7 +589,7 @@ export const RasterBasemapSource = memo(({
 
         if (basemapSource === "planet") {
             if (!date || !planetKey) return null
-            return { tiles: [planetTileUrl(date, planetKey)], tileSize: PLANET_TILE_SIZE, maxzoom: PLANET_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.planet }
+            return { tiles: [planetProtocolUrl(date)], tileSize: PLANET_TILE_SIZE, maxzoom: PLANET_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.planet }
         }
 
         if (basemapSource === "eox-s2") {

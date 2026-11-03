@@ -2,6 +2,7 @@ import { customBasemapSourcesAtom } from "@/lib/settings-atoms"
 import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isStacCatalogId, isStacBackedCatalog, isCatalogBasemapId, catalogOfBasemapId, catalogBasemap, loadCatalogTicks, catalogFootprintsAtom, catalogStatusAtom, catalogItemsAtom, catalogPickRequestAtom, catalogTick, type CatalogItem } from "@/lib/timeline-catalogs"
 import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom, tickPicksKeepAtom } from "@/lib/settings-atoms"
 import { TickCard } from "./tick-card"
+import { PlanetTileCounter } from "./planet-tile-counter"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
 import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayerAsBasemap } from "@/lib/eli-timeline"
 import type React from "react"
@@ -15,7 +16,7 @@ import { formatUtcDate, hasUtcTime } from "@/lib/date-input"
 import { track } from "@/lib/analytics"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { OpenInLinksButton } from "./open-in-links"
-import { useWaybackItemsWithLocalChanges, useWaybackRealCaptureDates, sortByDateAscending } from "@/lib/wayback"
+import { useWaybackItemsWithLocalChanges, useWaybackRealCaptureDates, sortByDateAscending, pinWaybackRelease } from "@/lib/wayback"
 import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
@@ -112,7 +113,8 @@ const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
 // `ref`: for ELI ticks, the layer the tick stands for (several can share a date).
 type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string; meta?: import("@/lib/timeline-catalogs").TickMeta
   /** Wayback: placed at the layer's release date until its imagery date arrives. */
-  provisional?: boolean }
+  provisional?: boolean
+  releaseNum?: number }
 
 // A catalog or ELI tick stands for one named item: its name, without the
 // "OAM · " prefix the loaders put first. Null for the date-only sources.
@@ -500,7 +502,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
       const dateMs = real?.dateMs ?? item.releaseDatetime
       if (seenDates.has(dateMs)) continue
       seenDates.add(dateMs)
-      ticks.push({ source: "wayback", key: dateMs, dateMs, label: item.releaseDateLabel, provisional: !real })
+      ticks.push({ source: "wayback", key: dateMs, dateMs, label: item.releaseDateLabel, provisional: !real, releaseNum: item.releaseNum })
     }
     return ticks
   }, [rawWaybackItems, waybackRealDates])
@@ -856,6 +858,21 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const setTickForSide = useCallback((side: ViewId, tick: TimelineTick) => {
     setState(buildTickUpdates(side, tick))
   }, [buildTickUpdates, setState])
+
+  // A dashed tick picked before its imagery date is known: the view shows that
+  // release at once (pinWaybackRelease), and its date follows the tick when the
+  // real one arrives. A new place or a later pick on that view drops the wait.
+  const pendingWaybackPicks = useRef(new Map<ViewId, number>())
+  useEffect(() => { pendingWaybackPicks.current.clear() }, [waybackWalk.key])
+  useEffect(() => {
+    for (const [side, releaseNum] of pendingWaybackPicks.current) {
+      const real = waybackRealDates[releaseNum]
+      if (!real) continue
+      pendingWaybackPicks.current.delete(side)
+      pinWaybackRelease(real.dateMs, releaseNum)
+      setTickForSide(side, { source: "wayback", key: real.dateMs, dateMs: real.dateMs, label: real.label, releaseNum })
+    }
+  }, [waybackRealDates, setTickForSide])
 
   // Absent an explicit pointer target (e.g. a keyboard step), which side an
   // action applies to: the only historical side when just one is showing,
@@ -1234,6 +1251,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const which = explicitSide ?? resolveSide()
     setActiveSide(which)
     setActiveOverlay(null)
+    pendingWaybackPicks.current.delete(which)
+    if (tick.provisional && tick.releaseNum) {
+      pinWaybackRelease(tick.dateMs, tick.releaseNum)
+      pendingWaybackPicks.current.set(which, tick.releaseNum)
+    }
     const asOverlay = picksKeep && !browse && !!tick.ref && !!catalogBasemap(tick.ref)
     if (!asOverlay) setTickForSide(which, tick)
     maybeRecenterWindow(tick.dateMs)
@@ -1955,6 +1977,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 </Tooltip>
               )
             })}
+            {hasPlanetKey && <PlanetTileCounter />}
             <TimelineCatalogPicker
               selected={selectedCatalogs}
               onChange={(ids) => setState({ timelineCatalogs: ids })}

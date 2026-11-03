@@ -157,7 +157,9 @@ function startWalk(latitude: number, longitude: number, zoom: number): WaybackWa
         walk.items = releases.map((n) => byRelease.get(n)).filter((it): it is WaybackItem => !!it)
         walk.settledCount = settled
         report()
-        next = catalog[catalog.findIndex((it) => it.releaseNum === releaseNum) + 1]?.releaseNum
+        // A release the catalog doesn't list ends the walk: -1 + 1 would start over from the newest.
+        const at = catalog.findIndex((it) => it.releaseNum === releaseNum)
+        next = at < 0 ? undefined : catalog[at + 1]?.releaseNum
       }
       delete store.walks[tileKey]
       store.walks[tileKey] = [newest, ...walk.items.map((it) => it.releaseNum)]
@@ -440,6 +442,13 @@ export function waybackTileUrl(item: WaybackItem): string {
  * rest of the app (state, the timeline panel's tick model) can treat
  * Wayback exactly like every other source: a single date, nothing more.
  */
+const pinnedReleases = new Map<number, number>()
+/** A release picked by itself, whatever its neighbours' dates say: a dashed tick
+ *  whose imagery date is not known yet, then that same tick at its real date. */
+export function pinWaybackRelease(dateMs: number, releaseNum: number) {
+  pinnedReleases.set(dateMs, releaseNum)
+}
+
 export function useResolvedWaybackRelease(latitude: number, longitude: number, zoom: number, targetDateMs: number): { item: WaybackItem | null; loading: boolean } {
   const walk = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
   const { items, loading: itemsLoading } = walk
@@ -467,6 +476,11 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
     // blank until the new pick is known.
     const placeholder = (itemsLoading || datesLoading) ? heldRef.current?.item ?? null : null
     if (!items.length) return placeholder
+    const pinned = items.find((it) => it.releaseNum === pinnedReleases.get(targetDateMs))
+    if (pinned) {
+      heldRef.current = { item: pinned, targetDateMs }
+      return pinned
+    }
     // While dates stream in, only releases whose REAL capture date is known
     // are candidates. Guessing from the release date picked the wrong
     // imagery: at Palmyra the release of 2014-02-20 carries imagery of 2009,

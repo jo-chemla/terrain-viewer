@@ -97,6 +97,7 @@ import { epsg3395Protocol } from '@/lib/epsg3395-protocol'
 import { googleTimelapseProtocol } from '@/lib/google-timelapse'
 import { pcMosaicProtocol } from '@/lib/pc-mosaic'
 import { captureProtocol } from '@/lib/capture-mosaic'
+import { planetTileProtocol } from '@/lib/planet-tiles'
 import { ISOLINE_MEASURE_IDS } from '@/lib/isoline-measures'
 import { IsolineLayers } from './LayersAndSources/IsolineLayers'
 import { parseSourceNames, parseSourceMeta } from '@/lib/portable-share-url'
@@ -1912,6 +1913,8 @@ export function TerrainViewer() {
     registerProtocol('pcmosaic', withTileResultCache(pcMosaicProtocol))
     // No result cache: a tile can gain COGs when a later search reports.
     registerProtocol('capture', captureProtocol)
+    // Has its own cache, one that outlives the session.
+    registerProtocol('planettile', planetTileProtocol)
     registerProtocol('roughness', withTileResultCache(roughnessProtocol))
     registerProtocol('blobness', withTileResultCache(blobnessProtocol))
     // withSlowTileStats composes INSIDE withTileResultCache so it measures the
