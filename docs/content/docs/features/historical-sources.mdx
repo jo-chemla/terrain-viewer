@@ -53,7 +53,7 @@ The catalogs sit in four root groups. Every checked catalog is queried for the v
 | [NOAA Emergency Response](https://storms.ngs.noaa.gov/) | NOAA's aerial imagery after hurricanes, tornadoes and floods. | HOT STAC API |
 | [Planet disaster data](https://source.coop/planet/disasterdata) | Planet's Crisis Response Program releases on Source Cooperative: events, pre- and post-event acquisitions. | Static STAC catalog |
 
-The first four come from the HOT STAC API (`api.imagery.hotosm.org/stac`), searched with the view's bbox. Items of one date and one acquisition are grouped into a tick; the tile shown is the one containing the view's centre, its COG drawn through TiTiler. Planet's open static catalog on source.coop has no search API, so the first use builds an index of every acquisition's extent for the session (about 10 s), then filters it by the view. Who produces this data after a disaster is on [Post-Crisis Response](/dev/post-crisis-response).
+The first four come from the HOT STAC API (`api.imagery.hotosm.org/stac`), searched with the view's bbox. Items of one date and one acquisition (a satellite pass) are grouped into a tick and drawn together: each map tile reads only the COGs that overlap it, up to 25 COGs, the nearest to the view. Planet's open static catalog on source.coop has no search API, so the first use builds an index of every acquisition's extent for the session (about 10 s), then filters it by the view. Who produces this data after a disaster is on [Post-Crisis Response](/dev/post-crisis-response).
 
 ### Community indexes
 
