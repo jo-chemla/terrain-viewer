@@ -110,7 +110,9 @@ const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
 ]
 
 // `ref`: for ELI ticks, the layer the tick stands for (several can share a date).
-type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string; meta?: import("@/lib/timeline-catalogs").TickMeta }
+type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string; meta?: import("@/lib/timeline-catalogs").TickMeta
+  /** Wayback: placed at the layer's release date until its imagery date arrives. */
+  provisional?: boolean }
 
 // A catalog or ELI tick stands for one named item: its name, without the
 // "OAM · " prefix the loaders put first. Null for the date-only sources.
@@ -158,9 +160,9 @@ const CHEVRON_EXPAND_FRACTION = 0.2
 
 // A Wayback tick's own release/mosaic label (t.label, from releaseDateLabel)
 // is a catalog-wide publish date — the REAL per-tile imagery date can differ
-// (see lib/wayback.ts) and is now what the tick is actually POSITIONED at
-// (see useWaybackRealCaptureDates in the parent), so it's already resolved
-// by the time this renders — no separate per-hover fetch needed anymore.
+// (see lib/wayback.ts) and is what the tick is POSITIONED at once known (see
+// useWaybackRealCaptureDates in the parent). Until then the tick stands at the
+// release date, dashed, and says so.
 const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSides: ViewId[]; onSelect: () => void }> = ({ tick, leftPct, activeSides, onSelect }) => {
   return (
     <Tooltip>
@@ -182,7 +184,9 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
           >
             <div
               className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
-              style={{ backgroundColor: SOURCE_CONFIG.wayback.color, opacity: 0.85 }}
+              style={tick.provisional
+                ? { background: `repeating-linear-gradient(to bottom, ${SOURCE_CONFIG.wayback.color} 0 4px, transparent 4px 7px)`, opacity: 0.6 }
+                : { backgroundColor: SOURCE_CONFIG.wayback.color, opacity: 0.85 }}
             />
           </div>
         }
@@ -190,9 +194,9 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
       {/* Date first, then source, then which view(s) (if any) it's active
           on — same order as the generic tick tooltip below. */}
       <TooltipContent>
-        <div>{formatUtcDate(tick.dateMs)}</div>
+        <div>{tick.provisional ? `Layer released ${tick.label}` : formatUtcDate(tick.dateMs)}</div>
         <div>{SOURCE_CONFIG.wayback.label}</div>
-        <div className="text-[10px] text-gray-400 mt-0.5">Mosaic: {tick.label}</div>
+        <div className="text-[10px] text-gray-400 mt-0.5">{tick.provisional ? "Imagery date loading: this is the layer's release date, not the capture." : `Mosaic: ${tick.label}`}</div>
         {activeSides.length > 0 && <div className="text-[10px] text-gray-400">Map {activeSides.join(", ")}</div>}
       </TooltipContent>
     </Tooltip>
@@ -458,22 +462,19 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     return false
   }, [state, activeViews, isHistoricalFor])
-  const { items: rawWaybackItems } = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom, waybackWanted)
+  const waybackWalk = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom, waybackWanted)
+  const rawWaybackItems = waybackWalk.items
   // REAL per-tile imagery capture dates for every release at this location —
   // ticks are positioned by these (the actual date the imagery was taken),
   // not each release's own releaseDatetime (a catalog-wide publish date that
-  // can differ significantly from the real capture date). A release only
-  // becomes a tick once ITS OWN real date has resolved (rather than all
-  // waiting on waybackDatesLoading to go false) — useWaybackRealCaptureDates
-  // now resolves one release at a time, not behind a single Promise.all, so
-  // ticks populate progressively as each one's real date actually arrives
-  // instead of the whole timeline sitting empty until Esri's slowest
-  // response comes back. The "wayback" pill's own spinner (elsewhere in this
-  // file) still reflects waybackDatesLoading, so there's still a visible
-  // sign more are on the way.
+  // can differ significantly from the real capture date). A release shows up
+  // as soon as the walk finds it, dashed at its release date, and moves to its
+  // real date when that arrives. The "wayback" pill's own spinner (elsewhere
+  // in this file) still reflects waybackDatesLoading, so there's still a
+  // visible sign more are on the way.
   // rawWaybackItems is already empty when waybackWanted is false, so this
   // resolves nothing - no extra gate needed, it is one fetch per release.
-  const { resolved: waybackRealDates, loading: waybackDatesLoading } = useWaybackRealCaptureDates(rawWaybackItems, state.lat, state.lng, state.zoom)
+  const { resolved: waybackRealDates, loading: waybackDatesLoading } = useWaybackRealCaptureDates(waybackWalk, state.lat, state.lng, state.zoom)
   // key is the tick's real dateMs (same convention as every other source
   // now — see the state.date/dateA-F consolidation) rather than the release
   // number; lib/wayback.ts's useResolvedWaybackRelease is what turns a date
@@ -496,9 +497,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const ticks: TimelineTick[] = []
     for (const item of sortByDateAscending(rawWaybackItems)) {
       const real = waybackRealDates[item.releaseNum]
-      if (!real || seenDates.has(real.dateMs)) continue
-      seenDates.add(real.dateMs)
-      ticks.push({ source: "wayback", key: real.dateMs, dateMs: real.dateMs, label: item.releaseDateLabel })
+      const dateMs = real?.dateMs ?? item.releaseDatetime
+      if (seenDates.has(dateMs)) continue
+      seenDates.add(dateMs)
+      ticks.push({ source: "wayback", key: dateMs, dateMs, label: item.releaseDateLabel, provisional: !real })
     }
     return ticks
   }, [rawWaybackItems, waybackRealDates])
