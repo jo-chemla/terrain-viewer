@@ -108,9 +108,8 @@ function capPlaces(places: Record<string, unknown>) {
 // RasterBasemapSource resolves its date to a release number with it.
 const WALK_CHAINS = 8
 interface WaybackWalk {
+  /** The releases known to be kept so far, newest first. See isFinal in startWalk. */
   items: WaybackItem[]
-  /** How many of `items` are final: those on the chain from the newest release, less the last run of same-size releases, which can still move to an older one. */
-  settledCount: number
   done: boolean
   promise: Promise<WaybackItem[]>
   listeners: Set<() => void>
@@ -120,14 +119,14 @@ const walks = new Map<string, WaybackWalk>()
 // Consecutive releases with a tile of the same size count as one image, kept at
 // its oldest: a same-size heuristic with no image fetch per candidate, the
 // SDK's onlyUseSizeToFilterDuplicates. Up to z11 it keeps them all, as the SDK does.
-function distinctReleases(found: { releaseNum: number; size: number }[], level: number): { releases: number[]; settled: number } {
-  if (level <= 11) return { releases: found.map((f) => f.releaseNum), settled: found.length }
+function distinctReleases(found: { releaseNum: number; size: number }[], level: number): number[] {
+  if (level <= 11) return found.map((f) => f.releaseNum)
   const releases: number[] = []
   found.forEach((f, i) => {
     if (i > 0 && f.size === found[i - 1].size) releases[releases.length - 1] = f.releaseNum
     else releases.push(f.releaseNum)
   })
-  return { releases, settled: Math.max(0, releases.length - 1) }
+  return releases
 }
 
 function startWalk(latitude: number, longitude: number, zoom: number): WaybackWalk {
@@ -137,7 +136,7 @@ function startWalk(latitude: number, longitude: number, zoom: number): WaybackWa
   const tileKey = `${level}/${column}/${row}`
   const existing = walks.get(tileKey)
   if (existing) return existing
-  const walk: WaybackWalk = { items: [], settledCount: 0, done: false, promise: Promise.resolve([]), listeners: new Set() }
+  const walk: WaybackWalk = { items: [], done: false, promise: Promise.resolve([]), listeners: new Set() }
   const report = () => { for (const listener of walk.listeners) listener() }
   walk.promise = (async () => {
     if (!cachedItemsPromise) cachedItemsPromise = getWaybackItems()
@@ -169,6 +168,18 @@ function startWalk(latitude: number, longitude: number, zoom: number): WaybackWa
         }
         return chain
       }
+      // Only a release that stays gets a tick. One with an older same-size
+      // neighbour gives way to it, so it is final once the next older release has
+      // answered with another size or no tile. Showing them sooner put 30 ticks up
+      // at a place with 13, and each hopped or vanished as its neighbours answered.
+      const isFinal = (f: Found) => {
+        if (level <= 11) return true
+        const at = indexOf.get(f.releaseNum)
+        if (at === undefined) return false
+        if (at + 1 >= catalog.length) return true
+        const older = answers.get(catalog[at + 1].releaseNum)
+        return older === null || (older !== undefined && older.size !== f.size)
+      }
       const walkFrom = async (start: number) => {
         for (let i = start; i < catalog.length;) {
           const asking = catalog[i].releaseNum
@@ -181,8 +192,7 @@ function startWalk(latitude: number, longitude: number, zoom: number): WaybackWa
           const reached = !!answer && found.has(answer.releaseNum)
           if (answer) found.set(answer.releaseNum, answer)
           const newestFirst = [...found.values()].sort((a, b) => (indexOf.get(a.releaseNum) ?? 0) - (indexOf.get(b.releaseNum) ?? 0))
-          walk.items = toItems(distinctReleases(newestFirst, level).releases)
-          walk.settledCount = distinctReleases(chainFromNewest(), level).settled
+          walk.items = toItems(newestFirst.filter(isFinal).map((f) => f.releaseNum))
           report()
           const at = answer ? indexOf.get(answer.releaseNum) : undefined
           if (reached || at === undefined || at < i) return
@@ -190,13 +200,12 @@ function startWalk(latitude: number, longitude: number, zoom: number): WaybackWa
         }
       }
       await Promise.all(Array.from({ length: WALK_CHAINS }, (_, n) => walkFrom(Math.floor((n * catalog.length) / WALK_CHAINS))))
-      walk.items = toItems(distinctReleases(chainFromNewest(), level).releases)
+      walk.items = toItems(distinctReleases(chainFromNewest(), level))
       delete store.walks[tileKey]
       store.walks[tileKey] = [newest, ...walk.items.map((it) => it.releaseNum)]
       capPlaces(store.walks)
       saveStoreSoon()
     }
-    walk.settledCount = walk.items.length
     walk.done = true
     report()
     return walk.items
@@ -227,8 +236,6 @@ function getCachedLocalChanges(latitude: number, longitude: number, zoom: number
  *  release number now pass enabled=false until it is actually wanted. */
 export interface WaybackLocalChanges {
   items: WaybackItem[]
-  /** How many of `items` are final, and so worth a date lookup. */
-  settledCount: number
   /** The location `items` belong to: the previous place's stay up until the new walk reports. */
   key: string
   loading: boolean
@@ -236,18 +243,18 @@ export interface WaybackLocalChanges {
 export function useWaybackItemsWithLocalChanges(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, enabled = true): WaybackLocalChanges {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
   const key = locationKey(latitude, longitude, zoom)
-  const [result, setResult] = useState<WaybackLocalChanges>({ items: [], settledCount: 0, key: "", loading: true })
+  const [result, setResult] = useState<WaybackLocalChanges>({ items: [], key: "", loading: true })
 
   useEffect(() => {
     // Drop the items too: a stale list would keep useWaybackRealCaptureDates
     // resolving dates (and its spinner spinning) after the ESRI pill is off.
-    if (!enabled) { setResult({ items: [], settledCount: 0, key, loading: false }); return }
+    if (!enabled) { setResult({ items: [], key, loading: false }); return }
     let unsubscribe = () => {}
     setResult((prev) => (prev.loading ? prev : { ...prev, loading: true }))
     const timer = setTimeout(() => {
       const walk = startWalk(latitude, longitude, zoom)
       const update = () => {
-        if (walk.items.length || walk.done) setResult({ items: walk.items, settledCount: walk.settledCount, key, loading: !walk.done })
+        if (walk.items.length || walk.done) setResult({ items: walk.items, key, loading: !walk.done })
       }
       walk.listeners.add(update)
       unsubscribe = () => walk.listeners.delete(update)
@@ -366,14 +373,19 @@ export async function fetchWaybackCaptureLabel(latitude: number, longitude: numb
  * so ticks now populate progressively as each one's real date actually
  * arrives, instead of all-or-nothing.
  *
- * Only asks about releases of THIS place that are final. The walk's own debounce
+ * Only asks about releases of THIS place. The walk's own debounce
  * already keeps a transient viewport from starting anything (getMetadata can't
  * be aborted once started), so this adds no second one, which cost 400 ms on
  * every new place. Lookups start as releases settle, alongside the walk.
+ *
+ * Dates belong to a place: the same release has another date elsewhere, so the
+ * previous place's stay only while its own ticks do, and a new place's ticks
+ * never stand at them and then move. Dates remembered from an earlier visit are
+ * there in the first render, so those ticks do not start dashed either.
  */
 export function useWaybackRealCaptureDates(walk: WaybackLocalChanges, latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { resolved: Record<number, { dateMs: number; label: string }>; loading: boolean } {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
-  const [resolved, setResolved] = useState<Record<number, { dateMs: number; label: string }>>({})
+  const [dates, setDates] = useState<{ place: string; byRelease: Record<number, { dateMs: number; label: string }> }>({ place: "", byRelease: {} })
   const [loading, setLoading] = useState(false)
   // Same coarse "has the view actually moved somewhere new" granularity as
   // every other cache key in this file (captureMetaCache, getCachedLocalChanges
@@ -388,25 +400,16 @@ export function useWaybackRealCaptureDates(walk: WaybackLocalChanges, latitudeRa
   // for it, reading as an unprompted reload mid-pan.
   const coarseKey = locationKey(latitude, longitude, zoom)
   const isThisPlace = walk.key === coarseKey
-  const settledCount = isThisPlace ? walk.settledCount : 0
   // The render before the effect below has run still counts as loading, or the
   // axis, which holds still while this loads, would take in a half-known list.
-  const run = `${coarseKey}/${settledCount}/${isThisPlace}/${walk.loading}/${walk.items.length}`
+  const run = `${coarseKey}/${isThisPlace}/${walk.loading}/${walk.items.length}`
   const [ranFor, setRanFor] = useState("")
 
   useEffect(() => {
     setRanFor(run)
-    const items = walk.items.slice(0, settledCount)
-    if (!walk.items.length) { setResolved({}); setLoading(walk.loading); return }
+    const items = isThisPlace ? walk.items : []
+    if (!walk.items.length) { setDates({ place: coarseKey, byRelease: {} }); setLoading(walk.loading); return }
     let cancelled = false
-    // Deliberately NOT reset to {} here — the release a timeline handle is
-    // currently sitting on needs to stay resolved (and its tick stay on the
-    // timeline) through a reload, rather than vanishing the instant the view
-    // settles somewhere new and only reappearing once its OWN real date
-    // happens to re-resolve. Stale entries are pruned below, but only once
-    // every release in the fresh candidate set has actually reported back,
-    // and only ones that turn out to genuinely not be part of that fresh set
-    // at all — never merely because a fetch is still in flight.
     setLoading(true)
     const walkFinished = isThisPlace && !walk.loading
     const freshReleaseNums = new Set(walk.items.map((i) => i.releaseNum))
@@ -414,31 +417,48 @@ export function useWaybackRealCaptureDates(walk: WaybackLocalChanges, latitudeRa
     const settle = () => {
       if (remaining > 0 || !walkFinished) return
       setLoading(false)
-      setResolved((prev) => {
+      setDates((prev) => {
+        if (prev.place !== coarseKey) return prev
         let changed = false
         const next: Record<number, { dateMs: number; label: string }> = {}
-        for (const [key, value] of Object.entries(prev)) {
+        for (const [key, value] of Object.entries(prev.byRelease)) {
           const releaseNum = Number(key)
           if (freshReleaseNums.has(releaseNum)) next[releaseNum] = value
           else changed = true
         }
-        return changed ? next : prev
+        return changed ? { place: coarseKey, byRelease: next } : prev
       })
     }
     for (const item of items) {
       fetchWaybackCaptureMeta(latitude, longitude, zoom, item.releaseNum).then((meta) => {
         if (cancelled) return
-        if (meta) setResolved((prev) => (prev[item.releaseNum]?.dateMs === meta.dateMs ? prev : { ...prev, [item.releaseNum]: meta }))
+        if (meta) setDates((prev) => {
+          const known = prev.place === coarseKey ? prev.byRelease : {}
+          return known[item.releaseNum]?.dateMs === meta.dateMs ? prev : { place: coarseKey, byRelease: { ...known, [item.releaseNum]: meta } }
+        })
         remaining -= 1
         settle()
       })
     }
     settle()
     return () => { cancelled = true }
-    // walk.items is only new when the walk reported, and those are the three
-    // values that say so: the place, how many releases are final, whether it ended.
+    // walk.items is only new when the walk reported, and those are the values
+    // that say so: the place, how many releases are kept, whether it ended.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coarseKey, settledCount, isThisPlace, walk.loading, walk.items.length])
+  }, [coarseKey, isThisPlace, walk.loading, walk.items.length])
+
+  const resolved = useMemo(() => {
+    if (!isThisPlace) return dates.byRelease
+    const known = dates.place === coarseKey ? dates.byRelease : {}
+    const remembered = store.dates[coarseKey]
+    if (!remembered) return known
+    const merged = { ...known }
+    for (const { releaseNum } of walk.items) {
+      const dateMs = remembered[releaseNum]
+      if (dateMs && !merged[releaseNum]) merged[releaseNum] = { dateMs, label: new Date(dateMs).toISOString().slice(0, 10) }
+    }
+    return merged
+  }, [dates, isThisPlace, coarseKey, walk.items])
 
   return { resolved, loading: loading || ranFor !== run }
 }
@@ -574,10 +594,12 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
  */
 export function useEsriLiveCaptureDate(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { dateMs: number | null; label: string | null } {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
-  const { items } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
+  const { items, loading } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
   const [result, setResult] = useState<{ dateMs: number | null; label: string | null }>({ dateMs: null, label: null })
 
   useEffect(() => {
+    // Mid-walk the newest kept release may not be the newest there is.
+    if (loading) return
     const newest = items[0]
     if (!newest) { setResult({ dateMs: null, label: null }); return }
     let cancelled = false
@@ -586,7 +608,7 @@ export function useEsriLiveCaptureDate(latitudeRaw: number, longitudeRaw: number
       setResult(meta ? { dateMs: meta.dateMs, label: meta.label } : { dateMs: null, label: null })
     })
     return () => { cancelled = true }
-  }, [items, latitude, longitude, zoom])
+  }, [items, loading, latitude, longitude, zoom])
 
   return result
 }
