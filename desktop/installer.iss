@@ -37,7 +37,8 @@ Source: "{#AppSource}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdi
 Source: "icons\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\Terrain Viewer"; Filename: "{app}\bin\launcher.exe"; WorkingDir: "{app}\bin"; IconFilename: "{app}\icon.ico"
+; Its own name: Electrobun's Setup makes "Terrain Viewer", and with both installed one would replace the other.
+Name: "{autoprograms}\Terrain Viewer (winget)"; Filename: "{app}\bin\launcher.exe"; WorkingDir: "{app}\bin"; IconFilename: "{app}\icon.ico"
 
 [UninstallDelete]
 ; The app writes its log and temp files next to the launcher.
