@@ -22,6 +22,16 @@ export default defineConfig({
     __BUILD_DATE__: JSON.stringify(buildDate),
   },
   plugins: [
+    // A Planet key in a build is a public key: the whole bundle is readable by
+    // anyone, every visitor draws on the same limited tile quota, and Planet
+    // has no referrer restriction to fence it with. It stays a local dev
+    // convenience; a build only gets Planet from a key pasted into Settings.
+    {
+      name: "planet-key-out-of-builds",
+      apply: "build",
+      // Runs before Vite reads .env, and a process variable wins over the file.
+      config() { process.env.VITE_PLANET_API_KEY = "" },
+    },
     devtools({
       // Fixed port, so two dev servers started from this repo at once (a git
       // worktree alongside the main checkout, say) collide on it and the

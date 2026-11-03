@@ -45,8 +45,8 @@ export const maptilerKeyAtom = atomWithStorage("maptilerKey", import.meta.env.VI
 export const hereKeyAtom = atomWithStorage("hereKey", import.meta.env.VITE_HERE_API_KEY ?? "")
 // Same gating pattern as hereKeyAtom — Planet's monthly mosaics require a paid
 // account, so "planet" only appears as a Basemap option (raster-basemap-
-// section.tsx) once a real key is set, from a local VITE_PLANET_API_KEY or
-// pasted into Settings.
+// section.tsx) once a real key is set, from a local VITE_PLANET_API_KEY (dev
+// server only: vite.config.ts leaves it out of builds) or pasted into Settings.
 export const planetKeyAtom = atomWithStorage("planetKey", import.meta.env.VITE_PLANET_API_KEY ?? "")
 /** Planet's STAC (api.planet.com/x/data) takes an OpenID access token, not
  *  the API key: `planet auth print-access-token` (a JWT, valid about 2 h 20). */
