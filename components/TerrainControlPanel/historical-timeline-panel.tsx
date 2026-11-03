@@ -114,6 +114,8 @@ const RESOLUTION_CLASSES: { id: "vhr" | "medium"; label: string }[] = [
 type TimelineTick = { source: string; key: number; dateMs: number; label: string; ref?: string; meta?: import("@/lib/timeline-catalogs").TickMeta
   /** Wayback: placed at the layer's release date until its imagery date arrives. */
   provisional?: boolean
+  /** Not a tick: where a view's handle waits, at its own date, while ESRI's ticks load. */
+  placeholder?: boolean
   releaseNum?: number }
 
 // A catalog or ELI tick stands for one named item: its name, without the
@@ -160,12 +162,14 @@ const WHEEL_GESTURE_TIMEOUT_MS = 200
 // expandViewWindowToward below.
 const CHEVRON_EXPAND_FRACTION = 0.2
 
+const PAGE_LOADED_MS = Date.now()
+
 // A Wayback tick's own release/mosaic label (t.label, from releaseDateLabel)
 // is a catalog-wide publish date — the REAL per-tile imagery date can differ
 // (see lib/wayback.ts) and is what the tick is POSITIONED at once known (see
 // useWaybackRealCaptureDates in the parent). Until then the tick stands at the
-// release date, dashed, and says so.
-const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSides: ViewId[]; onSelect: () => void }> = ({ tick, leftPct, activeSides, onSelect }) => {
+// release date, dashed, and says so; Esri has no date for a few, and those stay.
+const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSides: ViewId[]; dateLoading: boolean; onSelect: () => void }> = ({ tick, leftPct, activeSides, dateLoading, onSelect }) => {
   return (
     <Tooltip>
       <TooltipTrigger
@@ -187,7 +191,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
             <div
               className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-10 mx-auto w-1"
               style={tick.provisional
-                ? { background: `repeating-linear-gradient(to bottom, ${SOURCE_CONFIG.wayback.color} 0 4px, transparent 4px 7px)`, opacity: 0.6 }
+                ? { background: `repeating-linear-gradient(to bottom, ${SOURCE_CONFIG.wayback.color} 0 3px, transparent 3px 4px)`, opacity: 0.6 }
                 : { backgroundColor: SOURCE_CONFIG.wayback.color, opacity: 0.85 }}
             />
           </div>
@@ -198,7 +202,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
       <TooltipContent>
         <div>{tick.provisional ? `Layer released ${tick.label}` : formatUtcDate(tick.dateMs)}</div>
         <div>{SOURCE_CONFIG.wayback.label}</div>
-        <div className="text-[10px] text-gray-400 mt-0.5">{tick.provisional ? "Imagery date loading: this is the layer's release date, not the capture." : `Mosaic: ${tick.label}`}</div>
+        <div className="text-[10px] text-gray-400 mt-0.5">{tick.provisional ? (dateLoading ? "Imagery date loading: this is the layer's release date, not the capture." : "Esri gives no imagery date here: this is the layer's release date, not the capture.") : `Mosaic: ${tick.label}`}</div>
         {activeSides.length > 0 && <div className="text-[10px] text-gray-400">Map {activeSides.join(", ")}</div>}
       </TooltipContent>
     </Tooltip>
@@ -477,6 +481,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // rawWaybackItems is already empty when waybackWanted is false, so this
   // resolves nothing - no extra gate needed, it is one fetch per release.
   const { resolved: waybackRealDates, loading: waybackDatesLoading } = useWaybackRealCaptureDates(waybackWalk, state.lat, state.lng, state.zoom)
+  // While these load, the axis and any handle on ESRI hold still (see fullMin
+  // and resolveDisplayTick): each answer used to rescale the axis and move the
+  // handle to a new nearest tick, thirty times in eight seconds on a new place.
+  const waybackSettling = waybackWanted && (waybackWalk.loading || waybackDatesLoading)
   // key is the tick's real dateMs (same convention as every other source
   // now — see the state.date/dateA-F consolidation) rather than the release
   // number; lib/wayback.ts's useResolvedWaybackRelease is what turns a date
@@ -781,6 +789,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // click.
   const resolveDisplayTick = useCallback((side: ViewId): TimelineTick | null => {
     const source = displaySourceFor(side)
+    if (source === "wayback" && waybackSettling && dateForSide(side)) {
+      const dateMs = dateForSide(side)
+      return allTicks.find((t) => t.source === source && t.dateMs === dateMs) ?? { source, key: dateMs, dateMs, label: "", placeholder: true }
+    }
     // An ELI view shows ITS layer's tick, not whichever layer shares the date.
     if (source === "eli") {
       const ref = eliLayerIdOf(activeBasemapSourceFor(side))
@@ -804,7 +816,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     }
     return findNearestTick(source, dateForSide(side)) ?? newestTickFor(source)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displaySourceFor, findNearestTick, dateForSide, newestTickFor, activeBasemapSourceFor, allTicks])
+  }, [displaySourceFor, findNearestTick, dateForSide, newestTickFor, activeBasemapSourceFor, allTicks, waybackSettling])
 
   // Ticks/gridlines show sources currently toggled on via the pill row (both
   // the source pills and the VHR/Medium res chips). When unsynced in dual
@@ -824,7 +836,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const filtered = allTicks.filter((t) => (t.source in TIMELINE_CATALOG_BY_ID ? selectedCatalogs.includes(t.source) : timelineSourcesForPills.includes(t.source)) && resolutionClasses.includes(tickResClass(t) as "vhr" | "medium"))
     const activeTicks = activeViews.filter(showFor).map(resolveDisplayTick).filter((t): t is TimelineTick => !!t)
     const seen = new Set(filtered.map((t) => `${t.source}-${t.key}`))
-    const extra = activeTicks.filter((t) => !seen.has(`${t.source}-${t.key}`))
+    const extra = activeTicks.filter((t) => !t.placeholder && !seen.has(`${t.source}-${t.key}`))
     return extra.length ? [...filtered, ...extra].sort((a, b) => a.dateMs - b.dateMs) : filtered
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTicks, timelineSourcesForPills, selectedCatalogs.join(","), resolutionClasses, activeViews.join(","), showFor, resolveDisplayTick])
@@ -862,17 +874,21 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // A dashed tick picked before its imagery date is known: the view shows that
   // release at once (pinWaybackRelease), and its date follows the tick when the
   // real one arrives. A new place or a later pick on that view drops the wait.
-  const pendingWaybackPicks = useRef(new Map<ViewId, number>())
+  // A release can leave the list when the walk ends, its imagery kept by an older
+  // same-size one: the pick goes to that one.
+  const pendingWaybackPicks = useRef(new Map<ViewId, { releaseNum: number; releaseDate: number }>())
   useEffect(() => { pendingWaybackPicks.current.clear() }, [waybackWalk.key])
   useEffect(() => {
-    for (const [side, releaseNum] of pendingWaybackPicks.current) {
-      const real = waybackRealDates[releaseNum]
+    for (const [side, pick] of pendingWaybackPicks.current) {
+      const item = rawWaybackItems.find((it) => it.releaseNum === pick.releaseNum)
+        ?? (waybackWalk.loading ? undefined : rawWaybackItems.find((it) => it.releaseDatetime <= pick.releaseDate))
+      const real = item && waybackRealDates[item.releaseNum]
       if (!real) continue
       pendingWaybackPicks.current.delete(side)
-      pinWaybackRelease(real.dateMs, releaseNum)
-      setTickForSide(side, { source: "wayback", key: real.dateMs, dateMs: real.dateMs, label: real.label, releaseNum })
+      pinWaybackRelease(real.dateMs, item.releaseNum)
+      setTickForSide(side, { source: "wayback", key: real.dateMs, dateMs: real.dateMs, label: real.label, releaseNum: item.releaseNum })
     }
-  }, [waybackRealDates, setTickForSide])
+  }, [waybackRealDates, rawWaybackItems, waybackWalk.loading, setTickForSide])
 
   // Absent an explicit pointer target (e.g. a keyboard step), which side an
   // action applies to: the only historical side when just one is showing,
@@ -942,8 +958,12 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Once the user has actually zoomed/panned (viewWindow set), this floor
   // no longer applies at all — see effectiveMin below.
   const DEFAULT_VIEW_FLOOR_MS = Date.UTC(2010, 0, 1)
-  const fullMin = items[0]?.dateMs ?? 0
-  const fullMax = items[items.length - 1]?.dateMs ?? fullMin + 1
+  // While ESRI's ticks load, the last settled axis stays, so the timeline adapts
+  // once, at the end. Before any has settled, from the floor below up to today.
+  const settledDomain = useRef({ min: DEFAULT_VIEW_FLOOR_MS, max: PAGE_LOADED_MS })
+  if (!waybackSettling && items.length) settledDomain.current = { min: items[0].dateMs, max: items[items.length - 1].dateMs }
+  const fullMin = waybackSettling ? settledDomain.current.min : items[0]?.dateMs ?? 0
+  const fullMax = waybackSettling ? settledDomain.current.max : items[items.length - 1]?.dateMs ?? fullMin + 1
   const fullSpan = Math.max(1, fullMax - fullMin)
   const defaultMin = fullMax > DEFAULT_VIEW_FLOOR_MS ? Math.max(fullMin, DEFAULT_VIEW_FLOOR_MS) : fullMin
   // The actual reachable zoom-out/pan boundary — every fullMin/fullMax used
@@ -1254,7 +1274,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     pendingWaybackPicks.current.delete(which)
     if (tick.provisional && tick.releaseNum) {
       pinWaybackRelease(tick.dateMs, tick.releaseNum)
-      pendingWaybackPicks.current.set(which, tick.releaseNum)
+      pendingWaybackPicks.current.set(which, { releaseNum: tick.releaseNum, releaseDate: tick.dateMs })
     }
     const asOverlay = picksKeep && !browse && !!tick.ref && !!catalogBasemap(tick.ref)
     if (!asOverlay) setTickForSide(which, tick)
@@ -2231,7 +2251,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
                 const activeSides = showingViews.filter((s) => tickBySide[s]?.source === t.source && tickBySide[s]?.key === t.key)
                 const overlaySides = t.ref ? overlaySidesByRef.get(t.ref) : undefined
                 return t.source === "wayback" ? (
-                  <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} activeSides={activeSides} onSelect={() => applyTick(t)} />
+                  <WaybackTickMark key={`${t.source}-${t.key}`} tick={t} leftPct={tickLeftPct(t)} activeSides={activeSides} dateLoading={waybackSettling} onSelect={() => applyTick(t)} />
                 ) : (
                   <div
                     key={`${t.source}-${t.key}`}
