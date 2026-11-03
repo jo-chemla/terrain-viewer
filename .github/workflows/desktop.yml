@@ -2,7 +2,8 @@
 # builds for the OS it runs on). Runs weekly and on demand; the three
 # bundles are attached to one rolling GitHub Release, `desktop-latest`,
 # which is re-created on every run so its assets are always the newest
-# build of main. Unsigned, experimental. See desktop/README.md.
+# build of main, and to a permanent desktop-v<version> one for winget.
+# Unsigned, experimental. See desktop/README.md.
 name: Desktop bundles (Electrobun, experimental)
 
 on:
@@ -157,6 +158,26 @@ jobs:
           done
           gh release upload desktop-latest assets/* --clobber
           gh release edit desktop-latest --title "Desktop bundles, full offline-docs ($date)" --notes "$notes" --latest
+      - name: Permanent release desktop-v<version>
+        # The same full-build installers under a tag that is never rewritten:
+        # desktop-latest deletes its assets on each run, while a winget manifest
+        # needs a URL and a hash that stay valid. The feed stays on desktop-latest.
+        # A second run on one day leaves the first alone rather than change a
+        # published hash. Then, for a new version in winget-pkgs:
+        #   komac update Iconem.TerrainViewer --version <version> --urls <Installer url> --submit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          stamp=$(ls assets | grep -o -m1 -E 'v[0-9]{4}\.[0-9]{2}\.[0-9]{2}' | head -n 1)
+          version=$(echo "${stamp#v}" | awk -F. '{printf "%d.%d.%d", $1, $2, $3}')
+          tag="desktop-v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag exists, left as it is"
+            exit 0
+          fi
+          sha=$(git rev-parse --short HEAD)
+          files=$(ls assets/*-v*-Installer-* assets/*-v*-Setup-* assets/*-v*-Portable-* 2>/dev/null || true)
+          gh release create "$tag" $files --title "Terrain Viewer desktop $version" --latest=false --notes "Desktop bundles built from \`$sha\`, full build with the documentation inside. A permanent copy, never rewritten; the newest build is always on desktop-latest. Windows: \`winget install Iconem.TerrainViewer\`, or the Installer here (Start Menu entry, no admin rights). Portable zips unpack anywhere. Unsigned: on Windows, SmartScreen, More info, Run anyway. See https://terrain-viewer.iconem.com/docs/features/advanced/desktop/."
       - name: Rolling release desktop-latest-light (the light build)
         # The light build's installers and its updater feed; its
         # release.baseUrl points at this tag.

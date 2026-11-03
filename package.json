@@ -2,6 +2,7 @@
   "name": "terrain-visualization-modes",
   "version": "0.1.0",
   "author": "jochemla",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n app,docs -c cyan,magenta \"pnpm run app\" \"pnpm run docs\"",

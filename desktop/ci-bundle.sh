@@ -96,6 +96,17 @@ PY
   out="$PWD/artifacts/portable.zip"
   ( cd "$(dirname "$app")"
     if command -v zip >/dev/null; then zip -qr "$out" "$(basename "$app")"; else 7z a -tzip -bso0 "$out" "$(basename "$app")"; fi )
+  # The installer winget uses (installer.iss), for the full build only: the
+  # light one has no winget package and would cost a few more Actions minutes.
+  if [ "$(uname -s)" != "Linux" ] && [ "$docs" = "bundled" ]; then
+    iscc="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+    [ -x "$iscc" ] || choco install innosetup --no-progress -y >/dev/null || true
+    if [ -x "$iscc" ]; then
+      TV_VERSION="${BUILD_VERSION:-$(date -u +%Y.%-m.%-d)}" TV_APP_DIR="$(cygpath -w "$PWD/$app")" TV_OUTPUT_NAME=Installer "$iscc" //Qp installer.iss || echo "Inno Setup failed: no installer in this build"
+    else
+      echo "Inno Setup not found: no installer in this build"
+    fi
+  fi
 fi
 
 if [ "$(uname -s)" != "Darwin" ] && [ "$(uname -s)" != "Linux" ]; then
@@ -135,6 +146,7 @@ for f in artifacts/*; do
       continue ;;
     portable.zip) kind=Portable; ext=zip ;;
     Setup.exe)    kind=Setup; ext=exe ;;
+    Installer.exe) kind=Installer; ext=exe ;;
     *.tar.gz)     kind=Setup; ext=tar.gz ;;
     *.dmg)        kind=Setup; ext=dmg ;;   # the macOS installer image
     *)            kind=Setup; ext=${name##*.} ;;
