@@ -49,6 +49,7 @@ jobs:
           cat <<EOF > .env
           ${{ secrets.ENV_FILE_CONTENT }}
           EOF
+          sed -i '/^VITE_PLANET_API_KEY=/d' .env
       - name: Build the web app and the docs
         # The docs export is merged into dist/docs the way the Pages deploy
         # does it, so gen-config.mjs bundles it and the Documentation button
@@ -65,6 +66,15 @@ jobs:
           pnpm run docs:build
           mkdir -p dist/docs
           cp -r docs/out/. dist/docs/
+      - name: No Planet key in the build
+        # vite.config.ts leaves it out; this catches anything that stops doing so.
+        # Planet keys start with PLAK. Prose naming the prefix does not match.
+        shell: bash
+        run: |
+          if grep -rlE 'PLAK[0-9a-zA-Z]{10,}' dist; then
+            echo "::error title=Planet key in the build::a Planet API key is in dist/, and it must never ship"
+            exit 1
+          fi
       - name: Linux webview packages
         if: runner.os == 'Linux'
         run: |

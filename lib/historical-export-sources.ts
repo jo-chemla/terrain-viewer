@@ -4,6 +4,7 @@
 // see components/LayersAndSources/MapSources.tsx), which isn't usable from a
 // plain async batch loop. Each branch below just calls the same underlying
 // pure per-source functions RasterBasemapSource itself calls.
+import { planetTileBlobFetcher } from "./planet-tiles"
 import { listWaybackTicksInRange, waybackTileUrl } from "./wayback"
 import { syntheticHlsTicks, hlsTileUrl } from "./hls"
 import { listGeHistoricalTicksInRange, geHistoricalTileSource, fetchGeHistoricalTileBlob } from "./ge-historical"
@@ -116,7 +117,7 @@ export async function listExportTicks(
       .filter((t) => t.dateMs >= startMs && t.dateMs <= endMs)
       .map((t) => ({
         dateMs: t.dateMs, label: dateLabel(t.dateMs),
-        tileSpec: { tileUrlTemplate: planetTileUrl(t.dateMs, planetKey), tileSize: 256, maxzoom: 15 },
+        tileSpec: { tileUrlTemplate: planetTileUrl(t.dateMs, planetKey), tileSize: 256, maxzoom: 15, fetchTileBlob: planetTileBlobFetcher(t.dateMs) },
       }))
   }
   if (sourceId === "eox-s2") {

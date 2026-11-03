@@ -61,6 +61,7 @@ jobs:
           cat <<EOF > .env
           ${{ secrets.ENV_FILE_CONTENT }}
           EOF
+          sed -i '/^VITE_PLANET_API_KEY=/d' .env
       - name: Build
         run: |
           pnpm build
@@ -106,6 +107,15 @@ jobs:
           export CHROME_PATH=$(ls -d ~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome | head -1)
           node slides/scripts/publish.mjs --base /docs/slides/ --out dist/docs/slides --pdf
           ls -la dist/docs/slides/pdf
+      - name: No Planet key in the build
+        # vite.config.ts leaves it out; this catches anything that stops doing so.
+        # Planet keys start with PLAK. Prose naming the prefix does not match.
+        shell: bash
+        run: |
+          if grep -rlE 'PLAK[0-9a-zA-Z]{10,}' dist; then
+            echo "::error title=Planet key in the build::a Planet API key is in dist/, and it must never ship"
+            exit 1
+          fi
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
