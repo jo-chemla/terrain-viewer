@@ -173,7 +173,9 @@ jobs:
         # desktop-latest deletes its assets on each run, while a winget manifest
         # needs a URL and a hash that stay valid. The feed stays on desktop-latest.
         # A second run on one day leaves the first alone rather than change a
-        # published hash. Then, for a new version in winget-pkgs:
+        # published hash; while a version's winget PR is still open, its assets
+        # can be replaced by hand with the PR's hash updated in the same breath.
+        # Then, for a new version in winget-pkgs:
         #   komac update Iconem.TerrainViewer --version <version> --urls <Installer url> --submit
         env:
           GH_TOKEN: ${{ github.token }}

@@ -133,7 +133,8 @@ jobs:
       # deployment created by the previous run can still be "in progress"
       # when this run reaches it — two pushes a couple of minutes apart made
       # the second fail with "Deployment request failed ... due to in
-      # progress deployment". Try once, and on failure wait and try again.
+      # progress deployment", and it can last: the error still named a finished
+      # deployment 27 minutes on, and has gone by 45. So keep trying for 33 minutes.
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
@@ -142,5 +143,21 @@ jobs:
         if: steps.deployment.outcome == 'failure'
         run: sleep 150
       - name: Deploy to GitHub Pages (retry)
+        id: retry
         if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Wait longer
+        if: steps.retry.outcome == 'failure'
+        run: sleep 600
+      - name: Deploy to GitHub Pages (second retry)
+        id: retry2
+        if: steps.retry.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Wait longer still
+        if: steps.retry2.outcome == 'failure'
+        run: sleep 1200
+      - name: Deploy to GitHub Pages (last retry)
+        if: steps.retry2.outcome == 'failure'
         uses: actions/deploy-pages@v4

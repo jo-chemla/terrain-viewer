@@ -96,16 +96,20 @@ function capPlaces(places: Record<string, unknown>) {
 }
 
 // The walk: which releases have their own imagery at a tile. Each tilemap
-// answer names the release to ask next, so it cannot run in parallel (20 to 30
-// requests at 150 ms, 4 s). @esri/wayback-core's getWaybackItemsWithLocalChanges
-// walks the same way but only answers at the end; this one reports each step,
-// so ticks can appear while it runs and dates can start before it ends, and it
-// is keyed by tile, what the answer depends on, not by the point inside it.
+// answer names the release to ask next, so one chain takes 20 to 30 requests at
+// 150 ms, 4 s. Several chains started across the catalog cover it in about a
+// quarter of that, for a few more requests: a chain stops where it meets a
+// release another has reached, and the answer is still the chain from the newest
+// release, as if walked alone. @esri/wayback-core's getWaybackItemsWithLocalChanges
+// walks one chain and only answers at the end; this one reports each step, so
+// ticks can appear while it runs and dates can start before it ends, and it is
+// keyed by tile, what the answer depends on, not by the point inside it.
 // Shared by every caller: the timeline panel draws ticks from it, each side's
 // RasterBasemapSource resolves its date to a release number with it.
+const WALK_CHAINS = 8
 interface WaybackWalk {
   items: WaybackItem[]
-  /** How many of `items` are final. The last run of same-size releases can still move to an older one. */
+  /** How many of `items` are final: those on the chain from the newest release, less the last run of same-size releases, which can still move to an older one. */
   settledCount: number
   done: boolean
   promise: Promise<WaybackItem[]>
@@ -145,22 +149,48 @@ function startWalk(latitude: number, longitude: number, zoom: number): WaybackWa
       walk.items = stored.slice(1).map((n) => byRelease.get(n)).filter((it): it is WaybackItem => !!it)
     } else {
       const baseUrl = getWaybackServiceBaseURL()
-      const found: { releaseNum: number; size: number }[] = []
-      let next: number | undefined = newest
-      while (next) {
-        const r: Response = await fetch(`${baseUrl}/tilemap/${next}/${level}/${row}/${column}`)
-        const j = (await r.json()) as { data: number[]; select?: number[]; size?: number[] }
-        if (!j.data[0]) break
-        const releaseNum: number = j.select?.[0] ? +j.select[0] : next
-        found.push({ releaseNum, size: j.size?.[0] ?? 0 })
-        const { releases, settled } = distinctReleases(found, level)
-        walk.items = releases.map((n) => byRelease.get(n)).filter((it): it is WaybackItem => !!it)
-        walk.settledCount = settled
-        report()
-        // A release the catalog doesn't list ends the walk: -1 + 1 would start over from the newest.
-        const at = catalog.findIndex((it) => it.releaseNum === releaseNum)
-        next = at < 0 ? undefined : catalog[at + 1]?.releaseNum
+      const indexOf = new Map(catalog.map((it, i) => [it.releaseNum, i]))
+      type Found = { releaseNum: number; size: number }
+      /** Release asked -> the release holding its imagery; null when it has no tile here. */
+      const answers = new Map<number, Found | null>()
+      const asked = new Set<number>()
+      const found = new Map<number, Found>()
+      const toItems = (releases: number[]) => releases.map((n) => byRelease.get(n)).filter((it): it is WaybackItem => !!it)
+      // A release the catalog doesn't list ends a chain, so no index can send one back to the newest.
+      const chainFromNewest = () => {
+        const chain: Found[] = []
+        for (let i = 0; i < catalog.length;) {
+          const answer = answers.get(catalog[i].releaseNum)
+          if (!answer) break
+          chain.push(answer)
+          const at = indexOf.get(answer.releaseNum)
+          if (at === undefined || at < i) break
+          i = at + 1
+        }
+        return chain
       }
+      const walkFrom = async (start: number) => {
+        for (let i = start; i < catalog.length;) {
+          const asking = catalog[i].releaseNum
+          if (asked.has(asking)) return
+          asked.add(asking)
+          const r: Response = await fetch(`${baseUrl}/tilemap/${asking}/${level}/${row}/${column}`)
+          const j = (await r.json()) as { data: number[]; select?: number[]; size?: number[] }
+          const answer = j.data[0] ? { releaseNum: j.select?.[0] ? +j.select[0] : asking, size: j.size?.[0] ?? 0 } : null
+          answers.set(asking, answer)
+          const reached = !!answer && found.has(answer.releaseNum)
+          if (answer) found.set(answer.releaseNum, answer)
+          const newestFirst = [...found.values()].sort((a, b) => (indexOf.get(a.releaseNum) ?? 0) - (indexOf.get(b.releaseNum) ?? 0))
+          walk.items = toItems(distinctReleases(newestFirst, level).releases)
+          walk.settledCount = distinctReleases(chainFromNewest(), level).settled
+          report()
+          const at = answer ? indexOf.get(answer.releaseNum) : undefined
+          if (reached || at === undefined || at < i) return
+          i = at + 1
+        }
+      }
+      await Promise.all(Array.from({ length: WALK_CHAINS }, (_, n) => walkFrom(Math.floor((n * catalog.length) / WALK_CHAINS))))
+      walk.items = toItems(distinctReleases(chainFromNewest(), level).releases)
       delete store.walks[tileKey]
       store.walks[tileKey] = [newest, ...walk.items.map((it) => it.releaseNum)]
       capPlaces(store.walks)
@@ -263,9 +293,18 @@ async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: n
   if (pending) return pending
   const p = (async () => {
     try {
-      const meta = await getMetadata({ latitude, longitude }, Math.round(zoom), releaseNumber)
+      // The metadata layers have holes: at a place in the Ardennes, the 2018
+      // releases have no record at z12 or z13 and a dated one at z14, and at
+      // most places z10 and z11 have records with no date. A finer level is the
+      // nearest thing Esri says, so ask up to three. The layers stop at z10.
+      let meta: WaybackMetadata | null = null
+      for (const level of new Set([0, 1, 2, 3].map((up) => Math.min(23, Math.max(10, Math.round(zoom) + up))))) {
+        const answer = await getMetadata({ latitude, longitude }, level, releaseNumber)
+        meta = answer?.date ? answer : meta ?? answer
+        if (answer?.date) break
+      }
       fullMetaCache.set(key, meta)
-      if (meta) for (const l of waybackMetaListeners) l()
+      if (meta?.date) for (const l of waybackMetaListeners) l()
       return meta
     } catch {
       // Not cached: a transient failure (rate limit, network blip) used to
@@ -290,7 +329,7 @@ export async function fetchWaybackCaptureMeta(latitude: number, longitude: numbe
   const place = locationKey(latitude, longitude, zoom)
   const stored = store.dates[place]?.[releaseNumber]
   const dateMs = stored ?? (await fetchWaybackFullMeta(latitude, longitude, zoom, releaseNumber))?.date
-  if (dateMs == null) return null
+  if (!dateMs) return null
   if (stored == null) {
     const dates = store.dates[place] ?? {}
     delete store.dates[place]
@@ -350,8 +389,13 @@ export function useWaybackRealCaptureDates(walk: WaybackLocalChanges, latitudeRa
   const coarseKey = locationKey(latitude, longitude, zoom)
   const isThisPlace = walk.key === coarseKey
   const settledCount = isThisPlace ? walk.settledCount : 0
+  // The render before the effect below has run still counts as loading, or the
+  // axis, which holds still while this loads, would take in a half-known list.
+  const run = `${coarseKey}/${settledCount}/${isThisPlace}/${walk.loading}/${walk.items.length}`
+  const [ranFor, setRanFor] = useState("")
 
   useEffect(() => {
+    setRanFor(run)
     const items = walk.items.slice(0, settledCount)
     if (!walk.items.length) { setResolved({}); setLoading(walk.loading); return }
     let cancelled = false
@@ -396,7 +440,7 @@ export function useWaybackRealCaptureDates(walk: WaybackLocalChanges, latitudeRa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coarseKey, settledCount, isThisPlace, walk.loading, walk.items.length])
 
-  return { resolved, loading }
+  return { resolved, loading: loading || ranFor !== run }
 }
 
 /**
@@ -576,7 +620,7 @@ export function useWaybackDynamicAttribution(latitudeRaw: number, longitudeRaw: 
     fetchWaybackFullMeta(latitude, longitude, zoom, item.releaseNum).then((meta) => {
       if (cancelled || !meta) return
       const srcDesc = `${meta.provider} (${meta.source})`
-      const captureLabel = new Date(meta.date).toISOString().slice(0, 10)
+      const captureLabel = meta.date ? new Date(meta.date).toISOString().slice(0, 10) : "an unknown date"
       // Esri's own metadata service returns these as float32-precision values
       // (e.g. 0.30000001192092896 for a nominal 0.3m) — round for display,
       // same rounding a real MapServer identify's NICE_DESC string already
