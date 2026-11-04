@@ -4,11 +4,9 @@
 
 #### TL;DR
 
-- **The app**: Esri Wayback on the timeline loads faster and stops jumping. Eight walks at once find a place's releases about 2.6 times faster; a tick appears only once its release is sure to stay, dashed at the release date, then moves once to its imagery date; the axis waits for your click; a place seen before opens straight away. ESRI tick tooltips open at once too. See [how it works](https://terrain-viewer.iconem.com/docs/dev/esri-wayback#showing-a-place-quickly).
-  ![Dashed ESRI ticks on the timeline, at their release dates until the imagery dates arrive](/docs/screenshots/timeline-esri-dashed-ticks.png)
-- **The app**: Planet monthly mosaics cost far less quota. You enter your own key in Settings and no build ships one; months already seen come from a local cache; only the month the timeline rests on loads, 45 tiles instead of 540 over 12 months; a counter on the timeline stops at 500 tiles until you allow more.
-- **The app**: a Maxar, Vantor or NOAA tick draws the whole capture instead of one 5 km cell, and a tick shows the capture's time when the catalog has one, in UTC.
-- **The desktop app**: a Windows installer with a Start Menu entry and no admin rights, and permanent versioned releases next to the rolling one. A winget package is submitted and under review. See [Desktop](https://terrain-viewer.iconem.com/docs/features/advanced/desktop).
+- **ESRI Wayback fixes**: Esri Wayback on the timeline loads faster and stops jumping. Ticks stay dashed at the mosaic layer's release date, become plain only once the real imagery capture date has resolved, and move once to that date. Eight walks at once find a place's releases about 2.6 times faster, and a tick appears only once its release is sure to stay. See [how it works](https://terrain-viewer.iconem.com/docs/dev/esri-wayback#showing-a-place-quickly).
+- **Planet BYOK**: you enter your own Planet key in Settings, and no build ships one. Months already seen come from a local cache; stepping along the timeline loads only the month you stop on rather than every month you pass, 45 tiles instead of 540 across 12 months; a counter on the timeline stops at 500 tiles until you allow more.
+- **STAC COG Mosaics**: a Maxar, Vantor or NOAA tick draws the whole capture, by mosaicking up to 25 COGs of that capture from the same STAC collection within the viewport, instead of one 5 km cell. A tick also shows the capture's time when the catalog has one, in UTC.
 
 #### Details
 
