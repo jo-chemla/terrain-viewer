@@ -738,7 +738,7 @@ New standalone **Theme Editor**: live Tailwind v4/shadcn theming with tweakcn/sh
 #### TL;DR
 - **Relief Visualization** split into its own separate group (**Sky View Factor SVF, Openness**) from **Terrain-analysis (Curvature, TPI, Roughness, Det-Hessian, Blobness)**.
 
-  ![Sky-View Factor relief visualization](/docs/screenshots/svf.jpg)
+  ![Sky-View Factor relief visualization](/docs/screenshots/viz-modes/svf.jpg)
 - Relief Visualization and Terrain Analysishave a Basic/Advanced collapse toggle to either just activate/deactivate the additional sub-modes, or go further and edit their symbology.
 - **Keyboard shortcuts**: Shift-tap to peek at the raster basemap, Ctrl-tap to hide every overlay down to just the basemap. See all keyboard shortcuts in the dedicated section of General Settings modal. 
 - **Labeled Sources / Options / Detectors / Tools sidebar dividers** for scanning a long control panel.
@@ -836,7 +836,7 @@ Experimental **"Tells" archaeological mound detector**, gated behind a Beta togg
 #### TL;DR
 **Slope visualization mode**: launched as a PlanTopo server-hosted overlay (computed offline from Mapterhorn), upgraded to a client-side "Slope and More" v2: a custom MapLibre protocol computed directly from whichever terrain source is active (BYOD included), rather than PlanTopo's own fixed dataset. Later grew into the full curvature/TPI/roughness/LRM/Tells suite above.
 
-![Slope-angle visualization mode](/docs/screenshots/slope.jpg)
+![Slope-angle visualization mode](/docs/screenshots/viz-modes/slope.jpg)
 
 ### Features
 - **Slope viz mode** (`ba51907`) — a PlanTopo-hosted server overlay (their own precomputed slope-angle raster); upgraded the same day (`8612990`) to a client-side custom MapLibre protocol computed from whichever terrain source is active ("Slope and More" v2) — the same viz mode that later grew into the full curvature/TPI/roughness/LRM/Tells suite (see the Jul 10–12 entries above).

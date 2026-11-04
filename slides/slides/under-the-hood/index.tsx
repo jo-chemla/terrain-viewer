@@ -1,12 +1,13 @@
 import { type DesignSystem, type Page, type SlideMeta, Step, Steps, useSlidePageNumber } from '@open-slide/core';
 import type { CSSProperties, ReactNode } from 'react';
 
-import slope from '@assets/screenshots/viz-modes/slope.jpg';
-import phong from '@assets/screenshots/viz-modes/phong.jpg';
-import hardShadows from '@assets/screenshots/viz-modes/hard-shadows.jpg';
-import matcap from '@assets/screenshots/viz-modes/matcap.jpg';
-import lrmR64 from '@assets/screenshots/viz-modes/lrm-r64.jpg';
-import sourceInfo from '@assets/screenshots/terrain-source-info.jpg';
+import { shot } from '@assets/shots';
+const slope = shot('viz-modes/slope.jpg');
+const phong = shot('viz-modes/phong.jpg');
+const hardShadows = shot('viz-modes/hard-shadows.jpg');
+const matcap = shot('viz-modes/matcap.jpg');
+const lrmR64 = shot('viz-modes/lrm-r64.jpg');
+const sourceInfo = shot('terrain-source-info.jpg');
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
 // The look of open-slide's stock getting-started deck: white, Geist, hairline

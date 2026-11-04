@@ -31,9 +31,18 @@ no longer reports on), 404 for a sha never deployed. `succeed` can show
 before `purging_cdn`; a deployment in `purging_cdn` did not block a new one
 on 2026-11-04 09:40, so what exactly blocks is still unclear.
 
-**The artifact** (545 MB unpacked, 2026-11-04) is 495 MB of `docs/`: the
-screenshots are in it three times (`docs/screenshots` 172 MB, Next's
-`_next/static/media` 84 MB, the slides' `slides/assets` 72 MB), 45 jpg
-screenshots over 1.5 MB are 4K at a high quality (about 97 MB, a quarter of
-that at 2560 px and quality 82), and the five slide PDFs are 86 MB.
-Whether the artifact size makes the purge slow is unproven.
+**The artifact** was 545 MB unpacked on 2026-11-04, 495 MB of it `docs/`, with
+the screenshots in it three times: `docs/screenshots` (docs/public, 172 MB),
+Next's `_next/static/media` (84 MB, the remark-image plugin's imports) and
+the slides' `slides/assets` (72 MB, Vite's copies of `@assets` imports).
+Since 2026-11-04 the docs keep the public path (`remarkImageOptions:
+{ useImport: false }` in `docs/source.config.ts`, the basePath added by the
+`img` component in `docs/src/components/mdx.tsx`) and the decks use
+`shot('...')` from `slides/assets/shots.ts` (`/docs/screenshots/...`, proxied
+in dev by `slides/scripts/dev.mjs`, served by `slides/scripts/publish.mjs`),
+which leaves one copy. Still large: 45 jpg screenshots are 4K at a high
+quality (about 97 MB; a webp or avif conversion is a later option, the 4K
+originals stay for now) and the five slide PDFs are 86 MB.
+`slides/scripts/check-images.mjs` opens every docs page and deck in Chrome
+and lists the image requests that fail. Whether the artifact size makes the
+purge slow is unproven.

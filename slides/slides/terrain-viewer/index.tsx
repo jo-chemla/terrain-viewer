@@ -6,29 +6,30 @@ import {
 } from '@open-slide/core';
 import type { CSSProperties, ReactNode } from 'react';
 
-import hero from '@assets/screenshots/overview-hero.jpg';
-import sidebar from '@assets/screenshots/sidebar-overview.jpg';
-import sourceInfo from '@assets/screenshots/terrain-source-info.jpg';
-import library from '@assets/screenshots/terrain-library.jpg';
-import combined from '@assets/screenshots/viz-modes/combined.jpg';
-import globe from '@assets/screenshots/globe-view.jpg';
-import splitCompare from '@assets/screenshots/walkthrough/terrain/15-split-compare-mode.jpg';
-import modesPerView from '@assets/screenshots/walkthrough/terrain/17-modes-per-view.jpg';
-import bookmarks from '@assets/screenshots/bookmarks-gallery.jpg';
-import shareModal from '@assets/screenshots/export-share/share-modal.jpg';
-import skillView from '@assets/screenshots/ui/ai-skill-link-view.jpg';
-import tHillshade from '@assets/screenshots/thumbs/viz-modes/hillshade.jpg';
-import tHypso from '@assets/screenshots/thumbs/viz-modes/hypso.jpg';
-import tContours from '@assets/screenshots/thumbs/viz-modes/contours.jpg';
-import tSlope from '@assets/screenshots/thumbs/viz-modes/slope.jpg';
-import tCurvature from '@assets/screenshots/thumbs/viz-modes/curvature.jpg';
-import tTpi from '@assets/screenshots/thumbs/viz-modes/tpi.jpg';
-import tLrm from '@assets/screenshots/thumbs/viz-modes/lrm.jpg';
-import tSvf from '@assets/screenshots/thumbs/viz-modes/svf.jpg';
-import tOpenness from '@assets/screenshots/thumbs/viz-modes/openness.jpg';
-import tPhong from '@assets/screenshots/thumbs/viz-modes/phong.jpg';
-import tMatcap from '@assets/screenshots/thumbs/viz-modes/matcap.jpg';
-import tShadows from '@assets/screenshots/thumbs/viz-modes/hard-shadows.jpg';
+import { shot } from '@assets/shots';
+const hero = shot('overview-hero.jpg');
+const sidebar = shot('sidebar-overview.jpg');
+const sourceInfo = shot('terrain-source-info.jpg');
+const library = shot('terrain-library.jpg');
+const combined = shot('viz-modes/combined.jpg');
+const globe = shot('globe-view.jpg');
+const splitCompare = shot('walkthrough/terrain/15-split-compare-mode.jpg');
+const modesPerView = shot('walkthrough/terrain/17-modes-per-view.jpg');
+const bookmarks = shot('bookmarks-gallery.jpg');
+const shareModal = shot('export-share/share-modal.jpg');
+const skillView = shot('ui/ai-skill-link-view.jpg');
+const tHillshade = shot('thumbs/viz-modes/hillshade.jpg');
+const tHypso = shot('thumbs/viz-modes/hypso.jpg');
+const tContours = shot('thumbs/viz-modes/contours.jpg');
+const tSlope = shot('thumbs/viz-modes/slope.jpg');
+const tCurvature = shot('thumbs/viz-modes/curvature.jpg');
+const tTpi = shot('thumbs/viz-modes/tpi.jpg');
+const tLrm = shot('thumbs/viz-modes/lrm.jpg');
+const tSvf = shot('thumbs/viz-modes/svf.jpg');
+const tOpenness = shot('thumbs/viz-modes/openness.jpg');
+const tPhong = shot('thumbs/viz-modes/phong.jpg');
+const tMatcap = shot('thumbs/viz-modes/matcap.jpg');
+const tShadows = shot('thumbs/viz-modes/hard-shadows.jpg');
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
 // The look of open-slide's stock getting-started deck: white, Geist, hairline

@@ -1,19 +1,20 @@
 import { type DesignSystem, type Page, type SlideMeta, useSlidePageNumber } from '@open-slide/core';
 import type { CSSProperties, ReactNode } from 'react';
 
-import heroGrid from '@assets/screenshots/overview-historical-grid-2x2.jpg';
-import timeline from '@assets/screenshots/historical-timeline.jpg';
-import timelineWalk from '@assets/screenshots/walkthrough/historical/11-historical-timeline.jpg';
-import histTools from '@assets/screenshots/walkthrough/historical/12-historical-tools.jpg';
-import stacSearch from '@assets/screenshots/stac-search.jpg';
-import coverage from '@assets/screenshots/coverage-overlays.jpg';
-import coverage3d from '@assets/screenshots/coverage-3d-lidar-europe.jpg';
-import grid42 from '@assets/screenshots/split-modes/historical-grid-4x2.jpg';
-import blendDiff from '@assets/screenshots/split-modes/blend-difference-100.jpg';
-import matchOn from '@assets/screenshots/split-modes/match-colors-on.jpg';
-import matchOff from '@assets/screenshots/split-modes/match-colors-off.jpg';
-import exportHist from '@assets/screenshots/export-share/export-historical-dialog.jpg';
-import osm3d from '@assets/screenshots/osm-liberty-3d.jpg';
+import { shot } from '@assets/shots';
+const heroGrid = shot('overview-historical-grid-2x2.jpg');
+const timeline = shot('historical-timeline.jpg');
+const timelineWalk = shot('walkthrough/historical/11-historical-timeline.jpg');
+const histTools = shot('walkthrough/historical/12-historical-tools.jpg');
+const stacSearch = shot('stac-search.jpg');
+const coverage = shot('coverage-overlays.jpg');
+const coverage3d = shot('coverage-3d-lidar-europe.jpg');
+const grid42 = shot('split-modes/historical-grid-4x2.jpg');
+const blendDiff = shot('split-modes/blend-difference-100.jpg');
+const matchOn = shot('split-modes/match-colors-on.jpg');
+const matchOff = shot('split-modes/match-colors-off.jpg');
+const exportHist = shot('export-share/export-historical-dialog.jpg');
+const osm3d = shot('osm-liberty-3d.jpg');
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
 // The look of open-slide's stock getting-started deck: white, Geist, hairline

@@ -3931,6 +3931,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "geHiDpiTiles",
+      "default": "true",
+      "note": "Google Earth Historical tiles built from one Keyhole level finer into 512 px images (Settings → Streaming): no vertical stretch away from the equator and a 2x image for HiDPI screens, for four times …"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "terrainAnalysisAdvanced",
       "default": "true",
       "note": "Basic/Advanced toggle, one per section (Terrain Analysis / Relief Visualization — terrain-analysis-section.tsx / relief-visualization-section.tsx): in \"basic\" mode each sub-mode collapses to just its…"

@@ -26,9 +26,14 @@ export function getMDXComponents(components?: MDXComponents) {
     // Marks every prose image click-to-open in the page's shared
     // LightboxProvider (see [...slug]/page.tsx and lightbox.tsx) — looping
     // left/right arrow-key navigation across all images on the page.
-    img: (props: any) => (
+    // Images are authored as /screenshots/... (public/) and left as such by
+    // the remark-image plugin (useImport: false in source.config.ts); the
+    // basePath goes in here, since next/image leaves a plain string src
+    // alone. A src already under /docs/ is kept.
+    img: ({ src, ...props }: any) => (
       <DefaultImg
         {...props}
+        src={typeof src === 'string' && src.startsWith('/') && !src.startsWith('/docs/') ? `/docs${src}` : src}
         data-lightbox=""
         className={[props.className, 'cursor-zoom-in'].filter(Boolean).join(' ')}
       />
