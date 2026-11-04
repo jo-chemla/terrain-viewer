@@ -611,6 +611,20 @@
             "infoUrl": "https://environment.data.gov.uk/dataset/13787b9a-26a4-4775-8523-806d13af58fc"
         },
         {
+            "id": "custom-uk-wg-lidar-dtm1",
+            "name": "GBR - Wales WG LiDAR DTM 1m - single national COG via titiler",
+            "url": "https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dtm_32bit_cog.tif",
+            "type": "cog",
+            "cogViaTitiler": true,
+            "titilerNodata": -9999,
+            "minzoom": 10,
+            "maxzoom": 18,
+            "bounds": [-5.4, 51.3, -2.6, 53.5],
+            "description": "The Welsh Government's national LiDAR composite DTM at 1 m, all of Wales in one 191007x233000 Float32 COG on DataMapWales's Azure blob (deflate, 256 px tiles, overviews 2 to 64 m, about 49% valid pixels: the survey stops at the coast and has gaps inland). EPSG:27700, so pinned to titiler; the blob sends no CORS header, which titiler does not need. Nodata -9999. Verified through titiler: Yr Wyddfa / Snowdon 1082.2 m (true 1085), Pen y Fan 884.5 m (true 886), Cardiff Castle 12.0 m. Completes the England-only EA composite (its WCS returns 0.0 over Wales); near the border both cover the same ground. OGL v3. The COG is the one DataMapWales's LiDAR Data download page links (also what LiDAR Lens reads); there is no WCS of raw heights.",
+            "resolutionM": 1,
+            "infoUrl": "https://datamap.gov.wales/maps/6969"
+        },
+        {
             "id": "custom-ht-cnigs-dtm15",
             "name": "HTI - CNIGS / World Bank LiDAR DTM 1.5m - VRT via titiler",
             "url": "https://opentopography.s3.sdsc.edu/raster/Haiti_16/Haiti_16_be.vrt",

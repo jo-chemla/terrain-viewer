@@ -350,6 +350,15 @@
   "program_page": "https://environment.data.gov.uk/dataset/13787b9a-26a4-4775-8523-806d13af58fc",
   "licence": "Open Government Licence v3"
  },
+ "custom-uk-wg-lidar-dtm1": {
+  "name": "Wales Welsh Government LiDAR DTM 1m",
+  "doi": null,
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Contains Welsh Government LiDAR data © Crown copyright and database right, Open Government Licence v3 (DataMapWales)",
+  "program_page": "https://datamap.gov.wales/maps/6969",
+  "licence": "Open Government Licence v3"
+ },
  "custom-ht-cnigs-dtm15": {
   "name": "CNIGS / World Bank LiDAR DTM 1.5m",
   "doi": "10.5069/G9GX48R8",
