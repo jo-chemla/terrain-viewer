@@ -164,7 +164,7 @@ const CHEVRON_EXPAND_FRACTION = 0.2
 
 const PAGE_LOADED_MS = Date.now()
 // The pill's own pastel green is too faint for a thin tick, dashed above all.
-const WAYBACK_TICK_COLOR = "#82bc8a"
+const WAYBACK_TICK_COLOR = "#b0d5aa"
 // The dashes run end to end, the middle two shorter: 8-3-7-3-7-3-8 of a 40 px tick.
 const WAYBACK_DASHES = `linear-gradient(to bottom, ${[[0, 8], [11, 18], [21, 28], [31, 39]].map(([a, b], i) => `${i ? `transparent ${a}px, ` : ""}${WAYBACK_TICK_COLOR} ${a}px, ${WAYBACK_TICK_COLOR} ${b}px, transparent ${b}px`).join(", ")})`
 

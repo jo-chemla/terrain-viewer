@@ -4,7 +4,7 @@ sidebarTitle: Esri Wayback
 description: How Esri's World Imagery Wayback viewer works, its release-chained dates against Google Earth Historical's per-tile ones, and how Terrain Viewer shows them. The service is Esri's at wayback.maptiles.arcgis.com, often typed as wayback.maptiler.com, which does not exist.
 ---
 
-ESRI Wayback is one of the [providers](/features/historical-sources#the-timelines-own-providers) behind [Historical Imagery mode](/features/historical-imagery). Where [Google Earth Historical](/dev/ge-historical) is *self-contained per-tile*  — every capture date for a tile lives inside that one tile's quadtree packet — Wayback is **release-chained**: a flat, dated catalog of full, independently-addressable global tile pyramids. `lib/wayback.ts` is a thin wrapper around [`@esri/wayback-core`](https://github.com/Esri/wayback-core) (the SDK behind Esri's own Wayback app) that resolves that release model into the same "one date in, one tile source out" shape every other historical provider in this app already has.
+ESRI Wayback is one of the [providers](/features/historical-sources#the-timelines-own-providers) behind [Historical Imagery mode](/features/historical-imagery). Where [Google Earth Historical](/dev/ge-historical) is *self-contained per-tile*  — every capture date for a tile lives inside that one tile's quadtree packet — Wayback is **release-chained**: a flat, dated catalog of full, independently-addressable global tile pyramids. `lib/wayback.ts` is built on [`@esri/wayback-core`](https://github.com/Esri/wayback-core) (the SDK behind Esri's own Wayback app) and resolves that release model into the same "one date in, one tile source out" shape every other historical provider in this app already has.
 
 The service itself is Esri's, at `wayback.maptiles.arcgis.com` (`/arcgis/rest/services/World_Imagery/MapServer`, with `WMTS/1.0.0/default028mm/{release}/{z}/{y}/{x}` tiles and the release catalog at `waybackconfig.json`). It is sometimes looked up as "wayback.maptiler.com", which does not exist: MapTiler has no Wayback service; the "maptiles" in the host is Esri's tile subdomain.
 
@@ -38,13 +38,94 @@ The result is added as an **ordinary XYZ raster source** (`{ tiles: [waybackTile
 
 The release catalog is fetched once per app session via a module-level cached promise (`cachedItemsPromise` in `lib/wayback.ts`), shared by the sidebar list, the timeline panel, and both split-view A/B basemap sources — not once per component instance. There's no hardcoded fallback list; a fetch failure just leaves an empty release array.
 
-**Local-changes filtering.** Most releases repeat the same imagery as their neighbor at any given spot — a release only matters at a location if it actually changed something there. `lib/wayback.ts` filters the full catalog down to releases with a genuinely distinct tile at that exact location, the same walk as the SDK's `getWaybackItemsWithLocalChanges(location, zoom, { onlyUseSizeToFilterDuplicates: true })`, which is also what Esri's own Wayback app calls. Each `tilemap/{release}/{level}/{row}/{col}` answer names the release to ask next, so one chain is 20 to 30 requests, about 4 s, and the service has no call that answers for several releases at once. The app starts eight chains spread across the catalog; a chain stops where it meets a release another has reached, and the result is the chain from the newest release, as if walked alone. Same-size neighbours count as one image, trading a small chance of missing a same-size-but-different-content release for avoiding a per-candidate image fetch. The app's own walk differs from the SDK's in reporting each step, so ticks appear while it runs, and in being cached per tile, shared by the timeline panel and each side's basemap source.
+**Local-changes filtering.** Most releases repeat the same imagery as their neighbor at any given spot — a release only matters at a location if it actually changed something there. `lib/wayback.ts` filters the full catalog down to releases with a genuinely distinct tile at that exact location, with the same rules as the SDK's `getWaybackItemsWithLocalChanges(location, zoom, { onlyUseSizeToFilterDuplicates: true })`. [The next section](#showing-a-place-quickly) covers how it does so without making the user wait.
 
-**Provisional ticks.** A release the walk knows it will keep, because the next older one answered with another tile size, stands at its release date, dashed, until its imagery date arrives from the metadata service, one request per release, then moves there. Picking a dashed tick picks that release; the view's date follows it when the real date arrives. Esri's metadata has holes: a release can have no dated record at one level and one a level finer, so up to three finer levels are asked. A release with none stays dashed, and its tooltip says Esri gives no date.
+## Showing a place quickly
 
-**The axis holds still.** While the walk and the dates load, a view on ESRI keeps its handle at its own date. With ESRI's ticks on, the timeline keeps its range, from 2010 to today at first, until the user clicks it, zooms it or changes a pill; ticks outside that range stay hidden until then.
+Finding a place's releases and dating them takes dozens of requests, and neither can be done in one call. The timeline therefore shows what it knows as it learns it, under one rule: **nothing is drawn that will have to be taken back.**
 
-**Between sessions.** Walks and imagery dates are kept in local storage (`waybackDates.v1`), 300 places at most, about 130 KB. A release's imagery date at a place never changes, and a walk only ages when a new release comes out, so a place seen before sends no request.
+| Step | Requests | On the timeline |
+|---|---|---|
+| Look up the place in local storage | none | Known ticks at their real dates, solid |
+| Walk the releases, eight chains at once | About 25 `tilemap` calls | A dashed tick at the release date, once the release is known to stay |
+| Ask for each release's imagery date | one or more `getMetadata` calls per release | The tick turns solid and moves to its imagery date |
+| Save the walk and the dates | none | The next visit starts at the first row |
+
+### What the SDK gives
+
+[`@esri/wayback-core`](https://github.com/Esri/wayback-core) supplies the catalog, the metadata and the tile maths. The app leaves out one call, the SDK's walk:
+
+| SDK call | In this app |
+|---|---|
+| `getWaybackItems()` | The catalog, fetched once per session |
+| `getMetadata(point, zoom, release)` | A release's imagery date, source and resolution at a place |
+| `getWaybackServiceBaseURL()`, `long2tile()`, `lat2tile()` | Building the `tilemap` requests |
+| `getWaybackItemsWithLocalChanges()` | **Not used.** It walks one chain and only answers at the end, with no ticks until then |
+
+Without `onlyUseSizeToFilterDuplicates`, the SDK also downloads tile images to compare same-size neighbours byte by byte. The app relies on size alone, as that option does, and so saves those downloads. The cost is that two different images of exactly the same size count as one.
+
+### Walking in parallel
+
+A `tilemap/{release}/{level}/{row}/{col}` answer gives the release holding that tile's imagery (`select`), its size in bytes (`size`) and whether a tile exists at all (`data`). The next release to ask is the one just older than `select`. Each answer names the next question, so a single chain has to run in order, request after request, with more of them at a place with many releases.
+
+The chain can still be started from several places. `startWalk` starts eight, evenly spread across the catalog:
+
+```ts
+const walkFrom = async (start: number) => {
+  for (let i = start; i < catalog.length;) {
+    const asking = catalog[i].releaseNum
+    if (asked.has(asking)) return // another chain has this one
+    asked.add(asking)
+    const answer = await askTilemap(asking) // { releaseNum, size }, or null with no tile here
+    answers.set(asking, answer)
+    const reached = !!answer && found.has(answer.releaseNum)
+    if (answer) found.set(answer.releaseNum, answer)
+    const at = answer ? indexOf.get(answer.releaseNum) : undefined
+    if (reached || at === undefined || at < i) return // met another chain, or ran out
+    i = at + 1
+  }
+}
+await Promise.all(Array.from({ length: 8 }, (_, n) => walkFrom(Math.floor((n * catalog.length) / 8))))
+```
+
+A chain stops where it meets a release another chain has reached. The result isn't simply everything found. A walk from the newest release stops at the first release with no tile, where a chain started further down may carry on. So the final list is rebuilt by following `answers` from the newest release, as if one chain had walked alone (`chainFromNewest`).
+
+Over 14 places, eight chains found the same releases as one chain, in 15.6 s instead of 40.8 s in all. That took 330 requests instead of 226: about 2.6 times faster, for about 1.5 times the requests.
+
+### A tick only once it stays
+
+Same-size neighbours count as one image, kept at its **oldest** release, the first to carry that image. A release the walk has just found may therefore give way to an older one, and drawing it straight away means taking it back. When every find was drawn, a place with 13 releases showed 30 ticks on load, the other 17 hopping or vanishing.
+
+So a release gets a tick only once the next older release has answered with another size or no tile, or when it is the oldest in the catalog:
+
+```ts
+const isFinal = (f: Found) => {
+  if (level <= 11) return true // the SDK does not merge neighbours at these levels either
+  const at = indexOf.get(f.releaseNum)
+  if (at === undefined) return false
+  if (at + 1 >= catalog.length) return true
+  const older = answers.get(catalog[at + 1].releaseNum)
+  return older === null || (older !== undefined && older.size !== f.size)
+}
+```
+
+### Dashed, then dated
+
+A dashed tick stands at its release date, the only date known without asking, and is marked as provisional. When its imagery date arrives from the metadata service it turns solid and moves there. That one move is by design, so a tick appears once and moves at most once. After that, a few ticks can still go: two releases can turn out to hold imagery of the same date, and the timeline keeps one tick for them.
+
+Picking a dashed tick picks that release, and the view's date follows it when the real date arrives.
+
+Esri's metadata has holes: a release can have no dated record at one level and a dated one at a finer level, so up to three finer levels are asked. A release with no date at any of them stays dashed, and its tooltip says Esri gives no date.
+
+Dates belong to a place, since the same release has another date elsewhere. The previous place's dates are never applied to a new place's ticks, which would stand at the wrong date and then jump.
+
+### The axis holds still
+
+While the walk and the dates load, a view on ESRI keeps its handle at its own date. With ESRI's ticks on, the timeline keeps its range, from 2010 to today at first, until the user clicks it, zooms it or changes a pill. Ticks outside that range stay hidden until then. This is what stops the handle and the axis from jumping as each date lands.
+
+### Between sessions
+
+Walks and imagery dates are kept in local storage (`waybackDates.v1`), 300 places at most, about 130 KB. A release's imagery date at a place never changes, and a walk only ages when a new release comes out, so a place seen before sends no request, and its ticks start solid at their real dates.
 
 ## Date → release resolution
 
@@ -66,12 +147,12 @@ const item = useMemo(() => {
 Real per-tile dates come from Esri's metadata feature service (`getMetadata`), queried per release per location and cached; a release whose real date hasn't resolved yet falls back to its own catalog-wide `releaseDatetime` so the nearest-release search always has *some* value to compare against.
 
 <Callout title="Progressive resolution, not all-or-nothing" type="info">
-`useWaybackRealCaptureDates` resolves each release's real date independently as its own request completes, rather than behind a single `Promise.all`. Esri's metadata endpoint has no `AbortSignal`/cancellation support at all, so a single slow response used to block every *other* already-resolved release from showing too. Timeline ticks now populate progressively instead of all-or-nothing, and the whole lookup is debounced 400ms (matching the app's `viewStateUpdateTimer` settle cadence) since a request that starts can't be cancelled once in flight.
+`useWaybackRealCaptureDates` resolves each release's real date independently as its own request completes, rather than behind a single `Promise.all`. Esri's metadata endpoint has no `AbortSignal`/cancellation support at all, so a single slow response used to block every *other* already-resolved release from showing too. Timeline ticks now populate progressively instead of all-or-nothing. A request that starts can't be cancelled once in flight, so the walk's own 400 ms debounce (matching the app's `viewStateUpdateTimer` settle cadence) keeps a passing view from starting any; the lookups add no second one.
 </Callout>
 
 ## Live "ESRI World Imagery" vs. Wayback
 
-The plain, non-historical "ESRI World Imagery" basemap (id `esri`) has no date field of its own — but it isn't dateless, it's just always showing whichever Wayback release is *currently newest* at a location, since Wayback's newest release **is** the live World Imagery basemap, republished under its own catalog. `useEsriLiveCaptureDate()` resolves `items[0]` (both `getWaybackItems` and the local-changes variant return newest-first) through the same real-capture-date machinery as any other tick, just permanently pinned to the newest release rather than a user-picked date.
+The plain, non-historical "ESRI World Imagery" basemap (id `esri`) has no date field of its own — but it isn't dateless, it's just always showing whichever Wayback release is *currently newest* at a location, since Wayback's newest release **is** the live World Imagery basemap, republished under its own catalog. `useEsriLiveCaptureDate()` waits for the walk to end, since the newest release kept so far may not be the newest there is, then resolves `items[0]` (newest-first) through the same real-capture-date machinery as any other tick, just permanently pinned to the newest release rather than a user-picked date.
 
 ## Attribution
 
