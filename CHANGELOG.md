@@ -1,3 +1,24 @@
+# Changelog — Esri Wayback Holds Still
+
+<!-- released: 2026-11-04 -->
+
+#### TL;DR
+
+- **The app**: Esri Wayback on the timeline loads faster and stops jumping. Eight walks at once find a place's releases about 2.6 times faster; a tick appears only once its release is sure to stay, dashed at the release date, then moves once to its imagery date; the axis waits for your click; a place seen before opens straight away. ESRI tick tooltips open at once too. See [how it works](https://terrain-viewer.iconem.com/docs/dev/esri-wayback#showing-a-place-quickly).
+  ![Dashed ESRI ticks on the timeline, at their release dates until the imagery dates arrive](/docs/screenshots/timeline-esri-dashed-ticks.png)
+- **The app**: Planet monthly mosaics cost far less quota. You enter your own key in Settings and no build ships one; months already seen come from a local cache; only the month the timeline rests on loads, 45 tiles instead of 540 over 12 months; a counter on the timeline stops at 500 tiles until you allow more.
+- **The app**: a Maxar, Vantor or NOAA tick draws the whole capture instead of one 5 km cell, and a tick shows the capture's time when the catalog has one, in UTC.
+- **The desktop app**: a Windows installer with a Start Menu entry and no admin rights, and permanent versioned releases next to the rolling one. A winget package is submitted and under review. See [Desktop](https://terrain-viewer.iconem.com/docs/features/advanced/desktop).
+
+#### Details
+
+- Esri Wayback walk: each tilemap answer names the release to ask next, so a single walk runs in order. Eight now start across the catalog, stop where they meet, and the final list is rebuilt from the newest release, the same releases as one walk at all 14 places tested, in 15.6 s against 40.8 s, for 330 requests against 226. Same-size neighbours count as one image, kept at the oldest, so a release gets a tick once the next older one has answered differently: a place with 13 releases used to show 30 ticks on load, most hopping or vanishing. Dates now belong to a place, so a new place's ticks never start at the previous place's dates. Esri's metadata has holes, so up to three finer levels are asked before a tick stays dashed and says Esri gives no date. Walks and dates are kept in local storage, 300 places at most.
+- Timeline: while ESRI loads, the handle stays on its date and the axis keeps its range until you click it, zoom it or change a pill, so ticks outside that range stay hidden until then. The track shows a plain cursor except on a tick; a click anywhere on it still picks the nearest tick.
+- Planet: ticks are computed from 2020-01 to two months ago rather than asked of the Basemaps API on each load, which also stops the export offering 2016 to 2019 mosaics that do not exist. CI fails any build holding a Planet key.
+- Captures: one catalog id is one satellite pass cut into COGs about 5 km across; a `capture://` source draws up to 25 of them, the nearest to the view. Midnight, within 2 minutes, stays a plain day, and the tick card also gives the local time at the item's centre.
+- Desktop: a winget or portable copy skips the self-update it cannot do, which reported an error at every launch, and keeps its files in its own folder; uninstalling leaves nothing behind. An MIT LICENSE file joins the repository.
+- Projects: the Image Georeferencer is hidden in dura, example-embed and mapterhorn-globe; dura gets Relief Visualization and Terrain Analysis back, with the Mound Detector hidden; mapterhorn-globe defaults to the GMT Globe ramp. "Suggest a new terrain source" opens [issue 29](https://github.com/Iconem/terrain-viewer/issues/29). The docs' national and regional dataset tables gain a licence column.
+
 # Changelog — Four Decades a Year at a Time
 
 <!-- released: 2026-10-21 -->
