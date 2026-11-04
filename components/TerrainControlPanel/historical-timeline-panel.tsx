@@ -163,8 +163,6 @@ const WHEEL_GESTURE_TIMEOUT_MS = 200
 const CHEVRON_EXPAND_FRACTION = 0.2
 
 const PAGE_LOADED_MS = Date.now()
-// How near a tick the track shows a pointer. A press further off still picks the nearest tick.
-const TICK_POINTER_RADIUS_PX = 10
 // The pill's own pastel green is too faint for a thin tick, dashed above all.
 const WAYBACK_TICK_COLOR = "#b0d5aa"
 // The dashes run end to end, the middle two shorter: 8-3-7-3-7-3-8 of a 40 px tick.
@@ -2236,10 +2234,6 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
             onPointerMove={(e) => {
               const pan = midPanRef.current
               const locked = document.pointerLockElement === e.currentTarget
-              if (!pan) {
-                const rect = e.currentTarget.getBoundingClientRect()
-                e.currentTarget.style.cursor = visibleItems.some((t) => Math.abs(rect.left + (tickLeftPct(t) / 100) * rect.width - e.clientX) <= TICK_POINTER_RADIUS_PX) ? "pointer" : ""
-              }
               if (!pan || !(locked || e.currentTarget.hasPointerCapture(e.pointerId))) return
               pan.dx += e.movementX
               const span = effectiveMax - effectiveMin
