@@ -17,10 +17,16 @@ LiDAR Composite DTM 1 m, Wales from the Welsh Government LiDAR DTM 1 m
 (DataMapWales), both Open Government Licence. Beyond z17 its lens magnifies
 the z17 data.
 
-What the app has (2026-11-04): England only, through the Environment
-Agency WCS as raw Float32 (`lib/custom-sources.json`, "GBR - England EA
-LIDAR Composite DTM 1m"), about 75 % coverage. No Welsh DTM terrain source:
-DataMapWales appears only as a historical-photo index and in the national
-datasets table. Nothing from LiDAR Lens itself is used; its tiles would be a
-candidate if the author's terms allow it (ask first), and the Welsh DTM is
-a gap either way. See [[national-terrain-sources]].
+How it works: there is NO pre-built tileset to reuse. A service worker
+(`live-sw.js`) makes the tiles in the browser at zoom 13 to 17 from the
+Environment Agency WCS and, for Wales, from the Welsh Government DTM COG
+through the author's private Cloudflare relay (the COG has no CORS). The
+Wiltshire and Ure demos are pre-built Terrarium WebP sets on R2.
+
+What the app has (2026-11-04): England through the EA WCS and, since
+2026-11-04, Wales through the same national COG via titiler
+(`custom-uk-wg-lidar-dtm1` in `lib/custom-sources.json`). Scotland and
+Northern Ireland have no raw-height streaming endpoint; see
+[[national-terrain-sources]]. DataMapWales's historical aerial photography
+is sortie footprints only (WMS/WFS vectors, `geonode:ptv_digitised_sorties_*`),
+no imagery service, so nothing for the historical catalogs.
