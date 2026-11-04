@@ -8,7 +8,7 @@
     "dev": "concurrently -k -n app,docs -c cyan,magenta \"pnpm run app\" \"pnpm run docs\"",
     "app": "vite",
     "docs": "pnpm --dir docs dev",
-    "build": "node scripts/build-seo.mjs && vite build",
+    "build": "node scripts/build-seo.mjs && vite build && node scripts/check-no-planet-key.mjs",
     "seo": "node scripts/build-seo.mjs",
     "zip": "del dist.zip && vite build && \"C:\\Program Files\\7-Zip\\7z.exe\" a dist.zip dist",
     "preview": "vite preview",
