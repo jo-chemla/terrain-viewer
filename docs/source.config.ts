@@ -23,5 +23,12 @@ export default defineConfig({
     // ordering) — the function form instead receives the full default list
     // and can prepend ahead of it.
     rehypePlugins: (defaults) => [rehypeKatex, ...defaults],
+    // Images stay at their public path (/screenshots/... in public/). The
+    // default (useImport) turns every one into an import, so Next bundles a
+    // hashed copy into _next/static/media: 84 MB of duplicates in the site
+    // artifact. The plugin still reads width and height from the file in
+    // public/; components/mdx.tsx adds the basePath, which next/image does
+    // not do for a plain string src.
+    remarkImageOptions: { useImport: false },
   },
 });

@@ -27,7 +27,6 @@ const run = (cmd, args, env = {}) => {
   if (r.status !== 0) process.exit(r.status ?? 1)
 }
 
-run("node", ["scripts/sync-assets.mjs"])
 run("npx", ["open-slide", "build"], { SLIDES_BASE: base })
 rmSync(out, { recursive: true, force: true })
 cpSync(join(root, "dist"), out, { recursive: true })
@@ -38,10 +37,15 @@ if (!wantPdf && !serve) process.exit(0)
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon", ".woff2": "font/woff2", ".pdf": "application/pdf" }
 // Like GitHub Pages: files as they are, a directory's index.html, else 404.
+// The decks show the docs' screenshots by URL (assets/shots.ts), which the
+// published site has next to them: served here from their source folder.
+const screenshots = join(root, "..", "docs", "public", "screenshots")
 const server = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url, "http://x").pathname)
-  if (!path.startsWith(base)) { res.writeHead(404).end(); return }
-  let file = join(out, path.slice(base.length))
+  let file
+  if (path.startsWith("/docs/screenshots/")) file = join(screenshots, path.slice("/docs/screenshots/".length))
+  else if (path.startsWith(base)) file = join(out, path.slice(base.length))
+  else { res.writeHead(404).end(); return }
   if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html")
   if (!existsSync(file)) { res.writeHead(404).end(); return }
   res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(readFileSync(file))

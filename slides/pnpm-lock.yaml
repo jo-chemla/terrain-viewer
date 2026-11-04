@@ -30,6 +30,9 @@ importers:
       playwright-core:
         specifier: 1.63.0
         version: 1.63.0
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.2(jiti@2.7.0)
 
 packages:
 

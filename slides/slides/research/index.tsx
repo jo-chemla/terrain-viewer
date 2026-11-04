@@ -1,18 +1,19 @@
 import { type DesignSystem, type Page, type SlideMeta, Step, Steps, useSlidePageNumber } from '@open-slide/core';
 import type { CSSProperties, ReactNode } from 'react';
 
-import lrm from '@assets/screenshots/viz-modes/lrm.jpg';
-import lrmR4 from '@assets/screenshots/viz-modes/lrm-r4.jpg';
-import lrmR16 from '@assets/screenshots/viz-modes/lrm-r16.jpg';
-import lrmR64 from '@assets/screenshots/viz-modes/lrm-r64.jpg';
-import svf from '@assets/screenshots/viz-modes/svf.jpg';
-import tpi from '@assets/screenshots/viz-modes/tpi.jpg';
-import curvature from '@assets/screenshots/viz-modes/curvature.jpg';
-import byodDiff from '@assets/screenshots/byod-difference-dsm-dtm.jpg';
-import riverRem from '@assets/screenshots/river-rem.jpg';
-import grid42 from '@assets/screenshots/split-modes/historical-grid-4x2.jpg';
-import terrainAnalysis from '@assets/screenshots/terrain-analysis-full.jpg';
-import coverage3d from '@assets/screenshots/coverage-3d-lidar-europe.jpg';
+import { shot } from '@assets/shots';
+const lrm = shot('viz-modes/lrm.jpg');
+const lrmR4 = shot('viz-modes/lrm-r4.jpg');
+const lrmR16 = shot('viz-modes/lrm-r16.jpg');
+const lrmR64 = shot('viz-modes/lrm-r64.jpg');
+const svf = shot('viz-modes/svf.jpg');
+const tpi = shot('viz-modes/tpi.jpg');
+const curvature = shot('viz-modes/curvature.jpg');
+const byodDiff = shot('byod-difference-dsm-dtm.jpg');
+const riverRem = shot('river-rem.jpg');
+const grid42 = shot('split-modes/historical-grid-4x2.jpg');
+const terrainAnalysis = shot('terrain-analysis-full.jpg');
+const coverage3d = shot('coverage-3d-lidar-europe.jpg');
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
 // The look of open-slide's stock getting-started deck: white, Geist, hairline

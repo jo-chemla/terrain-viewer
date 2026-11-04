@@ -1,20 +1,21 @@
 import { type DesignSystem, type Page, type SlideMeta, useSlidePageNumber } from '@open-slide/core';
 import type { CSSProperties, ReactNode } from 'react';
 
-import pickerFull from '@assets/screenshots/tools/elevation-picker-full.jpg';
-import draw from '@assets/screenshots/tools/draw.jpg';
-import animation from '@assets/screenshots/tools/animation.jpg';
-import sunReverse from '@assets/screenshots/sun-shadow-calculator-reverse.jpg';
-import sunDatetime from '@assets/screenshots/sun-datetime-control.jpg';
-import stacCatalogs from '@assets/screenshots/stac-catalogs.jpg';
-import byodAdd from '@assets/screenshots/byod-add-dataset.jpg';
-import byodDiff from '@assets/screenshots/byod-difference-dsm-dtm.jpg';
-import contours from '@assets/screenshots/viz-modes/contours.jpg';
-import buildingShadows from '@assets/screenshots/viz-modes/building-shadows.jpg';
-import exportLayers from '@assets/screenshots/export-share/export-layers-dialog.jpg';
-import downloadSection from '@assets/screenshots/export-share/download-section.jpg';
-import embedHost from '@assets/screenshots/ui/embedding-host-page.jpg';
-import openIn from '@assets/screenshots/ui/open-in-launcher.jpg';
+import { shot } from '@assets/shots';
+const pickerFull = shot('tools/elevation-picker-full.jpg');
+const draw = shot('tools/draw.jpg');
+const animation = shot('tools/animation.jpg');
+const sunReverse = shot('sun-shadow-calculator-reverse.jpg');
+const sunDatetime = shot('sun-datetime-control.jpg');
+const stacCatalogs = shot('stac-catalogs.jpg');
+const byodAdd = shot('byod-add-dataset.jpg');
+const byodDiff = shot('byod-difference-dsm-dtm.jpg');
+const contours = shot('viz-modes/contours.jpg');
+const buildingShadows = shot('viz-modes/building-shadows.jpg');
+const exportLayers = shot('export-share/export-layers-dialog.jpg');
+const downloadSection = shot('export-share/download-section.jpg');
+const embedHost = shot('ui/embedding-host-page.jpg');
+const openIn = shot('ui/open-in-launcher.jpg');
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
 // The look of open-slide's stock getting-started deck: white, Geist, hairline

@@ -6,7 +6,7 @@ You are authoring **slides** in this repo. Every slide is arbitrary React code t
 
 - Put your slide under `slides/<kebab-case-id>/`.
 - The entry is `slides/<id>/index.tsx`.
-- Put slide-specific images/videos/fonts under `slides/<id>/assets/`. For assets reused across decks or themes (logos, avatars), use the global `assets/` folder and import via `@assets/...`.
+- Put slide-specific images/videos/fonts under `slides/<id>/assets/`. For assets reused across decks or themes (logos, avatars), use the global `assets/` folder and import via `@assets/...`. The docs site's screenshots (`docs/public/screenshots`) are not imported: `shot('viz-modes/slope.jpg')` from `@assets/shots` gives their URL under `/docs/screenshots/` (proxied in dev by `scripts/dev.mjs`, served by `scripts/publish.mjs`).
 - Do **not** touch `package.json`, `open-slide.config.ts`, or other slides.
 - Do not add dependencies. Use only `react` and standard web APIs.
 
