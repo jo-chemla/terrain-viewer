@@ -48,3 +48,4 @@
 - [Fumadocs page actions and basePath](fumadocs-page-actions-basepath.md) — stock buttons handle /docs since Next 16.3 (Turbopack import.meta.env.BASE_URL); never pre-prefix markdownUrl; draft withdrawn 2026-10-14
 - [Building shadows on terrain](building-shadows-terrain-drape.md) — renderToTerrainTile drape (6.13, experimental), per-tile mask, revision bumps, headless verification recipe
 - [Google Earth Historical as-of snap](ge-historical-as-of-snap.md) — per-level date lists (yearly Landsat mosaics to L13, captures from L14), tiles draw exact-or-ancestor, the timeline snaps the date on zoom-in only; no provider classification
+- [Pages deploys](pages-deploy.md) � the "in progress deployment" refusal, the cancel-then-poll deploy job (pages-deployments.sh), backend statuses seen, what the 545 MB artifact holds

@@ -10,6 +10,9 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # the deploy job lists this workflow's runs to find the previous Pages
+  # deployments (.github/scripts/pages-deployments.sh)
+  actions: read
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
@@ -128,20 +131,33 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       # The concurrency group above serialises RUNS, but the Pages backend
       # deployment created by the previous run can still be "in progress"
-      # when this run reaches it — two pushes a couple of minutes apart made
-      # the second fail with "Deployment request failed ... due to in
-      # progress deployment", and it can last: the error still named a finished
-      # deployment 27 minutes on, and has gone by 45. So keep trying for 33 minutes.
+      # when this run reaches it, for 20 minutes and more after its files
+      # were synced (purging_cdn), and then the new one is refused with
+      # "Deployment request failed ... due to in progress deployment. Please
+      # cancel <sha> first". Only the newest build matters, so the previous
+      # deployments still in progress are cancelled first; should the deploy
+      # still be refused, the next steps cancel again and poll the backend
+      # until nothing is in progress, instead of sleeping for a fixed time.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - name: Cancel the previous Pages deployments still in progress
+        run: bash .github/scripts/pages-deployments.sh cancel
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
         continue-on-error: true
-      - name: Wait for the previous Pages deployment to finish
+      - name: Wait for the previous Pages deployment to clear
         if: steps.deployment.outcome == 'failure'
-        run: sleep 150
+        env:
+          TIMEOUT: 900
+        run: bash .github/scripts/pages-deployments.sh wait
       - name: Deploy to GitHub Pages (retry)
         id: retry
         if: steps.deployment.outcome == 'failure'
@@ -149,15 +165,9 @@ jobs:
         continue-on-error: true
       - name: Wait longer
         if: steps.retry.outcome == 'failure'
-        run: sleep 600
-      - name: Deploy to GitHub Pages (second retry)
-        id: retry2
-        if: steps.retry.outcome == 'failure'
-        uses: actions/deploy-pages@v4
-        continue-on-error: true
-      - name: Wait longer still
-        if: steps.retry2.outcome == 'failure'
-        run: sleep 1200
+        env:
+          TIMEOUT: 1200
+        run: bash .github/scripts/pages-deployments.sh wait
       - name: Deploy to GitHub Pages (last retry)
-        if: steps.retry2.outcome == 'failure'
+        if: steps.retry.outcome == 'failure'
         uses: actions/deploy-pages@v4
