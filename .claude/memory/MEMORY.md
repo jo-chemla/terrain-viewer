@@ -49,4 +49,5 @@
 - [Building shadows on terrain](building-shadows-terrain-drape.md) â€” renderToTerrainTile drape (6.13, experimental), per-tile mask, revision bumps, headless verification recipe
 - [Google Earth Historical as-of snap](ge-historical-as-of-snap.md) â€” per-level date lists (yearly Landsat mosaics to L13, captures from L14), tiles draw exact-or-ancestor, the timeline snaps the date on zoom-in only; no provider classification
 - [Pages deploys](pages-deploy.md) — the "in progress deployment" refusal, the cancel-then-poll deploy job (pages-deployments.sh), backend statuses seen, what the 545 MB artifact holds
-- [LiDAR Lens reference](lidar-lens-reference.md) — a design Jonathan loves (on the meta tracker 2026-11-04); England+Wales 1 m Terrarium WebP tiles; the app has England EA WCS only, no Welsh DTM
+- [LiDAR Lens reference](lidar-lens-reference.md) — a design Jonathan loves (on the meta tracker 2026-11-04); England+Wales 1 m Terrarium WebP tiles; the app has England EA WCS and the Welsh WG DTM COG via titiler; Scotland/NI have no streamable raw heights
+- [Planet key never in builds](planet-key-never-in-builds.md) — three guards (Vite plugin, post-build scan, workflow sed+grep); the 2026-10 secret leak behind them
