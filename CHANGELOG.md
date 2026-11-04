@@ -5,7 +5,7 @@
 #### TL;DR
 
 - **ESRI Wayback fixes**: Esri Wayback on the timeline loads faster and stops jumping. Ticks stay dashed at the mosaic layer's release date, become plain only once the real imagery capture date has resolved, and move once to that date. Eight walks at once find a place's releases about 2.6 times faster, and a tick appears only once its release is sure to stay. See [how it works](https://terrain-viewer.iconem.com/docs/dev/esri-wayback#showing-a-place-quickly).
-- **Planet BYOK**: you enter your own Planet key in Settings, and no build ships one. Months already seen come from a local cache; stepping along the timeline loads only the month you stop on rather than every month you pass, 45 tiles instead of 540 across 12 months; a counter on the timeline stops at 500 tiles until you allow more.
+- **Planet BYOK**: you enter your own Planet key in Settings, and no build ships one. Month changes are debounced by 800 ms instead of 150 ms, so stepping through 12 months at 600 ms a step costs 45 tiles instead of 540; a counter on the timeline stops at 500 tiles until you allow more.
 - **STAC COG Mosaics**: a Maxar, Vantor or NOAA tick draws the whole capture, by mosaicking up to 25 COGs of that capture from the same STAC collection within the viewport, instead of one 5 km cell. A tick also shows the capture's time when the catalog has one, in UTC.
 
 #### Details
