@@ -1,10 +1,10 @@
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useAtom } from "jotai"
-import { Download, Camera, Copy, Loader2, X, Images, ChevronDown } from "lucide-react"
+import { Download, Camera, Copy, Loader2, X, Images, ChevronDown, Layers, Check } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ExportMultiDialog } from "./export-multi-dialog"
-import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom, exportResolutionModeAtom, exportCrsAtom } from "@/lib/settings-atoms"
+import { snapshotIncludeTimelineAtom, isExportSettingsOpenAtom, titilerEndpointAtom, maxResolutionAtom, useClientExportAtom, customTerrainSourcesAtom, activeProjectConfigAtom, mapboxKeyAtom, maptilerKeyAtom, exportResolutionModeAtom, exportCrsAtom, snapshotActionAtom } from "@/lib/settings-atoms"
 import { georefForMercatorGrid, parseCrsSetting, worldFileFor, crsWkt, residualWarning } from "@/lib/output-crs"
 import { ExportCrsSelect } from "./export-crs-select"
 import { displayedTileZoom, exportOutputSize } from "@/lib/map-render-export"
@@ -17,6 +17,7 @@ import { defaultExportName } from "@/lib/export-names"
 import { ExportLayersDialog } from "./export-layers-dialog"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import saveAs from "file-saver"
+import { saveFile } from "@/lib/save-file"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
 import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA } from "@/lib/controls-utils"
@@ -117,6 +118,7 @@ export const DownloadSection: React.FC<{
   const clientUpstream = useClientDemUpstream(state.sourceA, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
   const [isExporting, setIsExporting] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
+  const [snapshotAction, setSnapshotAction] = useAtom(snapshotActionAtom)
   const [isExportMultiOpen, setIsExportMultiOpen] = useState(false)
   const [isExportLayersOpen, setIsExportLayersOpen] = useState(false)
   const [exportResolutionMode] = useAtom(exportResolutionModeAtom)
@@ -175,9 +177,9 @@ export const DownloadSection: React.FC<{
       const success = await captureAndCopyMapToClipboard(mapRef)
       if (success) {
         track("actions-export", { kind: "snapshot-clipboard" })
-        console.log("Snapshot copied to clipboard")
+        pushToast({ key: "snapshot", title: "Snapshot copied", body: "The current view is on the clipboard." })
       } else {
-        console.error("Failed to copy snapshot")
+        pushToast({ key: "snapshot", tone: "alert", title: "Copy failed", body: "The browser refused the clipboard write, or the map canvas could not be read." })
       }
     } catch (error) {
       console.error("Failed to copy snapshot:", error)
@@ -261,7 +263,7 @@ export const DownloadSection: React.FC<{
     // (lib/output-crs.ts); titiler's lon/lat raster is written as it comes.
     const georef = epsg === 3857 ? await georefForMercatorGrid(toMercatorBbox(bbox), width, height, parseCrsSetting(exportCrs)) : undefined
     const blob = new Blob([encodeFloat32GeoTiff(elevationData, width, height, epsg === 3857 ? toMercatorBbox(bbox) : bbox, epsg, georef)], { type: "image/tiff" })
-    saveAs(blob, `${filename}.tif`)
+    saveFile(blob, `${filename}.tif`)
     const residual = georef ? residualWarning(georef.epsg, georef.maxResidualPx, "view") : null
     if (residual) pushToast({ key: "dem-crs", tone: "warn", title: "Georeferencing is approximate", body: residual })
   }, [exportCrs])
@@ -409,6 +411,47 @@ export const DownloadSection: React.FC<{
     track("actions-export", { kind: "contours" })
   }, [mapRef])
 
+  // One Snapshot button for both layouts: the button runs the remembered
+  // action, the arrow picks between saving to disk and copying to the
+  // clipboard (and runs the pick). The section header's camera follows it.
+  const toClipboard = snapshotAction === "clipboard"
+  const runSnapshot = toClipboard ? copySnapshotToClipboard : downloadScreenshot
+  const snapshotTooltip = toClipboard ? "Copy a snapshot of the current view to the clipboard" : "Download a snapshot of the current view"
+  const snapshotHeaderButton = (
+    <TooltipIconButton icon={toClipboard ? Copy : Camera} tooltip={toClipboard ? "Snapshot - copy the current view to the clipboard" : "Snapshot - download the current view"} onClick={runSnapshot} />
+  )
+  const snapshotButton = (
+    <div className="flex flex-1 min-w-0">
+      <TooltipButton
+        icon={isCopying ? Loader2 : toClipboard ? Copy : Camera}
+        label="Snapshot"
+        tooltip={`${snapshotTooltip}; the arrow switches between download and clipboard`}
+        onClick={runSnapshot}
+        disabled={isCopying}
+        className={cn("block flex-1 min-w-0 bg-transparent [&>button]:rounded-r-none", isCopying && "[&_svg]:animate-spin")}
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="outline" size="sm" className="cursor-pointer rounded-l-none border-l-0 px-1 shrink-0 h-auto bg-transparent" aria-label="Snapshot action">
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuItem className="cursor-pointer" onClick={() => { setSnapshotAction("download"); void downloadScreenshot() }}>
+            <Camera className="h-4 w-4" /> Download snapshot
+            {!toClipboard && <Check className="ml-auto h-4 w-4" />}
+          </DropdownMenuItem>
+          <DropdownMenuItem className="cursor-pointer" onClick={() => { setSnapshotAction("clipboard"); void copySnapshotToClipboard() }}>
+            <Copy className="h-4 w-4" /> Copy snapshot to clipboard
+            {toClipboard && <Check className="ml-auto h-4 w-4" />}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+
   if (historicalMode) {
     return (
       <Section
@@ -420,27 +463,11 @@ export const DownloadSection: React.FC<{
         // Snapshot is the one action people come back to often enough to want
         // without expanding the section. The full button below stays: the
         // header icon is a shortcut, not a replacement, because "Snapshot"
-        // next to "Copy" and "DEM GeoTiff" is where you learn what it does.
-        headerExtra={
-          <TooltipIconButton icon={Camera} tooltip="Snapshot - download the current view" onClick={downloadScreenshot} />
-        }
+        // next to "Share" and "Elevation DEM" is where you learn what it does.
+        headerExtra={snapshotHeaderButton}
       >
         <div className="flex gap-2">
-          <TooltipButton
-            icon={Camera}
-            label="Snapshot"
-            tooltip="Download Snapshot to Disk"
-            onClick={downloadScreenshot}
-            className="flex-1 bg-transparent"
-          />
-          <TooltipButton
-            icon={isCopying ? Loader2 : Copy}
-            label="Copy"
-            tooltip="Copy snapshot to clipboard"
-            onClick={copySnapshotToClipboard}
-            disabled={isCopying}
-            className={`flex-1 bg-transparent ${isCopying ? "[&_svg]:animate-spin" : ""}`}
-          />
+          {snapshotButton}
           <ShareButton mapRef={mapRef} />
         </div>
         <TooltipButton
@@ -466,20 +493,12 @@ export const DownloadSection: React.FC<{
         // Snapshot is the one action people come back to often enough to want
         // without expanding the section. The full button below stays: the
         // header icon is a shortcut, not a replacement, because "Snapshot"
-        // next to "Copy" and "DEM GeoTiff" is where you learn what it does.
-        headerExtra={
-          <TooltipIconButton icon={Camera} tooltip="Snapshot - download the current view" onClick={downloadScreenshot} />
-        }
+        // next to "Share" and "Elevation DEM" is where you learn what it does.
+        headerExtra={snapshotHeaderButton}
       >
       <div className="space-y-2">
         <div className="flex gap-2">
-          <TooltipButton
-            icon={Camera}
-            label="Snapshot"
-            tooltip="Download Snapshot to Disk"
-            onClick={downloadScreenshot}
-            className="flex-1 bg-transparent"
-          />
+          {snapshotButton}
           {/* While exporting, an absolutely-positioned "Cancel" button sits on
               top of the (disabled, inert) spinner button and fades in on
               hover via group-hover — pure-CSS, no local hover state needed.
@@ -487,12 +506,11 @@ export const DownloadSection: React.FC<{
               accident the instant the export starts. Only mounted once
               canCancelExport flips true (see the effect above) — a fast
               export never shows a cancel affordance at all. */}
-          <div className="flex flex-1 min-w-0">
           <div className="relative flex-1 min-w-0 group">
             <TooltipButton
               icon={isExporting ? Loader2 : Download}
-              label={isExporting ? "Exporting…" : "GeoTIFF"}
-              tooltip="Export the elevation (DEM) as GeoTIFF; the arrow beside it exports the visible layers too"
+              label={isExporting ? "Exporting…" : "Elevation DEM"}
+              tooltip="Export the elevation of the current view as a float32 GeoTIFF (.tif)"
               onClick={exportDTM}
               disabled={isExporting}
               // The hover-fade-to-Cancel behavior only applies once
@@ -501,7 +519,7 @@ export const DownloadSection: React.FC<{
               // meant hovering during the first 1.5s faded this button to
               // nothing with no Cancel button underneath to replace it.
               className={cn(
-                "block w-full rounded-r-none bg-transparent",
+                "block w-full bg-transparent",
                 isExporting && "[&_svg]:animate-spin",
                 isExporting && canCancelExport && "transition-opacity group-hover:opacity-0",
               )}
@@ -529,24 +547,6 @@ export const DownloadSection: React.FC<{
               </Button>
             )}
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="outline" size="sm" className="cursor-pointer rounded-l-none border-l-0 px-1 shrink-0 h-auto bg-transparent" aria-label="More exports" disabled={isExporting}>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem className="cursor-pointer" onClick={exportDTM}>
-                <Download className="h-4 w-4" /> Elevation (DEM) GeoTIFF
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onClick={() => setIsExportLayersOpen(true)}>
-                <Images className="h-4 w-4" /> Visible layers…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          </div>
         </div>
         {exportProgress !== null && (
           <Progress value={exportProgress * 100} className="h-1" />
@@ -559,12 +559,12 @@ export const DownloadSection: React.FC<{
         )}
         <div className="flex gap-2">
           <TooltipButton
-            icon={isCopying ? Loader2 : Copy}
-            label="Copy"
-            tooltip="Copy snapshot to clipboard"
-            onClick={copySnapshotToClipboard}
-            disabled={isCopying}
-            className={`flex-1 bg-transparent ${isCopying ? "[&_svg]:animate-spin" : ""}`}
+            icon={Layers}
+            label="Layers"
+            tooltip="Export layers, one file each: the snapshot, the elevation, the visualization modes as raw values or colour-mapped, the lighting, the basemap, and vectors such as contour lines and detections"
+            onClick={() => setIsExportLayersOpen(true)}
+            disabled={isExporting}
+            className="flex-1 bg-transparent"
           />
           <ShareButton mapRef={mapRef} />
         </div>

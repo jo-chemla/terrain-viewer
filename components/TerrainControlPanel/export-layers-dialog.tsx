@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { MapRef } from "react-map-gl/maplibre"
 import type * as maplibregl from "maplibre-gl"
 import { useAtom, useAtomValue } from "jotai"
-import saveAs from "file-saver"
 import { Check, ChevronRight, Download, Loader2, X } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -16,10 +15,11 @@ import { compileRamp, colorize } from "@/lib/color-ramp-eval"
 import { renderLayers, renderExportBlocker, displayedTileZoom, exportOutputSize, MAX_EXPORT_EDGE, tileCount } from "@/lib/map-render-export"
 import { pickZoomForResolution } from "@/lib/tile-mosaic"
 import type { ClientExportSource } from "@/lib/client-export"
-import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom, maxResolutionAtom, modeColorRampsAtom, exportCrsAtom } from "@/lib/settings-atoms"
+import { exportResolutionModeAtom, exportValueFormatAtom, exportImageFormatAtom, exportZipAtom, maxResolutionAtom, modeColorRampsAtom, exportCrsAtom } from "@/lib/settings-atoms"
 import { georefForMercatorGrid, parseCrsSetting, crsLabel, residualWarning, type GridGeoref } from "@/lib/output-crs"
 import { ExportCrsSelect } from "./export-crs-select"
 import { downloadGeoJSON } from "@/lib/download-geojson"
+import { saveFile, beginZipBundle, finishZipBundle, discardZipBundle } from "@/lib/save-file"
 import { track } from "@/lib/analytics"
 import { SegmentedToggle } from "./controls-components"
 import { defaultExportName, sanitizeExportName } from "@/lib/export-names"
@@ -184,6 +184,7 @@ export const ExportLayersDialog: React.FC<{
   const [longestEdge, setLongestEdge] = useAtom(maxResolutionAtom)
   const [valueFormat, setValueFormat] = useAtom(exportValueFormatAtom)
   const [imageFormat, setImageFormat] = useAtom(exportImageFormatAtom)
+  const [zipFiles, setZipFiles] = useAtom(exportZipAtom)
   const exportCrs = useAtomValue(exportCrsAtom)
   const crsChoice = parseCrsSetting(exportCrs)
   const [crsNote, setCrsNote] = useState<string>("")
@@ -238,17 +239,17 @@ export const ExportLayersDialog: React.FC<{
   const saveRgba = async (rgba: Uint8ClampedArray, width: number, height: number, bbox: GeoBbox, epsg: 3857 | 4326, base: string) => {
     const georef = await georefFor(bbox, width, height)
     if (imageFormat === "tiff") {
-      saveAs(new Blob([encodeRgbaGeoTiff(rgba, width, height, bbox, epsg, georef)], { type: "image/tiff" }), `${base}.tif`)
+      saveFile(new Blob([encodeRgbaGeoTiff(rgba, width, height, bbox, epsg, georef)], { type: "image/tiff" }), `${base}.tif`)
       return
     }
     const f = await encodeImageWithWorldFile(rgba, width, height, bbox, epsg, imageFormat, georef)
     const ext = imageFormat === "png" ? "png" : "jpg"
-    saveAs(f.image, `${base}.${ext}`)
-    saveAs(new Blob([f.worldFile], { type: "text/plain" }), `${base}.${ext === "png" ? "pgw" : "jgw"}`)
-    saveAs(new Blob([f.prj], { type: "text/plain" }), `${base}.prj`)
+    saveFile(f.image, `${base}.${ext}`)
+    saveFile(new Blob([f.worldFile], { type: "text/plain" }), `${base}.${ext === "png" ? "pgw" : "jgw"}`)
+    saveFile(new Blob([f.prj], { type: "text/plain" }), `${base}.prj`)
     // GDAL (and QGIS through it) takes a PNG/JPEG's CRS from this sidecar,
     // not from the .prj, which other tools read.
-    saveAs(new Blob([`<PAMDataset><SRS>${f.prj.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</SRS></PAMDataset>`], { type: "text/xml" }), `${base}.${ext}.aux.xml`)
+    saveFile(new Blob([`<PAMDataset><SRS>${f.prj.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</SRS></PAMDataset>`], { type: "text/xml" }), `${base}.${ext}.aux.xml`)
   }
 
   const runExport = useCallback(async () => {
@@ -260,7 +261,10 @@ export const ExportLayersDialog: React.FC<{
     const todo = groups.flatMap((g) => g.items).filter((i) => selected.has(i.id) && !blocked(i))
     const name = sanitizeExportName(exportName)
     setCrsNote("")
-    track("actions-export", { kind: "layers", count: todo.length, resolution: resolutionMode, crs: exportCrs })
+    track("actions-export", { kind: "layers", count: todo.length, resolution: resolutionMode, crs: exportCrs, zip: zipFiles })
+    // Every file of the run goes through saveFile(), the contour and DEM
+    // exports of the section included: gathered here, written once at the end.
+    if (zipFiles) beginZipBundle()
     const b = getMapBounds()
     for (let n = 0; n < todo.length; n++) {
       if (controller.signal.aborted) break
@@ -318,7 +322,7 @@ export const ExportLayersDialog: React.FC<{
           }
           if (valueFormat !== "color") {
             const data = mode.scale ? result.data.map((v) => v / mode.scale!) : result.data
-            saveAs(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, mercBbox, 3857, await georefFor(mercBbox, result.width, result.height))], { type: "image/tiff" }), `${base}.tif`)
+            saveFile(new Blob([encodeFloat32GeoTiff(data, result.width, result.height, mercBbox, 3857, await georefFor(mercBbox, result.width, result.height))], { type: "image/tiff" }), `${base}.tif`)
           }
         } else if (item.kind === "basemap") {
           const spec = map.getStyle().sources["raster-basemap-source"] as { tiles?: string[]; tileSize?: number; maxzoom?: number } | undefined
@@ -352,11 +356,20 @@ export const ExportLayersDialog: React.FC<{
         setStatus((s) => ({ ...s, [item.id]: { error: e instanceof Error ? e.message : String(e) } }))
       }
     }
+    if (zipFiles) {
+      // A cancelled run writes nothing; a run with failed lines still zips
+      // the ones that worked.
+      if (controller.signal.aborted) discardZipBundle()
+      else {
+        try { await finishZipBundle(name) }
+        catch (e) { setCrsNote(`The zip could not be written: ${e instanceof Error ? e.message : String(e)}`) }
+      }
+    }
     setProgress(null)
     setRunning(false)
     abortRef.current = null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapRef, running, groups, selected, renderBlocker, exportName, resolutionMode, longestEdge, valueFormat, imageFormat, getMapBounds, onExportContours, onExportDem, upstream, derivedParams, lighting, modeRamps])
+  }, [mapRef, running, groups, selected, renderBlocker, exportName, resolutionMode, longestEdge, valueFormat, imageFormat, zipFiles, getMapBounds, onExportContours, onExportDem, upstream, derivedParams, lighting, modeRamps])
 
   const statusIcon = (id: string) => {
     const s = status[id]
@@ -564,6 +577,10 @@ export const ExportLayersDialog: React.FC<{
         </div>
         {progress !== null && <Progress value={progress * 100} className="h-1" />}
         <div className="flex items-center justify-end gap-2 pt-1">
+          <div className="mr-auto flex items-center gap-2" title="One .zip named after the export, instead of one download per file">
+            <Checkbox id="export-zip" checked={zipFiles} disabled={running} onCheckedChange={(c) => setZipFiles(c === true)} className="cursor-pointer" />
+            <Label htmlFor="export-zip" className="text-sm cursor-pointer">Zip the files</Label>
+          </div>
           {running ? (
             <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => abortRef.current?.abort()}>
               <X className="h-4 w-4 mr-1" /> Cancel
