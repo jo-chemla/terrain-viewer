@@ -34,11 +34,14 @@ function DropdownMenuContent({
   sideOffset = 4,
   align,
   alignOffset,
+  anchor,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Popup> &
   Pick<
     React.ComponentProps<typeof DropdownMenuPrimitive.Positioner>,
-    "side" | "sideOffset" | "align" | "alignOffset"
+    // anchor: position against another element than the trigger, e.g. the
+    // whole split button rather than its arrow.
+    "side" | "sideOffset" | "align" | "alignOffset" | "anchor"
   >) {
   return (
     <DropdownMenuPrimitive.Portal>
@@ -47,6 +50,7 @@ function DropdownMenuContent({
         sideOffset={sideOffset}
         align={align}
         alignOffset={alignOffset}
+        anchor={anchor}
         className="z-50"
       >
         <DropdownMenuPrimitive.Popup

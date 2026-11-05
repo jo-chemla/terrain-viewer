@@ -119,6 +119,8 @@ export const DownloadSection: React.FC<{
   const [isExporting, setIsExporting] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [snapshotAction, setSnapshotAction] = useAtom(snapshotActionAtom)
+  // The menu hangs from the whole split button, left edges aligned, not from its arrow.
+  const snapshotSplitRef = useRef<HTMLDivElement>(null)
   const [isExportMultiOpen, setIsExportMultiOpen] = useState(false)
   const [isExportLayersOpen, setIsExportLayersOpen] = useState(false)
   const [exportResolutionMode] = useAtom(exportResolutionModeAtom)
@@ -421,7 +423,7 @@ export const DownloadSection: React.FC<{
     <TooltipIconButton icon={toClipboard ? Copy : Camera} tooltip={toClipboard ? "Snapshot - copy the current view to the clipboard" : "Snapshot - download the current view"} onClick={runSnapshot} />
   )
   const snapshotButton = (
-    <div className="flex flex-1 min-w-0">
+    <div ref={snapshotSplitRef} className="flex flex-1 min-w-0">
       <TooltipButton
         icon={isCopying ? Loader2 : toClipboard ? Copy : Camera}
         label="Snapshot"
@@ -438,14 +440,14 @@ export const DownloadSection: React.FC<{
             </Button>
           }
         />
-        <DropdownMenuContent align="start" className="w-60">
+        <DropdownMenuContent align="start" anchor={snapshotSplitRef} className="w-auto [&_[role=menuitem]]:whitespace-nowrap">
           <DropdownMenuItem className="cursor-pointer" onClick={() => { setSnapshotAction("download"); void downloadScreenshot() }}>
             <Camera className="h-4 w-4" /> Download snapshot
-            {!toClipboard && <Check className="ml-auto h-4 w-4" />}
+            {!toClipboard && <Check className="ml-auto h-4 w-4 shrink-0" />}
           </DropdownMenuItem>
           <DropdownMenuItem className="cursor-pointer" onClick={() => { setSnapshotAction("clipboard"); void copySnapshotToClipboard() }}>
             <Copy className="h-4 w-4" /> Copy snapshot to clipboard
-            {toClipboard && <Check className="ml-auto h-4 w-4" />}
+            {toClipboard && <Check className="ml-auto h-4 w-4 shrink-0" />}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
