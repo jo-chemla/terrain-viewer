@@ -1755,12 +1755,12 @@
         },
         {
             "id": "copernicus-marine-chlorophyll",
-            "name": "Global - Copernicus Marine Chlorophyll (model, daily)",
-            "url": "https://wmts.marine.copernicus.eu/teroWmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&FORMAT=image/png&TILEMATRIXSET=EPSG:3857&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&LAYER=GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-pft_anfc_0.25deg_P1D-m_202311/chl&STYLE=cmap:algae,logScale",
+            "name": "Global - Copernicus Marine Chlorophyll (Sentinel-3 OLCI 300 m, latest month)",
+            "url": "https://wmts.marine.copernicus.eu/teroWmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&FORMAT=image/png&TILEMATRIXSET=EPSG:3857&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&LAYER=OCEANCOLOUR_GLO_BGC_L4_NRT_009_102/cmems_obs-oc_glo_bgc-plankton_nrt_l4-olci-300m_P1M_202211/CHL&STYLE=cmap:algae,logScale",
             "type": "tms",
             "maxzoom": 10,
             "role": "overlay",
-            "description": "Total chlorophyll at the surface on a log scale, from the global biogeochemistry analysis and forecast at 0.25 degrees. The model is used rather than the 4 km satellite product because that one fails on its default day until its latest days are filled. Copernicus Marine Service WMTS, no key, open CORS, transparent over land. No date in the request: the server draws its default day, so the overlay stays current. The layer id ends with the dataset's version stamp, which changes when Copernicus re-versions the dataset: see the Copernicus Marine dev page of the docs to find the new id. Free and open, credit \"E.U. Copernicus Marine Service Information\"."
+            "description": "Chlorophyll-a concentration on a log scale as measured from space: the monthly mean of the Sentinel-3 OLCI observations at 300 m, for the latest complete month (about five weeks behind). The daily satellite product is not used: it keeps only its last ten days and fails on the latest three, so neither its default day nor a fixed date holds. Copernicus Marine Service WMTS, no key, open CORS, transparent over land. No date in the request: the server draws its default day, so the overlay stays current. The layer id ends with the dataset's version stamp, which changes when Copernicus re-versions the dataset: see the Copernicus Marine dev page of the docs to find the new id. Free and open, credit \"E.U. Copernicus Marine Service Information\"."
         },
         {
             "id": "copernicus-marine-currents",

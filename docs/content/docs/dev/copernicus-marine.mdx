@@ -13,13 +13,13 @@ They sit in the basemap **Library**, as overlays that stack over the active base
 | Overlay | Product | Variable and style | Grid |
 |---|---|---|---|
 | Sea Surface Temperature | [OSTIA daily analysis](https://data.marine.copernicus.eu/product/SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001/description) | `analysed_sst`, thermal | 0.05°, about 5 km |
-| Chlorophyll | [Global biogeochemistry forecast](https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_BGC_001_028/description) | `chl`, algae on a log scale | 0.25° |
+| Chlorophyll | [Ocean colour, Sentinel-3 OLCI monthly](https://data.marine.copernicus.eu/product/OCEANCOLOUR_GLO_BGC_L4_NRT_009_102/description) | `CHL`, algae on a log scale | 300 m |
 | Surface Currents | [Global physics forecast](https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_PHY_001_024/description) | `sea_water_velocity`, speed with arrows | 1/12°, about 8 km |
 | Sea Ice Concentration | [Global physics forecast](https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_PHY_001_024/description) | `siconc`, ice | 1/12°, about 8 km |
 
-Each one is requested without a date, so the server draws its default day: today for the forecasts, the latest analysis for the temperature. The tiles are transparent over land.
+Each one is requested without a date, so the server draws its default: today for the forecasts, the latest analysis for the temperature, the latest complete month for the chlorophyll. The tiles are transparent over land.
 
-The data is coarse next to a terrain model. The tile grid stops at zoom 10, and the finest of these grids is 5 km, so the overlays are for basin-scale context, not for a coastline.
+The data is coarse next to a terrain model. The tile grid stops at zoom 10. The chlorophyll, at 300 m, holds up along a coast; the other three, at 5 to 8 km, are for basin-scale context.
 
 ## Why only four
 
@@ -75,7 +75,7 @@ The product id is the one in the address of the product's page in the Copernicus
 
 ## Caveats
 
-- **Default day failures.** A satellite product whose latest days are not yet filled can answer its default day with an error. The 4 km gap-free chlorophyll did so in November 2026 for its three latest days, while a date a week back worked. This is why the library's chlorophyll is the model, whose default day always exists.
+- **Daily satellite chlorophyll does not hold.** The 4 km gap-free daily product answered its default day and the two days before with an error in November 2026, and it keeps a rolling window of ten days only, so a fixed date a week back works for a few days and then leaves the window. This is why the library's chlorophyll is the monthly 300 m mean, which lists a single month, the latest complete one, and always answers. For a daily and current chlorophyll, the model is the layer that holds: `GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-pft_anfc_0.25deg_P1D-m_202311/chl`, at 0.25°.
 - **No timeline yet.** The overlays show one day. The time dimension would fit the historical timeline, a tick per step, and a catalogue picker could load one product's capabilities on demand. Neither is built.
 - **Projection.** The service draws Web Mercator tiles itself, so nothing is reprojected in the browser. The polar oceans stretch as on any Web Mercator map.
 
