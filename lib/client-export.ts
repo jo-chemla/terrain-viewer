@@ -317,7 +317,8 @@ export function describeRegionRead(
   const reader = regionReaderFor(template)
   if (reader) return reader.describe(template, width, height)
   const z = zoom ?? pickZoomForResolution(bbox, width, height, tileSize, maxzoom)
-  return `${tileCountFor(bbox, z)} tiles of ${tileSize} px`
+  const n = tileCountFor(bbox, z)
+  return `${n} ${n === 1 ? "tile" : "tiles"} of ${tileSize} px`
 }
 
 /** RGBA over exactly `bbox` at width x height on the export's EPSG:3857

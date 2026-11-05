@@ -430,3 +430,17 @@ exact state.
      up/reverted something is not reliable if the task was killed
      mid-sentence — verify against `git status`/mtimes rather than trusting
      the agent's last written note.**
+
+## Export page shots: a script (2026-11-05)
+
+`docs/scripts/capture-export-shots.mjs` retakes `export-share/download-section.jpg`
+and `export-layers-dialog.jpg` (Matterhorn plan view, the viz-mode cards' camera).
+Run it against the dev server for unreleased UI, with the slides' own
+playwright-core and the installed Chrome, no throwaway install needed:
+`PW="$(pwd -W)/slides/node_modules/playwright-core" CHANNEL=chrome node docs/scripts/capture-export-shots.mjs --base http://localhost:5173`.
+Two dev-server gotchas it handles: react-scan's toolbar (`#react-scan-root`,
+a child of `<html>`) and the TanStack devtools badge (a `body` child outside
+`#root`) both show in dev and must be hidden before the shot, and before a
+dialog opens since portals are body children too. It also aborts every
+`planet.com` request, the dev `.env` may hold a key.
+

@@ -27,9 +27,9 @@ The **Max Download Resolution (px)** field, in the **Export settings** fold belo
 
 ## Layers export
 
-![The Export layers dialog: name, Screen or Custom size resolution, values as raw or coloured, images as GeoTIFF, PNG or JPEG, then the Visible and Not visible trees with the DEM, the basemap, hillshade and hypso](/screenshots/export-share/export-layers-dialog.jpg)
+![The Export layers dialog: name, Screen or Custom size resolution, values as raw or coloured, the output CRS, images as GeoTIFF, PNG or JPEG, files separate or in one zip, then the Visible and Not visible trees with the DEM, the basemap, hillshade and hypso](/screenshots/export-share/export-layers-dialog.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">The Export layers dialog — one file per line, the Visible branch ticked, the Not visible branch folded; Export 4 writes the snapshot, the DEM, the hillshade and the hypso</p>
+<p className="text-sm text-fd-muted-foreground italic">The Export layers dialog — one file per line, the Visible branch ticked: the snapshot, the DEM, hillshade and hypso, slope, curvature and LRM, and the rendered layers</p>
 
 **Layers** opens a tree with two branches, **Visible** and **Not visible**, one file per line. A branch's or group's checkbox ticks or unticks everything under it, and the chevrons fold. Everything visible starts ticked; the Not visible branch starts unticked and folded.
 
@@ -58,7 +58,7 @@ Under the resolution, one line says what the batch will read: the terrain tiles 
 
 **Images as.** RGBA outputs, the snapshot, rendered layers and coloured values, can be a GeoTIFF, or a PNG or JPEG with a world file (`.pgw`/`.jgw`), a `.prj`, and a `.aux.xml` from which GDAL and QGIS read the CRS. JPEG has no transparency, so nodata becomes white. Raw values and the DEM are always float32 GeoTIFF.
 
-**Zip the files.** Ticked, beside the Export button, the whole run is written as one `.zip` named after the export instead of one download per file, world files and sidecars included. A cancelled run writes nothing. The choice is remembered.
+**Files as.** *Separate files* is one download per file. *One .zip* writes the whole run as one `.zip` named after the export, world files and sidecars included. A cancelled run writes nothing. The choice is remembered.
 
 When the view is tilted, rotated or on the globe, a banner recommends 2D, north up, with a button that switches to it.
 

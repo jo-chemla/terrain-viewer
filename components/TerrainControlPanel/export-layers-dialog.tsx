@@ -399,7 +399,7 @@ export const ExportLayersDialog: React.FC<{
     if (anyMode && upstream) {
       const mz = upstream.maxzoom ?? 20
       const z = resolutionMode === "screen" ? screenZoom(upstream.tileSize, mz) : pickZoomForResolution(bbox, size.width, size.height, upstream.tileSize, mz)
-      parts.push(`each mode ${tileCountFor(bbox, z)} tiles of ${upstream.tileSize} px, computed from those and cached`)
+      { const n = tileCountFor(bbox, z); parts.push(`each mode ${n} ${n === 1 ? "tile" : "tiles"} of ${upstream.tileSize} px, computed from those and cached`) }
     }
     return parts.join("; ")
   })()
@@ -532,6 +532,17 @@ export const ExportLayersDialog: React.FC<{
               { value: "jpeg", label: "JPEG + jgw", tooltip: "JPEG with a world file and a .prj; transparent areas become white" },
             ]}
           />
+          <Label className="text-sm">Files as</Label>
+          <SegmentedToggle
+            className="w-full"
+            value={zipFiles ? "zip" : "files"}
+            onChange={(v) => setZipFiles(v === "zip")}
+            disabled={running}
+            options={[
+              { value: "files", label: "Separate files", tooltip: "One download per file, world files and sidecars beside their image" },
+              { value: "zip", label: "One .zip", tooltip: "The whole run in one .zip named after the export; a cancelled run writes nothing" },
+            ]}
+          />
         </div>
         <p className="text-xs text-muted-foreground -mt-1">
           Every file's pixels are on the Web Mercator grid, the grid of the tiles and the map{exportCrs === "3857" ? "" : `; the georeferencing is an affine fitted in ${crsChoice.kind === "utm" ? "the UTM zone of the view's centre" : crsLabel(crsChoice.epsg)}, not a warp`}. The size applies to everything but the snapshot and the canvas renders, which are the screen's own pixels. Raw values and the DEM are always float32 GeoTIFF.
@@ -577,10 +588,6 @@ export const ExportLayersDialog: React.FC<{
         </div>
         {progress !== null && <Progress value={progress * 100} className="h-1" />}
         <div className="flex items-center justify-end gap-2 pt-1">
-          <div className="mr-auto flex items-center gap-2" title="One .zip named after the export, instead of one download per file">
-            <Checkbox id="export-zip" checked={zipFiles} disabled={running} onCheckedChange={(c) => setZipFiles(c === true)} className="cursor-pointer" />
-            <Label htmlFor="export-zip" className="text-sm cursor-pointer">Zip the files</Label>
-          </div>
           {running ? (
             <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => abortRef.current?.abort()}>
               <X className="h-4 w-4 mr-1" /> Cancel
