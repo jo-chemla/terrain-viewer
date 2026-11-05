@@ -249,6 +249,11 @@ export const exportResolutionModeAtom = atomWithStorage<"screen" | "max">("expor
 export const exportValueFormatAtom = atomWithStorage<"raw" | "color" | "both">("exportValueFormat", "raw")
 /** Layer export: file format for RGBA outputs (float32 is always GeoTIFF). */
 export const exportImageFormatAtom = atomWithStorage<"tiff" | "png" | "jpeg">("exportImageFormat", "tiff")
+/** Layer export: one .zip for the whole run instead of a download per file. */
+export const exportZipAtom = atomWithStorage("exportZip", false)
+/** What the Snapshot button does: save the image to disk, or copy it to the
+ *  clipboard. Picked from the button's arrow and remembered. */
+export const snapshotActionAtom = atomWithStorage<"download" | "clipboard">("snapshotAction", "download")
 /** CRS the DEM, layer and snapshot exports are georeferenced in: an EPSG
  *  code as text ("3857", "4326", "2154"...) or "utm" for the zone of the
  *  export's own centre. The pixels stay on the Web Mercator grid; only the

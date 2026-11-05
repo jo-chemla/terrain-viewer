@@ -1,16 +1,12 @@
 import { zipSync, strToU8 } from "fflate"
+import { saveFile } from "./save-file"
 
 /** `name` is a prefix that gets `-<epoch ms>` appended, unless `exact`,
  *  in which case it is the whole file name (lib/export-names.ts scheme). */
 export function downloadGeoJSON(features: GeoJSON.Feature[], filenamePrefix: string, opts: { exact?: boolean } = {}) {
   const geojson = { type: "FeatureCollection" as const, features }
   const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/json" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = opts.exact ? `${filenamePrefix}.geojson` : `${filenamePrefix}-${Date.now()}.geojson`
-  a.click()
-  URL.revokeObjectURL(url)
+  saveFile(blob, opts.exact ? `${filenamePrefix}.geojson` : `${filenamePrefix}-${Date.now()}.geojson`)
 }
 
 /** Filesystem-safe-ish stem from a layer name — collapses anything outside
