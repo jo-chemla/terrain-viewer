@@ -1,0 +1,84 @@
+---
+title: Copernicus Marine Layers
+sidebarTitle: Copernicus Marine
+description: How the Copernicus Marine Service serves its ocean layers as tiles, the four overlays the basemap library carries, and how to add any other one by hand
+---
+
+The [Copernicus Marine Service](https://marine.copernicus.eu/) publishes the ocean products of the European Union's Copernicus programme: temperature, salinity, currents, sea level, waves, sea ice, chlorophyll and more, as satellite observations and as model analyses and forecasts. Its [MyOcean viewer](https://data.marine.copernicus.eu/viewer/expert?view=catalogue) draws them from a public tile service that any map can read. The basemap library carries four of its layers as overlays. This page records how the service works, why the library stops at four, and how to add another by hand.
+
+## The four overlays
+
+They sit in the basemap **Library**, as overlays that stack over the active basemap.
+
+| Overlay | Product | Variable and style | Grid |
+|---|---|---|---|
+| Sea Surface Temperature | [OSTIA daily analysis](https://data.marine.copernicus.eu/product/SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001/description) | `analysed_sst`, thermal | 0.05°, about 5 km |
+| Chlorophyll | [Global biogeochemistry forecast](https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_BGC_001_028/description) | `chl`, algae on a log scale | 0.25° |
+| Surface Currents | [Global physics forecast](https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_PHY_001_024/description) | `sea_water_velocity`, speed with arrows | 1/12°, about 8 km |
+| Sea Ice Concentration | [Global physics forecast](https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_PHY_001_024/description) | `siconc`, ice | 1/12°, about 8 km |
+
+Each one is requested without a date, so the server draws its default day: today for the forecasts, the latest analysis for the temperature. The tiles are transparent over land.
+
+The data is coarse next to a terrain model. The tile grid stops at zoom 10, and the finest of these grids is 5 km, so the overlays are for basin-scale context, not for a coastline.
+
+## Why only four
+
+The service lists **10 051 layers** (November 2026). Each product has several datasets, one per time step and version, and each dataset has several variables, plus an uncertainty layer for most of them. Listing them all would bury the rest of the library, so the selection is by hand: one layer for each of the four questions people ask most.
+
+## The tile service
+
+The service is WMTS, at `https://wmts.marine.copernicus.eu/teroWmts`. It answers with an open `Access-Control-Allow-Origin: *` header and needs no key or account. There is no WMS: Copernicus Marine retired it in favour of WMTS.
+
+**Layer names** have three parts, `PRODUCT/dataset/variable`:
+
+```
+GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_0.083deg_P1D-m_202406/siconc
+```
+
+The dataset name ends with a version stamp, here `202406`. When Copernicus re-versions a dataset the stamp changes and the old layer name stops answering. That is the one way these overlays can go stale, and the fix is to look the new name up in the capabilities.
+
+**Tile grids.** Every layer comes in `EPSG:3857` and `EPSG:4326`, each also at `@2x` and `@3x` pixel density, from zoom 0 to 10. The Web Mercator grid matches the map's own, so a layer works as a plain tile template:
+
+```
+https://wmts.marine.copernicus.eu/teroWmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0
+  &FORMAT=image/png&TILEMATRIXSET=EPSG:3857
+  &TILEMATRIX={z}&TILEROW={y}&TILECOL={x}
+  &LAYER=<PRODUCT/dataset/variable>&STYLE=<style>
+```
+
+**Styles** are a colour map and options, joined by commas: `cmap:thermal`, `cmap:algae,logScale`. Each layer lists its own in the capabilities, a default map chosen for the variable plus its log-scale twin. Vector variables such as currents add `vectorStyle:solid`, `vectorStyle:vector` or `vectorStyle:solidAndVector` for colour, arrows or both.
+
+**Dimensions.** Every layer has a `time` dimension, given as a start, an end and a step, for instance one day from 2022-06-01 to nine days ahead for the physics forecast. Layers with depth add `elevation`, in metres below the surface as negative numbers. Both are plain query parameters, `&time=2026-10-28T00:00:00Z&elevation=-100`, and both fall back to a default when left out: the latest step and the level nearest the surface.
+
+## Capabilities
+
+The full capabilities document is about 70 MB, far too large to load in a browser:
+
+```
+https://wmts.marine.copernicus.eu/teroWmts?SERVICE=WMTS&REQUEST=GetCapabilities
+```
+
+One product's capabilities are small, 380 KB for the global physics forecast, and list its layers, styles and dimensions:
+
+```
+https://wmts.marine.copernicus.eu/teroWmts/GLOBAL_ANALYSISFORECAST_PHY_001_024?SERVICE=WMTS&REQUEST=GetCapabilities
+```
+
+The product id is the one in the address of the product's page in the Copernicus Marine catalogue.
+
+## Adding another layer by hand
+
+1. Find the product in the [catalogue](https://data.marine.copernicus.eu/products) and note its id.
+2. Open that product's capabilities, and pick a layer identifier and one of its styles.
+3. In the app, add a custom basemap of type **TMS/XYZ (Raster Tile)** with the tile template above, the layer and the style filled in. Pick the **Overlay** role to stack it over the basemap, and set the maximum zoom to 10.
+4. For a past day or a depth, append `&time=` and `&elevation=` to the template.
+
+## Caveats
+
+- **Default day failures.** A satellite product whose latest days are not yet filled can answer its default day with an error. The 4 km gap-free chlorophyll did so in November 2026 for its three latest days, while a date a week back worked. This is why the library's chlorophyll is the model, whose default day always exists.
+- **No timeline yet.** The overlays show one day. The time dimension would fit the historical timeline, a tick per step, and a catalogue picker could load one product's capabilities on demand. Neither is built.
+- **Projection.** The service draws Web Mercator tiles itself, so nothing is reprojected in the browser. The polar oceans stretch as on any Web Mercator map.
+
+## Licence
+
+Copernicus Marine products are free and open, for any use. The service asks for the credit "Generated using E.U. Copernicus Marine Service Information" and, in a publication, for the product's DOI, which each product page gives.
