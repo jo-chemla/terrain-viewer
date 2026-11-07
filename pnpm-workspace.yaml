@@ -1,4 +1,23 @@
+# docs/ (Next.js 16 / React 19) is a workspace package: one root `pnpm install`
+# covers both apps, one lockfile. pnpm isolates each package's node_modules,
+# so the docs' React 19 / TypeScript 6 never meet the app's React 18 / Vite.
+# slides/ and video/ stay standalone roots of their own (each has a
+# `packages: []` pnpm-workspace.yaml): slides is only built by the deploy and
+# video is only used when recording, and both would otherwise add Remotion /
+# Playwright / open-slide to every install.
+packages:
+  - docs
+
 patchedDependencies:
   '@allmaps/maplibre@1.0.0-beta.44': patches/@allmaps__maplibre@1.0.0-beta.44.patch
   '@geomatico/maplibre-cog-protocol': patches/@geomatico__maplibre-cog-protocol.patch
   coachmark: patches/coachmark.patch
+
+# pnpm 10 blocks dependency install scripts unless listed here (what
+# `pnpm approve-builds` writes). esbuild and sharp only copy their prebuilt
+# platform binary into place (both also work without it); agent-browser's
+# postinstall fetches its native binary when the package did not ship one.
+onlyBuiltDependencies:
+  - agent-browser
+  - esbuild
+  - sharp
