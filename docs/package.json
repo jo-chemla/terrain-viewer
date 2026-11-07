@@ -23,7 +23,7 @@
     "date-fns": "^4.4.0",
     "fumadocs-core": "16.17.3",
     "fumadocs-mdx": "15.4.7",
-    "fumadocs-typescript": "^5.5.2",
+    "fumadocs-typescript": "5.5.2",
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.17.3",
     "katex": "^0.18.4",
     "lucide-react": "^1.49.0",
