@@ -61,7 +61,6 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: |
           pnpm install --frozen-lockfile
-          pnpm --dir docs install --frozen-lockfile
           pnpm build
           pnpm run docs:build
           mkdir -p dist/docs

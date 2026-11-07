@@ -31,11 +31,12 @@ const config = {
   // phone on the same network (http://<LAN IP>:5173/docs/): otherwise the
   // same silent block leaves every page dead on mobile.
   allowedDevOrigins: ['127.0.0.1', 'localhost', '192.168.*.*', '10.*.*.*', '172.*.*.*'],
-  // This app has its own pnpm-lock.yaml (deliberately standalone from the
-  // main app's, since Next 16/React 19 here would otherwise fight the root
-  // app's React 18/Vite toolchain) — without this, Turbopack sees both
-  // lockfiles and warns/guesses at a shared workspace root.
-  turbopack: { root: fileURLToPath(new URL('.', import.meta.url)) },
+  // docs/ is a package of the root pnpm workspace (one lockfile, one install;
+  // pnpm keeps its React 19 / Next 16 apart from the app's React 18 / Vite).
+  // Its node_modules are symlinks into the root node_modules/.pnpm store, so
+  // Turbopack's root must be the repository root, or every dependency
+  // resolves to a file "outside the project root".
+  turbopack: { root: fileURLToPath(new URL('..', import.meta.url)) },
 };
 
 export default withMDX(config);

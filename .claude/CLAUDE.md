@@ -8,7 +8,7 @@ Also deployed at: https://historical-satellite.iconem.com (Iconem, historical mo
 
 Two co-located apps share this repo:
 - **Main app** — Vite SPA, root. `pnpm app` → port 5173 (or 5174 in a worktree).
-- **Docs** — Next.js 16 (Fumadocs), `docs/`. `pnpm docs` → port 3100, proxied at `/docs` by the Vite dev server.
+- **Docs** — Next.js 16 (Fumadocs), `docs/`. `pnpm docs` → port 3100, proxied at `/docs` by the Vite dev server. A package of the root pnpm workspace: one `pnpm install` at the root covers both (one lockfile). `slides/` and `video/` are standalone pnpm roots with their own installs.
 
 ## Dev servers
 
