@@ -21,3 +21,46 @@ onlyBuiltDependencies:
   - agent-browser
   - esbuild
   - sharp
+
+# next's .d.ts files import "react" types but next does not declare
+# @types/react as a peer, so TypeScript walks up from next's folder in the
+# store and lands on the root app's @types/react 18 instead of the docs'
+# 19: the docs type check then fails on ReactNode / ref mismatches. Declaring
+# the peer makes pnpm link the docs' @types/react next to next.
+packageExtensions:
+  '@floating-ui/react-dom':
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+  '@fumadocs-editor/ui':
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+  '@scalar/api-reference-react':
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+  '@tanstack/react-store':
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+  '@tanstack/react-table':
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+  cmdk:
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+  next:
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+  next-themes:
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+  nuqs:
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
