@@ -38,10 +38,9 @@ jobs:
           cache: pnpm
           cache-dependency-path: |
             pnpm-lock.yaml
-            slides/pnpm-lock.yaml
       - name: Install
-        # docs/ is a package of the root pnpm workspace (pnpm-workspace.yaml),
-        # so this one install covers the app and the docs.
+        # docs/ and slides/ are packages of the root pnpm workspace
+        # (pnpm-workspace.yaml), so this one install covers all three.
         run: pnpm install --frozen-lockfile
       - name: Check the generated URL reference is current
         # docs/src/generated/url-params.json and docs/public/openapi.json are
@@ -93,8 +92,8 @@ jobs:
           mkdir -p dist/docs
           cp -r docs/out/. dist/docs/
       - name: Slide decks (live and PDF)
-        # slides/ is the open-slide workspace (a standalone pnpm root with its
-        # own lockfile, unlike docs/ which is a package of the root workspace).
+        # slides/ is the open-slide workspace, a package of the root pnpm
+        # workspace (installed above).
         # slides/scripts/publish.mjs builds it for the sub-path it is served
         # from (open-slide's `base`), puts an index.html on every route
         # (Pages has no rewrite to the single-page app; presenter windows
@@ -103,7 +102,6 @@ jobs:
         # Pages artifact only: nothing of it is committed.
         shell: bash
         run: |
-          pnpm --dir slides install --frozen-lockfile
           npx --yes playwright@1.63.0 install --with-deps chromium
           export CHROME_PATH=$(ls -d ~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome | head -1)
           node slides/scripts/publish.mjs --base /docs/slides/ --out dist/docs/slides --pdf

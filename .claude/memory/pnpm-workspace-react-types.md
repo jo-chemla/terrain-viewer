@@ -1,17 +1,18 @@
 ---
 name: pnpm-workspace-react-types
-description: Why docs/ is a pnpm workspace package while slides/ and video/ are not, and the packageExtensions fix for the docs type check reaching the app's React 18 types
+description: Why docs/ and slides/ are pnpm workspace packages while video/ and desktop/ are not, and the packageExtensions fix for the docs type check reaching the app's React 18 types
 type: project
 ---
 
 # pnpm workspace: docs/ inside, slides/ and video/ outside (2026-11-08)
 
-`pnpm-workspace.yaml` lists `docs` as a workspace package: one root
+`pnpm-workspace.yaml` lists `docs` and `slides` as workspace packages: one root
 `pnpm install`, one lockfile, and `pnpm dev` (app + docs together) no longer
-depends on a separate `pnpm --dir docs install`. `slides/` and `video/` keep
-their own `packages: []` workspace files on purpose: slides is only built by
-the deploy and video only used when recording, and both would add open-slide,
-Playwright and Remotion to every install. `desktop/` is a Hutch (Electrobun)
+depends on a separate `pnpm --dir docs install`, and `pnpm slides` needs no
+`slides:install` (2026-11-08). `video/` keeps
+its own `packages: []` workspace file on purpose: it is only used when
+recording, and Remotion's platform binaries would otherwise land in every
+install. `desktop/` is a Hutch (Electrobun)
 project with its own lockfile, not pnpm.
 
 ## The React 18 / React 19 type clash and its fix

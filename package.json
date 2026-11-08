@@ -17,7 +17,6 @@
     "docs:build": "pnpm --dir docs build",
     "docs:preview": "pnpm --dir docs start",
     "slides": "pnpm --dir slides dev",
-    "slides:install": "pnpm --dir slides install --ignore-workspace",
     "slides:build": "pnpm --dir slides build",
     "slides:static": "pnpm --dir slides static",
     "slides:pdf": "pnpm --dir slides pdf",

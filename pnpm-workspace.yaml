@@ -1,12 +1,14 @@
-# docs/ (Next.js 16 / React 19) is a workspace package: one root `pnpm install`
-# covers both apps, one lockfile. pnpm isolates each package's node_modules,
-# so the docs' React 19 / TypeScript 6 never meet the app's React 18 / Vite.
-# slides/ and video/ stay standalone roots of their own (each has a
-# `packages: []` pnpm-workspace.yaml): slides is only built by the deploy and
-# video is only used when recording, and both would otherwise add Remotion /
-# Playwright / open-slide to every install.
+# docs/ (Next.js 16 / React 19) and slides/ (open-slide, Vite 8 / React 19)
+# are workspace packages: one root `pnpm install` covers all three apps, one
+# lockfile. pnpm isolates each package's node_modules, so their React 19 /
+# TypeScript 6 / Vite 8 never meet the app's React 18 / Vite 7 (see the
+# packageExtensions below for the one place TypeScript still crosses over).
+# video/ stays a standalone root of its own (a `packages: []`
+# pnpm-workspace.yaml): it is only used when recording, and Remotion's
+# platform binaries would otherwise land in every install.
 packages:
   - docs
+  - slides
 
 patchedDependencies:
   '@allmaps/maplibre@1.0.0-beta.44': patches/@allmaps__maplibre@1.0.0-beta.44.patch
