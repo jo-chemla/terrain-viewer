@@ -27,7 +27,7 @@ Each opens in place; a deck is 12 to 23 MB.
 From the repository root:
 
 ```bash
-pnpm slides:install   # once: the workspace has its own install
+pnpm install          # once, at the root: slides/ is a package of the root pnpm workspace
 pnpm slides           # dev server with the inspector, http://localhost:3200
 pnpm slides:static    # the static site as it will be online, http://localhost:4180/docs/slides/
 pnpm slides:pdf       # the static site and the five PDFs, in .cache/slides-site/
