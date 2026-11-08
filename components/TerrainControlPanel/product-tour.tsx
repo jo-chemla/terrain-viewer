@@ -1353,7 +1353,7 @@ interface ProductTourProps {
   state: any
   setState: (updates: any) => void
   switchAppMode: (mode: AppMode) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
 }
 
 export function ProductTour({ state, setState, switchAppMode, mapRef }: ProductTourProps) {

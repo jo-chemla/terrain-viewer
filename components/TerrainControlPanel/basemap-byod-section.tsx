@@ -83,7 +83,7 @@ import customSources from "@/lib/custom-sources.json"
 import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 const SAMPLE_BASEMAP_SOURCES = customSources['SAMPLE_BASEMAPS_SOURCES']
 
-export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef> }> = ({ state, setState, mapRef }) => {
+export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef | null> }> = ({ state, setState, mapRef }) => {
   const [isBasemapByodOpen, setIsBasemapByodOpen] = useAtom(isBasemapByodOpenAtom)
   const [basemapsOpen, setBasemapsOpen] = useAtom(byodBasemapsOpenAtom)
   const [overlaysOpen, setOverlaysOpen] = useAtom(byodOverlaysOpenAtom)

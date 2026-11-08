@@ -41,7 +41,7 @@ import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
 
 export const TerrainSourceSection: React.FC<{
-  state: any; setState: (updates: any) => void; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; mapRef: React.RefObject<MapRef>;
+  state: any; setState: (updates: any) => void; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; mapRef: React.RefObject<MapRef | null>;
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, getTilesUrl, getMapBounds, mapRef, isOpen, onOpenChange }) => {

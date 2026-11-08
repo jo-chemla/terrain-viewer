@@ -119,7 +119,7 @@ const OsmBuildingsRow: React.FC = () => {
 }
 
 export const RasterBasemapSection: React.FC<{
-  state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef>;
+  state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef | null>;
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean

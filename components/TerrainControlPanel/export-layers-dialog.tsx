@@ -148,7 +148,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 export const ExportLayersDialog: React.FC<{
   open: boolean
   onOpenChange: (open: boolean) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   getMapBounds: () => { west: number; south: number; east: number; north: number }
   maxResolution: number
   contoursVisible: boolean

@@ -1,7 +1,7 @@
 # Terrain Viewer — Agent Context
 
 ## What this is
-A client-side MapLibre GL terrain visualization app (React 18 + Vite + TypeScript).
+A client-side MapLibre GL terrain visualization app (React 19 + Vite + TypeScript).
 Repo: https://github.com/jo-chemla/terrain-viewer  
 Live: https://jo-chemla.github.io/terrain-viewer (prod, blue favicon)  
 Also deployed at: https://historical-satellite.iconem.com (Iconem, historical mode default)
