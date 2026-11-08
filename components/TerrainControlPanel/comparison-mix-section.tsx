@@ -114,7 +114,7 @@ export const ComparisonMixSection: React.FC<{
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   historicalMode?: boolean
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
 }> = ({ state, setState, isOpen, onOpenChange, historicalMode = false, mapRef }) => {
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   // Same opaque hiddenSections identifier the old inline row in

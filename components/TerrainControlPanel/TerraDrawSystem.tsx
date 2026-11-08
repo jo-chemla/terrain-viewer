@@ -421,7 +421,7 @@ function userFeatures(snapshot: GeoJSONFeature[]): GeoJSONFeature[] {
 
 // --- HOOK ---
 
-// export function useTerraDraw(mapRef: RefObject<MapRef>, mapsLoaded: boolean) {
+// export function useTerraDraw(mapRef: RefObject<MapRef | null>, mapsLoaded: boolean) {
 //     const [draw, setDraw] = useState<TerraDraw | null>(null)
 //     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
 //     const featuresRef = useRef(features)
@@ -546,7 +546,7 @@ const loadedDrawingUrls = new Set<string>()
  * added, throws with a readable message otherwise. With `sourceUrl`, an
  * existing layer already fed by that URL is refilled instead of duplicated.
  */
-function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
+function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef | null>) {
     const setFeatures = useSetAtom(drawingFeaturesAtom)
     const [layers, setLayers] = useAtom(drawingLayersAtom)
     const setActiveLayerId = useSetAtom(activeLayerIdAtom)
@@ -625,7 +625,7 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef>) {
     }, [draw, mapRef, setFeatures, setLayers, setActiveLayerId])
 }
 
-export function useTerraDraw(mapRef: RefObject<MapRef>) {
+export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
     const initNonce = useAtomValue(drawInitNonceAtom)
     const [draw, setDraw] = useState<TerraDraw | null>(null)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
@@ -990,7 +990,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef>) {
 
 // --- CONTROLS COMPONENT ---
 
-function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
+function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef | null> }) {
     const setInitNonce = useSetAtom(drawInitNonceAtom)
     // Shared with ElevationPickerSection/sun-shadow-calculator-section (see
     // activeDrawModeAtom's own comment) — written here at every point
@@ -1081,7 +1081,7 @@ function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: R
 
 // --- LAYERS COMPONENT ---
 
-function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
+function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef | null> }) {
     const [layers, setLayers] = useAtom(drawingLayersAtom)
     const [activeLayerId, setActiveLayerId] = useAtom(activeLayerIdAtom)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
@@ -1670,7 +1670,7 @@ function flattenFeatures(features: any[]): any[] {
     })
 }
 
-function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef> }) {
+function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: RefObject<MapRef | null> }) {
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
     const [layers, setLayers] = useAtom(drawingLayersAtom)
     const [activeLayerId, setActiveLayerId] = useAtom(activeLayerIdAtom)
@@ -1929,7 +1929,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
 
 interface TerraDrawSectionProps {
     draw: TerraDraw | null
-    mapRef: RefObject<MapRef>
+    mapRef: RefObject<MapRef | null>
     isOpen: boolean
     onOpenChange: (open: boolean) => void
 }

@@ -30,7 +30,7 @@ export function PhongLiveGlLayer({
   diffuseStrength, specularStrength, fresnelStrength = 0, fresnelPower = 3, fresnelDark = false, lightDir, lightAlt, lightRelativeToCamera, lightColor, extraLights, exaggeration, opacity,
   terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
 }: {
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   enabled: boolean
   diffuseStrength: number
   specularStrength: number

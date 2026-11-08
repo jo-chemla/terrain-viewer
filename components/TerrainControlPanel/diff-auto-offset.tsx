@@ -28,7 +28,7 @@ import { pushToast } from "@/components/ui/toast"
  * resets (↺), because a true nDSM should NOT be re-centred: zero there means
  * bare earth, and the measured constant is the height of the city.
  */
-export const DiffOffsetControl: React.FC<{ sourceId: string; mapRef: React.RefObject<MapRef> }> = ({ sourceId, mapRef }) => {
+export const DiffOffsetControl: React.FC<{ sourceId: string; mapRef: React.RefObject<MapRef | null> }> = ({ sourceId, mapRef }) => {
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const source = customTerrainSources.find((s) => s.id === sourceId)
   const isDiff = source?.type === "dem-diff"

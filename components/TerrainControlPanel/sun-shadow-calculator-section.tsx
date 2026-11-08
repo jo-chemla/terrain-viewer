@@ -58,7 +58,7 @@ function distanceAndBearing(from: PickedPoint, to: PickedPoint): { distanceM: nu
 export const SunShadowCalculatorSection: React.FC<{
   state: any
   setState: (updates: any) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   draw: TerraDraw | null
   isOpen: boolean
   onOpenChange: (open: boolean) => void

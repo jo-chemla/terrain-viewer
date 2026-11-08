@@ -120,7 +120,7 @@ const MOVE_DEBOUNCE_MS = 400
 // active in EITHER (it's just the only thing historical mode shows), so
 // this renders whenever state.showRasterBasemap is on, alongside the
 // terrain-provenance block above rather than instead of it.
-const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<MapRef> }> = ({ state, mapRef }) => {
+const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<MapRef | null> }> = ({ state, mapRef }) => {
   const customBasemaps = useAtomValue(customBasemapSourcesAtom)
   const customBasemapById = (id: string): CustomBasemapSource | undefined => customBasemaps.find((b) => b.id === id)
   const info = useSourceInfoDialog()
@@ -301,7 +301,7 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
  *  checkbox takes the whole group; a master switch hides every footprint at
  *  once, the selection kept. Every group starts folded; what the user opens
  *  is kept across sessions (coverageFoldsAtom). */
-const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef>; state: any; setState?: (u: any) => void }> = ({ mapRef, state, setState }) => {
+const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; state: any; setState?: (u: any) => void }> = ({ mapRef, state, setState }) => {
   const [selected, setSelected] = useAtom(coverageOverlaysAtom)
   const [visible, setVisible] = useAtom(coverageVisibleAtom)
   const [outlineOnly, setOutlineOnly] = useAtom(coverageOutlineOnlyAtom)
@@ -603,7 +603,7 @@ const CatalogTextSearch: React.FC<{ state: any; result: TextSearchResult | null;
   )
 }
 
-const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any }> = ({ mapRef, state }) => {
+const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef | null>; state: any }> = ({ mapRef, state }) => {
   const inView = useAtomValue(coverageInViewAtom)
   const catalogItems = useAtomValue(catalogItemsAtom)
   const requestUse = useSetAtom(coverageUseRequestAtom)
@@ -759,7 +759,7 @@ const CoverageInViewList: React.FC<{ mapRef: React.RefObject<MapRef>; state: any
 export const SourceInfoSection: React.FC<{
   state: any
   setState?: (updates: any) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   historicalMode?: boolean
   isOpen: boolean
   onOpenChange: (open: boolean) => void

@@ -407,7 +407,7 @@ function moveWithinGroup(list: Bookmark[], matches: (b: Bookmark) => boolean, fr
 export const BookmarksSection: React.FC<{
   state: any
   setState: (updates: any) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }> = ({ state, setState, mapRef, isOpen, onOpenChange }) => {

@@ -267,7 +267,7 @@ const AddCustomDestinationModal: React.FC<{
 
 export const OpenInLinksButton: React.FC<{
   state: any
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   /** e.g. "w-full" when this is the only control on its row (sidebar usage)
    *  instead of paired against a Label in a justify-between row (its
    *  original, narrower, timeline-footer usage). */

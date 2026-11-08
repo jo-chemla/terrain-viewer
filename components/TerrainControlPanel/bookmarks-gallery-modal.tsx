@@ -202,7 +202,7 @@ export const BookmarksGalleryModal: React.FC<{
   onClose: () => void
   bookmarks: Bookmark[]
   setState: (updates: any) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   onDelete: (id: string) => void
   onRename?: (id: string, name: string) => void
 }> = ({ open, onClose, bookmarks, setState, mapRef, onDelete, onRename }) => {

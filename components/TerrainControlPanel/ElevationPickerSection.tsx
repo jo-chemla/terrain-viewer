@@ -87,7 +87,7 @@ function toLrmClientSource(source: ClientExportSource, lrmRadius: number): Clien
 export const ElevationPickerSection: React.FC<{
   state: any
   setState: (updates: any) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   draw: TerraDraw | null
   isOpen: boolean
   onOpenChange: (open: boolean) => void

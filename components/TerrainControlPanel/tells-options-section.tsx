@@ -30,7 +30,7 @@ export const TellsFields: React.FC<{
   // already-fetched tellsSource vector tiles straight from the map instance, no
   // separate fetch. Optional so this component still works in contexts with no
   // map (there are none today, but keeps the prop symmetric with other Fields).
-  mapRef?: React.RefObject<MapRef>
+  mapRef?: React.RefObject<MapRef | null>
 }> = ({ state, setState, tileSize = 256, mapRef }) => {
   const radiusPx = state.tellRadius ?? TELL_RADIUS_DEFAULT
   const radiusMeters = radiusPx * groundResolutionM(state.lat ?? 0, state.zoom ?? 0, tileSize)

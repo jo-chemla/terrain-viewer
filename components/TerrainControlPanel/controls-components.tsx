@@ -706,7 +706,7 @@ export const CopyModalLinkButton: React.FC<{ param: string; value: string; label
 // ─── CycleButtonGroup ─────────────────────────────────────────────────────────
 
 export const CycleButtonGroup: React.FC<{
-  value: string; options: { value: string; label: string | JSX.Element }[]
+  value: string; options: { value: string; label: string | React.JSX.Element }[]
   onChange: (value: string) => void; onCycle: (direction: number) => void
   /** Optional extra control (e.g. a color swatch) slotted between the select
    *  and the chevron pair. */

@@ -35,7 +35,7 @@ type TerrainFormType = CustomTerrainSource["type"] | "wms-picker" | "stac" | "au
 export const CustomTerrainSourceModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomTerrainSource | null
   onSave: (source: Omit<CustomTerrainSource, "id"> & { id?: string }) => void
-  mapRef?: React.RefObject<MapRef>
+  mapRef?: React.RefObject<MapRef | null>
 }> = ({ isOpen, onOpenChange, editingSource, onSave, mapRef }) => {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")

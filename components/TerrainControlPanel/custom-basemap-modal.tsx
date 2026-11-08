@@ -48,7 +48,7 @@ export const CustomBasemapModal: React.FC<{
   // source; there's nothing on the map yet for a brand-new one to preview
   // against, so this is omitted for the "Add New Basemap" flow.
   onLiveOpacityChange?: (opacity: number) => void
-  mapRef?: React.RefObject<MapRef>
+  mapRef?: React.RefObject<MapRef | null>
   /** A URL handed over by Add Terrain: the dialog opens on Auto with it. */
   initialUrl?: string
 }> = ({ isOpen, onOpenChange, editingSource, onSave, onLiveOpacityChange, mapRef, initialUrl }) => {
