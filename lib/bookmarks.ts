@@ -192,7 +192,7 @@ export function restoreBookmark(
   activeProjectId: string | null,
   setActiveProjectId: (id: string | null) => void,
   setActiveBookmarkId: (id: string | null) => void,
-  mapRef?: React.RefObject<MapRef>,
+  mapRef?: React.RefObject<MapRef | null>,
 ) {
   const patch = parseBookmarkSearch(bookmark.search)
   const sameFamilyAsActive = activeProjectId !== null && (bookmark.parentId ?? bookmark.id) === activeProjectId

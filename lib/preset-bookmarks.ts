@@ -112,7 +112,7 @@ export const PRESET_BOOKMARKS: Bookmark[] = [
 export function restorePreset(
   preset: Bookmark,
   setState: (updates: Record<string, unknown>) => void,
-  mapRef?: React.RefObject<MapRef>,
+  mapRef?: React.RefObject<MapRef | null>,
 ) {
   const patch = parseBookmarkSearch(preset.search)
   const map = mapRef?.current?.getMap()
