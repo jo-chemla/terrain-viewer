@@ -51,5 +51,5 @@
 - [Pages deploys](pages-deploy.md) — the "in progress deployment" refusal, the cancel-then-poll deploy job (pages-deployments.sh), backend statuses seen, what the 545 MB artifact holds
 - [LiDAR Lens reference](lidar-lens-reference.md) — a design Jonathan loves (on the meta tracker 2026-11-04); England+Wales 1 m Terrarium WebP tiles; the app has England EA WCS and the Welsh WG DTM COG via titiler; Scotland/NI have no streamable raw heights
 - [Planet key never in builds](planet-key-never-in-builds.md) — three guards (Vite plugin, post-build scan, workflow sed+grep); the 2026-10 secret leak behind them
-- [pnpm workspace and React 18/19 types](pnpm-workspace-react-types.md) â€” docs/ and slides/ are workspace packages, video/desktop are not; packageExtensions fix when the docs type check reaches the app's React 18 types
+- [pnpm workspace and React 18/19 types](pnpm-workspace-react-types.md) â€” docs/, slides/ and theme-editor/ (library, imported by name) are workspace packages, video/desktop are not; packageExtensions fix when the docs type check reaches the app's React 18 types
 - [Real-browser map lifecycle check](browser-lifecycle-check.md) â€” agent-browser + system Chrome + window.__tv; scripts/browser-lifecycle-check.mjs scenarios and traps; signed off React 19

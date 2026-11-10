@@ -3,12 +3,11 @@
 ## What this is
 A client-side MapLibre GL terrain visualization app (React 19 + Vite + TypeScript).
 Repo: https://github.com/jo-chemla/terrain-viewer  
-Live: https://jo-chemla.github.io/terrain-viewer (prod, blue favicon)  
-Also deployed at: https://historical-satellite.iconem.com (Iconem, historical mode default)
+Live: https://terrain-viewer.iconem.com (Iconem fork, blue favicon) and https://historical-satellite.iconem.com (this repo's Pages site, historical mode default; jo-chemla.github.io/terrain-viewer redirects there)
 
 Two co-located apps share this repo:
 - **Main app** — Vite SPA, root. `pnpm app` → port 5173 (or 5174 in a worktree).
-- **Docs** — Next.js 16 (Fumadocs), `docs/`. `pnpm docs` → port 3100, proxied at `/docs` by the Vite dev server. Like `slides/`, a package of the root pnpm workspace: one `pnpm install` at the root covers app, docs and slides (one lockfile). `video/` is a standalone pnpm root with its own install.
+- **Docs** — Next.js 16 (Fumadocs), `docs/`. `pnpm docs` → port 3100, proxied at `/docs` by the Vite dev server. Like `slides/` and `theme-editor/` (the theme-token editor library, imported as `theme-editor`), a package of the root pnpm workspace: one `pnpm install` at the root covers them all (one lockfile). `video/` is a standalone pnpm root with its own install.
 
 ## Dev servers
 

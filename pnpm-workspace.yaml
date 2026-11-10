@@ -6,9 +6,14 @@
 # video/ stays a standalone root of its own (a `packages: []`
 # pnpm-workspace.yaml): it is only used when recording, and Remotion's
 # platform binaries would otherwise land in every install.
+# theme-editor/ is a library package (the shadcn theme-token editor panel the
+# settings dialog opens): the app imports it by its package name as TypeScript
+# source, React and lucide-react are its peers, so the folder can be copied or
+# published for another app as it is.
 packages:
   - docs
   - slides
+  - theme-editor
 
 patchedDependencies:
   '@allmaps/maplibre@1.0.0-beta.44': patches/@allmaps__maplibre@1.0.0-beta.44.patch

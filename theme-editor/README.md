@@ -32,8 +32,16 @@ live via inline CSS custom-property overrides — no rebuild, no CSS-in-JS.
 
 ## Install
 
-Copy the whole `theme-editor/` folder into your project (e.g. next to your
-other top-level source folders) and import from it:
+In this repository `theme-editor/` is a package of the root pnpm workspace
+(`pnpm-workspace.yaml`): the app depends on it as `"theme-editor":
+"workspace:*"` and imports it by name, `import { ThemeEditorPanel } from
+"theme-editor"`. It ships as TypeScript source (`exports` points at
+`index.ts`), with React and `lucide-react` as peer dependencies, so Vite
+compiles it with the app.
+
+For another project, copy the whole `theme-editor/` folder in (as a
+workspace package the same way, or next to your other top-level source
+folders) and import from it:
 
 ```tsx
 import { ThemeEditorPanel } from "./theme-editor"

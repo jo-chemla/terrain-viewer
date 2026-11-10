@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { sortedThemes, type ThemeConfig } from "@/lib/themes-config";
 import { customThemesAtom, type CustomTheme } from "@/lib/settings-atoms";
 import { useTheme } from "@/components/theme-provider";
-import { parseColorToOklch, oklchToHex } from "@/theme-editor";
+import { parseColorToOklch, oklchToHex } from "theme-editor";
 
 // Custom themes are stored as raw CSS text (see settings-dialog.tsx's
 // onSaveTheme / theme-provider.tsx's injector) rather than a parsed value

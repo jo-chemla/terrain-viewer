@@ -1,6 +1,6 @@
 ---
 name: pnpm-workspace-react-types
-description: Why docs/ and slides/ are pnpm workspace packages while video/ and desktop/ are not, and the packageExtensions fix for the docs type check reaching the app's React 18 types
+description: Why docs/, slides/ and theme-editor/ are pnpm workspace packages while video/ and desktop/ are not, and the packageExtensions fix for the docs type check reaching the app's React 18 types
 type: project
 ---
 
@@ -9,7 +9,15 @@ type: project
 `pnpm-workspace.yaml` lists `docs` and `slides` as workspace packages: one root
 `pnpm install`, one lockfile, and `pnpm dev` (app + docs together) no longer
 depends on a separate `pnpm --dir docs install`, and `pnpm slides` needs no
-`slides:install` (2026-11-08). `video/` keeps
+`slides:install` (2026-11-08). `theme-editor/` joined on 2026-11-10 as a
+library package: the app depends on `"theme-editor": "workspace:*"` and
+imports it by name; `exports` points at `index.ts` (source, compiled by Vite
+and checked by the root `tsc`, which still includes the folder). Its peers
+(react, react-dom, lucide-react) are also devDependencies pinned to the
+root's ranges: with only the wide peer ranges, pnpm's peer auto-install
+fetched the newest lucide-react (1.x) as a second copy next to the app's
+0.454. `ux-flows/` stays an app page (second Vite input) because it imports
+`components/ui/*`; it would need a shared ui package first. `video/` keeps
 its own `packages: []` workspace file on purpose: it is only used when
 recording, and Remotion's platform binaries would otherwise land in every
 install. `desktop/` is a Hutch (Electrobun)

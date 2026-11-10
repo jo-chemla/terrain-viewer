@@ -1,0 +1,23 @@
+{
+  "name": "theme-editor",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Live, draggable Tailwind v4 / shadcn theme-token editor panel (tweakcn-compatible variable set). Dependency-free apart from React and lucide-react; consumed as TypeScript source.",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "types": "./index.ts",
+  "peerDependencies": {
+    "lucide-react": ">=0.400.0",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "lucide-react": "^0.454.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  }
+}
