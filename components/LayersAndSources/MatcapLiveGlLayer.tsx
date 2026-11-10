@@ -23,7 +23,7 @@ export function MatcapLiveGlLayer({
   matcapUrl, rotationDeg, exaggeration, opacity, lightRelativeToCamera,
   terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
 }: {
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   enabled: boolean
   matcapUrl: string
   rotationDeg: number

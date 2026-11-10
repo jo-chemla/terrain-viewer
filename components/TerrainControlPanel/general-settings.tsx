@@ -16,7 +16,7 @@ export const GeneralSettings: React.FC<{
   // own forcing effect) — there's nothing left to toggle, so the row is
   // dropped rather than shown disabled/single-option.
   historicalMode?: boolean
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   /** "Home" - reset the view. Lives on this section's own header rather than
    *  in the panel's title bar, where it sat next to Fold-all and Close and
    *  read as a panel command rather than a view one. */

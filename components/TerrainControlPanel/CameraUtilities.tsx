@@ -333,7 +333,7 @@ const targetSizeMBAtom = atomWithStorage("anim-target-size-mb", "")
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
-const getMap = (ref: React.RefObject<MapRef>) => ref.current?.getMap() ?? null
+const getMap = (ref: React.RefObject<MapRef | null>) => ref.current?.getMap() ?? null
 const smoothstep   = (t: number) => t * t * (3 - 2 * t)
 const smootherstep = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
 const lerp         = (a: number, b: number, t: number) => a + (b - a) * t
@@ -646,7 +646,7 @@ const FOV_ANI_MS = 800
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface CameraButtonsProps {
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   /** Full nuqs state from TerrainViewer — used for numericState extraction in "complete" mode */
   appState?: Record<string, unknown>
   /** setState for the app state (nuqs or local-safe setter) */
@@ -1257,7 +1257,7 @@ function CameraButtons({ mapRef, appState, setAppState, setAppStateSafe }: Camer
 // ─── AnimationSection wrapper ─────────────────────────────────────────────────
 
 interface AnimationSectionProps {
-  mapRef: RefObject<MapRef>
+  mapRef: RefObject<MapRef | null>
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   appState: Record<string, unknown>

@@ -53,7 +53,7 @@ function lightToXY(azimuthDeg: number, elevationDeg: number) {
 export const LightControlOverlay: React.FC<{
   state: any
   setState: (updates: any) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
 }> = ({ state, setState, mapRef }) => {
   const [active, setActive] = useState(false)
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)

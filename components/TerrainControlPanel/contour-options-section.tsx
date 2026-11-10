@@ -34,7 +34,7 @@ export const ContourOptionsSection: React.FC<{
   setState: (updates: any) => void
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  mapRef?: React.RefObject<MapRef>
+  mapRef?: React.RefObject<MapRef | null>
 }> = ({ state, setState, isOpen, onOpenChange, mapRef }) => {
   // Both colors are theme-adaptive by default (empty state value). The picker
   // shows that effective default and, once changed, stores an explicit hex that

@@ -35,7 +35,7 @@ export const DetectorMoundsSection: React.FC<{
   terrainTileSize: number
   // Threaded through to TellsFields' GeoJSON export button, which reads
   // already-loaded vector tiles straight from the live map instance.
-  mapRef?: React.RefObject<MapRef>
+  mapRef?: React.RefObject<MapRef | null>
 }> = ({ state, setState, isOpen, onOpenChange, terrainTileSize, mapRef }) => {
   const cycleTellsStyle = useCallback((direction: number) => {
     const currentIndex = TELLS_STYLE_KEYS.indexOf(state.tellsStyle)

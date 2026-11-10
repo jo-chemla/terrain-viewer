@@ -148,7 +148,7 @@ OverlayBasemapLayers.displayName = "OverlayBasemapLayers"
 
 // Background Layer
 export const BackgroundLayer = memo(
-  ({ theme, mapRef }: { theme: "light" | "dark"; mapRef: React.RefObject<MapRef> }) => {
+  ({ theme, mapRef }: { theme: "light" | "dark"; mapRef: React.RefObject<MapRef | null> }) => {
     const getBeforeId = () => {
       for (const layerId of ["raster-basemap", "color-relief", "hillshade"]) {
         if (mapRef?.current?.getLayer(layerId)) {
@@ -804,7 +804,7 @@ TellsMarkersLayer.displayName = "TellsMarkersLayer"
 // are both on and querying a not-yet-mounted layer throws rather than silently
 // no-op-ing. A "hidden" style still passes this guard (the layer stays mounted)
 // but layout.visibility:"none" makes queryRenderedFeatures return nothing anyway.
-export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<MapRef>; active: boolean }) => {
+export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<MapRef | null>; active: boolean }) => {
   useEffect(() => {
     const map = mapRef.current?.getMap()
     if (!map || !active) return

@@ -44,7 +44,7 @@ export const HypsometricTintOptionsSection: React.FC<{
   state: any; setState: (updates: any) => void;
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
 }> = ({ state, setState, isOpen, onOpenChange, mapRef }) => {
   const [colorRampType, setColorRampType] = useAtom(colorRampTypeAtom)
   const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)

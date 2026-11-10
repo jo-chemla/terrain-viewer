@@ -52,7 +52,7 @@ export const DownloadSection: React.FC<{
   state: any
   getMapBounds: () => { west: number; south: number; east: number; north: number }
   getSourceConfig: (key: string) => SourceConfig | null
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   withSeparator?: boolean

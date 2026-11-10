@@ -172,7 +172,7 @@ interface TerrainControlPanelProps {
   // how AnimationSection's scrub-complete makes a frame's values shareable.
   setState: (updates: any, options?: { shallow?: boolean }) => void
   getMapBounds: () => Bounds
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
 }
 
 export function TerrainControlPanel({

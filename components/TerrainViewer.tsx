@@ -1005,7 +1005,7 @@ export function TerrainViewer() {
   // ref-per-active-view, since the set of *active* views changes at runtime
   // (gridLayout/splitStyle) and several child components (MatcapLiveGlLayer,
   // BackgroundLayer, TellsInspectPopup, LightControlOverlay, ...) need a
-  // real, stable RefObject<MapRef> prop, not a plain mutable lookup. Views
+  // real, stable RefObject<MapRef | null> prop, not a plain mutable lookup. Views
   // beyond the current grid's shape just sit unused/null.
   const mapRefA = useRef<MapRef>(null)
   const mapRefB = useRef<MapRef>(null)
@@ -1015,7 +1015,7 @@ export function TerrainViewer() {
   const mapRefF = useRef<MapRef>(null)
   const mapRefG = useRef<MapRef>(null)
   const mapRefH = useRef<MapRef>(null)
-  const mapRefs = useMemo<Record<ViewId, React.RefObject<MapRef>>>(() => ({
+  const mapRefs = useMemo<Record<ViewId, React.RefObject<MapRef | null>>>(() => ({
     A: mapRefA, B: mapRefB, C: mapRefC, D: mapRefD, E: mapRefE, F: mapRefF, G: mapRefG, H: mapRefH,
   }), [])
   // The stalled-tiles watchdog goes on each map as soon as it exists, not in

@@ -377,7 +377,7 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
  * @param format - 'png' (lossless, default) or 'jpeg' (lossy, faster, smaller)
  */
 export async function captureMapScreenshot(
-  mapRef: React.RefObject<MapRef>,
+  mapRef: React.RefObject<MapRef | null>,
   format: ImageFormat = "png",
   { chrome = true }: { chrome?: boolean } = {},
 ): Promise<Blob | null> {
@@ -433,7 +433,7 @@ export async function copyBlobToClipboard(blob: Blob): Promise<void> {
  *  0.6) claws back some of the ~9x pixel-count increase from tripling the
  *  linear resolution, keeping dozens of bookmarks well within quota. */
 export async function captureBookmarkThumbnail(
-  mapRef: React.RefObject<MapRef>,
+  mapRef: React.RefObject<MapRef | null>,
   maxWidth = 960,
 ): Promise<string | null> {
   if (!mapRef.current) return null
@@ -476,7 +476,7 @@ export async function captureBookmarkThumbnail(
  * Uses PNG for clipboard (better compatibility, supports transparency)
  */
 export async function captureAndCopyMapToClipboard(
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
 ): Promise<boolean> {
   try {
     // Use PNG for clipboard (better compatibility, supports transparency)
