@@ -56,3 +56,6 @@ video/public/clip-*.mp4
 
 # UX flows captures (ux-flows/scripts/capture.mjs): published as release assets, never committed
 /ux-flows/out/
+
+# theme-editor/ is a workspace package too (pnpm links its peers there)
+theme-editor/node_modules/
