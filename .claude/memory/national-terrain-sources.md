@@ -26,3 +26,18 @@ type: project
 
 **United Kingdom (2026-11-04).** England: EA WCS (shipped). Wales: the Welsh Government 1 m DTM is one national Float32 COG on DataMapWales's Azure blob (`wales_dtm_32bit_cog.tif`, EPSG:27700, nodata -9999, no CORS, so `cogViaTitiler`); the DataMapWales WMS and WCS carry no raw heights. Scotland: the JNCC portal (`ows.remotesensing.data.gov.scot/geoserver`) has WCS disabled in every version and its WMS `image/geotiff` is 8-bit; the raw 1 m DTMs are about 9 600 per-10 km-tile Float32 LZW COGs on S3 `srsp-open-data` (`lidar/<phase>/dtm/27700/gridded/*.tif`, phases 1-6, national-lidar-programme 5 933 tiles, Orkney 1 655) with no VRT, so the route would be a self-hosted VRT like `public/vrt/open-buildings-*.vrt` (gdalbuildvrt over /vsicurl, needs every header read). Northern Ireland: no national LiDAR DTM; the 2021 coastal survey is a cached-tile MapServer only.
 
+
+**OpenTopography rasters (2026-11-10).** The raster bucket lists without login:
+`https://opentopography.s3.sdsc.edu/raster/?prefix=<ShortName>/` (the bucket
+root itself is AccessDenied; list under `raster/`). Every collection has a
+ready `<ShortName>/<ShortName>_be.vrt` over relative COG paths, Float32, UTM,
+nodata `+1.70141e38`, with `Accept-Ranges` and CORS for the app's hosts, so a
+`"type": "vrt"` entry with that URL is all a new collection needs (the
+"Bulk Download" login on the portal page is for the point clouds). The short
+name is on the portal's datasetMetadata page, not on data.gov. Used for the
+G-LiHT 2013 Maya LiDAR (`MX13W_Britton`, `MX13E_Britton`, OT.112026.32615.1 /
+.32616.1): narrow flight swaths, so the terrain reads 0 off-swath and every
+edge is a wall in 3d; the first tiles take 30-40 s while the reader opens the
+COG headers behind the VRT. Real elevations were read back in Chrome through
+`map.queryTerrainElevation` with the agent-browser recipe in
+[[browser-lifecycle-check]].

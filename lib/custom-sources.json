@@ -1582,6 +1582,28 @@
             "infoUrl": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1"
         },
         {
+            "id": "custom-mx-gliht-yucatan-west",
+            "name": "MEX - G-LiHT 2013 Yucatan West, Campeche, Chiapas Maya LiDAR 0.5m (archaeology) - VRT",
+            "url": "https://opentopography.s3.sdsc.edu/raster/MX13W_Britton/MX13W_Britton_be.vrt",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "bounds": [-92.24, 15.82, -89.69, 21.05],
+            "description": "RESEARCH DATA, not a mapping agency: NASA Goddard's G-LiHT airborne LiDAR, flown in April-May 2013 for forest carbon (AMIGA-Carb), re-processed for archaeology by Britton et al. (2025) and published on OpenTopography in October 2026 (OT.112026.32615.1, CC BY 4.0). The 458 transects archaeologists re-examined for Maya settlement (Schroder, Golden et al. 2020; Britton et al. 2025, 57 000 detected structures). Swaths a few hundred metres wide and tens of kilometres long, with gaps: the western half, UTM 15N (Chiapas, Campeche, western Yucatan). 0.5 m kriged bare earth, 222 COGs behind one VRT, same host, nodata (+1.70141e38) and vrt:// path as Aguada Fenix. Outside a swath the terrain reads 0, so every swath edge is a wall in 3d: read it top-down in 2d, or split against Mapterhorn. The first tiles take 30-40 s while the reader opens the COG headers behind the VRT; the tile-queue warning can show once.",
+            "resolutionM": 0.5,
+            "infoUrl": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.112026.32615.1"
+        },
+        {
+            "id": "custom-mx-gliht-yucatan-east",
+            "name": "MEX - G-LiHT 2013 Yucatan East, Quintana Roo Maya LiDAR 0.5m (archaeology) - VRT",
+            "url": "https://opentopography.s3.sdsc.edu/raster/MX13E_Britton/MX13E_Britton_be.vrt",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "bounds": [-89.91, 18.34, -87.31, 21.51],
+            "description": "RESEARCH DATA, not a mapping agency: the eastern, UTM 16N half of NASA Goddard's 2013 G-LiHT Maya-lowlands LiDAR (eastern Yucatan, Quintana Roo), re-processed by Britton et al. and published on OpenTopography in October 2026 (OT.112026.32616.1, CC BY 4.0). 0.5 m kriged bare earth, 234 COGs behind one VRT; see the western half for the story. Long narrow swaths with gaps, not a blanket coverage; the terrain reads 0 off-swath, so prefer the 2d view. Verified in Chrome on 2026-11-10: 166-168 m across a Yuc_Centro swath, 0 beside it.",
+            "resolutionM": 0.5,
+            "infoUrl": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.112026.32616.1"
+        },
+        {
             "id": "dura-grid-2mm",
             "name": "SYR - Dura Synagogue - GRID-2mm DSM",
             "url": "https://3d.iconem.com/syria/DuraEuropos_Synagogue/DuraEuropos_Synagogue_2mm_DSM_mosaic.cog.tiff",

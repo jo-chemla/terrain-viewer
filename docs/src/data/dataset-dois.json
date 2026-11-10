@@ -278,6 +278,24 @@
   "program_page": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.042022.32615.1",
   "licence": "CC BY 4.0"
  },
+ "custom-mx-gliht-yucatan-west": {
+  "name": "G-LiHT 2013 Yucatan West (Chiapas, Campeche) reprocessed LiDAR 0.5m (DTM)",
+  "doi": "10.5069/G9Z899N1",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Britton, B.J. (2026). G-LiHT Yucatan West 2013: Reprocessed Ground Points, DEMs and Visualizations. OpenTopography. Original acquisition: NASA Goddard G-LiHT (Cook et al. 2013), AMIGA-Carb 2013",
+  "program_page": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.112026.32615.1",
+  "licence": "CC BY 4.0"
+ },
+ "custom-mx-gliht-yucatan-east": {
+  "name": "G-LiHT 2013 Yucatan East (Quintana Roo) reprocessed LiDAR 0.5m (DTM)",
+  "doi": "10.5069/G9TH8JX9",
+  "mirror_doi": null,
+  "mirror_publisher": null,
+  "citation": "Britton, B.J. (2026). G-LiHT Yucatan East 2013: Reprocessed Ground Points, DEMs and Visualizations. OpenTopography. Original acquisition: NASA Goddard G-LiHT (Cook et al. 2013), AMIGA-Carb 2013",
+  "program_page": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.112026.32616.1",
+  "licence": "CC BY 4.0"
+ },
  "custom-mx-aguadafenix-dsm": {
   "name": "Aguada Fenix LiDAR 0.5m DSM",
   "doi": "10.5069/G95B00NF",

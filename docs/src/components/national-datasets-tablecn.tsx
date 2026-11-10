@@ -60,6 +60,8 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-au-nsw-dem5": { res: "5 m", coverage: "New South Wales only" },
   "custom-de-nrw-dgm1": { res: "1 m", coverage: "North Rhine-Westphalia only" },
   "custom-mx-aguadafenix-lidar": { res: "0.5 m", coverage: "Middle Usumacinta survey area (archaeology)" },
+  "custom-mx-gliht-yucatan-west": { res: "0.5 m", coverage: "G-LiHT 2013 transects, Chiapas / Campeche / western Yucatan (archaeology)" },
+  "custom-mx-gliht-yucatan-east": { res: "0.5 m", coverage: "G-LiHT 2013 transects, eastern Yucatan / Quintana Roo (archaeology)" },
   "custom-us-3dep": { res: "1–10 m", coverage: "Nationwide incl. AK, HI, PR" },
   "custom-us-3dep-wms": { res: "1–10 m", coverage: "Nationwide incl. AK, HI, PR — same mosaic over the WMS front end" },
   "custom-ee-maaamet-dtm1": { res: "1 m", coverage: "Nationwide" },
@@ -123,6 +125,7 @@ const EVENT_PAIRS = /^custom-(nz-kaikoura|us-hi-kilauea-2018|is-fagradalsfjall|u
 const SUB_NATIONAL = new Set([
   "custom-au-nsw-dem5", "custom-au-qld-dem", "custom-ca-ontario-dtm05",
   "custom-de-nrw-dgm1", "custom-mx-aguadafenix-lidar", "custom-at-tirol-dgm5",
+  "custom-mx-gliht-yucatan-west", "custom-mx-gliht-yucatan-east",
   "custom-be-vlaanderen-dtm1", "custom-1762932753466", "custom-fr-ign-lidarhd-reunion",
   "custom-us-hi-dtm1-lerc", "custom-us-hi-dsm1", "custom-us-hi-ndsm",
   "custom-us-hi-maui-dtm03-lerc", "custom-us-ak-ifsar-dtm5", "custom-us-ak-ifsar-dsm5",
