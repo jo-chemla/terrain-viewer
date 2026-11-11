@@ -11,6 +11,15 @@ updates:
       day: monday
     allow:
       - dependency-name: "@osm-editor-kit/maplibre-editor-layer-index"
+    # Dependabot applies a 3-day release-age cooldown by default and hands it
+    # to pnpm as minimum-release-age. pnpm then gates the WHOLE resolution,
+    # transitive packages already in the lockfile included (commander 15.1.0,
+    # parse5 8.1.1 under the docs' katex), so every run within three days of a
+    # fresh transitive release died with ERR_PNPM_NO_MATCHING_VERSION. The
+    # index package is the only thing this job touches and its weekly release
+    # is wanted as soon as it lands, so no cooldown at all.
+    cooldown:
+      exclude: ["*"]
     commit-message:
       prefix: "deps(eli)"
     labels: ["dependencies", "eli"]
