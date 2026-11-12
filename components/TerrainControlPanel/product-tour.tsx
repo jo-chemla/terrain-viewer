@@ -9,7 +9,7 @@ import { track } from "@/lib/analytics"
 import {
   hasSeenTourAtom, isTourOpenAtom, tourProgressAtom, terrainAnalysisAdvancedAtom, reliefVisualizationAdvancedAtom,
   elevationPickerActiveAtom, elevationPickerPointsAtom, sunShadowActiveAtom, sunShadowModeAtom, sunShadowPicksAtom, sunShadowHeightAtom, orbitRequestAtom, type PickedLngLat,
-  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom, dataLayersModalOpenAtom, hypsoAutoRangeRequestAtom, customTerrainSourcesAtom } from "@/lib/settings-atoms"
+  isHillshadeXYPadOpenAtom, type AppMode, terrainLibraryOpenAtom, dataLayersModalOpenAtom, hypsoAutoRangeRequestAtom, customTerrainSourcesAtom, isHistoricalHostname } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import customSources from "@/lib/custom-sources.json"
@@ -138,11 +138,19 @@ const TOUR_STATE_KEYS = [
 // actually-empty viewport instead of fighting whatever panels happened to be
 // open when the tour was started. prepareSidepanelIntro (next step) is what
 // reopens the sidebar once there's something to point at.
+// On the historical-satellite host the walkthrough stays in historical mode
+// (the mode the visitor landed in, 2026-11-12): the general steps all have
+// their anchors there, the "Terrain vs Historical" step then describes the
+// other mode, and the branch step still offers either. Elsewhere terrain,
+// the app's own default.
 function prepareGeneralIntro(a: TourActions) {
-  a.switchAppMode("terrain")
+  const historical = typeof window !== "undefined" && isHistoricalHostname(window.location.hostname)
+  a.switchAppMode(historical ? "historical" : "terrain")
   a.setIsSidebarOpen(false)
   a.setSectionOpen((prev) => ({ ...prev, general: true }))
-  a.setState({ splitStyle: "off", basemapSource: "esri", basemapSourceA: "esri" })
+  a.setState(historical
+    ? { splitStyle: "off", basemapSource: "historical", basemapSourceA: "historical" }
+    : { splitStyle: "off", basemapSource: "esri", basemapSourceA: "esri" })
 }
 
 function prepareSidepanelIntro(a: TourActions) {
