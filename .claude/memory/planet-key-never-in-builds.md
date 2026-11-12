@@ -28,3 +28,5 @@ Never add a `VITE_PLANET_*` read outside `planetKeyAtom`, never put the key
 in a workflow, secret, Tauri/Electrobun config or test fixture. When
 re-setting `ENV_FILE_CONTENT`, pipe `.env` through
 `grep -v '^VITE_PLANET_API_KEY='` first. Never print the local key in full.
+
+Checked on 2026-11-12: the desktop release desktop-v2026.11.12 (built from fe236ff by desktop.yml) unpacked from its Portable zip has VITE_PLANET_API_KEY as an empty string and no PLAK string anywhere; the two earlier desktop releases (11.3, 11.4) were built after the workflow started dropping the key from .env (4305fd8), and the ux-flows-latest release holds screenshots and json only, no build. The winget PR microsoft/winget-pkgs#469738 points at 11.12.

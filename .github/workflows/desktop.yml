@@ -187,7 +187,7 @@ jobs:
             exit 0
           fi
           sha=$(git rev-parse --short HEAD)
-          files=$(ls assets/*-v*-Installer-* assets/*-v*-Setup-* assets/*-v*-Portable-* 2>/dev/null || true)
+          files=$(ls assets/*-v*-Installer-* assets/*-v*-Setup-* assets/*-v*-Portable-* 2>/dev/null | grep -v ".json$" || true)
           gh release create "$tag" $files --title "Terrain Viewer desktop $version" --latest=false --notes "Desktop bundles built from \`$sha\`, full build with the documentation inside. A permanent copy, never rewritten; the newest build is always on desktop-latest. Windows: \`winget install Iconem.TerrainViewer\`, or the Installer here (Start Menu entry, no admin rights). Portable zips unpack anywhere. Unsigned: on Windows, SmartScreen, More info, Run anyway. See https://terrain-viewer.iconem.com/docs/features/advanced/desktop/."
       - name: Rolling release desktop-latest-light (the light build)
         # The light build's installers and its updater feed; its
