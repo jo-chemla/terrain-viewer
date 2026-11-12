@@ -118,7 +118,7 @@ In short, since October 8: STAC catalogs on the timeline with Planet's heritage 
 
 # Changelog — The Weekend: Historical Catalogs, National Archives, Old Maps
 
-<!-- released: 2026-10-05 -->
+<!-- released: 2026-10-06 -->
 
 #### TL;DR
 
