@@ -14,7 +14,13 @@
 #
 #   pages-deployments.sh cancel   cancel every candidate still in progress
 #   pages-deployments.sh wait     cancel, then poll until none is in progress
-#                                 (TIMEOUT seconds, 900 by default)
+#                                 (TIMEOUT seconds, 900 by default), and in
+#                                 any case for MIN_WAIT seconds (0 by default)
+#
+# The status endpoint is not the whole truth: on 2026-11-12 the deployment
+# named by the refusal reported `succeed` (and "Unable to cancel ... as it's
+# finished") for 30 minutes while new deployments were still refused. So a
+# refused attempt is followed by a minimum wait, not just a poll.
 set -euo pipefail
 
 mode=${1:?usage: pages-deployments.sh cancel|wait}
@@ -66,6 +72,7 @@ case "$mode" in
     ;;
   wait)
     timeout=${TIMEOUT:-900}
+    min_wait=${MIN_WAIT:-0}
     start=$(date +%s)
     while :; do
       left=$(cancel_in_progress)
@@ -75,6 +82,11 @@ case "$mode" in
       done
       elapsed=$(( $(date +%s) - start ))
       if [ -z "$busy" ]; then
+        if [ "$elapsed" -lt "$min_wait" ]; then
+          echo "no previous deployment in progress after ${elapsed}s, waiting for the backend until ${min_wait}s"
+          sleep $(( min_wait - elapsed < 30 ? min_wait - elapsed : 30 ))
+          continue
+        fi
         echo "no previous deployment in progress after ${elapsed}s"
         break
       fi

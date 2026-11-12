@@ -14,11 +14,13 @@ permissions:
   # deployments (.github/scripts/pages-deployments.sh)
   actions: read
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+# One run at a time, and a new push cancels the run in progress: only the
+# newest build matters, and every deployment the backend holds for up to
+# half an hour afterwards is one more "in progress deployment" refusal
+# (.github/scripts/pages-deployments.sh), so the fewer deployments the better.
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   # Build job
@@ -136,9 +138,14 @@ jobs:
       # were synced (purging_cdn), and then the new one is refused with
       # "Deployment request failed ... due to in progress deployment. Please
       # cancel <sha> first". Only the newest build matters, so the previous
-      # deployments still in progress are cancelled first; should the deploy
-      # still be refused, the next steps cancel again and poll the backend
-      # until nothing is in progress, instead of sleeping for a fixed time.
+      # deployments still in progress are cancelled first. Should the deploy
+      # still be refused, the next steps cancel again, poll the backend until
+      # nothing is in progress, and retry on a timed backoff (3, 7, then 15
+      # minutes): on 2026-11-12 the blocking deployment reported `succeed`
+      # (so nothing to cancel, "as it's finished") for 30 minutes while the
+      # backend still refused, and three retries 5 s apart only failed three
+      # times. A refused attempt also leaves a ghost deployment behind that
+      # later shows as purging_cdn, so the attempts stay few.
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -153,6 +160,7 @@ jobs:
         if: steps.deployment.outcome == 'failure'
         env:
           TIMEOUT: 900
+          MIN_WAIT: 180
         run: bash .github/scripts/pages-deployments.sh wait
       - name: Deploy to GitHub Pages (retry)
         id: retry
@@ -163,7 +171,19 @@ jobs:
         if: steps.retry.outcome == 'failure'
         env:
           TIMEOUT: 1200
+          MIN_WAIT: 420
+        run: bash .github/scripts/pages-deployments.sh wait
+      - name: Deploy to GitHub Pages (second retry)
+        id: retry2
+        if: steps.retry.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Wait longer still
+        if: steps.retry2.outcome == 'failure'
+        env:
+          TIMEOUT: 1800
+          MIN_WAIT: 900
         run: bash .github/scripts/pages-deployments.sh wait
       - name: Deploy to GitHub Pages (last retry)
-        if: steps.retry.outcome == 'failure'
+        if: steps.retry2.outcome == 'failure'
         uses: actions/deploy-pages@v4

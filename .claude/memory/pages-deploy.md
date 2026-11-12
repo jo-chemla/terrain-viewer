@@ -25,6 +25,21 @@ needs `actions: read` (it lists this workflow's runs to find the candidate
 shas: a Pages deployment is named by its commit sha and there is no list
 endpoint).
 
+**Seen on 2026-11-12** (three failed Iconem deploys, none on jo-chemla): the
+sha named by the refusal reported `succeed` on the status endpoint, and
+`POST .../cancel` answered 400 "Unable to cancel deployment ... as it's
+finished", while the backend kept refusing new deployments for 26 minutes
+after that sha's own "Reported success!" (free again 4 minutes later: a
+rerun of the failed job passed). So `wait` found "no previous deployment in
+progress after 4s" and the three retries 5 s apart failed three times. A
+refused attempt also leaves a ghost: cd851b1, whose every attempt was
+refused at 21:21, showed as `purging_cdn` at 21:43 and was cancelled. Since
+2026-11-12 `wait` takes `MIN_WAIT` (a floor on the wait even when nothing
+is in progress), the deploy job retries three times on a 3, 7 then 15 minute
+backoff, and the concurrency group has `cancel-in-progress: true`, so a push
+during a run cancels it: fewer deployments, fewer refusals. Two pushes a few
+seconds apart (a commit and its fix-up) were the usual trigger.
+
 **Statuses seen** on `GET .../pages/deployments/{sha}`: `deployment_in_progress`,
 `syncing_files`, `succeed`, `purging_cdn`, `""` (older deployments the backend
 no longer reports on), 404 for a sha never deployed. `succeed` can show
