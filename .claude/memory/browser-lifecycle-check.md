@@ -51,3 +51,28 @@ type check; this is the cheapest way to exercise them under a real pointer.
   the historical overlay defaults by design; the terrain production site is
   `terrain-viewer.iconem.com`. Compare production behaviour against that, or
   against `pnpm preview` of a local build.
+
+## Handoff checks of 2026-11-12 (ELI 0.5.2, theme-editor package, G-LiHT, historical prod)
+
+Driven the same way from a scratchpad script: ELI 0.5.2's API through
+`/node_modules/.vite/deps/@osm-editor-kit_maplibre-editor-layer-index.js`
+(1726 layers, 29 in view over Paris, a hydrated tile URL, coverage
+features, 22 dated layers), the ELI search panel adding BD Ortho as the
+basemap, the Source Info ELI group, the Settings -> Advanced Theme Editor
+panel (`.tec-panel`) changing `--primary`, both G-LiHT VRTs drawing a
+hillshade at zoom 14, and historical-satellite.iconem.com booting with two
+canvases and the timeline. Two more traps:
+- When the first agent-browser command of a Bash-spawned script times out
+  (`spawnSync ... ETIMEDOUT` after 180 s, nothing else wrong), the daemon
+  did not come up from that shell. Kill `agent-browser-win32-x64` and
+  launch it once from PowerShell (`Start-Process` of the exe with `open
+  <url>`, stdout redirected to a file, the same env vars); every later
+  command from Bash then reuses that daemon. Do not `close` at the end of
+  a script that another run will follow.
+- A bare first visit to historical-satellite.iconem.com (no `hasSeenTour`,
+  no params at the tour's first render) auto-starts the product tour after
+  1.5 s, and its first step switches to terrain, split off, Esri: one
+  canvas, no timeline, `appMode=terrain` stored. Skip restores historical.
+  Seed `hasSeenTour` on that origin, or wait for a cold load (then the
+  app's own historical URL write lands first and the tour stays off).
+
