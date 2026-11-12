@@ -54,3 +54,4 @@
 - [pnpm workspace and React 18/19 types](pnpm-workspace-react-types.md) — docs/, slides/ and theme-editor/ (library, imported by name) are workspace packages, video/desktop are not; packageExtensions fix when the docs type check reaches the app's React 18 types
 - [Real-browser map lifecycle check](browser-lifecycle-check.md) — agent-browser + system Chrome + window.__tv; scripts/browser-lifecycle-check.mjs scenarios and traps; signed off React 19
 - [Push both remotes](push-both-remotes.md) — main goes to origin (jo-chemla) and iconem (fork) in the same step; the fork is a mirror, always fast-forward
+- [UX flows capture theme](ux-flows-capture-theme.md) — the 2026-10-16 screenshots show a wrong theme and font; the next recapture uses the default theme AND font
