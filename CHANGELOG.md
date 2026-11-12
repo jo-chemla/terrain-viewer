@@ -1,3 +1,12 @@
+# Changelog — Lidar Under the Canopy, Colour on the Sea
+
+<!-- released: 2026-11-12 -->
+
+#### TL;DR
+
+- **New sources**: NASA G-LiHT 2013 lidar over the Maya lowlands, as two terrain sources, Yucatán West and East: 0.5 m bare earth under the forest canopy, read straight from OpenTopography's VRTs (narrow flight swaths, the terrain reads 0 between them). In the basemap **Library**, four Copernicus Marine overlays, sea surface temperature, chlorophyll, surface currents and sea ice, drawn by the service's own tile server at its latest date. See [Copernicus Marine](https://terrain-viewer.iconem.com/docs/dev/copernicus-marine).
+- **Under the hood**: the app runs on React 19, and docs, slides and the theme editor are packages of one pnpm workspace, so a single install at the root covers them all with one lockfile.
+
 # Changelog — Esri Wayback Holds Still
 
 <!-- released: 2026-11-04 -->
