@@ -51,7 +51,7 @@
     "@loaders.gl/wms": "^4.5.3",
     "@mapbox/vector-tile": "2.0.4",
     "@maplibre/maplibre-gl-geocoder": "1.9.4",
-    "@osm-editor-kit/maplibre-editor-layer-index": "^0.5.2",
+    "@osm-editor-kit/maplibre-editor-layer-index": "^1.0.2",
     "@sugar-high/react": "^1.0.0",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/devtools-vite": "^0.3.11",
