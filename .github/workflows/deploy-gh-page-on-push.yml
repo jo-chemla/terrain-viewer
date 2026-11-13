@@ -68,23 +68,23 @@ jobs:
           pnpm build
       - name: Add the UX flows captures
         # /ux-flows reads data.json and the screenshots from its own origin (dist/ux-flows/captures/). They are
-        # the assets of the ux-flows-latest release, published by the UX flows capture workflow, which ends by
+        # the assets of the ux-flows release, published by the UX flows capture workflow, which ends by
         # dispatching this deploy. No release yet: the page says so itself.
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          if gh release view ux-flows-latest >/dev/null 2>&1; then
+          if gh release view ux-flows >/dev/null 2>&1; then
             mkdir -p dist/ux-flows/captures
-            gh release download ux-flows-latest --dir dist/ux-flows/captures --clobber
-            echo "UX flows: $(ls dist/ux-flows/captures | wc -l) files from the ux-flows-latest release"
+            gh release download ux-flows --dir dist/ux-flows/captures --clobber
+            echo "UX flows: $(ls dist/ux-flows/captures | wc -l) files from the ux-flows release"
           else
-            echo "::notice title=UX flows::no ux-flows-latest release yet; /ux-flows shows its load message until the capture workflow has run"
+            echo "::notice title=UX flows::no ux-flows release yet; /ux-flows shows its load message until the capture workflow has run"
           fi
-      - name: Add the dataset indexes (datasets-v1 release)
+      - name: Add the dataset indexes (datasets-2026-11-13 release)
         # Built VRT indexes too large to commit (the Scotland LiDAR VRTs, 3 to
         # 4 MB each, docs/scripts/build-scotland-vrt.mjs) live on the
-        # datasets-v1 release of Iconem/terrain-viewer and are served from the
+        # datasets-2026-11-13 release of Iconem/terrain-viewer and are served from the
         # site at /vrt/<name>.vrt: a release asset itself sends no CORS
         # header, the site does, and titiler can read the site too. The
         # library entries point at terrain-viewer.iconem.com/vrt/.
@@ -92,12 +92,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          if gh release view datasets-v1 -R Iconem/terrain-viewer >/dev/null 2>&1; then
+          if gh release view datasets-2026-11-13 -R Iconem/terrain-viewer >/dev/null 2>&1; then
             mkdir -p dist/vrt
-            gh release download datasets-v1 -R Iconem/terrain-viewer --dir dist/vrt --clobber
-            echo "datasets: $(ls dist/vrt | wc -l) files from the datasets-v1 release"
+            gh release download datasets-2026-11-13 -R Iconem/terrain-viewer --dir dist/vrt --clobber
+            echo "datasets: $(ls dist/vrt | wc -l) files from the datasets-2026-11-13 release"
           else
-            echo "::notice title=datasets::no datasets-v1 release; the hosted VRT entries will 404"
+            echo "::notice title=datasets::no datasets-2026-11-13 release; the hosted VRT entries will 404"
           fi
       - name: Build docs
         run: |

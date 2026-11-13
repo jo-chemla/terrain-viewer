@@ -17,7 +17,7 @@
 //
 //   node docs/scripts/build-scotland-vrt.mjs [outDir]   (default .cache/scotland)
 //
-// The VRTs (3 to 4 MB each) are not committed: they go to the datasets-v1
+// The VRTs (3 to 4 MB each) are not committed: they go to the datasets-2026-11-13
 // GitHub release, and the Pages deploy copies them into dist/vrt/.
 
 import { writeFile, mkdir } from "node:fs/promises"

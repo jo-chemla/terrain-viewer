@@ -27,12 +27,12 @@ ux-flows/scripts/capture.mjs agent-browser: open each screen's URL at 1440×900,
 ux-flows/scripts/build-data.mjs  parses the flows + registry + out/captures.json into out/data.json
 ux-flows/src/                the viewer (React): Map (sitemap, stage, inspector, player), Canvas, Flows (Mermaid)
 ux-flows/index.html          second entry of the app's Vite build → dist/ux-flows/index.html, i.e. /ux-flows/
-ux-flows/out/                captures and data.json: gitignored, published as the ux-flows-latest release and copied into the site at deploy
-.github/workflows/ux-flows-capture.yml  manual workflow: capture, build data.json, publish to the ux-flows-latest release, dispatch the deploy
+ux-flows/out/                captures and data.json: gitignored, published as the ux-flows release and copied into the site at deploy
+.github/workflows/ux-flows-capture.yml  manual workflow: capture, build data.json, publish to the ux-flows release, dispatch the deploy
 ```
 
 The viewer reads `data.json` and the screenshots from one base: in production `/ux-flows/captures/`, which
-the Pages deploy fills from the assets of the `ux-flows-latest` release (a browser cannot fetch `data.json`
+the Pages deploy fills from the assets of the `ux-flows` release (a browser cannot fetch `data.json`
 from the release itself, GitHub sends no CORS headers there), in dev `ux-flows/out/`. `?assets=<url>` points it elsewhere.
 Nothing from a capture run is committed, and the app build never captures anything: `/ux-flows` is
 a few hundred KB of viewer that deploys with the app like any other page.

@@ -52,7 +52,7 @@ function writeHash(s: UiState) {
 }
 
 // Where data.json and the screenshots live. They are build outputs, never committed: the capture workflow
-// publishes them as the assets of the `ux-flows-latest` release and the Pages deploy copies them into
+// publishes them as the assets of the `ux-flows` release and the Pages deploy copies them into
 // ./captures/ beside this page (a browser cannot fetch data.json from the release itself: no CORS headers
 // there). In dev they are ux-flows/out/ as written by `pnpm ux-flows:capture`. `?assets=<url>` points the
 // viewer at any other folder.

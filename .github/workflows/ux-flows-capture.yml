@@ -2,7 +2,7 @@ name: UX flows capture
 
 # Shoots every screen of ux-flows/maps/screens.json with agent-browser (URL states, plus the scripted in-app
 # actions for the states the URL cannot carry), builds data.json, publishes the lot as the assets of the
-# `ux-flows-latest` release (replaced on every run), then dispatches the Pages deploy, which copies those assets
+# `ux-flows` release (replaced on every run), then dispatches the Pages deploy, which copies those assets
 # into dist/ux-flows/captures/ so the page reads them from its own origin (release downloads send no CORS
 # headers, so a browser cannot fetch data.json from the release itself). Nothing is committed and the app is not
 # built here; by default the screens are shot against production. Manual only for now.
@@ -19,7 +19,7 @@ on:
         required: false
 
 permissions:
-  contents: write # creating and updating the ux-flows-latest release
+  contents: write # creating and updating the ux-flows release
   actions: write # dispatching the Pages deploy once the assets are published
 
 concurrency:
@@ -61,15 +61,15 @@ jobs:
             const rows = Object.entries(m.screens).map(([id, c]) => `| ${id} | ${c.file ? "ok" : "FAILED"} | ${c.ms ?? ""} | ${c.error ?? ""} |`);
             console.log("| screen | result | ms | error |\n|---|---|---|---|\n" + rows.join("\n"));
           ' >> "$GITHUB_STEP_SUMMARY"
-      - name: Publish as the ux-flows-latest release assets
+      - name: Publish as the ux-flows release assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          tag=ux-flows-latest
+          tag=ux-flows
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --prerelease --title "Media: UX flows captures (latest)" \
+            gh release create "$tag" --prerelease --title "Media: UX flows captures" \
               --notes "Screenshots and data.json read by /ux-flows. Replaced on every run of the UX flows capture workflow; not a software release."
           fi
           gh release edit "$tag" --notes "Screenshots and data.json read by /ux-flows. Captured $(date -u +%Y-%m-%dT%H:%MZ) from ${{ github.repository }}@${{ github.sha }} against ${{ inputs.base_url }}. Replaced on every run of the UX flows capture workflow; not a software release."
