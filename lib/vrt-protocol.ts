@@ -462,17 +462,37 @@ const EPSG_CODE = /^(?:EPSG:|urn:ogc:def:crs:EPSG(?:::|:[^:]*:))(\d+)$/i
 // else has to be looked up. epsg.io serves a plain proj4 string per code, which
 // is the same lookup TerraDrawSystem.tsx already does for a GeoPackage's SRS.
 const defCache = new Map<string, Promise<string>>()
+// Codes the library's VRTs use, spelled with a Helmert shift proj4js can
+// apply. epsg.io's own string for 27700 says `+nadgrids=uk_os_OSTN15...tif`,
+// a grid file proj4js cannot load: every transform then came back undefined
+// and the Scotland VRTs never drew (getVrtInfo died on "reading 'x'").
+const KNOWN_SRS: Record<string, string> = {
+  "27700": "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +towgs84=446.448,-125.157,542.06,0.15,0.247,0.842,-20.489 +units=m +no_defs",
+  "2154": "+proj=lcc +lat_0=46.5 +lon_0=3 +lat_1=49 +lat_2=44 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
+  "3035": "+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
+  "2056": "+proj=somerc +lat_0=46.9524055555556 +lon_0=7.43958333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs",
+  "25832": "+proj=utm +zone=32 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
+  "25833": "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
+  "28992": "+proj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=565.4171,50.3319,465.5524,1.9342,-1.6677,9.1019,4.0725 +units=m +no_defs",
+  "2193": "+proj=tmerc +lat_0=0 +lon_0=173 +k=0.9996 +x_0=1600000 +y_0=10000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
+  "4674": "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs",
+}
 function resolveSrs(srs: string): Promise<string> {
   const code = EPSG_CODE.exec(srs.trim())
   if (!code) return Promise.resolve(srs)            // already WKT or a proj4 string
   const id = code[1]
   if (id === "4326") return Promise.resolve("WGS84")
   if (id === "3857") return Promise.resolve("EPSG:3857")
+  if (KNOWN_SRS[id]) return Promise.resolve(KNOWN_SRS[id])
+  const n = Number(id)
+  if ((n >= 32601 && n <= 32660) || (n >= 32701 && n <= 32760)) return Promise.resolve(utmProj4(n))
   const hit = defCache.get(id)
   if (hit) return hit
   const p = fetch(`https://epsg.io/${id}.proj4`)
     .then((r) => { if (!r.ok) throw new Error(`no proj4 definition for EPSG:${id}`); return r.text() })
-    .then((t) => t.trim())
+    // A grid-shift file is nothing proj4js can fetch, and `+type=crs` is
+    // noise to it: drop both, which leaves the datum as the ellipsoid.
+    .then((t) => t.trim().replace(/\s\+nadgrids=\S+/g, "").replace(/\s\+type=crs\b/g, ""))
     .catch((e) => { defCache.delete(id); throw e })
   defCache.set(id, p)
   return p
