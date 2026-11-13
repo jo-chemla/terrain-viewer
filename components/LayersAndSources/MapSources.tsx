@@ -996,7 +996,7 @@ export const useClientDemUpstreamOne = (
             // modes hand every client-side viz mode the same bytes.
             if (!vrtInfo) return null // wait for the index, as the COG path waits for metadata
             return {
-                template: buildVrtUrl(customSource.url),
+                template: buildVrtUrl(customSource.url, !useCogProtocolForSource),
                 encoding: "mapbox" as const,
                 tileSize: 256,
                 minzoom: customSource.minzoom ?? vrtInfo.minzoom,

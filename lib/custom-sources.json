@@ -546,7 +546,7 @@
             "maxzoom": 13,
             "resolutionM": 15,
             "bounds": [-180, -61, 180, 84],
-            "description": "Google Research's GEM-15 surface model: the mean elevation of the native 0.5 m stereo surface within each 15 m cell, canopy and roofs included (the file's other bands, the 5th, 50th and 95th percentiles and the standard deviation, are not read). Same coverage, datum and cell layout as the GEM-15 DTM, but the file holds five bands pixel-interleaved, so a browser read of band 1 decodes all five (3 s a window): the map tiles come from titiler instead, one request per cell, and only the export reads the cells in the browser. Difference the two for a canopy and building height surface. Usable z7-13.",
+            "description": "Google Research's GEM-15 surface model: the mean elevation of the native 0.5 m stereo surface within each 15 m cell, canopy and roofs included (the file's other bands, the 5th, 50th and 95th percentiles and the standard deviation, are not read). Same coverage, datum and cell layout as the GEM-15 DTM, but the file holds five bands pixel-interleaved, so a browser read of band 1 decodes all five: about 3 s a window against 1 s for the DTM, and a cold viewport can take a minute. Read in the browser by default; switch this source (or the global COG protocol setting) to titiler and each cell is served by titiler instead, about 1 s a tile. Difference the two for a canopy and building height surface. Usable z7-13.",
             "infoUrl": "https://developers.google.com/earth-engine/datasets/catalog/projects_climate-and-sustainability_assets_gem-15_v1"
         },
         {
@@ -574,16 +574,6 @@
             "infoUrl": "https://portal.opentopography.org/raster?opentopoID=OTSDEM.032021.4326.3"
         },
         {
-            "id": "custom-global-cop90",
-            "name": "Global - Copernicus GLO-90 DSM 90m (COP90) - VRT",
-            "url": "https://opentopography.s3.sdsc.edu/raster/COP90/COP90_hh.vrt",
-            "type": "vrt",
-            "loadWithSamples": false,
-            "resolutionM": 90,
-            "description": "The 90 m edition of the Copernicus DEM, resampled from GLO-30, mostly useful for continent-scale views and as the coarse reference for the higher-resolution models. OpenTopography VRT over per-degree COGs (11.7 MB index, Float32, CORS-open). Usable z6-10.",
-            "infoUrl": "https://portal.opentopography.org/raster?opentopoID=OTSDEM.032021.4326.1"
-        },
-        {
             "id": "custom-global-nasadem",
             "name": "Global - NASADEM 30m (SRTM reprocessed, 60S-61N) - VRT",
             "url": "https://opentopography.s3.sdsc.edu/raster/NASADEM/NASADEM_be.vrt",
@@ -602,16 +592,6 @@
             "resolutionM": 30,
             "description": "The original SRTM 1 arc-second global release (void-filled, 2014) of the February 2000 Shuttle Radar Topography Mission, 60S to 60N, Int16 metres, nodata -32768. The surface of the year 2000 as it was measured: difference it against GLO-30 or GEM-15 for two decades of change at 30 m, keeping in mind the radar penetrates canopy only partly. OpenTopography VRT over per-degree COGs (6.2 MB index, CORS-open). Usable z8-12.",
             "infoUrl": "https://portal.opentopography.org/raster?opentopoID=OTSRTM.082015.4326.1"
-        },
-        {
-            "id": "custom-global-srtm-gl3",
-            "name": "Global - SRTM GL3 90m (2000 radar, 60S-60N) - VRT",
-            "url": "https://opentopography.s3.sdsc.edu/raster/SRTM_GL3/SRTM_GL3_srtm.vrt",
-            "type": "vrt",
-            "loadWithSamples": false,
-            "resolutionM": 90,
-            "description": "SRTM at 3 arc-seconds, the 90 m release that most of the web's terrain was built from for fifteen years. Int16, nodata 0 (so the sea and the voids read as 0 m). OpenTopography VRT over per-degree COGs (6.4 MB index, CORS-open). Usable z6-10.",
-            "infoUrl": "https://portal.opentopography.org/raster?opentopoID=OTSRTM.042013.4326.1"
         },
         {
             "id": "custom-eu-dtm30",

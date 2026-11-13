@@ -23,6 +23,7 @@
     "wms-float32-protocol",
     "vrt-protocol",
     "cell-routed-sources",
+    "dataset-indexes",
     "lerc-protocol",
     "quantized-mesh-protocol",
     "demdiff-protocol",

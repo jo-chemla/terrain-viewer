@@ -1,0 +1,84 @@
+---
+title: Dataset indexes and release-hosted assets
+sidebarTitle: Dataset indexes
+icon: DatabaseZap
+description: The elevation datasets the library streams from other people's buckets, the index each one needs (an upstream VRT, a VRT built here and kept on a GitHub release, a small committed ledger, or none), their resolution, extent and size, how to open the same indexes in QGIS or GDAL, and the releases that hold what the repository does not
+---
+
+The terrain library streams most of its datasets straight from the bucket of whoever publishes them: nothing is re-hosted. What a dataset needs in order to be streamed is an **index**, something that says which file covers which ground. This page lists the indexes the library relies on, where each one lives, and how heavy it is. Every one of them is plain GDAL material, so the same URL opens in QGIS, `gdalinfo` or titiler.
+
+## Four kinds of index
+
+| Kind | When | Where it lives | Examples |
+|---|---|---|---|
+| Upstream VRT | The publisher ships a VRT over its COGs | Their bucket | OpenTopography's global and regional mosaics |
+| Hosted VRT | One CRS, thousands of COGs, no VRT upstream | The [datasets-v1 release](https://github.com/Iconem/terrain-viewer/releases/tag/datasets-v1), served by this site at `/vrt/` | Scotland LiDAR |
+| Committed ledger | Many CRS, so no single VRT can exist; a small list of what covers where | `public/` in the repository | Open Buildings 2.5D (80 KB) |
+| None | The file address follows from the coordinates | Nowhere | GEM-15 |
+
+The last two are read by a per-tile router rather than as one VRT, see [Cell-routed sources](/dev/cell-routed-sources).
+
+## The datasets
+
+All of these are read **in the browser** by the app's own readers (`vrt://`, see [VRT Mosaic Protocol](/dev/vrt-protocol)): range requests against the publisher's bucket, reprojection with proj4, no server in between. titiler is an option for each (the source's "always via titiler" switch, or the global COG protocol setting), never a requirement, with two exceptions noted in the last column. Open one in the app with `?terrainSourceA=<id>`.
+
+| Dataset | Library id | Resolution | Extent | Index | Sources | Reader |
+|---|---|---|---|---|---|---|
+| Copernicus GLO-30 DSM | `custom-global-cop30` | 30 m | Global, 90°S to 84°N | Upstream VRT, 11.7 MB | 26 475 | Browser |
+| NASADEM | `custom-global-nasadem` | 30 m | 56°S to 61°N | Upstream VRT, 6.5 MB | 14 520 | Browser |
+| SRTM GL1 | `custom-global-srtm-gl1` | 30 m | 56°S to 60°N | Upstream VRT, 6.2 MB | 14 280 | Browser |
+| JAXA AW3D30 | `custom-global-aw3d30` | 30 m | 82°S to 82°N | Upstream VRT, 10.1 MB | 23 997 | Browser |
+| GEDTM30 (OpenGeoHub) | `custom-gedtm30-vrt` | 30 m | Global, 65°S to 85°N | Upstream VRT, 1 KB | 1 | Browser |
+| EU DTM (OpenGeoHub) | `custom-eu-dtm30` | 30 m | Europe, ETRS89 LAEA | Upstream VRT, 2 KB | 1 | Browser |
+| SRTM15+ V2.6, with bathymetry | `custom-global-srtm15plus` | 15″, about 450 m | Pole to pole | Upstream VRT, 41 KB | 91 | Browser |
+| Google GEM-15 DTM | `custom-global-gem15-dtm` | 15 m | 60°S to 84°N, minus Russia, China, Mongolia, Greenland | None (cell address) | 13 485 cells | Browser |
+| Google GEM-15 DSM | `custom-global-gem15-dsm` | 15 m | Same | None (cell address) | 13 485 cells | Browser, slow (5-band files); titiler by choice |
+| Google Open Buildings 2.5D, 2016 to 2023 | `custom-global-openbuildings-<year>` | 0.5 m | Global South, 57°S to 38°N | Committed ledger, 80 KB for all years | About 620 000 COGs a year in 150 manifests | Browser only |
+| Scotland LiDAR DTM | `custom-uk-scotland-dtm` | 0.5 m | Scotland, 54.5°N to 60.2°N | Hosted VRT, 3.8 MB | 7 300 | Browser |
+| Scotland LiDAR DSM | `custom-uk-scotland-dsm` | 0.5 m | Same | Hosted VRT, 3.8 MB | 7 360 | Browser |
+| Scotland LiDAR, every campaign | `custom-uk-scotland-dtm-all`, `-dsm-all` | 0.5 to 1 m | Same | Hosted VRT, 4.9 MB each | 9 600 | titiler (files without overviews) |
+
+The 30 m global models are not interchangeable, which is why several are listed. **SRTM GL1** is the Shuttle radar mission of February 2000 as first released. **NASADEM** is NASA's 2020 reprocessing of the same radar data: better phase unwrapping, ICESat control points, voids filled from ASTER and AW3D30, so it is the cleaner picture of the year 2000. **GLO-30** is a different radar a decade later (TanDEM-X, 2011 to 2015) and **AW3D30** is optical stereo (ALOS, 2006 to 2011). Differencing any two shows either real change or the sensors disagreeing. The coarser 90 m editions (COP90, SRTM GL3) are left out: the same data, resampled.
+
+## Scotland: a VRT built once, served from a release
+
+Scotland's open LiDAR ([Scottish Remote Sensing Portal](https://remotesensingdata.gov.scot/), OGL v3) is about 9 600 gridded Float32 COGs per product (DTM and DSM) on an open S3 bucket with CORS and Range: the LiDAR phases 1 to 6 of 2011-2022 (1 m for phases 1 and 2, 0.5 m after), the National LiDAR Programme 2021-2024 (1 km tiles at 0.5 m, 5 994 of them), Orkney 2023 and the Outer Hebrides 2019. The portal's WCS is disabled and its WMS is 8-bit, so a VRT is the only way to the raw heights. There is no listing of extents and the phase 1 files are irregular (a 10 km square can be a 6 000 × 3 000 strip), so `docs/scripts/build-scotland-vrt.mjs` reads every file's header once, 24 in flight, about five minutes a product, and writes one VRT per product in EPSG:27700 at 0.5 m with the newest campaign painted last.
+
+Files without overviews (phases 1 and 2, all of Orkney, 56 NLP files) are a problem for the in-browser reader, which refuses a tile that would decode more than 8 Mpx of one file, so the script writes two VRTs per product: `scotland-dtm-overviews.vrt` for the browser, `scotland-dtm.vrt` with every file for titiler.
+
+| Asset on datasets-v1 | Size | Sources | Raster |
+|---|---|---|---|
+| `scotland-dtm.vrt` | 4.9 MB | 9 604 | 716 042 × 1 245 728 px at 0.5 m, EPSG:27700 |
+| `scotland-dtm-overviews.vrt` | 3.8 MB | 7 305 | Same grid |
+| `scotland-dsm.vrt` | 5.0 MB | 9 684 | Same grid |
+| `scotland-dsm-overviews.vrt` | 3.8 MB | 7 360 | Same grid |
+
+The Pages deploy copies every asset of that release into `dist/vrt/`, so the library entries read them from this site: a release asset itself sends no CORS header, the site does, and titiler reads the site too. Any future index too large to commit goes the same way: build once, upload to the release, let the deploy serve it.
+
+## The same indexes in QGIS and GDAL
+
+A VRT over remote COGs is a GDAL dataset. Add it in QGIS as a raster layer with the protocol **HTTP(S)** and the URL, or on the command line with `/vsicurl/`:
+
+```bash
+gdalinfo /vsicurl/https://terrain-viewer.iconem.com/vrt/scotland-dtm.vrt
+gdalinfo /vsicurl/https://opentopography.s3.sdsc.edu/raster/COP30/COP30_hh.vrt
+# a window of Glasgow as a GeoTIFF, 1 m
+gdal_translate -projwin 255000 668000 262000 662000 -tr 1 1 /vsicurl/https://terrain-viewer.iconem.com/vrt/scotland-dtm.vrt glasgow.tif
+```
+
+GEM-15 and Open Buildings have no single file to point GDAL at. A GEM-15 cell is a plain COG (`/vsicurl/https://storage.googleapis.com/climate-and-sustainability/gem-15/p40_p0/w5s45/dtm/zall/mosaic.tif`), and `gdalbuildvrt` over the cells of one UTM zone makes a local mosaic.
+
+## CRS definitions
+
+A VRT names its CRS, usually as an EPSG code, and the reader needs a proj4 definition for it. Three sources answer, in order: a small table of the codes the library uses where the datum shift matters (British National Grid, Lambert-93, LAEA Europe, RD New and a few more, with their Helmert parameters) and the UTM zones, which follow from the code; then the whole EPSG registry as WKT2, bundled with the app as a 309 KB gzipped file ([@developmentseed/epsg](https://www.npmjs.com/package/@developmentseed/epsg)), loaded on first need, so an unusual code works offline and in the desktop app; then epsg.io. The table exists because of two traps: epsg.io's string for EPSG:27700 names a grid-shift file proj4js cannot load (every transform came back undefined, the Scotland VRTs drew nothing), and a WKT2 definition carries no datum shift, which proj4js makes up for only for the datums it knows by name (RD New lands 169 m off without its Helmert parameters).
+
+## Releases that hold what the repository does not
+
+| Release | Holds | Read by |
+|---|---|---|
+| [datasets-v1](https://github.com/Iconem/terrain-viewer/releases/tag/datasets-v1) | Built VRT indexes (Scotland, 17 MB) | The deploy, into `dist/vrt/` |
+| [docs-media](https://github.com/Iconem/terrain-viewer/releases/tag/docs-media) | The docs' screenshots as one tar archive per version (about 170 MB) | `scripts/docs-media.mjs pull`, before the docs dev server, the docs build and the slide builds |
+| ux-flows-latest | The UX flows captures | The deploy, into `dist/ux-flows/captures/` |
+| desktop-latest, desktop-v… | The desktop bundles | Users, winget |
+
+**Docs media.** `docs/public/screenshots` is not tracked. `docs/media.lock` names the archive a commit uses (`screenshots-<sha256 prefix>.tar`), and `pnpm docs:media` downloads and unpacks it when the folder is not at that version; the docs and slide scripts run it first, so a fresh clone needs nothing more than `pnpm docs`. After retaking or adding a screenshot, run `pnpm docs:media:push` (needs `gh` with write access to Iconem/terrain-viewer) and commit `docs/media.lock` with the page that uses the picture. Old archives stay on the release, so an older commit still builds. The pictures' earlier versions remain in the git history; this stops the growth, it does not shrink the past.

@@ -1,3 +1,22 @@
+# Changelog — Other People's Buckets, Read in Place
+
+<!-- released: 2026-11-13 -->
+
+#### TL;DR
+
+- **Google GEM-15**: the near-global 15 m bare-earth and surface models of October 2026 are terrain sources, plus their difference as a canopy and building height. One COG per 1° cell in its own UTM zone, about 13 500 cells, found and read per tile in the browser with no index at all.
+- **Open Buildings 2.5D, whole**: Google's yearly building heights at 0.5 m, 2016 to 2023, anywhere in the Global South, and 2023 minus 2016 as building growth. An 80 KB ledger routes each tile to the right manifest among 1 173.
+- **Scotland LiDAR**: 0.5 m DTM, DSM and their difference from about 9 600 files per product that had no index: the VRTs are built here and kept on a GitHub release.
+- **Global 30 m models side by side**: Copernicus GLO-30, NASADEM, SRTM GL1, GEDTM30, EU DTM and SRTM15+ with the sea floor, from OpenTopography's own VRTs, next to AW3D30.
+- **For GDAL and QGIS too**: every index is a plain VRT or COG URL. See [Dataset indexes](https://terrain-viewer.iconem.com/docs/dev/dataset-indexes) for resolutions, extents and sizes.
+
+#### Details
+
+- Google Cloud Storage buckets send no CORS header on their plain URLs; the JSON API media endpoint (`/storage/v1/b/<bucket>/o/<object>?alt=media`) serves the same bytes with CORS and Range. That one URL shape is what makes GEM-15 and Open Buildings readable in a browser, and it works for any public bucket as a plain COG source. See [Cell-routed sources](https://terrain-viewer.iconem.com/docs/dev/cell-routed-sources).
+- GEM-15's surface model holds five bands in one file, so it reads about three times slower than the terrain model. It stays in the browser by default; switch the source to titiler for about a second a tile.
+- The VRT reader resolves a CRS from a built-in table, then from the whole EPSG registry bundled as a 309 KB file, then from epsg.io. British National Grid used to fail on a grid-shift file the browser cannot load, and a failed projection no longer fences the camera to a point.
+- The docs' screenshots, about 170 MB, moved out of the repository to a release; `pnpm docs` fetches them. The two Brazilian sample VRTs of Open Buildings are gone, replaced by the ledger.
+
 # Changelog — Lidar Under the Canopy, Colour on the Sea
 
 <!-- released: 2026-11-12 -->

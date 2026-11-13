@@ -3,13 +3,13 @@
   "version": "0.0.14",
   "private": true,
   "scripts": {
-    "build": "node scripts/build-url-params.mjs && node scripts/build-stac-catalog.mjs && next build",
-    "dev": "node scripts/build-url-params.mjs && concurrently -k -n next,studio -c magenta,blue \"next dev -p 3100\" \"fumadocs-studio --no-open\"",
+    "build": "node ../scripts/docs-media.mjs pull --strict && node scripts/build-url-params.mjs && node scripts/build-stac-catalog.mjs && next build",
+    "dev": "node ../scripts/docs-media.mjs pull && node scripts/build-url-params.mjs && concurrently -k -n next,studio -c magenta,blue \"next dev -p 3100\" \"fumadocs-studio --no-open\"",
     "start": "serve out -l 3100",
     "types:check": "next typegen && tsc --noEmit",
     "lint": "eslint",
     "studio": "fumadocs-studio",
-    "dev:next": "node scripts/build-url-params.mjs && next dev -p 3100"
+    "dev:next": "node ../scripts/docs-media.mjs pull && node scripts/build-url-params.mjs && next dev -p 3100"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

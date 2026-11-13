@@ -92,9 +92,10 @@ export function buildRasterTileSource(params: {
       // intersect/read/composite GDAL's VRT driver does for titiler below.
       // A source can still pin itself to titiler (cogViaTitiler) when its
       // sources have no CORS, or when a tile spans too many files. A gem15://
-      // or openbuildings:// URL is not a file titiler could open: in-browser
-      // whatever the toggle.
-      if (useCogProtocol || isCellRoutedUrl(url)) return { tiles: [buildVrtUrl(url)] }
+      // or openbuildings:// URL is not a file titiler could open, so it stays
+      // on vrt:// whatever the toggle; for gem15 the toggle travels inside
+      // the URL and the reader asks titiler cell by cell.
+      if (useCogProtocol || isCellRoutedUrl(url)) return { tiles: [buildVrtUrl(url, !useCogProtocol)] }
       return {
         tiles: [
           `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${TITILER_CACHE_KEY}&nodata=${encodeURIComponent(String(titilerNodata ?? -999))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`,

@@ -79,10 +79,12 @@ import { TITILER_CACHE_KEY } from "./titiler-health"
  * The DTM files are single-band and read in the browser (about 1 s a window).
  * The DSM files carry five bands, pixel-interleaved, so every block read for
  * band 1 decodes all five: 3 s a window on a fast machine, minutes for a cold
- * viewport once the tiles contend for the main thread. So the DSM's map tiles
- * come from titiler instead, one `/cog/tiles` request per cell with `bidx=1`
- * and GDAL's own warp, composited where the mask says data; only the export
- * path still reads the DSM cells in the browser.
+ * viewport once the tiles contend for the main thread. Both bands are still
+ * read in the browser by default; titiler is the user's choice, through the
+ * global "COG protocol vs titiler" setting or the source's own "always via
+ * titiler" switch. The source builder then appends `#titiler` to the gem15
+ * URL and the tile comes from one `/cog/tiles` request per cell (`bidx=1`,
+ * GDAL's own warp), composited where the mask says data.
  *
  * URL shape: `vrt://<encodeURIComponent(vrt url)>/{z}/{x}/{y}`.
  * Output: Terrain-RGB, matching what titiler's `algorithm=terrainrgb` returns
@@ -477,7 +479,7 @@ const KNOWN_SRS: Record<string, string> = {
   "2193": "+proj=tmerc +lat_0=0 +lon_0=173 +k=0.9996 +x_0=1600000 +y_0=10000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
   "4674": "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs",
 }
-function resolveSrs(srs: string): Promise<string> {
+export function resolveSrs(srs: string): Promise<string> {
   const code = EPSG_CODE.exec(srs.trim())
   if (!code) return Promise.resolve(srs)            // already WKT or a proj4 string
   const id = code[1]
@@ -488,14 +490,34 @@ function resolveSrs(srs: string): Promise<string> {
   if ((n >= 32601 && n <= 32660) || (n >= 32701 && n <= 32760)) return Promise.resolve(utmProj4(n))
   const hit = defCache.get(id)
   if (hit) return hit
-  const p = fetch(`https://epsg.io/${id}.proj4`)
-    .then((r) => { if (!r.ok) throw new Error(`no proj4 definition for EPSG:${id}`); return r.text() })
-    // A grid-shift file is nothing proj4js can fetch, and `+type=crs` is
-    // noise to it: drop both, which leaves the datum as the ellipsoid.
-    .then((t) => t.trim().replace(/\s\+nadgrids=\S+/g, "").replace(/\s\+type=crs\b/g, ""))
+  // The whole EPSG registry as WKT2, 309 KB gzipped, bundled
+  // (@developmentseed/epsg) and loaded on the first code the table above does
+  // not know: no network, so it works offline and in the desktop app. proj4js
+  // reads WKT2 and knows the common datums by name (OSGB36 comes out the same
+  // as the Helmert string above, to the decimetre); a datum it does not know
+  // is taken as its ellipsoid alone, which is why RD New (28992, 169 m off
+  // that way) stays in the table. epsg.io is the last resort.
+  const p = loadEpsgDb()
+    .then((db) => db.get(n))
+    .catch(() => undefined)
+    .then((wkt) => wkt ?? fetch(`https://epsg.io/${id}.proj4`)
+      .then((r) => { if (!r.ok) throw new Error(`no proj4 definition for EPSG:${id}`); return r.text() })
+      // A grid-shift file is nothing proj4js can fetch, and `+type=crs` is
+      // noise to it: drop both, which leaves the datum as the ellipsoid.
+      .then((t) => t.trim().replace(/\s\+nadgrids=\S+/g, "").replace(/\s\+type=crs\b/g, "")))
     .catch((e) => { defCache.delete(id); throw e })
   defCache.set(id, p)
   return p
+}
+
+let epsgDb: Promise<Map<number, string>> | null = null
+function loadEpsgDb(): Promise<Map<number, string>> {
+  if (!epsgDb) {
+    epsgDb = Promise.all([import("@developmentseed/epsg/all"), import("@developmentseed/epsg/all.csv.gz?url")])
+      .then(([mod, asset]) => mod.default(asset.default))
+      .catch((e) => { epsgDb = null; throw e })
+  }
+  return epsgDb
 }
 
 /** Web Mercator metres <-> the VRT's own CRS. One converter per CRS string,
@@ -862,6 +884,10 @@ async function readDocGrid(
   return grid
 }
 
+/** Marker the source builder appends to a gem15:// URL when the user has
+ *  chosen titiler for the source (see the header). */
+const VIA_TITILER = "#titiler"
+
 export async function vrtProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -869,13 +895,15 @@ export async function vrtProtocol(
   const m = params.url.match(VRT_URL_RE)
   if (!m) throw new Error(`Invalid vrt protocol URL: ${params.url}`)
   const [, encoded, zS, xS, yS] = m
-  const vrtUrl = decodeURIComponent(encoded)
+  const decoded = decodeURIComponent(encoded)
+  const viaTitiler = decoded.endsWith(VIA_TITILER)
+  const vrtUrl = viaTitiler ? decoded.slice(0, -VIA_TITILER.length) : decoded
   const z = parseInt(zS, 10), x = parseInt(xS, 10), y = parseInt(yS, 10)
   const signal = abortController.signal
 
   const span = (2 * ORIGIN) / 2 ** z
   const gem = GEM15_RE.exec(vrtUrl)
-  const grid = gem && gem[1] === "dsm"
+  const grid = gem && viaTitiler
     ? await readGem15TitilerTile(gem[1], z, x, y, signal)
     : await readVrtGrid(vrtUrl, -ORIGIN + x * span, ORIGIN - y * span, span, span, TILE_SIZE, TILE_SIZE,
       signal, `tile z${z}/${x}/${y}`, MAX_SOURCES_PER_TILE, MAX_READ_PIXELS)
@@ -926,7 +954,9 @@ export async function readVrtRegion(
   return out
 }
 
-/** The tile template for a VRT read in-browser: `vrt://<url>/{z}/{x}/{y}`. */
-export function buildVrtUrl(vrtUrl: string): string {
-  return `vrt://${encodeURIComponent(vrtUrl)}/{z}/{x}/{y}`
+/** The tile template for a VRT read in-browser: `vrt://<url>/{z}/{x}/{y}`.
+ *  `viaTitiler` only means something for a gem15:// URL, whose cells titiler
+ *  can serve one by one; an openbuildings:// URL has no titiler road. */
+export function buildVrtUrl(vrtUrl: string, viaTitiler = false): string {
+  return `vrt://${encodeURIComponent(viaTitiler && GEM15_RE.test(vrtUrl) ? vrtUrl + VIA_TITILER : vrtUrl)}/{z}/{x}/{y}`
 }
