@@ -1,6 +1,7 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { MDXComponents } from 'mdx/types';
 import { Mermaid } from '@/components/mermaid';
+import { OpenInApp } from '@/components/open-in-app';
 
 // Static asset paths (as opposed to other docs pages) are authored
 // root-relative from the main app's perspective, e.g.
@@ -19,8 +20,14 @@ const DefaultImg = defaultMdxComponents.img;
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
+    // "/?lat=..." is a link into the app at the host's root, not a docs
+    // route: a plain anchor too (next/link would send it to /docs/?...),
+    // opened in a new tab, and nofollow, since every query string is the
+    // same single-page app to a search engine.
     a: ({ href, ...props }: any) =>
-      typeof href === 'string' && href.startsWith('/') && STATIC_ASSET_RE.test(href)
+      typeof href === 'string' && href.startsWith('/?')
+        ? <a href={href} target="_blank" rel="noopener nofollow" {...props} />
+        : typeof href === 'string' && href.startsWith('/') && STATIC_ASSET_RE.test(href)
         ? <a href={href} {...props} />
         : <DefaultA href={href} {...props} />,
     // Marks every prose image click-to-open in the page's shared
@@ -39,6 +46,7 @@ export function getMDXComponents(components?: MDXComponents) {
       />
     ),
     Mermaid,
+    OpenInApp,
     ...components,
   } satisfies MDXComponents;
 }

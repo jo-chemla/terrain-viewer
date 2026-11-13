@@ -67,6 +67,14 @@ export async function generateStaticParams() {
   return source.generateParams();
 }
 
+// Pages whose one address is on the historical host. Every other page is
+// canonical on terrain-viewer.iconem.com (metadataBase). The build is the
+// same for both hosts, so this is a property of the page, not of the deploy:
+// both copies name the same address, and no per-repository setting exists.
+// Listed here: pages Google ranks on the historical host for what people
+// search there (Search Console, 2026-11: "google earth timelapse").
+const HISTORICAL_HOST_PAGES = new Set(['dev/google-timelapse']);
+
 export async function generateMetadata(props: PageProps<'/[...slug]'>): Promise<Metadata> {
   const params = await props.params;
   const page = source.getPage(params.slug);
@@ -78,7 +86,7 @@ export async function generateMetadata(props: PageProps<'/[...slug]'>): Promise<
     // One address per page for search engines, whichever domain served it
     // (the same export is on the GitHub Pages mirror and the historical
     // domain). Relative to metadataBase (layout.tsx).
-    alternates: { canonical: `${params.slug.join('/')}/` },
+    alternates: { canonical: `${HISTORICAL_HOST_PAGES.has(params.slug.join('/')) ? 'https://historical-satellite.iconem.com/docs/' : ''}${params.slug.join('/')}/` },
     openGraph: {
       images: getPageImageUrl(page).url,
     },

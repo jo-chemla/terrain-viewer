@@ -51,6 +51,7 @@ const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, 
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>${SITE}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>${SITE}/sun-position-estimator.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
 ${pages.map((p) => `  <url><loc>${esc(p.url)}</loc><lastmod>${p.lastmod}</lastmod></url>`).join("\n")}
 </urlset>
 `

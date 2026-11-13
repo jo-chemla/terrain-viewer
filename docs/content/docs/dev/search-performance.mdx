@@ -1,0 +1,53 @@
+---
+title: Search performance, what the reports say
+sidebarTitle: Search performance
+icon: ChartNoAxesCombined
+description: Google Search Console and Bing Webmaster readings for terrain-viewer.iconem.com and historical-satellite.iconem.com, dated - which queries and pages bring people, where the reach is, what does not work, and what was changed in the site because of it
+---
+
+How the two sites are found, read from Google Search Console and Bing Webmaster Tools with the two scripts described on [Indexing and SEO](/dev/indexing-and-seo) (`node scripts/search-console.mjs`, `node scripts/bing-webmaster.mjs`, each with `--site` for the historical host). A dated reading goes on top; the older ones stay below for the trend.
+
+## Reading of 2026-11-13 (14 October to 11 November)
+
+| Host | Google clicks | Google impressions | Bing clicks, 40 days |
+|---|---|---|---|
+| terrain-viewer.iconem.com | 373 | 8 025 | 77 |
+| historical-satellite.iconem.com | 194 | 7 732 | 5 |
+
+Both hosts are Search Console properties and both answer the script. Google went from almost nothing in September (10 clicks) to 325 clicks in October on the main host, and 174 in the first 11 days of November. The historical host had 82 clicks in October and 127 in those 11 days.
+
+### What works
+
+- **Brand.** "terrain viewer" is position 1 with a 72 % click rate, 142 clicks.
+- **Google Earth timelapse.** One docs page on the historical host, [Google Earth Timelapse](/dev/google-timelapse), draws 157 clicks and 7 088 impressions, mostly from India and Iran. The query "google earth timelapse" alone is 4 880 impressions.
+- **Side pages.** The [sun position calculator](/sun-position-estimator.html) has 42 clicks, [National Datasets](/features/national-datasets) 27, the [Esri Wayback](/dev/esri-wayback) page 14, [Terrain Sources](/features/terrain-sources) 12.
+- **Reach.** Spain, the USA, France, Germany and the Netherlands lead on the main host; India, Iran and Ukraine on the historical one. A third of clicks are mobile.
+
+### What does not, and what was done
+
+| Finding | Numbers | Done on 2026-11-13 |
+|---|---|---|
+| The timelapse page was a developer page: "Google Earth Timelapse Protocol", opening on the protocol | Position 7.4, 2.2 % click rate on 7 088 impressions | Retitled for people who want to watch it, an opening that says what it is, a button into the app on Dubai and four more places |
+| Its canonical address named the main host while Google ranks the historical copy | 157 of the historical host's 194 clicks | The page's one address is now the historical host, on both copies (below) |
+| The sun calculator ranks low for a tool with demand | 1 707 impressions at position 8.6; "sun azimuth calculator", "analemma calculator", "solar position calculator" | A canonical address, WebApplication structured data, a place in the sitemap, and links to it from the app's static shell, the overview, Sun Position and Lighting Effects (it had one inbound link) |
+| The 30 Day Map Challenge page is found and not clicked | About 600 impressions at position 5 to 6, under 1 % | A title and description that say what the visitor gets: the 30 themes, each with a map idea and a place |
+| A shared link to a Timelapse year (or any regional series layer) opened on the basemap under it: the layer was not rebuilt from its id | Found while writing the button | Fixed: `resolveCatalogSourceId` rebuilds a regional series layer from the id in the link |
+| Docs pages rarely lead into the app | Most docs clicks end on the page | An **Open in the app** button on the feature pages (`<OpenInApp>` in MDX) |
+| Bing knows the brand and little else, and lists `/?sidebarCollapsed=true` as pages | 77 clicks in 40 days, nearly all "terrain viewer" and "iconem" | IndexNow on every deploy; deep links into the app are `nofollow`; the app's canonical address was already `/` |
+| Backlinks | Not in either API | A manual export of the Search Console Links report, when wanted |
+
+### One address per page, on two hosts
+
+The same build is deployed to both hosts, and it stays that way: no per-repository setting, no second build. A page's canonical address is therefore a property of the page. Every docs page names `terrain-viewer.iconem.com` as its address, on both hosts, except the pages listed in `HISTORICAL_HOST_PAGES` (`docs/src/app/[...slug]/page.tsx`), which name `historical-satellite.iconem.com`, again on both hosts. Today that list is the timelapse page. Add a page to it when Search Console shows the historical host ranking for it; never let the two copies of a page name different addresses.
+
+A canonical address is a hint. Google had been ignoring the old one for the timelapse page, which is the reason to follow it rather than fight it.
+
+### Still open
+
+- **Queries with demand and no page aimed at them**: "esri wayback viewer" (260 impressions, position 6 to 7) lands on a developer page too, and would take the same treatment as the timelapse page.
+- **National Datasets** sits at position 8 on 1 086 impressions; its title could name the countries people search ("lidar DTM France, Spain, Netherlands…").
+- **Bing** needs links more than anything else: it follows the brand only.
+
+## Earlier readings
+
+The first reading, 2026-10-09 (9 September to 7 October: 70 clicks on 1 035 impressions), is on [Indexing and SEO](/dev/indexing-and-seo#first-read-2026-10-09-sept-9-to-oct-7).

@@ -6,7 +6,7 @@ A comprehensive terrain visualization and downloading tool, built on top of MapL
 
 Free and open source, by [Iconem](https://iconem.com). Hillshade, hypsometric tint, contours, slope, aspect, curvature, local relief model, sky-view factor, openness, matcap and Phong lighting, side-by-side comparison, and GeoTIFF export of the DEM and every mode, over global terrain, national LiDAR and open-data services, and your own COG, VRT, WMS, ArcGIS LERC or Cesium quantized-mesh terrain, all read in the browser. Every setting lives in the URL, so a link opens a place in a given mode.
 
-![terrainn-viewer-screenshot](terrain-viewer.jpg)
+![terrain-viewer-screenshot](public/terrain-viewer.jpg)
 
 ![bring-your-own-data](byod.jpg)
 

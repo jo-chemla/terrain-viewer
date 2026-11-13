@@ -283,7 +283,9 @@ function registerUndated(catalog: string, itemKey: string, source: Omit<CustomBa
 }
 
 /** Whether resolveCatalogSourceId can rebuild this id on its own. */
+const NAT_ID_RE = /^custom-basemap-cat-(cat-[a-z0-9-]+?)--(.+)$/
 export const isRebuildableCatalogId = (id: string) =>
+  ((NAT_ID_RE.exec(id)?.[1] ?? "") in NATIONAL_SOURCE_BY_ID) ||
   /^custom-basemap-allmaps-[0-9a-f]{16}$/.test(id) || /^custom-basemap-cat-cat-allmaps--(rumsey-RUMSEY_[0-9_]+|[0-9a-f]{16})$/.test(id) || /^custom-basemap-cat-(cat-mapwarper|cat-wikimaps)--\d+$/.test(id)
 
 /** A catalog source named in a link but not in this browser's list: its
@@ -312,6 +314,19 @@ export async function resolveCatalogSourceId(id: string): Promise<CustomBasemapS
   if (m) {
     const { host, short } = WARPERS[m[1] as keyof typeof WARPERS]
     return { id, name: `${short} map ${m[2]}`, url: `${host}/maps/tile/${m[2]}/{z}/{x}/{y}.png`, type: "tms", role: "overlay", stack: "top", oldMap: true, description: `${TIMELINE_CATALOG_BY_ID[m[1]].label} map ${m[2]}`, infoUrl: `${host}/maps/${m[2]}`, maxzoom: 20 } as CustomBasemapSource
+  }
+  // A layer of a regional series (lib/national-historical.ts: a Google
+  // Earth Timelapse year, an IGN or swisstopo flight): the series and the
+  // layer key are in the id and the layers are static data, so a shared
+  // link opens on the picture instead of on the basemap under it.
+  m = NAT_ID_RE.exec(id)
+  if (m && m[1] in NATIONAL_SOURCE_BY_ID) {
+    const src = NATIONAL_SOURCE_BY_ID[m[1]], key = m[2]
+    const l = (await loadNationalLayers(src)).find((l) => l.key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 90) === key)
+    if (l) return {
+      id, name: `${src.label}: ${l.label}`, url: l.url, type: l.type, role: "basemap", bounds: l.bbox ?? src.bbox, maxzoom: l.maxzoom, minzoom: l.minzoom, transient: true,
+      description: `${src.label}, ${l.label}. ${src.licence}.`, infoUrl: src.infoUrl,
+    } as CustomBasemapSource
   }
   return null
 }

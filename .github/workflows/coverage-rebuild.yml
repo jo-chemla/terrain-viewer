@@ -1,0 +1,43 @@
+# The coverage overlays (where Esri, FLAI, OpenTopography and Bing have 3D or
+# LiDAR data) are baked footprints, and their providers publish new data
+# every week: left alone, the overlays fall behind without a sign. Once a
+# month this rebuilds the ones that need no key, replaces the changed files
+# on the dataset-indexes release, and starts a deploy so the site serves
+# them. Nothing is committed: those entries are "rolling" in
+# datasets.lock.json, so a build takes whatever the release holds
+# (scripts/dataset-assets.mjs). Runs on Iconem/terrain-viewer only, where the
+# release lives; the historical host picks the files up on its next deploy.
+name: Coverage footprints (monthly rebuild)
+
+on:
+  schedule:
+    - cron: "17 3 2 * *" # the 2nd of each month, 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write # uploading to the release
+  actions: write # starting the deploy
+
+jobs:
+  rebuild:
+    if: github.repository == 'Iconem/terrain-viewer'
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Current footprints, as the baseline
+        run: node scripts/dataset-assets.mjs pull --refresh
+      - name: Rebuild and upload what changed
+        id: rebuild
+        run: bash .github/scripts/coverage-rebuild.sh
+      - name: Deploy the site with the new footprints
+        if: steps.rebuild.outputs.CHANGED != '0'
+        run: gh workflow run deploy-gh-page-on-push.yml --ref main

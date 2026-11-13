@@ -41,7 +41,7 @@ node scripts/docs-media.mjs status
 - **A fresh clone, another computer, CI**: nothing to do. `pnpm app`, `pnpm docs`, the docs build and the slide scripts pull first. The download is public, no login needed. A clone that predates the move sees the pictures deleted by its next `git pull` and gets them back the first time one of those commands runs.
 - **After retaking or adding a screenshot**: `pnpm docs:media:push`, then commit `docs/media.lock` with the page that uses the picture. The push needs the `gh` CLI signed in with write access to Iconem/terrain-viewer. Until the lock is committed and pushed, every other machine and the deployed site keep the old pictures.
 - **Do not leave a retake unpushed across a `git pull`**: when the lock changes under a folder, the pull replaces the folder with the lock's archive, and a local picture that was never pushed is gone.
-- Old archives stay on the release, so an older commit still builds. The earlier versions of the pictures also remain in the git history: the move stops the growth, it does not shrink the past.
+- Old archives stay on the release, so an older commit still builds. The same release keeps `posted-on-twitter.zip`, the 13 pictures posted in 2025 that used to sit in the repository. The earlier versions of the pictures also remain in the git history: the move stops the growth, it does not shrink the past.
 
 The archive is a tar, not a zip, for two reasons: the pictures are JPEG, PNG and MP4, already compressed, so a zip would save nothing; `tar` is on every machine the script runs on (Windows 10 and later, Git Bash, the CI runners) where `unzip` is not; and it unpacks with one command and no dependency. The name carries the archive's own hash, so two versions never collide.
 
@@ -55,7 +55,7 @@ pnpm datasets:push public/coverage/esri-3d.geojson # upload a rebuilt file, rewr
 node scripts/dataset-assets.mjs status
 ```
 
-A file changed locally and not yet pushed is never overwritten by a pull; the script says so and keeps it. A build fails when the release holds a file other than the one the lock names, so push and the lock commit go together.
+An entry marked `"rolling": true` in the lock is not pinned to its hash: the monthly [coverage rebuild](/dev/coverage-footprints) replaces those files on the release without a commit, a build takes whatever is there, and `pull --refresh` updates a local copy. A file changed locally and not yet pushed is never overwritten by a pull; the script says so and keeps it. A build fails when the release holds a file other than the one the lock names, so push and the lock commit go together.
 
 ## Adding a file to a release
 

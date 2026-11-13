@@ -49,8 +49,12 @@ const params = [];
 let skipped = 0;
 let pending = [];
 for (const raw of block.split("\n")) {
-  const line = raw.trim();
+  let line = raw.trim();
   if (line.startsWith("//")) { pending.push(line.replace(/^\/\/\s?/, "")); continue; }
+  // `key: parseAsX.withDefault(v), // note`: the note is the description
+  // when no comment line precedes, and the rest parses as usual.
+  const trail = /^([A-Za-z0-9_]+:\s*parseAs.*\),?)\s*\/\/\s?(.*)$/.exec(line);
+  if (trail) { line = trail[1]; if (!pending.length) pending.push(trail[2]); }
   if (line === "") { pending = []; continue; }
   const m = /^([A-Za-z0-9_]+):\s*(parseAs[A-Za-z]+)(?:\(([^)]*)\))?(?:\.withDefault\((.*)\))?,?$/.exec(line);
   if (!m) { if (/^[A-Za-z0-9_]+:\s*parseAs/.test(line)) skipped++; continue; }

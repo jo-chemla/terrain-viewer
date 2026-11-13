@@ -5,19 +5,22 @@
       "name": "bing-3d.geojson",
       "dir": "public/coverage",
       "size": 765252,
-      "sha256": "9ccf8a787deced26472260dc73e75c24975163220181e954d88f2862eb34f10c"
+      "sha256": "9ccf8a787deced26472260dc73e75c24975163220181e954d88f2862eb34f10c",
+      "rolling": true
     },
     {
       "name": "esri-3d.geojson",
       "dir": "public/coverage",
       "size": 679999,
-      "sha256": "7358397704bfec91934745fd667516026be06faa7fd26d8d09ed3e23e2a8637f"
+      "sha256": "7358397704bfec91934745fd667516026be06faa7fd26d8d09ed3e23e2a8637f",
+      "rolling": true
     },
     {
       "name": "flai-open-lidar.geojson",
       "dir": "public/coverage",
       "size": 829150,
-      "sha256": "72419e53c0294116fa95d3515fe318d7c3e5df17799009fc32c701f331d1e35a"
+      "sha256": "72419e53c0294116fa95d3515fe318d7c3e5df17799009fc32c701f331d1e35a",
+      "rolling": true
     },
     {
       "name": "google-3d.geojson",
@@ -29,13 +32,15 @@
       "name": "opentopo-pointcloud.geojson",
       "dir": "public/coverage",
       "size": 1861236,
-      "sha256": "f29878db67446b8f9033c41454f02482bfb17f4f590491fb08dfa853e32161e2"
+      "sha256": "f29878db67446b8f9033c41454f02482bfb17f4f590491fb08dfa853e32161e2",
+      "rolling": true
     },
     {
       "name": "opentopo-raster.geojson",
       "dir": "public/coverage",
       "size": 861734,
-      "sha256": "ca1d919f2eb86395a266011fd40ce269deba9bfda2211745f2186585a784b905"
+      "sha256": "ca1d919f2eb86395a266011fd40ce269deba9bfda2211745f2186585a784b905",
+      "rolling": true
     },
     {
       "name": "scotland-dsm-overviews.vrt",

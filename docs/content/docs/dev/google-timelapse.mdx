@@ -1,8 +1,14 @@
 ---
-title: Google Earth Timelapse Protocol
+title: "Google Earth Timelapse on a map: every year from 1984 to 2022"
 sidebarTitle: Google Earth Timelapse
-description: How the gtimelapse:// protocol turns the Timelapse viewer's video tiles into yearly basemaps, and how Google builds the mosaics
+description: Watch Google Earth Timelapse year by year on a free interactive map, in the browser: 39 cloud-free mosaics of the whole Earth, 1984 to 2022, next to Esri Wayback and Google Earth imagery. Then how the gtimelapse:// protocol reads the tiles and how Google builds them
 ---
+
+Google Earth Timelapse is 39 cloud-free pictures of the whole Earth, one per year from 1984 to 2022. Here it is a layer of an ordinary map: pick a year on the timeline, pan and zoom anywhere, put two years side by side, or compare it with Esri Wayback and Google Earth's own archive. Free, in the browser, no account.
+
+<OpenInApp href="/?appMode=historical&viewMode=2d&lat=25.118&lng=55.14&zoom=11&timelineCatalogs=cat-nat-gtimelapse&overlayBasemapIds=custom-basemap-cat-cat-nat-gtimelapse--gtl-1990">Open Dubai in 1990, then pick any year</OpenInApp>
+
+Other places worth a look, each opening on 1990: [Las Vegas](/?appMode=historical&viewMode=2d&lat=36.17&lng=-115.2&zoom=10&timelineCatalogs=cat-nat-gtimelapse&overlayBasemapIds=custom-basemap-cat-cat-nat-gtimelapse--gtl-1990), the [Aral Sea](/?appMode=historical&viewMode=2d&lat=45.1&lng=59.6&zoom=7&timelineCatalogs=cat-nat-gtimelapse&overlayBasemapIds=custom-basemap-cat-cat-nat-gtimelapse--gtl-1990), [Shanghai](/?appMode=historical&viewMode=2d&lat=31.2&lng=121.6&zoom=9&timelineCatalogs=cat-nat-gtimelapse&overlayBasemapIds=custom-basemap-cat-cat-nat-gtimelapse--gtl-1990) and the [Columbia Glacier](/?appMode=historical&viewMode=2d&lat=61.1&lng=-147.1&zoom=9&timelineCatalogs=cat-nat-gtimelapse&overlayBasemapIds=custom-basemap-cat-cat-nat-gtimelapse--gtl-1990). The rest of this page is for the curious: where the tiles come from and how they are read.
 
 "Google Earth Timelapse annual" is one of the global catalogs on the [historical timeline](/features/historical-sources#mapping-agencies-national-catalogs): one cloud-free mosaic of the whole land surface for every year from 1984 to 2022, under the **Medium res** pill next to Landsat WELD. This page covers where the tiles come from, how the `gtimelapse://` protocol reads them, and what Google's own methodology says the mosaics are and are not.
 

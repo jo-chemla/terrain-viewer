@@ -13,7 +13,13 @@
 //   node scripts/dataset-assets.mjs pull            fetch what is missing or behind the lock
 //   node scripts/dataset-assets.mjs pull --strict   same, and fail when a file cannot be had (builds)
 //   node scripts/dataset-assets.mjs push <file...>  upload files under public/ to the release (gh), update the lock
+//   node scripts/dataset-assets.mjs pull --refresh  also re-fetch the rolling files
 //   node scripts/dataset-assets.mjs status
+//
+// An entry marked "rolling": true in the lock is not pinned to its hash: the
+// monthly coverage workflow (.github/workflows/coverage-rebuild.yml) replaces
+// those files on the release without a commit, so a build takes whatever is
+// there, and a local copy is left alone unless `pull --refresh` is asked.
 //
 // A file changed locally and not pushed is never overwritten by a pull: the
 // script remembers the hash it last wrote (.cache/dataset-assets.json) and
@@ -35,6 +41,7 @@ const REPO = "Iconem/terrain-viewer"
 
 const mode = process.argv[2] ?? "pull"
 const strict = process.argv.includes("--strict")
+const refresh = process.argv.includes("--refresh")
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex")
 const readJson = async (p, d) => (existsSync(p) ? JSON.parse(await readFile(p, "utf8")) : d)
 const fileSha = async (p) => (existsSync(p) ? sha256(await readFile(p)) : null)
@@ -49,7 +56,8 @@ async function pull() {
     const path = join(ROOT, f.dir, f.name), key = `${f.dir}/${f.name}`
     const local = await fileSha(path)
     if (local === f.sha256) { seen[key] = local; continue }
-    if (local && local !== seen[key]) {
+    if (f.rolling && local && !refresh) continue
+    if (local && local !== seen[key] && !f.rolling) {
       console.warn(`datasets: ${key} differs from the lock and was changed here; kept (pnpm datasets:push ${key} to publish it)`)
       kept++; continue
     }
@@ -59,7 +67,7 @@ async function pull() {
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`)
       const buf = Buffer.from(await res.arrayBuffer())
       const got = sha256(buf)
-      if (got !== f.sha256) throw new Error(`${f.name} on the release is not the file the lock names (${got.slice(0, 12)} against ${f.sha256.slice(0, 12)}); commit the lock that goes with it`)
+      if (got !== f.sha256 && !f.rolling) throw new Error(`${f.name} on the release is not the file the lock names (${got.slice(0, 12)} against ${f.sha256.slice(0, 12)}); commit the lock that goes with it`)
       await mkdir(dirname(path), { recursive: true })
       await writeFile(path, buf)
       seen[key] = got; fetched++
@@ -88,8 +96,9 @@ async function push() {
     const sha = await fileSha(path)
     if (!sha) throw new Error(`${a} does not exist`)
     execFileSync("gh", ["release", "upload", lock.release, path, "-R", REPO, "--clobber"], { cwd: ROOT, stdio: ["ignore", "inherit", "inherit"] })
-    const entry = { name, dir, size: (await stat(path)).size, sha256: sha }
     const i = lock.files.findIndex((f) => f.name === name)
+    const entry = { name, dir, size: (await stat(path)).size, sha256: sha }
+    if (lock.files[i]?.rolling || process.argv.includes("--rolling")) entry.rolling = true
     if (i >= 0) lock.files[i] = entry; else lock.files.push(entry)
     seen[`${dir}/${name}`] = sha
     console.log(`datasets: uploaded ${dir}/${name} (${Math.round(entry.size / 1e3)} KB)`)

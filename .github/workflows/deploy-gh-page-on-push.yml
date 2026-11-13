@@ -187,3 +187,12 @@ jobs:
       - name: Deploy to GitHub Pages (last retry)
         if: steps.retry2.outcome == 'failure'
         uses: actions/deploy-pages@v4
+      - name: IndexNow (tell Bing which pages changed)
+        # Only on a push (a manual run has no previous commit to compare
+        # with) and only once the site is out. See .github/scripts/indexnow.sh.
+        if: success() && github.event_name == 'push'
+        env:
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: bash .github/scripts/indexnow.sh

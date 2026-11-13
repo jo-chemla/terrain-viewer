@@ -1,5 +1,5 @@
 {
-  "skipped": 5,
+  "skipped": 0,
   "params": [
     {
       "key": "project",
@@ -228,6 +228,26 @@
       "note": ""
     },
     {
+      "key": "terrainSourceA",
+      "stateKey": "sourceA",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "mapterhorn",
+      "defaultSource": "\"mapterhorn\"",
+      "note": "can have custom id in addition to @/lib/terrain-sources"
+    },
+    {
+      "key": "terrainSourceB",
+      "stateKey": "sourceB",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "aws",
+      "defaultSource": "\"aws\"",
+      "note": "aws needs no API key, unlike maptiler/mapbox — safe default for a fresh visitor's first split view"
+    },
+    {
       "key": "terrainSourceC",
       "stateKey": "sourceC",
       "type": "string",
@@ -286,6 +306,16 @@
       "default": "mapterhorn",
       "defaultSource": "\"mapterhorn\"",
       "note": ""
+    },
+    {
+      "key": "basemapSource",
+      "stateKey": "basemapSource",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "esri",
+      "defaultSource": "\"esri\"",
+      "note": "can have custom id in addition to @/lib/terrain-sources"
     },
     {
       "key": "basemapPerView",
@@ -1190,6 +1220,26 @@
       "default": false,
       "defaultSource": "false",
       "note": "\"Datetime-based\" light: when on, illuminationDir/illuminationAlt are driven from a physically-plausible sun position (see lib/solar-position.ts) computed from the viewport-center lat/lng + these day-…"
+    },
+    {
+      "key": "lightDayOfYear",
+      "stateKey": "lightDayOfYear",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 172,
+      "defaultSource": "172",
+      "note": "~summer solstice"
+    },
+    {
+      "key": "lightTimeOfDay",
+      "stateKey": "lightTimeOfDay",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 15,
+      "defaultSource": "15",
+      "note": "mid-afternoon"
     },
     {
       "key": "lightTimeMode",

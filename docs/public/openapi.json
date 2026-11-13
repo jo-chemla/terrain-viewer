@@ -449,6 +449,26 @@
             }
           },
           {
+            "name": "terrainSourceA",
+            "in": "query",
+            "required": false,
+            "description": "State. can have custom id in addition to @/lib/terrain-sources",
+            "schema": {
+              "type": "string",
+              "default": "mapterhorn"
+            }
+          },
+          {
+            "name": "terrainSourceB",
+            "in": "query",
+            "required": false,
+            "description": "State. aws needs no API key, unlike maptiler/mapbox — safe default for a fresh visitor's first split view",
+            "schema": {
+              "type": "string",
+              "default": "aws"
+            }
+          },
+          {
             "name": "terrainSourceC",
             "in": "query",
             "required": false,
@@ -506,6 +526,16 @@
             "schema": {
               "type": "string",
               "default": "mapterhorn"
+            }
+          },
+          {
+            "name": "basemapSource",
+            "in": "query",
+            "required": false,
+            "description": "State. can have custom id in addition to @/lib/terrain-sources",
+            "schema": {
+              "type": "string",
+              "default": "esri"
             }
           },
           {
@@ -1521,6 +1551,26 @@
             "schema": {
               "type": "boolean",
               "default": false
+            }
+          },
+          {
+            "name": "lightDayOfYear",
+            "in": "query",
+            "required": false,
+            "description": "State. ~summer solstice",
+            "schema": {
+              "type": "number",
+              "default": 172
+            }
+          },
+          {
+            "name": "lightTimeOfDay",
+            "in": "query",
+            "required": false,
+            "description": "State. mid-afternoon",
+            "schema": {
+              "type": "number",
+              "default": 15
             }
           },
           {
