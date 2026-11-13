@@ -1,4 +1,4 @@
-# Changelog — Other People's Buckets, Read in Place
+# Changelog — Multi-asset Mosaics: Indexes and VRTs
 
 <!-- released: 2026-11-13 -->
 

@@ -74,11 +74,4 @@ A VRT names its CRS, usually as an EPSG code, and the reader needs a proj4 defin
 
 ## Releases that hold what the repository does not
 
-| Release | Holds | Read by |
-|---|---|---|
-| [datasets-v1](https://github.com/Iconem/terrain-viewer/releases/tag/datasets-v1) | Built VRT indexes (Scotland, 17 MB) | The deploy, into `dist/vrt/` |
-| [docs-media](https://github.com/Iconem/terrain-viewer/releases/tag/docs-media) | The docs' screenshots as one tar archive per version (about 170 MB) | `scripts/docs-media.mjs pull`, before the docs dev server, the docs build and the slide builds |
-| ux-flows-latest | The UX flows captures | The deploy, into `dist/ux-flows/captures/` |
-| desktop-latest, desktop-v… | The desktop bundles | Users, winget |
-
-**Docs media.** `docs/public/screenshots` is not tracked. `docs/media.lock` names the archive a commit uses (`screenshots-<sha256 prefix>.tar`), and `pnpm docs:media` downloads and unpacks it when the folder is not at that version; the docs and slide scripts run it first, so a fresh clone needs nothing more than `pnpm docs`. After retaking or adding a screenshot, run `pnpm docs:media:push` (needs `gh` with write access to Iconem/terrain-viewer) and commit `docs/media.lock` with the page that uses the picture. Old archives stay on the release, so an older commit still builds. The pictures' earlier versions remain in the git history; this stops the growth, it does not shrink the past.
+The built indexes sit on the [datasets-v1 release](https://github.com/Iconem/terrain-viewer/releases/tag/datasets-v1), 17 MB, and the deploy copies them into `dist/vrt/`. The other releases (desktop bundles, docs screenshots, slide decks, demo screencasts, UX flow captures), who writes each and who reads it, are on [Releases](/dev/releases).
