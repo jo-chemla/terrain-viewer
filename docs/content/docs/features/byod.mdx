@@ -60,6 +60,16 @@ npx serve --cors -p 8080 .
 
 Then add it as a normal **COG** source with URL `http://localhost:8080/your-file.tif`. `http://localhost` is exempt from mixed-content blocking, so this HTTPS app can fetch it directly. Unlike the built-in local-file picker, this survives reloads and works in any browser.
 
+## COGs on a Google Cloud Storage bucket without CORS
+
+A public bucket's plain object URL, `https://storage.googleapis.com/<bucket>/<object>`, often answers Range requests but sends no `Access-Control-Allow-Origin` header, so the in-browser COG and VRT readers cannot touch it and the source has to go through titiler. The same object through the Cloud Storage **JSON API media endpoint** comes with CORS headers (the origin echoed back, `Range` allowed, `Content-Range` exposed) and the same Range support:
+
+```
+https://storage.googleapis.com/storage/v1/b/<bucket>/o/<url-encoded object path>?alt=media
+```
+
+The object path is URL-encoded as one segment, slashes included: `gem-15/p40_p0/w0s40/dtm/zall/mosaic.tif` becomes `gem-15%2Fp40_p0%2Fw0s40%2Fdtm%2Fzall%2Fmosaic.tif`. Paste that URL as a **COG** source and the browser reads it directly; a VRT can name its sources that way too, and titiler's GDAL opens them as well. The library's [Google Open Buildings 2.5D](https://sites.research.google/gr/open-buildings/temporal/) VRTs and the [GEM-15](https://developers.google.com/earth-engine/datasets/catalog/projects_climate-and-sustainability_assets_gem-15_v1) DTM and DSM use it (GEM-15 as `gem15://dtm` and `gem15://dsm`, a VRT-type source whose cells the [VRT reader](/dev/vrt-protocol#gem-15-one-vrt-per-cell-built-on-the-fly) assembles per tile). Found through [Bert Temme's GEM-15 viewer](https://bertt.github.io/gem15/).
+
 ## Editing the lists
 
 The source lists open in a reading mode: each row offers its info (every field the source carries, its ground resolution declared or estimated from the max zoom, a fit-to-extent button) and, for an overlay, its opacity pill right after the view buttons. Hovering a name tells what the source is before clicking: its type, where it comes from (QMS, the Editor Layer Index, Allmaps), its ground resolution, attribution and description; the resolution also sits after the name. The pencil button switches the **edit mode** on for both lists: rows then show edit and delete, and the braces button left of the pencil opens every source as JSON (**Batch edit**, Ctrl+Enter saves).

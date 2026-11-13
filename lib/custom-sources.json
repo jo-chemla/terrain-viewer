@@ -524,6 +524,46 @@
             "infoUrl": "https://www.eorc.jaxa.jp/ALOS/en/dataset/aw3d30/aw3d30_e.htm"
         },
         {
+            "id": "custom-global-gem15-dtm",
+            "name": "Global - Google GEM-15 DTM 15m bare earth (2022-2024 stereo satellite) - COG cells",
+            "url": "gem15://dtm",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "minzoom": 7,
+            "maxzoom": 13,
+            "resolutionM": 15,
+            "bounds": [-180, -61, 180, 84],
+            "description": "Google Research's GEM-15 (experimental, under review, CC BY 4.0, released October 2026): a near-global DSM and DTM at 15 m from sub-metre optical stereo satellite imagery acquired through 2024, mostly 30 cm Pleiades Neo of 2022-2024. This is the DTM: bare earth predicted at 1 m by a deep-learning model under the canopy and the buildings, then aggregated to 15 m. Orthometric heights on EGM96. 60S to 84N, without Russia, China, Mongolia, Greenland and Antarctica; India is offset for regulatory reasons; water, snow and ice are masked. One COG per 1x1 degree cell in its own UTM zone, about 13 500 cells: the reader lists the cells a tile touches, reads them through the Cloud Storage JSON API media endpoint (the plain bucket URL has no CORS) and composites them, so expect a second or two per tile the first time and holes where a cell does not exist. Dense forest lowers the DTM's accuracy, and regional vertical offsets of several metres against lidar have been reported. Usable z7-13.",
+            "infoUrl": "https://developers.google.com/earth-engine/datasets/catalog/projects_climate-and-sustainability_assets_gem-15_v1"
+        },
+        {
+            "id": "custom-global-gem15-dsm",
+            "name": "Global - Google GEM-15 DSM 15m surface (2022-2024 stereo satellite) - COG cells",
+            "url": "gem15://dsm",
+            "type": "vrt",
+            "loadWithSamples": false,
+            "minzoom": 7,
+            "maxzoom": 13,
+            "resolutionM": 15,
+            "bounds": [-180, -61, 180, 84],
+            "description": "Google Research's GEM-15 surface model: the mean elevation of the native 0.5 m stereo surface within each 15 m cell, canopy and roofs included (the file's other bands, the 5th, 50th and 95th percentiles and the standard deviation, are not read). Same coverage, datum, cell layout and in-browser reader as the GEM-15 DTM; difference the two for a canopy and building height surface. Usable z7-13.",
+            "infoUrl": "https://developers.google.com/earth-engine/datasets/catalog/projects_climate-and-sustainability_assets_gem-15_v1"
+        },
+        {
+            "id": "custom-global-gem15-dsm-minus-dtm",
+            "name": "Global - Difference: GEM-15 DSM - DTM (canopy and building height) - derived",
+            "url": "diff://custom-global-gem15-dsm-custom-global-gem15-dtm",
+            "type": "dem-diff",
+            "diffMinuendId": "custom-global-gem15-dsm",
+            "diffSubtrahendId": "custom-global-gem15-dtm",
+            "diffOffsetM": 0,
+            "loadWithSamples": false,
+            "resolutionM": 15,
+            "bounds": [-180, -61, 180, 84],
+            "description": "GEM-15's surface minus its own bare-earth model: a near-global 15 m height-above-ground surface, trees and buildings as positive values, open ground near zero. Both sides come from the same stereo imagery and the same datum, so leave the offset at 0. Usable z7-13.",
+            "infoUrl": "https://developers.google.com/earth-engine/datasets/catalog/projects_climate-and-sustainability_assets_gem-15_v1"
+        },
+        {
             "id": "custom-global-aw3d30-minus-mapterhorn",
             "name": "Global - Difference: AW3D30 - Mapterhorn - derived",
             "url": "diff://custom-global-aw3d30-mapterhorn",
@@ -1060,28 +1100,26 @@
         },
         {
             "id": "custom-global-openbuildings-2023",
-            "name": "Global - Google Open Buildings 2.5D height 0.5m, 2023 (BRA sample) - VRT, CORS-missing",
+            "name": "Global - Google Open Buildings 2.5D height 0.5m, 2023 (BRA sample) - VRT",
             "url": "https://terrain-viewer.iconem.com/vrt/open-buildings-01_EPSG_32723_2023_06_30.vrt",
             "type": "vrt",
             "loadWithSamples": false,
-            "cogViaTitiler": true,
             "titilerNodata": -99,
             "resolutionM": 0.5,
             "bounds": [-45.03, -24.99, -41.69, -16.35],
-            "description": "Google Open Buildings 2.5D - the only PERIODIC open building-height product there is, one raster per year from 2016 to 2023 at 0.5 m, inferred from Sentinel-2 and Landsat. Google ships it as Earth Engine image manifests rather than anything a map can open, so docs/scripts/build-open-buildings-vrt.mjs turns one into a GDAL VRT over its COG tiles (band 2 of three is building_height, nodata -99). CORS-MISSING: storage.googleapis.com serves these objects publicly and answers Range requests but sends no Access-Control-Allow-Origin, so the in-browser reader cannot touch them and this is pinned to titiler. It is a building-height surface above bare ground, not terrain - over open country it reads 0. Sample is S2 cell 01, UTM 23S: the Brazilian coast from Rio de Janeiro up past Vitoria (45.03W-41.69W, 24.99S-16.35S). Rio at -43.2, -22.9 is a good place to look; Sao Paulo is west of this cell. 1173 manifests exist (39 cells x 73 zones x 8 years) and the script builds any of them. 2023 edition.",
+            "description": "Google Open Buildings 2.5D - the only PERIODIC open building-height product there is, one raster per year from 2016 to 2023 at 0.5 m, inferred from Sentinel-2 and Landsat. Google ships it as Earth Engine image manifests rather than anything a map can open, so docs/scripts/build-open-buildings-vrt.mjs turns one into a GDAL VRT over its COG tiles (band 2 of three is building_height, nodata -99). The plain storage.googleapis.com URLs send no CORS header, so the VRT names each tile through the Cloud Storage JSON API media endpoint (/storage/v1/b/<bucket>/o/<object>?alt=media), which serves the same bytes with CORS and Range: read in the browser since 2026-11-13, titiler as the fallback. It is a building-height surface above bare ground, not terrain - over open country it reads 0. Sample is S2 cell 01, UTM 23S: the Brazilian coast from Rio de Janeiro up past Vitoria (45.03W-41.69W, 24.99S-16.35S). Rio at -43.2, -22.9 is a good place to look; Sao Paulo is west of this cell. 1173 manifests exist (39 cells x 73 zones x 8 years) and the script builds any of them. 2023 edition.",
             "infoUrl": "https://sites.research.google/gr/open-buildings/temporal/"
         },
         {
             "id": "custom-global-openbuildings-2016",
-            "name": "Global - Google Open Buildings 2.5D height 0.5m, 2016 (BRA sample) - VRT, CORS-missing",
+            "name": "Global - Google Open Buildings 2.5D height 0.5m, 2016 (BRA sample) - VRT",
             "url": "https://terrain-viewer.iconem.com/vrt/open-buildings-01_EPSG_32723_2016_06_30.vrt",
             "type": "vrt",
             "loadWithSamples": false,
-            "cogViaTitiler": true,
             "titilerNodata": -99,
             "resolutionM": 0.5,
             "bounds": [-45.03, -24.99, -41.69, -16.35],
-            "description": "Google Open Buildings 2.5D - the only PERIODIC open building-height product there is, one raster per year from 2016 to 2023 at 0.5 m, inferred from Sentinel-2 and Landsat. Google ships it as Earth Engine image manifests rather than anything a map can open, so docs/scripts/build-open-buildings-vrt.mjs turns one into a GDAL VRT over its COG tiles (band 2 of three is building_height, nodata -99). CORS-MISSING: storage.googleapis.com serves these objects publicly and answers Range requests but sends no Access-Control-Allow-Origin, so the in-browser reader cannot touch them and this is pinned to titiler. It is a building-height surface above bare ground, not terrain - over open country it reads 0. Sample is S2 cell 01, UTM 23S: the Brazilian coast from Rio de Janeiro up past Vitoria (45.03W-41.69W, 24.99S-16.35S). Rio at -43.2, -22.9 is a good place to look; Sao Paulo is west of this cell. 1173 manifests exist (39 cells x 73 zones x 8 years) and the script builds any of them. 2016 edition, the first year of the series - difference it against 2023 to read seven years of building growth.",
+            "description": "Google Open Buildings 2.5D - the only PERIODIC open building-height product there is, one raster per year from 2016 to 2023 at 0.5 m, inferred from Sentinel-2 and Landsat. Google ships it as Earth Engine image manifests rather than anything a map can open, so docs/scripts/build-open-buildings-vrt.mjs turns one into a GDAL VRT over its COG tiles (band 2 of three is building_height, nodata -99). The plain storage.googleapis.com URLs send no CORS header, so the VRT names each tile through the Cloud Storage JSON API media endpoint (/storage/v1/b/<bucket>/o/<object>?alt=media), which serves the same bytes with CORS and Range: read in the browser since 2026-11-13, titiler as the fallback. It is a building-height surface above bare ground, not terrain - over open country it reads 0. Sample is S2 cell 01, UTM 23S: the Brazilian coast from Rio de Janeiro up past Vitoria (45.03W-41.69W, 24.99S-16.35S). Rio at -43.2, -22.9 is a good place to look; Sao Paulo is west of this cell. 1173 manifests exist (39 cells x 73 zones x 8 years) and the script builds any of them. 2016 edition, the first year of the series - difference it against 2023 to read seven years of building growth.",
             "infoUrl": "https://sites.research.google/gr/open-buildings/temporal/"
         },
         {
@@ -1095,7 +1133,7 @@
             "diffOffsetM": 0,
             "resolutionM": 0.5,
             "bounds": [-45.03, -24.99, -41.69, -16.35],
-            "description": "Seven years of building growth as elevation change: the 2023 Open Buildings 2.5D height raster minus the 2016 one. Positive is a new or taller building, zero is unchanged ground. This is what a periodic building-height product is FOR, and nothing else open offers it. Leave the offset at 0 - both sides share a datum by construction, so measuring one would only subtract the growth you came to see. Both operands are CORS-missing and pinned to titiler.",
+            "description": "Seven years of building growth as elevation change: the 2023 Open Buildings 2.5D height raster minus the 2016 one. Positive is a new or taller building, zero is unchanged ground. This is what a periodic building-height product is FOR, and nothing else open offers it. Leave the offset at 0 - both sides share a datum by construction, so measuring one would only subtract the growth you came to see. Both operands are read in the browser through the Cloud Storage JSON API media endpoint.",
             "infoUrl": "https://sites.research.google/gr/open-buildings/temporal/"
         },
         {

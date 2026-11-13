@@ -46,6 +46,20 @@ import { toTileImage, type TileImage } from "./tile-image"
  *   Range-read files for one tile. `getVrtInfo` derives a minzoom from the mean
  *   source footprint so maplibre stops asking before it gets there.
  *
+ * ### `gem15://dtm` and `gem15://dsm`: a mosaic with no VRT file
+ *
+ * Google's GEM-15 (15 m DSM and DTM, 60S to 84N) is one COG per 1 x 1 degree
+ * cell in the cell's own UTM zone, about 13 500 cells per band, with a STAC
+ * item per cell at a path that follows from the coordinates. No single VRT
+ * can index that (a VRT has one CRS), so a `gem15://<band>` URL in place of a
+ * VRT URL makes this reader build a one-source VRT per cell the tile touches,
+ * from the item's `proj:shape`, `proj:transform` and `proj:epsg`, read each
+ * through the same pipeline and composite them. The bucket sends no CORS
+ * headers on its plain object URLs; the Cloud Storage JSON API media endpoint
+ * (`/storage/v1/b/<bucket>/o/<object>?alt=media`) serves the same bytes with
+ * CORS and Range, so every GEM-15 read goes through that. A cell that does not
+ * exist (ocean, the excluded countries) is a 404 on its item and a hole.
+ *
  * URL shape: `vrt://<encodeURIComponent(vrt url)>/{z}/{x}/{y}`.
  * Output: Terrain-RGB, matching what titiler's `algorithm=terrainrgb` returns
  * for the same file, so both modes agree with the `encoding: "terrainrgb"` that
@@ -74,6 +88,25 @@ const MAX_READ_PIXELS = 8e6
  *  zoom to buy precision that only the lowest few need. */
 const APPROX_GRID = 1
 const APPROX_MAX_ERR_PX = 0.125
+
+/** `gem15://dtm` or `gem15://dsm` where a VRT URL is expected (see the header). */
+const GEM15_RE = /^gem15:\/\/(dtm|dsm)$/
+const GEM15_BUCKET = "climate-and-sustainability"
+/** Cells one tile may touch: at minzoom 7 a tile is 2.8 degrees, so 9 to 16. */
+const GEM15_CELLS_PER_TILE = 25
+/** What getVrtInfo answers for a gem15:// URL: the dataset's extent, 15 m
+ *  (one tile pixel per source pixel near z13), and a floor where a tile stays
+ *  under GEM15_CELLS_PER_TILE. */
+export const GEM15_INFO: VrtInfo = { bounds: [-180, -61, 180, 84], maxzoom: 13, minzoom: 7, sourceCount: 13485 }
+export function isGem15Url(url: string): boolean { return GEM15_RE.test(url) }
+
+/** A public Cloud Storage object through the JSON API media endpoint, which
+ *  sends CORS headers (origin echoed, Range allowed) where the plain
+ *  `storage.googleapis.com/<bucket>/<object>` URL sends none. Same bytes, same
+ *  Range support, one hour of cache. */
+export function gcsMediaUrl(bucket: string, object: string): string {
+  return `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodeURIComponent(object)}?alt=media`
+}
 
 /** A tile outside the mosaic, which is ordinary rather than an error: maplibre
  *  only keeps a tile failure quiet when `status === 404`. */
@@ -208,6 +241,68 @@ function loadVrt(vrtUrl: string, signal?: AbortSignal): Promise<VrtDoc> {
   return p
 }
 
+// GEM-15 cell naming: `w<lon>s<lat>` is the cell's west and south edge, `m`
+// for a negative number (wm91sm1 is 91W to 90W, 1S to 0); the group folder is
+// the 10 degree square, `p40_p0` for 40N..50N x 0..10E, `m10_m100` for
+// 10S..0 x 100W..90W. The STAC item sits at
+// gem-15/stac/gem-15/<group>/<cell>/<cell>.json, the COGs at
+// gem-15/<group>/<cell>/<band>/zall/mosaic.tif.
+const gemNum = (n: number) => (n < 0 ? `m${-n}` : String(n))
+const gemGroupNum = (n: number) => (n < 0 ? `m${-n}` : `p${n}`)
+const gemCellCache = new Map<string, Promise<VrtDoc | null>>()
+function loadGem15Cell(band: string, lon: number, lat: number, signal?: AbortSignal): Promise<VrtDoc | null> {
+  const cell = `w${gemNum(lon)}s${gemNum(lat)}`
+  const key = `${band}/${cell}`
+  const hit = gemCellCache.get(key)
+  if (hit) return hit
+  const group = `${gemGroupNum(Math.floor(lat / 10) * 10)}_${gemGroupNum(Math.floor(lon / 10) * 10)}`
+  const itemUrl = gcsMediaUrl(GEM15_BUCKET, `gem-15/stac/gem-15/${group}/${cell}/${cell}.json`)
+  const p = fetch(itemUrl, { signal })
+    .then(async (r) => {
+      // No item, no cell: the sea, Russia, China, Mongolia, Greenland,
+      // Antarctica. Remembered, so a tile over the sea costs one request per
+      // cell per session, not per tile.
+      if (r.status === 404) return null
+      if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${itemUrl}`)
+      const item = await r.json()
+      const a = item?.assets?.[band]
+      const shape = a?.["proj:shape"], t = a?.["proj:transform"], epsg = Number(a?.["proj:epsg"])
+      if (!Array.isArray(shape) || !Array.isArray(t) || t.length < 6 || !Number.isFinite(epsg)) return null
+      const [rows, cols] = shape as [number, number]
+      const object = String(a.href).replace(/^https:\/\/storage\.googleapis\.com\/climate-and-sustainability\//, "")
+      // The STAC transform is [a, b, c, d, e, f] (rasterio order); a GDAL
+      // GeoTransform is [c, a, b, f, d, e]. A UTM zone needs no epsg.io
+      // lookup: its proj4 string follows from the code.
+      const zone = epsg % 100
+      return {
+        width: cols, height: rows,
+        gt: [t[2], t[0], t[1], t[5], t[3], t[4]],
+        srs: `+proj=utm +zone=${zone}${epsg >= 32700 ? " +south" : ""} +datum=WGS84 +units=m +no_defs`,
+        nodata: null, // NaN in the file, which isHole already treats as a hole
+        sources: [{ filename: gcsMediaUrl(GEM15_BUCKET, object), band: 1, srcX: 0, srcY: 0, srcW: cols, srcH: rows, dstX: 0, dstY: 0, dstW: cols, dstH: rows, nodata: null }],
+        meanSourceSpan: Math.max(cols, rows),
+      } as VrtDoc
+    })
+    .catch((e) => { gemCellCache.delete(key); throw e })
+  gemCellCache.set(key, p)
+  return p
+}
+
+/** The one-cell VRTs of every GEM-15 cell a Web Mercator window touches. */
+async function loadGem15Docs(band: string, minX: number, maxY: number, spanX: number, spanY: number, signal: AbortSignal, label: string): Promise<VrtDoc[]> {
+  const [west, north] = mercToLngLat(minX, maxY)
+  const [east, south] = mercToLngLat(minX + spanX, maxY - spanY)
+  const lon0 = Math.floor(west), lon1 = Math.floor(east - 1e-9)
+  const lat0 = Math.max(GEM15_INFO.bounds[1], Math.floor(south)), lat1 = Math.min(GEM15_INFO.bounds[3] - 1, Math.floor(north - 1e-9))
+  const cells: [number, number][] = []
+  for (let lon = lon0; lon <= lon1; lon++) for (let lat = lat0; lat <= lat1; lat++) cells.push([lon, lat])
+  if (cells.length > GEM15_CELLS_PER_TILE) {
+    throw new Error(`vrt://: ${label} spans ${cells.length} GEM-15 cells (limit ${GEM15_CELLS_PER_TILE}) - zoom in`)
+  }
+  const docs = await Promise.all(cells.map(([lon, lat]) => loadGem15Cell(band, lon, lat, signal)))
+  return docs.filter((d): d is VrtDoc => !!d)
+}
+
 type Transform = (x: number, y: number) => [number, number]
 
 const IS_MERCATOR = /Pseudo-Mercator|EPSG["':,\s]*(?:3857|3785|900913)\b/i
@@ -233,16 +328,23 @@ function resolveSrs(srs: string): Promise<string> {
   return p
 }
 
-/** Web Mercator metres <-> the VRT's own CRS. */
-async function makeTransforms(srs: string | null): Promise<{ toVrt: Transform; toMerc: Transform }> {
+/** Web Mercator metres <-> the VRT's own CRS. One converter per CRS string,
+ *  kept: the GEM-15 path asks for the same UTM zone on every tile. */
+const transformCache = new Map<string, Promise<{ toVrt: Transform; toMerc: Transform }>>()
+function makeTransforms(srs: string | null): Promise<{ toVrt: Transform; toMerc: Transform }> {
   const identity: Transform = (x, y) => [x, y]
-  if (!srs || IS_MERCATOR.test(srs)) return { toVrt: identity, toMerc: identity }
-  const [proj4, def] = await Promise.all([import("proj4").then((m) => m.default), resolveSrs(srs)])
-  const conv = proj4("EPSG:3857", def)
-  return {
-    toVrt: (x, y) => conv.forward([x, y]) as [number, number],
-    toMerc: (x, y) => conv.inverse([x, y]) as [number, number],
-  }
+  if (!srs || IS_MERCATOR.test(srs)) return Promise.resolve({ toVrt: identity, toMerc: identity })
+  const hit = transformCache.get(srs)
+  if (hit) return hit
+  const p = Promise.all([import("proj4").then((m) => m.default), resolveSrs(srs)]).then(([proj4, def]) => {
+    const conv = proj4("EPSG:3857", def)
+    return {
+      toVrt: ((x, y) => conv.forward([x, y]) as [number, number]) as Transform,
+      toMerc: ((x, y) => conv.inverse([x, y]) as [number, number]) as Transform,
+    }
+  }).catch((e) => { transformCache.delete(srs); throw e })
+  transformCache.set(srs, p)
+  return p
 }
 
 const mercToLngLat = (x: number, y: number): [number, number] => [
@@ -257,6 +359,7 @@ const mercToLngLat = (x: number, y: number): [number, number] => [
  * either from, so without this it falls back to a flat 0-20.
  */
 export async function getVrtInfo(vrtUrl: string, signal?: AbortSignal): Promise<VrtInfo> {
+  if (isGem15Url(vrtUrl)) return GEM15_INFO
   const vrt = await loadVrt(vrtUrl, signal)
   const { toMerc } = await makeTransforms(vrt.srs)
   const [ox, pxW, , oy, , pxH] = vrt.gt
@@ -406,7 +509,27 @@ async function readVrtGrid(
   vrtUrl: string, minX: number, maxY: number, spanX: number, spanY: number, W: number, H: number,
   signal: AbortSignal, label: string, maxSources: number, maxReadPixels: number,
 ): Promise<Float32Array | null> {
-  const vrt = await loadVrt(vrtUrl, signal)
+  const gem = GEM15_RE.exec(vrtUrl)
+  const docs = gem
+    ? await loadGem15Docs(gem[1], minX, maxY, spanX, spanY, signal, label)
+    : [await loadVrt(vrtUrl, signal)]
+  // One VRT is the usual case. Several (the GEM-15 cells, each in its own UTM
+  // zone) are read one by one and composited where the earlier ones have no
+  // data; the cells do not overlap, so the order does not matter.
+  let grid: Float32Array | null = null
+  for (const doc of docs) {
+    const g = await readDocGrid(doc, minX, maxY, spanX, spanY, W, H, signal, label, maxSources, maxReadPixels)
+    if (!g) continue
+    if (!grid) { grid = g; continue }
+    for (let i = 0; i < g.length; i++) if (!Number.isFinite(grid[i]) && Number.isFinite(g[i])) grid[i] = g[i]
+  }
+  return grid
+}
+
+async function readDocGrid(
+  vrt: VrtDoc, minX: number, maxY: number, spanX: number, spanY: number, W: number, H: number,
+  signal: AbortSignal, label: string, maxSources: number, maxReadPixels: number,
+): Promise<Float32Array | null> {
   const { toVrt } = await makeTransforms(vrt.srs)
   const [ox, pxW, , oy, , pxH] = vrt.gt
 

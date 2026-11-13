@@ -79,6 +79,12 @@ Both messages end the same way, and it is not a platitude: *zoom in, or serve th
 A mosaic's source files need CORS, not just the `.vrt`. OpenTopography's S3 echoes the origin and exposes `Content-Range`; `data.cquest.org` (the RGE ALTI repack) answers `Access-Control-Allow-Origin: *` but sends no `Access-Control-Expose-Headers`, so a browser hides `Content-Range` from `geotiff.js`. If a mosaic reads in `curl` and not in the app, that pairing is the first thing to check — and the titiler pin is the fix.
 </Callout>
 
+## GEM-15: one VRT per cell, built on the fly
+
+Google's [GEM-15](https://developers.google.com/earth-engine/datasets/catalog/projects_climate-and-sustainability_assets_gem-15_v1) (15 m DSM and DTM, 60°S to 84°N, CC-BY 4.0) is one COG per 1°×1° cell in the cell's own UTM zone, about 13 500 cells per band, each with a STAC item at a path that follows from the coordinates (`stac/gem-15/p40_p0/w0s40/w0s40.json` for the cell whose west edge is 0° and south edge 40°; `m` prefixes a negative number). No single VRT can index that, since a VRT has one CRS. So the library entries use `gem15://dtm` and `gem15://dsm` as the "VRT URL": for each tile the reader lists the cells the tile touches (at most 25, which the minzoom of 7 guarantees), fetches each cell's item, builds a one-source VRT from its `proj:shape`, `proj:transform` and `proj:epsg` (the UTM proj4 string follows from the code, no epsg.io lookup), reads each through the pipeline above and composites the grids. A cell with no item is a 404 and a hole, like the sea or the excluded countries; the cell lookups are kept for the session.
+
+The bucket sends no CORS headers on its plain object URLs. Every read goes through the Cloud Storage JSON API media endpoint, `storage/v1/b/<bucket>/o/<object>?alt=media`, which serves the same bytes with CORS and Range (see [Bring your own data](/features/byod#cogs-on-a-google-cloud-storage-bucket-without-cors)). The same endpoint moved the Open Buildings 2.5D VRTs from titiler-only to in-browser.
+
 ## What it deliberately does not do
 
 - `ComplexSource` scale/offset and `<LUT>` are ignored. `<NODATA>` is honoured, which is the part that matters for elevation.
@@ -97,5 +103,6 @@ One tile, cold, over a real network:
 | RGE ALTI 1 m | Lambert-93 | 93 | z15 Montparnasse | 4 | 0.43 s |
 | RGE ALTI 1 m | Lambert-93 | 93 | z7 France | 22 | 1.2 s |
 | Haiti DTM 1.5 m | UTM 18N | 369 | z15 Port-au-Prince | 1 | 1.7 s |
+| GEM-15 DTM 15 m (`gem15://dtm`) | UTM per cell | 13 485 cells | z11 Chambéry, first viewport | 1 to 2 cells a tile | 9 s to every tile loaded |
 
 The index fetch and parse is once per URL per session and cached, as are the opened GeoTIFFs: 2.1 s for AW3D30's 10 MB of XML over 23 997 sources, 40 ms for RGE ALTI's 40 KB.

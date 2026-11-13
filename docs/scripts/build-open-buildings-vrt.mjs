@@ -20,18 +20,20 @@
 //
 // Two things decide how this has to be wired:
 //
-//  - **No CORS.** storage.googleapis.com serves these objects publicly and
-//    answers Range requests, but sends no `Access-Control-Allow-Origin` even
-//    when asked with an Origin - so a browser cannot read them and the source
-//    must be pinned to titiler, which fetches server-side. That is what the
-//    per-source "Always serve via titiler" switch is for.
+//  - **CORS only through the JSON API.** The plain object URL
+//    (storage.googleapis.com/<bucket>/<object>) answers Range requests but
+//    sends no `Access-Control-Allow-Origin`, so until 2026-11-13 the source
+//    was pinned to titiler. The Cloud Storage JSON API media endpoint,
+//    storage.googleapis.com/storage/v1/b/<bucket>/o/<url-encoded object>
+//    ?alt=media, serves the same bytes with CORS and Range, so the VRT now
+//    names the tiles that way and the browser reads them itself (titiler's
+//    GDAL opens them too, through /vsicurl/).
 //  - `uriPrefix` ends mid-token (`.../v1/geotiffs/00`) and each source uri
 //    starts with the rest of it (`9d4_2023_06_30/tile_....tif`), so they
 //    concatenate with no separator. Joining them with a slash 404s everything.
 //
-// The VRT it writes has to be reachable by titiler, i.e. served from the
-// deployed site, so these land in public/vrt/ and the library entry points at
-// the public URL.
+// The VRT lands in public/vrt/ and the library entry points at the public
+// URL, so titiler can reach it too when a source is switched to titiler.
 //
 //   node docs/scripts/build-open-buildings-vrt.mjs 01_EPSG_32723_2023_06_30
 //   node docs/scripts/build-open-buildings-vrt.mjs --list
@@ -42,6 +44,10 @@ import { fileURLToPath } from "node:url"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const BUCKET = "https://storage.googleapis.com/open-buildings-temporal-data"
+/** The same object through the JSON API media endpoint, which sends CORS
+ *  headers where the plain URL does not (see the header). */
+const mediaUrl = (url) =>
+  `https://storage.googleapis.com/storage/v1/b/open-buildings-temporal-data/o/${encodeURIComponent(url.slice(BUCKET.length + 1))}?alt=media`
 const OUT_DIR = resolve(HERE, "../../public/vrt")
 /** 1-based, as in a VRT's <SourceBand>. */
 const HEIGHT_BAND = 2
@@ -125,7 +131,7 @@ for (const s of sources) {
   const dstY = Math.round((maxY - a.translateY) / scale)
   parts.push(
     `    <ComplexSource>`,
-    `      <SourceFilename relativeToVRT="0">/vsicurl/${url}</SourceFilename>`,
+    `      <SourceFilename relativeToVRT="0">${mediaUrl(url)}</SourceFilename>`,
     `      <SourceBand>${HEIGHT_BAND}</SourceBand>`,
     `      <SourceProperties RasterXSize="${d.width}" RasterYSize="${d.height}" DataType="Float32" BlockXSize="512" BlockYSize="512" />`,
     `      <SrcRect xOff="0" yOff="0" xSize="${d.width}" ySize="${d.height}" />`,
