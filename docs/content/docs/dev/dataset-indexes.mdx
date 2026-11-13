@@ -12,7 +12,7 @@ The terrain library streams most of its datasets straight from the bucket of who
 | Kind | When | Where it lives | Examples |
 |---|---|---|---|
 | Upstream VRT | The publisher ships a VRT over its COGs | Their bucket | OpenTopography's global and regional mosaics |
-| Hosted VRT | One CRS, thousands of COGs, no VRT upstream | The [datasets-2026-11-13 release](https://github.com/Iconem/terrain-viewer/releases/tag/datasets-2026-11-13), served by this site at `/vrt/` | Scotland LiDAR |
+| Hosted VRT | One CRS, thousands of COGs, no VRT upstream | The [dataset-indexes release](https://github.com/Iconem/terrain-viewer/releases/tag/dataset-indexes), served by this site at `/vrt/` | Scotland LiDAR |
 | Committed ledger | Many CRS, so no single VRT can exist; a small list of what covers where | `public/` in the repository | Open Buildings 2.5D (80 KB) |
 | None | The file address follows from the coordinates | Nowhere | GEM-15 |
 
@@ -46,7 +46,7 @@ Scotland's open LiDAR ([Scottish Remote Sensing Portal](https://remotesensingdat
 
 Files without overviews (phases 1 and 2, all of Orkney, 56 NLP files) are a problem for the in-browser reader, which refuses a tile that would decode more than 8 Mpx of one file, so the script writes two VRTs per product: `scotland-dtm-overviews.vrt` for the browser, `scotland-dtm.vrt` with every file for titiler.
 
-| Asset on datasets-2026-11-13 | Size | Sources | Raster |
+| Asset on dataset-indexes | Size | Sources | Raster |
 |---|---|---|---|
 | `scotland-dtm.vrt` | 4.9 MB | 9 604 | 716 042 × 1 245 728 px at 0.5 m, EPSG:27700 |
 | `scotland-dtm-overviews.vrt` | 3.8 MB | 7 305 | Same grid |
@@ -74,4 +74,4 @@ A VRT names its CRS, usually as an EPSG code, and the reader needs a proj4 defin
 
 ## Releases that hold what the repository does not
 
-The built indexes sit on the [datasets-2026-11-13 release](https://github.com/Iconem/terrain-viewer/releases/tag/datasets-2026-11-13), 17 MB, and the deploy copies them into `dist/vrt/`. The other releases (desktop bundles, docs screenshots, slide decks, demo screencasts, UX flow captures), who writes each and who reads it, are on [Releases](/dev/releases).
+The built indexes sit on the [dataset-indexes release](https://github.com/Iconem/terrain-viewer/releases/tag/dataset-indexes), 17 MB, and the deploy copies them into `dist/vrt/`. The other releases (desktop bundles, docs screenshots, slide decks, demo screencasts, UX flow captures), who writes each and who reads it, are on [Releases](/dev/releases).

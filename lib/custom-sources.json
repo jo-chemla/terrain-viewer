@@ -721,7 +721,7 @@
             "maxzoom": 18,
             "resolutionM": 0.5,
             "bounds": [-7.55, 54.53, -1.1, 60.21],
-            "description": "Scotland's open LiDAR (Scottish Remote Sensing Portal, OGL v3): the LiDAR phases 1 to 6 of 2011-2022, the National LiDAR Programme of 2021-2024, Orkney 2023 and the Outer Hebrides 2019, as about 9 600 gridded Float32 COGs per product on an open S3 bucket (CORS, Range), with no VRT of their own. docs/scripts/build-scotland-vrt.mjs reads every file's header once and writes one VRT per product in EPSG:27700 at 0.5 m, newest campaign painted last, hosted on the datasets-2026-11-13 GitHub release and served from this site at /vrt/ (see the Cell-routed sources dev page). This entry reads the files that carry overviews in the browser (phases 3 to 6, the National LiDAR Programme, Orkney, Hebrides; phases 1 and 2 of 2011-2014 have none and are left out here, see the titiler entry). Bare earth. Usable z12-18.",
+            "description": "Scotland's open LiDAR (Scottish Remote Sensing Portal, OGL v3): the LiDAR phases 1 to 6 of 2011-2022, the National LiDAR Programme of 2021-2024, Orkney 2023 and the Outer Hebrides 2019, as about 9 600 gridded Float32 COGs per product on an open S3 bucket (CORS, Range), with no VRT of their own. docs/scripts/build-scotland-vrt.mjs reads every file's header once and writes one VRT per product in EPSG:27700 at 0.5 m, newest campaign painted last, hosted on the dataset-indexes GitHub release and served from this site at /vrt/ (see the Cell-routed sources dev page). This entry reads the files that carry overviews in the browser (phases 3 to 6, the National LiDAR Programme, Orkney, Hebrides; phases 1 and 2 of 2011-2014 have none and are left out here, see the titiler entry). Bare earth. Usable z12-18.",
             "infoUrl": "https://remotesensingdata.gov.scot/"
         },
         {
@@ -735,7 +735,7 @@
             "maxzoom": 18,
             "resolutionM": 0.5,
             "bounds": [-7.55, 54.53, -1.1, 60.21],
-            "description": "Scotland's open LiDAR (Scottish Remote Sensing Portal, OGL v3): the LiDAR phases 1 to 6 of 2011-2022, the National LiDAR Programme of 2021-2024, Orkney 2023 and the Outer Hebrides 2019, as about 9 600 gridded Float32 COGs per product on an open S3 bucket (CORS, Range), with no VRT of their own. docs/scripts/build-scotland-vrt.mjs reads every file's header once and writes one VRT per product in EPSG:27700 at 0.5 m, newest campaign painted last, hosted on the datasets-2026-11-13 GitHub release and served from this site at /vrt/ (see the Cell-routed sources dev page). Surface model, same files and reader as the DTM entry; phases 1 and 2 left out (no overviews). Usable z12-18.",
+            "description": "Scotland's open LiDAR (Scottish Remote Sensing Portal, OGL v3): the LiDAR phases 1 to 6 of 2011-2022, the National LiDAR Programme of 2021-2024, Orkney 2023 and the Outer Hebrides 2019, as about 9 600 gridded Float32 COGs per product on an open S3 bucket (CORS, Range), with no VRT of their own. docs/scripts/build-scotland-vrt.mjs reads every file's header once and writes one VRT per product in EPSG:27700 at 0.5 m, newest campaign painted last, hosted on the dataset-indexes GitHub release and served from this site at /vrt/ (see the Cell-routed sources dev page). Surface model, same files and reader as the DTM entry; phases 1 and 2 left out (no overviews). Usable z12-18.",
             "infoUrl": "https://remotesensingdata.gov.scot/"
         },
         {
@@ -750,7 +750,7 @@
             "maxzoom": 18,
             "resolutionM": 0.5,
             "bounds": [-7.55, 54.53, -1.1, 60.21],
-            "description": "Scotland's open LiDAR (Scottish Remote Sensing Portal, OGL v3): the LiDAR phases 1 to 6 of 2011-2022, the National LiDAR Programme of 2021-2024, Orkney 2023 and the Outer Hebrides 2019, as about 9 600 gridded Float32 COGs per product on an open S3 bucket (CORS, Range), with no VRT of their own. docs/scripts/build-scotland-vrt.mjs reads every file's header once and writes one VRT per product in EPSG:27700 at 0.5 m, newest campaign painted last, hosted on the datasets-2026-11-13 GitHub release and served from this site at /vrt/ (see the Cell-routed sources dev page). Every campaign including the 1 m phases 1 and 2 of 2011-2014, whose files have no overviews: the in-browser reader would decode whole 10 km files, so this entry is pinned to titiler, which lets GDAL read them. Usable z13-18.",
+            "description": "Scotland's open LiDAR (Scottish Remote Sensing Portal, OGL v3): the LiDAR phases 1 to 6 of 2011-2022, the National LiDAR Programme of 2021-2024, Orkney 2023 and the Outer Hebrides 2019, as about 9 600 gridded Float32 COGs per product on an open S3 bucket (CORS, Range), with no VRT of their own. docs/scripts/build-scotland-vrt.mjs reads every file's header once and writes one VRT per product in EPSG:27700 at 0.5 m, newest campaign painted last, hosted on the dataset-indexes GitHub release and served from this site at /vrt/ (see the Cell-routed sources dev page). Every campaign including the 1 m phases 1 and 2 of 2011-2014, whose files have no overviews: the in-browser reader would decode whole 10 km files, so this entry is pinned to titiler, which lets GDAL read them. Usable z13-18.",
             "infoUrl": "https://remotesensingdata.gov.scot/"
         },
         {
@@ -765,7 +765,7 @@
             "maxzoom": 18,
             "resolutionM": 0.5,
             "bounds": [-7.55, 54.53, -1.1, 60.21],
-            "description": "Scotland's open LiDAR (Scottish Remote Sensing Portal, OGL v3): the LiDAR phases 1 to 6 of 2011-2022, the National LiDAR Programme of 2021-2024, Orkney 2023 and the Outer Hebrides 2019, as about 9 600 gridded Float32 COGs per product on an open S3 bucket (CORS, Range), with no VRT of their own. docs/scripts/build-scotland-vrt.mjs reads every file's header once and writes one VRT per product in EPSG:27700 at 0.5 m, newest campaign painted last, hosted on the datasets-2026-11-13 GitHub release and served from this site at /vrt/ (see the Cell-routed sources dev page). Surface model of every campaign including phases 1 and 2; pinned to titiler for the files without overviews. Usable z13-18.",
+            "description": "Scotland's open LiDAR (Scottish Remote Sensing Portal, OGL v3): the LiDAR phases 1 to 6 of 2011-2022, the National LiDAR Programme of 2021-2024, Orkney 2023 and the Outer Hebrides 2019, as about 9 600 gridded Float32 COGs per product on an open S3 bucket (CORS, Range), with no VRT of their own. docs/scripts/build-scotland-vrt.mjs reads every file's header once and writes one VRT per product in EPSG:27700 at 0.5 m, newest campaign painted last, hosted on the dataset-indexes GitHub release and served from this site at /vrt/ (see the Cell-routed sources dev page). Surface model of every campaign including phases 1 and 2; pinned to titiler for the files without overviews. Usable z13-18.",
             "infoUrl": "https://remotesensingdata.gov.scot/"
         },
         {

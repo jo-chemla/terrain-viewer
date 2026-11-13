@@ -14,13 +14,13 @@ The repository keeps code and text. Anything heavy or regenerated goes to a GitH
 | [`desktop-latest`](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest) | The desktop app, full build with the docs inside: installers, portable zips and the update feed for Windows, macOS and Linux | 2.4 GB, 13 files | The desktop workflow, replaced on every run | Users, the app's updater, the footer link |
 | [`desktop-latest-light`](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest-light) | The light build, docs opening on the website | 330 MB, 12 files | Same workflow | Users, the light build's updater |
 | `desktop-v<version>` | The Windows installers of one version, never replaced | 690 MB, 3 files | Same workflow, once per version | winget, the [Desktop App](/features/advanced/desktop) download link |
-| [`datasets-2026-11-13`](https://github.com/Iconem/terrain-viewer/releases/tag/datasets-2026-11-13) | Built VRT indexes too large to commit (Scotland LiDAR) | 17 MB, 4 files | `docs/scripts/build-scotland-vrt.mjs`, then `gh release upload` by hand | The Pages deploy, into `dist/vrt/`; see [Dataset indexes](/dev/dataset-indexes) |
+| [`dataset-indexes`](https://github.com/Iconem/terrain-viewer/releases/tag/dataset-indexes) | Built VRT indexes too large to commit (Scotland LiDAR) | 17 MB, 4 files | `docs/scripts/build-scotland-vrt.mjs`, then `gh release upload` by hand | The Pages deploy, into `dist/vrt/`; see [Dataset indexes](/dev/dataset-indexes) |
 | [`docs-media`](https://github.com/Iconem/terrain-viewer/releases/tag/docs-media) | The docs screenshots, one tar archive per version | 181 MB an archive, 151 pictures | `pnpm docs:media:push` | `pnpm docs:media`, run before the app and docs dev servers, the docs build and the slide builds |
 | [`slides-2026-10-05`](https://github.com/Iconem/terrain-viewer/releases/tag/slides-2026-10-05) | The five slide decks as PDF, a dated snapshot | 89 MB, 5 files | By hand, from `pnpm slides:pdf` | The [Slide Decks](/features/slide-decks) page |
 | [`demo-takes`](https://github.com/Iconem/terrain-viewer/releases/tag/demo-takes) | The demo screencasts, MP4 | 184 MB, 4 files | By hand, after a recording | The [Demo Videos](/features/demo-videos) page, which plays them from the release |
 | [`ux-flows`](https://github.com/Iconem/terrain-viewer/releases/tag/ux-flows) | The UX flows captures, WebP and two JSON files | 7 MB, 32 files | The UX flows capture workflow, replaced on every run | The Pages deploy, into `dist/ux-flows/captures/` |
 
-Three patterns are at work. A **rolling** tag has a bare name (`ux-flows`, `demo-takes`, `docs-media`) and its files are replaced or added to, so a link to it never goes stale. A **dated** tag (`datasets-<date>`, `slides-<date>`) is a snapshot never touched again, which is what an old commit needs; a rebuild that changes the files gets a new date, and the tag is updated where it is read. The desktop tags are the exception: `desktop-latest` and `desktop-latest-light` are rolling but keep their suffix, because the update feed address is inside every installed app, and `desktop-v<version>` is the permanent copy winget points at. A **content-addressed** store (`docs-media`) keeps every archive under its hash, and a lock file in the repository names the one a commit uses.
+Three patterns are at work. A **rolling** tag has a bare name (`ux-flows`, `demo-takes`, `docs-media`, `dataset-indexes`) and its files are replaced or added to, so a link to it never goes stale and nothing that reads it needs editing. A **dated** tag (`slides-<date>`) is a snapshot never touched again. The desktop tags are the exception: `desktop-latest` and `desktop-latest-light` are rolling but keep their suffix, because the update feed address is inside every installed app, and `desktop-v<version>` is the permanent copy winget points at. A **content-addressed** store (`docs-media`) keeps every archive under its hash, and a lock file in the repository names the one a commit uses.
 
 A release asset sends no CORS header, so a page cannot fetch one directly. Whatever the site itself has to read (the VRT indexes, the UX flows captures, the screenshots) is copied into the build by the deploy and served from the site's own origin. A video tag is not subject to CORS, which is why the demo videos play straight from the release.
 
@@ -49,11 +49,11 @@ The archive is a tar, not a zip, for two reasons: the pictures are JPEG, PNG and
 
 ```bash
 # an index too large to commit: build it, then
-gh release upload datasets-2026-11-13 .cache/scotland/*.vrt -R Iconem/terrain-viewer --clobber
+gh release upload dataset-indexes .cache/scotland/*.vrt -R Iconem/terrain-viewer --clobber
 # a screencast
 gh release upload demo-takes video/out/<take>.mp4 -R Iconem/terrain-viewer
 # a new release that is not software
 gh release create <tag> <files> -R Iconem/terrain-viewer --prerelease --latest=false --title "<Kind>: <what>"
 ```
 
-The next deploy picks up anything on `datasets-2026-11-13` and `ux-flows`; a file the site must serve from another tag needs a download step in `.github/workflows/deploy-gh-page-on-push.yml`.
+The next deploy picks up anything on `dataset-indexes` and `ux-flows`; a file the site must serve from another tag needs a download step in `.github/workflows/deploy-gh-page-on-push.yml`.
