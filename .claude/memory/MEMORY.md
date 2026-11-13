@@ -56,3 +56,4 @@
 - [Push both remotes](push-both-remotes.md) — main goes to origin (jo-chemla) and iconem (fork) in the same step; the fork is a mirror, always fast-forward
 - [UX flows capture theme](ux-flows-capture-theme.md) — the 2026-10-16 screenshots show a wrong theme and font; the next recapture uses the default theme AND font
 - [GCS CORS media endpoint](gcs-cors-media-endpoint.md) — storage.googleapis.com buckets without CORS (GEM-15, Open Buildings) serve with CORS and Range via /storage/v1/b/<bucket>/o/<obj>?alt=media; GEM-15 cell layout and the bertt/gem15 reference viewer
+- [Static indexes and release assets](static-indexes-and-release-assets.md) — what needs a prebuilt index (Open Buildings router, Scotland), what does not (GEM-15), the OpenTopography global VRTs not yet in the library, the 3dtiled VPC release-asset precedent
