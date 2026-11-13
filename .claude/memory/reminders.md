@@ -14,16 +14,16 @@ type: feedback
   issue 27 was commented 2026-10-29. The impasto CORS request is "not to be
   sent yet" by his choice. Check with `gh search issues --author jo-chemla
   --repo <repo>` before reminding again.
-- **Later, wanted by Jonathan (2026-11-13), in this order unless he says
-  otherwise**: WMTS sources ("soon"; also unlocks NASA VEDA/GIBS items and
-  helps the next one), Copernicus Data Space in the catalogue search, drawing
-  on secondary views (B..H), Library "Browse" per dataset (an entry with a
-  `stac: { preset, collection }` opens the Add dialog's catalogue tab on that
-  collection over the view; the catalog-level Browse button already exists in
-  sample-sources-modal.tsx, and the handoff in terrain-source-section.tsx),
-  a canopy height source (Meta CHMv2 quadkey COGs on dataforgood-fb-data,
-  blocked by no CORS on the bucket: proxy, mirror or ask Meta). The MCP app
-  (.claude/memory/mcp-apps-plan.md) is "another time".
+- **Later, wanted by Jonathan (order set 2026-11-13)**: 1. WMTS sources
+  ("soon"; also unlocks NASA VEDA/GIBS items and helps the next one),
+  2. Copernicus Data Space in the catalogue search, 3. Library "Browse" per
+  dataset (an entry with a `stac: { preset, collection }` opens the Add
+  dialog's catalogue tab on that collection over the view; the catalog-level
+  Browse button already exists in sample-sources-modal.tsx, and the handoff
+  in terrain-source-section.tsx). "Another time": drawing on secondary views
+  (B..H) and the MCP app (.claude/memory/mcp-apps-plan.md). Canopy height
+  (GEDI-derived, Meta CHMv2 quadkey COGs): no CORS anywhere yet, nothing to
+  do until a browser-readable endpoint exists.
 - **Git history purge**: asked 2026-11-13, waiting for his go. Plan: filter-repo,
   jo-chemla first as a trial then Iconem with the same rewritten refs (they
   must stay identical, one push goes to both), map the 113 short hashes in

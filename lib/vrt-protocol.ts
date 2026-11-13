@@ -778,8 +778,10 @@ async function readDocGrid(
   // roughly the tile's own resolution: geotiff picks an overview for the
   // requested width/height, which is what keeps a coarse zoom affordable.
   const reads = await Promise.all(touched.map(async (s) => {
-    const x0 = Math.max(s.dstX, Math.floor(minVX)), x1 = Math.min(s.dstX + s.dstW, Math.ceil(maxVX))
-    const y0 = Math.max(s.dstY, Math.floor(minVY)), y1 = Math.min(s.dstY + s.dstH, Math.ceil(maxVY))
+    // One pixel of margin, so the bilinear step below has both neighbours at
+    // a tile's edge and adjacent tiles agree there.
+    const x0 = Math.max(s.dstX, Math.floor(minVX) - 1), x1 = Math.min(s.dstX + s.dstW, Math.ceil(maxVX) + 1)
+    const y0 = Math.max(s.dstY, Math.floor(minVY) - 1), y1 = Math.min(s.dstY + s.dstH, Math.ceil(maxVY) + 1)
     if (x1 <= x0 || y1 <= y0) return null
     // Virtual-raster window -> this source's own pixel window.
     const sx = s.srcW / s.dstW, sy = s.srcH / s.dstH
@@ -871,12 +873,32 @@ async function readDocGrid(
         if (px < s.dstX || px >= s.dstX + s.dstW || py < s.dstY || py >= s.dstY + s.dstH) continue
         const sxPix = s.srcX + (px - s.dstX) * (s.srcW / s.dstW)
         const syPix = s.srcY + (py - s.dstY) * (s.srcH / s.dstH)
-        const u = Math.floor(((sxPix - win[0]) / (win[2] - win[0])) * outW)
-        const v = Math.floor(((syPix - win[1]) / (win[3] - win[1])) * outH)
+        const fu = ((sxPix - win[0]) / (win[2] - win[0])) * outW
+        const fv = ((syPix - win[1]) / (win[3] - win[1])) * outH
+        const u = Math.floor(fu), v = Math.floor(fv)
         if (u < 0 || v < 0 || u >= outW || v >= outH) continue
+        const nd = s.nodata ?? vrt.nodata
         const sample = band[v * outW + u]
-        if (isHole(sample, s.nodata ?? vrt.nodata)) continue
+        if (isHole(sample, nd)) continue
         value = sample
+        // Bilinear between the four nearest pixel centres when the tile is
+        // finer than the read (zoomed past the source, GEM-15's 15 m cells at
+        // z13 looked like a staircase in every hillshade). In the composite,
+        // not in readRasters: the read stays nearest so it never blends a
+        // nodata sentinel (see above), and here a neighbour that is a hole,
+        // or off the window, keeps the nearest value instead.
+        if (outW < W || outH < H) {
+          const gx = fu - 0.5, gy = fv - 0.5
+          const x0 = Math.floor(gx), y0 = Math.floor(gy)
+          if (x0 >= 0 && y0 >= 0 && x0 + 1 < outW && y0 + 1 < outH) {
+            const a = band[y0 * outW + x0], b = band[y0 * outW + x0 + 1]
+            const c = band[(y0 + 1) * outW + x0], d = band[(y0 + 1) * outW + x0 + 1]
+            if (!isHole(a, nd) && !isHole(b, nd) && !isHole(c, nd) && !isHole(d, nd)) {
+              const tx = gx - x0, ty = gy - y0
+              value = (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
+            }
+          }
+        }
       }
       grid[i] = value
     }
