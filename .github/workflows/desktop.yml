@@ -49,7 +49,12 @@ jobs:
           cat <<EOF > .env
           ${{ secrets.ENV_FILE_CONTENT }}
           EOF
-          sed -i '/^VITE_PLANET_API_KEY=/d' .env
+          # The Planet key never goes into a build. Not `sed -i`: the BSD sed
+          # of the macOS runner reads its next argument as the backup suffix
+          # and fails, which stopped the macOS bundle before it began.
+          grep -v '^VITE_PLANET_API_KEY=' .env > .env.clean || true
+          mv .env.clean .env
+          if grep -q '^VITE_PLANET_API_KEY=' .env; then echo "the Planet key is still in .env"; exit 1; fi
       - name: Build the web app and the docs
         # The docs export is merged into dist/docs the way the Pages deploy
         # does it, so gen-config.mjs bundles it and the Documentation button
