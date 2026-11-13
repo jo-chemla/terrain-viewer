@@ -96,7 +96,7 @@ async function push() {
   await rename(tmp, archive)
   const gh = (args) => execFileSync("gh", args, { cwd: ROOT, stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" })
   try { gh(["release", "view", TAG, "-R", REPO, "--json", "tagName"]) } catch {
-    gh(["release", "create", TAG, "-R", REPO, "--prerelease", "--title", "Docs media (screenshots)", "--notes", "The docs' screenshots, as content-addressed tar archives (screenshots-<sha256 prefix>.tar). docs/media.lock in the repository names the one a commit uses; scripts/docs-media.mjs pulls and pushes them. Older archives stay so older commits still build."])
+    gh(["release", "create", TAG, "-R", REPO, "--prerelease", "--title", "Media: docs screenshots", "--notes", "The docs' screenshots, as content-addressed tar archives (screenshots-<sha256 prefix>.tar). docs/media.lock in the repository names the one a commit uses; scripts/docs-media.mjs pulls and pushes them. Older archives stay so older commits still build."])
   }
   gh(["release", "upload", TAG, archive, "-R", REPO, "--clobber"])
   const size = (await stat(archive)).size

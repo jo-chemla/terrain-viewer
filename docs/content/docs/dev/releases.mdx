@@ -26,7 +26,7 @@ A release asset sends no CORS header, so a page cannot fetch one directly. Whate
 
 ## How the releases page is ordered
 
-GitHub lists releases by the date of their tag, newest first, and offers no folders, no pinning and no way to hide one short of deleting it or turning it into a draft. A title can be changed freely; the order cannot. What does help: the **Latest** badge is set explicitly and belongs to `desktop-latest` (the desktop workflow sets it on every run, so create any other release with `--latest=false`), and everything that is not software is marked **pre-release**, which greys it in the list and keeps it out of the repository's sidebar.
+GitHub lists releases by the date of their tag, newest first, and offers no folders, no pinning and no way to hide one short of deleting it or turning it into a draft. A title can be changed freely; the order cannot. What does help: every title starts with its kind (**Desktop:**, **Data:**, **Media:**), set by the workflows and scripts that create the releases, so the list reads by family; only the current `desktop-v<version>` is kept, older ones are deleted once no winget manifest points at them; the **Latest** badge is set explicitly and belongs to `desktop-latest` (the desktop workflow sets it on every run, so create any other release with `--latest=false`), and everything that is not software is marked **pre-release**, which greys it in the list and keeps it out of the repository's sidebar.
 
 ## Docs screenshots
 

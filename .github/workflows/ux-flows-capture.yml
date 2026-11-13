@@ -69,7 +69,7 @@ jobs:
           set -euo pipefail
           tag=ux-flows-latest
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --prerelease --title "UX flows captures (latest)" \
+            gh release create "$tag" --prerelease --title "Media: UX flows captures (latest)" \
               --notes "Screenshots and data.json read by /ux-flows. Replaced on every run of the UX flows capture workflow; not a software release."
           fi
           gh release edit "$tag" --notes "Screenshots and data.json read by /ux-flows. Captured $(date -u +%Y-%m-%dT%H:%MZ) from ${{ github.repository }}@${{ github.sha }} against ${{ inputs.base_url }}. Replaced on every run of the UX flows capture workflow; not a software release."
