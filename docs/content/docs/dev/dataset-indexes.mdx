@@ -13,6 +13,7 @@ The terrain library streams most of its datasets straight from the bucket of who
 |---|---|---|---|
 | Upstream VRT | The publisher ships a VRT over its COGs | Their bucket | OpenTopography's global and regional mosaics |
 | Hosted VRT | One CRS, thousands of COGs, no VRT upstream | The [dataset-indexes release](https://github.com/Iconem/terrain-viewer/releases/tag/dataset-indexes), served by this site at `/vrt/` | Scotland LiDAR |
+| Hosted footprints | Where a provider has data, as GeoJSON for the coverage overlays | Same release, served at `/coverage/` | Bing, Google and Esri 3D, FLAI, OpenTopography |
 | Committed ledger | Many CRS, so no single VRT can exist; a small list of what covers where | `public/` in the repository | Open Buildings 2.5D (80 KB) |
 | None | The file address follows from the coordinates | Nowhere | GEM-15 |
 
@@ -53,7 +54,7 @@ Files without overviews (phases 1 and 2, all of Orkney, 56 NLP files) are a prob
 | `scotland-dsm.vrt` | 5.0 MB | 9 684 | Same grid |
 | `scotland-dsm-overviews.vrt` | 3.8 MB | 7 360 | Same grid |
 
-The Pages deploy copies every asset of that release into `dist/vrt/`, so the library entries read them from this site: a release asset itself sends no CORS header, the site does, and titiler reads the site too. Any future index too large to commit goes the same way: build once, upload to the release, let the deploy serve it.
+`pnpm build` fetches the files `datasets.lock.json` names from that release into `public/vrt/`, and Vite copies them into the build, so the library entries read them from this site: a release asset itself sends no CORS header, the site does, and titiler reads the site too. Any future index too large to commit goes the same way: build once, `pnpm datasets:push <file>`, commit the lock.
 
 ## The same indexes in QGIS and GDAL
 
@@ -74,4 +75,4 @@ A VRT names its CRS, usually as an EPSG code, and the reader needs a proj4 defin
 
 ## Releases that hold what the repository does not
 
-The built indexes sit on the [dataset-indexes release](https://github.com/Iconem/terrain-viewer/releases/tag/dataset-indexes), 17 MB, and the deploy copies them into `dist/vrt/`. The other releases (desktop bundles, docs screenshots, slide decks, demo screencasts, UX flow captures), who writes each and who reads it, are on [Releases](/dev/releases).
+The built indexes sit on the [dataset-indexes release](https://github.com/Iconem/terrain-viewer/releases/tag/dataset-indexes), 17 MB, with the coverage footprints, 6 MB; the build fetches both. The other releases (desktop bundles, docs screenshots, slide decks, demo screencasts, UX flow captures), who writes each and who reads it, are on [Releases](/dev/releases).

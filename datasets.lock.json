@@ -1,0 +1,65 @@
+{
+  "release": "dataset-indexes",
+  "files": [
+    {
+      "name": "bing-3d.geojson",
+      "dir": "public/coverage",
+      "size": 765252,
+      "sha256": "9ccf8a787deced26472260dc73e75c24975163220181e954d88f2862eb34f10c"
+    },
+    {
+      "name": "esri-3d.geojson",
+      "dir": "public/coverage",
+      "size": 679999,
+      "sha256": "7358397704bfec91934745fd667516026be06faa7fd26d8d09ed3e23e2a8637f"
+    },
+    {
+      "name": "flai-open-lidar.geojson",
+      "dir": "public/coverage",
+      "size": 829150,
+      "sha256": "72419e53c0294116fa95d3515fe318d7c3e5df17799009fc32c701f331d1e35a"
+    },
+    {
+      "name": "google-3d.geojson",
+      "dir": "public/coverage",
+      "size": 988934,
+      "sha256": "2ebc3616696c53ed5da96748674fb9e507d5af3c0a6ca5b6717245282fd6ee7f"
+    },
+    {
+      "name": "opentopo-pointcloud.geojson",
+      "dir": "public/coverage",
+      "size": 1861236,
+      "sha256": "f29878db67446b8f9033c41454f02482bfb17f4f590491fb08dfa853e32161e2"
+    },
+    {
+      "name": "opentopo-raster.geojson",
+      "dir": "public/coverage",
+      "size": 861734,
+      "sha256": "ca1d919f2eb86395a266011fd40ce269deba9bfda2211745f2186585a784b905"
+    },
+    {
+      "name": "scotland-dsm-overviews.vrt",
+      "dir": "public/vrt",
+      "size": 3792276,
+      "sha256": "e11717b3b96e2712b625694a8fe3dbecb25e619fabc054eea891f95b17cad01a"
+    },
+    {
+      "name": "scotland-dsm.vrt",
+      "dir": "public/vrt",
+      "size": 4961367,
+      "sha256": "2e52d09e3462b6dd2079f6a2983fd385ac81c38e40be48979ad9524647b3e643"
+    },
+    {
+      "name": "scotland-dtm-overviews.vrt",
+      "dir": "public/vrt",
+      "size": 3763397,
+      "sha256": "90117e6cedce32899d1b205b6f55bc60f915f5bd0d06695e46db3c93ce1c8034"
+    },
+    {
+      "name": "scotland-dtm.vrt",
+      "dir": "public/vrt",
+      "size": 4919861,
+      "sha256": "beaab03b3c80700e609f3182e05b43fddbc703e5fbc3007fff40fe542f06cb37"
+    }
+  ]
+}

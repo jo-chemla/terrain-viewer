@@ -61,5 +61,7 @@ video/public/clip-*.mp4
 theme-editor/node_modules/
 # built dataset indexes served from the datasets-v1 release, not the repo (see deploy workflow)
 public/vrt/
+# coverage footprints: on the dataset-indexes release too (datasets.lock.json, scripts/dataset-assets.mjs)
+public/coverage/*.geojson
 # the docs screenshots live on the docs-media release (docs/media.lock, scripts/docs-media.mjs)
 docs/public/screenshots/

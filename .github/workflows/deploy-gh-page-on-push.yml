@@ -81,24 +81,6 @@ jobs:
           else
             echo "::notice title=UX flows::no ux-flows release yet; /ux-flows shows its load message until the capture workflow has run"
           fi
-      - name: Add the dataset indexes (dataset-indexes release)
-        # Built VRT indexes too large to commit (the Scotland LiDAR VRTs, 3 to
-        # 4 MB each, docs/scripts/build-scotland-vrt.mjs) live on the
-        # dataset-indexes release of Iconem/terrain-viewer and are served from the
-        # site at /vrt/<name>.vrt: a release asset itself sends no CORS
-        # header, the site does, and titiler can read the site too. The
-        # library entries point at terrain-viewer.iconem.com/vrt/.
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          if gh release view dataset-indexes -R Iconem/terrain-viewer >/dev/null 2>&1; then
-            mkdir -p dist/vrt
-            gh release download dataset-indexes -R Iconem/terrain-viewer --dir dist/vrt --clobber
-            echo "datasets: $(ls dist/vrt | wc -l) files from the dataset-indexes release"
-          else
-            echo "::notice title=datasets::no dataset-indexes release; the hosted VRT entries will 404"
-          fi
       - name: Build docs
         run: |
           pnpm run docs:build
