@@ -24,10 +24,15 @@ type: feedback
   (B..H) and the MCP app (.claude/memory/mcp-apps-plan.md). Canopy height
   (GEDI-derived, Meta CHMv2 quadkey COGs): no CORS anywhere yet, nothing to
   do until a browser-readable endpoint exists.
-- **Git history purge**: asked 2026-11-13, waiting for his go. Plan: filter-repo,
-  jo-chemla first as a trial then Iconem with the same rewritten refs (they
-  must stay identical, one push goes to both), map the 113 short hashes in
-  CHANGELOG.md through filter-repo's commit-map.
+- **MapLibre 6.18 layer blend modes** (maplibre-gl-js #48, closed by #8073
+  and #8986, 2026-11): native per-layer blending (multiply, screen, ...).
+  We are on 6.13; candidate uses: hillshade multiplied over the basemap
+  instead of opacity, viz modes combined in one map, the split blend
+  without the CSS mix-blend-mode across canvases. Not started; raised by
+  Jonathan as exciting, ask before upgrading.
+- **Git history purge**: done on both remotes 2026-11-13 (see
+  [[history-rewrite-2026-11-13]]). Jonathan will clean up his local branches
+  left on the old history; never push from them.
 - Open since 2026-10-09: **backlinks** have no API; ask Jonathan for a
   manual export of the Search Console Links report when they matter.
 - **Umami website swap**, when Jonathan decides: a NEW Umami website id, because

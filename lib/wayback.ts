@@ -293,36 +293,70 @@ export function subscribeWaybackMeta(listener: () => void): () => void {
   return () => { waybackMetaListeners.delete(listener) }
 }
 
-async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<WaybackMetadata | null> {
+// Esri's metadata service answers one query in 5 s on a good day and 35 to
+// 50 s on a bad one (2026-11-13, HTTP/1.1, so a browser runs six at a time).
+// A place with dozens of local releases queued every lookup at once, and the
+// one date the visitor is looking at (the pill, the attribution) waited
+// behind all of them: a minute or more. Lookups now go through a queue of
+// four at a time, and those marked `priority` go first; asking with priority
+// for a lookup still waiting in the queue moves it to the front.
+type MetaJob = { key: string; run: () => Promise<void> }
+const META_CONCURRENCY = 4
+const metaHighQueue: MetaJob[] = []
+const metaLowQueue: MetaJob[] = []
+let metaRunning = 0
+function pumpMetaQueue() {
+  while (metaRunning < META_CONCURRENCY) {
+    const job = metaHighQueue.shift() ?? metaLowQueue.shift()
+    if (!job) return
+    metaRunning++
+    job.run().finally(() => { metaRunning--; pumpMetaQueue() })
+  }
+}
+function promoteMetaJob(key: string) {
+  const i = metaLowQueue.findIndex((j) => j.key === key)
+  if (i >= 0) metaHighQueue.push(...metaLowQueue.splice(i, 1))
+}
+
+async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number, priority = false): Promise<WaybackMetadata | null> {
   const key = `${releaseNumber}:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${Math.round(zoom)}`
   if (fullMetaCache.has(key)) return fullMetaCache.get(key)!
   const pending = fullMetaInflight.get(key)
-  if (pending) return pending
-  const p = (async () => {
-    try {
-      // The metadata layers have holes: at a place in the Ardennes, the 2018
-      // releases have no record at z12 or z13 and a dated one at z14, and at
-      // most places z10 and z11 have records with no date. A finer level is the
-      // nearest thing Esri says, so ask up to three. The layers stop at z10.
-      let meta: WaybackMetadata | null = null
-      for (const level of new Set([0, 1, 2, 3].map((up) => Math.min(23, Math.max(10, Math.round(zoom) + up))))) {
-        const answer = await getMetadata({ latitude, longitude }, level, releaseNumber)
-        meta = answer?.date ? answer : meta ?? answer
-        if (answer?.date) break
-      }
-      fullMetaCache.set(key, meta)
-      if (meta?.date) for (const l of waybackMetaListeners) l()
-      return meta
-    } catch {
-      // Not cached: a transient failure (rate limit, network blip) used to
-      // pin this release to "no real date" for the whole session, so every
-      // later listing fell back to its release date for good. The next
-      // caller retries instead.
-      return null
-    } finally {
-      fullMetaInflight.delete(key)
+  if (pending) { if (priority) promoteMetaJob(key); return pending }
+  const p = new Promise<WaybackMetadata | null>((resolve) => {
+    const run = async () => {
+      resolve(await (async () => {
+        try {
+          // The metadata layers have holes: at a place in the Ardennes, the 2018
+          // releases have no record at z12 or z13 and a dated one at z14, and at
+          // most places z10 and z11 have records with no date. A finer level is the
+          // nearest thing Esri says, so ask up to three. The layers stop at z10.
+          let meta: WaybackMetadata | null = null
+          for (const level of new Set([0, 1, 2, 3].map((up) => Math.min(23, Math.max(10, Math.round(zoom) + up))))) {
+            // getMetadata cannot be aborted; a query that hangs gives up its
+            // queue slot after a minute, uncached, so the next caller retries.
+            const answer = await Promise.race([
+              getMetadata({ latitude, longitude }, level, releaseNumber),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("wayback metadata timeout")), 60_000)),
+            ])
+            meta = answer?.date ? answer : meta ?? answer
+            if (answer?.date) break
+          }
+          fullMetaCache.set(key, meta)
+          if (meta?.date) for (const l of waybackMetaListeners) l()
+          return meta
+        } catch {
+          // Not cached: a transient failure (rate limit, network blip) used to
+          // pin this release to "no real date" for the whole session, so every
+          // later listing fell back to its release date for good. The next
+          // caller retries instead.
+          return null
+        }
+      })())
     }
-  })()
+    ;(priority ? metaHighQueue : metaLowQueue).push({ key, run })
+    pumpMetaQueue()
+  }).finally(() => { fullMetaInflight.delete(key) })
   fullMetaInflight.set(key, p)
   return p
 }
@@ -332,10 +366,10 @@ async function fetchWaybackFullMeta(latitude: number, longitude: number, zoom: n
  *  fetchWaybackCaptureLabel below) so a non-React batch consumer — export-
  *  multi's listWaybackTicksInRange — can get the dateMs half too, without
  *  needing a second network call. */
-export async function fetchWaybackCaptureMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<{ dateMs: number; label: string } | null> {
+export async function fetchWaybackCaptureMeta(latitude: number, longitude: number, zoom: number, releaseNumber: number, priority = false): Promise<{ dateMs: number; label: string } | null> {
   const place = locationKey(latitude, longitude, zoom)
   const stored = store.dates[place]?.[releaseNumber]
-  const dateMs = stored ?? (await fetchWaybackFullMeta(latitude, longitude, zoom, releaseNumber))?.date
+  const dateMs = stored ?? (await fetchWaybackFullMeta(latitude, longitude, zoom, releaseNumber, priority))?.date
   if (!dateMs) return null
   if (stored == null) {
     const dates = store.dates[place] ?? {}
@@ -350,8 +384,8 @@ export async function fetchWaybackCaptureMeta(latitude: number, longitude: numbe
 /** Plain (non-hook) fetch + cache, used by useWaybackCaptureDate below and by
  *  a tick tooltip's lazy on-hover fetch — just the label half of
  *  fetchWaybackCaptureMeta. */
-export async function fetchWaybackCaptureLabel(latitude: number, longitude: number, zoom: number, releaseNumber: number): Promise<string | null> {
-  const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, releaseNumber)
+export async function fetchWaybackCaptureLabel(latitude: number, longitude: number, zoom: number, releaseNumber: number, priority = true): Promise<string | null> {
+  const meta = await fetchWaybackCaptureMeta(latitude, longitude, zoom, releaseNumber, priority)
   return meta?.label ?? null
 }
 
@@ -603,7 +637,7 @@ export function useEsriLiveCaptureDate(latitudeRaw: number, longitudeRaw: number
     const newest = items[0]
     if (!newest) { setResult({ dateMs: null, label: null }); return }
     let cancelled = false
-    fetchWaybackCaptureMeta(latitude, longitude, zoom, newest.releaseNum).then((meta) => {
+    fetchWaybackCaptureMeta(latitude, longitude, zoom, newest.releaseNum, true).then((meta) => {
       if (cancelled) return
       setResult(meta ? { dateMs: meta.dateMs, label: meta.label } : { dateMs: null, label: null })
     })
@@ -639,7 +673,7 @@ export function useWaybackDynamicAttribution(latitudeRaw: number, longitudeRaw: 
   useEffect(() => {
     if (!item) { setAttribution(WAYBACK_ATTRIBUTION_FALLBACK); return }
     let cancelled = false
-    fetchWaybackFullMeta(latitude, longitude, zoom, item.releaseNum).then((meta) => {
+    fetchWaybackFullMeta(latitude, longitude, zoom, item.releaseNum, true).then((meta) => {
       if (cancelled || !meta) return
       const srcDesc = `${meta.provider} (${meta.source})`
       const captureLabel = meta.date ? new Date(meta.date).toISOString().slice(0, 10) : "an unknown date"

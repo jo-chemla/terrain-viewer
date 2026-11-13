@@ -175,6 +175,35 @@ interface TerrainControlPanelProps {
   mapRef: React.RefObject<MapRef | null>
 }
 
+/** A list kept in the URL (nuqs state) and mirrored in a jotai atom, both
+ *  ways: the URL seeds the atom and a change made through the atom writes
+ *  back. `synced` is the last list both sides agreed on, so each side only
+ *  pushes a change of its own. The earlier version compared the two sides
+ *  directly in two effects: on the first commit the atom effect saw the
+ *  atom's stale empty value and wrote it over the URL's list, and the two
+ *  effects then swapped the lists forever (React #185, a blank page on
+ *  ?coverageOverlays=... in a fresh browser, 2026-11-13). */
+function useTwoWayListSync(stateList: string[] | undefined, atomList: string[], setAtom: (list: string[]) => void, setStateList: (list: string[]) => void) {
+  const stateKey = (stateList ?? []).join("\n")
+  const atomKey = atomList.join("\n")
+  const synced = useRef<string | null>(null)
+  const prevAtomKey = useRef(atomKey)
+  useEffect(() => {
+    if (stateKey === synced.current) return
+    synced.current = stateKey
+    if (stateKey !== atomKey) setAtom(stateList ?? [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateKey])
+  useEffect(() => {
+    if (atomKey === prevAtomKey.current) return
+    prevAtomKey.current = atomKey
+    if (atomKey === synced.current) return
+    synced.current = atomKey
+    setStateList(atomList)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atomKey])
+}
+
 export function TerrainControlPanel({
   state,
   setState,
@@ -237,36 +266,12 @@ export function TerrainControlPanel({
   // the atom, and a layer imported with "Keep in the link" or deleted in the
   // Drawing panel writes back. Compared as strings so equal lists never loop.
   const [drawingUrls, setDrawingUrls] = useAtom(drawingUrlsAtom)
-  const stateDrawingUrlKey = (state.drawingUrl as string[] | undefined ?? []).join("\n")
-  const atomDrawingUrlKey = drawingUrls.join("\n")
-  const drawingUrlSeededRef = useRef(false)
-  useEffect(() => {
-    if (!drawingUrlSeededRef.current) { drawingUrlSeededRef.current = true; setDrawingUrls(state.drawingUrl ?? []); return }
-    if (stateDrawingUrlKey !== atomDrawingUrlKey) setDrawingUrls(state.drawingUrl ?? [])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateDrawingUrlKey])
-  useEffect(() => {
-    if (!drawingUrlSeededRef.current) return
-    if (stateDrawingUrlKey !== atomDrawingUrlKey) setState({ drawingUrl: drawingUrls })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atomDrawingUrlKey])
+  useTwoWayListSync(state.drawingUrl as string[] | undefined, drawingUrls, setDrawingUrls, (list) => setState({ drawingUrl: list }))
   // coverageOverlays (state list) <-> coverageOverlaysAtom, both ways: the
   // URL seeds the picker and the picker writes back, so a selection made in
   // Source Info is shareable. Same shape as drawingUrl above.
   const [coverageOverlays, setCoverageOverlays] = useAtom(coverageOverlaysAtom)
-  const stateCoverageKey = (state.coverageOverlays as string[] | undefined ?? []).join("\n")
-  const atomCoverageKey = coverageOverlays.join("\n")
-  const coverageSeededRef = useRef(false)
-  useEffect(() => {
-    if (!coverageSeededRef.current) { coverageSeededRef.current = true; setCoverageOverlays(state.coverageOverlays ?? []); return }
-    if (stateCoverageKey !== atomCoverageKey) setCoverageOverlays(state.coverageOverlays ?? [])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateCoverageKey])
-  useEffect(() => {
-    if (!coverageSeededRef.current) return
-    if (stateCoverageKey !== atomCoverageKey) setState({ coverageOverlays })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atomCoverageKey])
+  useTwoWayListSync(state.coverageOverlays as string[] | undefined, coverageOverlays, setCoverageOverlays, (list) => setState({ coverageOverlays: list }))
   const isMobile = useIsMobile()
   // Space re-toggles the last-clicked viz-mode checkbox even after a map drag
   // steals focus onto the maplibre canvas (wheel-zoom never did) — see the hook.
