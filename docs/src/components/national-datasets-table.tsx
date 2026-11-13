@@ -102,7 +102,7 @@ const FACTS: Record<string, { res: string; coverage: string }> = {
   "custom-global-aw3d30-minus-mapterhorn": { res: "30 m", coverage: "Global — AW3D30 minus Mapterhorn" },
   "custom-global-gem15-dtm": { res: "15 m", coverage: "Near-global 60 S–84 N, Google GEM-15 bare-earth DTM from 2022–2024 stereo satellite imagery, one COG per 1° cell read in-browser" },
   "custom-global-gem15-dsm": { res: "15 m", coverage: "Near-global 60 S–84 N, Google GEM-15 surface model, same cells" },
-  "custom-global-gem15-dsm-minus-dtm": { res: "15 m", coverage: "Near-global — GEM-15 DSM minus DTM, canopy and building height" },
+  "custom-global-gem15-dsm-minus-dtm": { res: "15 m", coverage: "Near-global — Google GEM-15 nDSM: DSM minus DTM, canopy and building height" },
   "custom-us-ny-dem1": { res: "1 m", coverage: "New York State, newest LiDAR on top (metres, verified)" },
   "custom-lt-hnit-dtm1": { res: "1 m", coverage: "Nationwide LiDAR terrain (HNIT-Baltic ArcGIS item)" },
   "custom-lt-klaipeda-dtm05": { res: "0.5 m", coverage: "Klaipėda city only (LERC tiles)" },

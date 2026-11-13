@@ -1,5 +1,7 @@
 import { elevationToTerrainrgb } from "./elevation-encoding"
 import { toTileImage, type TileImage } from "./tile-image"
+import { sharedTileCache, fetchDecodedTile } from "./normal-derived-protocol"
+import { TITILER_CACHE_KEY } from "./titiler-health"
 
 /**
  * `vrt://` — read a GDAL **VRT mosaic** in the browser, with no titiler in the
@@ -59,6 +61,14 @@ import { toTileImage, type TileImage } from "./tile-image"
  * (`/storage/v1/b/<bucket>/o/<object>?alt=media`) serves the same bytes with
  * CORS and Range, so every GEM-15 read goes through that. A cell that does not
  * exist (ocean, the excluded countries) is a 404 on its item and a hole.
+ *
+ * The DTM files are single-band and read in the browser (about 1 s a window).
+ * The DSM files carry five bands, pixel-interleaved, so every block read for
+ * band 1 decodes all five: 3 s a window on a fast machine, minutes for a cold
+ * viewport once the tiles contend for the main thread. So the DSM's map tiles
+ * come from titiler instead, one `/cog/tiles` request per cell with `bidx=1`
+ * and GDAL's own warp, composited where the mask says data; only the export
+ * path still reads the DSM cells in the browser.
  *
  * URL shape: `vrt://<encodeURIComponent(vrt url)>/{z}/{x}/{y}`.
  * Output: Terrain-RGB, matching what titiler's `algorithm=terrainrgb` returns
@@ -142,6 +152,8 @@ interface VrtSource {
 }
 
 interface VrtDoc {
+  /** The plain https URL titiler can open, for the GEM-15 DSM route. */
+  titilerUrl?: string
   width: number; height: number
   /** GDAL GeoTransform: [originX, pxW, rowRot, originY, colRot, pxH]. */
   gt: number[]
@@ -275,6 +287,7 @@ function loadGem15Cell(band: string, lon: number, lat: number, signal?: AbortSig
       // lookup: its proj4 string follows from the code.
       const zone = epsg % 100
       return {
+        titilerUrl: String(a.href),
         width: cols, height: rows,
         gt: [t[2], t[0], t[1], t[5], t[3], t[4]],
         srs: `+proj=utm +zone=${zone}${epsg >= 32700 ? " +south" : ""} +datum=WGS84 +units=m +no_defs`,
@@ -301,6 +314,41 @@ async function loadGem15Docs(band: string, minX: number, maxY: number, spanX: nu
   }
   const docs = await Promise.all(cells.map(([lon, lat]) => loadGem15Cell(band, lon, lat, signal)))
   return docs.filter((d): d is VrtDoc => !!d)
+}
+
+/** The titiler endpoint the Settings keep (jotai atomWithStorage, a JSON
+ *  string), read directly: this module has no atom access. */
+function titilerEndpoint(): string {
+  try {
+    const raw = localStorage.getItem("titilerEndpoint")
+    const v = raw ? JSON.parse(raw) : null
+    if (typeof v === "string" && /^https?:\/\//.test(v)) return v.replace(/\/$/, "")
+  } catch { /* no storage, or not JSON */ }
+  return "https://titiler.xyz"
+}
+
+/** A GEM-15 map tile through titiler, one request per cell (see the header
+ *  for why the DSM takes this road): Terrain-RGB with titiler's nodata mask
+ *  kept, decoded by the same helper the difference protocol uses, composited
+ *  where a cell has data. */
+async function readGem15TitilerTile(band: string, z: number, x: number, y: number, signal: AbortSignal): Promise<Float32Array | null> {
+  const span = (2 * ORIGIN) / 2 ** z
+  const docs = await loadGem15Docs(band, -ORIGIN + x * span, ORIGIN - y * span, span, span, signal, `tile z${z}/${x}/${y}`)
+  const base = titilerEndpoint()
+  const tiles = await Promise.all(docs.map((d) => d.titilerUrl
+    ? fetchDecodedTile(sharedTileCache, `${base}/cog/tiles/WebMercatorQuad/${z}/${x}/${y}.png?${TITILER_CACHE_KEY}&bidx=1&nodata=nan&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(d.titilerUrl)}`, "mapbox", signal)
+    : null))
+  let grid: Float32Array | null = null
+  for (const t of tiles) {
+    if (!t || t.width !== TILE_SIZE || t.height !== TILE_SIZE) continue
+    if (!grid) grid = new Float32Array(TILE_SIZE * TILE_SIZE).fill(NaN)
+    for (let i = 0; i < grid.length; i++) {
+      if (Number.isFinite(grid[i])) continue
+      if (t.valid && t.valid[i] === 0) continue
+      grid[i] = t.data[i]
+    }
+  }
+  return grid
 }
 
 type Transform = (x: number, y: number) => [number, number]
@@ -514,11 +562,11 @@ async function readVrtGrid(
     ? await loadGem15Docs(gem[1], minX, maxY, spanX, spanY, signal, label)
     : [await loadVrt(vrtUrl, signal)]
   // One VRT is the usual case. Several (the GEM-15 cells, each in its own UTM
-  // zone) are read one by one and composited where the earlier ones have no
+  // zone) are read at once and composited where the earlier ones have no
   // data; the cells do not overlap, so the order does not matter.
+  const grids = await Promise.all(docs.map((doc) => readDocGrid(doc, minX, maxY, spanX, spanY, W, H, signal, label, maxSources, maxReadPixels)))
   let grid: Float32Array | null = null
-  for (const doc of docs) {
-    const g = await readDocGrid(doc, minX, maxY, spanX, spanY, W, H, signal, label, maxSources, maxReadPixels)
+  for (const g of grids) {
     if (!g) continue
     if (!grid) { grid = g; continue }
     for (let i = 0; i < g.length; i++) if (!Number.isFinite(grid[i]) && Number.isFinite(g[i])) grid[i] = g[i]
@@ -697,8 +745,11 @@ export async function vrtProtocol(
   const signal = abortController.signal
 
   const span = (2 * ORIGIN) / 2 ** z
-  const grid = await readVrtGrid(vrtUrl, -ORIGIN + x * span, ORIGIN - y * span, span, span, TILE_SIZE, TILE_SIZE,
-    signal, `tile z${z}/${x}/${y}`, MAX_SOURCES_PER_TILE, MAX_READ_PIXELS)
+  const gem = GEM15_RE.exec(vrtUrl)
+  const grid = gem && gem[1] === "dsm"
+    ? await readGem15TitilerTile(gem[1], z, x, y, signal)
+    : await readVrtGrid(vrtUrl, -ORIGIN + x * span, ORIGIN - y * span, span, span, TILE_SIZE, TILE_SIZE,
+      signal, `tile z${z}/${x}/${y}`, MAX_SOURCES_PER_TILE, MAX_READ_PIXELS)
   if (!grid) throw new TileNotFound(params.url)
 
   const out = new Uint8ClampedArray(TILE_SIZE * TILE_SIZE * 4)

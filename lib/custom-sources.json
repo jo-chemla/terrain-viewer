@@ -546,12 +546,12 @@
             "maxzoom": 13,
             "resolutionM": 15,
             "bounds": [-180, -61, 180, 84],
-            "description": "Google Research's GEM-15 surface model: the mean elevation of the native 0.5 m stereo surface within each 15 m cell, canopy and roofs included (the file's other bands, the 5th, 50th and 95th percentiles and the standard deviation, are not read). Same coverage, datum, cell layout and in-browser reader as the GEM-15 DTM; difference the two for a canopy and building height surface. Usable z7-13.",
+            "description": "Google Research's GEM-15 surface model: the mean elevation of the native 0.5 m stereo surface within each 15 m cell, canopy and roofs included (the file's other bands, the 5th, 50th and 95th percentiles and the standard deviation, are not read). Same coverage, datum and cell layout as the GEM-15 DTM, but the file holds five bands pixel-interleaved, so a browser read of band 1 decodes all five (3 s a window): the map tiles come from titiler instead, one request per cell, and only the export reads the cells in the browser. Difference the two for a canopy and building height surface. Usable z7-13.",
             "infoUrl": "https://developers.google.com/earth-engine/datasets/catalog/projects_climate-and-sustainability_assets_gem-15_v1"
         },
         {
             "id": "custom-global-gem15-dsm-minus-dtm",
-            "name": "Global - Difference: GEM-15 DSM - DTM (canopy and building height) - derived",
+            "name": "Global - Google GEM-15 nDSM 15m: DSM minus DTM (canopy and building height) - derived",
             "url": "diff://custom-global-gem15-dsm-custom-global-gem15-dtm",
             "type": "dem-diff",
             "diffMinuendId": "custom-global-gem15-dsm",
