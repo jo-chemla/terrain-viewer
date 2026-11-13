@@ -1,0 +1,66 @@
+---
+title: "MapLibre layer blend modes: what they could do for Terrain Viewer"
+sidebarTitle: Layer blend modes
+icon: Blend
+description: "MapLibre GL JS 6.18 blends a raster, fill or line layer with the map under it (multiply, screen, overlay, color, luminosity, plus-lighter). One section per place the viewer could use it, and what it cannot replace: the overlay split's wipe and its difference mode."
+---
+
+MapLibre GL JS 6.18 (November 2026) closed [issue 48](https://github.com/maplibre/maplibre-gl-js/issues/48), open since the fork: a layer can now be blended with what is already drawn beneath it, not only faded. Two pull requests by CommanderStorm did it, [8073](https://github.com/maplibre/maplibre-gl-js/pull/8073) for fills and lines and [8986](https://github.com/maplibre/maplibre-gl-js/pull/8986) for rasters, on top of style spec changes [1798](https://github.com/maplibre/maplibre-style-spec/pull/1798) and [1964](https://github.com/maplibre/maplibre-style-spec/pull/1964). Try it on [makewithmaplibre.com/blend-modes](https://makewithmaplibre.com/blend-modes/#lights) or the [interactive layer blending example](https://maplibre.org/maplibre-gl-js/docs/examples/interactive-layer-blending/).
+
+This page is a plan. Nothing here is built yet: the viewer is on maplibre-gl 6.13.
+
+## What landed
+
+| | |
+|---|---|
+| Properties | `raster-layer-blend`, `fill-layer-blend`, `line-layer-blend`, plus `fill-layer-opacity` and `line-layer-opacity` |
+| Modes | `normal`, `multiply`, `screen`, `overlay`, `color`, `luminosity`, `plus-lighter` |
+| Layer types | raster, fill, line. Not hillshade, color-relief, symbol, circle or fill-extrusion |
+| Value | a constant: no expression, no zoom interpolation, no transition |
+| How | the layer draws into its own framebuffer, then is composited onto the map with the mode |
+| 3D terrain | supported: the render tests include a terrain case for fills and lines |
+
+The `*-layer-opacity` properties are the quieter half: they fade a layer as a whole, so overlapping features do not darken where they overlap, as they do with `fill-opacity`.
+
+## Hillshade multiplied over the basemap
+
+Today a relief mode sits over the imagery at an opacity, and every opacity is a trade: high, and the imagery goes grey; low, and the relief disappears. `multiply` keeps the imagery's colours on the lit slopes, where the hillshade is near white, and darkens only the shaded ones. Cartographers have combined relief and imagery this way for decades, and [pull request 8986](https://github.com/maplibre/maplibre-gl-js/pull/8986) shows exactly this before and after.
+
+It applies because the viewer's relief modes are not MapLibre `hillshade` layers: hillshade, multidirectional, Phong, slope, sky-view factor and local relief model are computed by the custom protocols and drawn as `raster` layers ([Custom protocols](/dev/custom-protocols)). Each would get `raster-layer-blend: "multiply"`, and the opacity slider would stay as the strength of the effect.
+
+## Colour ramps that keep the relief
+
+The hypsometric tint and every colour-ramp mode (slope, aspect, curvature) cover what is beneath them. With `color`, the ramp gives hue and saturation and the hillshade underneath keeps the luminosity, so a tinted map still reads as relief at full strength. `luminosity` is the reverse: a grey relief mode over a coloured one passes its light and shade through the colours. Today both need an opacity near 35 %, the Color Relief default, and still wash each other out.
+
+## Viz modes combined in one view
+
+Several modes at once are stacked by opacity now, so the third one down is hardly visible. With blend modes each layer has a role: a hillshade or sky-view factor in `multiply`, a local relief model in `overlay` for contrast, a slope ramp in `color`. The archaeologist's usual recipe, sky-view factor times slope with a local relief model on top, becomes one view with no muddy middle. The Data layers gallery could suggest a mode on each card.
+
+## Historical imagery over the current basemap
+
+An overlay basemap (a Timelapse year, a Wayback release, a national archive) sits over the current imagery at an opacity. In `luminosity`, the old picture's light and shade show through today's colours, which lines up roads and field edges between dates; in `screen`, the brighter of the two wins, useful for snow and night scenes. This happens inside one map, so it works in every view of a grid, where the overlay split only compares two.
+
+## Contours, graticules and footprints
+
+The contours and the graticule are line layers: in `multiply` a dark contour darkens the ground under it without a band of flat colour, and a white line in `screen` stays readable on dark imagery. The coverage overlays are fills: overlapping footprints (OpenTopography, Esri and Bing over the same city) add up to a dark blot today, and `fill-layer-opacity` draws them as one surface at one opacity. That one fixes a visible problem with no choice of mode to make.
+
+## Exports and screenshots
+
+The overlay split's blend is CSS `mix-blend-mode` on a second map canvas, so it is in neither canvas: an export has to rebuild it by hand (`lib/controls-utils.tsx` composites the panes with their clip and blend). A native blend is drawn into the map's own canvas, so every export, screenshot and recording gets it for free.
+
+## What it cannot replace: the overlay split
+
+The overlay split compares two whole maps: pane B over pane A, cut by a wipe at the split ratio, blended with any of the 16 CSS modes, `difference` by default. Native blending replicates only part of it:
+
+- **No screen-space mask.** A layer cannot be limited to one side of a line on the screen. MapLibre has no per-layer stencil or clip, so the wipe needs the second canvas. A fill can be cut to a geographic polygon, but a raster cannot be clipped by one, and a wipe follows the screen, not the ground. A commenter on 8073 built mask layers on top of the branch; nothing like it is in the release.
+- **No `difference`.** The seven modes leave out `difference`, `exclusion`, `darken`, `lighten`, the dodges and burns, soft and hard light, `hue` and `saturation`. `difference` is the one change detection needs: what did not change turns black.
+- **One terrain per map.** Two DEMs (LiDAR against Mapterhorn, before against after) are two terrains, so two maps. Native blending only helps when both sides drape the same terrain.
+
+So the split stays as it is. Where both sides share a terrain and the comparison is full screen rather than a wipe, two raster layers in one map with a blend would do, and would export without the hand compositing.
+
+## Before building
+
+1. Bump maplibre-gl from 6.13 to 6.18 or later, and recheck the camera sync and terrain code that depends on internals ([Camera sync](/dev/camera-sync)).
+2. Test with 3D terrain on: an automated review of 8073 reported wrong colours when a blended layer comes after layers that are not draped on the terrain.
+3. Measure the cost: each blended layer is one more framebuffer and composite pass, and a stack of six blended modes on a phone may show it.
+4. The value is a constant, so a mode cannot be animated. A Blend select next to each opacity slider, saved in the URL, is the natural control.

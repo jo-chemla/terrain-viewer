@@ -28,7 +28,7 @@ type: feedback
   and #8986, 2026-11): native per-layer blending (multiply, screen, ...).
   We are on 6.13; candidate uses: hillshade multiplied over the basemap
   instead of opacity, viz modes combined in one map, the split blend
-  without the CSS mix-blend-mode across canvases. Not started; raised by
+  without the CSS mix-blend-mode across canvases. Plan written: docs/content/docs/dev/layer-blend-modes.mdx. Not started; raised by
   Jonathan as exciting, ask before upgrading.
 - **Git history purge**: done on both remotes 2026-11-13 (see
   [[history-rewrite-2026-11-13]]). Jonathan will clean up his local branches

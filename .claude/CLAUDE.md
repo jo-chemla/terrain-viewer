@@ -40,7 +40,7 @@ The preview browser available to agents does NOT fire `requestAnimationFrame` â€
 
 | Layer | Library |
 |---|---|
-| Map | maplibre-gl 5.x, react-map-gl 8 |
+| Map | maplibre-gl 6.x, react-map-gl 8 |
 | State (URL) | nuqs (all shareable/bookmarkable settings) |
 | State (local) | jotai + jotai/utils atomWithStorage |
 | UI | Base UI (@base-ui/react), shadcn/ui on base preset, Tailwind v4 |
