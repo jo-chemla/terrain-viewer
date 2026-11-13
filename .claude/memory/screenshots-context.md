@@ -271,14 +271,14 @@ the link.
 
 **docs-update branch**, chronological:
 
-1. First screenshot pass (`30bccb7`) — initial viz-modes grid, Split Modes +
+1. First screenshot pass (`46928c5`) — initial viz-modes grid, Split Modes +
    Frescoes pages, captions.
-2. App fixes (`9d521fb`) — historical-hostname default view, Open-in Google
+2. App fixes (`90dbc2e`) — historical-hostname default view, Open-in Google
    3D, GDAL tab syntax, CRLF frontmatter-strip regex bug (both
    `docs/src/components/visualization-modes-description.tsx` and
    `lib/shared-docs.ts` had `/^---\n.../`, which silently failed on this
    Windows checkout's CRLF `.mdx` files).
-3. Screenshot re-pass (`8ceb1df`) — re-shot everything at `exaggeration=1`
+3. Screenshot re-pass (`6bc582a`) — re-shot everything at `exaggeration=1`
    (was accidentally 1.5), hypso auto-min/max click, contours top-down, split
    off/overlay redone, historical grid moved to Paris/Île de la Cité to show
    GE Historical's coarse resolution, new blend-modes section (Normal
@@ -286,14 +286,14 @@ the link.
    links added to every self-produced screenshot, new bookmark set
    (Matterhorn/Patagonia/Grand Canyon). SVF/Openness left stale (see gotcha
    above) rather than overwritten with blank captures.
-4. Merge (`d43b90f`) of `origin/t3code/run-docs-server` — user's own shared
+4. Merge (`bfdc768`) of `origin/t3code/run-docs-server` — user's own shared
    `LightboxProvider` (`lightbox.tsx`, new file) giving every docs image
    click-to-zoom with looping left/right arrow-key navigation, replacing two
    near-duplicate per-component lightbox implementations. One conflict in
    `viz-mode-grid.tsx` (resolved keeping both the `href` label-link feature
    and the new `data-lightbox` mechanism).
-5. Hydration fix (`dbe438d`) — see gotcha above.
-6. Gallery redesign + tour reorder + screenshot fixes (`004cfbe`) — Gallery
+5. Hydration fix (`8455fd2`) — see gotcha above.
+6. Gallery redesign + tour reorder + screenshot fixes (`b33d63b`) — Gallery
    rewritten from grid-of-cards to hero+filmstrip (see dedicated section
    above); Coachmark Terrain Tools steps reordered (Hillshade → Hypso →
    Terrain Analysis → Relief Viz → Terrain Sources → Basemap → BYOD); new
@@ -305,7 +305,7 @@ the link.
    key + `showCaptureDatePill=source-date` URL param); Google Earth Web
    "Open in" destinations fixed against real user-captured URLs.
 7. Elevation Picker/SVF/Hillshade/Matcap/Overlay redo, Open-In revamp, calendar
-   year fix (`bbd10aa`) — SVF/Hillshade/Matcap recaptured at correct sidebar
+   year fix (`bbdd449`) — SVF/Hillshade/Matcap recaptured at correct sidebar
    width scrolled to their own options section; Split Overlay redone with a
    real 10px drag-and-release nudge on each pane for gutter alignment;
    Elevation Picker scrolled so Tools sits under the scroll-fade; Open-In
@@ -341,9 +341,9 @@ exact state.
    use) is NOT built from `main`, it's a separate deploy that can lag the
    `docs-update` branch by several commits.** Confirmed directly: `git
    merge-base --is-ancestor <commit> origin/main` showed the commit that added
-   `id="tour-lighting-effects-section"` (`e670cd0`, a docs-update-only commit)
+   `id="tour-lighting-effects-section"` (`8adcc9d`, a docs-update-only commit)
    is **not** an ancestor of `origin/main`, while the commit that added
-   `id="tour-hypso-section"` (`803c224`) **is**. Real-world effect: a
+   `id="tour-hypso-section"` (`660edfe`) **is**. Real-world effect: a
    `scrollIntoView`-by-id script silently no-ops when the id isn't in prod's
    DOM yet (my `page.evaluate` returned `null` for `querySelector`, and I'd
    forgotten to wire up `page.on('console')` so the in-browser `console.warn`

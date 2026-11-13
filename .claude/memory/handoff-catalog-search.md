@@ -6,7 +6,7 @@ metadata:
 ---
 
 Written 2026-09-16 for the next agent. Everything below is on `main` of both
-remotes (jo-chemla and Iconem, see [[git-remotes]]), last commit `f8648a8`.
+remotes (jo-chemla and Iconem, see [[git-remotes]]), last commit `23a7c78`.
 Tree clean, no temp files, `tsc` and `vite build` green for app and docs.
 
 ## What shipped (see CHANGELOG.md, two top entries)
