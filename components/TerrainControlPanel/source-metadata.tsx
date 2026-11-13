@@ -10,7 +10,7 @@ import { MapPin } from "lucide-react"
 import { sourceGsd, gsdText } from "@/lib/gsd"
 import { titilerEndpointAtom, useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
 import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
-import { isGem15Url } from "@/lib/vrt-protocol"
+import { isCellRoutedUrl } from "@/lib/vrt-protocol"
 import { getRegisteredLocalFile, isLocalFileUrl, localFileId } from "@/lib/local-file-store"
 
 const LABELS: Record<string, string> = {
@@ -51,7 +51,7 @@ function useRasterInfo(source: Record<string, any>): RasterInfo | null {
   useEffect(() => {
     setInfo(null)
     if (!(type === "cog" || type === "vrt" || type === "cog-local") || typeof url !== "string") return
-    if (type === "vrt" && isGem15Url(url)) return // thousands of cells, no single raster to describe
+    if (type === "vrt" && isCellRoutedUrl(url)) return // thousands of cells, no single raster to describe
     let cancelled = false
     const done = (r: RasterInfo | null) => { if (!cancelled && r) setInfo(r) }
     const throughTitiler = type === "vrt" || (type === "cog" && (cogViaTitiler || !viaProtocol))

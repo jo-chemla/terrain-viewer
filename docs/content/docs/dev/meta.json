@@ -22,6 +22,7 @@
     "lighting-effects",
     "wms-float32-protocol",
     "vrt-protocol",
+    "cell-routed-sources",
     "lerc-protocol",
     "quantized-mesh-protocol",
     "demdiff-protocol",

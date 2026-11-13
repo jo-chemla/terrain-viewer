@@ -3,7 +3,7 @@
 // independently-drifting implementations: the terrain-only `cogTileUrl` and an inline
 // COG-vs-titiler branch duplicated in RasterBasemapSource.
 import { appendNodataMarkers, type NodataConfig } from "./nodata"
-import { buildVrtUrl, isGem15Url } from "./vrt-protocol"
+import { buildVrtUrl, isCellRoutedUrl } from "./vrt-protocol"
 import { buildEpsg3395Url } from "./epsg3395-protocol"
 import { fillKeyPlaceholders } from "./key-placeholders"
 import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
@@ -92,8 +92,9 @@ export function buildRasterTileSource(params: {
       // intersect/read/composite GDAL's VRT driver does for titiler below.
       // A source can still pin itself to titiler (cogViaTitiler) when its
       // sources have no CORS, or when a tile spans too many files. A gem15://
-      // URL is not a file titiler could open: in-browser whatever the toggle.
-      if (useCogProtocol || isGem15Url(url)) return { tiles: [buildVrtUrl(url)] }
+      // or openbuildings:// URL is not a file titiler could open: in-browser
+      // whatever the toggle.
+      if (useCogProtocol || isCellRoutedUrl(url)) return { tiles: [buildVrtUrl(url)] }
       return {
         tiles: [
           `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${TITILER_CACHE_KEY}&nodata=${encodeURIComponent(String(titilerNodata ?? -999))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=vrt:///vsicurl/${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`,

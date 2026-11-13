@@ -62,6 +62,20 @@ import { TITILER_CACHE_KEY } from "./titiler-health"
  * CORS and Range, so every GEM-15 read goes through that. A cell that does not
  * exist (ocean, the excluded countries) is a 404 on its item and a hole.
  *
+ * ### `openbuildings://<year>`: Google Open Buildings 2.5D, the whole product
+ *
+ * Google ships each year of Open Buildings 2.5D (2016 to 2023, 0.5 m, band 2
+ * is building height, nodata -99) as 1 173 Earth Engine image manifests, one
+ * per S2 cell and UTM zone, each listing a few thousand 25 000 px COG tiles
+ * with an affine transform: a VRT in all but name, 950 KB of JSON. The whole
+ * earth cannot be one VRT (the zones differ), so docs/scripts/
+ * build-open-buildings-index.mjs reads every manifest once and writes
+ * public/open-buildings/index.json, the manifest names with their lon/lat
+ * bounds (60 KB). Per tile this reader picks the one or two manifests of the
+ * year that touch it, fetches each through the media endpoint, turns it into
+ * a VrtDoc in memory (the same arithmetic the old per-manifest VRT files
+ * carried), and reads it like any VRT.
+ *
  * The DTM files are single-band and read in the browser (about 1 s a window).
  * The DSM files carry five bands, pixel-interleaved, so every block read for
  * band 1 decodes all five: 3 s a window on a fast machine, minutes for a cold
@@ -109,6 +123,17 @@ const GEM15_CELLS_PER_TILE = 25
  *  under GEM15_CELLS_PER_TILE. */
 export const GEM15_INFO: VrtInfo = { bounds: [-180, -61, 180, 84], maxzoom: 13, minzoom: 7, sourceCount: 13485 }
 export function isGem15Url(url: string): boolean { return GEM15_RE.test(url) }
+
+/** `openbuildings://2023` (any year 2016 to 2023) where a VRT URL is expected. */
+const OB_RE = /^openbuildings:\/\/(20\d\d)$/
+const OB_BUCKET = "open-buildings-temporal-data"
+/** Manifests one tile may touch: a manifest is an S2 cell cut by a UTM zone,
+ *  hundreds of km across, so two at a zone or cell edge, four at a corner. */
+const OB_MANIFESTS_PER_TILE = 6
+/** The 0.5 m tiles are 12.5 km: below z11 one tile is more files than it is
+ *  worth (the same floor getVrtInfo derived for the old per-manifest VRTs). */
+const OB_MINZOOM = 11, OB_MAXZOOM = 18
+export function isCellRoutedUrl(url: string): boolean { return GEM15_RE.test(url) || OB_RE.test(url) }
 
 /** A public Cloud Storage object through the JSON API media endpoint, which
  *  sends CORS headers (origin echoed, Range allowed) where the plain
@@ -253,6 +278,84 @@ function loadVrt(vrtUrl: string, signal?: AbortSignal): Promise<VrtDoc> {
   return p
 }
 
+const utmProj4 = (epsg: number) => `+proj=utm +zone=${epsg % 100}${epsg >= 32700 ? " +south" : ""} +datum=WGS84 +units=m +no_defs`
+
+// ---- Open Buildings 2.5D: the manifest index, and a VrtDoc per manifest ----
+
+/** [name, west, south, east, north, tiles] per manifest, see the build script. */
+type ObRow = [string, number, number, number, number, number]
+let obIndex: Promise<ObRow[]> | null = null
+function loadObIndex(signal?: AbortSignal): Promise<ObRow[]> {
+  if (obIndex) return obIndex
+  const url = `${import.meta.env.BASE_URL}open-buildings/index.json`
+  obIndex = fetch(url, { signal })
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${url}`); return r.json() })
+    .then((j) => j.rows as ObRow[])
+    .catch((e) => { obIndex = null; throw e })
+  return obIndex
+}
+
+const obDocCache = new Map<string, Promise<VrtDoc>>()
+function loadObManifest(name: string, signal?: AbortSignal): Promise<VrtDoc> {
+  const hit = obDocCache.get(name)
+  if (hit) return hit
+  const epsg = Number(/_EPSG_(\d+)_/.exec(name)?.[1])
+  const url = gcsMediaUrl(OB_BUCKET, `v1/manifests/${name}.json`)
+  const p = fetch(url, { signal })
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${url}`); return r.json() })
+    .then((manifest) => {
+      const list = manifest?.tilesets?.[0]?.sources ?? []
+      if (!list.length || !Number.isFinite(epsg)) throw new Error(`Open Buildings manifest ${name} lists no tiles`)
+      // uriPrefix ends mid-token (".../geotiffs/00") and each uri starts with
+      // the rest of it: they concatenate with no separator.
+      const prefix = String(manifest.uriPrefix).replace(`gs://${OB_BUCKET}/`, "")
+      let minX = Infinity, maxY = -Infinity, maxX = -Infinity, minY = Infinity, scale = 0
+      for (const t of list) {
+        const a = t.affineTransform, d = t.dimensions
+        scale = a.scaleX
+        minX = Math.min(minX, a.translateX); maxY = Math.max(maxY, a.translateY)
+        maxX = Math.max(maxX, a.translateX + d.width * a.scaleX); minY = Math.min(minY, a.translateY + d.height * a.scaleY)
+      }
+      const sources: VrtSource[] = list.map((t: any) => {
+        const a = t.affineTransform, d = t.dimensions
+        return {
+          filename: gcsMediaUrl(OB_BUCKET, `${prefix}${t.uris[0]}`),
+          band: 2, // building_height; band 1 is fractional count, band 3 presence
+          srcX: 0, srcY: 0, srcW: d.width, srcH: d.height,
+          dstX: Math.round((a.translateX - minX) / scale), dstY: Math.round((maxY - a.translateY) / scale), dstW: d.width, dstH: d.height,
+          nodata: -99,
+        }
+      })
+      return {
+        width: Math.round((maxX - minX) / scale), height: Math.round((maxY - minY) / scale),
+        gt: [minX, scale, 0, maxY, 0, -scale], srs: utmProj4(epsg), nodata: -99, sources,
+        meanSourceSpan: sources.reduce((acc, t) => acc + Math.max(t.dstW, t.dstH), 0) / sources.length,
+      } as VrtDoc
+    })
+    .catch((e) => { obDocCache.delete(name); throw e })
+  obDocCache.set(name, p)
+  return p
+}
+
+/** The manifests of one year that touch a Web Mercator window, as VrtDocs. */
+async function loadObDocs(year: string, minX: number, maxY: number, spanX: number, spanY: number, signal: AbortSignal, label: string): Promise<VrtDoc[]> {
+  const [west, north] = mercToLngLat(minX, maxY)
+  const [east, south] = mercToLngLat(minX + spanX, maxY - spanY)
+  const rows = (await loadObIndex(signal)).filter((r) => r[0].includes(`_${year}_`) && r[1] < east && r[3] > west && r[2] < north && r[4] > south)
+  if (rows.length > OB_MANIFESTS_PER_TILE) {
+    throw new Error(`vrt://: ${label} spans ${rows.length} Open Buildings manifests (limit ${OB_MANIFESTS_PER_TILE}) - zoom in`)
+  }
+  return Promise.all(rows.map((r) => loadObManifest(r[0], signal)))
+}
+
+async function obInfo(year: string, signal?: AbortSignal): Promise<VrtInfo> {
+  const rows = (await loadObIndex(signal)).filter((r) => r[0].includes(`_${year}_`))
+  let west = 180, south = 90, east = -180, north = -90, tiles = 0
+  for (const r of rows) { west = Math.min(west, r[1]); south = Math.min(south, r[2]); east = Math.max(east, r[3]); north = Math.max(north, r[4]); tiles += r[5] }
+  if (!rows.length) throw new Error(`no Open Buildings manifests for ${year}`)
+  return { bounds: [west, south, east, north], maxzoom: OB_MAXZOOM, minzoom: OB_MINZOOM, sourceCount: tiles }
+}
+
 // GEM-15 cell naming: `w<lon>s<lat>` is the cell's west and south edge, `m`
 // for a negative number (wm91sm1 is 91W to 90W, 1S to 0); the group folder is
 // the 10 degree square, `p40_p0` for 40N..50N x 0..10E, `m10_m100` for
@@ -285,12 +388,11 @@ function loadGem15Cell(band: string, lon: number, lat: number, signal?: AbortSig
       // The STAC transform is [a, b, c, d, e, f] (rasterio order); a GDAL
       // GeoTransform is [c, a, b, f, d, e]. A UTM zone needs no epsg.io
       // lookup: its proj4 string follows from the code.
-      const zone = epsg % 100
       return {
         titilerUrl: String(a.href),
         width: cols, height: rows,
         gt: [t[2], t[0], t[1], t[5], t[3], t[4]],
-        srs: `+proj=utm +zone=${zone}${epsg >= 32700 ? " +south" : ""} +datum=WGS84 +units=m +no_defs`,
+        srs: utmProj4(epsg),
         nodata: null, // NaN in the file, which isHole already treats as a hole
         sources: [{ filename: gcsMediaUrl(GEM15_BUCKET, object), band: 1, srcX: 0, srcY: 0, srcW: cols, srcH: rows, dstX: 0, dstY: 0, dstW: cols, dstH: rows, nodata: null }],
         meanSourceSpan: Math.max(cols, rows),
@@ -408,6 +510,8 @@ const mercToLngLat = (x: number, y: number): [number, number] => [
  */
 export async function getVrtInfo(vrtUrl: string, signal?: AbortSignal): Promise<VrtInfo> {
   if (isGem15Url(vrtUrl)) return GEM15_INFO
+  const ob = OB_RE.exec(vrtUrl)
+  if (ob) return obInfo(ob[1], signal)
   const vrt = await loadVrt(vrtUrl, signal)
   const { toMerc } = await makeTransforms(vrt.srs)
   const [ox, pxW, , oy, , pxH] = vrt.gt
@@ -449,6 +553,9 @@ export async function getVrtInfo(vrtUrl: string, signal?: AbortSignal): Promise<
   // by one sample step, so a raster that spans the full mercator width is
   // taken at its word.
   if (metresPerPixel * vrt.width >= 2 * ORIGIN * 0.999) { west = -180; east = 180 }
+  // A projection that failed on every sample would leave +-Infinity here and
+  // a fence the size of a point; the whole world is the safer wrong answer.
+  if (![west, south, east, north].every(Number.isFinite) || east <= west || north <= south) { west = -180; south = -85; east = 180; north = 85 }
 
   // minzoom: below the zoom where a tile spans a handful of source footprints,
   // one tile is more Range-reads than it is worth. The target here is well
@@ -557,10 +664,12 @@ async function readVrtGrid(
   vrtUrl: string, minX: number, maxY: number, spanX: number, spanY: number, W: number, H: number,
   signal: AbortSignal, label: string, maxSources: number, maxReadPixels: number,
 ): Promise<Float32Array | null> {
-  const gem = GEM15_RE.exec(vrtUrl)
+  const gem = GEM15_RE.exec(vrtUrl), ob = OB_RE.exec(vrtUrl)
   const docs = gem
     ? await loadGem15Docs(gem[1], minX, maxY, spanX, spanY, signal, label)
-    : [await loadVrt(vrtUrl, signal)]
+    : ob
+      ? await loadObDocs(ob[1], minX, maxY, spanX, spanY, signal, label)
+      : [await loadVrt(vrtUrl, signal)]
   // One VRT is the usual case. Several (the GEM-15 cells, each in its own UTM
   // zone) are read at once and composited where the earlier ones have no
   // data; the cells do not overlap, so the order does not matter.

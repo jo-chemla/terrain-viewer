@@ -1,0 +1,38 @@
+---
+title: GEM-15 and Open Buildings, cell-routed sources
+sidebarTitle: Cell-routed sources
+description: gem15:// and openbuildings:// — two Google datasets served as thousands of per-cell COGs on Cloud Storage, read in the browser through the VRT reader with one VRT built per cell on the fly, and the JSON API media endpoint that makes the bucket readable at all
+---
+
+Two datasets in the terrain library are not one file, nor one VRT, but thousands of Cloud-Optimized GeoTIFFs on a public Google Cloud Storage bucket, each in its own UTM zone: Google's GEM-15 elevation models and Google's Open Buildings 2.5D building heights. A VRT has one coordinate system, so no single VRT can index either. Instead the library entries carry a URL of the shape `gem15://dtm` or `openbuildings://2023`, and the [VRT reader](/dev/vrt-protocol) resolves it per tile: it works out which cells the tile touches, builds a one-cell VRT in memory for each from metadata it fetches once, reads each through the usual reproject-read-composite pipeline, and composites the results. Nothing is re-hosted; the only thing in the repository is a 60 KB index for Open Buildings.
+
+## The bucket has no CORS, the JSON API has
+
+A public bucket's plain object URL, `https://storage.googleapis.com/<bucket>/<object>`, answers Range requests but sends no `Access-Control-Allow-Origin` header, so a browser cannot read it and both datasets were out of reach, or pinned to titiler. The same object through the Cloud Storage **JSON API media endpoint** comes with CORS headers (the origin echoed back, `Range` allowed in the preflight, `Content-Range` exposed) and the same Range support:
+
+```
+https://storage.googleapis.com/storage/v1/b/<bucket>/o/<url-encoded object path>?alt=media
+```
+
+The object path is URL-encoded as one segment, slashes included. Every read of both datasets goes through that endpoint, items and manifests as well as COG bytes; titiler's GDAL opens the same URLs. Found through [Bert Temme's GEM-15 viewer](https://bertt.github.io/gem15/). It also makes any other public Google bucket a candidate for the plain **COG** source type, see [Bring your own data](/features/byod#cogs-on-a-google-cloud-storage-bucket-without-cors).
+
+## GEM-15: `gem15://dtm` and `gem15://dsm`
+
+[GEM-15](https://developers.google.com/earth-engine/datasets/catalog/projects_climate-and-sustainability_assets_gem-15_v1) (Google Research, October 2026, CC-BY 4.0, experimental) is a near-global 15 m surface model and bare-earth model from sub-metre optical stereo imagery acquired through 2024, 60°S to 84°N without Russia, China, Mongolia, Greenland and Antarctica, orthometric heights on EGM96. It is published as one COG per 1°×1° cell in the cell's UTM zone, about 13 500 cells per band, with a STAC item per cell.
+
+The cell address follows from the coordinates, so no index is needed: the cell whose west edge is 0° and south edge 40° is `w0s40`, in the group folder `p40_p0` (the 10° square, `m` prefixing a negative number: `wm91sm1` in `m10_m100`), its item at `gem-15/stac/gem-15/p40_p0/w0s40/w0s40.json` and its COGs at `gem-15/p40_p0/w0s40/<dtm|dsm>/zall/mosaic.tif`. For each tile the reader lists the cells the tile touches (at most 25, which the minzoom of 7 guarantees), fetches each cell's item, builds a one-source VRT from its `proj:shape`, `proj:transform` and `proj:epsg` (the UTM proj4 string follows from the code, no epsg.io lookup) and reads it. A cell with no item is a 404 and a hole, like the sea or the excluded countries; the lookups are kept for the session. Three library entries: the DTM, the DSM, and their difference as a 15 m height-above-ground surface.
+
+**Timings**, measured in Node against the media endpoint: the STAC item 150 ms, the COG's first header 220 to 300 ms, the overview count 20 ms, then a windowed read of 0.8 to 1 s for the DTM at any zoom. The DSM file is five bands pixel-interleaved (dsm, three percentiles, standard deviation; there is no single-band DSM on the bucket), so a read of band 1 decodes all five: 1.7 to 3 s a window on a fast machine, and minutes for a cold viewport once a dozen tiles contend for the main thread. So the DSM's map tiles come from titiler instead, one `/cog/tiles` request per cell with `bidx=1`, `nodata=nan` and GDAL's own warp, decoded by the same helper the difference protocol uses and composited where the mask says data; the export path still reads the DSM cells in the browser. A cold viewport of either band is about 9 s; later tiles are faster because the cell items, the converters, the COG headers and the one-hour edge cache are all warm. The DSM masks water as NaN where the DTM fills it, so an elevation query on a river bank can read a few metres (holes are 0 m) against the real height one pixel inland.
+
+## Open Buildings 2.5D: `openbuildings://2016` to `openbuildings://2023`
+
+[Open Buildings 2.5D Temporal](https://sites.research.google/gr/open-buildings/temporal/) is the only periodic open building-height product: one raster per year from 2016 to 2023 at 0.5 m (building height, fractional count and presence as three Float32 bands, nodata -99), inferred from Sentinel-2 and Landsat over the Global South. Google ships it as Earth Engine image manifests rather than anything a map can open: 1 173 of them, one per S2 cell and UTM zone and year (46 cells, about 950 KB each, 1.8 GB in all), each listing a few thousand 25 000 px COG tiles with an affine transform and dimensions, which is exactly a VRT's `DstRect` spelled differently.
+
+`docs/scripts/build-open-buildings-index.mjs` reads every manifest once (about ten minutes) and writes `public/open-buildings/index.json`: each manifest's name with its lon/lat bounds, the union of its tiles' footprints reprojected from the zone, 60 KB, committed. Per tile the reader filters that index to the year's manifests touching the tile (one, two at a zone or cell edge, four at a corner, six is the cap), fetches each manifest through the media endpoint, turns it into a VRT in memory (`uriPrefix` ends mid-token and each tile uri starts with the rest of it, so they concatenate with no separator; band 2; nodata -99) and reads it like any VRT. A manifest, once fetched, stays for the session. The zoom range is 11 to 18: a 0.5 m tile is 12.5 km, so below z11 one map tile is more files than it is worth. The library has one entry per year and the 2023 minus 2016 difference, seven years of building growth as elevation change. Before 2026-11-13 the library carried one hand-built VRT per manifest (a Brazilian coast sample pinned to titiler, 2.8 MB in the repository); the index replaces them.
+
+## Where this stops
+
+- A tile is refused, not served, when it would touch more than 25 GEM-15 cells or 6 Open Buildings manifests; the entries' minzoom keeps MapLibre above that.
+- The Source Info panel shows no raster size for these entries: there is no single raster to describe.
+- The reader samples nearest, so the GEM-15 hillshade blocks up past z13 and the 0.5 m building rasters past z18.
+- Nothing is cached between sessions beyond the browser's HTTP cache (one hour on the bucket).

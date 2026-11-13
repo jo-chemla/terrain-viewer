@@ -26,7 +26,7 @@ import { resolveNodata, isSentinel, appendNodataMarkers } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 import { buildDemDiffUrl } from "@/lib/demdiff-protocol"
-import { buildVrtUrl, isGem15Url } from "@/lib/vrt-protocol"
+import { buildVrtUrl, isCellRoutedUrl } from "@/lib/vrt-protocol"
 import { useVrtInfo } from "@/lib/use-vrt-info"
 import { withQuantizedMeshDetail } from "@/lib/quantized-mesh-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
@@ -201,7 +201,7 @@ export const TerrainSources = memo(({
     const isTilejson = customSource?.type === 'tilejson'
     // A VRT read in-browser (vrt://) has no COG header to detect a zoom range
     // from — its own XML index supplies one instead.
-    const isVrtClient = customSource?.type === 'vrt' && (useCogProtocolForSource || isGem15Url(customSource.url))
+    const isVrtClient = customSource?.type === 'vrt' && (useCogProtocolForSource || isCellRoutedUrl(customSource.url))
     const vrtInfo = useVrtInfo(isVrtClient ? customSource!.url : null)
     // For a local file, this session's blob: URL if the file has been picked (or
     // re-picked after a reload), else null — same "not ready yet" shape as a COG
@@ -944,7 +944,7 @@ export const useClientDemUpstreamOne = (
     // A VRT read in-browser needs the same treatment from its own XML index:
     // it has no COG header, and its minzoom is a real floor (below it one tile
     // spans more source files than vrt-protocol.ts will Range-read).
-    const isVrtClient = customSource?.type === "vrt" && (useCogProtocolForSource || isGem15Url(customSource.url))
+    const isVrtClient = customSource?.type === "vrt" && (useCogProtocolForSource || isCellRoutedUrl(customSource.url))
     const vrtInfo = useVrtInfo(isVrtClient ? customSource!.url : null)
 
     const baseUpstream = useMemo<ClientDemUpstream | null>(() => {
