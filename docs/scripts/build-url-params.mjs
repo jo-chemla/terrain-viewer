@@ -92,6 +92,8 @@ const instructions = [
   { key: "startTour", type: "boolean", note: "Starts the product walkthrough." },
   { key: "bookmarksGallery", type: "boolean", note: "Opens the Bookmarks gallery modal on arrival." },
   { key: "openLibrary", type: "string", note: "terrain | basemap - opens that Library modal (the curated dataset list) on arrival." },
+  { key: "openDialog", type: "string", note: "addTerrain | dataLayers - opens the terrain Add dataset dialog (bring your own data) or the Data layers gallery of every visualization mode on arrival." },
+  { key: "timelineWindow", type: "string", note: "Two years or ISO dates, comma-separated (1984,2026) - the historical timeline opens zoomed to that window." },
   { key: "bookmarksUrl", type: "string", note: "A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks; pair with openSections=bookmarks." },
 ];
 

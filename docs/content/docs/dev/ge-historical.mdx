@@ -4,7 +4,7 @@ sidebarTitle: Google Earth Historical
 description: How the gehist:// protocol reverse-engineers Google Earth's historical imagery, and how it's wired into this app
 ---
 
-<OpenInApp href="/?appMode=historical&viewMode=2d&lat=48.8584&lng=2.2945&zoom=16&basemapSourceA=historical&historicalActiveSourceA=ge-historical">Browse Google Earth historical imagery</OpenInApp>
+<OpenInApp href="/?appMode=historical&viewMode=2d&lat=48.8584&lng=2.2945&zoom=16&basemapSourceA=historical&historicalActiveSourceA=ge-historical&timelineSources=ge-historical">Browse Google Earth historical imagery</OpenInApp>
 
 "Google Earth Historical" is one of the [providers](/features/historical-sources#the-timelines-own-providers) behind [Historical Imagery mode](/features/historical-imagery) — the one that reaches occasional very old outlier captures for well-covered areas, via a reverse-engineered protocol scaffolded from [Iconem's own GE_TimeMachine](https://github.com/Iconem/GE_TimeMachine). This page has two parts: the protocol itself (how Google's undocumented "Time Machine" data format actually works — universal, not app-specific) and how this app wires it in (which is app-specific and diverges from GE_TimeMachine's own standalone-demo instructions).
 

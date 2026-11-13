@@ -55,7 +55,7 @@ pnpm datasets:push public/coverage/esri-3d.geojson # upload a rebuilt file, rewr
 node scripts/dataset-assets.mjs status
 ```
 
-An entry marked `"rolling": true` in the lock is not pinned to its hash: the monthly [coverage rebuild](/dev/coverage-footprints) replaces those files on the release without a commit, a build takes whatever is there, and `pull --refresh` updates a local copy. A file changed locally and not yet pushed is never overwritten by a pull; the script says so and keeps it. A build fails when the release holds a file other than the one the lock names, so push and the lock commit go together.
+An entry marked `"rolling": true` in the lock is not pinned to its hash: the monthly [coverage rebuild](/dev/coverage-footprints) replaces those files on the release without a commit (keeping each month as `<name>.<YYYY-MM>.geojson`, with a running `coverage-history.json`), a build takes whatever is there, and `pull --refresh` updates a local copy. A file changed locally and not yet pushed is never overwritten by a pull; the script says so and keeps it. A build fails when the release holds a file other than the one the lock names, so push and the lock commit go together.
 
 ## Adding a file to a release
 

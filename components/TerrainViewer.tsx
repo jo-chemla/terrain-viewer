@@ -28,7 +28,7 @@ import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
-  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom } from "@/lib/settings-atoms"
+  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom, addTerrainSourceOpenAtom, dataLayersModalOpenAtom, timelineWindowRequestAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
@@ -2301,6 +2301,24 @@ export function TerrainViewer() {
     if (openLibrary === "terrain") setTerrainLibraryOpen(true)
     else if (openLibrary === "basemap") setBasemapLibraryOpen(true)
 
+    // ?openDialog=addTerrain|dataLayers - the terrain Add dataset dialog
+    // (bring your own data) or the Data layers gallery of every visualization
+    // mode, opened on arrival. For docs buttons; one dialog, same reason as
+    // openLibrary. One-shot like the params above, not a nuqs field.
+    const openDialog = searchParams.get("openDialog")
+    if (!openLibrary && openDialog === "addTerrain") setAddTerrainSourceOpen(true)
+    else if (!openLibrary && openDialog === "dataLayers") setDataLayersModalOpen(true)
+
+    // ?timelineWindow=1984,2026 (years, or ISO dates) - the historical
+    // timeline opens zoomed to that window, so a link to a Timelapse year
+    // shows the whole series and its pill. Same request Export Multi uses.
+    const timelineWindow = (searchParams.get("timelineWindow") ?? "").split(",").map((s) => s.trim())
+    if (timelineWindow.length === 2) {
+      const toMs = (s: string, end: boolean) => /^\d{4}$/.test(s) ? Date.UTC(Number(s) + (end ? 1 : 0), 0, 1) : Date.parse(s)
+      const min = toMs(timelineWindow[0], false), max = toMs(timelineWindow[1], true)
+      if (Number.isFinite(min) && Number.isFinite(max) && max > min) requestTimelineWindow({ min, max, nonce: Date.now() })
+    }
+
     // parseAsCoverageOverlays has already expanded the build-time groups
     // (library, basemapLibrary) by the time this runs; what is left for here
     // is the three groups whose membership only exists at runtime - eli,
@@ -2469,6 +2487,9 @@ export function TerrainViewer() {
   const setBookmarks = useSetAtom(bookmarksAtom)
   const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
   const setBasemapLibraryOpen = useSetAtom(basemapLibraryOpenAtom)
+  const setAddTerrainSourceOpen = useSetAtom(addTerrainSourceOpenAtom)
+  const setDataLayersModalOpen = useSetAtom(dataLayersModalOpenAtom)
+  const requestTimelineWindow = useSetAtom(timelineWindowRequestAtom)
 
 
   // A view's source given as a URL rather than an id, on ANY view:

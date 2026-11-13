@@ -610,6 +610,9 @@ export const snapshotIncludeTimelineAtom = atomWithStorage("snapshotIncludeTimel
 // the ?openLibrary= parameter and the product tour can open them from
 // outside the sections that own the buttons.
 export const terrainLibraryOpenAtom = atom(false)
+/** The terrain "Add dataset" dialog (BYOD), lifted out of the Terrain
+ *  section so `?openDialog=addTerrain` can open it on arrival. */
+export const addTerrainSourceOpenAtom = atom(false)
 export const basemapLibraryOpenAtom = atom(false)
 
 export const activeSliderAtom = atom<string | null>(null)

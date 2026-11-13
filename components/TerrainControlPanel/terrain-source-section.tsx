@@ -8,7 +8,7 @@ import { pushToast } from "@/components/ui/toast"
 import { getRegisteredLocalFile, validateLocalCogFile } from "@/lib/local-file-store"
 import { cn } from "@/lib/utils"
 import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
-import { sourcesEditModeAtom } from "@/lib/settings-atoms"
+import { sourcesEditModeAtom, addTerrainSourceOpenAtom } from "@/lib/settings-atoms"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -50,7 +50,7 @@ export const TerrainSourceSection: React.FC<{
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources, setCustomBasemapSources] = useAtom(customBasemapSourcesAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
-  const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false)
+  const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useAtom(addTerrainSourceOpenAtom)
   const setLastTerrainType = useSetAtom(customTerrainLastTypeAtom)
   const [editingSource, setEditingSource] = useState<CustomTerrainSource | null>(null)
   const [isBatchEditModalOpen, setIsBatchEditModalOpen] = useState(false)

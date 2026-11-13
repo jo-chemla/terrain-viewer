@@ -206,6 +206,24 @@
             }
           },
           {
+            "name": "openDialog",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. addTerrain | dataLayers - opens the terrain Add dataset dialog (bring your own data) or the Data layers gallery of every visualization mode on arrival.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timelineWindow",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. Two years or ISO dates, comma-separated (1984,2026) - the historical timeline opens zoomed to that window.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "bookmarksUrl",
             "in": "query",
             "required": false,
