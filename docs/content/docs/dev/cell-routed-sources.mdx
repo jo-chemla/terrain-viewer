@@ -5,6 +5,7 @@ description: gem15:// and openbuildings:// — two Google datasets served as tho
 ---
 
 <OpenInApp href="/?terrainSourceA=custom-global-gem15-dtm&lat=45.56&lng=6.152&zoom=11&viewMode=2d">Open GEM-15 over the Alps</OpenInApp>
+
 Two datasets in the terrain library are not one file, nor one VRT, but thousands of Cloud-Optimized GeoTIFFs on a public Google Cloud Storage bucket, each in its own UTM zone: Google's GEM-15 elevation models and Google's Open Buildings 2.5D building heights. A VRT has one coordinate system, so no single VRT can index either. Instead the library entries carry a URL of the shape `gem15://dtm` or `openbuildings://2023`, and the [VRT reader](/dev/vrt-protocol) resolves it per tile: it works out which cells the tile touches, builds a one-cell VRT in memory for each from metadata it fetches once, reads each through the usual reproject-read-composite pipeline, and composites the results. Nothing is re-hosted; the only thing in the repository is a 60 KB index for Open Buildings.
 
 ## The bucket has no CORS, the JSON API has
