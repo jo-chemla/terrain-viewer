@@ -1,0 +1,80 @@
+---
+title: WMTS sources
+description: "Reading a WMTS GetCapabilities document and turning a layer into a MapLibre tile template: matrix set check, matrix names, dimensions, STAC links, CORS"
+---
+
+A WMTS (OGC Web Map Tile Service 1.0.0) publishes pre-cut tiles on grids it describes itself, in a GetCapabilities document. `lib/wmts-client.ts` reads that document with the browser's `DOMParser` (no dependency) and turns one layer into a plain raster template with `{z}/{x}/{y}`, saved as an ordinary custom basemap of type `wmts`. Nothing runs per tile: once added, MapLibre fetches the tiles directly, like any XYZ source (`lib/source-builder.ts` passes the template through).
+
+## Where it is used
+
+- **Add Basemap → WMTS (list layers)** (`components/TerrainControlPanel/wmts-picker-panel.tsx`): a capabilities URL, its layers with a filter, then for the picked layer a style, format, tile grid and dimension value when there is a choice, the resulting template, and **Add as Basemap / Overlay**.
+- **Auto** (`lib/source-url-detect.ts`): `SERVICE=WMTS` without a GetTile request, or a `WMTSCapabilities.xml`, opens the picker. A RESTful template with `{TileMatrix}/{TileRow}/{TileCol}` or a KVP `REQUEST=GetTile` URL is rewritten to `{z}/{y}/{x}` directly (type `wmts`), on the assumption that the matrices are named by their zoom on the Google grid; the capabilities route checks that instead of assuming it.
+- **STAC search** (`stac-search-panel.tsx`, basemap target): a collection or an item with a WMTS link gets a **WMTS** button. See [STAC links](#stac-links).
+
+## Parsing
+
+The matching is on local names, so namespace prefixes do not matter (`ows:Identifier`, `Identifier`). What is read:
+
+| Part | From |
+|---|---|
+| Service title, provider (attribution), provider site | `ServiceIdentification/Title`, `ServiceProvider/ProviderName`, `ProviderSite/@xlink:href` |
+| KVP GetTile endpoint | `OperationsMetadata/Operation[@name=GetTile]//Get` whose `GetEncoding` is KVP (or unstated) |
+| Layers | `Contents/Layer`: `Identifier`, `Title`, `Abstract`, `WGS84BoundingBox` (saved as the source bounds), `Style` (with `@isDefault`), `Format`, `TileMatrixSetLink` (with `TileMatrixSetLimits`), `ResourceURL[@resourceType=tile]`, `Dimension` (`Default`, `Value`) |
+| Matrix sets | `Contents/TileMatrixSet`: `SupportedCRS`, each `TileMatrix` with `ScaleDenominator`, `TopLeftCorner`, tile and matrix sizes |
+
+## Choosing a matrix set
+
+MapLibre draws one grid: Google's Web Mercator tiles. A set qualifies by its numbers, not its name:
+
+- the CRS is EPSG:3857 in any spelling (`EPSG:3857`, `urn:ogc:def:crs:EPSG::3857`, `urn:ogc:def:crs:EPSG:6.18:3:3857`, 900913, 102100);
+- every matrix has its top-left corner at (−20037508.34, 20037508.34) within 20 m (PNOA writes `2.0037508E7`), in either axis order;
+- `MatrixWidth` is a power of two, the zoom is its log2, and `MatrixWidth × TileWidth × ScaleDenominator × 0.28 mm` is the world's width within 0.5 %;
+- tiles are square and of one size.
+
+Missing levels are fine: IGN France's `PM_6_16` starts at z6 and the source gets `minzoom: 6`. `TileMatrixSetLimits` narrow the levels a layer has. Among a layer's qualifying sets the widest zoom range wins (the **Tile grid** select offers the others).
+
+The matrix identifiers must read as one pattern, `{prefix}{z}{suffix}`: `5`, or `EPSG:3857:5` (prefix `EPSG:3857:`). The template then carries `TILEMATRIX=EPSG:3857:{z}`. Identifiers that follow no pattern are refused with a message.
+
+### Other CRSs
+
+The repo has no general raster reprojection (the georeferencer warps a single image; titiler reprojects COGs, not tile services). One case is handled: a set in **EPSG:3395** on the same square grid goes through `epsg3395://` (`lib/epsg3395-protocol.ts`, the Yandex row resampler). Any other CRS lists the layer greyed out with "This service only offers EPSG:2154 for this layer…". IGN France has 51 such layers (Lambert-93 only); NASA GIBS' `epsg4326` endpoint has no Web Mercator layer at all, and the picker suggests its `epsg3857` twin.
+
+## Building the template
+
+- **RESTful** when the layer has a `ResourceURL` for the chosen format: `{TileMatrixSet}`, `{TileMatrix}`, `{TileRow}` → `{y}`, `{TileCol}` → `{x}`, `{Style}` and each dimension (`{Time}`…) are filled, case-insensitively. Placeholder order is the service's (swisstopo writes `{TileCol}/{TileRow}`). When several templates exist for one format, the one carrying the most dimension placeholders is used (GIBS lists one with `{Time}` and one without), so a chosen value is honoured.
+- **KVP** otherwise: the GetTile endpoint plus `SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER&STYLE&TILEMATRIXSET&TILEMATRIX&TILEROW&TILECOL&FORMAT` and one parameter per dimension. Parameters already on the endpoint (IGN's `…/wmts?SERVICE=WMTS&`) are dropped first.
+- **Format**: the service's first listed image format (PNOA lists its pregenerated JPEG before PNG: 10 KB a tile instead of 166 KB).
+- **Dimensions**: the `Default`, else the last listed value; editable in the picker. A placeholder left unfilled is an error, not a broken URL.
+- Tiles of 512 px keep their grid zoom: MapLibre draws them as 256 px tiles at the same zoom (sharper, smaller text).
+
+## STAC links
+
+`stacWmtsRefs()` finds, on a collection or an item:
+
+- a link with `rel: "wmts"` ([web-map-links extension](https://github.com/stac-extensions/web-map-links)), with `wmts:layer` (a string or a list) and `wmts:dimensions` (`STYLE`, `TIME`… applied over the defaults);
+- a link or asset of type `application/vnd.ogc.wmts+xml`, or whose href is a `WMTSCapabilities.xml`, a `SERVICE=WMTS` URL, or a `gibs.earthdata.nasa.gov/wmts/` endpoint.
+
+A named layer is added in one click (capabilities read, layer resolved, tile template saved). A link with no layer name, or one that fails, opens the WMTS picker on its capabilities. NASA VEDA publishes this for its GIBS-backed collections, e.g. `MODIS_Terra_L3_NDVI_16Day` (link to `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/wmts.cgi`, `wmts:layer` and `wmts:dimensions: {"STYLE": "default"}`).
+
+## CORS
+
+The capabilities are read with `fetch`, so the server must send `Access-Control-Allow-Origin`. When it does not, the browser reports only "Failed to fetch"; the picker says the document cannot be read from the browser and suggests adding the tile template by hand as a TMS/XYZ source. Tiles need CORS too (MapLibre fetches them for a WebGL texture), but tile servers send it more often than the services' capabilities endpoints do. Documents are cached per URL for the session (GIBS' is 6 MB).
+
+## Reference services
+
+`npx tsx scripts/wmts-check.ts` parses each, prints the template, fetches one tile and the CORS header (`npx tsx scripts/wmts-check.ts <capabilities url> [layer]` for another service). Checked on 2026-11-14:
+
+| Service | Layers (Web Mercator) | Grid picked | Encoding | Capabilities / tiles CORS |
+|---|---|---|---|---|
+| NASA GIBS `epsg3857/best` | 1330 (1330) | `GoogleMapsCompatible_Level9`, z0–9 | REST, `{Time}` default (the latest day) | `*` / `*` |
+| IGN France Géoplateforme | 763 (712; 51 in Lambert-93 only) | `PM_0_19`, z0–19 (orthophotos) | KVP | `*` / `*` |
+| IGN Spain PNOA | 1 (1) | `EPSG:3857`, z0–20 | KVP | `*` / `*` |
+| swisstopo | 686 (686) | `3857_20`, z0–20 (SWISSIMAGE) | REST, `{Time}` = `current` | `*` / `*` |
+
+The STAC route is checked on VEDA's `MODIS_Terra_L3_NDVI_16Day` (GIBS, `Time` default 2026-10-16, z0–9).
+
+## Not done
+
+- The source keeps the dimension value it was saved with: a GIBS layer added today shows today's imagery until edited; it is not wired to the timeline's date.
+- Attribution is stored on the source (shown in Source Info), not passed to MapLibre's attribution control, as for the other custom basemaps.
+- The KVP fallback cannot express a matrix-name scheme other than `{prefix}{z}{suffix}`; such services are refused rather than proxied through a protocol.

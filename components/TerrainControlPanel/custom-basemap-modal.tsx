@@ -26,6 +26,7 @@ import { NextGisQmsSearchPanel } from "./nextgis-qms-search-modal"
 const EliSearchPanel = lazy(() => import("./eli-search-panel").then((m) => ({ default: m.EliSearchPanel })))
 const StacSearchPanel = lazy(() => import("./stac-search-panel").then((m) => ({ default: m.StacSearchPanel })))
 import { WmsPickerPanel } from "./wms-picker-panel"
+import { WmtsPickerPanel } from "./wmts-picker-panel"
 import { SourceUrlAutoPanel, DetectedNote } from "./source-url-auto"
 import { nameFromUrl, templateWmsGetMap, type DetectedSource } from "@/lib/source-url-detect"
 import { probeWmsZoomRange } from "@/lib/wms-zoom-range"
@@ -33,9 +34,9 @@ import { allmapsAnnotationGsd } from "@/lib/allmaps-gsd"
 
 // The types a new source opens on: Auto unless a search panel or a local
 // file was the last choice (a URL type found by Auto is not remembered).
-const OPENING_TYPES = ["auto", "qms", "eli", "stac", "cog-local", "wms-picker"]
+const OPENING_TYPES = ["auto", "qms", "eli", "stac", "cog-local", "wms-picker", "wmts-picker"]
 
-type BasemapFormType = "auto" | "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker" | "stac" | "iiif"
+type BasemapFormType = "auto" | "cog" | "cog-local" | "tms" | "wms" | "wmts" | "qms" | "eli" | "tilejson" | "wms-picker" | "wmts-picker" | "stac" | "iiif"
 
 export const CustomBasemapModal: React.FC<{
   isOpen: boolean; onOpenChange: (open: boolean) => void; editingSource: CustomBasemapSource | null
@@ -66,6 +67,8 @@ export const CustomBasemapModal: React.FC<{
   }, [editingSource, setLastType])
   // What Auto recognised, shown above the field of the type it switched to.
   const [detected, setDetected] = useState<DetectedSource | null>(null)
+  // A WMTS link picked in the STAC search: the layer to open the picker on.
+  const [wmtsLayer, setWmtsLayer] = useState<string | undefined>(undefined)
   const handleDetected = useCallback((d: DetectedSource) => {
     setTypeState(d.type as BasemapFormType)
     setUrl(d.url)
@@ -286,7 +289,7 @@ export const CustomBasemapModal: React.FC<{
 
   const url_placeholder = type === "cog" ?
     "https://example.com/basemap.cog.tiff" :
-    (type === "tms") ?
+    (type === "tms" || type === "wmts") ?
       "https://example.com/tms/{z}/{x}/{y}.png" :
       type === "wms" ?
         "http://tiles.example.com/wms?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&width=256&height=256&layers=example" :
@@ -295,7 +298,7 @@ export const CustomBasemapModal: React.FC<{
           "Not supported type"
 
   let helper_text = ""
-  if (type === "tms") helper_text = '/{z}/{x}/{y}.png'
+  if (type === "tms" || type === "wmts") helper_text = '/{z}/{x}/{y}.png'
   if (type === "iiif") helper_text = 'https://annotations.allmaps.org/maps/<id>  (or ?url=<IIIF manifest or image>)'
   else if (type === "wms") helper_text = 'bbox={bbox-epsg-3857}'
   
@@ -349,6 +352,8 @@ export const CustomBasemapModal: React.FC<{
                 cog: "Remote COG (URL)",
                 "cog-local": "Local COG file (this browser only)",
                 wms: "Raster (WMS / WMTS)",
+                wmts: "WMTS tile template",
+                "wmts-picker": "WMTS (list layers)",
                 tilejson: "TileJSON (Raster Basemap)",
                 iiif: "IIIF map with a Georeference Annotation (Allmaps)",
                 "wms-picker": "WMS (list layers)",
@@ -384,7 +389,10 @@ export const CustomBasemapModal: React.FC<{
                   <SelectLabel>Tile and map services</SelectLabel>
                   <SelectItem value="tms">TMS/XYZ (Raster Tile)</SelectItem>
                   {!editingSource && <SelectItem value="wms-picker">WMS (list layers)</SelectItem>}
+                  {!editingSource && <SelectItem value="wmts-picker">WMTS (list layers)</SelectItem>}
                   <SelectItem value="wms">Raster (WMS / WMTS)</SelectItem>
+                  {/* A layer saved by the WMTS picker: a {z}/{x}/{y} template. */}
+                  {(editingSource?.type === "wmts" || type === "wmts") && <SelectItem value="wmts">WMTS tile template</SelectItem>}
                   <SelectItem value="tilejson">TileJSON (Raster Basemap)</SelectItem>
                 </SelectGroup>
                 <SelectGroup>
@@ -412,8 +420,16 @@ export const CustomBasemapModal: React.FC<{
             </Suspense>
           ) : type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
-              <StacSearchPanel key={detected?.url ?? "manual"} initialUrl={detected?.type === "stac" ? detected.url : undefined} target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: source.role ?? "basemap", opacity: 100 } as any); fitTo(source.bounds) }} />
+              <StacSearchPanel key={detected?.url ?? "manual"} initialUrl={detected?.type === "stac" ? detected.url : undefined} target="basemap" mapRef={mapRef} onSave={(source) => { onSave({ ...source, role: source.role ?? "basemap", opacity: 100 } as any); fitTo(source.bounds) }}
+                onOpenWmts={(href, layer) => { setTypeState("wmts-picker"); setWmtsLayer(layer); setDetected({ type: "wmts-picker", url: href, label: "WMTS link of a STAC collection or item", note: layer ? `Opened on its layer ${layer}.` : "Its layers are listed below: pick one." }) }} />
             </Suspense>
+          ) : type === "wmts-picker" ? (
+            <WmtsPickerPanel
+              key={detected?.url ?? "manual"}
+              initialUrl={detected?.type === "wmts-picker" ? detected.url : undefined}
+              initialLayer={detected?.type === "wmts-picker" ? wmtsLayer : undefined}
+              onSave={(params) => { onSave({ ...params, opacity: 100 }); fitTo(params.bounds && params.bounds[2] - params.bounds[0] < 300 ? params.bounds : undefined); onOpenChange(false) }}
+            />
           ) : type === "wms-picker" ? (
             <WmsPickerPanel
               key={detected?.url ?? "manual"}
@@ -721,7 +737,7 @@ export const CustomBasemapModal: React.FC<{
             </>
           )}
         </div>
-        {!(["auto", "stac-search", "wms-picker"].includes(type)) && (
+        {!(["auto", "stac-search", "wms-picker", "wmts-picker"].includes(type)) && (
           <div className="relative shrink-0 px-6 pb-5 pt-3 flex justify-end gap-2 border-t bg-background before:pointer-events-none before:absolute before:inset-x-0 before:-top-8 before:h-8 before:bg-gradient-to-t before:from-background before:to-transparent">
           <Button
             variant="outline"

@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
 import { DateField } from "@/components/ui/date-field"
 import { SegmentedToggle } from "./controls-components"
+import { stacWmtsRefs, resolveStacWmts, type StacWmtsRef } from "@/lib/wmts-client"
 
 // STAC search (beta). Three kinds of catalog are handled:
 //  - "api": a STAC API - POST {root}/search with bbox / datetime /
@@ -126,8 +127,11 @@ const CatalogCombobox: React.FC<{ presets: StacPreset[]; value: string; customUr
 export interface StacSaveSource {
   name: string
   url: string
-  /** "tms" only for a collection's xyz web-map-link (basemap target). */
-  type: "cog" | "tms"
+  /** "tms" only for a collection's xyz web-map-link, "wmts" for a WMTS
+   *  link resolved through lib/wmts-client.ts (basemap target). */
+  type: "cog" | "tms" | "wmts"
+  attribution?: string
+  minzoom?: number
   description?: string
   bounds?: [number, number, number, number]
   /** Set when the asset is known not to be Web Mercator: the in-browser
@@ -146,7 +150,10 @@ export const StacSearchPanel: React.FC<{
   mapRef?: React.RefObject<MapRef | null>
   /** A catalog URL found by the dialog's Auto type: opened as a custom catalog. */
   initialUrl?: string
-}> = ({ target, onSave, mapRef, initialUrl }) => {
+  /** Basemap target: a WMTS link whose layer is not named, or failed to
+   *  resolve, opens the dialog's WMTS picker on its capabilities. */
+  onOpenWmts?: (href: string, layer?: string) => void
+}> = ({ target, onSave, mapRef, initialUrl, onOpenWmts }) => {
   // Catalogs switched off in the Library's Catalogs section are left out
   // here - that section is where the list is curated. A catalog that is
   // still the remembered choice stays listed even when hidden, so seeding it
@@ -189,6 +196,48 @@ export const StacSearchPanel: React.FC<{
   // Max cloud cover (eo:cloud_cover), basemaps only; null = no filter.
   const [maxCloud, setMaxCloud] = useState<number | null>(null)
   const [role, setRole] = useState<"basemap" | "overlay">("basemap")
+  // A WMTS link: its capabilities are read (cached per URL) and the named
+  // layer added with the link's dimension values; without a layer name, or
+  // when it does not resolve, the dialog's WMTS picker opens on it.
+  const [wmtsBusy, setWmtsBusy] = useState<string | null>(null)
+  const addWmts = useCallback(async (ref: StacWmtsRef, layerId: string | undefined, key: string, context: string, bbox?: number[]) => {
+    if (!layerId) { onOpenWmts?.(ref.href); return }
+    setWmtsBusy(key)
+    try {
+      const { caps, layer, source } = await resolveStacWmts(ref, layerId)
+      setAdded((st) => new Set(st).add(key))
+      const time = Object.entries(source.dimensions).find(([k]) => /^time$/i.test(k))?.[1]
+      onSave({
+        name: `${layer.title}${time ? ` (${time})` : ""}`,
+        url: source.url,
+        type: "wmts",
+        description: [`STAC ${catalog.name}`, context, `WMTS ${caps.title ?? new URL(caps.url).host}`, layer.identifier, source.matrixSet].filter(Boolean).join(" · "),
+        bounds: source.bounds ?? (bbox && bbox.length >= 4 ? [bbox[0], bbox[1], bbox[2], bbox[3]] : undefined),
+        minzoom: source.minzoom,
+        maxzoom: source.maxzoom,
+        attribution: source.attribution,
+        role,
+      })
+    } catch (e) {
+      pushToast({ key: "stac-wmts", title: "Could not add the WMTS layer", body: (e as Error).message, duration: 8000 })
+      if (onOpenWmts) onOpenWmts(ref.href, layerId)
+    } finally {
+      setWmtsBusy(null)
+    }
+  }, [catalog.name, onSave, onOpenWmts, role])
+  const wmtsButtons = (refs: StacWmtsRef[], context: string, bbox?: number[]) => refs.flatMap((ref) => (ref.layers.length ? ref.layers : [undefined]).map((layerId) => {
+    const key = `${ref.href}#${layerId ?? ""}`
+    const isAdded = added.has(key)
+    return (
+      <Button key={key} size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs max-w-full min-w-0 justify-start" disabled={isAdded || wmtsBusy === key || (!layerId && !onOpenWmts)}
+        title={[ref.href, layerId ? `Layer ${layerId}` : "No layer named: lists the service's layers", ref.dimensions ? Object.entries(ref.dimensions).map(([k, v]) => `${k}=${v}`).join(", ") : ""].filter(Boolean).join("\n")}
+        onClick={() => addWmts(ref, layerId, key, context, bbox)}>
+        {wmtsBusy === key ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : isAdded ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}
+        <span className="truncate min-w-0">{layerId ?? ref.title ?? "WMTS layers…"}</span>
+        <span className="shrink-0 rounded-full bg-muted text-muted-foreground px-1.5 text-[10px] font-medium">WMTS</span>
+      </Button>
+    )
+  }))
   const [collectionFilter, setCollectionFilter] = useState("")
   const [progress, setProgress] = useState("")
   // Results get most of the dialog: once they land, scroll the dialog so the
@@ -234,6 +283,9 @@ export const StacSearchPanel: React.FC<{
     const col = collections.find((c) => c.id === collectionId)
     return (col?.links ?? []).filter((l) => l.rel === "xyz" && /\{z\}/.test(l.href)).map((l) => ({ href: l.href.startsWith("//") ? `https:${l.href}` : l.href, title: l.title || l.href.replace(/^https?:\/\//, "").split(/[/?]/)[0] }))
   }, [collections, collectionId])
+  // WMTS links on the chosen collection (web-map-links rel "wmts", as NASA
+  // VEDA publishes for its GIBS layers, or a WMTS-typed asset).
+  const collectionWmts = useMemo(() => target === "basemap" ? stacWmtsRefs(collections.find((c) => c.id === collectionId) as Parameters<typeof stacWmtsRefs>[0]) : [], [collections, collectionId, target])
 
   /** Fetch the next page and append it. `untilUsable` keeps going until the
    *  page yields something this target can actually add, or the cap is hit -
@@ -323,6 +375,8 @@ export const StacSearchPanel: React.FC<{
   // The key is a placeholder, filled with this browser's own key when the
   // tiles are requested (lib/key-placeholders.ts): never saved, never shared.
   const planetTileUrl = (it: StacItem) => `https://tiles.planet.com/data/v1/${it.collection}/${it.id}/{z}/{x}/{y}.png?api_key={planetKey}`
+  /** WMTS links and assets of an item (basemap target only: pictures). */
+  const itemWmts = (it: StacItem) => (target === "basemap" ? stacWmtsRefs(it as Parameters<typeof stacWmtsRefs>[0]) : [])
   const cogAssets = (it: StacItem) => {
     let assets = Object.entries(it.assets ?? {}).filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
     if (target === "terrain") {
@@ -514,12 +568,19 @@ export const StacSearchPanel: React.FC<{
         </div>
       )}
 
+      {collectionWmts.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[11px] text-muted-foreground">This collection is also published as a WMTS layer:</p>
+          <div className="flex flex-wrap gap-1">{wmtsButtons(collectionWmts, collectionId)}</div>
+        </div>
+      )}
+
       {error && <p className="text-sm text-red-500">{error}</p>}
       {loading && progress && <p className="text-xs text-muted-foreground">{progress}</p>}
 
       <div ref={resultsRef} className="max-h-[65vh] overflow-y-auto overflow-x-hidden space-y-1 scroll-mt-2">
         {!loading && items.length === 0 && !error && <p className="text-sm text-muted-foreground py-3 text-center">No results yet.</p>}
-        {!loading && items.length > 0 && !planetTiles && ordered.every((it) => !cogAssets(it).length) && (
+        {!loading && items.length > 0 && !planetTiles && ordered.every((it) => !cogAssets(it).length && !itemWmts(it).length) && (
           <p className="text-sm text-muted-foreground py-3 text-center">
             {items.length} items, none with a {target === "terrain" ? "single-band elevation" : "COG"} asset.
             {target === "terrain" && (
@@ -596,7 +657,8 @@ export const StacSearchPanel: React.FC<{
         )}
         {ordered.map((it) => {
           const assets = cogAssets(it)
-          if (!assets.length && !planetTiles) return null
+          const wmts = itemWmts(it)
+          if (!assets.length && !planetTiles && !wmts.length) return null
           const p = it.properties ?? {}
           const whenMs = [p.datetime, p.start_datetime].map((v) => (typeof v === "string" ? parseUtcMs(v) : NaN)).find(Number.isFinite)
           const when = whenMs === undefined ? "" : isoFromUtcMs(whenMs)
@@ -633,6 +695,7 @@ export const StacSearchPanel: React.FC<{
                     </Button>
                   )
                 })()}
+                {wmtsButtons(wmts, `${it.collection ? `${it.collection} / ` : ""}${it.id}`, it.bbox)}
                 {assets.slice(0, 12).map(([key, a]) => {
                   const epsg = epsgOf(it, a)
                   // Opt-in: only an asset whose catalog DECLARES another

@@ -36,6 +36,7 @@ What the panel does for you:
 - **Web Mercator first.** Assets already in EPSG:3857 sort ahead of the rest, because they load directly; anything else is pinned to [titiler](/features/byod) automatically rather than failing quietly.
 - **Terrain is filtered to single-band elevation rasters**, so the terrain dialog does not offer you an RGB quicklook as a DEM.
 - Collections offering a `xyz` web-map-link can be added as a tile source directly, without picking an item at all.
+- **WMTS links** (a `wmts` web-map-link, or a WMTS capabilities asset) on a collection or an item get a **WMTS** button in the basemap dialog: the named layer is added in one click, with the link's style or date; without a layer name, the [WMTS layer list](/features/byod#wmts-services) opens on the service. NASA VEDA publishes these for its GIBS-backed collections.
 
 Your last catalog, collection and filters are remembered per target, so reopening the tab resumes where you left off.
 
