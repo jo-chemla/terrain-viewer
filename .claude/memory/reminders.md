@@ -8,9 +8,10 @@ type: feedback
 
 - **Upstream requests**, checked against GitHub on 2026-11-13: everything on
   the docs page (docs/content/docs/dev/upstream-requests.mdx) is posted
-  except two: the follow-up comment on maplibre-contour issue 434 (no
+  except three: the follow-up comment on maplibre-contour issue 434 (no
   comment there yet) and the Allmaps "plain images as a resource" request (no
-  issue on allmaps/allmaps). The Planet OAuth post was dropped 2026-11-13. Mapterhorn
+  issue on allmaps/allmaps), plus (2026-11-14) the MapLibre issue 48 reply
+  (screen-space mask, difference blend). The Planet OAuth post was dropped 2026-11-13. Mapterhorn
   issue 27 was commented 2026-10-29. The impasto CORS request is "not to be
   sent yet" by his choice. Check with `gh search issues --author jo-chemla
   --repo <repo>` before reminding again.

@@ -66,7 +66,7 @@ Two more tabs of the **Add Basemap** dialog, for imagery rather than elevation.
 
 **NextGIS QMS** — searches [qms.nextgis.com](https://qms.nextgis.com/), a community index of public map services. Only `tms` and `wms` entries can become a MapLibre raster source directly, so those are what the list shows; each result carries its zoom range and a permalink into the QMS browser.
 
-**OSM Editor Layer Index** — the imagery catalog behind iD, JOSM and Rapid: roughly 1,500 aerial, map and historic sources, most of them national or regional agency services **with their licence recorded**. It ships bundled (bumped weekly) rather than fetched, so it works offline and cannot break when an upstream index moves.
+**OSM Editor Layer Index** — the imagery catalog behind iD, JOSM and Rapid: about 1,750 aerial, map and historic sources, most of them national or regional agency services **with their licence recorded**. It ships bundled (bumped weekly) rather than fetched, so it works offline and cannot break when an upstream index moves. It comes from the [`@osm-editor-kit/maplibre-editor-layer-index`](https://www.npmjs.com/package/@osm-editor-kit/maplibre-editor-layer-index) package, stable since its 1.0 release (2026-10-31): its four entry points (the index, React, MapLibre and OpenAerialMap helpers) only change in a major version, while the weekly patches add, change and remove layers as the index itself does. The viewer moved to 1.0.2 on 2026-11-14.
 
 - Filter by text, by category (aerial, map, historic map, OSM-based, historic aerial, QA, elevation), or to **layers covering the current view**.
 - "Best" layers are starred, as the OSM editors mark them.

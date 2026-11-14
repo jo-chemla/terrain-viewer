@@ -567,6 +567,34 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
   // Once datesLoading settles, the definitive nearest-match wins.
   const heldRef = useRef<{ item: WaybackItem; targetDateMs: number } | null>(null)
 
+  // The releases that can hold the asked date go to the front of the
+  // metadata queue: imagery is never newer than its release, so they are the
+  // first releases at or after the date, and the nearest one before it. With
+  // Esri's metadata at 35 s a query on a bad day and dozens of releases at a
+  // busy place, a view asked for 2014 used to wait behind every newer release
+  // (2026-11-14: a 2014-vs-today link stayed blank until a pill was moved).
+  const q = quantizeLocation(latitude, longitude, zoom)
+  useEffect(() => {
+    if (!targetDateMs || !items.length) return
+    const asc = [...items].sort((a, b) => a.releaseDatetime - b.releaseDatetime)
+    const firstAfter = asc.findIndex((it) => it.releaseDatetime >= targetDateMs)
+    const from = firstAfter < 0 ? asc.length - 1 : firstAfter
+    for (const it of asc.slice(Math.max(0, from - 1), from + 3)) {
+      fetchWaybackCaptureMeta(q.latitude, q.longitude, q.zoom, it.releaseNum, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, targetDateMs, q.latitude, q.longitude, q.zoom])
+  // And if no release near the date has its real date after 12 s, the view
+  // shows the nearest by release date rather than staying blank; the real
+  // dates still replace it as they arrive.
+  const [waitedLong, setWaitedLong] = useState(false)
+  useEffect(() => {
+    setWaitedLong(false)
+    if (!targetDateMs) return
+    const t = setTimeout(() => setWaitedLong(true), 12_000)
+    return () => clearTimeout(t)
+  }, [targetDateMs, q.latitude, q.longitude, q.zoom])
+
   const item = useMemo(() => {
     if (!targetDateMs) return null
     // While a new place's releases or dates load (after a pan or a zoom), the
@@ -585,7 +613,7 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
     // so a view asked for 2014 showed 2009 until every date had arrived.
     // An empty view for the second or two before the first dates is better
     // than a wrong one (see MapSources.tsx's Wayback source).
-    const dateOf = (it: WaybackItem) => resolved[it.releaseNum]?.dateMs ?? (datesLoading ? null : it.releaseDatetime)
+    const dateOf = (it: WaybackItem) => resolved[it.releaseNum]?.dateMs ?? (datesLoading && !waitedLong ? null : it.releaseDatetime)
     let best: WaybackItem | null = null
     let bestDist = Infinity
     for (const it of items) {
@@ -608,7 +636,7 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
     }
     heldRef.current = best ? { item: best, targetDateMs } : null
     return best
-  }, [items, resolved, targetDateMs, datesLoading, itemsLoading])
+  }, [items, resolved, targetDateMs, datesLoading, itemsLoading, waitedLong])
 
   return { item, loading: itemsLoading || datesLoading }
 }
