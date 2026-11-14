@@ -1,3 +1,14 @@
+# Changelog — Copernicus Data Space and WMTS
+
+<!-- released: 2026-11-14 -->
+
+#### TL;DR
+
+- **Copernicus Data Space in the catalogue search**: Sentinel-2 L2A and L1C scenes by date, drawn on the map in true colour through your own free Sentinel Hub configuration (its instance id goes in Settings, API Keys). The Copernicus DEM GLO-30 and GLO-90 load as terrain without an account. Every other scene is listed with its quicklook, footprint and a link to the Copernicus Browser at that place and day.
+- **WMTS sources**: paste any WMTS capabilities URL in Add Basemap and pick a layer, with its style, format and date. Your Sentinel Hub configuration's layers come in one click: true and false colour, NDVI and other indices, single bands. Tested on NASA GIBS, IGN France, PNOA and swisstopo; WMTS links in catalogue results get a button too.
+- **Library Browse**: datasets that are only a catalogue collection, such as the EarthDEM, ArcticDEM and REMA strips, NRCan HRDEM, LidarBC and swissALTI3D tiles, open the catalogue search on their collection over your view.
+- **API keys page**: every key the app accepts, what it unlocks and where to create it. Keys stay in your browser, and saved or shared layers carry a placeholder instead.
+
 # Changelog — Multi-asset Mosaics: Indexes and VRTs
 
 <!-- released: 2026-11-13 -->

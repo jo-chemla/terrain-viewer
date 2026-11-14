@@ -30,7 +30,8 @@ export default defineConfig({
       name: "planet-key-out-of-builds",
       apply: "build",
       // Runs before Vite reads .env, and a process variable wins over the file.
-      config() { process.env.VITE_PLANET_API_KEY = "" },
+      // The Copernicus Sentinel Hub instance id is a credential too.
+      config() { process.env.VITE_PLANET_API_KEY = ""; process.env.VITE_SENTINEL_HUB_INSTANCE_ID = "" },
     },
     devtools({
       // Fixed port, so two dev servers started from this repo at once (a git

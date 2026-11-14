@@ -60,10 +60,11 @@ export const cesiumIonKeyAtom = atomWithStorage("cesiumIonKey", import.meta.env.
 // Copernicus Data Space Sentinel Hub configuration ("instance") id. The OGC
 // services at sh.dataspace.copernicus.eu/ogc/{wms,wmts}/<id> authenticate by
 // this id alone, so it is a credential: entered by the visitor, kept in this
-// browser only, never read from an env file (no VITE_ default, unlike the keys
-// above) and never written into a saved or shared URL: those carry the
-// {shInstance} placeholder (lib/key-placeholders.ts).
-export const sentinelHubInstanceIdAtom = atomWithStorage("sentinelHubInstanceId", "")
+// browser only, never written into a saved or shared URL: those carry the
+// {shInstance} placeholder (lib/key-placeholders.ts). A local
+// VITE_SENTINEL_HUB_INSTANCE_ID seeds it on the dev server only: like the
+// Planet key, vite.config.ts empties it in every build.
+export const sentinelHubInstanceIdAtom = atomWithStorage("sentinelHubInstanceId", import.meta.env.VITE_SENTINEL_HUB_INSTANCE_ID ?? "")
 // Extra quantized-mesh levels to fetch per tile. A mesh is adaptively
 // tessellated, so matching the output tile's angular width leaves far fewer
 // vertices than pixels (measured: 436 for 65536 px, which is the visible

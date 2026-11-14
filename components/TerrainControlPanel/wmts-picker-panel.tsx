@@ -198,7 +198,10 @@ const WmtsLayerForm: React.FC<{
       type: "wmts",
       description: [`WMTS ${caps.title ?? new URL(caps.url).host}`, layer.identifier, src.matrixSet, dims].filter(Boolean).join(" · "),
       bounds: src.bounds,
-      minzoom: src.minzoom,
+      // Sentinel Hub (Copernicus Data Space) refuses Sentinel-2 coarser than
+      // 200 m a pixel and draws a warning image instead: keep its layers at
+      // z10 and finer, where every latitude is under that limit.
+      minzoom: /sh\.dataspace\.copernicus\.eu/i.test(src.url) ? Math.max(src.minzoom ?? 0, 10) : src.minzoom,
       maxzoom: src.maxzoom,
       attribution: src.attribution,
       infoUrl: caps.url,

@@ -3818,7 +3818,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "sentinelHubInstanceId",
-      "default": "\"\"",
+      "default": "import.meta.env.VITE_SENTINEL_HUB_INSTANCE_ID ?? \"\"",
       "note": "Copernicus Data Space Sentinel Hub configuration (\"instance\") id."
     },
     {

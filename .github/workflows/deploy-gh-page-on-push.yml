@@ -66,7 +66,7 @@ jobs:
           cat <<EOF > .env
           ${{ secrets.ENV_FILE_CONTENT }}
           EOF
-          sed -i '/^VITE_PLANET_API_KEY=/d' .env
+          sed -i '/^VITE_PLANET_API_KEY=/d; /^VITE_SENTINEL_HUB_INSTANCE_ID=/d' .env
       - name: Build
         run: |
           pnpm build

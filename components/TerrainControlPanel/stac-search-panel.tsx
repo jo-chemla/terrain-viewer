@@ -817,7 +817,9 @@ export const StacSearchPanel: React.FC<{
                             name: `${day} Sentinel-2 true colour (CDSE)`, url: href, type: "wmts",
                             description: `STAC ${catalog.name} / ${it.collection} · ${it.id} · Sentinel Hub TRUE_COLOR, ${day}, your configuration`,
                             bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
-                            minzoom: 6, maxzoom: 16, attribution: "Copernicus Sentinel data, Sentinel Hub (CDSE)", role,
+                            // Sentinel Hub refuses Sentinel-2 coarser than 200 m a pixel ("pixel size exceeds limit"),
+                            // and answers with a warning image: z9 is about 200 m at 48 degrees, z10 is under it everywhere.
+                            minzoom: 10, maxzoom: 16, attribution: "Copernicus Sentinel data, Sentinel Hub (CDSE)", role,
                           }) }}>
                           {isAdded ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}
                           <span className="truncate min-w-0">True colour via your Sentinel Hub</span>

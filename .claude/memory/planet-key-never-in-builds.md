@@ -9,8 +9,9 @@ sites, the desktop bundles, or the `ENV_FILE_CONTENT` GitHub secret. Users
 paste their own key into Settings (`planetKeyAtom`, localStorage).
 
 The same rule covers every credential a user pastes, notably the Copernicus
-Sentinel Hub instance id (2026-11-14): `sentinelHubInstanceIdAtom` has no
-`VITE_` default on purpose, and saved/shared URLs carry `{shInstance}`.
+Sentinel Hub instance id (2026-11-14): `VITE_SENTINEL_HUB_INSTANCE_ID` seeds
+`sentinelHubInstanceIdAtom` on the dev server only; vite.config.ts empties it in
+builds and both workflows delete its .env line. Saved/shared URLs carry `{shInstance}`.
 
 **Why:** on 2026-10-09 the deploy and desktop workflows began writing `.env`
 from the `ENV_FILE_CONTENT` secret, which was a copy of the local `.env`
