@@ -1,0 +1,23 @@
+<!-- LOLA south pole 87-90S, 5 m/px (Barker et al. 2021, NASA PGDA product 81), the
+     Float32 COG USGS Astrogeology re-hosts with CORS and Range. One source, so this
+     file is written by hand, not built. South polar stereographic on the 1737.4 km
+     sphere, heights in metres above that sphere. The viewer opens it with
+     ?a_srs=EPSG:3857 (the stereographic metres relabelled as Web Mercator metres:
+     pole at 0,0, lunar 0E up, true scale at exaggeration 1), because the cap lies
+     past the 85.05 degree edge of Web Mercator. GDAL and QGIS read it as it is.
+     See docs/content/docs/beta/moon-lola.mdx. -->
+<VRTDataset rasterXSize="40000" rasterYSize="40000">
+  <SRS dataAxisToSRSAxisMapping="1,2">PROJCS["Moon south polar stereographic",GEOGCS["Moon (2015) - Sphere",DATUM["Moon_2015_Sphere",SPHEROID["Moon (2015) - Sphere",1737400,0]],PRIMEM["Reference meridian",0],UNIT["degree",0.0174532925199433]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-90],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1],AXIS["Easting",NORTH],AXIS["Northing",NORTH]]</SRS>
+  <GeoTransform>-100000, 5, 0, 100000, 0, -5</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1">
+    <NoDataValue>nan</NoDataValue>
+    <ColorInterp>Gray</ColorInterp>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="0">https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_safed/LMAP/SouthPolar/ldem_87s_5mpp_cog.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="40000" RasterYSize="40000" DataType="Float32" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="40000" ySize="40000" />
+      <DstRect xOff="0" yOff="0" xSize="40000" ySize="40000" />
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

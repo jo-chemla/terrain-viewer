@@ -91,5 +91,114 @@
         "description": ""
       }
     ]
+  },
+  "moon-south-pole": {
+    "id": "moon-south-pole",
+    "name": "Moon - LOLA south pole 5 m (beta)",
+    "description": "Moon (beta): LOLA south pole 87-90S at 5 m (Barker et al. 2021), read in the browser by vrt:// from the COG USGS Astrogeology re-hosts. Lunar south polar stereographic metres relabelled as Web Mercator metres (?a_srs=EPSG:3857): the pole sits at 0,0, lunar 0E is up, scale is true at exaggeration 1. Not the Earth: no basemap, place names or geocoder apply. See /docs/beta/moon-lola.",
+    "initialViewMode": "3d",
+    "hiddenSections": ["georef"],
+    "hideMapControls": ["geocoder", "geolocate", "minimap"],
+    "initialState": {
+      "sourceA": "moon-lola-87s-5m",
+      "showRasterBasemap": false,
+      "showHillshade": true,
+      "showColorRelief": true,
+      "colorReliefOpacity": 0.35,
+      "exaggeration": 1,
+      "lat": -0.0575,
+      "lng": 0.069,
+      "zoom": 11.5,
+      "pitch": 60,
+      "bearing": 0
+    },
+    "customTerrainSources": [
+      {
+        "id": "moon-lola-87s-5m",
+        "name": "MOON - LOLA south pole 87-90S 5 m (Barker 2021, PGDA 81) - VRT, metric fake-geo",
+        "url": "https://terrain-viewer.iconem.com/moon/ldem_87s_5mpp.vrt?a_srs=EPSG:3857",
+        "type": "vrt",
+        "resolutionM": 5,
+        "description": "LOLA 5 m south pole mosaic (NASA PGDA product 81, Barker et al. 2021), Float32 COG with 8 overviews on USGS's asc-pds-services bucket (CORS *, Range). public/moon/ldem_87s_5mpp.vrt names it; the URL's ?a_srs=EPSG:3857 relabels the stereographic metres as Web Mercator metres. Heights in metres above the 1737.4 km sphere."
+      }
+    ]
+  },
+  "moon-apollo15": {
+    "id": "moon-apollo15",
+    "name": "Moon - Kaguya TC DTMs, Apollo 15 Hadley (beta)",
+    "description": "Moon (beta): 72 Kaguya Terrain Camera stereo DTMs (USGS 2024-2026, about 15 m) around Hadley Rille, one VRT built from the USGS STAC API by docs/scripts/build-kaguya-vrt.mjs and read in the browser by vrt://. Lunar longitude and latitude are used as if they were the Earth's (true position), so the OPM Moon basemap lines up; the Moon is 3.67 times smaller than the Earth, hence exaggeration 3.67 for true proportions. See /docs/beta/moon-lola.",
+    "initialViewMode": "3d",
+    "hiddenSections": ["georef"],
+    "hideMapControls": ["geocoder", "geolocate"],
+    "initialState": {
+      "sourceA": "moon-kaguya-apollo15",
+      "basemapSource": "moon-opm-basemap",
+      "showRasterBasemap": true,
+      "showHillshade": true,
+      "exaggeration": 3.67,
+      "lat": 26.08,
+      "lng": 3.66,
+      "zoom": 10.5,
+      "pitch": 60,
+      "bearing": 20
+    },
+    "customTerrainSources": [
+      {
+        "id": "moon-kaguya-apollo15",
+        "name": "MOON - Kaguya TC DTMs v2, Apollo 15 / Hadley Rille (USGS) - VRT",
+        "url": "https://terrain-viewer.iconem.com/vrt/kaguya-tc-dtm-apollo15.vrt",
+        "type": "vrt",
+        "resolutionM": 15,
+        "description": "72 Kaguya TC stereo DTM strips (CC0, USGS Astrogeology, astrogeo-ard bucket, CORS *) in one VRT, lunar equirectangular with its seam on the farside. Built by docs/scripts/build-kaguya-vrt.mjs, hosted on the dataset-indexes release and served at /vrt/. Lunar lon/lat drawn as Earth lon/lat."
+      }
+    ],
+    "customBasemapSources": [
+      {
+        "id": "moon-opm-basemap",
+        "name": "MOON - OpenPlanetaryMap Moon basemap (CARTO)",
+        "url": "https://cartocdn-gusc.global.ssl.fastly.net/opmbuilder/api/v1/map/named/opm-moon-basemap-v0-1/all/{z}/{x}/{y}.png",
+        "type": "tms",
+        "description": "OpenPlanetaryMap's Moon basemap, Web Mercator tiles with lunar lon/lat as Earth lon/lat, CORS *."
+      }
+    ]
+  },
+  "moon-global": {
+    "id": "moon-global",
+    "name": "Moon - Cesium Moon Terrain, global (beta, needs a Cesium ion token)",
+    "description": "Moon (beta): the whole Moon as terrain from Cesium Moon Terrain (ion asset 2684829, LOLA and Kaguya based quantized mesh), rasterised in the browser by quantized-mesh://. Needs a Cesium ion token in Settings. True position (lunar lon/lat as Earth lon/lat, exaggeration 3.67 for true proportions) under the OPM Moon basemap. Unverified: see /docs/beta/moon-lola.",
+    "initialViewMode": "globe",
+    "hiddenSections": ["georef"],
+    "hideMapControls": ["geocoder", "geolocate"],
+    "initialState": {
+      "sourceA": "moon-cesium-terrain",
+      "basemapSource": "moon-opm-basemap",
+      "showRasterBasemap": true,
+      "showHillshade": true,
+      "exaggeration": 3.67,
+      "lat": 0,
+      "lng": 0,
+      "zoom": 2.5,
+      "pitch": 0,
+      "bearing": 0
+    },
+    "customTerrainSources": [
+      {
+        "id": "moon-cesium-terrain",
+        "name": "MOON - Cesium Moon Terrain (ion 2684829) - quantized mesh",
+        "url": "ion/2684829",
+        "type": "quantized-mesh",
+        "maxzoom": 12,
+        "description": "Cesium Moon Terrain, a quantized-mesh tileset on Cesium ion. Every ion asset answers 401 without a token."
+      }
+    ],
+    "customBasemapSources": [
+      {
+        "id": "moon-opm-basemap",
+        "name": "MOON - OpenPlanetaryMap Moon basemap (CARTO)",
+        "url": "https://cartocdn-gusc.global.ssl.fastly.net/opmbuilder/api/v1/map/named/opm-moon-basemap-v0-1/all/{z}/{x}/{y}.png",
+        "type": "tms",
+        "description": "OpenPlanetaryMap's Moon basemap, Web Mercator tiles with lunar lon/lat as Earth lon/lat, CORS *."
+      }
+    ]
   }
 }
