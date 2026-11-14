@@ -13,7 +13,7 @@
 - [URL-loaded data and split-view helpers](url-loaded-data.md) — URL-as-source-id on any view, drawingUrl, remote vector parsing, permuteViewsUpdates, timelineActiveSideAtom; unverified in a browser
 - [Titiler DEM gotchas](titiler-dem-gotchas.md) — pass the file nodata, reproject=bilinear for the warp, maxzoom decides who upsamples, no maxzoom probe on titiler templates, CloudFront caches CORS per URL; how the DSM − DTM derived source (demdiff://) is wired
 - [Sprint handoff 2026-09-19](handoff-2026-09-19.md) — snapshot compositing, URL API and docs generators, derived terrain (dem-diff), titiler DEM fixes, Bhotekoshi on NextGIS: shipped, unverified, deferred, gotchas
-- [Library browse entries (deferred idea)](library-browse-entries-idea.md) — Library rows that open the Add modal on a preset tab instead of resolving to one URL; why EarthDEM needs it.
+- [Library browse entries](library-browse-entries-idea.md) — Browse on Library rows (stac field, SAMPLE_TERRAIN_BROWSE_ONLY list), built 2026-11-14; why browse-only rows stay out of SAMPLE_TERRAIN_SOURCES, three panel bugs found on the way
 - [Commercial DEM API access (wanted)](commercial-dem-api-access.md) — Vantor/Airbus: the Maxar Discovery STAC endpoint to ask for, product vertical datums, why CSDA is discovery-only
 - [Google 3D coverage](google-3d-coverage-dead-end.md) — the Maps vector-tile endpoint that answers it, the NON-zigzag delta rule (v / −(v+1)) that deflated every polygon 2× for two days, the z8 pipeline, and every route rejected
 - [Esri 3D coverage](esri-3d-coverage.md) — Esri has no global photorealistic mesh; typeKeywords:"IntegratedMesh" finds 10 900 services where the free-text tag finds 48; Scene Viewer ?url= opens one alone

@@ -1012,6 +1012,7 @@
             "bounds": [166.3, -47.4, 178.6, -34.3],
             "description": "LINZ Basemaps: national 8m DEM with regional 1m LiDAR mosaicked in. The only true Terrain-RGB service published by any national mapping agency. CC BY 4.0 LINZ, attribution required. Two non-obvious requirements: pipeline=terrain-rgb (without it the endpoint 404s) and an api= key. The key is NOT issued by a server - LINZ Basemaps mints it client-side as \"c\" + a lowercase ULID and caches it in localStorage, so there is no registration, login or email. The one shipped here was minted the same way and can be replaced with your own at basemaps.linz.govt.nz if it ever gets rate-limited.",
             "resolutionM": 1,
+            "stac": { "preset": "linz-elevation", "collection": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/new-zealand/new-zealand/dem_1m/2193/collection.json" },
             "infoUrl": "https://www.linz.govt.nz/products-services/data/types-linz-data/elevation-data"
         },
         {
@@ -1205,6 +1206,7 @@
             "bounds": [-180, 60, 180, 85],
             "description": "Polar Geospatial Center's ArcticDEM mosaic, 2m stereo-photogrammetric surface model of all land north of 60 N (Greenland, Svalbard, Iceland, northern Scandinavia, Siberia, Alaska, Canadian Arctic). Heights are ELLIPSOIDAL (WGS84), so they sit tens of metres off orthometric summits: Gunnbjorn Fjeld reads 3749.8 m against 3694 m, and open sea off Nuuk reads +28 m. Native EPSG:3413, warped to 3857 server-side; Web Mercator stops at 85 N. Windows outside coverage come back as sparse TIFFs, which the protocol tolerates. CORS echoes the Origin. CC BY 4.0, attribution PGC / NSF / NGA.",
             "resolutionM": 2,
+            "stac": { "preset": "pgc", "collection": "arcticdem-strips-s2s041-2m" },
             "infoUrl": "https://www.pgc.umn.edu/data/arcticdem/"
         },
         {
@@ -1218,6 +1220,7 @@
             "bounds": [-180, -85, 180, -60],
             "description": "Reference Elevation Model of Antarctica, PGC's 2m mosaic of the whole continent. Ellipsoidal heights like ArcticDEM: Vinson Massif reads 4874.6 m against 4892 m orthometric. Native EPSG:3031; Web Mercator cannot show south of 85 S, so the pole itself is out of reach. CORS echoes the Origin. CC BY 4.0, attribution PGC / NSF.",
             "resolutionM": 2,
+            "stac": { "preset": "pgc", "collection": "rema-strips-s2s041-2m" },
             "infoUrl": "https://www.pgc.umn.edu/data/rema/"
         },
         {
@@ -2157,6 +2160,99 @@
             "bounds": [-5.5, 41.2, 9.8, 51.2],
             "description": "BRGM's harmonised vector geological map of France at 1:50 000, one legend across the former sheet boundaries, drawn from zoom 6 to 15 (empty tiles beyond). CORS open, no key. Licence Ouverte / Etalab. (c) BRGM.",
             "infoUrl": "https://www.brgm.fr/fr/ressource/carte-geologique-france"
+        }
+    ],
+    "SAMPLE_TERRAIN_BROWSE_ONLY": [
+        {
+            "id": "custom-browse-pgc-earthdem-strips",
+            "name": "Global - PGC EarthDEM 2m strips (surface) - STAC, restricted licence",
+            "stac": { "preset": "pgc", "collection": "earthdem-strips-s2s041-2m" },
+            "bounds": [-180, -60, 180, 60],
+            "resolutionM": 2,
+            "description": "Polar Geospatial Center's EarthDEM: 2m stereo-photogrammetric surface models from Maxar (Vantor) WorldView pairs, one strip per acquisition, for land between the ArcticDEM and REMA zones. There is no EarthDEM mosaic, so the only way in is a search over the view. Ellipsoidal heights, UTM, routed through titiler. NOT OPENLY LICENSED: PGC restricts EarthDEM to US federal employees, US federal contractors and researchers funded by the US government; check you are eligible first.",
+            "infoUrl": "https://www.pgc.umn.edu/data/earthdem/"
+        },
+        {
+            "id": "custom-browse-pgc-arcticdem-strips",
+            "name": "Global - PGC ArcticDEM 2m strips, dated scenes (Arctic) - STAC",
+            "stac": { "preset": "pgc", "collection": "arcticdem-strips-s2s041-2m" },
+            "bounds": [-180, 60, 180, 90],
+            "resolutionM": 2,
+            "description": "The per-acquisition strips behind the ArcticDEM mosaic: each one is a single date, so two strips of one place are a before and after (glaciers, lava flows, landslides). Ellipsoidal heights, polar stereographic, routed through titiler. CC BY 4.0, attribution PGC / NSF / NGA. The mosaic entry has the same Browse.",
+            "infoUrl": "https://www.pgc.umn.edu/data/arcticdem/"
+        },
+        {
+            "id": "custom-browse-pgc-rema-strips",
+            "name": "Global - PGC REMA 2m strips, dated scenes (Antarctica) - STAC",
+            "stac": { "preset": "pgc", "collection": "rema-strips-s2s041-2m" },
+            "bounds": [-180, -90, 180, -60],
+            "resolutionM": 2,
+            "description": "The per-acquisition strips behind the REMA mosaic of Antarctica, one date each. Ellipsoidal heights, polar stereographic, routed through titiler. CC BY 4.0, attribution PGC / NSF. The mosaic entry has the same Browse.",
+            "infoUrl": "https://www.pgc.umn.edu/data/rema/"
+        },
+        {
+            "id": "custom-browse-opentopography-rasters",
+            "name": "Global - OpenTopography hosted LiDAR rasters, 283 surveys, mostly 1m - STAC",
+            "stac": { "preset": "opentopography" },
+            "resolutionM": 1,
+            "description": "Every LiDAR and DEM raster OpenTopography hosts as a COG (283 surveys, mostly 0.5 to 1 m, mostly in the United States), keyless. A static catalog: the search walks the surveys whose extent meets the view. Licences vary by survey; see each dataset's page.",
+            "infoUrl": "https://portal.opentopography.org/dataCatalog"
+        },
+        {
+            "id": "custom-browse-nz-linz-dsm1",
+            "name": "NZL - LINZ national 1m LiDAR DSM tiles (surface) - STAC",
+            "stac": { "preset": "linz-elevation", "collection": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/new-zealand/new-zealand/dsm_1m/2193/collection.json" },
+            "bounds": [166.3, -47.4, 178.6, -34.3],
+            "resolutionM": 1,
+            "description": "The national 1m LiDAR surface model of New Zealand as COG tiles (buildings and trees included), the DSM twin of the LINZ DEM entry. NZTM2000 (EPSG:2193), routed through titiler. CC BY 4.0 LINZ.",
+            "infoUrl": "https://www.linz.govt.nz/products-services/data/types-linz-data/elevation-data"
+        },
+        {
+            "id": "custom-browse-ca-nrcan-hrdem-lidar",
+            "name": "CAN - NRCan HRDEM per-project LiDAR elevation 1m - STAC",
+            "stac": { "preset": "nrcan-hrdem", "collection": "hrdem-lidar" },
+            "bounds": [-141, 41.7, -52.6, 83.1],
+            "resolutionM": 1,
+            "description": "Natural Resources Canada's High Resolution DEM, one item per LiDAR project (about 950), each with a 1 m DTM and DSM as COGs. CORS-open, Open Government Licence - Canada.",
+            "infoUrl": "https://datacube.services.geo.ca/stac/api/collections/hrdem-lidar"
+        },
+        {
+            "id": "custom-browse-ca-nrcan-hrdem-mosaic",
+            "name": "CAN - NRCan HRDEM mosaic 1m tiles - STAC",
+            "stac": { "preset": "nrcan-hrdem", "collection": "hrdem-mosaic-1m" },
+            "bounds": [-141, 41.7, -52.6, 83.1],
+            "resolutionM": 1,
+            "description": "The 1 m HRDEM mosaic of Canada, cut into large tiles (58 items) with a DTM and a DSM each. Finer than the 2 m national HRDEM Mapterhorn ingests. Open Government Licence - Canada.",
+            "infoUrl": "https://datacube.services.geo.ca/stac/api/collections/hrdem-mosaic-1m"
+        },
+        {
+            "id": "custom-browse-ca-bc-lidarbc",
+            "name": "CAN - British Columbia LidarBC 1m LiDAR elevation tiles - STAC",
+            "stac": { "preset": "lidarbc", "collection": "stac-elevation-bc" },
+            "bounds": [-140, 48, -114, 60],
+            "resolutionM": 1,
+            "loadWithSamples": false,
+            "description": "British Columbia's open LidarBC DEMs and DSMs, 102,000+ COG tiles, updated monthly. A community catalog by New Graph Environment, not the province's own. CC BY 4.0.",
+            "infoUrl": "https://lidar.gov.bc.ca/"
+        },
+        {
+            "id": "custom-browse-us-mn-dem05",
+            "name": "USA - Minnesota statewide LiDAR DEM 0.5m, 100 km sections - STAC",
+            "stac": { "preset": "mngeo", "collection": "minnesota-100km-sections-DEM-0.5m" },
+            "bounds": [-97.24, 43.5, -89.49, 49.38],
+            "resolutionM": 0.5,
+            "loadWithSamples": false,
+            "description": "MnGeo's seamless second-generation LiDAR DEM of Minnesota at 0.5 m, cut into 100 km sections as COGs, CORS-open. The same catalog has 1 m and 2 m versions. Public data; see the metadata for terms.",
+            "infoUrl": "https://gisdata.mn.gov/dataset/elev-lidar-statewide-dem"
+        },
+        {
+            "id": "custom-browse-ch-swissalti3d",
+            "name": "CHE - swisstopo swissALTI3D 0.5m DTM tiles - STAC",
+            "stac": { "preset": "geoadmin", "collection": "ch.swisstopo.swissalti3d" },
+            "bounds": [5.96, 45.82, 10.49, 47.81],
+            "resolutionM": 0.5,
+            "description": "swisstopo's bare-earth model at 0.5 m (and 2 m), one COG per square kilometre, from data.geo.admin.ch. LV95 (EPSG:2056), routed through titiler. swisstopo open government data, free use with attribution.",
+            "infoUrl": "https://www.swisstopo.admin.ch/en/height-model-swissalti3d"
         }
     ]
 }

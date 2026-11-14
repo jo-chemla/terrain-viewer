@@ -29,6 +29,8 @@ Or paste any catalog URL: a `.json` is crawled as a static catalog, anything els
 
 The same list is also in the **Library**, under **Catalogs** — a catalog cannot be "added" the way a single dataset URL can, so its row offers **Browse**, which closes the Library and opens this tab with that endpoint already selected. That is the entry point worth remembering: the Library is where you look for data, and per-scene DEMs (EarthDEM strips, ArcticDEM strips, OpenTopography's rasters) only exist behind a search.
 
+Datasets get the same button. A Library row with **Browse** opens this tab on its catalog *and* its collection, and searches the current view straight away. Some datasets have nothing else, because there is no mosaic to add, only thousands of strips or tiles: EarthDEM, the ArcticDEM and REMA strips, OpenTopography's rasters, the LINZ 1 m DSM, NRCan's HRDEM projects and mosaic tiles, LidarBC, Minnesota's 0.5 m DEM and swissALTI3D. Their rows say **stac** and offer Browse in place of **+**, and *Load all* leaves them out. A mosaic that also has its strips or tiles in a catalog (ArcticDEM, REMA, the LINZ 1 m DEM) has both buttons: **+** adds the mosaic, **Browse** finds a dated strip or a full-resolution tile under the current view. Move the map to the area first, since the search covers what is on screen.
+
 Each catalog row also has a **+/−**, which decides whether that endpoint is offered in the search's own picker at all — so a list you never use can be trimmed to the handful you do. The choice is remembered, and it is stored as the *exclusions*, so a catalog added in a later release turns up rather than being silently absent.
 
 What the panel does for you:

@@ -10,7 +10,7 @@ The [Coverage Overlays](/features/coverage-overlays) draw where each source has 
 | Group | Geometry | Source |
 |---|---|---|
 | Mapterhorn | Vector tiles, per national source | Mapterhorn coverage tiles (`single-archive-tiles.mapterhorn.com/coverage/{z}/{x}/{y}.mvt`) + [`attribution.json`](https://download.mapterhorn.com/attribution.json) |
-| Terrain / basemap library | Bounds rectangles | `bounds` of each entry in `lib/custom-sources.json` |
+| Terrain / basemap library | Bounds rectangles | `bounds` of each entry in `lib/custom-sources.json` (`SAMPLE_TERRAIN_SOURCES` and `SAMPLE_BASEMAPS_SOURCES`; the Browse-only `SAMPLE_TERRAIN_BROWSE_ONLY` has nothing to load, so it draws no footprint) |
 | OSM Editor Layer Index | Coverage polygons | `@osm-editor-kit/maplibre-editor-layer-index` (bundled index, bumped weekly; stable API since 1.0, the viewer is on 1.0.2) |
 | Your sources | Bounds rectangles | the `bounds` you declared in the source dialog |
 | Bing Maps 3D | Merged tile rectangles, ~2.4 km | Bing's own 3D Tiles subtree availability (`td1` manifest → `st…` `subt` bitstreams), crawled by `docs/scripts/build-bing-3d-coverage.mjs` into `public/coverage/bing-3d.geojson` — no API key, nothing published lists it |

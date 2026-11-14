@@ -51,6 +51,21 @@ const isUnfetchable = (a: StacAsset) => /^(s3|gs|az):\/\//i.test(a.href)
 // Default range only (a timestamp, read in UTC); the fields themselves keep "YYYY-MM-DD" strings, see DateField.
 const isoDate = (d: Date) => d.toISOString().slice(0, 10)
 
+/** The view as a STAC bbox. Zoomed out, or panned across the antimeridian,
+ *  MapLibre's bounds run past ±180 (205.9 east at zoom 1.5), and strict
+ *  servers refuse the whole search: PGC answers 400, "Bounding box must be
+ *  within (-180, -90, 180, 90)". Longitudes are wrapped back; a view that
+ *  spans the globe or still crosses the antimeridian becomes every
+ *  longitude, wider than the view but accepted everywhere, which a
+ *  west > east box (and the static crawl's extent test) is not. */
+function wrapSearchBbox(west: number, south: number, east: number, north: number): number[] {
+  const wrap = (x: number) => ((((x + 180) % 360) + 360) % 360) - 180
+  const s = Math.max(-90, south), n = Math.min(90, north)
+  if (east - west >= 360) return [-180, s, 180, n]
+  const w = wrap(west), e = wrap(east) === -180 ? 180 : wrap(east)
+  return w <= e ? [w, s, e, n] : [-180, s, 180, n]
+}
+
 /** EPSG code of an item / asset when the projection extension says so. */
 function epsgOf(it: StacItem, a: StacAsset): number | undefined {
   const code = a["proj:code"] ?? (it.properties["proj:code"] as string | undefined)
@@ -66,8 +81,12 @@ const bandCount = (a: StacAsset) => (a["raster:bands"] ?? a["eo:bands"] ?? a.ban
 /** Terrain wants single-band elevation rasters: drop RGB visuals, multi-band
  *  scenes and thumbnails; keep unknown band counts (many DEM catalogs
  *  carry no band metadata at all). */
-function usableForTerrain(key: string, a: StacAsset): boolean {
-  if (/^(visual|thumbnail|overview|rendered_preview)$/i.test(key)) return false
+/*  `elevationCatalog`: a catalog whose every collection is elevation (group
+ *  "Elevation" in STAC_PRESETS), where `visual` is not the RGB marker it is
+ *  elsewhere: LINZ's nz-elevation names each DEM and DSM COG `visual`, with
+ *  nothing else on the item to say so, and listed none before this. */
+function usableForTerrain(key: string, a: StacAsset, elevationCatalog = false): boolean {
+  if (/^(thumbnail|overview|rendered_preview)$/i.test(key) || (!elevationCatalog && /^visual$/i.test(key))) return false
   const n = bandCount(a)
   return n === undefined || n === 1
 }
@@ -292,11 +311,19 @@ export const StacSearchPanel: React.FC<{
   // guard that survived the cleanup left React's dev double-invocation with
   // a cancelled fetch and a spinner that never stopped.
   const skipFirstListing = useRef(prev?.presetId === presetId && (prev?.collections.length ?? 0) > 0 && (!initialUrl || prev?.customUrl === initialUrl))
+  // The collection this mount was opened on (a Library Browse seeds one, and
+  // so does reopening): kept through the catalog's first listing, which used
+  // to blank it, so a seeded collection never reached the picker. Keyed by
+  // catalog URL rather than consumed, as React's dev double-run of the effect
+  // would otherwise blank it on the second pass. Another catalog falls back
+  // to its preset's own collection (the NASA CSDA pair), else all of them.
+  const seededCollection = useRef({ url: catalog.url, collection: prev?.presetId === presetId ? prev?.collectionId ?? "" : "" })
   const [listing, setListing] = useState(false)
   useEffect(() => {
     if (skipFirstListing.current) { skipFirstListing.current = false; return }
     setListing(true)
-    setCollections([]); setCollectionId(""); setItems([]); setError("")
+    const seed = seededCollection.current
+    setCollections([]); setCollectionId((seed.url === catalog.url && seed.collection) || catalog.collection || ""); setItems([]); setError("")
     if (!catalog.url) return
     let cancelled = false
     ;(async () => {
@@ -356,7 +383,7 @@ export const StacSearchPanel: React.FC<{
     try {
       const map = mapRef?.current?.getMap()
       const b = viewportOnly && map ? map.getBounds() : null
-      const bbox = b ? [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()] : null
+      const bbox = b ? wrapSearchBbox(b.getWest(), b.getSouth(), b.getEast(), b.getNorth()) : null
       setSearchBbox(bbox)
       const datetime = anyDate ? undefined : `${startDate}T00:00:00Z/${endDate}T23:59:59Z`
       const cloudOk = (it: StacItem) => maxCloud === null || typeof it.properties?.["eo:cloud_cover"] !== "number" || (it.properties["eo:cloud_cover"] as number) <= maxCloud
@@ -402,6 +429,20 @@ export const StacSearchPanel: React.FC<{
     }
   }, [catalog, collectionId, collections, startDate, endDate, viewportOnly, anyDate, maxCloud, mapRef])
 
+  // A Library dataset's Browse (seedStacPreset with search) searches the
+  // current view once, on this mount: API and static searches need only the
+  // seeded collection id, not the listing. Declared after the listing effect
+  // so that one's reset of the results runs first. The ref, not the
+  // remembered flag, is what survives React's dev double-run: the persist
+  // effect above has already rewritten `remembered` without the flag.
+  const autoSearchOnMount = useRef(!initialUrl && !!prev?.autoSearch && prev.presetId === presetId)
+  useEffect(() => {
+    if (!autoSearchOnMount.current) return
+    autoSearchOnMount.current = false
+    void runSearch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Held in a ref so the pager below can ask "was this page usable" without
   // depending on a function that is redefined every render.
   const cogAssetsRef = useRef<(it: StacItem) => [string, StacAsset][]>(() => [])
@@ -422,7 +463,7 @@ export const StacSearchPanel: React.FC<{
         const mirror = isUnfetchable(a) ? publicMirrorHref(a.href) : undefined
         return mirror ? [key, { ...a, href: mirror, mirrorOf: a.href } as StacAsset] : [key, a]
       })
-      .filter(([key, a]) => isCog(a) && !isCredentialed(a) && (target !== "terrain" || usableForTerrain(key, a)))
+      .filter(([key, a]) => isCog(a) && !isCredentialed(a) && (target !== "terrain" || usableForTerrain(key, a, catalog.group === "Elevation")))
     if (target === "terrain") {
       // A scene split into many single-band rasters (Landsat, Sentinel) is
       // multispectral, not elevation: keep the DEM-looking assets only, and
@@ -664,7 +705,7 @@ export const StacSearchPanel: React.FC<{
                         if (isUnfetchable(a)) unfetchable++
                         if (!isCog(a)) continue
                         cogs++
-                        if (!usableForTerrain(key, a)) multiband++
+                        if (!usableForTerrain(key, a, catalog.group === "Elevation")) multiband++
                       }
                     }
                     const top = (m: Map<string, number>, n: number) =>

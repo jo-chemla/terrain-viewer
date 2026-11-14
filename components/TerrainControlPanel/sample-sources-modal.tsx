@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, Library, Layers2, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
 import { useAtom } from "jotai"
-import { disabledStacPresetsAtom, savedStacCatalogsAtom } from "@/lib/settings-atoms"
+import { disabledStacPresetsAtom, savedStacCatalogsAtom, type LibraryStacLink, type LibraryBrowseEntry } from "@/lib/settings-atoms"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -23,6 +23,23 @@ export interface SampleLike {
   bounds?: [number, number, number, number]
   url?: string
   infoUrl?: string
+  /** A catalog search for the same data: adds a Browse button beside Add. */
+  stac?: LibraryStacLink
+}
+
+/** A Browse-only row (LibraryBrowseEntry), marked so it is never added. */
+type BrowseRow = LibraryBrowseEntry & { browseOnly: true; type?: undefined; url?: undefined }
+const isBrowseRow = (s: SampleLike | BrowseRow): s is BrowseRow => (s as BrowseRow).browseOnly === true
+
+/** What a dataset's Browse button hands the caller: the catalog, the
+ *  collection, and a search over the current view straight away. */
+export type BrowseStacRequest = { collection?: string; search?: boolean }
+
+/** "Search <collection> in <catalog> over the current view", for the title. */
+function browseTitle(stac: LibraryStacLink): string {
+  const preset = STAC_PRESETS.find((p) => p.id === stac.preset)
+  const col = stac.collection ? stac.collection.replace(/\/collection\.json$/, "").split("/").filter(Boolean).slice(-3).join("/") : ""
+  return `Search ${col ? `${col} in ` : ""}${preset?.name ?? stac.preset} over the current view`
 }
 
 type SectionKey = "national" | "global" | "regional" | "city"
@@ -138,7 +155,7 @@ function kindOf(name: string): { label: string; title: string } | null {
  */
 export function SampleSourcesModal<T extends SampleLike>({
   open, onOpenChange, title, samples, current, setCurrent, compareToMapterhorn = false,
-  stacTarget, onBrowseStac, onAdded,
+  stacTarget, onBrowseStac, onAdded, browseOnly = [],
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -152,8 +169,13 @@ export function SampleSourcesModal<T extends SampleLike>({
   stacTarget?: "terrain" | "basemap"
   /** Hands the chosen catalog back so the caller can close this dialog and
    *  open the Add dialog on its STAC tab. Omit and the section is read-only
-   *  links. */
-  onBrowseStac?: (presetId: string) => void
+   *  links. A dataset row's Browse (its `stac` field) passes its collection
+   *  and asks for a search over the current view; the Catalogs section
+   *  passes the catalog alone. */
+  onBrowseStac?: (presetId: string, request?: BrowseStacRequest) => void
+  /** Datasets with no mosaic, only a STAC collection: listed among the
+   *  others with Browse in place of Add, never added, never counted. */
+  browseOnly?: readonly LibraryBrowseEntry[]
   /** The entries just added (the rows clicked, not the operands a difference
    *  pulls in), for the caller to select one. */
   onAdded?: (added: readonly T[]) => void
@@ -182,11 +204,12 @@ export function SampleSourcesModal<T extends SampleLike>({
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
   const hasBulk = useMemo(() => samples.some((s) => s.bulkResolutionM !== undefined), [samples])
+  const browseRows = useMemo<BrowseRow[]>(() => browseOnly.map((s) => ({ ...s, browseOnly: true as const })), [browseOnly])
   const comparisons = useMemo(() => {
     const m = new Map<string, MapterhornComparison | null>()
-    if (compareToMapterhorn) for (const s of samples) m.set(s.id, compareWithMapterhorn(s, metric))
+    if (compareToMapterhorn) for (const s of [...samples, ...browseRows]) m.set(s.id, compareWithMapterhorn(s, metric))
     return m
-  }, [samples, compareToMapterhorn, metric])
+  }, [samples, browseRows, compareToMapterhorn, metric])
   // The before and after surveys of an event ("Change:" differences), which
   // are nothing on their own: listed with their difference, not graded
   // against Mapterhorn. A national DSM behind an nDSM stays with the nationals.
@@ -196,14 +219,17 @@ export function SampleSourcesModal<T extends SampleLike>({
     .filter((id): id is string => typeof id === "string" && samples.some((x) => x.id === id && x.loadWithSamples === false))), [samples])
   // tier -> section -> rows. Without comparison everything sits in one tier.
   const grouped = useMemo(() => {
-    const out: Record<TierKey, Record<SectionKey, T[]>> = {
+    const out: Record<TierKey, Record<SectionKey, Array<T | BrowseRow>>> = {
       better: { national: [], global: [], regional: [], city: [] },
       derived: { national: [], global: [], regional: [], city: [] },
       notBetter: { national: [], global: [], regional: [], city: [] },
       bathy: { national: [], global: [], regional: [], city: [] },
     }
-    samples.forEach((s, i) => {
-      if (q && !`${s.name} ${s.id} ${s.type ?? ""}`.toLowerCase().includes(q)) return
+    // Browse-only rows take index -1: they are not in the file's editorial
+    // order, so only their name ("Global - "), bounds and loadWithSamples
+    // place them, and they sort after the mosaics of their section.
+    ;[...samples.map((s, i) => [s, i] as const), ...browseRows.map((s) => [s, -1] as const)].forEach(([s, i]) => {
+      if (q && !`${s.name} ${s.id} ${s.type ?? ""}${isBrowseRow(s) ? " stac browse" : ""}`.toLowerCase().includes(q)) return
       const c = comparisons.get(s.id)
       const tier: TierKey = !compareToMapterhorn ? "better"
         : kindOf(s.name)?.label === "Bathy" ? "bathy"
@@ -212,7 +238,9 @@ export function SampleSourcesModal<T extends SampleLike>({
       out[tier][sectionOf(s, i, lastGlobal)].push(s)
     })
     return out
-  }, [samples, comparisons, compareToMapterhorn, lastGlobal, q, eventOperands])
+  }, [samples, browseRows, comparisons, compareToMapterhorn, lastGlobal, q, eventOperands])
+  /** The rows that can be added: every one but the Browse-only. */
+  const addable = (rows: readonly (T | BrowseRow)[]): T[] => rows.filter((s): s is T => !isBrowseRow(s))
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   // Everything is open by default EXCEPT the "not better than Mapterhorn"
   // tier. That tier is the majority of the list and, by its own definition,
@@ -273,8 +301,9 @@ export function SampleSourcesModal<T extends SampleLike>({
   const loadAllSet = samples.filter((s) => s.loadWithSamples !== false)
   const loadedCount = samples.filter((s) => presentIds.has(s.id)).length
 
-  const Row = ({ s }: { s: T }) => {
-    const present = presentIds.has(s.id)
+  const Row = ({ s }: { s: T | BrowseRow }) => {
+    const browseOnlyRow = isBrowseRow(s)
+    const present = !browseOnlyRow && presentIds.has(s.id)
     const kind = kindOf(s.name)
     const c = comparisons.get(s.id)
     const showCompare = compareToMapterhorn && kind?.label !== "Bathy"
@@ -311,7 +340,12 @@ export function SampleSourcesModal<T extends SampleLike>({
             {c ? VERDICT_STYLE[c.verdict].label : "—"}
           </span>
         )}
-        {s.type && <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0 w-16 text-right">{s.type}</span>}
+        {(s.type || browseOnlyRow) && (
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0 w-16 text-right"
+            title={browseOnlyRow ? "Strips or tiles in a STAC collection, no single mosaic: found by a search over the view" : undefined}>
+            {browseOnlyRow ? "stac" : s.type}
+          </span>
+        )}
         {(s.infoUrl || s.url) && (
           <a
             href={s.infoUrl ?? endpointOf(s.url!)}
@@ -323,16 +357,29 @@ export function SampleSourcesModal<T extends SampleLike>({
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         )}
-        <Button
-          variant={present ? "outline" : "secondary"}
-          size="icon-sm"
-          className="cursor-pointer shrink-0"
-          aria-label={present ? `Remove ${s.name}` : `Add ${s.name}`}
-          title={present ? "Remove from your sources" : "Add to your sources"}
-          onClick={() => (present ? remove([s]) : add([s]))}
-        >
-          {present ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-        </Button>
+        {/* Same look as the Catalogs section's Browse; the label folds away
+            on a phone, where the row is already full. */}
+        {s.stac && (
+          <Button variant="secondary" size="sm" className="cursor-pointer shrink-0 h-8"
+            disabled={!onBrowseStac}
+            aria-label={`Browse ${s.name}`}
+            title={onBrowseStac ? browseTitle(s.stac) : "Catalog search is not available here"}
+            onClick={() => onBrowseStac?.(s.stac!.preset, { collection: s.stac!.collection, search: true })}>
+            <Search className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Browse</span>
+          </Button>
+        )}
+        {!browseOnlyRow && (
+          <Button
+            variant={present ? "outline" : "secondary"}
+            size="icon-sm"
+            className="cursor-pointer shrink-0"
+            aria-label={present ? `Remove ${s.name}` : `Add ${s.name}`}
+            title={present ? "Remove from your sources" : "Add to your sources"}
+            onClick={() => (present ? remove([s]) : add([s]))}
+          >
+            {present ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          </Button>
+        )}
       </div>
     )
   }
@@ -340,7 +387,8 @@ export function SampleSourcesModal<T extends SampleLike>({
   /** Add-all / remove-all for one group, sitting left of its chevron. They live
    *  OUTSIDE the CollapsibleTrigger (itself a button) so they neither nest
    *  buttons nor toggle the fold when clicked. */
-  const GroupActions = ({ rows }: { rows: T[] }) => {
+  const GroupActions = ({ rows: all }: { rows: Array<T | BrowseRow> }) => {
+    const rows = addable(all)
     const loaded = rows.filter((s) => presentIds.has(s.id)).length
     return (
       <span className="flex items-center gap-1 shrink-0">
@@ -356,15 +404,20 @@ export function SampleSourcesModal<T extends SampleLike>({
     )
   }
 
-  const Section = ({ id, title, icon: Icon, blurb, rows, level }: { id: string; title: string; icon?: LucideIcon; blurb: string; rows: T[]; level: 1 | 2 }) => {
-    const loaded = rows.filter((s) => presentIds.has(s.id)).length
+  /** "· 3/12" for the rows that can be added; Browse-only rows are not
+   *  counted, since they are never in your list. */
+  const countLabel = (rows: Array<T | BrowseRow>) => {
+    const add = addable(rows)
+    return add.length ? `· ${add.filter((s) => presentIds.has(s.id)).length}/${add.length}` : "· browse"
+  }
+  const Section = ({ id, title, icon: Icon, blurb, rows, level }: { id: string; title: string; icon?: LucideIcon; blurb: string; rows: Array<T | BrowseRow>; level: 1 | 2 }) => {
     return (
       <Collapsible open={isOpen(id)} onOpenChange={(o) => setOpenSections((p) => ({ ...p, [id]: o }))}>
         <div className={`flex items-center gap-1 ${level === 1 ? "border-b-2" : "border-b"}`}>
           <CollapsibleTrigger className="flex items-center gap-1.5 flex-1 min-w-0 py-1 cursor-pointer text-left">
             {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
             <span className={level === 1 ? "text-sm font-bold" : "text-sm font-semibold"}>
-              {title} <span className="font-normal text-muted-foreground">· {loaded}/{rows.length}</span>
+              {title} <span className="font-normal text-muted-foreground">{countLabel(rows)}</span>
             </span>
           </CollapsibleTrigger>
           <GroupActions rows={rows} />
@@ -389,7 +442,7 @@ export function SampleSourcesModal<T extends SampleLike>({
           <div className="flex items-center gap-1 border-b">
             <CollapsibleTrigger className="flex items-center flex-1 min-w-0 py-1 cursor-pointer text-left">
               <span className="text-sm font-semibold">
-                {sec.title} <span className="font-normal text-muted-foreground">· {rows.filter((s) => presentIds.has(s.id)).length}/{rows.length}</span>
+                {sec.title} <span className="font-normal text-muted-foreground">{countLabel(rows)}</span>
               </span>
             </CollapsibleTrigger>
             <GroupActions rows={rows} />

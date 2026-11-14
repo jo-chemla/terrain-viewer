@@ -622,14 +622,14 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         onOpenChange={setIsSampleModalOpen}
         title="Basemap library"
         stacTarget="basemap"
-        onBrowseStac={(presetId) => {
+        onBrowseStac={(presetId, request) => {
         // The Add dialog reads its own type back from the "last type" atom
         // when it opens for a NEW source, so pointing that at "stac" is all it
         // takes to land on the catalog tab - no extra prop, no second path
         // through the dialog's reset effect. seedStacPreset picks the
-        // catalog itself. Off when the beta flag is off, since the tab would
-        // not be there to land on.
-          seedStacPreset("basemap", presetId)
+        // catalog itself, and for a dataset row's Browse (an entry's `stac`
+        // field) its collection and a search over the current view too.
+          seedStacPreset("basemap", presetId, request)
           setLastBasemapType("stac")
           setEditingBasemap(null)
           setIsSampleModalOpen(false)
