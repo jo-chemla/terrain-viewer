@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { DateField } from "@/components/ui/date-field"
 import { SegmentedToggle } from "./controls-components"
 import { stacWmtsRefs, resolveStacWmts, type StacWmtsRef } from "@/lib/wmts-client"
+import { publicMirrorHref, blockedReason, allDataCredentialed, isCredentialed, publicThumbnail, cdseBrowserUrl } from "@/lib/cdse"
 
 // STAC search (beta). Three kinds of catalog are handled:
 //  - "api": a STAC API - POST {root}/search with bbox / datetime /
@@ -121,6 +122,39 @@ const CatalogCombobox: React.FC<{ presets: StacPreset[]; value: string; customUr
         </Combobox.Positioner>
       </Combobox.Portal>
     </Combobox.Root>
+  )
+}
+
+/** An item's footprint (filled) against the view that was searched (dashed),
+ *  for rows the map behind the dialog cannot show. Equirectangular with a
+ *  cos(latitude) squeeze, which is all a 48 px glyph needs. */
+const FootprintGlyph: React.FC<{ it: StacItem; view: number[] | null }> = ({ it, view }) => {
+  const geom = (it as { geometry?: { type?: string; coordinates?: unknown } }).geometry
+  let rings: number[][][] = geom?.type === "Polygon" ? (geom.coordinates as number[][][])
+    : geom?.type === "MultiPolygon" ? (geom.coordinates as number[][][][]).flat() : []
+  const b = it.bbox
+  if (!rings.length && b && b.length >= 4) rings = [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]]
+  if (!rings.length) return null
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  const grow = (x: number, y: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y) }
+  for (const r of rings) for (const [x, y] of r) grow(x, y)
+  if (view && view.length >= 4) { grow(view[0], view[1]); grow(view[2], view[3]) }
+  const k = Math.cos((((y0 + y1) / 2) * Math.PI) / 180) || 1
+  const S = 48, pad = 4
+  const span = Math.max((x1 - x0) * k, y1 - y0, 1e-9)
+  const sc = (S - 2 * pad) / span
+  const ox = (S - (x1 - x0) * k * sc) / 2, oy = (S - (y1 - y0) * sc) / 2
+  const px = (x: number) => ox + (x - x0) * k * sc, py = (y: number) => S - oy - (y - y0) * sc
+  const d = rings.map((r) => r.map(([x, y], i) => `${i ? "L" : "M"}${px(x).toFixed(1)},${py(y).toFixed(1)}`).join("") + "Z").join("")
+  return (
+    <svg viewBox={`0 0 ${S} ${S}`} className="h-12 w-12 shrink-0 rounded bg-muted" aria-hidden>
+      <title>Footprint (green) against the searched view (dashed)</title>
+      {view && view.length >= 4 && (
+        <rect x={px(view[0])} y={py(view[3])} width={Math.max(1, px(view[2]) - px(view[0]))} height={Math.max(1, py(view[1]) - py(view[3]))}
+          fill="none" stroke="currentColor" strokeWidth={1} strokeDasharray="2 2" className="text-muted-foreground" />
+      )}
+      <path d={d} fillRule="evenodd" className="fill-emerald-500/25 stroke-emerald-600 dark:stroke-emerald-400" strokeWidth={1} />
+    </svg>
   )
 }
 
@@ -240,6 +274,8 @@ export const StacSearchPanel: React.FC<{
   }))
   const [collectionFilter, setCollectionFilter] = useState("")
   const [progress, setProgress] = useState("")
+  // The view the last search covered, drawn behind each footprint glyph.
+  const [searchBbox, setSearchBbox] = useState<number[] | null>(null)
   // Results get most of the dialog: once they land, scroll the dialog so the
   // list starts at the top and the catalog / filter header slides away.
   const resultsRef = useRef<HTMLDivElement>(null)
@@ -321,6 +357,7 @@ export const StacSearchPanel: React.FC<{
       const map = mapRef?.current?.getMap()
       const b = viewportOnly && map ? map.getBounds() : null
       const bbox = b ? [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()] : null
+      setSearchBbox(bbox)
       const datetime = anyDate ? undefined : `${startDate}T00:00:00Z/${endDate}T23:59:59Z`
       const cloudOk = (it: StacItem) => maxCloud === null || typeof it.properties?.["eo:cloud_cover"] !== "number" || (it.properties["eo:cloud_cover"] as number) <= maxCloud
       if (catalog.kind === "api") {
@@ -378,7 +415,14 @@ export const StacSearchPanel: React.FC<{
   /** WMTS links and assets of an item (basemap target only: pictures). */
   const itemWmts = (it: StacItem) => (target === "basemap" ? stacWmtsRefs(it as Parameters<typeof stacWmtsRefs>[0]) : [])
   const cogAssets = (it: StacItem) => {
-    let assets = Object.entries(it.assets ?? {}).filter(([key, a]) => isCog(a) && (target !== "terrain" || usableForTerrain(key, a)))
+    // A credentialed href with a known keyless copy (CDSE's Copernicus DEM ->
+    // AWS Open Data) is swapped for the copy; `mirrorOf` keeps the original.
+    let assets = Object.entries(it.assets ?? {})
+      .map(([key, a]): [string, StacAsset] => {
+        const mirror = isUnfetchable(a) ? publicMirrorHref(a.href) : undefined
+        return mirror ? [key, { ...a, href: mirror, mirrorOf: a.href } as StacAsset] : [key, a]
+      })
+      .filter(([key, a]) => isCog(a) && !isCredentialed(a) && (target !== "terrain" || usableForTerrain(key, a)))
     if (target === "terrain") {
       // A scene split into many single-band rasters (Landsat, Sentinel) is
       // multispectral, not elevation: keep the DEM-looking assets only, and
@@ -391,6 +435,17 @@ export const StacSearchPanel: React.FC<{
     return assets
   }
   cogAssetsRef.current = cogAssets
+  /** Why an item with nothing addable is still listed (its data exists but a
+   *  browser cannot read it), or null to leave it out. Listed on catalogs
+   *  that declare an item viewer (CDSE) and wherever every data asset sits
+   *  behind credentials; on the terrain target only elevation-looking items. */
+  const catalogOnly = (it: StacItem): string | null => {
+    if (planetTiles || cogAssets(it).length) return null
+    if (!catalog.itemViewer && !allDataCredentialed(it)) return null
+    if (target === "terrain" && !DEM_RE.test(`${it.collection ?? ""} ${String(it.properties?.title ?? "")}`)
+      && !Object.entries(it.assets ?? {}).some(([k, a]) => looksLikeDem(it, k, a))) return null
+    return blockedReason(it)
+  }
 
   // Web Mercator assets first (they stream in-browser), then other known
   // projections (titiler), then assets whose projection is unknown; DEM-looking
@@ -456,7 +511,7 @@ export const StacSearchPanel: React.FC<{
         </div>
       )}
       {catalog.note && <p className="text-[11px] text-muted-foreground">{catalog.note}</p>}
-      {target === "basemap" && catalog.kind !== "discovery" && /^https?:\/\/\S+/.test(catalog.url) && (() => {
+      {target === "basemap" && catalog.kind !== "discovery" && !catalog.itemViewer && /^https?:\/\/\S+/.test(catalog.url) && (() => {
         // The catalog (and its chosen collection) as a historical timeline
         // catalog: one tick per item covering the view, under My catalogs.
         const spec = { endpoint: trimSlash(catalog.url), kind: catalog.kind as "api" | "static", collection: collectionId || undefined }
@@ -580,7 +635,7 @@ export const StacSearchPanel: React.FC<{
 
       <div ref={resultsRef} className="max-h-[65vh] overflow-y-auto overflow-x-hidden space-y-1 scroll-mt-2">
         {!loading && items.length === 0 && !error && <p className="text-sm text-muted-foreground py-3 text-center">No results yet.</p>}
-        {!loading && items.length > 0 && !planetTiles && ordered.every((it) => !cogAssets(it).length && !itemWmts(it).length) && (
+        {!loading && items.length > 0 && !planetTiles && ordered.every((it) => !cogAssets(it).length && !itemWmts(it).length && !catalogOnly(it)) && (
           <p className="text-sm text-muted-foreground py-3 text-center">
             {items.length} items, none with a {target === "terrain" ? "single-band elevation" : "COG"} asset.
             {target === "terrain" && (
@@ -658,7 +713,8 @@ export const StacSearchPanel: React.FC<{
         {ordered.map((it) => {
           const assets = cogAssets(it)
           const wmts = itemWmts(it)
-          if (!assets.length && !planetTiles && !wmts.length) return null
+          const blocked = catalogOnly(it)
+          if (!assets.length && !planetTiles && !wmts.length && !blocked) return null
           const p = it.properties ?? {}
           const whenMs = [p.datetime, p.start_datetime].map((v) => (typeof v === "string" ? parseUtcMs(v) : NaN)).find(Number.isFinite)
           const when = whenMs === undefined ? "" : isoFromUtcMs(whenMs)
@@ -668,6 +724,35 @@ export const StacSearchPanel: React.FC<{
           const gsd = typeof p.gsd === "number" ? (p.gsd < 1 ? `${Math.round(p.gsd * 100)} cm` : `${(p.gsd as number).toFixed(p.gsd < 10 ? 1 : 0)} m`) : ""
           const producer = typeof p["oam:producer_name"] === "string" ? (p["oam:producer_name"] as string) : typeof p.platform === "string" ? (p.platform as string) : ""
           const cloud = typeof p["eo:cloud_cover"] === "number" ? `☁ ${Math.round(p["eo:cloud_cover"] as number)}%` : ""
+          if (blocked) {
+            // Listed, not addable: quicklook (when public), footprint, the
+            // reason, and the provider's own viewer at that place and date.
+            const thumb = publicThumbnail(it)
+            const viewer = catalog.itemViewer === "cdse" ? cdseBrowserUrl(it) : undefined
+            return (
+              <div key={it.id} className="p-2 rounded-md hover:bg-muted/60 flex gap-2 min-w-0">
+                {/* No link around it: CDSE serves quicklooks as
+                    application/octet-stream, so opening one downloads it. A
+                    catalog thumbnail that fails (CDSE's Landsat mosaic ones
+                    ask its thumbnail WMS for a size it refuses) is hidden. */}
+                {thumb && (
+                  <img src={thumb} alt="" title="Quicklook" loading="lazy" referrerPolicy="no-referrer" className="h-12 w-12 shrink-0 rounded object-cover bg-muted"
+                    onError={(e) => { e.currentTarget.style.display = "none" }} />
+                )}
+                <FootprintGlyph it={it} view={searchBbox} />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="text-sm truncate" title={it.id}>{title}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{[it.collection, whenMs === undefined ? "" : formatUtcDate(whenMs), gsd, cloud, producer].filter(Boolean).join(" · ")}</div>
+                  <div className="text-[11px] text-amber-700 dark:text-amber-400 break-words">Not loadable: {blocked}</div>
+                  {viewer && (
+                    <a href={viewer} target="_blank" rel="noopener noreferrer" className="text-[11px] underline inline-flex items-center gap-0.5">
+                      Open in Copernicus Browser at this place and date <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )
+          }
           return (
             <div key={it.id} className="p-2 rounded-md hover:bg-muted/60 space-y-1">
               <div className="text-sm truncate" title={it.id}>{title}</div>
@@ -704,12 +789,13 @@ export const StacSearchPanel: React.FC<{
                   const viaTitiler = epsg !== undefined && epsg !== 3857
                   const isAdded = added.has(a.href)
                   const dem = target === "terrain" && looksLikeDem(it, key, a)
+                  const mirrorOf = (a as StacAsset & { mirrorOf?: string }).mirrorOf
                   return (
                     <Button key={key} size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs max-w-full min-w-0 justify-start" disabled={isAdded}
-                      title={`${a.href}\n${epsg ? `EPSG:${epsg}` : "projection not stated"}${viaTitiler ? " - served through titiler" : ""}${dem ? "\nLooks like an elevation model" : ""}`}
+                      title={`${a.href}\n${epsg ? `EPSG:${epsg}` : "projection not stated"}${viaTitiler ? " - served through titiler" : ""}${dem ? "\nLooks like an elevation model" : ""}${mirrorOf ? `\nThe catalog's copy (${mirrorOf}) needs credentials: this is the identically named keyless copy on AWS Open Data` : ""}`}
                       onClick={() => { setAdded((s) => new Set(s).add(a.href)); onSave({
                         name: `${when ? `${when} ` : ""}${title === it.id || a.title === title ? `${title}${a.title && a.title !== title ? ` — ${a.title}` : assets.length > 1 ? ` — ${key}` : ""}` : `${title} — ${a.title || key}`}`, url: a.href, type: "cog",
-                        description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""}${producer ? ` · ${producer}` : ""}${epsg ? ` · EPSG:${epsg}` : ""}`,
+                        description: `STAC ${catalog.name}${it.collection ? ` / ${it.collection}` : ""} · ${it.id}${when ? ` · ${when}` : ""}${gsd ? ` · ${gsd}` : ""}${producer ? ` · ${producer}` : ""}${epsg ? ` · EPSG:${epsg}` : ""}${mirrorOf ? " · read from the AWS Open Data copy" : ""}`,
                         bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
                         cogViaTitiler: viaTitiler || undefined,
                         role: target === "basemap" ? role : undefined,

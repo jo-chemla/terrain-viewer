@@ -24,6 +24,9 @@ export interface StacPreset {
    *  `Authorization: api-key <key>` (Planet's STAC expects the key itself,
    *  not a bearer token). */
   auth?: "planet"
+  /** Items that cannot be streamed link to this viewer at their place and
+   *  date ("cdse": the Copernicus Browser, see lib/cdse.ts). */
+  itemViewer?: "cdse"
 }
 
 export const STAC_PRESETS: StacPreset[] = [
@@ -56,6 +59,8 @@ export const STAC_PRESETS: StacPreset[] = [
     note: "British Columbia's open LidarBC DEMs and DSMs as COGs - 102,000+ tiles in collection stac-elevation-bc, CC BY 4.0, updated monthly. A community catalog, not the province's own; Mapterhorn has only Canada's national 2 m here." },
   { id: "planet-stac", name: "Planet Data API (STAC)", url: "https://api.planet.com/x/data", kind: "api", target: "basemap", group: "Imagery", auth: "planet",
     note: "Planet's own STAC API over its archive (PlanetScope, SkySat...). Needs two things from Settings → API Keys: the access token (planet auth print-access-token, about 2 h 20 of validity) to search, and the API key to show a scene, since items carry only a thumbnail and the imagery comes as XYZ tiles from tiles.planet.com signed with the key. What a search returns depends on the account's plan." },
+  { id: "cdse", name: "Copernicus Data Space Ecosystem (CDSE)", url: "https://stac.dataspace.copernicus.eu/v1", kind: "api", target: "basemap", group: "Imagery", collection: "sentinel-2-l2a", itemViewer: "cdse",
+    note: "The EU's official Copernicus archive: Sentinel-1, -2, -3 and -5P, Landsat, MODIS, CLMS, the Copernicus DEM, about 430 collections. The catalog is open, but the data is not open to a browser: bands are on s3://eodata (S3 keys) or behind the download service (a Copernicus login), and Sentinel-2 is JPEG 2000. Scenes are listed with their quicklook, footprint and a link to the Copernicus Browser at that place and date; for streamable Sentinel-2 and Landsat COGs use Earth Search." },
   // Disaster imagery
   { id: "maxar-opendata", name: "Maxar Open Data - disaster events", url: "https://maxar-opendata.s3.dualstack.us-west-2.amazonaws.com/events/catalog.json", kind: "static", target: "basemap", group: "Imagery",
     note: "Pre/post-event 30-50 cm ARD COGs per event (CC BY-NC 4.0). Static catalog: pick an event, items are crawled." },
@@ -75,6 +80,8 @@ export const STAC_PRESETS: StacPreset[] = [
   // Elevation
   { id: "pgc", name: "Polar Geospatial Center (ArcticDEM, REMA, EarthDEM)", url: "https://stac.pgc.umn.edu/api/v1", kind: "api", target: "terrain", group: "Elevation",
     note: "2 m stereo-photogrammetric DEMs: ArcticDEM (>60 N) and REMA (Antarctica) as seamless mosaics or per-scene strips, and EarthDEM everywhere else as strips only - there is no EarthDEM mosaic, which is why it has no Library entry. Polar stereographic and UTM, routed through titiler. ArcticDEM and REMA are CC BY 4.0; EARTHDEM IS NOT OPENLY LICENSED - PGC restricts it to US federal employees, US federal contractors and researchers funded by the US government, so check you are eligible before using an earthdem-* collection." },
+  { id: "cdse-dem", name: "Copernicus DEM GLO-30 / GLO-90 (CDSE)", url: "https://stac.dataspace.copernicus.eu/v1", kind: "api", target: "terrain", group: "Elevation", collection: "cop-dem-glo-30-dged-cog", itemViewer: "cdse",
+    note: "The Copernicus DEM tiles of the Copernicus Data Space catalog (pick cop-dem-glo-90-dged-cog for 90 m). CDSE serves them from s3://eodata only, so each tile is read from the identically named copy on AWS Open Data (copernicus-dem-30m / -90m, keyless) and goes through titiler (EPSG:4326). The 10 m EEA DEM in the same catalog is restricted and cannot be loaded." },
   // Federated discovery
   { id: "discovery", name: "Federated collection discovery (MAAP)", url: "https://discover-api.dit.maap-project.org", kind: "discovery", target: "both", group: "Registries",
     note: "Development Seed's stac-fastapi-collection-discovery: one collection search across several upstream STAC APIs; items come from the chosen collection's own API." },

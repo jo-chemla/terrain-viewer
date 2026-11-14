@@ -60,3 +60,4 @@
 - [Search performance](search-performance.md) — the 2026-11-13 reading, the per-page canonical rule for the two hosts, OpenInApp buttons, IndexNow, where to add the next reading
 - [History rewrite 2026-11-13](history-rewrite-2026-11-13.md) — 450 MB of old media stripped from history; heavy files go on releases, check-media.mjs guards it, never push from an old clone
 - [WMTS sources](wmts-sources.md) — lib/wmts-client.ts: matrix sets matched by numbers not names, matrix-id pattern, swisstopo/GIBS template quirks, all four reference services CORS-open; unverified in a browser
+- [CDSE STAC access](cdse-stac-access.md) — Copernicus Data Space catalog is open but no data is anonymously readable (s3://eodata, 401 OData); quicklooks public, CopDEM via the AWS copy, Browser deep links, Sentinel Hub instance id as the follow-up
