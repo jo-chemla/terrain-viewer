@@ -11,6 +11,20 @@ The [STAC search](/features/catalog-search) tab (`components/TerrainControlPanel
 
 Auth: a preset's `auth` names a scheme; Planet's `/x/data` takes an OpenID access token as a Bearer (see the preset note).
 
+## Browse from the Library
+
+A Library entry in `lib/custom-sources.json` can carry a catalog search for its data (`LibraryStacLink` in `lib/settings-atoms.ts`):
+
+```json
+"stac": { "preset": "pgc", "collection": "arcticdem-strips-s2s041-2m" }
+```
+
+`preset` is an `id` in `STAC_PRESETS`. `collection` is the collection id for an API catalog; for a static catalog it is the absolute URL of the child `collection.json` (that is how the panel identifies a static collection), for instance `https://nz-elevation.s3.ap-southeast-2.amazonaws.com/new-zealand/new-zealand/dem_1m/2193/collection.json`. Leave it out to search the whole catalog. An entry with the field gets a **Browse** button beside its **+**.
+
+Datasets with no mosaic, only a collection, go in their own list, `SAMPLE_TERRAIN_BROWSE_ONLY`, with `id`, `name`, `stac` and optionally `description`, `infoUrl`, `resolutionM`, `bounds` and `loadWithSamples` (`LibraryBrowseEntry`). They are kept out of `SAMPLE_TERRAIN_SOURCES` because everything else that reads that list (coverage footprints, *Load all*, `?sourceA=` ids, the docs tables, the STAC export) expects a URL to load. The Library merges them into its sections, where only the name (`Global - `), `bounds` and `loadWithSamples: false` place them, since they are not in the file's order. Check a new collection id against the live endpoint before adding it.
+
+The click reuses the Catalogs section's handoff: `seedStacPreset(target, preset, { collection, search: true })` seeds the panel's `remembered` state, the section closes the Library, and the Add dialog opens on the catalog tab 220 ms later. On mount the panel keeps the seeded collection through the catalog's first collection listing (which used to reset it to all collections, so a preset's own `collection` never reached the picker either) and, with `search`, runs one search over the current view.
+
 ## Why no client library
 
 What this tab needs is the union of API search, a bounded static crawl with bbox and time pruning, pagination, a collection listing that streams, CORS-aware error messages and per-catalog auth. No npm package bundles that: `stac-js` and `stac-ts` are typings and model helpers over documents you fetched yourself, `pystac-client` has no browser port, and stac-map (Development Seed) also fetches with its own code, plus DuckDB-wasm for stac-geoparquet. A wrapper would have added weight without removing any of the code above.

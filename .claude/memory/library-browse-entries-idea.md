@@ -1,11 +1,19 @@
 ---
 name: library-browse-entries-idea
-description: Deferred idea — Library entries that open the Add-source modal on a preset tab (STAC, and later other customizable additions) instead of resolving to a single URL
+description: Library entries that open the Add-source modal on the STAC tab (built 2026-11-14 for STAC; other customizable additions still an idea) instead of resolving to a single URL
 metadata:
   type: project
 ---
 
-Parked 2026-09-19 at the user's request ("keep this idea for later"). Not built.
+Parked 2026-09-19 at the user's request ("keep this idea for later").
+
+## Built 2026-11-14 (STAC only)
+
+- `stac: { preset, collection? }` on a Library entry (`LibraryStacLink`, lib/settings-atoms.ts) adds Browse beside Add. Static catalogs (LINZ, OpenTopography) take the absolute child `collection.json` URL as the collection, since that is the panel's id for them.
+- Browse-only datasets live in their own list `SAMPLE_TERRAIN_BROWSE_ONLY` in custom-sources.json, NOT in SAMPLE_TERRAIN_SOURCES: about ten readers of that list (coverage, Load all, ?sourceA=, docs tables, STAC export, product tour) assume a URL. The modal merges them into its sections (index -1: placed by "Global - ", bounds, loadWithSamples only).
+- Handoff: `seedStacPreset(target, preset, { collection, search: true })`, same sequential close-then-open as the Catalogs Browse. The panel auto-searches once on mount.
+- Found on the way: the panel's first collection listing reset any seeded collection (so the CSDA presets' own `collection` never reached the picker either); bboxes past ±180 at low zoom made PGC answer 400; LINZ nz-elevation names its DEM COG `visual`, which the terrain filter dropped, so that preset never listed a DEM. All three fixed in stac-search-panel.tsx.
+- Unverified in a real browser: the dialog transitions (in the agent browser the closed Library stays mounted with data-ending-style, which looks like both dialogs open; it is not).
 
 ## The idea
 

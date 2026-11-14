@@ -14,7 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
   titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom, cesiumIonKeyAtom,
-  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, customTerrainLastTypeAtom } from "@/lib/settings-atoms"
+  type CustomTerrainSource, type CustomBasemapSource, type LibraryBrowseEntry, terrainLibraryOpenAtom, customTerrainLastTypeAtom } from "@/lib/settings-atoms"
 import { terrainSources } from "@/lib/terrain-sources"
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { deletePersistedCogFile } from "@/lib/opfs-file-store"
@@ -39,6 +39,7 @@ import { JsonEditor } from "@/components/ui/json-editor"
 import customSources from "@/lib/custom-sources.json"
 import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
+const SAMPLE_TERRAIN_BROWSE_ONLY = customSources['SAMPLE_TERRAIN_BROWSE_ONLY'] as LibraryBrowseEntry[]
 
 export const TerrainSourceSection: React.FC<{
   state: any; setState: (updates: any) => void; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; mapRef: React.RefObject<MapRef | null>;
@@ -544,14 +545,15 @@ export const TerrainSourceSection: React.FC<{
             ? (state.basemapPerView ? { sourceA: s.id, basemapSourceA: s.linkedBasemapId } : { sourceA: s.id, basemapSource: s.linkedBasemapId })
             : { sourceA: s.id }))
         }}
-        onBrowseStac={(presetId) => {
+        browseOnly={SAMPLE_TERRAIN_BROWSE_ONLY}
+        onBrowseStac={(presetId, request) => {
         // The Add dialog reads its own type back from the "last type" atom
         // when it opens for a NEW source, so pointing that at "stac" is all it
         // takes to land on the catalog tab - no extra prop, no second path
         // through the dialog's reset effect. seedStacPreset picks the
-        // catalog itself. Off when the beta flag is off, since the tab would
-        // not be there to land on.
-          seedStacPreset("terrain", presetId)
+        // catalog itself, and for a dataset row's Browse its collection and
+        // a search over the current view too.
+          seedStacPreset("terrain", presetId, request)
           setLastTerrainType("stac")
           setEditingSource(null)
           setIsSampleModalOpen(false)

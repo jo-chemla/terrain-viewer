@@ -74,32 +74,38 @@ export const STAC_PRESETS: StacPreset[] = [
   { id: "spot-canada", name: "SPOT orthoimages of Canada 2005-2010", url: "https://canada-spot-ortho.s3.amazonaws.com/canada_spot_orthoimages/catalog.json", kind: "static", target: "basemap", group: "Imagery" },
   // Elevation
   { id: "pgc", name: "Polar Geospatial Center (ArcticDEM, REMA, EarthDEM)", url: "https://stac.pgc.umn.edu/api/v1", kind: "api", target: "terrain", group: "Elevation",
-    note: "2 m stereo-photogrammetric DEMs: ArcticDEM (>60 N) and REMA (Antarctica) as seamless mosaics or per-scene strips, and EarthDEM everywhere else as strips only - there is no EarthDEM mosaic, which is why it has no Library entry. Polar stereographic and UTM, routed through titiler. ArcticDEM and REMA are CC BY 4.0; EARTHDEM IS NOT OPENLY LICENSED - PGC restricts it to US federal employees, US federal contractors and researchers funded by the US government, so check you are eligible before using an earthdem-* collection." },
+    note: "2 m stereo-photogrammetric DEMs: ArcticDEM (>60 N) and REMA (Antarctica) as seamless mosaics or per-scene strips, and EarthDEM everywhere else as strips only - there is no EarthDEM mosaic, which is why its Library entry is Browse only. Polar stereographic and UTM, routed through titiler. ArcticDEM and REMA are CC BY 4.0; EARTHDEM IS NOT OPENLY LICENSED - PGC restricts it to US federal employees, US federal contractors and researchers funded by the US government, so check you are eligible before using an earthdem-* collection." },
   // Federated discovery
   { id: "discovery", name: "Federated collection discovery (MAAP)", url: "https://discover-api.dit.maap-project.org", kind: "discovery", target: "both", group: "Registries",
     note: "Development Seed's stac-fastapi-collection-discovery: one collection search across several upstream STAC APIs; items come from the chosen collection's own API." },
 ]
 
-export type Remembered = { presetId: string; customUrl: string; collectionId: string; startDate: string; endDate: string; viewportOnly: boolean; items: StacItem[]; collections: StacCollection[] }
+/** `autoSearch`: run one search over the current view as soon as the panel
+ *  mounts (set by a Library entry's Browse, consumed on that mount). */
+export type Remembered = { presetId: string; customUrl: string; collectionId: string; startDate: string; endDate: string; viewportOnly: boolean; items: StacItem[]; collections: StacCollection[]; autoSearch?: boolean }
 export const remembered: Partial<Record<"basemap" | "terrain", Remembered>> = {}
 
 /** Preselect a catalog for the next time the panel mounts for `target`.
- *  The Library's Catalogs section calls this on its way to opening the Add
- *  dialog, so "Browse" lands on the right catalog instead of on whatever was
- *  last used. Any remembered results are dropped: they belong to the previous
- *  catalog and would be listed under the new one's name until the first
- *  search replaced them. */
-export function seedStacPreset(target: "basemap" | "terrain", presetId: string) {
+ *  The Library calls this on its way to opening the Add dialog, so "Browse"
+ *  lands on the right catalog instead of on whatever was last used: the
+ *  Catalogs section with the catalog alone, a dataset row (its `stac` field,
+ *  see LibraryStacLink) with the collection too and `search` on, which
+ *  searches the current view at once. Any remembered results are dropped:
+ *  they belong to the previous catalog and would be listed under the new
+ *  one's name until the first search replaced them. */
+export function seedStacPreset(target: "basemap" | "terrain", presetId: string, opts: { collection?: string; search?: boolean } = {}) {
   const prev = remembered[target]
   remembered[target] = {
     startDate: prev?.startDate ?? "",
     endDate: prev?.endDate ?? "",
-    viewportOnly: prev?.viewportOnly ?? true,
+    // A dataset's Browse promises "over the current view".
+    viewportOnly: opts.search ? true : prev?.viewportOnly ?? true,
     presetId,
     customUrl: "",
-    collectionId: STAC_PRESETS.find((p) => p.id === presetId)?.collection ?? "",
+    collectionId: opts.collection ?? STAC_PRESETS.find((p) => p.id === presetId)?.collection ?? "",
     items: [],
     collections: [],
+    autoSearch: !!opts.search,
   }
 }
 

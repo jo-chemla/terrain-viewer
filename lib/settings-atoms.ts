@@ -310,9 +310,43 @@ export const isTourOpenAtom = atom(false)
 // shareable via URL/bookmark the same way every other viz-mode setting is,
 // rather than a silent per-browser localStorage preference.
 
+/** A Library entry's catalog search: the STAC preset (an id in
+ *  lib/stac-presets.ts's STAC_PRESETS) and the collection to preselect in it.
+ *  For an API catalog `collection` is the collection id; for a static one
+ *  (OpenTopography, LINZ) it is the absolute URL of the child collection.json,
+ *  which is how the search panel identifies those. Omitted, the whole catalog
+ *  is searched. An entry carrying it gets a Browse button in the Library;
+ *  see LibraryBrowseEntry for the ones that have nothing else. */
+export interface LibraryStacLink {
+  preset: string
+  collection?: string
+}
+
+/** A Library row with no single mosaic to add, only a STAC collection of
+ *  strips or tiles (EarthDEM, ArcticDEM strips...): listed with Browse in
+ *  place of Add. Kept in custom-sources.json's own SAMPLE_*_BROWSE_ONLY
+ *  lists, away from SAMPLE_TERRAIN_SOURCES, because everything else that
+ *  reads the library (coverage footprints, Load all, ?sourceA= ids, the docs
+ *  tables, the STAC export) expects an entry to have a URL to load. */
+export interface LibraryBrowseEntry {
+  id: string
+  name: string
+  stac: LibraryStacLink
+  description?: string
+  infoUrl?: string
+  resolutionM?: number
+  /** [west, south, east, north], for the Library's scope sections only. */
+  bounds?: [number, number, number, number]
+  /** false files it under Sub-national, as for a mosaic entry. */
+  loadWithSamples?: boolean
+}
+
 export interface CustomTerrainSource {
   id: string
   name: string
+  /** Library entries only: a catalog search for the same data (a mosaic
+   *  plus its strips), offered by a Browse button beside Add. */
+  stac?: LibraryStacLink
   /** For type "cog-local", this is a `local://<id>` placeholder (see
    *  lib/local-file-store.ts) rather than a real URL — the actual File only
    *  lives in-memory for the current session. */
@@ -443,6 +477,8 @@ export const customThemesAtom = atomWithStorage<CustomTheme[]>("customThemes", [
 export interface CustomBasemapSource {
   id: string
   name: string
+  /** Library entries only: see CustomTerrainSource.stac. */
+  stac?: LibraryStacLink
   /** For type "cog-local", this is a `local://<id>` placeholder (see
    *  lib/local-file-store.ts) rather than a real URL — the actual File only
    *  lives in-memory for the current session. */
