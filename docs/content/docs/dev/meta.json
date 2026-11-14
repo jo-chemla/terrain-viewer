@@ -23,6 +23,7 @@
     "lrm",
     "lighting-effects",
     "wms-float32-protocol",
+    "wmts",
     "vrt-protocol",
     "cell-routed-sources",
     "dataset-indexes",

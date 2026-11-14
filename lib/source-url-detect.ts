@@ -93,8 +93,26 @@ export function detectFromUrl(raw: string, target: DetectTarget): DetectedSource
       ? { type: "wms", url: templateWmsGetMap(url, 256), label: "WMS GetMap request", note: changed || undefined }
       : { type: "wms-raw", url: templateWmsGetMap(url, 514), label: "WMS GetMap request", note: `${changed}Read as raw Float32 elevation: the service must deliver GeoTIFF or BIL values, not a coloured picture.` }
   }
+  // WMTS: a RESTful tile template or a KVP GetTile request becomes an XYZ
+  // template (assuming plain integer matrix names on the Google grid, the
+  // common case); the capabilities open the layer picker (lib/wmts-client.ts).
+  if (has(url, /\{TileMatrix\}/i) && has(url, /\{TileRow\}/i) && has(url, /\{TileCol\}/i)) {
+    const t = url.replace(/\{TileMatrix\}/gi, "{z}").replace(/\{TileRow\}/gi, "{y}").replace(/\{TileCol\}/gi, "{x}")
+    const left = /\{(?!z\}|x\}|y\})([^}]+)\}/.exec(t)?.[1]
+    return target === "basemap"
+      ? { type: "wmts", url: t, label: "WMTS tile template", note: `Read as {z}/{x}/{y}: right when the matrix set is Google's Web Mercator grid with integer level names.${left ? ` Replace {${left}} with a value.` : ""} The capabilities URL lists the layers and checks the grid.` }
+      : { type: "terrarium", url: t, label: "WMTS tile template", note: "Encoding guessed as Terrarium; a WMTS usually serves pictures, not encoded elevation." }
+  }
+  if (service === "wmts" && request === "gettile") {
+    const t = url.replace(/([?&]tilematrix=)[^&]*/i, "$1{z}").replace(/([?&]tilerow=)[^&]*/i, "$1{y}").replace(/([?&]tilecol=)[^&]*/i, "$1{x}")
+    return target === "basemap"
+      ? { type: "wmts", url: t, label: "WMTS GetTile request", note: "Read as {z}/{x}/{y}: right when the matrix set is Google's Web Mercator grid with integer level names. The capabilities URL lists the layers and checks the grid." }
+      : { type: "terrarium", url: t, label: "WMTS GetTile request", note: "Encoding guessed as Terrarium; a WMTS usually serves pictures, not encoded elevation." }
+  }
   if (service === "wmts" || has(url, /WMTSCapabilities\.xml/i)) {
-    return { type: target === "basemap" ? "wms" : "terrarium", url, label: "WMTS service", note: "Give the tile template with {z}/{x}/{y} (TileMatrix, TileCol, TileRow) rather than the capabilities." }
+    return target === "basemap"
+      ? { type: "wmts-picker", url, label: "WMTS GetCapabilities", note: "Its layers are listed below: pick one." }
+      : { type: "terrarium", url, label: "WMTS service", note: "A WMTS serves pictures: add it with Add Basemap to list its layers. For an encoded elevation layer, give the tile template with {z}/{x}/{y} (TileMatrix, TileCol, TileRow)." }
   }
 
   // ArcGIS REST.
@@ -195,7 +213,9 @@ export async function detectByFetching(raw: string, target: DetectTarget, signal
   const text = new TextDecoder().decode(bytes)
   const head = text.slice(0, 4000)
   if (/WMS_Capabilities|WMT_MS_Capabilities/.test(head)) return { type: "wms-picker", url: url.split("?")[0], label: "WMS GetCapabilities", note: "Its layers are listed below: pick one." }
-  if (/<Capabilities[^>]*wmts/i.test(head)) return { type: target === "basemap" ? "wms" : "terrarium", url, label: "WMTS capabilities", note: "Give the tile template with {z}/{x}/{y} rather than the capabilities." }
+  if (/<Capabilities[^>]*wmts/i.test(head)) return target === "basemap"
+    ? { type: "wmts-picker", url, label: "WMTS capabilities", note: "Its layers are listed below: pick one." }
+    : { type: "terrarium", url, label: "WMTS capabilities", note: "A WMTS serves pictures: add it with Add Basemap to list its layers. For an encoded elevation layer, give the tile template with {z}/{x}/{y}." }
   if (/<VRTDataset/i.test(head) && target === "terrain") return { type: "vrt", url, label: "GDAL VRT mosaic" }
   let json: any = null
   try { json = JSON.parse(text) } catch { /* not JSON */ }

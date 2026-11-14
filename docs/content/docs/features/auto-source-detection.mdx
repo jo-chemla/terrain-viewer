@@ -15,7 +15,8 @@ The URL's own shape answers most of the time, at once, without a request:
 | A template with `{z}/{x}/{y}` (also `{-y}`, `{quadkey}`, `{s}`) | TMS/XYZ (basemap); Terrarium or TerrainRGB (terrain, guessed from the URL, said so in the note) |
 | `{bbox-epsg-3857}`, or a WMS `REQUEST=GetMap` | WMS (basemap) or WMS raw elevation (terrain): the bbox becomes the placeholder, the `SRS`/`CRS` becomes EPSG:3857 (a request copied from a national portal is in its own CRS, Lambert-93 say, and the placeholder's bbox is Web Mercator), the width and height become one tile's; layers, styles, format and version stay as pasted |
 | A WMS `REQUEST=GetCapabilities`, or `SERVICE=WMS` alone | WMS (list layers), its layers listed at once |
-| A WMTS service or `WMTSCapabilities.xml` | WMS, with a note to give the tile template instead |
+| A WMTS service or `WMTSCapabilities.xml` | WMTS (list layers), basemaps only |
+| A WMTS tile template (`{TileMatrix}/{TileRow}/{TileCol}`) or a KVP `REQUEST=GetTile` URL | WMTS tile template, rewritten to `{z}/{x}/{y}` |
 | An ArcGIS `MapServer` | Its cached tiles, `/tile/{z}/{y}/{x}` |
 | An ArcGIS `ImageServer` | An `exportImage` request: a picture for a basemap, Float32 for terrain |
 | A `.tif` or `.tiff`, with or without a query behind it (a SAS token, a signature) | Remote COG |
@@ -39,7 +40,7 @@ When the URL says nothing (no extension, no placeholder, a signed download link,
 3. **TIFF magic number** in the first bytes (`II*`, `MM*`, BigTIFF `II+` / `MM+`): COG.
 4. **`PMTiles` header**: a `pmtiles://` tile template.
 5. **WMS capabilities XML** (`WMS_Capabilities`, `WMT_MS_Capabilities`): WMS (list layers).
-6. **WMTS capabilities XML**: WMS, with the note to give the tile template.
+6. **WMTS capabilities XML**: WMTS (list layers).
 7. **`VRTDataset`** (terrain): VRT mosaic.
 8. **JSON** with `stac_version`: STAC search on that catalog.
 9. JSON with `tilejson` or a `tiles` array: TileJSON.
