@@ -11,6 +11,29 @@ The [STAC search](/features/catalog-search) tab (`components/TerrainControlPanel
 
 Auth: a preset's `auth` names a scheme; Planet's `/x/data` takes an OpenID access token as a Bearer (see the preset note).
 
+## Copernicus Data Space Ecosystem (CDSE)
+
+Two presets point at `https://stac.dataspace.copernicus.eu/v1`: **CDSE** (basemap dialog, Sentinel-2 L2A preselected) and **Copernicus DEM GLO-30 / GLO-90 (CDSE)** (terrain dialog). The API is a pgstac deployment: CORS-open (`*`, preflight allows `Content-Type` and `Authorization`), item search with `query`, `filter` (CQL2) and `sort`, POST `next` links carrying a `token` (followed by the pager as is), about 430 collections in one `/collections?limit=200` page. It rate-limits: a burst of a dozen searches gets `429`.
+
+The catalog is open; the data is not open to a browser. Checked with anonymous requests on 2026-11-14:
+
+| Collection | Assets | Browser-readable | Why |
+|---|---|---|---|
+| `sentinel-2-l2a`, `sentinel-2-l1c` | JPEG 2000 bands in a SAFE product, TCI included | No | `s3://eodata/…` (S3 keys); the `alternate.https` copies on `download.dataspace.copernicus.eu` answer 401 without a login token (`auth:refs: ["oidc"]`); and JPEG 2000 has no in-browser reader here anyway |
+| `sentinel-1-grd` | COGs (VV, VH) in a SAFE folder | No | same two hosts, same login; the COGs are also in radar geometry (no CRS, GCPs only) |
+| `cop-dem-glo-30-dged-cog`, `cop-dem-glo-90-dged-cog` | One COG per 1° tile, EPSG:4326 | Yes, via the AWS copy | `s3://eodata/auxdata/CopDEM_COG/…` only, no https alternate; the same tile names are on AWS Open Data (`copernicus-dem-30m` / `-90m` buckets, keyless, Range-capable, no CORS), so the panel rewrites the href and pins it to titiler. The AWS release may lag CDSE's |
+| `cop-dem-eea-10-laea-tif` | Plain GeoTIFF + zip | No | `s3://` and a login; the 10 m EEA DEM is restricted (Copernicus services only) |
+| `landsat-c2-l1-*` | COG bands | No | `s3://` and the login-only download service; the thumbnail is `s3://` too |
+| `sentinel-3-*`, `sentinel-5p-*`, `sentinel-6-*` | netCDF (inside a SAFE for Sentinel-3) | No | format, plus the same two hosts |
+| `modis-*` | HDF4 | No | format, plus the same two hosts |
+| `sentinel-2-global-mosaics`, `sentinel-1-global-mosaics`, `opengeohub-landsat-…`, `clms_*_cog` | COGs | No | `s3://` and the login-only download service (some `alternate.https` hrefs are the literal string `zipper`) |
+| Quicklooks (`thumbnail` asset) | JPEG/PNG | Yes | `datahub.creodias.eu` redirects to `zipper.creodias.eu`, 200 with CORS, served as `application/octet-stream` (fine in an `<img>`, a download if opened) |
+| Thumbnails on `thumbnails.dataspace.copernicus.eu` | PNG from a WMS | Partly | public, but only at a fixed list of sizes per product: the Landsat mosaic items ask for 500×500 and get 403 |
+
+So the panel lists every CDSE item with nothing addable as a "catalog only" row (`catalogOnly` in `stac-search-panel.tsx`, reasons from `blockedReason` in `lib/cdse.ts`): quicklook when public, a footprint glyph against the searched view (the dialog hides the map), the reason in one sentence, and a link to the Copernicus Browser at the item's place and day, on its dataset (`datasetId` / `layerId` from the Browser's own `public/datasets.txt`; a collection without a known id links to the place and date only, because an unknown id makes the Browser switch to Sentinel-2 with an error). The same row appears for any catalog whose data assets are all credentialed (NASA CSDA's DEMs). s3:// COGs are no longer offered as buttons that would fail. CDSE is left out of the historical timeline's catalogs: its ticks would draw nothing.
+
+What an account would unlock, not built: the Sentinel Hub OGC services on `sh.dataspace.copernicus.eu/ogc/wms/{instance id}` (and `/ogc/wmts/{instance id}`) answer with CORS for the calling origin and authenticate by the instance id alone, which a user creates in the CDSE Dashboard's Configuration Utility. Stored in Settings like the Planet key (localStorage, a `{cdseInstance}` placeholder filled in `lib/key-placeholders.ts`), it would make each scene addable as a WMS tile source (`TIME` set to the item's day, the layer read from the instance's GetCapabilities, since layer names depend on the user's configuration). The OData download and the Process API need an OAuth access token (10 minutes) and the download service streams whole files, so they are no route for tiles.
+
 ## Why no client library
 
 What this tab needs is the union of API search, a bounded static crawl with bbox and time pruning, pagination, a collection listing that streams, CORS-aware error messages and per-catalog auth. No npm package bundles that: `stac-js` and `stac-ts` are typings and model helpers over documents you fetched yourself, `pystac-client` has no browser port, and stac-map (Development Seed) also fetches with its own code, plus DuckDB-wasm for stac-geoparquet. A wrapper would have added weight without removing any of the code above.

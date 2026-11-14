@@ -40,9 +40,11 @@ export const AddTimelineCatalogDialog: React.FC<{
   const saved = useAtomValue(savedStacCatalogsAtom)
   const existing = useAtomValue(customTimelineCatalogsAtom)
   // Imagery catalogs only (a DEM catalog has nothing to drape), APIs and
-  // static trees (a discovery federation has no items of its own).
+  // static trees (a discovery federation has no items of its own). Catalogs
+  // whose scenes cannot be streamed (CDSE: s3:// and login-only hrefs) would
+  // only give ticks that draw nothing.
   const presets = useMemo(() => [
-    ...STAC_PRESETS.filter((p) => p.target !== "terrain" && p.kind !== "discovery"),
+    ...STAC_PRESETS.filter((p) => p.target !== "terrain" && p.kind !== "discovery" && !p.itemViewer),
     ...saved.filter((c) => c.target !== "terrain").map((c) => ({ id: c.id, name: c.name, url: c.url, kind: c.kind, group: "Yours" as const })),
   ], [saved])
   const [presetId, setPresetId] = useState(presets[0]?.id ?? CUSTOM)
