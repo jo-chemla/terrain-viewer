@@ -6,7 +6,8 @@ type: feedback
 
 # Reminders (bring up at the start of a session, then prune)
 
-- **Upstream requests**, checked against GitHub on 2026-11-13: everything on
+- **Upstream requests**: Jonathan posts the MapLibre issue 48 reply and the
+  maplibre-contour 434 follow-up himself the week of 2026-11-16. Checked against GitHub on 2026-11-13: everything on
   the docs page (docs/content/docs/dev/upstream-requests.mdx) is posted
   except three: the follow-up comment on maplibre-contour issue 434 (no
   comment there yet) and the Allmaps "plain images as a resource" request (no
@@ -31,6 +32,8 @@ type: feedback
   instead of opacity, viz modes combined in one map, the split blend
   without the CSS mix-blend-mode across canvases. Plan written: docs/content/docs/dev/layer-blend-modes.mdx. Not started; raised by
   Jonathan as exciting, ask before upgrading.
+- **Moon LOLA**: branch `moon-lola` on both remotes, set aside by Jonathan
+  2026-11-14; do not merge until he asks.
 - **Git history purge**: done on both remotes 2026-11-13 (see
   [[history-rewrite-2026-11-13]]). Jonathan will clean up his local branches
   left on the old history; never push from them.
