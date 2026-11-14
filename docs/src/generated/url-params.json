@@ -3817,6 +3817,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "sentinelHubInstanceId",
+      "default": "\"\"",
+      "note": "Copernicus Data Space Sentinel Hub configuration (\"instance\") id."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "cesiumDetailOffset",
       "default": "1",
       "note": "Extra quantized-mesh levels to fetch per tile."

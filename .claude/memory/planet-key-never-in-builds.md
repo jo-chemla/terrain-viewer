@@ -8,6 +8,10 @@ The Planet API key must never reach a build, local or CI, nor the public
 sites, the desktop bundles, or the `ENV_FILE_CONTENT` GitHub secret. Users
 paste their own key into Settings (`planetKeyAtom`, localStorage).
 
+The same rule covers every credential a user pastes, notably the Copernicus
+Sentinel Hub instance id (2026-11-14): `sentinelHubInstanceIdAtom` has no
+`VITE_` default on purpose, and saved/shared URLs carry `{shInstance}`.
+
 **Why:** on 2026-10-09 the deploy and desktop workflows began writing `.env`
 from the `ENV_FILE_CONTENT` secret, which was a copy of the local `.env`
 with `VITE_PLANET_API_KEY`. Every Pages deploy from 2026-10-10 to 2026-11-03

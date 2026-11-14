@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, geHiDpiTilesAtom,
   customThemesAtom,
@@ -318,6 +318,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [planetKey, setPlanetKey] = useAtom(planetKeyAtom)
   const [planetAccessToken, setPlanetAccessToken] = useAtom(planetAccessTokenAtom)
   const [cesiumIonKey, setCesiumIonKey] = useAtom(cesiumIonKeyAtom)
+  const [shInstanceId, setShInstanceId] = useAtom(sentinelHubInstanceIdAtom)
   const [cesiumDetailOffset, setCesiumDetailOffset] = useAtom(cesiumDetailOffsetAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
@@ -513,7 +514,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // from Batch always commits whatever text is currently there.
   const handleApiKeysViewModeChange = useCallback((mode: "individual" | "batch") => {
     if (mode === "batch") {
-      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`, `CESIUM_ION_TOKEN=${cesiumIonKey}`].join("\n"))
+      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`, `CESIUM_ION_TOKEN=${cesiumIonKey}`, `SENTINEL_HUB_INSTANCE_ID=${shInstanceId}`].join("\n"))
     } else {
       batchApiKeys.split("\n").forEach((line) => {
         // Split on the FIRST "=" only: a base64 token can legitimately carry
@@ -528,11 +529,12 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           if (key.trim() === "PLANET_API_KEY") setPlanetKey(value.trim())
           if (key.trim() === "GOOGLE_API_KEY") setGoogleKey(value.trim())
           if (key.trim() === "CESIUM_ION_TOKEN") setCesiumIonKey(value.trim())
+          if (key.trim() === "SENTINEL_HUB_INSTANCE_ID") setShInstanceId(value.trim())
         }
       })
     }
     setApiKeysViewMode(mode)
-  }, [batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, cesiumIonKey, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey, setCesiumIonKey])
+  }, [batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, cesiumIonKey, shInstanceId, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey, setCesiumIonKey, setShInstanceId])
 
   return (
     <Dialog
@@ -1060,6 +1062,22 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     Unlocks Cesium World Terrain (and any ion terrain asset) as a Terrain source — hidden until set.
                     Every ion asset is 401 without a token; a free one is at{" "}
                     <a href="https://ion.cesium.com/tokens" target="_blank" rel="noopener noreferrer" className="underline">ion.cesium.com/tokens</a>.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="sh-instance-id">Copernicus Sentinel Hub instance id</Label>
+                  <PasswordInput
+                    id="sh-instance-id"
+                    value={shInstanceId}
+                    onChange={(e: any) => setShInstanceId(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Loads Copernicus Data Space scenes (Sentinel-2 true colour by date) from the catalogue search, and lists your configuration's layers in Add Basemap (WMTS). Free with a Copernicus Data Space account: create a configuration in the{" "}
+                    <a href="https://shapps.dataspace.copernicus.eu/dashboard/#/configurations" target="_blank" rel="noopener noreferrer" className="underline">Sentinel Hub dashboard</a>{" "}
+                    and copy its id. Kept in this browser; saved and shared layers carry a placeholder instead. See{" "}
+                    <a href="/docs/features/api-keys/" target="_blank" rel="noopener noreferrer" className="underline">API keys</a>.
                   </p>
                 </div>
 

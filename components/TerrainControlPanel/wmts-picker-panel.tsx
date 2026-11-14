@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SegmentedToggle } from "./controls-components"
+import { useAtomValue } from "jotai"
+import { sentinelHubInstanceIdAtom } from "@/lib/settings-atoms"
+import { maskKeys, fillKeyPlaceholders, SH_INSTANCE_PLACEHOLDER } from "@/lib/key-placeholders"
 import { fetchWmtsCapabilities, buildWmtsTileSource, usableMatrixSets, unusableReason, type WmtsCapabilities, type WmtsLayer, type WmtsChoice } from "@/lib/wmts-client"
 
 export interface WmtsPickerSaveParams {
@@ -44,6 +47,7 @@ export const WmtsPickerPanel: React.FC<{
   const [filter, setFilter] = useState("")
   const [picked, setPicked] = useState<WmtsLayer | null>(null)
   const [role, setRole] = useState<"basemap" | "overlay">("basemap")
+  const shInstanceId = useAtomValue(sentinelHubInstanceIdAtom)
 
   const handleFetch = useCallback(async (url = baseUrl) => {
     if (!url.trim()) return
@@ -52,7 +56,9 @@ export const WmtsPickerPanel: React.FC<{
     setCaps(null)
     setPicked(null)
     try {
-      const c = await fetchWmtsCapabilities(url.trim())
+      // A key placeholder in the field ({shInstance}) is filled for the
+      // request only; the field keeps showing the placeholder.
+      const c = await fetchWmtsCapabilities(fillKeyPlaceholders(url.trim()))
       if (!c.layers.length) throw new Error("The capabilities list no layers.")
       setCaps(c)
       const start = initialLayer ? c.layers.find((l) => l.identifier === initialLayer) : c.layers.length === 1 ? c.layers[0] : undefined
@@ -95,6 +101,16 @@ export const WmtsPickerPanel: React.FC<{
         <Button onClick={() => handleFetch()} disabled={isLoading || !baseUrl.trim()} className="cursor-pointer shrink-0">
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "List Layers"}
         </Button>
+      </div>
+      {/* Your own Copernicus Sentinel Hub configuration: the field shows the
+          placeholder, filled with the id from Settings when it is fetched. */}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground min-w-0">
+        <Button size="sm" variant="outline" className="h-7 cursor-pointer text-xs" disabled={isLoading || !shInstanceId.trim()}
+          title={shInstanceId.trim() ? "Lists the layers of your Copernicus Sentinel Hub configuration" : "Set your Copernicus Sentinel Hub instance id in Settings → API Keys first"}
+          onClick={() => { const u = `https://sh.dataspace.copernicus.eu/ogc/wmts/${SH_INSTANCE_PLACEHOLDER}?SERVICE=WMTS&REQUEST=GetCapabilities`; setBaseUrl(u); handleFetch(u) }}>
+          Copernicus Sentinel Hub (your configuration)
+        </Button>
+        {!shInstanceId.trim() && <span className="min-w-0">needs your instance id in Settings → API Keys</span>}
       </div>
       {isLoading && <p className="text-xs text-muted-foreground">Reading the capabilities (some services, NASA GIBS for one, send several megabytes)…</p>}
       {error && <p className="text-sm text-red-500 break-words">{error}</p>}
@@ -176,7 +192,9 @@ const WmtsLayerForm: React.FC<{
     const dims = Object.entries(src.dimensions).map(([k, v]) => `${k} ${v}`).join(", ")
     onSave({
       name: layer.title + (Object.keys(src.dimensions).some((k) => /^time$/i.test(k)) ? ` (${src.dimensions[Object.keys(src.dimensions).find((k) => /^time$/i.test(k))!]})` : ""),
-      url: src.url,
+      // A credential in the URL (a Sentinel Hub instance id) is saved as its
+      // placeholder, filled again when tiles are requested.
+      url: maskKeys(src.url),
       type: "wmts",
       description: [`WMTS ${caps.title ?? new URL(caps.url).host}`, layer.identifier, src.matrixSet, dims].filter(Boolean).join(" · "),
       bounds: src.bounds,

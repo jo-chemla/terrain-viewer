@@ -9,7 +9,8 @@ import { pushToast } from "@/components/ui/toast"
 import { Combobox } from "@base-ui/react/combobox"
 import { cn } from "@/lib/utils"
 import { formatUtcDate, isoFromUtcMs, parseUtcMs } from "@/lib/date-input"
-import { planetKeyAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, sentinelHubInstanceIdAtom } from "@/lib/settings-atoms"
+import { maskKeys, SH_INSTANCE_PLACEHOLDER } from "@/lib/key-placeholders"
 import { useAtomValue, useAtom, getDefaultStore } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom, type SavedStacCatalog } from "@/lib/settings-atoms"
 import { Search, Plus, Check, Loader2, ExternalLink, ChevronDown, History } from "lucide-react"
@@ -249,6 +250,7 @@ export const StacSearchPanel: React.FC<{
   // Max cloud cover (eo:cloud_cover), basemaps only; null = no filter.
   const [maxCloud, setMaxCloud] = useState<number | null>(null)
   const [role, setRole] = useState<"basemap" | "overlay">("basemap")
+  const shInstanceId = useAtomValue(sentinelHubInstanceIdAtom)
   // A WMTS link: its capabilities are read (cached per URL) and the named
   // layer added with the link's dimension values; without a layer name, or
   // when it does not resolve, the dialog's WMTS picker opens on it.
@@ -262,7 +264,7 @@ export const StacSearchPanel: React.FC<{
       const time = Object.entries(source.dimensions).find(([k]) => /^time$/i.test(k))?.[1]
       onSave({
         name: `${layer.title}${time ? ` (${time})` : ""}`,
-        url: source.url,
+        url: maskKeys(source.url),
         type: "wmts",
         description: [`STAC ${catalog.name}`, context, `WMTS ${caps.title ?? new URL(caps.url).host}`, layer.identifier, source.matrixSet].filter(Boolean).join(" · "),
         bounds: source.bounds ?? (bbox && bbox.length >= 4 ? [bbox[0], bbox[1], bbox[2], bbox[3]] : undefined),
@@ -379,6 +381,13 @@ export const StacSearchPanel: React.FC<{
   }, [nextPage])
 
   const runSearch = useCallback(async () => {
+    // CDSE answers a search with no collection with a bare 400; say why
+    // before asking it.
+    if ((catalog as { requiresCollection?: boolean }).requiresCollection && !collectionId) {
+      setItems([]); setNextPage(null)
+      setError(`${catalog.name} only searches one collection at a time: pick a collection above (Sentinel-2 L2A, Sentinel-1 GRD, the Copernicus DEM…).`)
+      return
+    }
     setLoading(true); setError(""); setItems([]); setNextPage(null)
     try {
       const map = mapRef?.current?.getMap()
@@ -790,6 +799,33 @@ export const StacSearchPanel: React.FC<{
                       Open in Copernicus Browser at this place and date <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
+                  {catalog.itemViewer === "cdse" && /^sentinel-2/i.test(it.collection ?? "") && whenMs !== undefined && (() => {
+                    // The same scene drawn by the visitor's own Sentinel Hub
+                    // configuration: its TRUE_COLOR layer limited to the
+                    // acquisition day. MAXCC=100, or a configuration's cloud
+                    // limit (often 20 %) returns empty tiles for a cloudy
+                    // scene. The instance id stays a placeholder in the saved
+                    // URL (lib/key-placeholders.ts).
+                    const day = isoFromUtcMs(whenMs).slice(0, 10)
+                    const href = `https://sh.dataspace.copernicus.eu/ogc/wmts/${SH_INSTANCE_PLACEHOLDER}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=TRUE_COLOR&STYLE=default&TILEMATRIXSET=PopularWebMercator256&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image%2Fpng&TIME=${day}%2F${day}&MAXCC=100`
+                    const isAdded = added.has(href)
+                    return (
+                      <div className="pt-0.5">
+                        <Button size="sm" variant={isAdded ? "secondary" : "outline"} className="h-7 cursor-pointer text-xs max-w-full min-w-0 justify-start" disabled={isAdded || !shInstanceId.trim()}
+                          title={shInstanceId.trim() ? "True colour of this day from your Copernicus Sentinel Hub configuration (its TRUE_COLOR layer)" : "Needs your Copernicus Sentinel Hub instance id (Settings → API Keys)"}
+                          onClick={() => { setAdded((s) => new Set(s).add(href)); onSave({
+                            name: `${day} Sentinel-2 true colour (CDSE)`, url: href, type: "wmts",
+                            description: `STAC ${catalog.name} / ${it.collection} · ${it.id} · Sentinel Hub TRUE_COLOR, ${day}, your configuration`,
+                            bounds: it.bbox && it.bbox.length >= 4 ? [it.bbox[0], it.bbox[1], it.bbox[2], it.bbox[3]] : undefined,
+                            minzoom: 6, maxzoom: 16, attribution: "Copernicus Sentinel data, Sentinel Hub (CDSE)", role,
+                          }) }}>
+                          {isAdded ? <Check className="h-3 w-3 shrink-0" /> : <Plus className="h-3 w-3 shrink-0" />}
+                          <span className="truncate min-w-0">True colour via your Sentinel Hub</span>
+                        </Button>
+                        {!shInstanceId.trim() && <span className="ml-2 text-[11px] text-muted-foreground">needs your instance id in Settings → API Keys</span>}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             )

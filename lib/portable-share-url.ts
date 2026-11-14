@@ -12,6 +12,7 @@
 // (cog-local, image-local), georeferenced images, and entries that need more
 // than a URL and a type (custom RGB encodings, nodata sentinels, tile sizes,
 // zoom limits) stay by id, and the result reports them so the sender knows.
+import { maskKeys } from "./key-placeholders"
 import type { CustomTerrainSource, CustomBasemapSource } from "@/lib/settings-atoms"
 import customSourcesData from "@/lib/custom-sources.json"
 import { catalogBasemap, isCatalogBasemapId, isRebuildableCatalogId } from "@/lib/timeline-catalogs"
@@ -112,7 +113,7 @@ export function makePortableShareUrl(href: string, terrainSources: CustomTerrain
     }
     // A Planet tile URL saved with a key in it travels with the placeholder:
     // the recipient's own key fills it (lib/key-placeholders.ts).
-    const shared = /^https:\/\/tiles\d?\.planet\.com\//.test(s.url) ? s.url.replace(/([?&]api_key=)[^&]+/, "$1{planetKey}") : s.url
+    const shared = maskKeys(/^https:\/\/tiles\d?\.planet\.com\//.test(s.url) ? s.url.replace(/([?&]api_key=)[^&]+/, "$1{planetKey}") : s.url)
     return { url: shared, name: s.name, type: t, inferred, viaTitiler: !!(s as any).cogViaTitiler, meta }
   }
 

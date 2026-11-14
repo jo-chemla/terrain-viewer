@@ -1,0 +1,41 @@
+---
+title: "API keys: where to get each one, and what it unlocks"
+sidebarTitle: API keys
+icon: KeyRound
+description: "Every key Terrain Viewer accepts in Settings, API Keys: Mapbox, MapTiler, HERE, Planet, Cesium ion, Google and the Copernicus Sentinel Hub instance id. What each unlocks, the page where you create it, and how the app keeps it out of links and builds."
+---
+
+Most of Terrain Viewer needs no account. A few sources do, and their keys go in **Settings → API Keys**. Each key stays in your browser (local storage): it is never sent anywhere but to its own provider, never put into a shared link or an exported source list, and never built into the website or the desktop app. A source that needs a key is saved with a placeholder such as `{planetKey}` or `{shInstance}`, which your own key fills when the tiles are requested, so a colleague opening your link uses theirs.
+
+| Key | What it unlocks | Where to get it | Cost |
+|---|---|---|---|
+| Mapbox access token | Mapbox terrain and the Mapbox satellite basemap (a shared demo token is built in, replace it with yours for regular use) | [console.mapbox.com, access tokens](https://console.mapbox.com/account/access-tokens/) | Free tier |
+| MapTiler API key | MapTiler terrain as a terrain source | [cloud.maptiler.com, API keys](https://cloud.maptiler.com/account/keys/) ([how](https://docs.maptiler.com/cloud/api/authentication-key/)) | Free tier |
+| HERE API key | HERE Satellite as a basemap, hidden until set | [platform.here.com, apps](https://platform.here.com/admin/apps): create an app, then an API key | Free tier with a card |
+| Planet API key | Planet Monthly Mosaics as a historical basemap, and the tiles of Planet scenes found in the catalogue search | [planet.com, account settings](https://www.planet.com/account/) ([how](https://docs.planet.com/develop/authentication/)) | Paid or research account |
+| Planet access token | Searching Planet's own STAC catalogue, which takes a short-lived token rather than the key | `pip install planet`, `planet auth login`, then `planet auth print-access-token`; it lasts about 2 h 20 | Same account |
+| Cesium ion access token | Cesium World Terrain and any ion terrain asset as a terrain source | [ion.cesium.com, access tokens](https://ion.cesium.com/tokens) | Free tier |
+| Google API key | The Google "Open in" destinations (Street View, the 3D area explorer); nothing on the map needs it | [Google Cloud console, credentials](https://console.cloud.google.com/google/maps-apis/credentials) ([how](https://developers.google.com/maps/documentation/tile/get-api-key)) | Free tier with a card |
+| Copernicus Sentinel Hub instance id | Copernicus Data Space scenes on the map: Sentinel-2 true colour by date from the catalogue search, and your configuration's layers in Add Basemap | Below | Free |
+
+## Copernicus Sentinel Hub instance id
+
+The [Copernicus Data Space](https://dataspace.copernicus.eu/) catalogue is open, and the catalogue search lists its scenes for anyone. Its imagery is not open to a browser without an account. A free account gives you a Sentinel Hub "configuration" (also called an instance), whose id opens a map tile service for your account, and that service lets the viewer draw the scenes.
+
+1. Create a free account at [dataspace.copernicus.eu](https://dataspace.copernicus.eu/) (Login, then Register).
+2. Open the [Sentinel Hub dashboard](https://shapps.dataspace.copernicus.eu/dashboard/#/configurations), Configuration Utility. Click **New configuration**, give it a name and start from a Sentinel-2 L2A template (the templates include the `TRUE_COLOR` layer the catalogue search uses). An existing configuration works too, as long as it has a `TRUE_COLOR` layer.
+3. Copy the configuration's **ID** (a long code like `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`) and paste it in **Settings → API Keys → Copernicus Sentinel Hub instance id**.
+
+Then:
+
+- In the **catalogue search**, pick the Copernicus Data Space catalogue and a collection (it searches one collection at a time). Each Sentinel-2 scene gets a **True colour via your Sentinel Hub** button, which adds that day's imagery as a layer. Cloudy scenes are shown too: the button asks for every scene whatever its cloud cover.
+- In **Add Basemap → WMTS (list layers)**, the **Copernicus Sentinel Hub (your configuration)** button lists every layer of your configuration (true colour, false colour, NDVI, single bands and the rest), with a date to choose.
+
+The id works on its own, without a password: treat it like a key and do not paste it in public. Sentinel Hub counts the tiles against your account's free monthly quota ([CDSE quotas](https://documentation.dataspace.copernicus.eu/Quotas.html)); a configuration can be deleted and recreated if its id ever leaks. More on the services: [Sentinel Hub authentication on CDSE](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html).
+
+## Other services that need an account
+
+- **OpenTopography** global datasets are read without a key from their public bucket. Its API (not used by the viewer) takes a key from the [OpenTopography portal](https://portal.opentopography.org/requestService?service=api).
+- **Titiler**, the tile server some sources go through, is a URL rather than a key: Settings, Titiler Endpoint, with `https://titiler.xyz` by default.
+
+The rest of the app's sources need nothing: Mapterhorn, AWS terrain tiles, the national LiDAR models, Esri Wayback, Google Earth historical imagery and Timelapse, and the open STAC catalogues.
