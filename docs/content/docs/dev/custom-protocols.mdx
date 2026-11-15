@@ -53,13 +53,16 @@ Terrain sources, which read an elevation dataset MapLibre cannot read on its own
 | `quantized-mesh://` | Cesium quantized-mesh terrain, rasterised | [Quantized Mesh Protocol](/dev/quantized-mesh-protocol) |
 | `demdiff://` | The difference of two sources (an nDSM, a change layer) | [Derived Terrain Protocol](/dev/demdiff-protocol) |
 
-Imagery sources, reading tiles MapLibre could not place, decode or request:
+Imagery sources, reading tiles MapLibre could not place, decode, request or clean up on its own:
 
 | Scheme | What it serves | Notes |
 |---|---|---|
 | `epsg3395://` | Tiles cut in World Mercator (EPSG:3395, the ellipsoid), resampled onto Web Mercator rows in the browser. Yandex Satellite in the library is the one such provider; a plain XYZ source would sit up to a dozen kilometres off at mid latitudes | The two grids share their columns exactly, so each Web Mercator tile reads the one or two EPSG:3395 tiles of the same x and interpolates between rows (`lib/epsg3395-protocol.ts`). The historical-satellite app did this through titiler and a GDAL_WMS definition |
 | `gtimelapse://` | Google Earth Timelapse's annual mosaics, 1984 to 2022, from the viewer's own video tiles: one VP9 WebM per tile with a frame per year, seeked in a video element and read as a bitmap | [Google Earth Timelapse](/dev/google-timelapse) |
 | `pcmosaic://` | Landsat Collection 2 and Sentinel-2 L2A scenes mosaicked on the fly by Microsoft Planetary Computer: a STAC search (collection, window, cloud cover, least cloudy first) is registered with a POST, which a `tiles` template cannot send, then its tiles are fetched by search id | [On-the-fly mosaics](/dev/on-the-fly-mosaics) |
+| `capture://` | One satellite pass drawn as one basemap: Maxar and Vantor cut a capture into a grid of COGs about 5 km across, NOAA a flight into frames, so each map tile asks titiler only for the 1 to 4 COGs it overlaps, among the ones the timeline's STAC search found | [On-the-fly mosaics](/dev/on-the-fly-mosaics#capture-mosaics-one-satellite-pass-from-many-cogs) |
+| `planettile://` | Planet Monthly Mosaic tiles with the user's own key read at fetch time (so it is in no tile URL, style or cache entry), a local cache first, and a counter that stops fetching past a quota until the user allows more (`lib/planet-tiles.ts`) | [Historical imagery](/features/historical-imagery), [API keys](/features/api-keys) |
+| `unpaper://` | Paper removal for any tiled old map (Map Warper, Wikimaps, the national map series): pixels near the paper colour turn transparent, with Allmaps' smoothstep edge; `c=auto` detects the paper from a sample tile | [Remove paper](/features/basemaps#remove-paper) |
 
 ### Visualization mode protocols
 
@@ -73,6 +76,9 @@ Derived modes, which read any of the sources above (through the [one resolver](#
 | `normals://`, `matcap://`, `phong://`, `shadow://` | Surface normals and the lighting built on them | [Lighting Effects](/dev/lighting-effects) |
 | `tells://` | Mound and pit candidates, as vector tiles | [Visualization modes](/features/visualization-modes) |
 | `cog-contour://` | Contours from a COG, computed in a worker | [PMTiles and COG Contours](/dev/vendored-protocols) |
+| `threshold://` | Any DEM-shaped template (the terrain or a derived mode) cut at one value into a two-level raster, outlined by maplibre-contour or filled with a colour: an iso-slope at 30°, a sky-view factor at 0.8, a flood level at 312 m | [Iso-line](/features/visualization-modes#iso-line) |
+| `luma://` | A colour tile (Phong, Matcap, the hard shadow) turned into a Terrarium luminance, so `threshold://` and `isoband://` can cut a lighting mode too (`lib/threshold-protocol.ts`) | [Iso-line](/features/visualization-modes#iso-line) |
+| `isoband://` | The same "at a value" line as vector tiles: marching squares (d3-contour) on the padded measure tile, one geometry for the area and its outline, so the fill stops exactly on the line | [Iso-line](/features/visualization-modes#iso-line) |
 
 ## The registry
 
