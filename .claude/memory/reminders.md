@@ -6,11 +6,11 @@ type: feedback
 
 # Reminders (bring up at the start of a session, then prune)
 
-- **Upstream requests**: Jonathan posts the maplibre-contour 434 follow-up
-  himself the week of 2026-11-16 (draft rewritten 2026-11-15 with
-  useClientDemUpstream). It is the only unposted item on the docs page
-  (docs/content/docs/dev/upstream-requests.mdx): the MapLibre issue 48 reply
-  and the Allmaps plain-images comment (on issue 643) were posted 2026-11-15.
+- **Upstream requests**: nothing left to post on the docs page
+  (docs/content/docs/dev/upstream-requests.mdx). Posted 2026-11-15: the
+  MapLibre issue 48 reply, the Allmaps plain-images comment (on issue 643),
+  the protocol registry write-up on style-spec 1374 and the small ask on
+  maplibre-contour 434 linking it. Watch those four for answers.
   The Planet OAuth post was dropped 2026-11-13. Mapterhorn
   issue 27 was commented 2026-10-29. The impasto CORS request is "not to be
   sent yet" by his choice. Check with `gh search issues --author jo-chemla
