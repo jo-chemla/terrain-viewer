@@ -17,16 +17,16 @@ type: feedback
   --repo <repo>` before reminding again.
 - **Later, wanted by Jonathan**: WMTS, Copernicus Data Space and Library
   Browse are done (2026-11-14). "Another time": drawing on secondary views
-  (B..H) and the MCP app (.claude/memory/mcp-apps-plan.md). Canopy height
-  (GEDI-derived, Meta CHMv2 quadkey COGs): no CORS anywhere yet, nothing to
-  do until a browser-readable endpoint exists.
+  (B..H) and the MCP app (.claude/memory/mcp-apps-plan.md). Dropped by
+  Jonathan 2026-11-15, do not raise again: canopy height (GEDI, no
+  browser-readable endpoint) and the slight Sentinel-2 shift.
 - **MapLibre 6.18 layer blend modes** (maplibre-gl-js #48, closed by #8073
   and #8986, 2026-11): native per-layer blending (multiply, screen, ...).
   We are on 6.13; candidate uses: hillshade multiplied over the basemap
   instead of opacity, viz modes combined in one map, the split blend
   without the CSS mix-blend-mode across canvases. Plan written: docs/content/docs/dev/layer-blend-modes.mdx. Not started; raised by
   Jonathan as exciting, ask before upgrading.
-- **Moon LOLA**: branch `moon-lola` on both remotes, set aside by Jonathan
+- **Moon LOLA**: branch `moon-lola` on both remotes (the only one kept; the old-history t3code branch was deleted 2026-11-15), set aside by Jonathan
   2026-11-14; do not merge until he asks.
 - **Git history purge**: done on both remotes 2026-11-13 (see
   [[history-rewrite-2026-11-13]]). Jonathan will clean up his local branches
