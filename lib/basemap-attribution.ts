@@ -34,6 +34,14 @@ export const STATIC_BASEMAP_ATTRIBUTIONS: Record<string, string> = {
   hls: "NASA/USGS Harmonized Landsat Sentinel-2 (HLS)",
   planet: "© Planet Labs PBC",
   "eox-s2": "Sentinel-2 cloudless — Copernicus Sentinel data, processed by EOX IT Services GmbH",
+  // Quarterly mosaics from the visitor's own CDSE configuration (lib/sentinel-hub.ts).
+  "sentinel-hub": "Contains modified Copernicus Sentinel data, processed by Sentinel Hub / Copernicus Data Space Ecosystem",
+  // Commercial archives, UNTESTED scaffolding (lib/maxar.ts, lib/nearmap.ts,
+  // lib/vexcel.ts): fixed strings, no per-scene contributor resolved yet.
+  maxar: "© Vantor (Maxar Technologies)",
+  "maxar-historical": "© Vantor (Maxar Technologies)",
+  "nearmap-historical": "© Nearmap",
+  "vexcel-historical": "© Vexcel",
   // These two DO have a real dynamic value (see header comment) — this
   // string is deliberately just a pointer to it, not the value itself,
   // since a <Source>'s `attribution` prop can never be live-updated post-

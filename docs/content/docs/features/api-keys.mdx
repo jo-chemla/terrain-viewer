@@ -16,7 +16,10 @@ Most of Terrain Viewer needs no account. A few sources do, and their keys go in 
 | Planet access token | Searching Planet's own STAC catalogue, which takes a short-lived token rather than the key | `pip install planet`, `planet auth login`, then `planet auth print-access-token`; it lasts about 2 h 20 | Same account |
 | Cesium ion access token | Cesium World Terrain and any ion terrain asset as a terrain source | [ion.cesium.com, access tokens](https://ion.cesium.com/tokens) | Free tier |
 | Google API key | The Google "Open in" destinations (Street View, the 3D area explorer); nothing on the map needs it | [Google Cloud console, credentials](https://console.cloud.google.com/google/maps-apis/credentials) ([how](https://developers.google.com/maps/documentation/tile/get-api-key)) | Free tier with a card |
-| Copernicus Sentinel Hub instance id | Copernicus Data Space scenes on the map: Sentinel-2 true colour by date from the catalogue search, and your configuration's layers in Add Basemap | Below | Free |
+| Copernicus Sentinel Hub instance id | Copernicus Data Space scenes on the map: Sentinel-2 true colour by date from the catalogue search, your configuration's layers in Add Basemap, and quarterly Sentinel-2 mosaics on the historical timeline | Below | Free |
+| Maxar (Vantor) API key | Untested: Maxar Latest as a basemap and Maxar's archive on the historical timeline | A Vantor Hub account | Paid, no trial |
+| Nearmap API key | Untested: Nearmap's aerial surveys on the historical timeline (US, Australia, New Zealand, Canada) | A Nearmap subscription | Paid |
+| Vexcel token | Untested: Vexcel ortho imagery on the historical timeline | A Vexcel Data Program account | Paid |
 
 ## Copernicus Sentinel Hub instance id
 
@@ -30,8 +33,19 @@ Then:
 
 - In the **catalogue search**, pick the Copernicus Data Space catalogue and a collection (it searches one collection at a time). Each Sentinel-2 scene gets a **True colour via your Sentinel Hub** button, which adds that day's imagery as a layer. Cloudy scenes are shown too: the button asks for every scene whatever its cloud cover. The layer shows from zoom 10 in: Sentinel Hub does not serve Sentinel-2 coarser than 200 m a pixel.
 - In **Add Basemap → WMTS (list layers)**, the **Copernicus Sentinel Hub (your configuration)** button lists every layer of your configuration (true colour, false colour, NDVI, single bands and the rest), with a date to choose.
+- On the **historical timeline**, a **Sentinel Hub** pill: one Sentinel-2 mosaic a quarter since December 2017, the least cloudy scenes of the quarter (20 % cloud at most), from zoom 10 in. It draws the `TRUE_COLOR` layer unless you name another layer of your configuration in **Settings → API Keys → Sentinel Hub layer for the quarterly mosaics**. Uncheck **Show logo** in the configuration's settings to drop the Copernicus watermark from the tiles.
 
 The id works on its own, without a password: treat it like a key and do not paste it in public. Sentinel Hub counts the tiles against your account's free monthly quota ([CDSE quotas](https://documentation.dataspace.copernicus.eu/Quotas.html)); a configuration can be deleted and recreated if its id ever leaks. More on the services: [Sentinel Hub authentication on CDSE](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html).
+
+## Commercial imagery archives (untested)
+
+Three commercial very high resolution archives are wired in but have never run against their live services: none offers a free trial, and the requests are written from each provider's documentation. Each appears only once its key is set.
+
+- **Maxar (Vantor)**: **Maxar Latest** in Basemaps, with the capture date at the view centre in brackets like Bing, and a **Maxar Seamlines** pill on the timeline whose ticks are the capture dates of the seamlines at the view centre. Picking a tick draws the mosaic as it stood on that date.
+- **Nearmap**: a **Nearmap** pill, one tick per aerial survey at the view centre, from Nearmap's Coverage API.
+- **Vexcel**: a **Vexcel** pill with one placeholder tick a year, since no coverage service was found.
+
+How each is built and what is still to confirm: [Commercial imagery](/docs/dev/commercial-imagery).
 
 ## Other services that need an account
 

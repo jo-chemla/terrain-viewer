@@ -51,6 +51,11 @@ import { PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
 import { planetProtocolUrl } from "@/lib/planet-tiles"
 import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
+import { sentinelHubTileUrl, SH_TILE_SIZE, SH_MINZOOM, SH_MAXZOOM } from "@/lib/sentinel-hub"
+import { maxarLatestTileUrl, maxarHistoricalTileUrl, MAXAR_TILE_SIZE, MAXAR_MAXZOOM } from "@/lib/maxar"
+import { useResolvedNearmapSurvey, nearmapSurveyTileUrl, NEARMAP_TILE_SIZE, NEARMAP_MAXZOOM } from "@/lib/nearmap"
+import { vexcelTileUrl, VEXCEL_TILE_SIZE, VEXCEL_MAXZOOM } from "@/lib/vexcel"
+import { sentinelHubInstanceIdAtom, sentinelHubMosaicLayerAtom, maxarKeyAtom, nearmapKeyAtom, vexcelTokenAtom } from "@/lib/settings-atoms"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 
@@ -521,6 +526,16 @@ export const RasterBasemapSource = memo(({
     // this unconditionally (hooks can't be conditional) costs nothing when
     // this side isn't on Wayback.
     const { item: resolvedWaybackItem } = useResolvedWaybackRelease(latitude, longitude, zoom, basemapSource === "wayback" ? date ?? 0 : 0)
+    // Key-gated sources (Settings → API Keys). The keys are read here, at
+    // render time, so they never sit in a saved source or a shared link.
+    const sentinelHubInstanceId = useAtomValue(sentinelHubInstanceIdAtom).trim()
+    const sentinelHubLayer = useAtomValue(sentinelHubMosaicLayerAtom)
+    const maxarKey = useAtomValue(maxarKeyAtom).trim()
+    const nearmapKey = useAtomValue(nearmapKeyAtom).trim()
+    const vexcelToken = useAtomValue(vexcelTokenAtom).trim()
+    // UNTESTED (lib/nearmap.ts): the survey nearest `date` at the view centre,
+    // only queried while this view is on Nearmap.
+    const { surveyId: nearmapSurveyId } = useResolvedNearmapSurvey(basemapSource === "nearmap-historical" ? nearmapKey : "", latitude, longitude, basemapSource === "nearmap-historical" ? date ?? 0 : 0)
 
     const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
     // A local file can only ever stream via the in-browser geomatico protocol —
@@ -597,6 +612,35 @@ export const RasterBasemapSource = memo(({
             return { tiles: [eoxS2CloudlessTileUrl(new Date(date).getUTCFullYear())], tileSize: EOX_S2_TILE_SIZE, maxzoom: EOX_S2_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["eox-s2"] }
         }
 
+        // WMS GetMap with a quarterly time window, built synchronously from
+        // `date` (lib/sentinel-hub.ts).
+        if (basemapSource === "sentinel-hub") {
+            const url = date ? sentinelHubTileUrl(sentinelHubInstanceId, date, sentinelHubLayer) : null
+            if (!url) return null
+            return { tiles: [url], tileSize: SH_TILE_SIZE, maxzoom: SH_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["sentinel-hub"] }
+        }
+
+        // Commercial archives, UNTESTED scaffolding (see each lib module's header).
+        // Maxar's always-latest mosaic, no cql_filter, modelled on Bing.
+        if (basemapSource === "maxar") {
+            if (!maxarKey) return null
+            return { tiles: [maxarLatestTileUrl(maxarKey)], tileSize: MAXAR_TILE_SIZE, maxzoom: MAXAR_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.maxar }
+        }
+        // Seamlines-driven history: `date` is the CQL "acquired on or before"
+        // cutoff, not an exact match, so there is no blank between captures.
+        if (basemapSource === "maxar-historical") {
+            if (!date || !maxarKey) return null
+            return { tiles: [maxarHistoricalTileUrl(maxarKey, date, "vhr")], tileSize: MAXAR_TILE_SIZE, maxzoom: MAXAR_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["maxar-historical"] }
+        }
+        if (basemapSource === "nearmap-historical") {
+            if (!date || !nearmapKey || !nearmapSurveyId) return null
+            return { tiles: [nearmapSurveyTileUrl(nearmapKey, nearmapSurveyId)], tileSize: NEARMAP_TILE_SIZE, maxzoom: NEARMAP_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["nearmap-historical"] }
+        }
+        if (basemapSource === "vexcel-historical") {
+            if (!date || !vexcelToken) return null
+            return { tiles: [vexcelTileUrl(vexcelToken, date)], tileSize: VEXCEL_TILE_SIZE, maxzoom: VEXCEL_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["vexcel-historical"] }
+        }
+
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         const tileUrl = basemapSource === "mapbox"
             ? basemap.url.replace("{API_KEY}", mapboxKey)
@@ -606,7 +650,7 @@ export const RasterBasemapSource = memo(({
             ? basemap.url.replace("{API_KEY}", hereKey ?? "")
             : basemap.url
         return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemapSource] }
-    }, [customBasemap, basemapSource, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl, removeColor, geHiDpi])
+    }, [customBasemap, basemapSource, resolvedWaybackItem, date, planetKey, sentinelHubInstanceId, sentinelHubLayer, maxarKey, nearmapKey, nearmapSurveyId, vexcelToken, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl, removeColor, geHiDpi])
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
@@ -615,6 +659,11 @@ export const RasterBasemapSource = memo(({
         if (basemapSource === "ge-historical") return { minzoom: 0, maxzoom: 23, isCustom: false }
         if (basemapSource === "planet") return { minzoom: 0, maxzoom: PLANET_MAXZOOM, isCustom: false }
         if (basemapSource === "eox-s2") return { minzoom: 0, maxzoom: EOX_S2_MAXZOOM, isCustom: false }
+        // Sentinel Hub serves no Sentinel-2 coarser than 200 m a pixel (about zoom 10).
+        if (basemapSource === "sentinel-hub") return { minzoom: SH_MINZOOM, maxzoom: SH_MAXZOOM, isCustom: false }
+        if (basemapSource === "maxar" || basemapSource === "maxar-historical") return { minzoom: 0, maxzoom: MAXAR_MAXZOOM, isCustom: false }
+        if (basemapSource === "nearmap-historical") return { minzoom: 0, maxzoom: NEARMAP_MAXZOOM, isCustom: false }
+        if (basemapSource === "vexcel-historical") return { minzoom: 0, maxzoom: VEXCEL_MAXZOOM, isCustom: false }
         const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
         return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
     }, [customBasemap, basemapSource])

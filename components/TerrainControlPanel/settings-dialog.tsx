@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, sentinelHubMosaicLayerAtom, maxarKeyAtom, nearmapKeyAtom, vexcelTokenAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, geHiDpiTilesAtom,
   customThemesAtom,
@@ -319,6 +319,10 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [planetAccessToken, setPlanetAccessToken] = useAtom(planetAccessTokenAtom)
   const [cesiumIonKey, setCesiumIonKey] = useAtom(cesiumIonKeyAtom)
   const [shInstanceId, setShInstanceId] = useAtom(sentinelHubInstanceIdAtom)
+  const [shMosaicLayer, setShMosaicLayer] = useAtom(sentinelHubMosaicLayerAtom)
+  const [maxarKey, setMaxarKey] = useAtom(maxarKeyAtom)
+  const [nearmapKey, setNearmapKey] = useAtom(nearmapKeyAtom)
+  const [vexcelToken, setVexcelToken] = useAtom(vexcelTokenAtom)
   const [cesiumDetailOffset, setCesiumDetailOffset] = useAtom(cesiumDetailOffsetAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
@@ -514,7 +518,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // from Batch always commits whatever text is currently there.
   const handleApiKeysViewModeChange = useCallback((mode: "individual" | "batch") => {
     if (mode === "batch") {
-      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`, `CESIUM_ION_TOKEN=${cesiumIonKey}`, `SENTINEL_HUB_INSTANCE_ID=${shInstanceId}`].join("\n"))
+      setBatchApiKeys([`MAPBOX_ACCESS_TOKEN=${mapboxKey}`, `MAPTILER_API_KEY=${maptilerKey}`, `HERE_API_KEY=${hereKey}`, `PLANET_API_KEY=${planetKey}`, `GOOGLE_API_KEY=${googleKey}`, `CESIUM_ION_TOKEN=${cesiumIonKey}`, `SENTINEL_HUB_INSTANCE_ID=${shInstanceId}`, `MAXAR_API_KEY=${maxarKey}`, `NEARMAP_API_KEY=${nearmapKey}`, `VEXCEL_TOKEN=${vexcelToken}`].join("\n"))
     } else {
       batchApiKeys.split("\n").forEach((line) => {
         // Split on the FIRST "=" only: a base64 token can legitimately carry
@@ -530,11 +534,14 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
           if (key.trim() === "GOOGLE_API_KEY") setGoogleKey(value.trim())
           if (key.trim() === "CESIUM_ION_TOKEN") setCesiumIonKey(value.trim())
           if (key.trim() === "SENTINEL_HUB_INSTANCE_ID") setShInstanceId(value.trim())
+          if (key.trim() === "MAXAR_API_KEY") setMaxarKey(value.trim())
+          if (key.trim() === "NEARMAP_API_KEY") setNearmapKey(value.trim())
+          if (key.trim() === "VEXCEL_TOKEN") setVexcelToken(value.trim())
         }
       })
     }
     setApiKeysViewMode(mode)
-  }, [batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, cesiumIonKey, shInstanceId, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey, setCesiumIonKey, setShInstanceId])
+  }, [batchApiKeys, mapboxKey, googleKey, maptilerKey, hereKey, planetKey, cesiumIonKey, shInstanceId, maxarKey, nearmapKey, vexcelToken, setMapboxKey, setGoogleKey, setMaptilerKey, setHereKey, setPlanetKey, setCesiumIonKey, setShInstanceId, setMaxarKey, setNearmapKey, setVexcelToken])
 
   return (
     <Dialog
@@ -1078,6 +1085,59 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                     <a href="https://shapps.dataspace.copernicus.eu/dashboard/#/configurations" target="_blank" rel="noopener noreferrer" className="underline">Sentinel Hub dashboard</a>{" "}
                     and copy its id. Kept in this browser; saved and shared layers carry a placeholder instead. See{" "}
                     <a href="/docs/features/api-keys/" target="_blank" rel="noopener noreferrer" className="underline">API keys</a>.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="sh-mosaic-layer">Sentinel Hub layer for the quarterly mosaics</Label>
+                  <Input
+                    id="sh-mosaic-layer"
+                    value={shMosaicLayer}
+                    onChange={(e) => setShMosaicLayer(e.target.value)}
+                    placeholder="TRUE_COLOR"
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    With an instance id, a <strong>Sentinel Hub</strong> pill joins the historical timeline: one Sentinel-2 mosaic a quarter since December 2017 (20 % cloud at most), drawn by your configuration. TRUE_COLOR exists in the default templates; name your own layer here for a different rendering.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="maxar-key">Maxar (Vantor) API key</Label>
+                  <PasswordInput
+                    id="maxar-key"
+                    value={maxarKey}
+                    onChange={(e: any) => setMaxarKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Untested: adds <strong>Maxar Latest</strong> to the Basemaps (with the capture date at the view centre) and a <strong>Maxar Seamlines</strong> pill to the historical timeline (Basemaps WMTS and Seamlines WFS). Needs a Vantor Hub account; no free trial.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nearmap-key">Nearmap API key</Label>
+                  <PasswordInput
+                    id="nearmap-key"
+                    value={nearmapKey}
+                    onChange={(e: any) => setNearmapKey(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Untested: a <strong>Nearmap</strong> pill on the historical timeline, one tick per aerial survey at the view centre (US, Australia, New Zealand, Canada). Needs a Nearmap subscription.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vexcel-token">Vexcel token</Label>
+                  <PasswordInput
+                    id="vexcel-token"
+                    value={vexcelToken}
+                    onChange={(e: any) => setVexcelToken(e.target.value)}
+                    className="cursor-text"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Untested, lowest confidence: a <strong>Vexcel</strong> pill on the historical timeline with one placeholder tick a year (no coverage endpoint found). Needs a Vexcel Data Program account.
                   </p>
                 </div>
 

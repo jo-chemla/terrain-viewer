@@ -65,6 +65,21 @@ export const cesiumIonKeyAtom = atomWithStorage("cesiumIonKey", import.meta.env.
 // VITE_SENTINEL_HUB_INSTANCE_ID seeds it on the dev server only: like the
 // Planet key, vite.config.ts empties it in every build.
 export const sentinelHubInstanceIdAtom = atomWithStorage("sentinelHubInstanceId", import.meta.env.VITE_SENTINEL_HUB_INSTANCE_ID ?? "")
+// The Sentinel Hub layer the "Sentinel Hub" timeline source draws, quarter by
+// quarter (lib/sentinel-hub.ts): TRUE_COLOR exists in CDSE's default
+// templates, an instance can define its own colour-balanced mosaic layer.
+export const sentinelHubMosaicLayerAtom = atomWithStorage("sentinelHubMosaicLayer", "TRUE_COLOR")
+// Commercial VHR archives, each hidden until its key is set (the same gating
+// as planetKeyAtom). UNTESTED scaffolding: none of these has been used against
+// the live API yet (docs/content/docs/dev/commercial-imagery.mdx). A local
+// VITE_* value seeds them on the dev server only: vite.config.ts empties them
+// in every build, like the Planet key.
+//   Maxar (Vantor) Basemaps WMTS + Seamlines WFS, lib/maxar.ts.
+export const maxarKeyAtom = atomWithStorage("maxarKey", import.meta.env.VITE_MAXAR_API_KEY ?? "")
+//   Nearmap Tile + Coverage APIs, lib/nearmap.ts.
+export const nearmapKeyAtom = atomWithStorage("nearmapKey", import.meta.env.VITE_NEARMAP_API_KEY ?? "")
+//   Vexcel Data Program WMTS, lib/vexcel.ts.
+export const vexcelTokenAtom = atomWithStorage("vexcelToken", import.meta.env.VITE_VEXCEL_TOKEN ?? "")
 // Extra quantized-mesh levels to fetch per tile. A mesh is adaptively
 // tessellated, so matching the output tile's angular width leaves far fewer
 // vertices than pixels (measured: 436 for 65536 px, which is the visible

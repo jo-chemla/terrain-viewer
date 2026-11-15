@@ -31,7 +31,10 @@ export default defineConfig({
       apply: "build",
       // Runs before Vite reads .env, and a process variable wins over the file.
       // The Copernicus Sentinel Hub instance id is a credential too.
-      config() { process.env.VITE_PLANET_API_KEY = ""; process.env.VITE_SENTINEL_HUB_INSTANCE_ID = "" },
+      // So are the commercial imagery keys (Maxar, Nearmap, Vexcel).
+      config() {
+        for (const k of ["VITE_PLANET_API_KEY", "VITE_SENTINEL_HUB_INSTANCE_ID", "VITE_MAXAR_API_KEY", "VITE_NEARMAP_API_KEY", "VITE_VEXCEL_TOKEN"]) process.env[k] = ""
+      },
     },
     devtools({
       // Fixed port, so two dev servers started from this repo at once (a git

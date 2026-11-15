@@ -11,13 +11,18 @@ import { GRID_LAYOUTS, viewFieldName, type GridLayoutId } from "./grid-layouts"
 // alongside Google/HERE/Mapbox/ESRI — see TIMELINE_SOURCE_IDS below for where
 // it's still included (its pill still works inside the combined historical
 // entry's timeline, it just isn't itself one of the 4 nested sources).
-export const HISTORICAL_BASEMAP_IDS = new Set(["wayback", "hls", "ge-historical", "planet", "eox-s2"])
+// The last four are key-gated (Settings → API Keys): the Sentinel Hub quarterly
+// mosaics and the commercial archives (UNTESTED scaffolding, see
+// docs/content/docs/dev/commercial-imagery.mdx).
+export const HISTORICAL_BASEMAP_IDS = new Set(["wayback", "hls", "ge-historical", "planet", "eox-s2", "sentinel-hub", "maxar-historical", "nearmap-historical", "vexcel-historical"])
 
 // Superset of HISTORICAL_BASEMAP_IDS that also includes Bing — used only for
 // "should the bottom timeline panel/minimap-offset react to this basemap
 // selection", since Bing's real (if singular) capture date still deserves a
 // spot on the timeline even though it's not one of the nested sources.
-export const TIMELINE_SOURCE_IDS = new Set([...HISTORICAL_BASEMAP_IDS, "bing"])
+// Maxar's always-latest mosaic ("maxar", key-gated) is in the same position
+// as Bing: one live mosaic with a real capture date at the view centre.
+export const TIMELINE_SOURCE_IDS = new Set([...HISTORICAL_BASEMAP_IDS, "bing", "maxar"])
 
 // The sidebar exposes exactly one "Historical Imagery" basemap entry
 // (basemapSource === "historical") instead of 4 separate rows. Which concrete

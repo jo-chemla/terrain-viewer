@@ -37,6 +37,7 @@
     "ge-historical",
     "google-timelapse",
     "on-the-fly-mosaics",
+    "commercial-imagery",
     "---Map and UI internals---",
     "camera-sync",
     "map-bounds-and-underzoom",

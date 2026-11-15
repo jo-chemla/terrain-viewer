@@ -13,12 +13,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, maptilerKeyAtom, planetKeyAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, maptilerKeyAtom, planetKeyAtom, maxarKeyAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
 import { useBingCaptureDate } from "@/lib/bing"
 import { useEsriLiveCaptureDate } from "@/lib/wayback"
+import { useMaxarLatestCaptureDate } from "@/lib/maxar"
 import { activeViews, viewFieldName, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 
 // Kept as the full static list (including key-gated providers) so callers like
@@ -33,6 +34,9 @@ export const BUILTIN_BASEMAP_OPTIONS = [
   { value: "historical", label: "Historical Imagery", shortLabel: "Historical" },
   { value: "google", label: "Google Hybrid", shortLabel: "Google" },
   { value: "bing", label: "Bing Aerial", shortLabel: "Bing" },
+  // Key-gated, UNTESTED (lib/maxar.ts): Vantor's (ex-Maxar) always-latest
+  // mosaic, modelled on Bing; its archive is the "Maxar Seamlines" timeline pill.
+  { value: "maxar", label: "Maxar Latest", shortLabel: "Maxar" },
   { value: "esri", label: "ESRI World Imagery", shortLabel: "ESRI" },
   { value: "mapbox", label: "Mapbox Satellite", shortLabel: "Mapbox" },
   { value: "maptiler", label: "MapTiler Satellite", shortLabel: "MapTiler" },
@@ -56,7 +60,7 @@ export const BASEMAP_SHORT_LABELS: Record<string, string> = Object.fromEntries(
 // VITE_MAPBOX_ACCESS_TOKEN in .env) so users don't select a basemap that just
 // fails to render. Both mapboxKeyAtom and hereKeyAtom default to "" unless
 // that local .env var is present — see settings-atoms.ts.
-const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom, maptiler: maptilerKeyAtom, planet: planetKeyAtom } as const
+const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom, maptiler: maptilerKeyAtom, planet: planetKeyAtom, maxar: maxarKeyAtom } as const
 
 // The 3D buildings are an overlay of their own, not a property of the OSM row:
 // OpenFreeMap Liberty's extrusion layer over whatever basemap is selected (a
@@ -130,6 +134,7 @@ export const RasterBasemapSection: React.FC<{
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
   const [planetKey] = useAtom(planetKeyAtom)
+  const [maxarKey] = useAtom(maxarKeyAtom)
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   // Real "as-of" capture date for Bing's single live mosaic (see lib/bing.ts)
   // — read from the current view center's tile, not per-row/per-selection.
@@ -139,8 +144,11 @@ export const RasterBasemapSection: React.FC<{
   // useEsriLiveCaptureDate's own doc comment), so it has a real capture date
   // too, not just a static "always current" implication.
   const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
+  // Same for Maxar's latest mosaic, from the seamlines at the view centre (a
+  // no-op without a key).
+  const { label: maxarCaptureLabel } = useMaxarLatestCaptureDate(maxarKey.trim(), state.lat, state.lng)
 
-  const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, maptiler: maptilerKey, planet: planetKey }
+  const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, maptiler: maptilerKey, planet: planetKey, maxar: maxarKey.trim() }
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS
       .filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value]),
@@ -256,6 +264,9 @@ export const RasterBasemapSection: React.FC<{
                               {value === "esri" && esriCaptureLabel && (
                                 <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
                               )}
+                              {value === "maxar" && maxarCaptureLabel && (
+                                <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({maxarCaptureLabel})</span>
+                              )}
                             </Label>
                           }
                         />
@@ -288,6 +299,9 @@ export const RasterBasemapSection: React.FC<{
                         )}
                         {value === "esri" && esriCaptureLabel && (
                           <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({esriCaptureLabel})</span>
+                        )}
+                        {value === "maxar" && maxarCaptureLabel && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal tabular-nums">({maxarCaptureLabel})</span>
                         )}
                       </Label>
                     </div>

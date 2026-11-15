@@ -22,8 +22,12 @@ import { useGeHistoricalDates } from "@/lib/ge-historical"
 import { planetMonthlyTicks } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
 import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
+import { sentinelHubQuarterTicks } from "@/lib/sentinel-hub"
+import { useMaxarSeamlineTicks } from "@/lib/maxar"
+import { useNearmapSurveyTicks } from "@/lib/nearmap"
+import { vexcelAnnualTicks, isInVexcelCoverageArea } from "@/lib/vexcel"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
-import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom, activeViewAtom } from "@/lib/settings-atoms"
+import { planetKeyAtom, sentinelHubInstanceIdAtom, maxarKeyAtom, nearmapKeyAtom, vexcelTokenAtom, timelineWindowRequestAtom, timelineViewWindowAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_STACK_GAP_PX } from "@/lib/layout-constants"
 import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
@@ -73,6 +77,13 @@ const BUILTIN_SOURCE_CONFIG: Record<string, SourceConfig> = {
   planet: { label: "Planet Monthly", fullLabel: "Planet Global Monthly Basemap", shortLabel: "Planet", color: "#fdba74", resClass: "medium" }, // pastel orange
   "eox-s2": { label: "EOX Sentinel 2", fullLabel: "EOX Sentinel-2 Cloudless (Yearly)", shortLabel: "EOX", color: "#fca5a5", resClass: "medium" }, // pastel red
   hls: { label: "NASA HLS", fullLabel: "NASA Harmonized Landsat Sentinel-2", shortLabel: "NASA", color: "#f9a8d4", resClass: "medium" }, // pastel pink
+  // Key-gated: each pill only shows once its key is set (visibleSourceIds).
+  // Sentinel-2 quarterly mosaics from the visitor's own CDSE configuration (lib/sentinel-hub.ts).
+  "sentinel-hub": { label: "Sentinel Hub", fullLabel: "Copernicus Data Space Ecosystem — Sentinel Hub, quarterly Sentinel-2 mosaics (your configuration)", shortLabel: "CDSE", color: "#7dd3fc", resClass: "medium" }, // pastel sky
+  // Commercial VHR archives, UNTESTED scaffolding (docs/content/docs/dev/commercial-imagery.mdx).
+  "maxar-historical": { label: "Maxar Seamlines", fullLabel: "Vantor (Maxar) Basemaps, dates from the seamlines at the view centre (untested)", shortLabel: "Maxar", color: "#fde68a", resClass: "vhr" }, // pastel amber
+  "nearmap-historical": { label: "Nearmap", fullLabel: "Nearmap aerial surveys, US/Australia/NZ/Canada (untested)", shortLabel: "Nearmap", color: "#d9f99d", resClass: "vhr" }, // pastel lime
+  "vexcel-historical": { label: "Vexcel", fullLabel: "Vexcel Data Program ortho imagery, yearly placeholder ticks (untested)", shortLabel: "Vexcel", color: "#f5d0fe", resClass: "vhr" }, // pastel fuchsia
   // Dated layers of the OSM Editor Layer Index covering the view (orthophotos
   // and historical maps): off by default, since it loads the index.
   // Catalog sources (lib/timeline-catalogs.ts): picked from the Catalogs
@@ -323,6 +334,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   const gutterDragRef = useRef<{ startClientX: number; startMin: number; gutterWidthPx: number } | null>(null)
   const [planetKey] = useAtom(planetKeyAtom)
   const hasPlanetKey = !!planetKey
+  const hasSentinelHubInstance = !!useAtomValue(sentinelHubInstanceIdAtom).trim()
+  const maxarKey = useAtomValue(maxarKeyAtom).trim()
+  const nearmapKey = useAtomValue(nearmapKeyAtom).trim()
+  const hasVexcelToken = !!useAtomValue(vexcelTokenAtom).trim()
   const [isSidebarOpen] = useAtom(isSidebarOpenAtom)
   const isMobile = useIsMobile()
   // The phone-portrait bottom sheet's collapsed bar is the lowest strip, and
@@ -594,6 +609,30 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => eoxS2CloudlessTicks().map((t) => ({ source: "eox-s2", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
+  // Quarterly Sentinel Hub windows (lib/sentinel-hub.ts), computed locally,
+  // only once a CDSE instance id is set.
+  const sentinelHubTicks = useMemo<TimelineTick[]>(
+    () => (hasSentinelHubInstance ? sentinelHubQuarterTicks().map((t) => ({ source: "sentinel-hub", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
+    [hasSentinelHubInstance],
+  )
+  // Commercial archives, UNTESTED (see each module's header): Maxar's
+  // seamline dates and Nearmap's surveys at the view centre (both no-op
+  // without a key), Vexcel's synthetic yearly ticks inside its coarse coverage.
+  const { ticks: rawMaxarTicks } = useMaxarSeamlineTicks(maxarKey, state.lat, state.lng, "vhr")
+  const maxarHistoricalTicks = useMemo<TimelineTick[]>(
+    () => rawMaxarTicks.map((t) => ({ source: "maxar-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
+    [rawMaxarTicks],
+  )
+  const { ticks: rawNearmapTicks } = useNearmapSurveyTicks(nearmapKey, state.lat, state.lng)
+  const nearmapTicks = useMemo<TimelineTick[]>(
+    () => rawNearmapTicks.map((t) => ({ source: "nearmap-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
+    [rawNearmapTicks],
+  )
+  const vexcelInCoverage = hasVexcelToken && isInVexcelCoverageArea(state.lat, state.lng)
+  const vexcelTicks = useMemo<TimelineTick[]>(
+    () => (vexcelInCoverage ? vexcelAnnualTicks().map((t) => ({ source: "vexcel-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
+    [vexcelInCoverage],
+  )
   // A view pointed at a dated ELI layer (a tick pick, a shared link) needs the
   // layer as a basemap source in this browser's list: hydrated here.
   const [customBasemaps, setCustomBasemaps] = useAtom(customBasemapSourcesAtom)
@@ -703,8 +742,8 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   }, [activeViews.join(","), activeBasemapSourceFor, customBasemaps.length, catalogTicks])
   const catalogTickList = useMemo(() => catalogsToLoad.flatMap((id) => catalogTicks[id] ?? []), [catalogsToLoad, catalogTicks])
   const allTicks = useMemo(
-    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...catalogTickList].sort((a, b) => a.dateMs - b.dateMs),
-    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, catalogTickList],
+    () => [...waybackTicks, ...hlsTicks, ...geTicks, ...planetTicks, ...bingTicks, ...eoxS2Ticks, ...sentinelHubTicks, ...maxarHistoricalTicks, ...nearmapTicks, ...vexcelTicks, ...catalogTickList].sort((a, b) => a.dateMs - b.dateMs),
+    [waybackTicks, hlsTicks, geTicks, planetTicks, bingTicks, eoxS2Ticks, sentinelHubTicks, maxarHistoricalTicks, nearmapTicks, vexcelTicks, catalogTickList],
   )
   // NEAREST match, not exact equality — a stored date (state.dateA-F) and a
   // wayback tick's own real.dateMs both ultimately come from Esri's
@@ -728,7 +767,10 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     return best
   }, [allTicks])
 
-  const visibleSourceIds = useMemo(() => SOURCE_IDS.filter((id) => !(id in TIMELINE_CATALOG_BY_ID) && (id !== "planet" || hasPlanetKey)), [hasPlanetKey])
+  const visibleSourceIds = useMemo(() => {
+    const gated: Record<string, boolean> = { planet: hasPlanetKey, "sentinel-hub": hasSentinelHubInstance, "maxar-historical": !!maxarKey, "nearmap-historical": !!nearmapKey, "vexcel-historical": hasVexcelToken }
+    return SOURCE_IDS.filter((id) => !(id in TIMELINE_CATALOG_BY_ID) && gated[id] !== false)
+  }, [hasPlanetKey, hasSentinelHubInstance, maxarKey, nearmapKey, hasVexcelToken])
 
   // Which pill-toggle array the source/resolution chips edit: the shared
   // state.timelineSources when synced (or single-view), or whichever side is

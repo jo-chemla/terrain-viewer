@@ -1,0 +1,68 @@
+---
+title: "Commercial imagery: Maxar, Nearmap, Vexcel and Sentinel Hub mosaics"
+sidebarTitle: Commercial imagery
+description: "How the key-gated imagery archives plug into the historical timeline: Maxar (Vantor) Basemaps and Seamlines, Nearmap's Tile and Coverage APIs, Vexcel's WMTS, and quarterly Sentinel-2 mosaics from a Copernicus Sentinel Hub configuration. What was checked live and what is still to confirm"
+---
+
+Four imagery archives on the historical timeline need an account, so each stays hidden until its key is set in **Settings → API Keys** ([API keys](/features/api-keys)). One was checked against the live service; the three commercial ones are scaffolding written from the providers' documentation, waiting for a key. Tracking issue: [Iconem/historical-satellite#37](https://github.com/Iconem/historical-satellite/issues/37) (blocked on trial access to the Maxar API).
+
+| Source | Module | Timeline id | Ticks | State |
+|---|---|---|---|---|
+| Sentinel Hub (CDSE), quarterly Sentinel-2 | `lib/sentinel-hub.ts` | `sentinel-hub` | One per quarter since Dec 2017, computed | Checked live 2026-08-12 |
+| Maxar Latest | `lib/maxar.ts` | basemap `maxar` | Capture date at the view centre, shown next to the basemap's name | Untested |
+| Maxar Seamlines | `lib/maxar.ts` | `maxar-historical` | Seamline capture dates at the view centre (WFS) | Untested |
+| Nearmap | `lib/nearmap.ts` | `nearmap-historical` | Surveys at the view centre (Coverage API) | Untested |
+| Vexcel | `lib/vexcel.ts` | `vexcel-historical` | One placeholder a year inside a coarse coverage box | Untested, lowest confidence |
+
+## Where they plug in
+
+There is no plugin interface for the built-in timeline sources; each is a module plus an entry in a few registries:
+
+- `components/LayersAndSources/MapSources.tsx`, `RasterBasemapSource`: one branch per id that turns the view's date into a tile template, and one line in its zoom range. The keys are read from their atoms there, at render time, so they never sit in a saved source or a shared link.
+- `components/TerrainControlPanel/historical-timeline-panel.tsx`: the pill's label and colour in `BUILTIN_SOURCE_CONFIG`, the ticks merged into `allTicks`, and the key gate in `visibleSourceIds`. A pill is off until clicked, like every source outside the defaults.
+- `lib/historical-sources.ts`: the id in `HISTORICAL_BASEMAP_IDS` (and `maxar` in `TIMELINE_SOURCE_IDS`, the way Bing is).
+- `lib/settings-atoms.ts` and the API Keys tab: `maxarKeyAtom`, `nearmapKeyAtom`, `vexcelTokenAtom` and `sentinelHubMosaicLayerAtom` (the instance id atom was already there). Each key has a `VITE_*` seed for the dev server, which `vite.config.ts` empties in every build.
+- `lib/basemap-attribution.ts`: a fixed attribution string per id.
+
+## Sentinel Hub quarterly mosaics
+
+A WMS GetMap on `https://sh.dataspace.copernicus.eu/ogc/wms/<instance id>` with `time=<quarter start>/<quarter end>` and `maxcc=20`: Sentinel Hub mosaics the quarter's scenes itself, so the tile template is built straight from the date, with MapLibre's `{bbox-epsg-3857}`. Quarters run Dec-Feb, Mar-May, Jun-Aug and Sep-Nov; a tick sits mid-quarter. Checked live on 2026-08-12: the instance id in the path is the whole authentication, the time parameter is lowercase `time`, and `maxcc` is a percentage. Tiles carry a Copernicus watermark until **Show logo** is unchecked in the configuration. Sentinel Hub refuses Sentinel-2 coarser than 200 m a pixel, so the layer starts at zoom 10.
+
+The default templates have a `TRUE_COLOR` layer. The configuration tested had its own colour-balanced layer (`LAYER-MOSAIC`), brighter than `TRUE_COLOR`, hence the layer name setting. Planetary Computer's monthly Sentinel-2 catalog (`cat-nat-mspc-s2`, see [on-the-fly mosaics](/dev/on-the-fly-mosaics)) covers the same need without a key.
+
+## Maxar (Vantor) Basemaps and Seamlines
+
+Written from Maxar's own documentation (WMTS basemap guide, WFS seamlines guide, API key guide). No self-serve trial exists: a key comes with a Vantor Hub account under contract.
+
+| Purpose | Endpoint |
+|---|---|
+| Mosaic tiles | `https://api.maxar.com/basemaps/v1/ogc/gwc/service/wmts`, `layer=Maxar:Imagery`, `tileMatrixSet=EPSG:3857`, optional `cql_filter` |
+| Seamlines | `https://api.maxar.com/basemaps/v1/seamlines/wfs`, `typeNames=seamline`, `cql_filter` with `BBOX(seamline_geometry, …)`; fields `acq_time_earliest`, `acq_time_latest`, `product_name` |
+
+Authentication is the `maxar_api_key` query parameter on tiles and the `maxar-api-key` header on the WFS (an OAuth bearer token also works). Keys expire after 180 days by default.
+
+- **Latest** (`maxar`): the WMTS with no filter, always the newest mosaic, modelled on Bing. Its "as of" date is the newest `acq_time_latest` among the seamlines in a box of about 1 km around the view centre (`useMaxarLatestCaptureDate`).
+- **Seamlines** (`maxar-historical`): the distinct `acq_time_latest` dates in the same box are the ticks (`useMaxarSeamlineTicks`). A picked date becomes `cql_filter=acq_date<='YYYY-MM-DD' AND (product_name=…)`: the best imagery as of that date, so there is no blank between two captures. A VHR / medium resolution switch was dropped from the UI to keep the first version simple; the module still takes the tier.
+
+To confirm once a key exists:
+
+- the `product_name` values (`VIVID_STANDARD_30` and `VIVID_BASIC_30` are placeholders from the docs' examples) and which of them are VHR;
+- whether `cql_filter` on GetTile accepts a `<=` date comparison (the docs show equality, `AND`, `BBOX` and `IN`), and the date field's name; try the CQL Playground first;
+- whether `acq_time_latest` or `acq_time_earliest` is the date to show;
+- the WFS bbox axis order (the docs' example is lat,lon);
+- rate limits and caching on a trial key.
+
+## Nearmap
+
+`https://api.nearmap.com`, with the key as the `apikey` query parameter. The Coverage API (`/coverage/v2/point/{lon},{lat}`) lists the surveys at a point with their dates and ids, the closest match to Maxar's seamlines found. There is one tick per survey, and a picked tick draws `/surveys/{surveyId}/{contentType}/{z}/{x}/{y}.jpg`. Unconfirmed: the `contentType` value (`Vert` is a placeholder) and the response's field names. Nearmap flies the US, Australia, New Zealand and Canada; a coarse box per country keeps the lookup off elsewhere.
+
+## Vexcel
+
+`https://api.vexcelgroup.com/v2/` (the older `api.gic.org` API was retired in July 2026). A standard OGC WMTS is documented for the ortho imagery, but no coverage or metadata service was found, so the ticks are one a year (5 June) from 2016, inside coarse boxes over North America, Western Europe, Australia and New Zealand. The layer name (`Ortho`) and the year selection (`time=<year>`) are guesses from WMTS conventions, to be rewritten against a real account.
+
+## Researched, not integrated
+
+- **Airbus OneAtlas Basemap**: one current mosaic, no history.
+- **EarthDaily EarthMosaics**: an XYZ tile service back to 2016, but built on the same 10 m Sentinel-2 and Landsat as Planetary Computer and Sentinel Hub.
+- **Geopera** (a broker), **Satellogic**, **AxelGlobe** and **Umbra** (access through sales), **Pixxel** (archive search, no mosaic), **Albedo** (no public API).
+- **AWS Earth Search**: a STAC API over Sentinel-2 and Landsat with no tiler of its own; the [STAC search](/dev/stac-search) covers that route.
