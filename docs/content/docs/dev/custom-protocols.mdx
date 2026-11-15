@@ -29,34 +29,7 @@ A few properties shape everything built on top:
 
 ## Every scheme this app registers
 
-Our own terrain sources, which read an elevation dataset MapLibre cannot read on its own and hand it back as Terrarium or Terrain-RGB tiles:
-
-| Scheme | What it serves | Page |
-|---|---|---|
-| `float32dem://` | A WMS that returns float32 GeoTIFF elevation | [WMS Float32 DEM Protocol](/dev/wms-float32-protocol) |
-| `vrt://` | A GDAL VRT mosaic of COGs in any CRS, reprojected with proj4 | [VRT Mosaic Protocol](/dev/vrt-protocol) |
-| `lerc://` | Esri LERC tiles from an ArcGIS ImageServer | [ArcGIS LERC Elevation Protocol](/dev/lerc-protocol) |
-| `quantized-mesh://` | Cesium quantized-mesh terrain, rasterised | [Quantized Mesh Protocol](/dev/quantized-mesh-protocol) |
-| `demdiff://` | The difference of two sources (an nDSM, a change layer) | [Derived Terrain Protocol](/dev/demdiff-protocol) |
-
-Three imagery sources, reading tiles MapLibre could not place, decode or request:
-
-| Scheme | What it serves | Notes |
-|---|---|---|
-| `epsg3395://` | Tiles cut in World Mercator (EPSG:3395, the ellipsoid), resampled onto Web Mercator rows in the browser. Yandex Satellite in the library is the one such provider; a plain XYZ source would sit up to a dozen kilometres off at mid latitudes | The two grids share their columns exactly, so each Web Mercator tile reads the one or two EPSG:3395 tiles of the same x and interpolates between rows (`lib/epsg3395-protocol.ts`). The historical-satellite app did this through titiler and a GDAL_WMS definition |
-| `gtimelapse://` | Google Earth Timelapse's annual mosaics, 1984 to 2022, from the viewer's own video tiles: one VP9 WebM per tile with a frame per year, seeked in a video element and read as a bitmap | [Google Earth Timelapse](/dev/google-timelapse) |
-| `pcmosaic://` | Landsat Collection 2 and Sentinel-2 L2A scenes mosaicked on the fly by Microsoft Planetary Computer: a STAC search (collection, window, cloud cover, least cloudy first) is registered with a POST, which a `tiles` template cannot send, then its tiles are fetched by search id | [On-the-fly mosaics](/dev/on-the-fly-mosaics) |
-
-Derived modes, which read one of the sources above and compute something from it:
-
-| Scheme | What it computes | Page |
-|---|---|---|
-| `slope://`, `aspect://`, `curvature://`, `tpi://`, `tri://`, `roughness://`, `blobness://` | Neighbourhood kernels over a padded elevation grid | [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) |
-| `lrm://` | Local Relief Model from an ancestor-tile low-pass | [LRM](/dev/lrm) |
-| `svf://`, `openness://`, `local-dominance://` | Horizon searches over a wide neighbourhood | [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) and [Tile Caches](/dev/tile-caches#why-svf-and-openness-feel-slower-than-the-other-derivatives) |
-| `normals://`, `matcap://`, `phong://`, `shadow://` | Surface normals and the lighting built on them | [Lighting Effects](/dev/lighting-effects) |
-| `tells://` | Mound and pit candidates, as vector tiles | [Visualization modes](/features/visualization-modes) |
-| `cog-contour://` | Contours from a COG, computed in a worker | [PMTiles and COG Contours](/dev/vendored-protocols) |
+Three schemes come from libraries; the rest are ours, in two families: data-source protocols, which bring in data MapLibre cannot read on its own, and visualization mode protocols, which compute a view from that data.
 
 ### Third-party schemes
 
@@ -67,6 +40,39 @@ Registered through the same registry, but written by others:
 | `cog://` | Cloud-Optimized GeoTIFFs, read by range requests | [geomatico/maplibre-cog-protocol](https://github.com/geomatico/maplibre-cog-protocol), see [Terrain sources](/features/terrain-sources) |
 | `pmtiles://` | Tiles packed in a PMTiles archive | [protomaps/PMTiles](https://docs.protomaps.com/pmtiles/maplibre), see [PMTiles and COG Contours](/dev/vendored-protocols) |
 | `dem-contour://` | Contour vector tiles computed from a DEM | [onthegomap/maplibre-contour](https://github.com/onthegomap/maplibre-contour), registered by its own `setupMaplibre` and fed as described [below](#contours) |
+
+### Data-source protocols
+
+Terrain sources, which read an elevation dataset MapLibre cannot read on its own and hand it back as Terrarium or Terrain-RGB tiles:
+
+| Scheme | What it serves | Page |
+|---|---|---|
+| `float32dem://` | A WMS that returns float32 GeoTIFF elevation | [WMS Float32 DEM Protocol](/dev/wms-float32-protocol) |
+| `vrt://` | A GDAL VRT mosaic of COGs in any CRS, reprojected with proj4 | [VRT Mosaic Protocol](/dev/vrt-protocol) |
+| `lerc://` | Esri LERC tiles from an ArcGIS ImageServer | [ArcGIS LERC Elevation Protocol](/dev/lerc-protocol) |
+| `quantized-mesh://` | Cesium quantized-mesh terrain, rasterised | [Quantized Mesh Protocol](/dev/quantized-mesh-protocol) |
+| `demdiff://` | The difference of two sources (an nDSM, a change layer) | [Derived Terrain Protocol](/dev/demdiff-protocol) |
+
+Imagery sources, reading tiles MapLibre could not place, decode or request:
+
+| Scheme | What it serves | Notes |
+|---|---|---|
+| `epsg3395://` | Tiles cut in World Mercator (EPSG:3395, the ellipsoid), resampled onto Web Mercator rows in the browser. Yandex Satellite in the library is the one such provider; a plain XYZ source would sit up to a dozen kilometres off at mid latitudes | The two grids share their columns exactly, so each Web Mercator tile reads the one or two EPSG:3395 tiles of the same x and interpolates between rows (`lib/epsg3395-protocol.ts`). The historical-satellite app did this through titiler and a GDAL_WMS definition |
+| `gtimelapse://` | Google Earth Timelapse's annual mosaics, 1984 to 2022, from the viewer's own video tiles: one VP9 WebM per tile with a frame per year, seeked in a video element and read as a bitmap | [Google Earth Timelapse](/dev/google-timelapse) |
+| `pcmosaic://` | Landsat Collection 2 and Sentinel-2 L2A scenes mosaicked on the fly by Microsoft Planetary Computer: a STAC search (collection, window, cloud cover, least cloudy first) is registered with a POST, which a `tiles` template cannot send, then its tiles are fetched by search id | [On-the-fly mosaics](/dev/on-the-fly-mosaics) |
+
+### Visualization mode protocols
+
+Derived modes, which read any of the sources above (through the [one resolver](#one-resolver-for-every-consumer)) and compute something from it:
+
+| Scheme | What it computes | Page |
+|---|---|---|
+| `slope://`, `aspect://`, `curvature://`, `tpi://`, `tri://`, `roughness://`, `blobness://` | Neighbourhood kernels over a padded elevation grid | [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) |
+| `lrm://` | Local Relief Model from an ancestor-tile low-pass | [LRM](/dev/lrm) |
+| `svf://`, `openness://`, `local-dominance://` | Horizon searches over a wide neighbourhood | [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline) and [Tile Caches](/dev/tile-caches#why-svf-and-openness-feel-slower-than-the-other-derivatives) |
+| `normals://`, `matcap://`, `phong://`, `shadow://` | Surface normals and the lighting built on them | [Lighting Effects](/dev/lighting-effects) |
+| `tells://` | Mound and pit candidates, as vector tiles | [Visualization modes](/features/visualization-modes) |
+| `cog-contour://` | Contours from a COG, computed in a worker | [PMTiles and COG Contours](/dev/vendored-protocols) |
 
 ## The registry
 
