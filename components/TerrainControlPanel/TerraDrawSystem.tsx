@@ -1141,14 +1141,17 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
 
     const setDrawingUrls = useSetAtom(drawingUrlsAtom)
 
+    // Deleting the only layer empties it instead: its features and its link go,
+    // and a fresh empty "Layer 1" takes its place, since drawing always needs a
+    // layer to land in (issue 31: an imported route could not be removed).
     const deleteLayer = (layerId: string) => {
-        if (layers.length <= 1) return
         const idsToDelete = features.filter((f) => f.properties?.layerId === layerId).map((f) => f.id).filter(Boolean) as string[]
         if (idsToDelete.length > 0) {
             try { draw?.removeFeatures(idsToDelete) } catch (e) { console.error('Error removing layer features:', e) }
             setFeatures((prev) => prev.filter((f) => f.properties?.layerId !== layerId))
         }
-        const remaining = layers.filter((l) => l.id !== layerId)
+        const others = layers.filter((l) => l.id !== layerId)
+        const remaining = others.length ? others : [makeLayer(0, 'Layer 1')]
         const gone = layers.find((l) => l.id === layerId)
         if (gone?.sourceUrl) { loadedDrawingUrls.delete(gone.sourceUrl); setDrawingUrls((prev) => prev.filter((u) => u !== gone.sourceUrl)) }
         setLayers(remaining)
@@ -1518,14 +1521,13 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-8 w-8 shrink-0 cursor-pointer"
-                                                    disabled={layers.length <= 1}
                                                     onClick={() => deleteLayer(layer.id)}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             }
                                         />
-                                        <TooltipContent><p>{layers.length <= 1 ? "Can't delete the only layer" : 'Delete layer (and its features)'}</p></TooltipContent>
+                                        <TooltipContent><p>{layers.length <= 1 ? 'Delete layer (and its features), leaving an empty Layer 1' : 'Delete layer (and its features)'}</p></TooltipContent>
                                     </Tooltip>
                                 )}
                             </div>
@@ -1729,7 +1731,9 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
     const [importUrl, setImportUrl] = useState("")
     const [isImportingUrl, setIsImportingUrl] = useState(false)
     const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false)
-    const [keepInLink, setKeepInLink] = useState(false)
+    // On by default since issue 31: someone importing from a URL expects the
+    // shared link to carry it, as the ?drawingUrl= layers they came from do.
+    const [keepInLink, setKeepInLink] = useState(true)
     const afterImport = () => { setVisible(true); setOpacity(1) }
 
     const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1749,9 +1753,9 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         }
     }
 
-    // Same funnel from a URL. By default a one-off copy: the layer is
-    // persisted like any imported file and not re-fetched. "Keep in the
-    // link" instead makes it a ?drawingUrl= layer (see useTerraDraw): the
+    // Same funnel from a URL. Unticking "Keep in the link" makes a one-off
+    // copy: the layer is persisted like any imported file and not re-fetched.
+    // "Keep in the link" (the default) makes it a ?drawingUrl= layer (see useTerraDraw): the
     // address bar gains the parameter, so the link carries the data, and the
     // layer is re-fetched on every load rather than stored.
     const importFromUrl = async () => {
