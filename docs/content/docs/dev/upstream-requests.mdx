@@ -9,10 +9,8 @@ What we need from projects we depend on, written once, kept here, and linked whe
 
 | Request | To | Status | Our workaround |
 |---|---|---|---|
-| [Custom-protocol fetch through the main thread](#maplibre-contour-a-follow-up-on-issue-434), with [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts) as the example | maplibre-contour, [issue 434](https://github.com/onthegomap/maplibre-contour/issues/434) (ours, no answer yet) | To comment, drafted 2026-10-13; still not posted on 2026-11-13 (the issue has no comment) | Contours fetch their DEM through the registry, decoded on the main thread |
+| [Custom-protocol fetch through the main thread](#maplibre-contour-a-follow-up-on-issue-434), with [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts) as the example | maplibre-contour, [issue 434](https://github.com/onthegomap/maplibre-contour/issues/434) (ours, no answer yet) | To comment, drafted 2026-10-13, rewritten 2026-11-15 with `useClientDemUpstream`; Jonathan posts it the week of 2026-11-16 | Contours fetch their DEM through the registry, decoded on the main thread |
 | [A sweep of national sources finer than what is ingested](#mapterhorn-a-comment-on-issue-27), with the [National Datasets](/features/national-datasets) comparison as the reference | Mapterhorn, [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (17 comments, live; 295 Flanders links stale and 304 Italy 5 m are the related threads) | [Commented 2026-10-29](https://github.com/mapterhorn/mapterhorn/issues/27#issuecomment-6510656252), with a licence column after the maintainers' clarification | The finer national grids are served through our own protocols |
-| [A screen-space mask and a `difference` blend](#maplibre-gl-js-a-reply-on-issue-48) | MapLibre GL JS, [issue 48](https://github.com/maplibre/maplibre-gl-js/issues/48) | Drafted 2026-11-14 | The overlay split stacks a second map canvas with CSS `clip-path` and `mix-blend-mode` ([Layer blend modes](/dev/layer-blend-modes)) |
-| [Plain images as a resource](#allmaps-plain-images-as-a-resource) | Allmaps | Drafted 2026-10-07; still not posted on 2026-11-13 (no such issue on allmaps/allmaps) | The Image Georeferencer offers only the fits MapLibre draws from four corners |
 | [A browser OAuth client](#planet-a-browser-oauth-client) | Planet, the [community forum](https://community.planet.com/data-access-and-management-apis-99) (Data Access and Management APIs) or developer support; no tracker. Checked 2026-10-13: the docs still say interactive client registration is not released, but the Account page's OAuth Clients panel has an SPA option, try it before posting | Dropped 2026-11-13: not to be posted. Drafted 2026-10-07; the self-service route checked 2026-10-15: no OAuth section on the personal account, and a workspace's Access tab says "OAuth client limit reached. Creating OAuth clients is not available for your account", so the post stands | Paste the CLI's access token in Settings |
 
 ### Withdrawn
@@ -23,6 +21,8 @@ What we need from projects we depend on, written once, kept here, and linked whe
 
 | Request | To | Status |
 |---|---|---|
+| A screen-space mask (a per-layer clip in viewport units) and `difference` and `exclusion` blends, after layer blending shipped in 6.18 | MapLibre GL JS, [a reply on issue 48](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6894105178) | Posted 2026-11-15 |
+| Plain images (a URL or an `ImageBitmap`, no `info.json`) as a resource for the renderer, so the Image Georeferencer's bending fits draw exactly | Allmaps, [a comment on issue 643](https://github.com/allmaps/allmaps/issues/643#issuecomment-6894174249) (level-0 services without tiles; Bert Spaan suggests one `tiles` entry per size) | Posted 2026-11-15 |
 | `https://terrain-viewer.iconem.com` as an allowed origin on the Almond Blossom PMTiles host, so the library's [impasto entries](/dev/vendored-protocols#pmtiles) work without a local proxy | Lars Maxfield (impasto.dev) | Not to be sent yet |
 | Sparse tiles and the Esri placeholder tile; 3D Tiles | MapLibre, [PR 8335](https://github.com/maplibre/maplibre-gl-js/pull/8335), [PR 8567](https://github.com/maplibre/maplibre-gl-js/pull/8567) | Commented |
 | MapLibre 6 support and label placement | geogrid-maplibre-gl, [issue 18](https://github.com/falseinput/geogrid-maplibre-gl/issues/18) | Posted |
@@ -42,7 +42,7 @@ What we need from projects we depend on, written once, kept here, and linked whe
 
 ## MapLibre GL JS: a reply on issue 48
 
-A comment under [birkskyum's mask example](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6867399179) on [issue 48](https://github.com/maplibre/maplibre-gl-js/issues/48), after layer blending shipped in 6.18:
+[Posted 2026-11-15](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6894105178) under [birkskyum's mask example](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6867399179) on [issue 48](https://github.com/maplibre/maplibre-gl-js/issues/48), after layer blending shipped in 6.18. The draft:
 
 > Thanks, the fill sandwich is a neat trick, and thank you @CommanderStorm for landing this. Two notes from Terrain Viewer (terrain-viewer.iconem.com), which compares two imagery dates or two elevation models with a swipe and a blend.
 >
@@ -54,9 +54,15 @@ A comment under [birkskyum's mask example](https://github.com/maplibre/maplibre-
 
 ## Allmaps: plain images as a resource
 
-**@allmaps/render: accept a plain image (or an `ImageBitmap`) as a map's resource, not only IIIF image services**
+[Posted 2026-11-15](https://github.com/allmaps/allmaps/issues/643#issuecomment-6894174249) as a comment on [issue 643](https://github.com/allmaps/allmaps/issues/643) (Allmaps rejects a level-0 IIIF service without tiles; Bert Spaan answered that the renderer wants tiles and suggested one `tiles` entry per size), the closest existing thread: no issue asked for a resource with no IIIF at all (searched 2026-11-15). The comment:
 
-Terrain Viewer's Image Georeferencer places a plain image (a figure from a paper, a JPEG plan) from control points, with `@allmaps/transform`. MapLibre's image source draws from four corners only, so the bending fits (polynomial 2, thin-plate spline) cannot be shown correctly, while Allmaps' renderer already triangulates and warps on the GPU. A resource type for a single image (a URL or an `ImageBitmap`, width and height known, no tiles, no `info.json`) would let us hand our control points and transformation to `WarpedMapLayer.addGeoreferencedMap` and get every fit drawn exactly. The renderer accepts a `fetchFn`, so a synthetic level-0 IIIF service served from memory is a possible workaround today; a first-class resource would avoid it.
+> Chiming in with a related use case, from the other end: no IIIF server at all.
+>
+> [Historical-Imagery](https://historical-satellite.iconem.com/) Image Georeferencer lets user set pair control points to estimate transform of a plain image (jpg, png etc), via [@allmaps/transform](https://docs.allmaps.org/packages/transform) - thanks for that utility in addition to all the great allmaps work!
+>
+> MapLibre's image source draws from four corners only, so the bending fits (polynomial 2, thin-plate spline) cannot be shown correctly. On the contrary, Allmaps' renderer already triangulates and warps on the GPU. The renderer accepts a `fetchFn`, so a synthetic level-0 IIIF service served from memory is a possible workaround today (with a single `tiles` entry covering the whole image, as suggested above).
+>
+> A first-class resource type for a single image would avoid the above workaround. This image could be a URL or an `ImageBitmap`, width and height known, no tiles, no `info.json`. It would let us hand our control points and transformation to `WarpedMapLayer.addGeoreferencedMap` and get every fit drawn exactly.
 
 ## Planet: a browser OAuth client
 
@@ -68,7 +74,28 @@ The STAC API takes only an OpenID access token; a `PLAK` API key answers 401 the
 
 A comment on our own [issue 434](https://github.com/onthegomap/maplibre-contour/issues/434), with what we built since:
 
-> Following up with what we ended up doing, in case it helps shape an API. Terrain Viewer (terrain-viewer.iconem.com) now routes every tile fetch of its derived modes through one registry, [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts): `registerProtocol(scheme, handler)` registers with MapLibre and with the registry, and `fetchTileBitmap(url)` dispatches a `cog://`, `wms://`, `vrt://` or plain https URL to the right handler on the main thread. Contours go the same way: the DEM tile is fetched through the registry, decoded, and the elevation grid handed to the contour generation. So the piece needed from maplibre-contour is small: a `DemSource` option taking a function `(z, x, y, abort) => Promise<DemTile>` (or a raw Float32 grid) instead of a URL template, with the worker optional, since a custom protocol handler lives on the main thread and cannot be called from the contour worker. Happy to send a PR along those lines if that shape works for you.
+> Following up with what we ended up doing, in case it helps shape an API.
+>
+> **The problem, recap.** Terrain Viewer (terrain-viewer.iconem.com) reads elevation from many kinds of sources, most of them through custom protocols: `cog://`, `vrt://` (a mosaic of national LiDAR tiles), `lerc://`, `demdiff://` (the difference of two DEMs), `quantized-mesh://`, alongside plain Terrain-RGB and Terrarium URLs. A protocol handler registered with `addProtocol` lives on the main thread, so the contour worker cannot fetch those URLs.
+>
+> **What we built: two pieces.**
+>
+> 1. **One registry for every protocol**, [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts):
+>    - `registerProtocol(scheme, handler)` registers the handler with MapLibre *and* keeps it in a map.
+>    - `fetchTileBitmap(url)` dispatches any URL, custom scheme or plain https, to the right handler and returns an `ImageBitmap`.
+>    - So anything outside a MapLibre source (contours, export, elevation picker, profiles) can fetch a tile the same way MapLibre does.
+> 2. **One resolver from any source to a tile template**, `useClientDemUpstream` ([`MapSources.tsx`](https://github.com/Iconem/terrain-viewer/blob/main/components/LayersAndSources/MapSources.tsx)):
+>    - It turns any terrain source (built-in, custom URL, COG, VRT, LERC, TileJSON, a difference of two sources) into one template with its encoding and zoom range: `vrt://…`, `lerc://…`, `demdiff://…`, or the TileJSON's resolved tiles.
+>    - Every derived mode (hillshade variants, slope, curvature, sky-view factor, contours) reads that template, so each works on every source type with no per-source code.
+>
+> **How contours use it.** The DEM tile is fetched on the main thread through the registry, decoded, and the elevation grid is handed to the contour generation.
+>
+> **What would help from maplibre-contour.** The piece needed is small:
+>
+> - a `DemSource` option taking a function `(z, x, y, abort) => Promise<DemTile>` (or a raw `Float32Array` grid) in place of a URL template;
+> - the worker optional, since the fetch function lives on the main thread.
+>
+> Happy to send a PR along those lines if that shape works for you.
 
 ## Mapterhorn: a comment on issue 27
 
