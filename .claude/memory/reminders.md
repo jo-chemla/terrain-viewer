@@ -25,7 +25,8 @@ type: feedback
   We are on 6.13; candidate uses: hillshade multiplied over the basemap
   instead of opacity, viz modes combined in one map, the split blend
   without the CSS mix-blend-mode across canvases. Plan written: docs/content/docs/dev/layer-blend-modes.mdx. Not started; raised by
-  Jonathan as exciting, ask before upgrading.
+  Jonathan as exciting, ask before upgrading. On hold (2026-11-15) until the
+  MapLibre team answers the screen-space mask / stencil reply on #48.
 - **Moon LOLA**: branch `moon-lola` on both remotes (the only one kept; the old-history t3code branch was deleted 2026-11-15), set aside by Jonathan
   2026-11-14; do not merge until he asks.
 - **Git history purge**: done on both remotes 2026-11-13 (see
