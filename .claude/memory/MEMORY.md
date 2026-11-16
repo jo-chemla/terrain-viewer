@@ -62,3 +62,4 @@
 - [WMTS sources](wmts-sources.md) — lib/wmts-client.ts: matrix sets matched by numbers not names, matrix-id pattern, swisstopo/GIBS template quirks, all four reference services CORS-open; unverified in a browser
 - [CDSE STAC access](cdse-stac-access.md) — Copernicus Data Space catalog is open but no data is anonymously readable (s3://eodata, 401 OData); quicklooks public, CopDEM via the AWS copy, Browser deep links, Sentinel Hub instance id as the follow-up
 - [Contours in a worker](contour-worker.md) — opt-in setting: maplibre-contour in MapLibre workers via importScriptInWorkers, DEM from the main thread; targetMapId gotcha, preview test recipe
+- [Live GL layers on terrain tiles](live-gl-render-to-terrain-tile.md) — live Phong/Matcap drape via renderToTerrainTile (lib/live-dem-gl-layer.ts): revision getter, DEM zoom per terrain tile, Phong stack-split blend, what was deleted

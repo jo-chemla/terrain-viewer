@@ -1,6 +1,6 @@
 // React wrapper for lib/phong-live-gl-layer.ts's PhongLiveLayer — the "Fast"
-// (flat, live-uniform) alternative to PhongSource/PhongRasterLayer's raster-
-// protocol pipeline (see that file's header for why it's flat-only). Mounted
+// (live-uniform) alternative to PhongSource/PhongRasterLayer's raster-
+// protocol pipeline (flat in 2D, draped by MapLibre on 3D terrain). Mounted
 // imperatively via map.addLayer/removeLayer since react-map-gl's declarative
 // <Layer> doesn't support `type: "custom"`, matching the mount/update split
 // the prior (deleted) PhongGlLayer wrapper used: a full remount only when the

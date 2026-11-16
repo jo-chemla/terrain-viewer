@@ -19,10 +19,9 @@ Planned order (docs/content/docs/dev/draping.mdx has the detail):
    the call) and visible-tile fetching follows the last viewport rendered
    (keep it driven by the main view in prerender). Removes the allmaps.xyz
    fallback in 3D; 2D (no terrain) keeps it. See [[allmaps-overlays]].
-2. PhongLiveGlLayer / MatcapLiveGlLayer: draw per terrain tile instead of own
-   meshes with skirts; bump terrainTileRevision on camera moves for the
-   view-dependent terms.
-3. BuildingShadowLayer: same.
+2. PhongLiveGlLayer / MatcapLiveGlLayer: DONE 2026-11-16, see
+   [[live-gl-render-to-terrain-tile]].
+3. BuildingShadowLayer: DONE 2026-10-15, see [[building-shadows-terrain-drape]].
 
 **Why:** the user pointed at 6.13 for the Phong/Matcap renders; the Allmaps
 pitch problem is the most visible win.

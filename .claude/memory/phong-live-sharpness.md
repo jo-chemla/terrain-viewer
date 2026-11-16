@@ -5,6 +5,8 @@ metadata:
   type: project
 ---
 
+**2026-11-16:** the drape mesh, skirts, TERRAIN_PRELUDE and the offscreen shade buffer described below are gone: with terrain on, MapLibre drapes the layers through renderToTerrainTile (see [[live-gl-render-to-terrain-tile]]). The per-fragment DEM normals, the dpr tile rule and the prune guard still hold.
+
 Analysis from 2026-08-20 (fixes-historical branch), after the user asked why live Phong looks less detailed than MapLibre's native hillshade at the same viewport. The user may want to rework this at some point — start here, not from scratch.
 
 ## Ruled out (don't re-investigate)
