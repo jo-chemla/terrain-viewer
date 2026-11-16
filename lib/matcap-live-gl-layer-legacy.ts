@@ -1,0 +1,742 @@
+// LEGACY (kept 2026-11-17): the hand-built 3D drape (own tile mesh, copied
+// terrain prelude, getTerrainData), used only when Settings > Streaming >
+// Native Terrain Draping is off. The default path is the sibling file without
+// -legacy, draped by MapLibre's experimental renderToTerrainTile. Delete this
+// file once that API is stable in MapLibre and the toggle has been retired.
+
+// Live-uniform WebGL Matcap shading — the "Fast" alternative to
+// lib/matcap-protocol.ts's raster-tile pipeline, mirroring
+// lib/phong-live-gl-layer.ts's architecture closely (same per-tile normal
+// texture, same terrain-drape scaffolding via map.terrain.getTerrainData() —
+// see that file's header comment for the full derivation/history of both).
+// The one genuinely different piece is the shading math itself: a matcap
+// samples the material image by the surface normal, in one of two frames:
+//  - "Camera" (default): the CLASSIC matcap lookup — the normal projected
+//    onto the camera's own right/up basis (view-space normal), so the
+//    material reads like a sphere held up to the current camera and tracks
+//    live through rotate/tilt gestures. The right/up basis is derived
+//    ANALYTICALLY from bearing/pitch (see render()) — an earlier
+//    unprojection-based basis had a bearing-handedness flip in the
+//    left-handed tile frame that mirrored the matcap's U axis facing
+//    east/west.
+//  - "Absolute": the tile-space orthographic lookup, UV = N.xy*0.5+0.5 —
+//    identical to the raster pipeline (gpu-matcap-compute.ts /
+//    matcap-protocol.ts), pinned to compass directions and unaffected by
+//    camera orientation. The two conventions coincide exactly at a
+//    top-down, north-up camera.
+// A previous iteration instead built a per-fragment view ray (gl_FragCoord
+// + FOV, or an inverse-projection unproject) and sampled by
+// reflect(viewRay, N) — deliberately, chasing perspective ray divergence
+// away from the optical axis. That construction is wrong for a matcap on
+// two counts: reflect() doubles the angular response (the whole material
+// compresses into the ±45° slope band, everything steeper clamps to the
+// texture rim), and on flat/low-relief terrain reflect(I, +Z).xy == I.xy —
+// the ray's own screen position — which painted a screen-locked radial
+// blob of the matcap's center (its brightest region on most materials)
+// glued to the middle of the viewport, sliding with the camera instead of
+// the ground. That's the "weird fade-in at the center of the screen".
+import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap, OverscaledTileID } from "maplibre-gl"
+import { createTileMesh } from "maplibre-gl"
+import { getTransform } from "./maplibre-internals"
+import { computeNormalPixels } from "./normals-protocol"
+import { DEM_NORMAL_GLSL } from "./phong-live-gl-layer-legacy"
+import { groundResolutionM, tileRowToLatRad, RAD_TO_DEG, type UpstreamEncoding } from "./normal-derived-protocol"
+
+/** Shape of the real (but publicly untyped) `map.terrain` property — mirrors
+ *  maplibre-gl's own `TerrainData` return shape for `getTerrainData()`. See
+ *  phong-live-gl-layer.ts's header comment for the full story. */
+interface MapTerrainLike {
+  exaggeration: number
+  getTerrainData(tileID: OverscaledTileID): {
+    u_terrain_dim: number
+    u_terrain_matrix: number[]
+    u_terrain_unpack: number[]
+    u_terrain_exaggeration: number
+    texture: WebGLTexture
+  }
+}
+
+// Identical to phong-live-gl-layer.ts's TERRAIN_PRELUDE — see that file for
+// the full derivation (verbatim copy of maplibre-gl's own
+// src/shaders/_prelude.vertex.glsl TERRAIN3D block, minus the depth/
+// occlusion half neither live layer needs).
+const TERRAIN_PRELUDE = `
+uniform sampler2D u_terrain;
+uniform float u_terrain_dim;
+uniform mat4 u_terrain_matrix;
+uniform vec4 u_terrain_unpack;
+uniform float u_terrain_exaggeration;
+
+float ele(vec2 pos) {
+  vec4 rgb = (texture(u_terrain, pos) * 255.0) * u_terrain_unpack;
+  return rgb.r + rgb.g + rgb.b - u_terrain_unpack.a;
+}
+
+float get_elevation(vec2 pos) {
+#ifdef GLOBE
+  if ((pos.y < -32767.5) || (pos.y > 32766.5)) {
+    return 0.0;
+  }
+#endif
+  vec2 coord = (u_terrain_matrix * vec4(pos, 0.0, 1.0)).xy * u_terrain_dim + 1.0;
+  vec2 f = fract(coord);
+  vec2 c = (floor(coord) + 0.5) / (u_terrain_dim + 2.0);
+  float d = 1.0 / (u_terrain_dim + 2.0);
+  float tl = ele(c);
+  float tr = ele(c + vec2(d, 0.0));
+  float bl = ele(c + vec2(0.0, d));
+  float br = ele(c + vec2(d, d));
+  float elevation = mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
+  return elevation * u_terrain_exaggeration;
+}
+`
+
+export type MatcapLiveOptions = {
+  upstreamTemplate: string
+  encoding: UpstreamEncoding
+  tileSize: number
+  minzoom?: number
+  maxzoom?: number
+  /** Material-capture image URL (lib/matcap-textures.ts). */
+  matcapUrl: string
+  /** Spins the material's apparent orientation only (never the surface
+   *  geometry) — same "Sphere Rotation" convention as matcap-protocol.ts /
+   *  gpu-matcap-compute.ts. */
+  rotationDeg: number
+  exaggeration: number
+  opacity: number
+  /** "Light Anchor", ported from phong-live-gl-layer.ts's own
+   *  lightRelativeToCamera: true ("Camera" / attached to camera, the
+   *  default) samples the matcap by the VIEW-SPACE normal — the normal
+   *  projected onto the camera's live right/up basis (analytic from
+   *  bearing/pitch — see render()) — the classic matcap look,
+   *  tracking rotate/tilt gestures. false ("Absolute") samples by the
+   *  tile-space normal directly (UV = N.xy*0.5+0.5), identical to the
+   *  raster pipeline: pinned to compass directions,
+   *  camera-orientation-agnostic. See the header comment for why the older
+   *  per-fragment reflect() construction was scrapped. */
+  lightRelativeToCamera: boolean
+}
+
+const MAX_CACHED_TEXTURES = 96
+
+// Identical to phong-live-gl-layer.ts's buildVertexShader.
+function buildVertexShader(prelude: string, define: string): string {
+  return `#version 300 es
+${prelude}
+${define}
+${TERRAIN_PRELUDE}
+in vec2 a_pos;
+out vec2 v_uv;
+const float TILE_EXTENT = 8192.0;
+uniform float u_skirt_length;
+void main() {
+  // The mesh carries a border ring past every edge (generateBorders). Those
+  // vertices are folded back onto the edge and dropped by the skirt length:
+  // a vertical wall under each tile edge, exactly MapLibre's own terrain
+  // skirt, so no gap and no surface overlap between neighbouring tiles.
+  vec2 p = clamp(a_pos, 0.0, TILE_EXTENT);
+  float skirt = (p == a_pos) ? 0.0 : u_skirt_length;
+  v_uv = p / TILE_EXTENT;
+  gl_Position = projectTileFor3D(p, get_elevation(p) - skirt);
+}
+`
+}
+
+const FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_matcap;
+uniform float u_rotationRad;
+uniform float u_exaggeration;
+uniform bool u_lightRelativeToCamera;
+// Camera basis in the same tile-local (x=east, y=south, z=up) frame the
+// normals live in — computed once per frame CPU-side from bearing/pitch
+// (see render()) and constant across fragments; NOT per-fragment. A matcap
+// is defined by the normal's orientation relative to the camera, not by
+// which pixel the fragment lands on.
+uniform vec3 u_cameraRight;
+uniform vec3 u_cameraUp;
+out vec4 fragColor;
+${DEM_NORMAL_GLSL}
+
+void main() {
+  // Per-fragment Horn normal straight from the Float32 DEM — see
+  // DEM_NORMAL_GLSL (phong-live-gl-layer.ts) for why this replaced the
+  // baked 8-bit normal texture. Exaggeration applies live, as before.
+  vec3 n = demNormal(v_uv, u_exaggeration);
+
+  // Only the material's apparent orientation rotates (Sphere Rotation),
+  // never the surface itself.
+  float cb = cos(u_rotationRad);
+  float sb = sin(u_rotationRad);
+  vec3 rotatedN = vec3(n.x * cb + n.y * sb, -n.x * sb + n.y * cb, n.z);
+
+  vec2 uv;
+  if (u_lightRelativeToCamera) {
+    // "Camera": classic view-space matcap — the normal projected onto the
+    // camera's live right/up axes. Screen-right-facing slopes sample the
+    // material sphere's right, screen-up-facing its top (v flipped: image
+    // v grows downward).
+    //
+    // nGeo: the shared hornGradient's axes have ASYMMETRIC sign
+    // conventions — dy is (south − north), the standard row-axis
+    // derivative, but dx is (west − east), NEGATED vs standard — so the
+    // normal's y component is geometrically correct while its x component
+    // points uphill instead of out. Every downstream consumer is
+    // calibrated to that flip (phong's empirically-pinned light signs,
+    // the Absolute branch's raster-parity lookup), so it is corrected
+    // HERE, at the one consumer that projects the normal onto real
+    // camera axes — not in the kernel. Symptom fixed: facing east/west,
+    // screen-up is dominated by n.x, and the flipped sign put the clay
+    // matcap's under-sphere shadow on up-screen slopes (correct facing
+    // north/south, where screen axes are driven by the correct n.y).
+    vec3 nGeo = vec3(-rotatedN.x, rotatedN.y, rotatedN.z);
+    uv = vec2(0.5 + 0.5 * dot(nGeo, u_cameraRight),
+              0.5 - 0.5 * dot(nGeo, u_cameraUp));
+  } else {
+    // "Absolute": tile-space orthographic lookup, byte-identical in
+    // convention to gpu-matcap-compute.ts / matcap-protocol.ts — pinned to
+    // compass directions (east slopes sample the sphere's right, south its
+    // bottom), unaffected by camera orientation.
+    uv = rotatedN.xy * 0.5 + 0.5;
+  }
+  vec3 matcapColor = texture(u_matcap, uv).rgb;
+
+  // Written OPAQUELY into the layer's own offscreen shade buffer (alpha 1
+  // = coverage; the buffer clears to alpha 0) — depth is resolved there,
+  // and opacity is applied by the fullscreen composite, not here.
+  fragColor = vec4(matcapColor, 1.0);
+}
+`
+
+// Fullscreen composite — draws the shade buffer onto the map with the
+// layer opacity, premultiplied (MapLibre's expected blend). Attribute-less
+// clip-space triangle + texelFetch, same as phong-live-gl-layer.ts's pair.
+const COMPOSITE_VERT = `#version 300 es
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}
+`
+const COMPOSITE_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D u_shade;
+uniform float u_opacity;
+out vec4 fragColor;
+void main() {
+  vec4 s = texelFetch(u_shade, ivec2(gl_FragCoord.xy), 0);
+  float a = s.a * u_opacity; // s.a is the coverage flag (0 where no tile drew)
+  fragColor = vec4(s.rgb * a, a);
+}
+`
+
+function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
+  const shader = gl.createShader(type)!
+  gl.shaderSource(shader, source)
+  gl.compileShader(shader)
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const info = gl.getShaderInfoLog(shader)
+    gl.deleteShader(shader)
+    throw new Error(`[matcap-live-gl-layer] shader compile failed: ${info}`)
+  }
+  return shader
+}
+
+function compileProgram(gl: WebGL2RenderingContext, vertexSrc: string, fragmentSrc: string): WebGLProgram {
+  const program = gl.createProgram()!
+  gl.attachShader(program, compileShader(gl, gl.VERTEX_SHADER, vertexSrc))
+  gl.attachShader(program, compileShader(gl, gl.FRAGMENT_SHADER, fragmentSrc))
+  gl.bindAttribLocation(program, 0, "a_pos")
+  gl.linkProgram(program)
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(program)
+    gl.deleteProgram(program)
+    throw new Error(`[matcap-live-gl-layer] program link failed: ${info}`)
+  }
+  return program
+}
+
+interface ProgramBundle {
+  program: WebGLProgram
+  uProjectionMatrix: WebGLUniformLocation | null
+  uProjectionTileMercatorCoords: WebGLUniformLocation | null
+  uProjectionClippingPlane: WebGLUniformLocation | null
+  uProjectionTransition: WebGLUniformLocation | null
+  uProjectionFallbackMatrix: WebGLUniformLocation | null
+  uDem: WebGLUniformLocation | null
+  uDemDim: WebGLUniformLocation | null
+  uInvGroundRes: WebGLUniformLocation | null
+  uMatcap: WebGLUniformLocation | null
+  uRotationRad: WebGLUniformLocation | null
+  uExaggeration: WebGLUniformLocation | null
+  uCameraRight: WebGLUniformLocation | null
+  uCameraUp: WebGLUniformLocation | null
+  uLightRelativeToCamera: WebGLUniformLocation | null
+  uTerrain: WebGLUniformLocation | null
+  uTerrainDim: WebGLUniformLocation | null
+  uTerrainMatrix: WebGLUniformLocation | null
+  uTerrainUnpack: WebGLUniformLocation | null
+  uTerrainExaggeration: WebGLUniformLocation | null
+  uSkirtLength: WebGLUniformLocation | null
+}
+
+interface TextureEntry {
+  texture: WebGLTexture
+  lastUsed: number
+  /** 1 / (mercator-corrected meters per pixel) at this tile's center
+   *  latitude — feeds u_invGroundRes (see phong-live-gl-layer.ts). */
+  invGroundRes: number
+}
+
+export class MatcapLiveLayer implements CustomLayerInterface {
+  id: string
+  type: "custom" = "custom"
+  renderingMode: "2d" = "2d"
+  options: MatcapLiveOptions
+
+  private map: MapLibreMap | null = null
+  private gl: WebGL2RenderingContext | null = null
+  private programs = new Map<string, ProgramBundle>()
+  private vao: WebGLVertexArrayObject | null = null
+  private indexCount = 0
+  private indexType = 0
+  private textures = new Map<string, TextureEntry>()
+  private pending = new Set<string>()
+  private frameCounter = 0
+  private disposed = false
+  private loggedError = false
+  private loggedFetchError = false
+  private flatTerrainTexture: WebGLTexture | null = null
+  private static readonly FLAT_TERRAIN_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+  private static readonly FLAT_TERRAIN_UNPACK = [0, 0, 0, 0]
+
+  // The material image is independent of the DEM/tile pyramid, so (unlike
+  // upstreamTemplate/encoding/tileSize) a matcapUrl change doesn't need a
+  // full remount — render() notices the mismatch and kicks off a reload.
+  private matcapTexture: WebGLTexture | null = null
+  private matcapTextureUrl: string | null = null
+  private matcapTextureLoading = false
+  private loggedMatcapError = false
+  // Offscreen shade buffer + fullscreen composite — same architecture as
+  // phong-live-gl-layer.ts (see its FRAGMENT_SHADER header): tiles render
+  // opaquely with the buffer's OWN depth attachment (front-most wins
+  // in-house), replacing the old per-tile painter's sort whose tile-CENTER
+  // depth proxy misordered 2.5D relief (a summit near a tile edge could
+  // land behind a later-drawn neighbor) and never resolved within-tile
+  // self-occlusion at all.
+  private shadeFbo: WebGLFramebuffer | null = null
+  private shadeTexture: WebGLTexture | null = null
+  private shadeDepth: WebGLRenderbuffer | null = null
+  private shadeWidth = 0
+  private shadeHeight = 0
+  private compositeProgram: WebGLProgram | null = null
+  private compositeUShade: WebGLUniformLocation | null = null
+  private compositeUOpacity: WebGLUniformLocation | null = null
+
+  constructor(id: string, options: MatcapLiveOptions) {
+    this.id = id
+    this.options = options
+  }
+
+  /** Live parameter update — no remount, no tile refetch/re-load, just a
+   *  repaint with fresh uniform values (rotationDeg/exaggeration/opacity),
+   *  or (matcapUrl) a one-time async texture swap picked up by render(). */
+  updateOptions(patch: Partial<MatcapLiveOptions>) {
+    this.options = { ...this.options, ...patch }
+    this.map?.triggerRepaint()
+  }
+
+  onAdd(map: MapLibreMap, gl: WebGL2RenderingContext) {
+    this.map = map
+    this.gl = gl
+
+    // Same drape-mesh density as MapLibre's own terrain (meshSize 128), NO
+    // border apron — see phong-live-gl-layer.ts's onAdd comment for both
+    // rationales (the 8×8 grid read as blocky under per-fragment normals;
+    // the apron double-composited translucent output along tile seams).
+    const terrainMeshSize = ((map as unknown as { terrain?: { meshSize?: number } }).terrain?.meshSize) ?? 128
+    // generateBorders: a ring of vertices past each edge, which the vertex
+    // shader folds back onto the edge and drops by the skirt length - our
+    // own terrain skirts, matching MapLibre's. Without them MapLibre's
+    // skirts (coloured by the draped layers) peeked through as white dashes
+    // along every seam on the globe.
+    const mesh = createTileMesh({ granularity: terrainMeshSize, generateBorders: true })
+    this.vao = gl.createVertexArray()
+    gl.bindVertexArray(this.vao)
+    const vertexBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW)
+    gl.enableVertexAttribArray(0)
+    gl.vertexAttribPointer(0, 2, gl.SHORT, false, 0, 0)
+    const indexBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW)
+    this.indexType = mesh.uses32bitIndices ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT
+    this.indexCount = mesh.indices.byteLength / (mesh.uses32bitIndices ? 4 : 2)
+    gl.bindVertexArray(null)
+
+    this.flatTerrainTexture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, this.flatTerrainTexture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]))
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+
+    this.compositeProgram = compileProgram(gl, COMPOSITE_VERT, COMPOSITE_FRAG)
+    this.compositeUShade = gl.getUniformLocation(this.compositeProgram, "u_shade")
+    this.compositeUOpacity = gl.getUniformLocation(this.compositeProgram, "u_opacity")
+  }
+
+  /** Same (re)create-at-drawing-buffer-size helper as
+   *  phong-live-gl-layer.ts's ensureShadeFbo. */
+  private ensureShadeFbo(gl: WebGL2RenderingContext): boolean {
+    const w = gl.drawingBufferWidth
+    const h = gl.drawingBufferHeight
+    if (this.shadeFbo && this.shadeWidth === w && this.shadeHeight === h) return true
+    if (this.shadeFbo) gl.deleteFramebuffer(this.shadeFbo)
+    if (this.shadeTexture) gl.deleteTexture(this.shadeTexture)
+    if (this.shadeDepth) gl.deleteRenderbuffer(this.shadeDepth)
+    this.shadeTexture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, this.shadeTexture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    this.shadeDepth = gl.createRenderbuffer()
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.shadeDepth)
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h)
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null)
+    this.shadeFbo = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadeFbo)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.shadeTexture, 0)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.shadeDepth)
+    const complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE
+    this.shadeWidth = w
+    this.shadeHeight = h
+    return complete
+  }
+
+  onRemove(_map: MapLibreMap, gl: WebGL2RenderingContext) {
+    this.disposed = true
+    for (const entry of this.textures.values()) gl.deleteTexture(entry.texture)
+    this.textures.clear()
+    this.pending.clear()
+    for (const bundle of this.programs.values()) gl.deleteProgram(bundle.program)
+    this.programs.clear()
+    if (this.flatTerrainTexture) gl.deleteTexture(this.flatTerrainTexture)
+    this.flatTerrainTexture = null
+    if (this.matcapTexture) gl.deleteTexture(this.matcapTexture)
+    this.matcapTexture = null
+    this.matcapTextureUrl = null
+    if (this.shadeFbo) gl.deleteFramebuffer(this.shadeFbo)
+    this.shadeFbo = null
+    if (this.shadeTexture) gl.deleteTexture(this.shadeTexture)
+    this.shadeTexture = null
+    if (this.shadeDepth) gl.deleteRenderbuffer(this.shadeDepth)
+    this.shadeDepth = null
+    if (this.compositeProgram) gl.deleteProgram(this.compositeProgram)
+    this.compositeProgram = null
+    if (this.vao) gl.deleteVertexArray(this.vao)
+    this.vao = null
+    this.gl = null
+    this.map = null
+  }
+
+  private getProgram(gl: WebGL2RenderingContext, shaderData: CustomRenderMethodInput["shaderData"]): ProgramBundle {
+    const existing = this.programs.get(shaderData.variantName)
+    if (existing) return existing
+    const program = compileProgram(gl, buildVertexShader(shaderData.vertexShaderPrelude, shaderData.define), FRAGMENT_SHADER)
+    const bundle: ProgramBundle = {
+      program,
+      uProjectionMatrix: gl.getUniformLocation(program, "u_projection_matrix"),
+      uProjectionTileMercatorCoords: gl.getUniformLocation(program, "u_projection_tile_mercator_coords"),
+      uProjectionClippingPlane: gl.getUniformLocation(program, "u_projection_clipping_plane"),
+      uProjectionTransition: gl.getUniformLocation(program, "u_projection_transition"),
+      uProjectionFallbackMatrix: gl.getUniformLocation(program, "u_projection_fallback_matrix"),
+      uDem: gl.getUniformLocation(program, "u_dem"),
+      uDemDim: gl.getUniformLocation(program, "u_demDim"),
+      uInvGroundRes: gl.getUniformLocation(program, "u_invGroundRes"),
+      uMatcap: gl.getUniformLocation(program, "u_matcap"),
+      uRotationRad: gl.getUniformLocation(program, "u_rotationRad"),
+      uExaggeration: gl.getUniformLocation(program, "u_exaggeration"),
+      uCameraRight: gl.getUniformLocation(program, "u_cameraRight"),
+      uCameraUp: gl.getUniformLocation(program, "u_cameraUp"),
+      uLightRelativeToCamera: gl.getUniformLocation(program, "u_lightRelativeToCamera"),
+      uTerrain: gl.getUniformLocation(program, "u_terrain"),
+      uTerrainDim: gl.getUniformLocation(program, "u_terrain_dim"),
+      uTerrainMatrix: gl.getUniformLocation(program, "u_terrain_matrix"),
+      uTerrainUnpack: gl.getUniformLocation(program, "u_terrain_unpack"),
+      uTerrainExaggeration: gl.getUniformLocation(program, "u_terrain_exaggeration"),
+      uSkirtLength: gl.getUniformLocation(program, "u_skirt_length"),
+    }
+    this.programs.set(shaderData.variantName, bundle)
+    return bundle
+  }
+
+  private fetchTile(tileID: OverscaledTileID, key: string) {
+    if (this.pending.has(key)) return
+    this.pending.add(key)
+    const { z, x, y } = tileID.canonical
+    const controller = new AbortController()
+    // Consumes only the returned Float32 `grid` (padded elevations) — see
+    // phong-live-gl-layer.ts's fetchTile comment for the full rationale
+    // (shared cache/abort machinery kept; baked normals unused on this path).
+    computeNormalPixels(this.options.upstreamTemplate, this.options.encoding, z, x, y, this.options.tileSize, controller.signal)
+      .then(({ grid }) => {
+        this.pending.delete(key)
+        if (this.disposed || !this.gl) return
+        const gl = this.gl
+        const texture = gl.createTexture()!
+        gl.bindTexture(gl.TEXTURE_2D, texture)
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+        // NEAREST + texelFetch — the shader does its own bilinear (see
+        // DEM_NORMAL_GLSL), no float-linear extension needed.
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, grid.stride, grid.stride, 0, gl.RED, gl.FLOAT, grid.padded)
+        const latCenterDeg = tileRowToLatRad(y + 0.5, z) * RAD_TO_DEG
+        const invGroundRes = 1 / groundResolutionM(latCenterDeg, z, this.options.tileSize)
+        this.textures.set(key, { texture, lastUsed: this.frameCounter, invGroundRes })
+        this.map?.triggerRepaint()
+      })
+      .catch((err) => {
+        this.pending.delete(key)
+        if (err?.name !== "AbortError" && !this.loggedFetchError) {
+          this.loggedFetchError = true
+          console.error(`[matcap-live-gl-layer] normal-tile fetch/compute failed (z${z}/${x}/${y}); template=${this.options.upstreamTemplate}`, err)
+        }
+      })
+  }
+
+  /** Fetches + uploads the material image for a new matcapUrl — mirrors
+   *  gpu-matcap-compute.ts's getMatcapTexture, instance-scoped here (rather
+   *  than that module's shared cache) since this layer already owns its own
+   *  GL resources end-to-end. */
+  private loadMatcapTexture(gl: WebGL2RenderingContext, url: string) {
+    this.matcapTextureLoading = true
+    fetch(url)
+      .then((res) => res.blob())
+      .then((blob) => createImageBitmap(blob))
+      .then((bitmap) => {
+        this.matcapTextureLoading = false
+        if (this.disposed || !this.gl) return
+        const texture = gl.createTexture()!
+        gl.bindTexture(gl.TEXTURE_2D, texture)
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+        bitmap.close()
+        if (this.matcapTexture) gl.deleteTexture(this.matcapTexture)
+        this.matcapTexture = texture
+        this.matcapTextureUrl = url
+        this.map?.triggerRepaint()
+      })
+      .catch((err) => {
+        this.matcapTextureLoading = false
+        if (!this.loggedMatcapError) {
+          this.loggedMatcapError = true
+          console.error(`[matcap-live-gl-layer] material image fetch failed: ${url}`, err)
+        }
+      })
+  }
+
+  private pruneTextures() {
+    if (this.textures.size <= MAX_CACHED_TEXTURES) return
+    const byAge = [...this.textures.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed)
+    const overflow = byAge.length - MAX_CACHED_TEXTURES
+    for (let i = 0; i < overflow; i++) {
+      const [key, entry] = byAge[i]
+      // Never evict a tile drawn THIS frame — same endless unload/reload
+      // churn guard as phong-live-gl-layer.ts's pruneTextures (a visible
+      // set larger than the cap would otherwise evict/refetch its own
+      // tiles every frame). Ascending lastUsed sort ⇒ safe to stop at the
+      // first current-frame entry.
+      if (entry.lastUsed >= this.frameCounter) break
+      this.gl?.deleteTexture(entry.texture)
+      this.textures.delete(key)
+    }
+  }
+
+  render(glArg: WebGLRenderingContext | WebGL2RenderingContext, args: CustomRenderMethodInput) {
+    const gl = glArg as WebGL2RenderingContext
+    const map = this.map
+    if (!map || !this.vao) return
+
+    try {
+      if (this.options.matcapUrl !== this.matcapTextureUrl && !this.matcapTextureLoading) {
+        this.loadMatcapTexture(gl, this.options.matcapUrl)
+      }
+      // Nothing to draw with yet — same "wait for the first async load"
+      // behavior phong-live-gl-layer.ts has for its first normal tile.
+      if (!this.matcapTexture) return
+
+      const bundle = this.getProgram(gl, args.shaderData)
+      this.frameCounter++
+
+      // Dpr-only tile-selection bump — same reasoning as
+      // phong-live-gl-layer.ts's render() comment (texels ≈ device pixels
+      // on retina, without the old fixed /2 that drove the reload churn).
+      // Terrain-aware culling too, same as phong: without it, flat-footprint
+      // frustum tests culled tiles whose elevated relief was right in front
+      // of the camera at high pitch.
+      const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1
+      const terrainForCulling = (map as unknown as { terrain?: MapTerrainLike }).terrain
+      const tileIDs = map.coveringTiles({
+        tileSize: Math.max(1, Math.round(this.options.tileSize / dpr)),
+        minzoom: this.options.minzoom,
+        maxzoom: this.options.maxzoom,
+        ...(terrainForCulling ? { terrain: terrainForCulling as never } : {}),
+      })
+
+      gl.useProgram(bundle.program)
+      gl.bindVertexArray(this.vao)
+      gl.uniform1i(bundle.uDem, 0)
+      gl.uniform1f(bundle.uDemDim, this.options.tileSize)
+      gl.uniform1i(bundle.uMatcap, 2)
+      gl.uniform1f(bundle.uRotationRad, (this.options.rotationDeg * Math.PI) / 180)
+      gl.uniform1f(bundle.uExaggeration, this.options.exaggeration)
+      gl.uniform1i(bundle.uLightRelativeToCamera, this.options.lightRelativeToCamera ? 1 : 0)
+
+      // Camera basis for the view-space ("Camera") lookup — ANALYTIC from
+      // bearing/pitch, not unprojected from the tile matrix. The previous
+      // computeCameraBasis-derived right vector had a bearing-handedness
+      // flip (tile-local x=east/y=south/z=up is a LEFT-handed frame, which
+      // the Gram-Schmidt unprojection didn't account for): correct facing
+      // north/south (sin β = 0) but U-mirrored facing east/west — a clay
+      // matcap's under-sphere shadow landed on the up-facing slopes there
+      // (user-reported 2026-08-21). Derivation in right-handed ENU
+      // (x=east, y=north, z=up), then converted to tile coords (negate y):
+      //   screen-right = (cos β, −sin β, 0)_ENU   → (cos β, sin β, 0)_tile
+      //   screen-up    = (sin β·cos p, cos β·cos p, sin p)_ENU
+      //                → (sin β·cos p, −cos β·cos p, sin p)_tile
+      // Verified against the user-confirmed cases: β=0 reduces to
+      // right=east/up=north(+zenith with pitch) — the Absolute-coincident
+      // orientation that already looked correct — and β=90 now yields
+      // right=south (tile +y), un-mirroring east/west. Roll is ignored
+      // (the app never sets one).
+      if (this.options.lightRelativeToCamera) {
+        const bRad = (map.getBearing() * Math.PI) / 180
+        const pRad = (map.getPitch() * Math.PI) / 180
+        gl.uniform3f(bundle.uCameraRight, Math.cos(bRad), Math.sin(bRad), 0)
+        gl.uniform3f(bundle.uCameraUp, Math.sin(bRad) * Math.cos(pRad), -Math.cos(bRad) * Math.cos(pRad), Math.sin(pRad))
+      } else {
+        // Unused by the Absolute branch — keep well-defined values anyway.
+        gl.uniform3f(bundle.uCameraRight, 1, 0, 0)
+        gl.uniform3f(bundle.uCameraUp, 0, -1, 0)
+      }
+
+      gl.activeTexture(gl.TEXTURE2)
+      gl.bindTexture(gl.TEXTURE_2D, this.matcapTexture)
+
+      const terrain = (map as unknown as { terrain?: MapTerrainLike }).terrain
+      gl.uniform1i(bundle.uTerrain, 1)
+
+      // Collect the drawable set (kicking off fetches for misses). The old
+      // per-tile painter's sort is GONE: its tile-CENTER depth proxy
+      // misordered 2.5D relief (a summit near a tile edge could land behind
+      // a later-drawn neighbor, flickering with camera movement) and never
+      // resolved within-tile self-occlusion at all — the offscreen depth
+      // attachment below settles both per fragment.
+      const drawable: { tileID: OverscaledTileID; entry: TextureEntry }[] = []
+      for (const tileID of tileIDs) {
+        const key = tileID.key
+        const entry = this.textures.get(key)
+        if (!entry) {
+          this.fetchTile(tileID, key)
+          continue
+        }
+        entry.lastUsed = this.frameCounter
+        drawable.push({ tileID, entry })
+      }
+
+      // STAGE 1 — opaque render into the layer's own shade buffer,
+      // front-most-wins via its own depth attachment (same architecture and
+      // state bookkeeping as phong-live-gl-layer.ts).
+      if (!this.ensureShadeFbo(gl)) return
+      const prevFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null
+      const blendWasEnabled = gl.isEnabled(gl.BLEND)
+      const depthWasEnabled = gl.isEnabled(gl.DEPTH_TEST)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadeFbo)
+      gl.viewport(0, 0, this.shadeWidth, this.shadeHeight)
+      gl.disable(gl.BLEND)
+      gl.enable(gl.DEPTH_TEST)
+      gl.depthFunc(gl.LEQUAL)
+      gl.depthMask(true)
+      // Alpha 0 = "no tile drew here" — the composite skips those pixels.
+      gl.clearColor(0, 0, 0, 0)
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+      for (const { tileID, entry } of drawable) {
+        const p = getTransform(map).getProjectionData({ overscaledTileID: tileID, applyGlobeMatrix: true })
+        gl.uniformMatrix4fv(bundle.uProjectionMatrix, false, p.mainMatrix)
+        gl.uniform4f(bundle.uProjectionTileMercatorCoords, p.tileMercatorCoords[0], p.tileMercatorCoords[1], p.tileMercatorCoords[2], p.tileMercatorCoords[3])
+        gl.uniform4f(bundle.uProjectionClippingPlane, p.clippingPlane[0], p.clippingPlane[1], p.clippingPlane[2], p.clippingPlane[3])
+        gl.uniform1f(bundle.uProjectionTransition, p.projectionTransition)
+        gl.uniformMatrix4fv(bundle.uProjectionFallbackMatrix, false, p.fallbackMatrix)
+
+        gl.activeTexture(gl.TEXTURE1)
+        if (terrain) {
+          const td = terrain.getTerrainData(tileID)
+          gl.bindTexture(gl.TEXTURE_2D, td.texture)
+          gl.uniform1f(bundle.uTerrainDim, td.u_terrain_dim)
+          gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, td.u_terrain_matrix)
+          gl.uniform4fv(bundle.uTerrainUnpack, td.u_terrain_unpack)
+          gl.uniform1f(bundle.uTerrainExaggeration, td.u_terrain_exaggeration)
+          // Same length rule as MapLibre's own skirts (Terrain.getSkirtLength),
+          // in exaggerated metres.
+          const skirt = ((terrain as unknown as { getSkirtLength?: (z: number) => number }).getSkirtLength?.(map.getZoom()) ?? 0) * td.u_terrain_exaggeration
+          gl.uniform1f(bundle.uSkirtLength, skirt)
+        } else {
+          gl.uniform1f(bundle.uSkirtLength, 0)
+          gl.bindTexture(gl.TEXTURE_2D, this.flatTerrainTexture)
+          gl.uniform1f(bundle.uTerrainDim, 1)
+          gl.uniformMatrix4fv(bundle.uTerrainMatrix, false, MatcapLiveLayer.FLAT_TERRAIN_MATRIX)
+          gl.uniform4fv(bundle.uTerrainUnpack, MatcapLiveLayer.FLAT_TERRAIN_UNPACK)
+          gl.uniform1f(bundle.uTerrainExaggeration, 1)
+        }
+
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, entry.texture)
+        gl.uniform1f(bundle.uInvGroundRes, entry.invGroundRes)
+        gl.drawElements(gl.TRIANGLES, this.indexCount, this.indexType, 0)
+      }
+
+      // STAGE 2 — single premultiplied fullscreen composite at the layer
+      // opacity (MapLibre's expected blend func is already active).
+      gl.bindFramebuffer(gl.FRAMEBUFFER, prevFbo)
+      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
+      gl.disable(gl.DEPTH_TEST)
+      gl.enable(gl.BLEND)
+      gl.useProgram(this.compositeProgram)
+      gl.bindVertexArray(null) // attribute-less fullscreen triangle (gl_VertexID)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, this.shadeTexture)
+      gl.uniform1i(this.compositeUShade, 0)
+      gl.uniform1f(this.compositeUOpacity, this.options.opacity)
+      gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+      // Restore the enable-state this layer flipped.
+      if (blendWasEnabled) gl.enable(gl.BLEND); else gl.disable(gl.BLEND)
+      if (depthWasEnabled) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST)
+
+      this.pruneTextures()
+    } catch (err) {
+      if (!this.loggedError) {
+        console.error("[matcap-live-gl-layer] render() failed — disabling further logging for this instance:", err)
+        this.loggedError = true
+      }
+    } finally {
+      gl.bindVertexArray(null)
+      gl.useProgram(null)
+    }
+  }
+}

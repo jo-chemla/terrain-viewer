@@ -294,6 +294,10 @@ export const contourWorkerAtom = atomWithStorage("contourWorker", false)
 // (Settings → Streaming), DEM still fetched on the main thread:
 // lib/raster-compute-pool.ts, mirrored by TerrainViewer.tsx. Off by default.
 export const rasterComputeWorkerAtom = atomWithStorage("rasterComputeWorker", false)
+// Live Phong/Matcap draped by MapLibre through renderToTerrainTile (an
+// experimental MapLibre API, 6.13). Off falls back to the old hand-built drape
+// (lib/*-live-gl-layer-legacy.ts). Settings → Streaming. On by default.
+export const nativeTerrainDrapeAtom = atomWithStorage("nativeTerrainDrape", true)
 // Google Earth Historical tiles built from one Keyhole level finer into 512 px
 // images (Settings → Streaming): no vertical stretch away from the equator and
 // a 2x image for HiDPI screens, for four times the Keyhole fetches. Read by

@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
-  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, contourWorkerAtom, rasterComputeWorkerAtom, geHiDpiTilesAtom,
+  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, contourWorkerAtom, rasterComputeWorkerAtom, nativeTerrainDrapeAtom, geHiDpiTilesAtom,
   customThemesAtom,
   isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
@@ -341,6 +341,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [cacheVizTiles, setCacheVizTiles] = useAtom(cacheVizTilesAtom)
   const [contourWorker, setContourWorker] = useAtom(contourWorkerAtom)
   const [rasterComputeWorker, setRasterComputeWorker] = useAtom(rasterComputeWorkerAtom)
+  const [nativeTerrainDrape, setNativeTerrainDrape] = useAtom(nativeTerrainDrapeAtom)
   const [geHiDpiTiles, setGeHiDpiTiles] = useAtom(geHiDpiTilesAtom)
   const [persistLocalCogs, setPersistLocalCogs] = useAtom(persistLocalCogsAtom)
   const [persistVectorLayers, setPersistVectorLayers] = useAtom(persistVectorLayersAtom)
@@ -833,6 +834,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 checked={rasterComputeWorker}
                 className="cursor-pointer"
                 onCheckedChange={setRasterComputeWorker}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="native-terrain-drape">Native Terrain Draping</Label>
+                <span className="text-xs text-muted-foreground">
+                  Live Phong and Matcap are draped on 3D terrain by MapLibre itself (an experimental MapLibre API). Turn off to use the previous drape if they look wrong
+                </span>
+              </div>
+              <Switch
+                id="native-terrain-drape"
+                checked={nativeTerrainDrape}
+                className="cursor-pointer"
+                onCheckedChange={setNativeTerrainDrape}
               />
             </div>
               

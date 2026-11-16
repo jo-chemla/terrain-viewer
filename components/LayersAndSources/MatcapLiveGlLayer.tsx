@@ -13,6 +13,11 @@ import type { CustomLayerInterface } from "maplibre-gl"
 import type { TerrainSource } from "@/lib/terrain-types"
 import type { CustomTerrainSource } from "@/lib/settings-atoms"
 import { MatcapLiveLayer as MatcapLiveLayerImpl, type MatcapLiveOptions } from "@/lib/matcap-live-gl-layer"
+// The pre-2026-11-17 hand-built drape, kept for Settings → Streaming → Native
+// Terrain Draping off (renderToTerrainTile is an experimental MapLibre API).
+import { MatcapLiveLayer as MatcapLiveLayerLegacy } from "@/lib/matcap-live-gl-layer-legacy"
+import { useAtomValue } from "jotai"
+import { nativeTerrainDrapeAtom } from "@/lib/settings-atoms"
 import { useClientDemUpstream } from "./MapSources"
 import { LAYER_SLOTS } from "./MapLayers"
 
@@ -37,8 +42,9 @@ export function MatcapLiveGlLayer({
   titilerEndpoint: string
 }) {
   const clientUpstream = useClientDemUpstream(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
-  const layerRef = useRef<MatcapLiveLayerImpl | null>(null)
+  const layerRef = useRef<MatcapLiveLayerImpl | MatcapLiveLayerLegacy | null>(null)
 
+  const nativeDrape = useAtomValue(nativeTerrainDrapeAtom)
   useEffect(() => {
     if (!enabled || !clientUpstream) return
     const map = mapRef.current?.getMap()
@@ -52,7 +58,7 @@ export function MatcapLiveGlLayer({
       maxzoom: clientUpstream.maxzoom,
       matcapUrl, rotationDeg, exaggeration, opacity, lightRelativeToCamera,
     }
-    const layer = new MatcapLiveLayerImpl(LIVE_LAYER_ID, options)
+    const layer = nativeDrape ? new MatcapLiveLayerImpl(LIVE_LAYER_ID, options) : new MatcapLiveLayerLegacy(LIVE_LAYER_ID, options as never)
     layerRef.current = layer
     let cancelled = false
     let rafHandle: number | null = null
@@ -85,7 +91,7 @@ export function MatcapLiveGlLayer({
       if (map.style && map.getLayer(LIVE_LAYER_ID)) map.removeLayer(LIVE_LAYER_ID)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, clientUpstream?.template, clientUpstream?.encoding, clientUpstream?.tileSize, clientUpstream?.minzoom, clientUpstream?.maxzoom, mapRef])
+  }, [enabled, clientUpstream?.template, clientUpstream?.encoding, clientUpstream?.tileSize, clientUpstream?.minzoom, clientUpstream?.maxzoom, mapRef, nativeDrape])
 
   useEffect(() => {
     layerRef.current?.updateOptions({ matcapUrl, rotationDeg, exaggeration, opacity, lightRelativeToCamera })

@@ -4017,7 +4017,13 @@
       "file": "lib/settings-atoms.ts",
       "key": "rasterComputeWorker",
       "default": "false",
-      "note": "Sky View Factor and Openness pixel loops in a pool of dedicated workers (Settings → Streaming), DEM still fetched on the main thread: lib/raster-compute-pool.ts, mirrored by TerrainViewer.tsx."
+      "note": "Sky View Factor, Openness and Local Dominance pixel loops in a pool of dedicated workers (Settings → Streaming), DEM still fetched on the main thread: lib/raster-compute-pool.ts, mirrored by TerrainV…"
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "nativeTerrainDrape",
+      "default": "true",
+      "note": "Live Phong/Matcap draped by MapLibre through renderToTerrainTile (an experimental MapLibre API, 6.13)."
     },
     {
       "file": "lib/settings-atoms.ts",

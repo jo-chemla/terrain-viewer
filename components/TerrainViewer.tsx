@@ -529,17 +529,17 @@ export const QUERY_STATE_PARSERS = {
     // pipeline — drapes correctly over 3D terrain exaggeration AND globe,
     // but every rotation/exaggeration change costs a real tile refetch.
     // "live": lib/matcap-live-gl-layer.ts's CustomLayerInterface — instant
-    // GPU-uniform updates, zero refetch, drapes onto 3D terrain the same
-    // way the live Phong layer does (see phongRenderer below), but not
-    // globe; see lighting-effects-options-section.tsx for the UI toggle.
+    // GPU-uniform updates, zero refetch, draped onto 3D terrain the same
+    // way the live Phong layer is (see phongRenderer below); see
+    // lighting-effects-options-section.tsx for the UI toggle.
     matcapRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("live"),
     // "Light Anchor", ported from Phong's phongLightRelativeToCamera — only
     // meaningful in "live" (2D Fast): off (Absolute) samples the material
     // by the tile-space normal, pinned to compass directions and identical
     // in convention to the raster pipeline; on (Camera, the default per the
     // user's 2026-07-28 request) samples by the view-space normal — the
-    // classic matcap lookup, following the camera's real pitch/bearing via
-    // computeCameraBasis. The earlier per-fragment reflected-ray versions
+    // classic matcap lookup, following the camera's real pitch/bearing
+    // (analytic basis). The earlier per-fragment reflected-ray versions
     // (hand-derived trig, then inverse-projection unprojection) painted a
     // screen-locked blob of the matcap's center over flat terrain and are
     // gone — see lib/matcap-live-gl-layer.ts's header comment.
@@ -589,11 +589,10 @@ export const QUERY_STATE_PARSERS = {
     // drapes correctly over 3D terrain exaggeration AND globe, but every
     // light/strength/exaggeration change costs a real tile refetch (~150ms
     // debounced). "live": lib/phong-live-gl-layer.ts's CustomLayerInterface —
-    // instant GPU-uniform updates, zero refetch, and (since 2026-07-28) also
-    // drapes onto 3D terrain via map.terrain.getTerrainData() — see that
-    // file's header for the derivation. Still no globe support, so it's only
-    // meaningful outside "globe" view mode; see lighting-effects-options-
-    // section.tsx for the UI toggle exposing this trade-off directly.
+    // instant GPU-uniform updates, zero refetch, mercator and globe; with 3D
+    // terrain on it is draped by MapLibre through renderToTerrainTile (see
+    // lib/live-dem-gl-layer.ts). See lighting-effects-options-section.tsx
+    // for the UI toggle.
     phongRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("live"),
     // "Shadows" sub-mode (lib/shadow-protocol.ts) — a plain binary raster
     // mask: for each pixel, marches toward the sun's actual azimuth
@@ -3835,8 +3834,8 @@ export function TerrainViewer() {
       const isBottomRight = side === bottomRightViewId
       // "live" (lib/phong-live-gl-layer.ts) now projects through MapLibre's own
       // per-frame shaderData prelude, so it renders correctly under BOTH
-      // mercator and globe — no globe fallback needed anymore. It's still
-      // flat-only (no terrain-elevation drape); that trade-off is unchanged.
+      // mercator and globe — no globe fallback needed anymore — and is
+      // draped on 3D terrain through renderToTerrainTile.
       const effectivePhongRenderer = state.phongRenderer
 
       // What each map sets up once it is ready: listeners, and the mapLoaded

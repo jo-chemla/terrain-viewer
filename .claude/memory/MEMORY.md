@@ -63,3 +63,4 @@
 - [CDSE STAC access](cdse-stac-access.md) — Copernicus Data Space catalog is open but no data is anonymously readable (s3://eodata, 401 OData); quicklooks public, CopDEM via the AWS copy, Browser deep links, Sentinel Hub instance id as the follow-up
 - [Contours in a worker](contour-worker.md) — opt-in setting: maplibre-contour in MapLibre workers via importScriptInWorkers, DEM from the main thread; targetMapId gotcha, preview test recipe
 - [Raster compute in a worker](raster-compute-worker.md) — viz-mode kernel rewrites (shadow 15x, SVF/Openness 5-10x, 3x3 modes 2-3x, identical pixels), opt-in worker pool, timings, fast slower than precise at r32
+- [Live GL layers on terrain tiles](live-gl-render-to-terrain-tile.md) — live Phong/Matcap drape via renderToTerrainTile (lib/live-dem-gl-layer.ts): revision getter, DEM zoom per terrain tile, Phong stack-split blend, what was deleted
