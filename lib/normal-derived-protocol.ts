@@ -168,10 +168,22 @@ export async function fetchDecodedTile(
   signal: AbortSignal,
 ): Promise<DecodedTile | null> {
   const cached = cacheGet(cache, url)
-  if (cached) return cached
+  if (cached) {
+    joinSharedFetch(cached, signal)
+    return cached
+  }
 
+  // The fetch is shared by every tile that needs this one (as its own tile or
+  // as a neighbour of its halo), so it runs on its own controller, cancelled
+  // only once every waiting tile has been cancelled. It used to run on the
+  // first requester's signal: panning cancelled that tile, the shared fetch
+  // resolved null, and the still-visible tiles awaiting it built their halo
+  // from their own edge pixels, a seam as wide as the halo (8 to 32 px in
+  // Openness) that the result cache then kept (2026-11-17).
+  const controller = new AbortController()
+  const fetchSignal = controller.signal
   const decode = async (): Promise<DecodedTile | null> => {
-    const bitmap = await loadTileBitmap(url, signal)
+    const bitmap = await loadTileBitmap(url, fetchSignal)
     if (!bitmap) return null
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
     const ctx = canvas.getContext("2d")!
@@ -204,9 +216,9 @@ export async function fetchDecodedTile(
       // without letting a single bad tile block the whole neighborhood — the
       // caller (runNormalDerivedProtocol) still falls back gracefully to
       // neighboring/center data if this second attempt also fails.
-      if (signal.aborted) return null
+      if (fetchSignal.aborted) return null
       await new Promise((resolve) => setTimeout(resolve, 400))
-      if (signal.aborted) return null
+      if (fetchSignal.aborted) return null
       try {
         return await decode()
       } catch {
@@ -215,9 +227,28 @@ export async function fetchDecodedTile(
     }
   })()
 
+  sharedFetches.set(promise, { controller, waiters: 0 })
+  joinSharedFetch(promise, signal)
   cacheSet(cache, url, promise)
   promise.then((result) => { if (!result) cache.delete(url) })
   return promise
+}
+
+/** Waiting tiles per shared decoded-tile fetch (see fetchDecodedTile). */
+const sharedFetches = new WeakMap<Promise<DecodedTile | null>, { controller: AbortController; waiters: number }>()
+
+function joinSharedFetch(promise: Promise<DecodedTile | null>, signal: AbortSignal): void {
+  const shared = sharedFetches.get(promise)
+  if (!shared) return
+  if (signal.aborted) {
+    if (shared.waiters === 0) shared.controller.abort()
+    return
+  }
+  shared.waiters++
+  signal.addEventListener("abort", () => {
+    shared.waiters--
+    if (shared.waiters <= 0) shared.controller.abort()
+  }, { once: true })
 }
 
 // -------------------------
@@ -406,6 +437,10 @@ export async function fetchPaddedElevationGrid(
     }),
   )
 
+  // A cancelled request may have cancelled the shared neighbour fetches it was
+  // the last to wait on: its halo could hold edge-clamped stand-ins, so it must
+  // never produce a result (a result cache would keep the seam).
+  if (abortSignal.aborted) throw new DOMException("Aborted", "AbortError")
   const centerTile = resolved.get("0,0")
   if (!centerTile) throw new Error(`Failed to fetch center tile at ${z}/${x}/${y}`)
 

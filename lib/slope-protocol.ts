@@ -111,6 +111,8 @@ export async function slopeProtocol(
     }),
   )
 
+  // Cancelled: its halo may hold edge-clamped stand-ins (see fetchDecodedTile).
+  if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
   const centerTile = resolved.get("0,0")
   if (!centerTile) throw new Error(`Failed to fetch center slope source tile at ${z}/${x}/${y}`)
 

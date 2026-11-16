@@ -2,7 +2,7 @@ import type React from "react"
 import { perViewProps, modeOnVisibleView } from "@/lib/viz-views"
 import { useState, useCallback } from "react"
 import { useAtom } from "jotai"
-import { ChevronDown, ChevronLeft, ChevronRight, Hourglass } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -278,14 +278,7 @@ export const LightingEffectsOptionsSection: React.FC<{
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Shadows</div>
           <CheckboxWithSlider perView={perViewFor("showShadows")}
             id="lighting-shadows"
-            label={
-              // Hourglass = "slow to compute" hint, same monochrome inline-icon
-              // convention as Relief Visualization's SlowModeLabel.
-              <span className="inline-flex items-center gap-1">
-                Terrain
-                <Hourglass className="h-3 w-3 shrink-0" />
-              </span>
-            }
+            label="Terrain"
             tooltip="Hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light. The heaviest lighting mode: every light/radius change recomputes visible tiles. Shares Phong/Hillshade's light direction (same pad below)."
             checked={state.showShadows}
             onCheckedChange={(checked) => setState({ showShadows: checked })}

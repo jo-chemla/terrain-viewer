@@ -1,24 +1,12 @@
 import type React from "react"
 import { perViewProps, modeOnVisibleView } from "@/lib/viz-views"
 import { useAtom } from "jotai"
-import { Hourglass } from "lucide-react"
 import { Section, CheckboxWithSlider, AdvancedModeToggle } from "./controls-components"
 import { reliefVisualizationAdvancedAtom } from "@/lib/settings-atoms"
 import { LrmFields } from "./lrm-options-section"
 import { SvfFields } from "./svf-options-section"
 import { OpennessFields } from "./openness-options-section"
 import { LocalDominanceFields } from "./local-dominance-options-section"
-
-// A plain "⏳" emoji renders as a colored glyph regardless of the surrounding
-// text color — this inline SVG icon inherits currentColor like every other
-// lucide icon in the app instead, so it reads as a monochrome hint rather than
-// a stray sticker next to the label.
-const SlowModeLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <span className="inline-flex items-center gap-1">
-    {children}
-    <Hourglass className="h-3 w-3 shrink-0" />
-  </span>
-)
 
 // The other half of what used to be one merged "Slope and More" panel — the
 // multi-scale relief/visibility modes (LRM, Sky View Factor, Openness), as
@@ -66,17 +54,15 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             same "horizon angle in several directions" ray march (see
             lib/horizon-angle.ts), a simplest-first pass (8 directions, integer-pixel
             steps) rather than the literature's full anisotropic accuracy. Each pixel
-            costs ~8x the ray-march work of a fixed 3x3/5x5 mode, so a full tile can
-            take noticeably longer to compute than Slope/Curvature/Blobness — the
-            trailing hourglass and "Slow - " tooltip prefix flag that up front. The
-            computation itself no longer blocks the UI while it runs (see
-            YIELD_EVERY_ROWS in lib/normal-derived-protocol.ts), just takes a beat to
-            actually paint. */}
+            costs ~8x the ray-march work of a fixed 3x3/5x5 mode. The hourglass
+            "slow" marks were dropped on 2026-11-17 once lib/horizon-kernel.ts made
+            a tile 5-10x cheaper (Raster Compute in a Worker moves it off the main
+            thread too). */}
         <div className="space-y-2">
           <CheckboxWithSlider perView={perViewFor("showSvf")}
             id="relief-visualization-svf"
-            label={<SlowModeLabel>Sky View Factor</SlowModeLabel>}
-            tooltip="Slow - Fraction of the sky hemisphere visible from each point — low in enclosed pits/canyons, high on open summits/ridges."
+            label="Sky View Factor"
+            tooltip="Fraction of the sky hemisphere visible from each point — low in enclosed pits/canyons, high on open summits/ridges."
             checked={state.showSvf}
             onCheckedChange={(checked) => setState({ showSvf: checked })}
             sliderValue={state.svfOpacity}
@@ -88,8 +74,8 @@ export const ReliefVisualizationOptionsSection: React.FC<{
         <div className="space-y-2">
           <CheckboxWithSlider perView={perViewFor("showOpenness")}
             id="relief-visualization-openness"
-            label={<SlowModeLabel>Openness</SlowModeLabel>}
-            tooltip="Slow - Mean angular distance from zenith to the horizon across several directions — reads above flat (90°) on ridges/summits (Positive mode) or in valleys/pits (Negative mode)."
+            label="Openness"
+            tooltip="Mean angular distance from zenith to the horizon across several directions — reads above flat (90°) on ridges/summits (Positive mode) or in valleys/pits (Negative mode)."
             checked={state.showOpenness}
             onCheckedChange={(checked) => setState({ showOpenness: checked })}
             sliderValue={state.opennessOpacity}
@@ -101,8 +87,8 @@ export const ReliefVisualizationOptionsSection: React.FC<{
         <div className="space-y-2">
           <CheckboxWithSlider perView={perViewFor("showLocalDominance")}
             id="relief-visualization-local-dominance"
-            label={<SlowModeLabel>Local Dominance</SlowModeLabel>}
-            tooltip="Slow - Mean downward view angle onto the surrounding terrain over a ring of distances (Hesse 2016) — high on mounds/ridges that look down on their surroundings, low in enclosed depressions. Complements Openness for isolating closed mounds and pits."
+            label="Local Dominance"
+            tooltip="Mean downward view angle onto the surrounding terrain over a ring of distances (Hesse 2016) — high on mounds/ridges that look down on their surroundings, low in enclosed depressions. Complements Openness for isolating closed mounds and pits."
             checked={state.showLocalDominance}
             onCheckedChange={(checked) => setState({ showLocalDominance: checked })}
             sliderValue={state.localDominanceOpacity}
