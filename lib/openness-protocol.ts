@@ -21,7 +21,7 @@
 // color ramp, same "0 = boring, diverging" convention as TPI/LRM.
 
 import { type UpstreamEncoding, buildProtocolUrl } from "./normal-derived-protocol"
-import { runHorizonAngleProtocol, RAD_TO_DEG, type HorizonPrecision } from "./horizon-angle"
+import { runHorizonAngleProtocol, type HorizonPrecision } from "./horizon-angle"
 import type { TileImage } from "./tile-image"
 
 export type OpennessMode = "positive" | "negative"
@@ -37,11 +37,7 @@ export function buildOpennessProtocolUrl(
 
 // Raw openness is (90 - meanAngleDeg); subtracting the flat-ground reference
 // again to re-center on 0 (this file's "0 = flat" convention — see header)
-// leaves just -meanAngleDeg.
-function aggregateOpenness(angles: number[]): number {
-  const meanAngleDeg = (angles.reduce((sum, a) => sum + a, 0) / angles.length) * RAD_TO_DEG
-  return -meanAngleDeg
-}
+// leaves just -meanAngleDeg (computed in lib/horizon-kernel.ts, aggregate "openness").
 
 export async function opennessProtocol(
   params: { url: string },
@@ -65,6 +61,6 @@ export async function opennessProtocol(
     upstreamTemplate, encoding, n, z, x, y,
     signal: abortController.signal,
     radiusPx, precision, sign,
-    aggregate: aggregateOpenness,
+    aggregate: "openness",
   })
 }

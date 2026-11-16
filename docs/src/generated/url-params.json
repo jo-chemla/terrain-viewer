@@ -4015,6 +4015,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "rasterComputeWorker",
+      "default": "false",
+      "note": "Sky View Factor and Openness pixel loops in a pool of dedicated workers (Settings → Streaming), DEM still fetched on the main thread: lib/raster-compute-pool.ts, mirrored by TerrainViewer.tsx."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "geHiDpiTiles",
       "default": "true",
       "note": "Google Earth Historical tiles built from one Keyhole level finer into 512 px images (Settings → Streaming): no vertical stretch away from the equator and a 2x image for HiDPI screens, for four times …"

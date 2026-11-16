@@ -26,11 +26,12 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, rasterComputeWorkerAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom, addTerrainSourceOpenAtom, dataLayersModalOpenAtom, timelineWindowRequestAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
+import { setRasterComputeInWorker } from "@/lib/raster-compute-pool"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
 import { MAX_BOUNDS_MODES, unionBounds, sharedBounds, bufferBounds, resolveCustomSourceBounds, outsideFence, type LngLatBoundsTuple } from "@/lib/max-bounds"
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
@@ -1953,6 +1954,8 @@ export function TerrainViewer() {
   useEffect(() => {
     setTileResultCacheEnabled(cacheVizTiles)
   }, [cacheVizTiles])
+  const [rasterComputeWorker] = useAtom(rasterComputeWorkerAtom)
+  useEffect(() => { setRasterComputeInWorker(rasterComputeWorker) }, [rasterComputeWorker])
 
   // Force the corner AttributionControl (<AttributionControl compact .../>
   // below) to actually START collapsed. `compact` alone doesn't guarantee

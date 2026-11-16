@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
-  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, contourWorkerAtom, geHiDpiTilesAtom,
+  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, contourWorkerAtom, rasterComputeWorkerAtom, geHiDpiTilesAtom,
   customThemesAtom,
   isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
@@ -340,6 +340,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
   const [cacheVizTiles, setCacheVizTiles] = useAtom(cacheVizTilesAtom)
   const [contourWorker, setContourWorker] = useAtom(contourWorkerAtom)
+  const [rasterComputeWorker, setRasterComputeWorker] = useAtom(rasterComputeWorkerAtom)
   const [geHiDpiTiles, setGeHiDpiTiles] = useAtom(geHiDpiTilesAtom)
   const [persistLocalCogs, setPersistLocalCogs] = useAtom(persistLocalCogsAtom)
   const [persistVectorLayers, setPersistVectorLayers] = useAtom(persistVectorLayersAtom)
@@ -817,6 +818,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 checked={contourWorker}
                 className="cursor-pointer"
                 onCheckedChange={setContourWorker}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="raster-compute-worker">Raster Compute in a Worker</Label>
+                <span className="text-xs text-muted-foreground">
+                  Computes Sky View Factor and Openness tiles in background workers, several at once, instead of the main thread. DEM tiles are still read on the main thread
+                </span>
+              </div>
+              <Switch
+                id="raster-compute-worker"
+                checked={rasterComputeWorker}
+                className="cursor-pointer"
+                onCheckedChange={setRasterComputeWorker}
               />
             </div>
               

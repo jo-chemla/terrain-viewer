@@ -62,3 +62,4 @@
 - [WMTS sources](wmts-sources.md) — lib/wmts-client.ts: matrix sets matched by numbers not names, matrix-id pattern, swisstopo/GIBS template quirks, all four reference services CORS-open; unverified in a browser
 - [CDSE STAC access](cdse-stac-access.md) — Copernicus Data Space catalog is open but no data is anonymously readable (s3://eodata, 401 OData); quicklooks public, CopDEM via the AWS copy, Browser deep links, Sentinel Hub instance id as the follow-up
 - [Contours in a worker](contour-worker.md) — opt-in setting: maplibre-contour in MapLibre workers via importScriptInWorkers, DEM from the main thread; targetMapId gotcha, preview test recipe
+- [Raster compute in a worker](raster-compute-worker.md) — SVF/Openness kernel rewrite (3 to 8x, identical pixels), opt-in worker pool, timings table, fast slower than precise at r32

@@ -290,6 +290,10 @@ export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
 // still resolved on the main thread: lib/contour-worker-client.ts. Off by
 // default: maplibre-contour's DemSource, main thread for custom schemes.
 export const contourWorkerAtom = atomWithStorage("contourWorker", false)
+// Sky View Factor and Openness pixel loops in a pool of dedicated workers
+// (Settings → Streaming), DEM still fetched on the main thread:
+// lib/raster-compute-pool.ts, mirrored by TerrainViewer.tsx. Off by default.
+export const rasterComputeWorkerAtom = atomWithStorage("rasterComputeWorker", false)
 // Google Earth Historical tiles built from one Keyhole level finer into 512 px
 // images (Settings → Streaming): no vertical stretch away from the equator and
 // a 2x image for HiDPI screens, for four times the Keyhole fetches. Read by

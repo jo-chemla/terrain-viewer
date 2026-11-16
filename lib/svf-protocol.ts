@@ -29,11 +29,6 @@ export function buildSvfProtocolUrl(
   return `${buildProtocolUrl("svf", upstreamTileTemplate, encoding, tileSize)}?r=${radiusPx}&precision=${precision}`
 }
 
-function aggregateSvf(angles: number[]): number {
-  const meanSin = angles.reduce((sum, a) => sum + Math.sin(Math.max(0, a)), 0) / angles.length
-  return (1 - meanSin) * 100
-}
-
 export async function svfProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -54,6 +49,6 @@ export async function svfProtocol(
     upstreamTemplate, encoding, n, z, x, y,
     signal: abortController.signal,
     radiusPx, precision, sign: 1,
-    aggregate: aggregateSvf,
+    aggregate: "svf",
   })
 }

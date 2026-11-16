@@ -55,80 +55,23 @@ import type { TileImage } from "./tile-image"
 // tradeoff, not a replacement for "precise".
 
 import {
-  sharedTileCache, fetchPaddedElevationGrid, bilinearSamplePadded,
+  sharedTileCache, fetchPaddedElevationGrid,
   tileRowToLatRad, groundResolutionM as groundResolutionAtLat, YIELD_EVERY_ROWS, yieldToMainThread,
-  type UpstreamEncoding, type PaddedElevationGrid,
+  type UpstreamEncoding,
 } from "./normal-derived-protocol"
-import { elevationToTerrarium } from "./elevation-encoding"
+import { computeHorizonRows, type HorizonAggregate, type HorizonFarRing, type HorizonKernelInput } from "./horizon-kernel"
+import { computeHorizonInWorker, rasterComputeInWorker } from "./raster-compute-pool"
+import { toTileImage } from "./tile-image"
 
 export type HorizonPrecision = "precise" | "fast"
+export type { HorizonAggregate }
 
-/** 8 compass directions as (dRow, dCol) unit vectors — N/NE/E/SE/S/SW/W/NW. */
-const HORIZON_DIRECTIONS = 8
-const DIR_VECTORS: readonly (readonly [number, number])[] = Array.from(
-  { length: HORIZON_DIRECTIONS },
-  (_, i) => {
-    const angle = (2 * Math.PI * i) / HORIZON_DIRECTIONS
-    return [Math.sin(angle), Math.cos(angle)] as const
-  },
-)
-
-/** For each compass direction, marches outward up to `radiusPx` same-zoom
- *  pixels and returns the elevation angle (radians, signed — NOT clamped to
- *  >= 0) to the ray's single highest-angle point: the horizon angle in that
- *  direction. A negative angle means even the ray's local high point dips
- *  below the plane through the center pixel (e.g. standing on a summit
- *  looking outward) — this is what lets Openness read above/below 90° rather
- *  than saturating at "fully open" the way Sky View Factor does.
- *
- *  `sign` flips the surface upside down (elevation differences × -1) — used
- *  by Negative Openness, which is exactly Positive Openness computed on the
- *  terrain's mirror image (turns pits/valleys into the "peaks" the same
- *  formula highlights). */
-function computeHorizonAngles(
-  sample: (dr: number, dc: number) => number,
-  groundResolutionM: number,
-  radiusPx: number,
-  sign: 1 | -1,
-  nearFieldExponential = false,
-): number[] {
-  const center = sample(0, 0)
-  // Precomputed once per pixel (not once per direction) — which native radii
-  // to visit along each ray. "precise" (and the far-field's own near grid at
-  // radii <= FAST_NATIVE_RADIUS_PX) walks every pixel; "fast" only visits
-  // powers of two plus the exact boundary radius — see this file's header.
-  const steps: number[] = []
-  if (nearFieldExponential) {
-    for (let r = 1; r <= radiusPx; r *= 2) steps.push(r)
-    if (steps[steps.length - 1] !== radiusPx) steps.push(radiusPx)
-  } else {
-    for (let r = 1; r <= radiusPx; r++) steps.push(r)
-  }
-  return DIR_VECTORS.map(([dRow, dCol]) => {
-    let maxAngle = -Infinity
-    for (const r of steps) {
-      const rr = Math.round(r * dRow)
-      const rc = Math.round(r * dCol)
-      const dist = Math.sqrt(rr * rr + rc * rc) * groundResolutionM
-      if (dist === 0) continue
-      const elevDiff = (sample(rr, rc) - center) * sign
-      const angle = Math.atan2(elevDiff, dist)
-      if (angle > maxAngle) maxAngle = angle
-    }
-    // Only unreachable if radiusPx < 1, which the UI clamps against — falls
-    // back to "flat" (0) rather than -Infinity poisoning downstream math.
-    return maxAngle === -Infinity ? 0 : maxAngle
-  })
-}
+// The per-pixel loop (8 directions; per direction the horizon angle, signed and
+// NOT clamped to >= 0, so Openness can read above and below 90 degrees; `sign`
+// -1 mirrors the surface for Negative Openness) lives in lib/horizon-kernel.ts,
+// shared with the raster compute worker.
 
 export const RAD_TO_DEG = 180 / Math.PI
-
-// ---------------------------------------------------------------------------
-// Shared tile-fetch/loop orchestration for svf-protocol.ts and openness-
-// protocol.ts — parses the same URL shape they already use, handles both
-// precision modes, and calls back with the per-direction angles for each pixel
-// so each protocol only needs to supply its own aggregation formula.
-// ---------------------------------------------------------------------------
 
 /** Beyond this native-pixel radius, "fast" precision switches from marching
  *  every pixel to sampling one coarse pyramid ancestor ring per octave — see
@@ -139,32 +82,6 @@ const FAST_NATIVE_RADIUS_PX = 8
 function octaveOf(radiusPx: number): number {
   return Math.min(6, Math.max(1, Math.round(Math.log2(Math.max(2, radiusPx)))))
 }
-
-interface FarRing {
-  grid: PaddedElevationGrid
-  scale: number
-  xOffsetTiles: number
-  yOffsetTiles: number
-  distM: number
-}
-
-// Angular spread (radians, ~±17°) of the extra sub-samples each far ring checks
-// alongside its nominal direction — see this file's header for why a single
-// coarse sample per far ring isn't trusted alone the way a native ray step is.
-const FAR_SUB_ANGLES = [-0.3, 0, 0.3]
-
-/** Precomputed once at module load: DIR_VECTORS rotated by each FAR_SUB_ANGLES
- *  spread, as [rdRow, rdCol] pairs — indexed [direction][subAngle]. Both
- *  inputs are fixed constants, so there's nothing to gain by recomputing
- *  Math.cos/Math.sin(spread) and the rotation per pixel per far ring, which
- *  is what runHorizonAngleProtocol's hot loop used to do (up to 8 directions
- *  × 3 sub-angles × every far ring × every output pixel). */
-const FAR_DIR_OFFSETS: readonly (readonly [number, number])[][] = DIR_VECTORS.map(([dRow, dCol]) =>
-  FAR_SUB_ANGLES.map((spread) => {
-    const cosA = Math.cos(spread), sinA = Math.sin(spread)
-    return [dRow * cosA + dCol * sinA, dCol * cosA - dRow * sinA] as const // [rdRow, rdCol]
-  }),
-)
 
 export interface RunHorizonAngleProtocolParams {
   upstreamTemplate: string
@@ -177,16 +94,13 @@ export interface RunHorizonAngleProtocolParams {
   radiusPx: number
   precision: HorizonPrecision
   sign: 1 | -1
-  /** SVF's `(1 - mean(sin(clamp(angle, >=0)))) * 100` or Openness's
-   *  `-mean(angle) * RAD_TO_DEG` — the one piece that differs between them. */
-  aggregate: (angles: number[]) => number
+  /** "svf": `(1 - mean(sin(clamp(angle, >=0)))) * 100`; "openness":
+   *  `-mean(angle) * RAD_TO_DEG`. The one piece that differs between them. */
+  aggregate: HorizonAggregate
 }
 
 export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolParams): Promise<{ data: TileImage }> {
   const { upstreamTemplate, encoding, n, z, x, y, signal, radiusPx, precision, sign, aggregate } = params
-
-  const upstreamUrl = (tz: number, tx: number, ty: number) =>
-    upstreamTemplate.replace("{z}", String(tz)).replace("{x}", String(tx)).replace("{y}", String(ty))
 
   const nearRadiusPx = precision === "fast" ? Math.min(radiusPx, FAST_NATIVE_RADIUS_PX) : radiusPx
 
@@ -197,7 +111,7 @@ export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolPar
   // Far rings only exist in "fast" precision, and only once the radius actually
   // reaches past the near field — a small radius stays exactly the same as
   // "precise" (just the one native grid, no ancestor fetches at all).
-  const farRingPromises: Promise<FarRing>[] = []
+  const farRingPromises: Promise<HorizonFarRing>[] = []
   if (precision === "fast" && radiusPx > nearRadiusPx) {
     const latDeg = tileRowToLatRad(y + 0.5, z) * RAD_TO_DEG
     const nativeGroundRes = groundResolutionAtLat(latDeg, z, n)
@@ -212,7 +126,8 @@ export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolPar
       farRingPromises.push(
         fetchPaddedElevationGrid(sharedTileCache, upstreamTemplate, encoding, ancestorZ, ancestorX, ancestorY, n, signal, 1)
           .then((grid) => ({
-            grid,
+            padded: grid.padded,
+            stride: grid.stride,
             scale,
             xOffsetTiles: x - (ancestorX << levels),
             yOffsetTiles: y - (ancestorY << levels),
@@ -223,65 +138,31 @@ export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolPar
   }
 
   const [nearGrid, farRings] = await Promise.all([nearGridPromise, Promise.all(farRingPromises)])
-  const { padded, stride } = nearGrid
 
   // Same Mercator-corrected per-tile ground resolution runWindowedProtocol computes.
   const EARTH_CIRCUMFERENCE_M = 2 * Math.PI * 6378137
   const worldSize = 1 << z
   const groundResolutionM = (EARTH_CIRCUMFERENCE_M / (n * worldSize)) * Math.cos(tileRowToLatRad(y + 0.5, z))
 
-  const outData = new Uint8ClampedArray(n * n * 4)
-  for (let row = 0; row < n; row++) {
-    // Deliberately NOT bailing out on signal.aborted here (unlike the fetch
-    // phase above, which still honors it): by this point the upstream fetch
-    // is already done, so all that's left is bounded, already-in-flight CPU
-    // work over data already in hand. Throwing away that work on abort is
-    // exactly why toggling SVF/Openness off mid-tile used to make
-    // withTileResultCache (lib/tile-result-cache.ts) look like it wasn't
-    // caching them at all — a rejected promise is never cached, and their
-    // ray-marched halo is heavy enough that a toggle-off routinely lands
-    // mid-tile, unlike every other (un-yielded, so un-abortable) mode. Still
-    // yields every YIELD_EVERY_ROWS rows for responsiveness, just doesn't
-    // abandon the result once yielded.
-    if (row > 0 && row % YIELD_EVERY_ROWS === 0) {
-      await yieldToMainThread()
-    }
-    const pr = row + nearRadiusPx
-    for (let col = 0; col < n; col++) {
-      const pc = col + nearRadiusPx
-      const sampleNative = (dr: number, dc: number) => padded[(pr + dr) * stride + (pc + dc)]
-      const centerElevation = sampleNative(0, 0)
-
-      const angles = computeHorizonAngles(sampleNative, groundResolutionM, nearRadiusPx, sign, precision === "fast")
-
-      for (const ring of farRings) {
-        const ancestorPxX = (ring.xOffsetTiles * n + col + 0.5) / ring.scale - 0.5
-        const ancestorPxY = (ring.yOffsetTiles * n + row + 0.5) / ring.scale - 0.5
-        for (let i = 0; i < DIR_VECTORS.length; i++) {
-          let ringMax = -Infinity
-          const offsets = FAR_DIR_OFFSETS[i]
-          for (let j = 0; j < offsets.length; j++) {
-            const [rdRow, rdCol] = offsets[j]
-            const elevDiff = (bilinearSamplePadded(ring.grid, ancestorPxX + rdCol, ancestorPxY + rdRow) - centerElevation) * sign
-            const angle = Math.atan2(elevDiff, ring.distM)
-            if (angle > ringMax) ringMax = angle
-          }
-          if (ringMax > angles[i]) angles[i] = ringMax
-        }
-      }
-
-      const [r, g, b, alpha] = elevationToTerrarium(aggregate(angles))
-      const idx = (row * n + col) * 4
-      outData[idx] = r
-      outData[idx + 1] = g
-      outData[idx + 2] = b
-      outData[idx + 3] = alpha
-    }
+  const input: HorizonKernelInput = {
+    padded: nearGrid.padded, stride: nearGrid.stride, n, nearRadiusPx, groundResolutionM,
+    sign, fast: precision === "fast", aggregate, farRings,
   }
 
-  const canvas = new OffscreenCanvas(n, n)
-  const ctx = canvas.getContext("2d")!
-  ctx.putImageData(new ImageData(outData, n, n), 0, 0)
-  const blob = await canvas.convertToBlob({ type: "image/png" })
-  return { data: new Uint8Array(await blob.arrayBuffer()) }
+  // Settings → Streaming → Raster Compute in a Worker: the whole tile in the pool.
+  if (rasterComputeInWorker()) return { data: await toTileImage(await computeHorizonInWorker(input), n, n) }
+
+  // Deliberately NOT bailing out on signal.aborted below (unlike the fetch
+  // phase above, which still honors it): by this point the upstream fetch is
+  // already done, so all that's left is bounded CPU work over data already in
+  // hand. Throwing it away on abort made withTileResultCache (lib/tile-result-
+  // cache.ts) look like it was not caching these modes at all: a rejected
+  // promise is never cached, and a toggle-off routinely landed mid-tile. Still
+  // yields every YIELD_EVERY_ROWS rows for responsiveness.
+  const outData = new Uint8ClampedArray(n * n * 4)
+  for (let row = 0; row < n; row += YIELD_EVERY_ROWS) {
+    if (row > 0) await yieldToMainThread()
+    computeHorizonRows(input, row, Math.min(n, row + YIELD_EVERY_ROWS), outData)
+  }
+  return { data: await toTileImage(outData, n, n) }
 }
