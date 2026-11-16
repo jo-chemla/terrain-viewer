@@ -5,7 +5,7 @@
 // GDAL's aspect algorithm (apps/gdaldem_lib.cpp, GDALAspectAlg).
 
 import {
-  sharedTileCache, runNormalDerivedProtocol, buildProtocolUrl, hornGradient, RAD_TO_DEG,
+  sharedTileCache, runNormalDerivedProtocol, buildProtocolUrl, RAD_TO_DEG,
   type UpstreamEncoding,
 } from "./normal-derived-protocol"
 import type { TileImage } from "./tile-image"
@@ -26,7 +26,11 @@ export async function aspectProtocol(
     abortController,
     cache: sharedTileCache,
     computeValue: (window) => {
-      const { dx, dy } = hornGradient(window)
+      // hornGradient, inlined so no {dx, dy} object is allocated per pixel
+      // (same expressions, same order, same result).
+      const w = window
+      const dx = (w.a0 + w.a3 + w.a3 + w.a6 - (w.a2 + w.a5 + w.a5 + w.a8)) * w.invEwresXscale
+      const dy = (w.a6 + w.a7 + w.a7 + w.a8 - (w.a0 + w.a1 + w.a1 + w.a2)) * w.invNsresYscale
       if (dx === 0 && dy === 0) return 0 // flat ground — direction is undefined, default to North
 
       // Mathematical (CCW from east) -> compass bearing (CW from north, 0-360).

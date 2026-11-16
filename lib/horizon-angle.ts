@@ -60,7 +60,7 @@ import {
   type UpstreamEncoding,
 } from "./normal-derived-protocol"
 import { computeHorizonRows, type HorizonAggregate, type HorizonFarRing, type HorizonKernelInput } from "./horizon-kernel"
-import { computeHorizonInWorker, rasterComputeInWorker } from "./raster-compute-pool"
+import { computeInWorker, rasterComputeInWorker } from "./raster-compute-pool"
 import { toTileImage } from "./tile-image"
 
 export type HorizonPrecision = "precise" | "fast"
@@ -150,7 +150,7 @@ export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolPar
   }
 
   // Settings → Streaming → Raster Compute in a Worker: the whole tile in the pool.
-  if (rasterComputeInWorker()) return { data: await toTileImage(await computeHorizonInWorker(input), n, n) }
+  if (rasterComputeInWorker()) return { data: await toTileImage(await computeInWorker("horizon", input), n, n) }
 
   // Deliberately NOT bailing out on signal.aborted below (unlike the fetch
   // phase above, which still honors it): by this point the upstream fetch is

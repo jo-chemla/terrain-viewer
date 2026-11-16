@@ -1,5 +1,5 @@
 import { customScheme, dispatchTile, toBitmap } from "./protocol-registry"
-import { elevationToTerrarium } from "./elevation-encoding"
+import { writeTerrarium } from "./elevation-encoding"
 import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
 import { PMTiles } from "pmtiles"
 import { float32demProtocol, fetchFloat32Raster } from "./float32dem-protocol"
@@ -409,36 +409,48 @@ export async function fetchPaddedElevationGrid(
   const centerTile = resolved.get("0,0")
   if (!centerTile) throw new Error(`Failed to fetch center tile at ${z}/${x}/${y}`)
 
-  const sampleElevation = (tdx: number, tdy: number, row: number, col: number): number => {
-    const tile = resolved.get(`${tdx},${tdy}`)
-    const source = tile ?? centerTile
-    const r = Math.min(Math.max(row, 0), source.height - 1)
-    const c = Math.min(Math.max(col, 0), source.width - 1)
-    return source.data[r * source.width + c]
-  }
-
+  // The nine sources, a missing neighbour (world edge, failed fetch) standing
+  // in as the centre tile; indexed [tdy + 1][tdx + 1]. Resolved once, not per
+  // pixel: the per-pixel Map lookup on a template-string key cost ~44 ms of a
+  // 512 px tile (2026-11-16), for every derived mode.
+  const sources: DecodedTile[][] = [-1, 0, 1].map((tdy) => [-1, 0, 1].map((tdx) => resolved.get(`${tdx},${tdy}`) ?? centerTile))
   const anyHoles = Array.from(resolved.values()).some((t) => t?.valid)
-  const sampleValid = (tdx: number, tdy: number, row: number, col: number): number => {
-    const source = resolved.get(`${tdx},${tdy}`) ?? centerTile
-    if (!source.valid) return 1
-    const r = Math.min(Math.max(row, 0), source.height - 1)
-    const c = Math.min(Math.max(col, 0), source.width - 1)
-    return source.valid[r * source.width + c]
-  }
 
   const stride = n + 2 * halo
   const padded = new Float32Array(stride * stride)
   const paddedValid = anyHoles ? new Uint8Array(stride * stride) : undefined
+  // Column spans of the padded row: left halo, the tile's own n columns, right halo.
+  const spans = [[-1, 0, halo], [0, halo, halo + n], [1, halo + n, stride]] as const
   for (let pr = 0; pr < stride; pr++) {
     const globalRow = pr - halo
     const tdy = globalRow < 0 ? -1 : globalRow >= n ? 1 : 0
     const srcRow = globalRow - tdy * n
-    for (let pc = 0; pc < stride; pc++) {
-      const globalCol = pc - halo
-      const tdx = globalCol < 0 ? -1 : globalCol >= n ? 1 : 0
-      const srcCol = globalCol - tdx * n
-      padded[pr * stride + pc] = sampleElevation(tdx, tdy, srcRow, srcCol)
-      if (paddedValid) paddedValid[pr * stride + pc] = sampleValid(tdx, tdy, srcRow, srcCol)
+    const rowBase = pr * stride
+    for (const [tdx, pc0, pc1] of spans) {
+      const source = sources[tdy + 1][tdx + 1]
+      const r = Math.min(Math.max(srcRow, 0), source.height - 1)
+      const srcBase = r * source.width
+      const maxC = source.width - 1
+      const colShift = halo + tdx * n
+      // Same clamps as before, row and column, but a straight copy where the
+      // whole span lies inside the source row (the tile's own n columns).
+      const c0 = pc0 - colShift, c1 = pc1 - colShift
+      if (c0 >= 0 && c1 - 1 <= maxC) {
+        padded.set(source.data.subarray(srcBase + c0, srcBase + c1), rowBase + pc0)
+      } else {
+        for (let pc = pc0; pc < pc1; pc++) {
+          const c = pc - colShift
+          padded[rowBase + pc] = source.data[srcBase + (c < 0 ? 0 : c > maxC ? maxC : c)]
+        }
+      }
+      if (paddedValid) {
+        const valid = source.valid
+        for (let pc = pc0; pc < pc1; pc++) {
+          if (!valid) { paddedValid[rowBase + pc] = 1; continue }
+          const c = pc - colShift
+          paddedValid[rowBase + pc] = valid[srcBase + (c < 0 ? 0 : c > maxC ? maxC : c)]
+        }
+      }
     }
   }
 
@@ -517,31 +529,23 @@ export async function runNormalDerivedProtocol(
   const invNsresYscale = 1 / scaledGroundResolutionM
 
   const outData = new Uint8ClampedArray(n * n * 4)
+  // One window object refilled per pixel, not one allocated per pixel:
+  // computeValue reads it synchronously and keeps nothing.
+  const window: ElevationWindow = {
+    a0: 0, a1: 0, a2: 0, a3: 0, a4: 0, a5: 0, a6: 0, a7: 0, a8: 0,
+    invEwresXscale,
+    invNsresYscale,
+    groundResolutionM: scaledGroundResolutionM,
+  }
   for (let row = 0; row < n; row++) {
     const pr = row + 1
     for (let col = 0; col < n; col++) {
       const pc = col + 1
-      const window: ElevationWindow = {
-        a0: padded[(pr - 1) * stride + (pc - 1)],
-        a1: padded[(pr - 1) * stride + pc],
-        a2: padded[(pr - 1) * stride + (pc + 1)],
-        a3: padded[pr * stride + (pc - 1)],
-        a4: padded[pr * stride + pc],
-        a5: padded[pr * stride + (pc + 1)],
-        a6: padded[(pr + 1) * stride + (pc - 1)],
-        a7: padded[(pr + 1) * stride + pc],
-        a8: padded[(pr + 1) * stride + (pc + 1)],
-        invEwresXscale,
-        invNsresYscale,
-        groundResolutionM: scaledGroundResolutionM,
-      }
-
-      const [r, g, b, alpha] = elevationToTerrarium(computeValue(window))
-      const idx = (row * n + col) * 4
-      outData[idx] = r
-      outData[idx + 1] = g
-      outData[idx + 2] = b
-      outData[idx + 3] = alpha
+      const up = (pr - 1) * stride + pc, mid = pr * stride + pc, down = (pr + 1) * stride + pc
+      window.a0 = padded[up - 1]; window.a1 = padded[up]; window.a2 = padded[up + 1]
+      window.a3 = padded[mid - 1]; window.a4 = padded[mid]; window.a5 = padded[mid + 1]
+      window.a6 = padded[down - 1]; window.a7 = padded[down]; window.a8 = padded[down + 1]
+      writeTerrarium(outData, (row * n + col) * 4, computeValue(window))
     }
   }
 
@@ -603,6 +607,10 @@ export async function runWindowedProtocol(
   const scaledGroundResolutionM = groundResolutionM * scale
 
   const outData = new Uint8ClampedArray(n * n * 4)
+  // One sampler for the whole tile, re-aimed per pixel through `base`, instead
+  // of a closure allocated per pixel.
+  let base = 0
+  const sample = (dr: number, dc: number) => padded[base + dr * stride + dc]
   for (let row = 0; row < n; row++) {
     // See the identical note in horizon-angle.ts's own row loop: not bailing
     // out on abort here so a toggle-off mid-tile still finishes and lands in
@@ -613,15 +621,8 @@ export async function runWindowedProtocol(
     }
     const pr = row + halo
     for (let col = 0; col < n; col++) {
-      const pc = col + halo
-      const sample = (dr: number, dc: number) => padded[(pr + dr) * stride + (pc + dc)]
-
-      const [r, g, b, alpha] = elevationToTerrarium(computeValue(sample, scaledGroundResolutionM))
-      const idx = (row * n + col) * 4
-      outData[idx] = r
-      outData[idx + 1] = g
-      outData[idx + 2] = b
-      outData[idx + 3] = alpha
+      base = pr * stride + col + halo
+      writeTerrarium(outData, (row * n + col) * 4, computeValue(sample, scaledGroundResolutionM))
     }
   }
 

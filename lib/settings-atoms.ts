@@ -290,7 +290,7 @@ export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
 // still resolved on the main thread: lib/contour-worker-client.ts. Off by
 // default: maplibre-contour's DemSource, main thread for custom schemes.
 export const contourWorkerAtom = atomWithStorage("contourWorker", false)
-// Sky View Factor and Openness pixel loops in a pool of dedicated workers
+// Sky View Factor, Openness and Local Dominance pixel loops in a pool of dedicated workers
 // (Settings → Streaming), DEM still fetched on the main thread:
 // lib/raster-compute-pool.ts, mirrored by TerrainViewer.tsx. Off by default.
 export const rasterComputeWorkerAtom = atomWithStorage("rasterComputeWorker", false)

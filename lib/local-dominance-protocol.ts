@@ -26,30 +26,16 @@
 // resolution so local highs/lows aren't washed out.
 
 import {
-  sharedTileCache, fetchDecodedTile, fetchPaddedElevationGrid, bilinearSamplePadded,
+  sharedTileCache, fetchDecodedTile, fetchPaddedElevationGrid,
   buildProtocolUrl, groundResolutionM, tileRowToLatRad,
   YIELD_EVERY_ROWS, yieldToMainThread, type UpstreamEncoding,
 } from "./normal-derived-protocol"
-import { elevationToTerrarium } from "./elevation-encoding"
 import { RAD_TO_DEG } from "./horizon-angle"
+import { computeLocalDominanceRows, type LocalDominanceKernelInput } from "./local-dominance-kernel"
+import { computeInWorker, rasterComputeInWorker } from "./raster-compute-pool"
 import { toTileImage, type TileImage } from "./tile-image"
 
 const LD_URL_RE = /^local-dominance:\/\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\?rmin=(\d+)&rmax=(\d+)$/
-
-const OBSERVER_HEIGHT_M = 1.6
-
-// 8 compass directions as (dRow, dCol) unit vectors. Fewer than a native-radius
-// version would want, because octave sampling already contributes several
-// independent rings (one per pyramid level) to the average — the directions
-// don't have to carry all the smoothing on their own.
-const LD_DIRECTIONS = 8
-const DIR_VECTORS: readonly (readonly [number, number])[] = Array.from(
-  { length: LD_DIRECTIONS },
-  (_, i) => {
-    const angle = (2 * Math.PI * i) / LD_DIRECTIONS
-    return [Math.sin(angle), Math.cos(angle)] as const
-  },
-)
 
 /** Nearest power-of-two octave exponent for a pixel radius, clamped so the UI's
  *  2..64 px range maps to octaves 1..6. */
@@ -126,41 +112,24 @@ export async function localDominanceProtocol(
   const centerTile = await centerTilePromise
   if (!centerTile) throw new Error(`Failed to fetch Local Dominance center tile at ${z}/${x}/${y}`)
   const levels = await Promise.all(levelPromises)
+  const input: LocalDominanceKernelInput = {
+    center: centerTile.data, centerWidth: centerTile.width, n,
+    levels: levels.map((level) => ({
+      padded: level.grid.padded, stride: level.grid.stride, scale: level.scale,
+      xOffsetTiles: level.xOffsetTiles, yOffsetTiles: level.yOffsetTiles, invDist: 1 / level.dist,
+    })),
+  }
+
+  // Settings → Streaming → Raster Compute in a Worker: the whole tile in the pool.
+  if (rasterComputeInWorker()) return { data: await toTileImage(await computeInWorker("localDominance", input), n, n) }
 
   const outData = new Uint8ClampedArray(n * n * 4)
-  for (let row = 0; row < n; row++) {
-    if (row > 0 && row % YIELD_EVERY_ROWS === 0) {
+  for (let row = 0; row < n; row += YIELD_EVERY_ROWS) {
+    if (row > 0) {
       if (signal.aborted) throw new Error("Aborted")
       await yieldToMainThread()
     }
-    for (let col = 0; col < n; col++) {
-      const observerElev = centerTile.data[row * centerTile.width + col] + OBSERVER_HEIGHT_M
-      let sum = 0
-      let count = 0
-      for (const level of levels) {
-        // Fine (row,col) → this level's coarse pixel coordinate (ancestor pixel
-        // i is the box-average of fine pixels centered at i+0.5, hence +0.5/−0.5).
-        const pcx = (level.xOffsetTiles * n + col + 0.5) / level.scale - 0.5
-        const pcy = (level.yOffsetTiles * n + row + 0.5) / level.scale - 0.5
-        const invDist = 1 / level.dist
-        for (const [dRow, dCol] of DIR_VECTORS) {
-          const terrain = bilinearSamplePadded(level.grid, pcx + dCol, pcy + dRow)
-          // atan (not atan2): dist is always positive, so a single-argument atan
-          // of the signed height-over-distance ratio gives the right signed angle
-          // and is cheaper.
-          sum += Math.atan((observerElev - terrain) * invDist)
-          count++
-        }
-      }
-      const value = count > 0 ? (sum / count) * RAD_TO_DEG : 0
-
-      const [r, g, b, alpha] = elevationToTerrarium(value)
-      const idx = (row * n + col) * 4
-      outData[idx] = r
-      outData[idx + 1] = g
-      outData[idx + 2] = b
-      outData[idx + 3] = alpha
-    }
+    computeLocalDominanceRows(input, row, Math.min(n, row + YIELD_EVERY_ROWS), outData)
   }
 
   return { data: await toTileImage(outData, n, n) }

@@ -114,9 +114,11 @@ export async function slopeProtocol(
   const centerTile = resolved.get("0,0")
   if (!centerTile) throw new Error(`Failed to fetch center slope source tile at ${z}/${x}/${y}`)
 
+  // Resolved once, not per pixel (the template-string Map lookup per pixel was
+  // most of this mode's time, 2026-11-16); indexed [tdy + 1][tdx + 1].
+  const sources: DecodedTile[][] = [-1, 0, 1].map((tdy) => [-1, 0, 1].map((tdx) => resolved.get(`${tdx},${tdy}`) ?? centerTile))
   const sampleElevation = (tdx: number, tdy: number, row: number, col: number): number => {
-    const tile = resolved.get(`${tdx},${tdy}`)
-    const source = tile ?? centerTile
+    const source = sources[tdy + 1][tdx + 1]
     const r = Math.min(Math.max(row, 0), source.height - 1)
     const c = Math.min(Math.max(col, 0), source.width - 1)
     return source.data[r * source.width + c]

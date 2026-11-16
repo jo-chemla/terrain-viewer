@@ -825,7 +825,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               <div className="flex flex-col gap-1">
                 <Label htmlFor="raster-compute-worker">Raster Compute in a Worker</Label>
                 <span className="text-xs text-muted-foreground">
-                  Computes Sky View Factor and Openness tiles in background workers, several at once, instead of the main thread. DEM tiles are still read on the main thread
+                  Computes Sky View Factor, Openness and Local Dominance tiles in background workers, several at once, instead of the main thread. DEM tiles are still read on the main thread
                 </span>
               </div>
               <Switch

@@ -48,9 +48,9 @@
 - [Fumadocs page actions and basePath](fumadocs-page-actions-basepath.md) — stock buttons handle /docs since Next 16.3 (Turbopack import.meta.env.BASE_URL); never pre-prefix markdownUrl; draft withdrawn 2026-10-14
 - [Building shadows on terrain](building-shadows-terrain-drape.md) — renderToTerrainTile drape (6.13, experimental), per-tile mask, revision bumps, headless verification recipe
 - [Google Earth Historical as-of snap](ge-historical-as-of-snap.md) — per-level date lists (yearly Landsat mosaics to L13, captures from L14), tiles draw exact-or-ancestor, the timeline snaps the date on zoom-in only; no provider classification
-- [Pages deploys](pages-deploy.md) � the "in progress deployment" refusal, the cancel-then-poll deploy job (pages-deployments.sh), backend statuses seen, what the 545 MB artifact holds
-- [LiDAR Lens reference](lidar-lens-reference.md) � a design Jonathan loves (on the meta tracker 2026-11-04); England+Wales 1 m Terrarium WebP tiles; the app has England EA WCS and the Welsh WG DTM COG via titiler; Scotland/NI have no streamable raw heights
-- [Planet key never in builds](planet-key-never-in-builds.md) � three guards (Vite plugin, post-build scan, workflow sed+grep); the 2026-10 secret leak behind them
+- [Pages deploys](pages-deploy.md) � the "in progress deployment" refusal, the cancel-then-poll deploy job (pages-deployments.sh), backend statuses seen, what the 545 MB artifact holds
+- [LiDAR Lens reference](lidar-lens-reference.md) � a design Jonathan loves (on the meta tracker 2026-11-04); England+Wales 1 m Terrarium WebP tiles; the app has England EA WCS and the Welsh WG DTM COG via titiler; Scotland/NI have no streamable raw heights
+- [Planet key never in builds](planet-key-never-in-builds.md) � three guards (Vite plugin, post-build scan, workflow sed+grep); the 2026-10 secret leak behind them
 - [pnpm workspace and React 18/19 types](pnpm-workspace-react-types.md) — docs/, slides/ and theme-editor/ (library, imported by name) are workspace packages, video/desktop are not; packageExtensions fix when the docs type check reaches the app's React 18 types
 - [Real-browser map lifecycle check](browser-lifecycle-check.md) — agent-browser + system Chrome + window.__tv; scripts/browser-lifecycle-check.mjs scenarios and traps; signed off React 19
 - [Push both remotes](push-both-remotes.md) — main goes to origin (jo-chemla) and iconem (fork) in the same step; the fork is a mirror, always fast-forward
@@ -62,4 +62,4 @@
 - [WMTS sources](wmts-sources.md) — lib/wmts-client.ts: matrix sets matched by numbers not names, matrix-id pattern, swisstopo/GIBS template quirks, all four reference services CORS-open; unverified in a browser
 - [CDSE STAC access](cdse-stac-access.md) — Copernicus Data Space catalog is open but no data is anonymously readable (s3://eodata, 401 OData); quicklooks public, CopDEM via the AWS copy, Browser deep links, Sentinel Hub instance id as the follow-up
 - [Contours in a worker](contour-worker.md) — opt-in setting: maplibre-contour in MapLibre workers via importScriptInWorkers, DEM from the main thread; targetMapId gotcha, preview test recipe
-- [Raster compute in a worker](raster-compute-worker.md) — SVF/Openness kernel rewrite (3 to 8x, identical pixels), opt-in worker pool, timings table, fast slower than precise at r32
+- [Raster compute in a worker](raster-compute-worker.md) — viz-mode kernel rewrites (shadow 15x, SVF/Openness 5-10x, 3x3 modes 2-3x, identical pixels), opt-in worker pool, timings, fast slower than precise at r32

@@ -15,6 +15,16 @@ export function elevationToTerrainrgb(elevation: number): [number, number, numbe
   ]
 }
 
+/** elevationToTerrarium written straight into an RGBA buffer at `idx`, for
+ *  per-pixel loops: same arithmetic, no array allocated per pixel. */
+export function writeTerrarium(out: Uint8ClampedArray, idx: number, elevation: number): void {
+  const v = elevation + 32768
+  out[idx] = Math.floor(v / 256)
+  out[idx + 1] = Math.floor(v % 256)
+  out[idx + 2] = Math.floor((v - Math.floor(v)) * 256)
+  out[idx + 3] = 255
+}
+
 export function elevationToTerrarium(elevation: number): [number, number, number, number] {
   const v = elevation + 32768
   return [
