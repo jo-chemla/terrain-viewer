@@ -289,10 +289,14 @@ function buildRegistryDemSource(
 
 function buildThresholds(minor: number, major: number) {
   return {
-    // low zoom: only major contours (level 0)
+    // low zoom (globe, continents): only major contours (level 0)
     2:  [major],
-    // mid zoom: major (level 1) and minor (level 0)  
-    10: [minor, major],
+    // from z6: major (level 1) and minor (level 0). Was z10 until 2026-11-17:
+    // a tilted view loads lower-zoom tiles toward the horizon (MapLibre's
+    // pitch LOD), and those dropped to major lines only, so the spacing
+    // changed partway up the screen. Marching squares run on the tile's own
+    // pixels, so line density stays about screen resolution at any zoom.
+    6: [minor, major],
   };
 }
 

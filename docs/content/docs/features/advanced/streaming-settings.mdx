@@ -38,7 +38,7 @@ Keeps finished computed tiles (Terrain Analysis, detectors, …) in an in-memory
 
 ### Contours in a Worker
 
-Off by default. When on, contour lines (absolute, LRM and the iso-line) are generated in MapLibre's own background workers for every terrain source type, so panning stays smooth while they are traced. DEM tiles are still read on the main thread when the source uses one of the app's own protocols (VRT, LERC, a DEM difference, LRM). A plain web tile source is read in the worker too. With the switch off, a plain web source already gets its own worker, but contours over the app's own protocols are traced on the main thread. A local COG file always uses its own worker, whatever this switch says.
+On by default. Contour lines (absolute, LRM and the iso-line) are generated in MapLibre's own background workers for every terrain source type, so panning stays smooth while they are traced. DEM tiles are still read on the main thread when the source uses one of the app's own protocols (VRT, LERC, a DEM difference, LRM). A plain web tile source is read in the worker too. With the switch off, a plain web source already gets its own worker, but contours over the app's own protocols are traced on the main thread. A local COG file always uses its own worker, whatever this switch says.
 
 ### Native Terrain Draping
 
@@ -46,7 +46,7 @@ On by default. The live (fast) Phong and Matcap shading is draped on 3D terrain 
 
 ### Raster Compute in a Worker
 
-Off by default. When on, Sky View Factor, Openness and Local Dominance tiles are computed in a small pool of background workers, up to four tiles at once, instead of on the main thread. The DEM is still read on the main thread, so every terrain source works the same way. The result is identical either way. In a test with four 512 px tiles at radius 8, the set finished in 0.7 s instead of 2.4 s, and the page stayed responsive while they computed.
+On by default. Sky View Factor, Openness and Local Dominance tiles are computed in a small pool of background workers, up to four tiles at once, instead of on the main thread. The DEM is still read on the main thread, so every terrain source works the same way. The result is identical either way. In a test with four 512 px tiles at radius 8, the set finished in 0.7 s instead of 2.4 s, and the page stayed responsive while they computed.
 
 ## Browser Local Storage Persistence
 

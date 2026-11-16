@@ -4,7 +4,7 @@ description: The "Contours in a Worker" setting (2026-11-16) - maplibre-contour 
 type: project
 ---
 
-`contourWorkerAtom` (Settings, Streaming, off by default) routes ContoursLayer.tsx
+`contourWorkerAtom` (Settings, Streaming, on by default since 2026-11-17) routes ContoursLayer.tsx
 through `lib/contour-worker-client.ts` + `lib/contour-worker-body.js` instead
 of maplibre-contour's DemSource. HarelM's suggestion on maplibre-style-spec#1374
 (2026-11-15); it makes our maplibre-contour#434 request unnecessary.
@@ -30,4 +30,4 @@ of maplibre-contour's DemSource. HarelM's suggestion on maplibre-style-spec#1374
 - "cog-local" and the client COG path keep their own worker (lib/cog-contour-worker.ts).
 
 **Why:** custom-scheme contours (VRT, LERC, demdiff, LRM) were traced on the main thread.
-**How to apply:** if it proves stable in real use, consider making it the default and deleting buildRegistryDemSource/buildLrmDemSource.
+**How to apply:** if it proves stable in real use, it became the default on 2026-11-17 (the toggle stays as a fallback); once proven, delete buildRegistryDemSource/buildLrmDemSource and the toggle.

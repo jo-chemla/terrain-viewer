@@ -4010,13 +4010,13 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "contourWorker",
-      "default": "false",
+      "default": "true",
       "note": "Contours generated in MapLibre's own workers (Settings → Streaming), DEM tiles still resolved on the main thread: lib/contour-worker-client.ts."
     },
     {
       "file": "lib/settings-atoms.ts",
       "key": "rasterComputeWorker",
-      "default": "false",
+      "default": "true",
       "note": "Sky View Factor, Openness and Local Dominance pixel loops in a pool of dedicated workers (Settings → Streaming), DEM still fetched on the main thread: lib/raster-compute-pool.ts, mirrored by TerrainV…"
     },
     {

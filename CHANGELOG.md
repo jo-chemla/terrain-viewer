@@ -1,3 +1,24 @@
+# Changelog — Faster Terrain Analysis, Native Draping
+
+<!-- released: 2026-11-17 -->
+
+#### TL;DR
+
+- **Much faster terrain analysis**: Hard Shadows about 15 times faster per tile, Sky View Factor and Openness 5 to 10 times, Local Dominance about 2 times, and the 3x3 modes (curvature, TPI, TRI, roughness, aspect) 2 to 3 times, with exactly the same pixels.
+- **Off the main thread**: contours and the heavy relief modes (Sky View Factor, Openness, Local Dominance) are computed in background workers, several tiles at once, so panning stays smooth.
+- **No more seams in Openness and Sky View Factor**: tiles no longer show a band along their edges after panning.
+- **Live Phong and Matcap draped by MapLibre**: on 3D terrain they are drawn into MapLibre's terrain tiles only when something changes, instead of every frame.
+- **Even contour spacing in tilted views**: distant tiles keep the minor contour lines instead of dropping to major lines only.
+
+#### Details
+
+- Kernels: ray offsets and distances built once per tile, one atan per direction (none for Hard Shadows, which compares slopes to tan(sun altitude) and stops at the first obstruction), nothing allocated per pixel. The padded elevation grid every mode starts from resolves its nine tiles once instead of a string-keyed lookup per pixel (about 44 ms per tile).
+- Contours in a Worker and Raster Compute in a Worker (Settings, Streaming) are on by default. Contours run inside MapLibre's own workers with maplibre-contour; Sky View Factor, Openness and Local Dominance run in a pool of up to four workers. The DEM is still read on the main thread, so every terrain source works. Turn either off to go back to the main thread.
+- Tile seams: panning cancelled the shared fetch of a neighbour tile that visible tiles were still waiting on, so they drew an edge band as wide as their search radius, or failed. A shared fetch now stops only when every tile waiting on it is gone, and a cancelled tile never produces a result.
+- Native Terrain Draping (Settings, Streaming, on by default) uses MapLibre's experimental renderToTerrainTile for live Phong and Matcap. Turn it off to go back to the previous drape, where the app builds its own terrain mesh every frame.
+- Contours: minor lines are drawn from tile zoom 6 instead of 10. A tilted view loads lower-zoom tiles toward the horizon, which used to show major lines only there. The globe view still shows major lines only.
+- The hourglass marks on Sky View Factor, Openness, Local Dominance and terrain Shadows are gone.
+
 # Changelog — Smoother Terrain, Links That Hold
 
 <!-- released: 2026-11-16 -->
@@ -17,10 +38,6 @@
 - Esri Wayback: date lookups go through a queue of four, the releases that can hold the asked date jump ahead of it, and a view falls back to the nearest release date after 12 s.
 - Drawing: "Keep in the link" is ticked by default in Import from a URL, a linked layer says it is read-only, and deleting the only layer leaves an empty Layer 1 ([issue 31](https://github.com/Iconem/terrain-viewer/issues/31)).
 - URL parameters for links from the docs: `openDialog=addTerrain|dataLayers` opens a dialog once, `timelineWindow=1984,2026` sets the timeline's range, `timelineSources=none` shows only the sources a link names.
-- Contours in a Worker (Settings, Streaming, off by default): contour lines, LRM and iso-line contours are traced in MapLibre's background workers for every terrain source, with the app's own protocols still read on the main thread.
-- Live Phong and Matcap are draped on 3D terrain by MapLibre itself (its experimental renderToTerrainTile), redrawn only when something changes instead of every frame. Native Terrain Draping (Settings, Streaming, on by default) switches back to the previous drape.
-- Terrain analysis tile seams: panning cancelled the shared fetch of a neighbour tile that visible tiles were still waiting on, so they drew an edge band as wide as their search radius (very visible in Openness and Sky View Factor) or failed. A shared fetch now stops only when every tile waiting on it is gone. The hourglass marks on Sky View Factor, Openness, Local Dominance and terrain Shadows are gone.
-- Faster terrain analysis, identical pixels: Hard Shadows about 15 times faster, Sky View Factor and Openness 5 to 10 times, Local Dominance about 2 times, and the 3x3 modes (curvature, TPI, TRI, roughness, aspect) about 2 to 3 times. Raster Compute in a Worker (Settings, Streaming, off by default) computes Sky View Factor, Openness and Local Dominance in background workers, several tiles at once.
 - The repository's history was rewritten to drop about 450 MB of old media: a clone is now about 15 MB, and a check in the deploy keeps heavy media out.
 
 # Changelog — Copernicus Data Space and WMTS

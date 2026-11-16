@@ -287,13 +287,15 @@ export const highResTerrainAtom = atomWithStorage("highResTerrain", true)
 // On by default; off reclaims the memory (up to ~96MB) and reverts to recompute.
 export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
 // Contours generated in MapLibre's own workers (Settings → Streaming), DEM tiles
-// still resolved on the main thread: lib/contour-worker-client.ts. Off by
-// default: maplibre-contour's DemSource, main thread for custom schemes.
-export const contourWorkerAtom = atomWithStorage("contourWorker", false)
+// still resolved on the main thread: lib/contour-worker-client.ts. On by
+// default since 2026-11-17; off falls back to maplibre-contour's DemSource
+// (main thread for custom schemes).
+export const contourWorkerAtom = atomWithStorage("contourWorker", true)
 // Sky View Factor, Openness and Local Dominance pixel loops in a pool of dedicated workers
 // (Settings → Streaming), DEM still fetched on the main thread:
-// lib/raster-compute-pool.ts, mirrored by TerrainViewer.tsx. Off by default.
-export const rasterComputeWorkerAtom = atomWithStorage("rasterComputeWorker", false)
+// lib/raster-compute-pool.ts, mirrored by TerrainViewer.tsx. On by default
+// since 2026-11-17; off computes on the main thread.
+export const rasterComputeWorkerAtom = atomWithStorage("rasterComputeWorker", true)
 // Live Phong/Matcap draped by MapLibre through renderToTerrainTile (an
 // experimental MapLibre API, 6.13). Off falls back to the old hand-built drape
 // (lib/*-live-gl-layer-legacy.ts). Settings → Streaming. On by default.
