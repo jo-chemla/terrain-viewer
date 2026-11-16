@@ -36,10 +36,16 @@ export const FooterSection: React.FC<{
         <a href={`https://github.com/Iconem/terrain-viewer/commit/${__BUILD_COMMIT__}`} target="_blank" rel="noopener noreferrer" className="underline">{__BUILD_COMMIT__}</a>
       </p>
       <DesktopUpdateLine />
-      <VersionCheck />
+      {/* Desktop only: the website always serves main, so a reload is all it
+          needs; the desktop app is the one that can lag behind. */}
+      {IS_DESKTOP && <VersionCheck />}
     </CollapsibleContent>
   </Collapsible>
 )
+
+// The desktop app loads the bundle over its own scheme (views://), never
+// http(s): the same test as lib/online-asset-fallback.ts.
+const IS_DESKTOP = typeof location !== "undefined" && !/^https?:$/.test(location.protocol)
 
 // "Is this the latest?": one click asks GitHub for the newest commit on main
 // (what the website serves) and for the rolling desktop release (which names
