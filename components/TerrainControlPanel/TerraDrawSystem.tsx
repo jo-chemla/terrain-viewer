@@ -1370,7 +1370,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                 {layer.sourceUrl && (
                                     <Tooltip>
                                         <TooltipTrigger render={<span className="shrink-0 text-muted-foreground"><Link className="h-3 w-3" /></span>} />
-                                        <TooltipContent><p>Linked layer: re-fetched from {layer.sourceUrl} on every load (listed in the link's drawingUrl parameter), not stored in this browser</p></TooltipContent>
+                                        <TooltipContent><p>Linked layer, read-only: re-fetched from {layer.sourceUrl} on every load (listed in the link's drawingUrl parameter), not stored in this browser. Import it again with "Keep in the link" unticked for an editable copy</p></TooltipContent>
                                     </Tooltip>
                                 )}
                                 {editMode ? (
@@ -1910,7 +1910,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
                         <Checkbox id="td-url-keep" checked={keepInLink} onCheckedChange={(v) => setKeepInLink(v === true)} className="cursor-pointer mt-0.5" />
                         <Label htmlFor="td-url-keep" className="cursor-pointer flex flex-col items-start gap-0.5">
                             <span className="text-xs font-medium">Keep in the link</span>
-                            <span className="text-[11px] text-muted-foreground font-normal">Adds it to the link's <code>drawingUrl</code> list so a shared link or iframe loads this data; the layer is re-fetched on every load instead of stored.</span>
+                            <span className="text-[11px] text-muted-foreground font-normal">Adds it to the link's <code>drawingUrl</code> list so a shared link or iframe loads this data; the layer is re-fetched on every load instead of stored, so it is read-only: edits would be lost on the next load. Untick for an editable copy stored in this browser.</span>
                         </Label>
                     </div>
                     {importError && <p className="text-xs text-destructive">{importError}</p>}

@@ -1,3 +1,24 @@
+# Changelog — Smoother Terrain, Links That Hold
+
+<!-- released: 2026-11-16 -->
+
+#### TL;DR
+
+- **New national sources**: Hong Kong 0.5 m LiDAR DTM, 5 m DSM and their difference as an nDSM (CEDD 2020), Lithuania's 1 m DTM, and Wales' 1 m LiDAR DTM as one national COG.
+- **Smoother terrain past the source resolution**: GEM-15, the Scotland LiDAR and every VRT source interpolate bilinearly when zoomed past their own pixels, instead of drawing blocky steps.
+- **Links that hold**: a link carrying coverage overlays or drawings no longer crashes a fresh browser, and Esri Wayback no longer leaves a view blank until a pill is moved.
+- **Drawing from a URL**: an imported URL stays in the shared link by default, marked read-only since it is re-fetched on every load, and the last layer can be deleted.
+- **Docs buttons open the app as described**: a page's "Open in app" lands with the right dialog, sources and timeline window, a new page covers MapLibre 6.18 layer blend modes, and the custom protocols page lists every scheme the app registers.
+
+#### Details
+
+- VRT reader: bilinear sampling in the composite step when upsampling, falling back to nearest next to a nodata hole, with a one-pixel read margin so tiles meet without a seam.
+- Coverage and drawing links: the URL and the sidebar state synced in both directions and could swap lists forever (React error 185); one two-way sync now settles after one round.
+- Esri Wayback: date lookups go through a queue of four, the releases that can hold the asked date jump ahead of it, and a view falls back to the nearest release date after 12 s.
+- Drawing: "Keep in the link" is ticked by default in Import from a URL, a linked layer says it is read-only, and deleting the only layer leaves an empty Layer 1 ([issue 31](https://github.com/Iconem/terrain-viewer/issues/31)).
+- URL parameters for links from the docs: `openDialog=addTerrain|dataLayers` opens a dialog once, `timelineWindow=1984,2026` sets the timeline's range, `timelineSources=none` shows only the sources a link names.
+- The repository's history was rewritten to drop about 450 MB of old media: a clone is now about 15 MB, and a check in the deploy keeps heavy media out.
+
 # Changelog — Copernicus Data Space and WMTS
 
 <!-- released: 2026-11-14 -->
