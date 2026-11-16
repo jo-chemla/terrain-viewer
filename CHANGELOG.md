@@ -17,6 +17,7 @@
 - Esri Wayback: date lookups go through a queue of four, the releases that can hold the asked date jump ahead of it, and a view falls back to the nearest release date after 12 s.
 - Drawing: "Keep in the link" is ticked by default in Import from a URL, a linked layer says it is read-only, and deleting the only layer leaves an empty Layer 1 ([issue 31](https://github.com/Iconem/terrain-viewer/issues/31)).
 - URL parameters for links from the docs: `openDialog=addTerrain|dataLayers` opens a dialog once, `timelineWindow=1984,2026` sets the timeline's range, `timelineSources=none` shows only the sources a link names.
+- Contours in a Worker (Settings, Streaming, off by default): contour lines, LRM and iso-line contours are traced in MapLibre's background workers for every terrain source, with the app's own protocols still read on the main thread.
 - The repository's history was rewritten to drop about 450 MB of old media: a clone is now about 15 MB, and a check in the deploy keeps heavy media out.
 
 # Changelog — Copernicus Data Space and WMTS

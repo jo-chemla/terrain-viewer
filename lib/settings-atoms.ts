@@ -286,6 +286,10 @@ export const highResTerrainAtom = atomWithStorage("highResTerrain", true)
 // makes re-toggling a mode instant instead of recomputing every visible tile.
 // On by default; off reclaims the memory (up to ~96MB) and reverts to recompute.
 export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
+// Contours generated in MapLibre's own workers (Settings → Streaming), DEM tiles
+// still resolved on the main thread: lib/contour-worker-client.ts. Off by
+// default: maplibre-contour's DemSource, main thread for custom schemes.
+export const contourWorkerAtom = atomWithStorage("contourWorker", false)
 // Google Earth Historical tiles built from one Keyhole level finer into 512 px
 // images (Settings → Streaming): no vertical stretch away from the equator and
 // a 2x image for HiDPI screens, for four times the Keyhole fetches. Read by

@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
-  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, geHiDpiTilesAtom,
+  useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, contourWorkerAtom, geHiDpiTilesAtom,
   customThemesAtom,
   isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
@@ -339,6 +339,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [highResTerrain, setHighResTerrain] = useAtom(highResTerrainAtom)
   const [useClientExport, setUseClientExport] = useAtom(useClientExportAtom)
   const [cacheVizTiles, setCacheVizTiles] = useAtom(cacheVizTilesAtom)
+  const [contourWorker, setContourWorker] = useAtom(contourWorkerAtom)
   const [geHiDpiTiles, setGeHiDpiTiles] = useAtom(geHiDpiTilesAtom)
   const [persistLocalCogs, setPersistLocalCogs] = useAtom(persistLocalCogsAtom)
   const [persistVectorLayers, setPersistVectorLayers] = useAtom(persistVectorLayersAtom)
@@ -801,6 +802,21 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 checked={cacheVizTiles}
                 className="cursor-pointer"
                 onCheckedChange={setCacheVizTiles}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="contour-worker">Contours in a Worker</Label>
+                <span className="text-xs text-muted-foreground">
+                  Generates contour lines (absolute, LRM and iso-line) in MapLibre's background workers instead of the main thread, for every terrain source type. DEM tiles are still read on the main thread
+                </span>
+              </div>
+              <Switch
+                id="contour-worker"
+                checked={contourWorker}
+                className="cursor-pointer"
+                onCheckedChange={setContourWorker}
               />
             </div>
               

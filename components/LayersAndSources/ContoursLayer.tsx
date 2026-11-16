@@ -13,7 +13,8 @@ import { buildCogContourUrl } from "@/lib/cog-contour-protocol"
 import { buildLrmProtocolUrl, lrmFetchTileBlob } from "@/lib/lrm-protocol"
 import { loadTileBitmap, type UpstreamEncoding } from "@/lib/normal-derived-protocol"
 import { useAtomValue } from "jotai"
-import { useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom, contourWorkerAtom } from "@/lib/settings-atoms"
+import { configureContourWorker, workerContourUrl } from "@/lib/contour-worker-client"
 import { customScheme } from "@/lib/protocol-registry"
 import { useClientDemUpstream, type ClientDemUpstream } from "./MapSources"
 import {LAYER_SLOTS} from "./MapLayers"
@@ -474,6 +475,7 @@ export function ContoursLayer({
   // be reflected here.
   const localFileVersion = useAtomValue(localFileVersionAtom)
   const useCogClient = useAtomValue(useCogProtocolVsTitilerAtom)
+  const contourWorker = useAtomValue(contourWorkerAtom)
   const clientUpstream = useClientDemUpstream(sourceId, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
   const clientUpstreamTemplate = clientUpstream?.template ?? ""
 
@@ -492,7 +494,7 @@ export function ContoursLayer({
     // after the first init, and the client-COG toggle swaps the whole path:
     // both need the init to run again from scratch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceId, localFileVersion, referenceMode, lrmRadius, demTemplate, clientUpstreamTemplate, useCogClient])
+  }, [sourceId, localFileVersion, referenceMode, lrmRadius, demTemplate, clientUpstreamTemplate, useCogClient, contourWorker])
 
   // ── Init: register DemSource (or the cog-local path) + add contour-source ──
   useEffect(() => {
@@ -575,6 +577,42 @@ export function ContoursLayer({
         return
       }
 
+      if (contourWorker) {
+        // Settings → Streaming → Contours in a Worker: isolines in MapLibre's
+        // workers, the DEM resolved on the main thread (lib/contour-worker-
+        // client.ts). One path for http(s), custom schemes and LRM alike.
+        try {
+          const lrm = referenceMode === "lrm" && !dem
+          const demUrlPattern = lrm
+            ? buildLrmProtocolUrl(resolved.tileUrl, resolved.encoding as UpstreamEncoding, resolved.tileSize, lrmRadius)
+            : resolved.tileUrl
+          const key = await configureContourWorker(idPrefix, {
+            demUrlPattern,
+            encoding: lrm ? "terrarium" : resolved.encoding,
+            maxzoom: resolved.maxzoom,
+          })
+          if (cancelled) return
+          // Quacks like a DemSource for buildContourProtocolUrl and the
+          // threshold-update effect below.
+          demSourceRef.current = { contourProtocolUrl: (options: Record<string, unknown>) => workerContourUrl(key, options) }
+          isCogLocalRef.current = false
+          removeLayers(map, idPrefix)
+          const { contourMinor: minor, contourMajor: major } = thresholdsRef.current
+          vectorMaxzoomRef.current = Math.max(15, Math.min(resolved.maxzoom, 19))
+          map.addSource(`${idPrefix}-source`, {
+            type: "vector",
+            tiles: [buildContourProtocolUrl(demSourceRef.current, minor, major)],
+            maxzoom: vectorMaxzoomRef.current,
+          })
+          initializedRef.current = true
+          forceUpdateRef.current?.()
+        } catch (err) {
+          console.error("[ContoursLayer] Worker init error:", err)
+          if (initAttemptsRef.current < MAX_INIT_ATTEMPTS) setTimeout(tryInit, 2000)
+        }
+        return
+      }
+
       try {
         const DemSource =
           (mlcontour as any).DemSource ??
@@ -634,7 +672,7 @@ export function ContoursLayer({
 
     const timer = setTimeout(tryInit, 1000)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion, referenceMode, lrmRadius, demTemplate, useCogClient, clientUpstreamTemplate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapLoaded, sourceId, mapboxKey, maptilerKey, customTerrainSources, titilerEndpoint, mapRef, localFileVersion, referenceMode, lrmRadius, demTemplate, useCogClient, clientUpstreamTemplate, contourWorker]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Update thresholds when contourMinor/contourMajor change ───────────────
   useEffect(() => {

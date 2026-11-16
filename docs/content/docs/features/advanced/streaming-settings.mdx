@@ -36,6 +36,10 @@ On by default. [Google Earth Historical](/dev/ge-historical) tiles come from Goo
 
 Keeps finished computed tiles (Terrain Analysis, detectors, …) in an in-memory cache of up to ~96 MB, so toggling a mode off and back on redisplays instantly instead of recomputing every visible tile. Costs memory, saves recompute — turn it off on low-RAM machines.
 
+### Contours in a Worker
+
+Off by default. When on, contour lines (absolute, LRM and the iso-line) are generated in MapLibre's own background workers for every terrain source type, so panning stays smooth while they are traced. DEM tiles are still read on the main thread when the source uses one of the app's own protocols (VRT, LERC, a DEM difference, LRM). A plain web tile source is read in the worker too. With the switch off, a plain web source already gets its own worker, but contours over the app's own protocols are traced on the main thread. A local COG file always uses its own worker, whatever this switch says.
+
 ## Browser Local Storage Persistence
 
 The app never uploads your local data anywhere; this panel controls what the *browser itself* remembers, backed by [OPFS](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system) (private per-site storage):

@@ -4009,6 +4009,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "contourWorker",
+      "default": "false",
+      "note": "Contours generated in MapLibre's own workers (Settings → Streaming), DEM tiles still resolved on the main thread: lib/contour-worker-client.ts."
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "geHiDpiTiles",
       "default": "true",
       "note": "Google Earth Historical tiles built from one Keyhole level finer into 512 px images (Settings → Streaming): no vertical stretch away from the equator and a 2x image for HiDPI screens, for four times …"
