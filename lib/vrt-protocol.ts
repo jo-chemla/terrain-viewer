@@ -1,5 +1,6 @@
 import { pixelView, writeTerrainrgbPx } from "./elevation-encoding"
 import { toTileImage, type TileImage } from "./tile-image"
+import { rasterComputeInWorker } from "./raster-compute-pool"
 import { sharedTileCache, fetchDecodedTile } from "./normal-derived-protocol"
 import { TITILER_CACHE_KEY } from "./titiler-health"
 
@@ -208,6 +209,15 @@ const docCache = new Map<string, Promise<VrtDoc>>()
 // geotiff's own header read is one more round trip per file, and a tile
 // commonly revisits the same neighbours as its siblings, so the opened files
 // are kept too (geotiff caches decoded strips inside each instance).
+// geotiff's own decoder pool: the block decompression of every read runs in
+// workers instead of the main thread. Profiled 2026-11-18 (COP30, a tile whose
+// file and blocks are already cached): 46 ms per tile, 31 of them inflating
+// blocks geotiff does not keep decoded; twelve such tiles at once took 600 ms
+// with 23 frames missed, 200 ms and none with the pool. Sized like the raster
+// pool and behind the same switch (Settings, Streaming, Raster Compute in a
+// Worker).
+let geotiffModule: Promise<typeof import("geotiff")> | null = null
+let decoderPool: import("geotiff").Pool | null = null
 const tiffCache = new Map<string, Promise<any>>()
 // `getImageCount()` walks the whole IFD chain, which for a 7-overview COG is
 // seven dependent header reads. Asking once per tile made the first viewport
@@ -765,7 +775,12 @@ async function readDocGrid(
     throw new Error(`vrt://: ${label} spans ${touched.length} source files (limit ${maxSources}) - zoom in, or serve this source through titiler`)
   }
 
-  const { fromUrl } = await import("geotiff")
+  // Kept: a dynamic import costs about 2 ms each time, even once loaded.
+  const { fromUrl, Pool } = await (geotiffModule ??= import("geotiff"))
+  if (rasterComputeInWorker() && !decoderPool) {
+    decoderPool = new Pool(Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 2)))
+  }
+  const pool = rasterComputeInWorker() ? decoderPool ?? undefined : undefined
   const openTiff = (url: string) => {
     const hit = tiffCache.get(url)
     if (hit) return hit
@@ -813,7 +828,7 @@ async function readDocGrid(
       // same band (-99999 for RGE ALTI), and interpolating across its edge
       // produced values like -11 650 m - inside every sane guard, and a
       // kilometres-deep gash along every source boundary.
-      const read = () => tiff.readRasters({ window: win, width: outW, height: outH, resampleMethod: "nearest", fillValue: NaN, samples: [s.band - 1], signal })
+      const read = () => tiff.readRasters({ window: win, width: outW, height: outH, resampleMethod: "nearest", fillValue: NaN, samples: [s.band - 1], signal, pool })
       // Up to five attempts, 0.4, 0.8, 1.6 then 3.2 s apart: under a busy
       // tile queue a range read times out or drops far more often than a file
       // is really gone, and a tile that fails stays blank until MapLibre asks

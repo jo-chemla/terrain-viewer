@@ -29,7 +29,7 @@ of maplibre-contour's DemSource. HarelM's suggestion on maplibre-style-spec#1374
   yet checked in a real browser.
 - "cog-local" and the client COG path keep their own single worker (lib/cog-contour-worker.ts).
 - MapLibre's pool is 4 workers since 2026-11-18 (src/main.tsx, was 1 on Chrome): each worker has its own LocalDemManager and cache. Timings in [[raster-compute-worker]].
-- **Bug seen 2026-11-18, not fixed:** with the switch OFF, LRM contours (buildLrmDemSource) load and return 0 features (Mapterhorn, z12.6, real Chrome); absolute contours are fine. Another reason to delete the old path rather than keep it as a fallback.
+- Fixed 2026-11-18: with the switch OFF, LRM contours were empty (a bitmap wrapped as PNG bytes); buildLrmDemSource now goes through buildRegistryDemSource.
 
 **Why:** custom-scheme contours (VRT, LERC, demdiff, LRM) were traced on the main thread.
 **How to apply:** if it proves stable in real use, it became the default on 2026-11-17 (the toggle stays as a fallback); once proven, delete buildRegistryDemSource/buildLrmDemSource and the toggle.

@@ -5,31 +5,35 @@
 #### TL;DR
 
 - **Much faster terrain analysis**: every relief mode computes its tiles several times faster, with exactly the same pixels (measured times below). A difference between a fine and a coarse DEM no longer asks the coarse one for tiles it does not have, which cost 0.1 to 0.3 s on every tile.
-- **Off the main thread**: contours and the heavy relief modes (Sky View Factor, Openness, Local Dominance) are computed in background workers, several tiles at once, so panning stays smooth.
+- **Off the main thread**: contours and the heavy relief modes (Sky View Factor, Openness, Local Dominance, Hard Shadows) are computed in background workers, several tiles at once. A screenful of those relief tiles lands 3 to 4 times sooner and the page no longer freezes while it computes; contours land about 30% sooner now that MapLibre runs four workers instead of one.
 - **Live Phong and Matcap draped by MapLibre**: on 3D terrain they are drawn into MapLibre's terrain tiles only when something changes, instead of every frame.
 
 | Time per tile | Before (ms) | Now (ms) | Gain |
 |---|---|---|---|
-| DEM difference, 512 px (256 px) | 143 (34) | 50 (11) | 2.9x (3.1x) |
-| Local Relief Model, radius 16 (64) | 94 (94) | 22 (21) | 4.3x (4.5x) |
-| Slope | 109 | 37 | 2.9x |
-| Curvature | 108 | 29 | 3.7x |
-| Sky View Factor, radius 8 (32) | 3780 (10376) | 431 (965) | 8.8x (11x) |
-| Openness, radius 8 (32) | 3817 (10195) | 349 (934) | 11x (11x) |
-| Hard Shadows, radius 16 (64) | 614 (1914) | 38 (135) | 16x (14x) |
-| Local Dominance | 1450 | 742 | 2.0x |
-| Blobness | 368 | 47 | 7.8x |
-| Aspect | 124 | 48 | 2.6x |
+| DEM difference, 512 px (256 px) | 35.5 (8.4) | 7.4 (1.6) | 4.8x (5.4x) |
+| Local Relief Model, radius 16 (64) | 22.8 (22.3) | 2.5 (2.6) | 9.1x (8.7x) |
+| Slope | 22.5 | 8.8 | 2.6x |
+| Curvature | 25.4 | 6.0 | 4.2x |
+| Sky View Factor, radius 8 (32) | 928 (2936) | 116 (242) | 8.0x (12x) |
+| Openness, radius 8 (32) | 894 (2898) | 94 (218) | 9.5x (13x) |
+| Hard Shadows, radius 16 (64) | 297 (712) | 12.6 (37.6) | 24x (19x) |
+| Local Dominance | 474 | 262 | 1.8x |
+| Blobness | 212 | 8.0 | 26x |
+| Aspect | 32.6 | 12.1 | 2.7x |
 
 #### Details
 
 - Kernels: ray offsets and distances built once per tile, one atan per direction (none for Hard Shadows, which compares slopes to tan(sun altitude) and stops at the first obstruction), nothing allocated per pixel. The padded elevation grid every mode starts from resolves its nine tiles once instead of a string-keyed lookup per pixel (about 44 ms per tile).
-- MapLibre's worker pool is raised from one worker (its default on Chrome, Edge and Firefox) to cores minus 2, at most four, the same rule as the raster pool. Contours are traced there, so a screenful of twelve contour tiles lands sooner: Mapterhorn contours 560 to 440 ms, Local Relief Model contours 1.5 to 0.9 s (two workers already give 450 ms and 1.1 s).
-- Contours in a Worker and Raster Compute in a Worker (Settings, Streaming) are on by default. Contours run inside MapLibre's own workers with maplibre-contour; Sky View Factor, Openness and Local Dominance run in a pool of up to four workers. The DEM is still read on the main thread, so every terrain source works. Turn either off to go back to the main thread.
+- MapLibre's worker pool is raised from one worker (its default on Chrome, Edge and Firefox) to cores minus 2, at most four, the same rule as the raster pool. Contours are traced there, so a screenful of ten contour tiles lands sooner: Mapterhorn contours 560 to 440 ms, Local Relief Model contours 1.5 to 0.9 s (two workers already give 450 ms and 1.1 s).
+- Contours in a Worker and Raster Compute in a Worker (Settings, Streaming) are on by default. Contours run inside MapLibre's own workers with maplibre-contour; Sky View Factor, Openness, Local Dominance and Hard Shadows run in one pool of up to four workers, shared by every mode and every view. The DEM is still read on the main thread, so every terrain source works. Turn either off to go back to the main thread.
+- What the pool alone buys, twelve tiles asked at once, switch off against on: Sky View Factor radius 8 1415 to 407 ms (radius 32: 2982 to 970), Openness 1152 to 334, Local Dominance 3128 to 825, Hard Shadows radius 64 766 to 252. One tile alone takes the same time. On the main thread the page missed 34 to 155 frames in freezes of about 100 ms; with the pool it misses none. Slope, Aspect, Curvature, Blobness and Local Relief Model stay on the main thread: twelve tiles take 31 to 141 ms in all and miss no frame.
+- VRT mosaics read in the browser decompress their GeoTIFF blocks in workers (same switch): twelve tiles of a file already open 600 to 200 ms, 23 frames missed to none. A warm tile was 46 ms, 31 of them decompression.
+- DEM difference remembers where a source stops: a tile found missing above an ancestor that exists is not asked for again, nor anything below it, for ten minutes. It applies when the source declares no maxzoom (the URL carries none): one failed request per level for the first tile of an area, none for its neighbours.
+- Fixed: with Contours in a Worker off, Local Relief Model contours came back empty, and Local Relief Model point and path sampling read nothing. Both wrapped the tile, a bitmap since the encode change, as if it were PNG bytes.
 - Tile seams: panning cancelled the shared fetch of a neighbour tile that visible tiles were still waiting on, so they drew an edge band as wide as their search radius, or failed. A shared fetch now stops only when every tile waiting on it is gone, and a cancelled tile never produces a result.
 - Native Terrain Draping (Settings, Streaming, on by default) uses MapLibre's experimental renderToTerrainTile for live Phong and Matcap. Turn it off to go back to the previous drape, where the app builds its own terrain mesh every frame.
 - Contours: minor lines are drawn from tile zoom 6 instead of 10. A tilted view loads lower-zoom tiles toward the horizon, which used to show major lines only there. The globe view still shows major lines only.
-- The TL;DR table: one tile (Mapterhorn, z12, Alps; 512 px unless said), caches warm, the two builds run one after the other on an idle desktop: the commit before the first speed pass (7156dfd) and this release. Each figure is the median of three passes of 21 runs (3 to 9 runs for tiles over 200 ms); the pixels are identical in every row. Sky View Factor, Openness and Local Dominance run in a worker in this release, the others on the main thread. The app draws the table as bars, one row per setting, each scaled to its own Before, with the gain beside it. Absolute times move two to three times with what else the machine is doing (a later run of this release alone read Slope at 14 ms and Sky View Factor radius 8 at 165 ms); a second check ran both builds alternately in one page, so both see the same machine state, and gave the same picture: 3x to 13x, Local Dominance 1.8x, identical pixels in all 15 cases.
+- The TL;DR table: one tile (Mapterhorn, z12, Alps; 512 px unless said), caches warm, in Chrome 158 on a 20-core desktop with nothing else running: the commit before the first speed pass (7156dfd) and this release, loaded in the same page and run in four passes of every case on the old build, then every case on the new one. Each figure is the median of the four passes (each the median of 20 runs, 2 to 8 for tiles over 200 ms); the passes agree within 3% and the pixels are identical. Sky View Factor, Openness and Local Dominance run in a worker in this release. An earlier table here, measured in a throttled preview browser, read 3 to 4 times slower for both builds, with similar gains. The app draws the table as bars, one row per setting, each scaled to its own Before, with the gain beside it.
 - Imagery protocols: Google Earth Timelapse decodes each video frame once and crops every map tile from it (a year change over 16 tiles 205 to 80 ms, going back to a year already seen 208 to 1 ms, same pixels); paper removal compares squared distances instead of calling `Math.hypot` per pixel (the pixel loop of a 256 px tile 2.2 to 0.5 ms in Chrome, the whole tile about 14 to 9 ms, same pixels); a capture tile that overlaps several COGs goes back as a bitmap instead of being encoded to PNG and decoded again (14 to 3 ms for a 256 px tile over two COGs).
 - A third pass on tile speed, same pixels: Blobness computes its gradients once per cell, not nine times per pixel; DEM difference and LRM use per-row and per-column bilinear tables; Slope uses the shared stitch. Two causes shared by every mode: writing a pixel as four clamped bytes (now one 32-bit store), and yielding with `setTimeout(0)`, which browsers clamp to 4 ms, so a tile waited about 130 ms doing nothing (now `scheduler.yield()`).
 - DEM difference: the URL carries each operand's maxzoom, so a coarse operand is read straight from the deepest tile it has. Before, every tile tried each zoom in turn (one failed request per level, never cached) and gave up past 6 levels: a warm tile took 103 ms one level past the coarse maxzoom, 196 ms at two, 284 ms at three, now 6 to 10 ms. Exporting a difference whose operands have larger tiles no longer fails on the URL.

@@ -3,7 +3,7 @@ import type { RasterComputeRequest, RasterComputeResponse, RasterKernel, RasterK
 /**
  * Raster Compute in a Worker (Settings, Streaming; on by default).
  *
- * The heavy viz-mode kernels (Sky View Factor, Openness, Local Dominance) run in a
+ * The heavy viz-mode kernels (Sky View Factor, Openness, Local Dominance, Hard Shadows) run in a
  * small pool of dedicated workers instead of the main thread. Only the pixel
  * loop moves: the protocol handler still fetches and decodes the DEM on the
  * main thread (its tile caches and every custom scheme live there), sends the
@@ -49,7 +49,7 @@ function pickSlot(): Slot {
   return slots.reduce((a, b) => (b.busy < a.busy ? b : a))
 }
 
-/** Runs a whole tile of a kernel (horizon: SVF and Openness; localDominance) in a worker. */
+/** Runs a whole tile of a kernel (horizon: SVF and Openness; localDominance; shadow) in a worker. */
 export function computeInWorker<K extends RasterKernel>(kind: K, input: RasterKernelInputs[K]): Promise<Uint8ClampedArray<ArrayBuffer>> {
   return new Promise((resolve, reject) => {
     const slot = pickSlot()

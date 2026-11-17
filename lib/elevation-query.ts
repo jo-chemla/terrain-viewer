@@ -46,7 +46,7 @@ export async function sampleClientElevationAtPoint(
   source: ClientExportSource,
   lng: number,
   lat: number,
-  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob>,
+  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob | ImageBitmap>,
 ): Promise<number | null> {
   if (source.type === "cog") {
     return sampleCogPointElevation(source.url, lng, lat)
@@ -164,7 +164,7 @@ async function sampleClientElevationProfile(
 export async function sampleClientElevationPath(
   source: ClientExportSource,
   coords: [number, number][],
-  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob>,
+  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob | ImageBitmap>,
 ): Promise<(number | null)[]> {
   if (coords.length === 0) return []
 

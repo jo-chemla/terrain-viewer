@@ -205,12 +205,15 @@ export async function lrmProtocol(
  *  `lrm://` URL isn't fetchable outside maplibre's own request pipeline (see
  *  fetchTileMosaic's own `fetchTileBlob` option header). Used by the client-
  *  side LRM point/path sampling in lib/elevation-query.ts. */
-export async function lrmFetchTileBlob(url: string, signal?: AbortSignal): Promise<Blob> {
+export async function lrmFetchTileBlob(url: string, signal?: AbortSignal): Promise<Blob | ImageBitmap> {
   const controller = new AbortController()
   if (signal) {
     if (signal.aborted) controller.abort()
     else signal.addEventListener("abort", () => controller.abort())
   }
   const { data } = await lrmProtocol({ url }, controller)
-  return new Blob([data as BlobPart], { type: "image/png" })
+  // lrmProtocol returns a bitmap wherever createImageBitmap exists (lib/tile-
+  // image.ts): wrapping that in a Blob gave "[object ImageBitmap]" as text, an
+  // undecodable tile, so LRM point and path sampling read nothing.
+  return data instanceof Uint8Array ? new Blob([data as BlobPart], { type: "image/png" }) : data
 }

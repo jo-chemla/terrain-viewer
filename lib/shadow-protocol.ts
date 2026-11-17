@@ -15,6 +15,8 @@
 // sky, this pixel is in shadow.
 import { sharedTileCache, fetchPaddedElevationGrid, tileRowToLatRad, groundResolutionM, YIELD_EVERY_ROWS, yieldToMainThread, buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./normal-derived-protocol"
 import { toTileImage, type TileImage } from "./tile-image"
+import { buildShadowRay, computeShadowRows, type ShadowKernelInput } from "./shadow-kernel"
+import { computeInWorker, rasterComputeInWorker } from "./raster-compute-pool"
 
 const SHADOW_URL_RE = /^shadow:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(\d+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
@@ -62,54 +64,21 @@ export async function shadowProtocol(
   const dCol = Math.sin(azimuthRad)
   const dRow = -Math.cos(azimuthRad)
 
-  // The ray toward the sun is the same for every pixel of the tile: its index
-  // offsets and 1/distance are built once. A pixel is in shadow when any step
-  // rises above the sun, i.e. when elevDiff / dist > tan(altitude) (atan is
-  // increasing and every distance is positive), so no atan per step and the
-  // march stops at the first obstruction. Same result as the old per-step
-  // atan2 loop, about 10x faster (2026-11-16 timing).
-  const offsets: number[] = []
-  const invDist: number[] = []
-  for (let r = 1; r <= radiusPx; r++) {
-    const rr = Math.round(r * dRow)
-    const rc = Math.round(r * dCol)
-    const dist = Math.sqrt(rr * rr + rc * rc) * groundResM
-    if (dist === 0) continue
-    offsets.push(rr * stride + rc)
-    invDist.push(1 / dist)
-  }
-  const rayOffsets = Int32Array.from(offsets)
-  const rayInvDist = Float64Array.from(invDist)
-  // No ray at all (radius 0) means a flat horizon, angle 0, as before.
-  const tanAltitude = altitudeRad >= Math.PI / 2 ? Infinity : Math.tan(altitudeRad)
-  const flatInShadow = 0 > altitudeRad
+  const input: ShadowKernelInput = { padded, stride, n, radiusPx, dRow, dCol, groundResM, altitudeRad }
 
+  // Settings, Streaming, Raster Compute in a Worker: the whole tile in the
+  // pool. A screenful at radius 64 froze the page for 100 ms at a time on the
+  // main thread (2026-11-18: 12 tiles, 19 frames missed).
+  if (rasterComputeInWorker()) return { data: await toTileImage(await computeInWorker("shadow", input), n, n) }
+
+  const ray = buildShadowRay(input)
   const outData = new Uint8ClampedArray(n * n * 4)
-  for (let row = 0; row < n; row++) {
-    if (row > 0 && row % YIELD_EVERY_ROWS === 0) {
+  for (let row = 0; row < n; row += YIELD_EVERY_ROWS) {
+    if (row > 0) {
       if (signal.aborted) throw new Error("Aborted")
       await yieldToMainThread()
     }
-    const pr = row + radiusPx
-    for (let col = 0; col < n; col++) {
-      const base = pr * stride + col + radiusPx
-      const centerElevation = padded[base]
-
-      let inShadow = rayOffsets.length === 0 ? flatInShadow : false
-      for (let j = 0; j < rayOffsets.length; j++) {
-        if ((padded[base + rayOffsets[j]] - centerElevation) * rayInvDist[j] > tanAltitude) { inShadow = true; break }
-      }
-
-      const idx = (row * n + col) * 4
-      // Plain dark, fully opaque when in shadow, fully transparent when lit
-      // — the raster layer's own paint opacity (state.shadowOpacity) is what
-      // actually controls how dark shadows read on screen, same convention
-      // as every other derived-mode raster layer in this app.
-      outData[idx] = 0
-      outData[idx + 1] = 0
-      outData[idx + 2] = 0
-      outData[idx + 3] = inShadow ? 255 : 0
-    }
+    computeShadowRows(input, ray, row, Math.min(n, row + YIELD_EVERY_ROWS), outData)
   }
 
   return { data: await toTileImage(outData, n, n) }

@@ -63,14 +63,53 @@ export const fillTileTemplate = (u: string, z: number, x: number, y: number) => 
  *  the sub-window to read: the coarser side is then upsampled bilinearly
  *  on the fly, up to 6 levels, instead of going missing above its maxzoom. */
 export type Operand = { tile: DecodedTile; scale: number; ox: number; oy: number }
+
+// Where a source stops, remembered: a tile that came back missing while a
+// coarser ancestor exists. In a pyramid, nothing exists below a missing tile,
+// so every later request under it skips straight to the level that answered
+// (one z13 miss covers 256 z17 tiles) instead of one failed request per level
+// per tile; misses are not cached anywhere else. Kept per place, not per
+// source: Mapterhorn is z12 worldwide and z17 over Switzerland. Entries expire
+// (a miss may have been a network error) and the map is bounded.
+const MISS_TTL_MS = 10 * 60_000
+const MISS_MAX = 4000
+const missingTiles = new Map<string, number>()
+const missKey = (template: string, z: number, x: number, y: number) => `${z}/${x}/${y}|${template}`
+function knownMissing(template: string, z: number, x: number, y: number, now: number): boolean {
+  // The tile itself or any ancestor up to 8 levels.
+  for (let u = 0; u <= 8 && z - u >= 0; u++) {
+    const key = missKey(template, z - u, x >> u, y >> u)
+    const at = missingTiles.get(key)
+    if (at === undefined) continue
+    if (now - at < MISS_TTL_MS) return true
+    missingTiles.delete(key)
+  }
+  return false
+}
+function rememberMissing(template: string, z: number, x: number, y: number, now: number): void {
+  if (missingTiles.size >= MISS_MAX) {
+    let drop = MISS_MAX >> 2
+    for (const key of missingTiles.keys()) { missingTiles.delete(key); if (--drop <= 0) break }
+  }
+  missingTiles.set(missKey(template, z, x, y), now)
+}
+
 export async function fetchOperand(template: string, enc: UpstreamEncoding, z: number, x: number, y: number, signal: AbortSignal, startDepth = 0): Promise<Operand | null> {
+  const now = Date.now()
+  const missed: number[] = []
   for (let d = startDepth; d <= startDepth + 6 && z - d >= 0; d++) {
+    // The last level of the walk is always asked, so a stale memory cannot
+    // turn a tile that exists into nodata.
+    const last = d === startDepth + 6 || z - d === 0
+    if (!last && knownMissing(template, z - d, x >> d, y >> d, now)) continue
     const tile = await fetchDecodedTile(sharedTileCache, fillTileTemplate(template, z - d, x >> d, y >> d), enc, signal)
     if (tile) {
+      for (const m of missed) rememberMissing(template, z - m, x >> m, y >> m, now)
       const scale = 1 << d
       return { tile, scale, ox: x - ((x >> d) << d), oy: y - ((y >> d) << d) }
     }
     if (signal.aborted) return null
+    missed.push(d)
   }
   return null
 }

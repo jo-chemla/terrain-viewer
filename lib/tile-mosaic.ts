@@ -36,7 +36,7 @@ export interface FetchTileMosaicOptions {
    *  request pipeline via `maplibregl.addProtocol`, which does NOT intercept
    *  arbitrary `fetch()` calls made elsewhere — see lib/elevation-query.ts's
    *  LRM sampling for the caller that needs this. */
-  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob>
+  fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob | ImageBitmap>
 }
 
 // Exported so lib/rgb-tile-mosaic.ts (the RGB-band sibling used by batch

@@ -250,3 +250,24 @@ Contours, 10-12 tiles on screen (toggle on at z12.6, page reloaded per run, 4 ru
 Frames missed are the same in every row (8 to 13, the toggle's own re-render).
 `src/main.tsx` now calls `setWorkerCount(min(4, cores - 2))` before the first
 map; localStorage `tv-map-workers` (1-8) overrides it for measuring.
+
+## Follow-ups the same day (2026-11-18)
+
+- Hard Shadows is in the pool (`lib/shadow-kernel.ts`, kind "shadow"): 12 tiles
+  r64 766 to 252 ms, r16 263 to 69, no frame missed, identical hashes.
+- One pool for the page, not one per layer: more modes on means more tiles
+  queued on the same 4 workers. Worst case threads on a page: 4 raster, 4
+  MapLibre, 4 geotiff decoders (VRT), 1 local-COG contour worker.
+- VRT warm tile profile (COP30, real Chrome): 46 ms = readRasters 31 (geotiff
+  re-inflates blocks, it keeps none decoded: `fromUrl` drops the `cache`
+  option and `getImage` builds a new image per read), composite 4.8,
+  projectTilePixels 4.1, dynamic `import("geotiff")` 2.5 per call (now kept),
+  encode 2.1, source filter 1.3 (26k sources, linear). Fix: geotiff's `Pool`
+  (4 workers, same switch) passed to readRasters: 12 tiles 600 to 200 ms, 23
+  frames missed to 0. Works under Vite dev; not checked in a production build.
+- `fetchOperand` (demdiff) remembers missing tiles per place (10 min, 4000
+  entries) and skips anything under one: direct test 4 fetches then 0, 0.
+- Fixed: `lrmFetchTileBlob` wrapped lrmProtocol's ImageBitmap in a Blob
+  ("[object ImageBitmap]"), so LRM contours with the worker switch off and LRM
+  point / path sampling decoded nothing. Contours verified (609 features);
+  the sampling fix is by reading the code, not tested in a browser.

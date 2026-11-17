@@ -10,7 +10,7 @@ import type { TerrainSource } from "@/lib/terrain-types"
 import type { CustomTerrainSource } from "@/lib/settings-atoms"
 import { resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { buildCogContourUrl } from "@/lib/cog-contour-protocol"
-import { buildLrmProtocolUrl, lrmFetchTileBlob } from "@/lib/lrm-protocol"
+import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
 import { loadTileBitmap, type UpstreamEncoding } from "@/lib/normal-derived-protocol"
 import { useAtomValue } from "jotai"
 import { useCogProtocolVsTitilerAtom, contourWorkerAtom } from "@/lib/settings-atoms"
@@ -182,57 +182,26 @@ function buildTileUrl(
   }
 }
 
-// ─── LRM-mode DEM source ──────────────────────────────────────────────────
+// ─── LRM-mode DEM source (Contours in a Worker off) ──────────────────────
 //
-// maplibre-contour's DemSource always fetches its upstream DEM tiles via a
-// plain `fetch(url)` — in a dedicated worker when `worker: true` (the normal/
-// absolute-mode path below), or on the main thread via LocalDemManager's
-// default getTile when `worker: false`. Neither goes through maplibregl's
-// addProtocol registry (confirmed by this file's own comment above, for the
-// analogous cog-local/`local://` case) — a plain `fetch("lrm://...")` would
-// just fail as an unsupported URL scheme.
-//
-// So LRM mode can't simply hand DemSource an `lrm://` URL the way every other
-// consumer of lib/lrm-protocol.ts does (as a maplibre <Source tiles=[...]>,
-// where MAPLIBRE ITSELF dispatches the request through the registered
-// protocol handler). Instead this constructs a normal DemSource (which sets
-// up the maplibre contour-tile protocol + URL scheme as usual), then swaps
-// its internal manager for a LocalDemManager whose `getTile` calls
-// `lrmProtocol` directly as a plain function — no fetch, no protocol
-// dispatch, just running the same LRM computation in-process. This requires
-// `worker: false` (LocalDemManager, not RemoteDemManager) since a custom
-// `getTile` callback can't survive being postMessage'd into a Worker.
-// Trade-off: LRM contour generation runs on the main thread instead of a
-// worker, unlike absolute-mode contours — acceptable since it's an
-// occasional/opt-in mode, not the default.
+// The DEM is an `lrm://` template: resolved on the main thread like any
+// other custom scheme, see buildRegistryDemSource below.
 function buildLrmDemSource(
   DemSourceClass: any,
   LocalDemManagerClass: any,
+  decodeParsedImage: (width: number, height: number, encoding: string, input: Uint8ClampedArray) => unknown,
   resolved: { tileUrl: string; encoding: string; maxzoom: number; tileSize: number },
   lrmRadius: number,
 ): any {
-  const demUrlPattern = buildLrmProtocolUrl(resolved.tileUrl, resolved.encoding as UpstreamEncoding, resolved.tileSize, lrmRadius)
-  const dem = new DemSourceClass({
-    url: demUrlPattern,
-    // lrmProtocol always re-encodes its output as Terrarium (see its own
-    // header) regardless of the upstream encoding.
+  // lrmProtocol returns a bitmap, not PNG bytes (lib/tile-image.ts), and always
+  // Terrarium-encoded: the same bitmap route as any custom scheme. (Until
+  // 2026-11-18 this wrapped the bitmap in a Blob, which decodes to nothing:
+  // LRM contours were empty with Contours in a Worker off.)
+  return buildRegistryDemSource(DemSourceClass, LocalDemManagerClass, decodeParsedImage, {
+    ...resolved,
+    tileUrl: buildLrmProtocolUrl(resolved.tileUrl, resolved.encoding as UpstreamEncoding, resolved.tileSize, lrmRadius),
     encoding: "terrarium",
-    maxzoom: resolved.maxzoom,
-    worker: false,
-    cacheSize: 100,
-    timeoutMs: 10000,
   })
-  dem.manager = new LocalDemManagerClass({
-    demUrlPattern,
-    encoding: "terrarium",
-    maxzoom: resolved.maxzoom,
-    cacheSize: 100,
-    timeoutMs: 10000,
-    getTile: async (url: string, abortController: AbortController) => ({
-      data: await lrmFetchTileBlob(url, abortController.signal),
-    }),
-  })
-  return dem
 }
 
 // ─── Custom-scheme DEM source ─────────────────────────────────────────────
@@ -635,7 +604,7 @@ export function ContoursLayer({
           (mlcontour as any).decodeParsedImage ??
           (mlcontour as any).default?.decodeParsedImage
         const demSource = referenceMode === "lrm" && !dem
-          ? buildLrmDemSource(DemSource, LocalDemManager, resolved, lrmRadius)
+          ? buildLrmDemSource(DemSource, LocalDemManager, decodeParsedImage, resolved, lrmRadius)
           : customScheme(resolved.tileUrl)
           ? buildRegistryDemSource(DemSource, LocalDemManager, decodeParsedImage, resolved)
           : new DemSource({
