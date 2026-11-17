@@ -112,3 +112,35 @@ byte-identical to the old output (FNV hash of the pixels):
 - VRT (COP30, direct handler call): first tile 3.9 s (XML index), a fresh tile
   about 280 ms, the same tile again 80-140 ms with the handler's own caches
   warm. That 80 ms of local work per tile is unprofiled.
+
+## Clean re-measure, whole day (2026-11-17, idle machine)
+
+Commit 7156dfd (before the first pass) against 5b37194, both dev servers,
+agent preview, same tile, median of three passes; identical hashes everywhere.
+These replace the per-pass figures above when quoting a before/after (earlier
+readings were taken with Blender running).
+
+| Mode | Before ms | Now ms |
+|---|---|---|
+| DEM difference 512 / 256 px | 143 / 34 | 50 / 11 |
+| LRM r16 / r64 | 94 / 94 | 22 / 21 |
+| Slope | 109 | 37 |
+| Curvature combined | 108 | 29 |
+| SVF r8 / r32 (worker now) | 3780 / 10376 | 431 / 965 |
+| Openness r8 / r32 (worker now) | 3817 / 10195 | 349 / 934 |
+| Hard Shadows r16 / r64 | 614 / 1914 | 38 / 135 |
+| Local Dominance 8-32 (worker now) | 1450 | 742 |
+| Blobness | 368 | 47 |
+| Aspect | 124 | 48 |
+
+- How to redo it: `git worktree add --detach <dir> <commit>`, junction its
+  node_modules to the main checkout's (`mklink /J`; remove the junction with
+  `cmd /c rmdir` BEFORE `git worktree remove`), `pnpm exec vite --port N`
+  in each, call the protocol handlers from `preview_evaluate`.
+- A `preview_evaluate` that times out (15 s) kills the script running in the
+  page: keep polls under 10 s.
+- Imagery protocols: gtimelapse keeps decoded frames (48, one per video and
+  year) and crops tiles from them: 16 tiles on a year change 205 to 80 ms, a
+  year already seen 208 to 1 ms, same pixels. unpaper: squared distance, no
+  Math.hypot. capture: composite returned as a bitmap. pcmosaic and planettile
+  are network only, nothing to gain locally.

@@ -49,6 +49,7 @@ Terrain sources, which read an elevation dataset MapLibre cannot read on its own
 |---|---|---|
 | `float32dem://` | A WMS that returns float32 GeoTIFF elevation | [WMS Float32 DEM Protocol](/dev/wms-float32-protocol) |
 | `vrt://` | A GDAL VRT mosaic of COGs in any CRS, reprojected with proj4 | [VRT Mosaic Protocol](/dev/vrt-protocol) |
+| `gem15://dtm`, `gem15://dsm`, `openbuildings://<year>` | Google GEM-15 (15 m elevation, global) and Open Buildings 2.5D: thousands of per-cell COGs, each in its own UTM zone, which no single VRT can index. Not MapLibre protocols of their own: the URL stands where a VRT URL would, inside `vrt://`, which routes each tile to the cells it overlaps | [Cell-routed sources](/dev/cell-routed-sources) |
 | `lerc://` | Esri LERC tiles from an ArcGIS ImageServer | [ArcGIS LERC Elevation Protocol](/dev/lerc-protocol) |
 | `quantized-mesh://` | Cesium quantized-mesh terrain, rasterised | [Quantized Mesh Protocol](/dev/quantized-mesh-protocol) |
 | `demdiff://` | The difference of two sources (an nDSM, a change layer) | [Derived Terrain Protocol](/dev/demdiff-protocol) |

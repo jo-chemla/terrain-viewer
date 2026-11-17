@@ -63,7 +63,7 @@ async function cogsFor(capture: Capture, tile: Bbox, signal: AbortSignal) {
   return on()
 }
 
-export async function captureProtocol(params: { url: string }, abortController: AbortController): Promise<{ data: ArrayBuffer }> {
+export async function captureProtocol(params: { url: string }, abortController: AbortController): Promise<{ data: ArrayBuffer | ImageBitmap }> {
   const m = /^capture:\/\/([^/]+)\/(\d+)\/(\d+)\/(\d+)$/.exec(params.url)
   if (!m) throw new Error(`Invalid capture protocol URL: ${params.url}`)
   const [z, x, y] = [+m[2], +m[3], +m[4]]
@@ -86,5 +86,7 @@ export async function captureProtocol(params: { url: string }, abortController: 
   const canvas = new OffscreenCanvas(bitmaps[0].width, bitmaps[0].height)
   const context = canvas.getContext("2d")!
   for (const bitmap of bitmaps) { context.drawImage(bitmap, 0, 0); bitmap.close() }
-  return { data: await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer() }
+  // The composite goes back as a bitmap: encoding it to PNG only for MapLibre
+  // to decode it again cost more than drawing it.
+  return { data: canvas.transferToImageBitmap() }
 }

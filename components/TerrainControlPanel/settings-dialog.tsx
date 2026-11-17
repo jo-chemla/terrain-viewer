@@ -195,12 +195,15 @@ const CollapsibleSection: React.FC<{
 // actually read, so clicking one opens it full-size in the lightbox dialog
 // instead (see SettingsDialog's lightboxImage state).
 // A TL;DR may end with a table. One with a label column and two numeric
-// columns ("Before", "Now") is a before/after comparison and is drawn as bars:
-// the times range from 15 ms to 10 s, so one shared axis would flatten most
-// rows; each row is indexed to its own Before instead (the track is Before,
-// the fill is Now) and the real figures stay as text beside it. Any other
-// table is drawn as a plain table. CHANGELOG.md keeps an ordinary markdown
-// table, which is what GitHub and the docs changelog page show.
+// columns ("Before", "Now", then an optional "Gain") is a before/after
+// comparison and is drawn as bars: the times range from 10 ms to 10 s, so one
+// shared axis would flatten most rows; each row is indexed to its own Before
+// instead (the track is Before, the fill is Now), with the real figures and
+// the gain as text beside it. A cell may carry a second setting in
+// parentheses, "Sky View Factor, radius 8 (32) | 3772 (10399) | 590 (1190)",
+// which becomes a second bar row. Any other table is drawn as a plain table.
+// CHANGELOG.md keeps an ordinary markdown table, which is what GitHub and the
+// docs changelog page show.
 const hastText = (n: any): string => (n?.type === "text" ? n.value : (n?.children ?? []).map(hastText).join(""))
 const hastRows = (table: any): string[][] => {
   const rows: string[][] = []
@@ -211,12 +214,38 @@ const hastRows = (table: any): string[][] => {
   walk(table)
   return rows
 }
+/** "a (b)" as ["a", "b"], "a" as ["a"]. */
+const splitParen = (cell: string): string[] => {
+  const m = cell.match(/^(.*?)\s*\(([^)]*)\)\s*$/)
+  return m ? [m[1].trim(), m[2].trim()] : [cell.trim()]
+}
+/** One bar row per setting: "X, radius 8 (32)" with "3772 (10399)" and
+ *  "590 (1190)" gives "X, radius 8" and "X, radius 32" (the parenthesised
+ *  words replace as many trailing words of the label). */
+const comparisonRows = (body: string[][]): { label: string; before: number; now: number }[] | null => {
+  const out: { label: string; before: number; now: number }[] = []
+  for (const r of body) {
+    const labels = splitParen(r[0] ?? ""), befores = splitParen(r[1] ?? ""), nows = splitParen(r[2] ?? "")
+    if (befores.length !== nows.length) return null
+    for (let i = 0; i < befores.length; i++) {
+      const before = Number(befores[i]), now = Number(nows[i])
+      if (!(before > 0) || !(now >= 0)) return null
+      let label = labels[0]
+      if (i > 0 && labels[1]) {
+        const words = labels[0].split(" "), alt = labels[1].split(" ")
+        label = [...words.slice(0, Math.max(0, words.length - alt.length)), ...alt].join(" ")
+      }
+      out.push({ label, before, now })
+    }
+  }
+  return out
+}
+const formatGain = (ratio: number) => (ratio >= 10 ? String(Math.round(ratio)) : ratio.toFixed(1)) + "x"
 const ChangelogTable: React.FC<{ node?: any }> = ({ node }) => {
   const [head, ...body] = hastRows(node)
   if (!head) return null
-  const nums = body.map((r) => [Number(r[1]), Number(r[2])])
-  const isComparison = head.length === 3 && body.length > 0 && nums.every(([a, b]) => a > 0 && b >= 0)
-  if (!isComparison) {
+  const rows = (head.length === 3 || head.length === 4) && body.length > 0 ? comparisonRows(body) : null
+  if (!rows) {
     return (
       <div className="overflow-x-auto">
         <table className="text-xs text-muted-foreground">
@@ -235,25 +264,26 @@ const ChangelogTable: React.FC<{ node?: any }> = ({ node }) => {
         <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-muted-foreground/25" />{name(head[1])}</span>
         <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-primary" />{name(head[2])}</span>
       </div>
-      {body.map((r, i) => {
-        const [before, now] = nums[i]
-        const ratio = before / Math.max(now, 1e-9)
+      {rows.map(({ label, before, now }, i) => {
+        const gain = formatGain(before / Math.max(now, 1e-9))
         return (
-          <div key={i} role="row" className="grid grid-cols-[minmax(0,9.5rem)_minmax(2rem,1fr)_auto] items-center gap-2"
-            title={`${r[0]}: ${before} ${unit} before, ${now} ${unit} now (${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times faster)`}>
-            <span role="cell" className="truncate">{r[0]}</span>
+          <div key={i} role="row" className="grid grid-cols-[minmax(0,10.5rem)_minmax(1.5rem,1fr)_auto_2.5rem] items-center gap-2"
+            title={`${label}: ${before} ${unit} before, ${now} ${unit} now (${gain} faster)`}>
+            <span role="cell" className="truncate">{label}</span>
             <span role="presentation" className="h-2 rounded-sm bg-muted-foreground/25 overflow-hidden">
               <span className="block h-full rounded-sm bg-primary" style={{ width: `${Math.max(2, Math.min(100, (now / before) * 100))}%` }} />
             </span>
             <span role="cell" className="tabular-nums whitespace-nowrap text-right min-w-[5.5rem]">
               {before} <span aria-hidden>/</span> <span className="font-semibold text-foreground">{now}</span>
             </span>
+            <span role="cell" className="tabular-nums whitespace-nowrap text-right font-semibold text-foreground">{gain}</span>
           </div>
         )
       })}
     </div>
   )
 }
+
 
 function changelogMarkdownComponents(onImageClick: (src: string, alt?: string) => void) {
   return {

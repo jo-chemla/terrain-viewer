@@ -144,6 +144,38 @@ function release(d: Decoder) {
   else idle.push(d)
 }
 
+// ── Decoded frames ────────────────────────────────────────────────────────
+// One video frame serves 4 map tiles at the video's own zoom, and 16 or 64
+// past its deepest zoom; each of them used to take a decoder and seek, often
+// on an element that had another video loaded. The whole frame of a (video,
+// year) is now decoded once and kept, most recently used last, and every tile
+// crops from it; stepping back to a year already seen costs no seek at all.
+// 512 x 512 RGBA is 1 MB a frame.
+const frames = new Map<string, Promise<ImageBitmap>>()
+const MAX_FRAMES = 48
+
+function frameOf(key: string, video: CachedVideo, year: number, signal: AbortSignal): Promise<ImageBitmap> {
+  const k = `${key}|${year}`
+  const hit = frames.get(k)
+  if (hit) { frames.delete(k); frames.set(k, hit); return hit }
+  const p = (async () => {
+    const d = await acquire()
+    try {
+      await d.seek(video, year, signal)
+      return await createImageBitmap(d.el)
+    } finally {
+      release(d)
+    }
+  })()
+  // A failed or aborted decode must not stay in the cache.
+  p.catch(() => { if (frames.get(k) === p) frames.delete(k) })
+  frames.set(k, p)
+  // Evicted frames are left to the garbage collector: a tile may still be
+  // cropping from one.
+  for (const old of frames.keys()) { if (frames.size <= MAX_FRAMES) break; frames.delete(old) }
+  return p
+}
+
 export async function googleTimelapseProtocol(params: { url: string }, abortController: AbortController): Promise<{ data: ImageBitmap }> {
   const m = params.url.match(URL_RE)
   if (!m) throw new Error(`Invalid gtimelapse protocol URL: ${params.url}`)
@@ -162,12 +194,16 @@ export async function googleTimelapseProtocol(params: { url: string }, abortCont
   if (!video) throw new Error(`Google Earth Timelapse has no tile at ${vz}/${vx}/${vy}`)
   if (signal.aborted) throw new DOMException("aborted", "AbortError")
 
-  const d = await acquire()
+  const key = `${vz}/${vx}/${vy}`
+  let frame: ImageBitmap
   try {
-    await d.seek(video, year, signal)
-    const bitmap = await createImageBitmap(d.el, sx, sy, span, span, { resizeWidth: TILE, resizeHeight: TILE, resizeQuality: shift === 1 ? "pixelated" : "high" })
-    return { data: bitmap }
-  } finally {
-    release(d)
+    frame = await frameOf(key, video, year, signal)
+  } catch (e) {
+    // The decode runs on the signal of the tile that asked first: when that
+    // tile was cancelled and this one was not, decode again on this signal.
+    if (signal.aborted) throw e
+    frame = await frameOf(key, video, year, signal)
   }
+  const bitmap = await createImageBitmap(frame, sx, sy, span, span, { resizeWidth: TILE, resizeHeight: TILE, resizeQuality: shift === 1 ? "pixelated" : "high" })
+  return { data: bitmap }
 }

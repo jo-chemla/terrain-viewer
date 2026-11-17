@@ -8,19 +8,18 @@
 - **Off the main thread**: contours and the heavy relief modes (Sky View Factor, Openness, Local Dominance) are computed in background workers, several tiles at once, so panning stays smooth.
 - **Live Phong and Matcap draped by MapLibre**: on 3D terrain they are drawn into MapLibre's terrain tiles only when something changes, instead of every frame.
 
-| Time per tile | Before (ms) | Now (ms) |
-|---|---|---|
-| Sky View Factor, radius 32 | 10399 | 1190 |
-| Sky View Factor, radius 8 | 3772 | 590 |
-| Openness, radius 8 | 3791 | 418 |
-| Hard Shadows, radius 64 | 1349 | 122 |
-| Local Dominance | 1344 | 700 |
-| Blobness | 325 | 50 |
-| DEM difference | 142 | 30 |
-| Aspect | 120 | 45 |
-| Slope | 90 | 40 |
-| Curvature | 86 | 23 |
-| LRM | 77 | 15 |
+| Time per tile | Before (ms) | Now (ms) | Gain |
+|---|---|---|---|
+| DEM difference, 512 px (256 px) | 143 (34) | 50 (11) | 2.9x (3.1x) |
+| Local Relief Model, radius 16 (64) | 94 (94) | 22 (21) | 4.3x (4.5x) |
+| Slope | 109 | 37 | 2.9x |
+| Curvature | 108 | 29 | 3.7x |
+| Sky View Factor, radius 8 (32) | 3780 (10376) | 431 (965) | 8.8x (11x) |
+| Openness, radius 8 (32) | 3817 (10195) | 349 (934) | 11x (11x) |
+| Hard Shadows, radius 16 (64) | 614 (1914) | 38 (135) | 16x (14x) |
+| Local Dominance | 1450 | 742 | 2.0x |
+| Blobness | 368 | 47 | 7.8x |
+| Aspect | 124 | 48 | 2.6x |
 
 #### Details
 
@@ -29,8 +28,9 @@
 - Tile seams: panning cancelled the shared fetch of a neighbour tile that visible tiles were still waiting on, so they drew an edge band as wide as their search radius, or failed. A shared fetch now stops only when every tile waiting on it is gone, and a cancelled tile never produces a result.
 - Native Terrain Draping (Settings, Streaming, on by default) uses MapLibre's experimental renderToTerrainTile for live Phong and Matcap. Turn it off to go back to the previous drape, where the app builds its own terrain mesh every frame.
 - Contours: minor lines are drawn from tile zoom 6 instead of 10. A tilted view loads lower-zoom tiles toward the horizon, which used to show major lines only there. The globe view still shows major lines only.
-- The TL;DR table: one 512 px tile (Mapterhorn, z12, Alps), caches warm, median of several runs in one desktop browser; Before is the 2026-11-16 release. Sky View Factor and Openness run in a worker, the others on the main thread. Local Dominance varies from 600 to 770 ms with its radii. The app draws the table as bars (each row scaled to its own Before).
-- A third pass on tile speed, same pixels: Blobness 325 to 50 ms per 512 px tile (gradients computed once per cell, not nine times per pixel), DEM difference 142 to 30, LRM 58 to 15, Slope 75 to 40, terrain Shadows 280 to 122, the 3x3 modes about a third faster. Two causes shared by every mode: writing a pixel as four clamped bytes (now one 32-bit store), and yielding with `setTimeout(0)`, which browsers clamp to 4 ms, so a tile waited about 130 ms doing nothing (now `scheduler.yield()`).
+- The TL;DR table: one tile (Mapterhorn, z12, Alps; 512 px unless said), caches warm, the two builds run one after the other on an idle desktop: the commit before the first speed pass (7156dfd) and this release. Each figure is the median of three passes of 21 runs (3 to 9 runs for tiles over 200 ms); the pixels are identical in every row. Sky View Factor, Openness and Local Dominance run in a worker in this release, the others on the main thread. The app draws the table as bars, one row per setting, each scaled to its own Before, with the gain beside it.
+- Imagery protocols: Google Earth Timelapse decodes each video frame once and crops every map tile from it (a year change over 16 tiles 205 to 80 ms, going back to a year already seen 208 to 1 ms, same pixels); paper removal compares squared distances instead of calling `Math.hypot` per pixel; a capture tile that overlaps several COGs goes back as a bitmap instead of being encoded to PNG and decoded again.
+- A third pass on tile speed, same pixels: Blobness computes its gradients once per cell, not nine times per pixel; DEM difference and LRM use per-row and per-column bilinear tables; Slope uses the shared stitch. Two causes shared by every mode: writing a pixel as four clamped bytes (now one 32-bit store), and yielding with `setTimeout(0)`, which browsers clamp to 4 ms, so a tile waited about 130 ms doing nothing (now `scheduler.yield()`).
 - DEM difference: the URL carries each operand's maxzoom, so a coarse operand is read straight from the deepest tile it has. Before, every tile tried each zoom in turn (one failed request per level, never cached) and gave up past 6 levels: a warm tile took 103 ms one level past the coarse maxzoom, 196 ms at two, 284 ms at three, now 6 to 10 ms. Exporting a difference whose operands have larger tiles no longer fails on the URL.
 - Iso-band smoothing uses a running sum: 84 to 38 ms per tile at radius 4, 202 to 45 at radius 16. About half the tiles are byte-identical, the others move a few vertices by 1/4096 of a tile.
 - Contours: the Minor slider starts at Off, which draws major lines only, with the Major slider then picking an interval in metres (`contourMinor=0`).

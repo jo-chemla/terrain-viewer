@@ -95,8 +95,14 @@ export async function unpaperProtocol(params: { url: string }, abortController: 
     const hardness = parseFloat(hStr)
     const e0 = threshold - threshold * (1 - hardness)
     const d = px.data
+    // Squared distance, then one square root for the pixels near the paper
+    // colour (Math.hypot was most of the cost of this loop).
+    const limit2 = threshold * 255 * (threshold * 255)
     for (let i = 0; i < d.length; i += 4) {
-      const dist = Math.hypot(d[i] - pr, d[i + 1] - pg, d[i + 2] - pb) / 255
+      const dr = d[i] - pr, dg = d[i + 1] - pg, db = d[i + 2] - pb
+      const d2 = dr * dr + dg * dg + db * db
+      if (d2 >= limit2) continue
+      const dist = Math.sqrt(d2) / 255
       if (dist >= threshold) continue
       const x = e0 >= threshold ? 0 : Math.min(1, Math.max(0, (dist - e0) / (threshold - e0)))
       d[i + 3] = Math.round(d[i + 3] * x * x * (3 - 2 * x))
