@@ -194,8 +194,70 @@ const CollapsibleSection: React.FC<{
 // fits the TL;DR bullet list (see the `img` renderer below), far too small to
 // actually read, so clicking one opens it full-size in the lightbox dialog
 // instead (see SettingsDialog's lightboxImage state).
+// A TL;DR may end with a table. One with a label column and two numeric
+// columns ("Before", "Now") is a before/after comparison and is drawn as bars:
+// the times range from 15 ms to 10 s, so one shared axis would flatten most
+// rows; each row is indexed to its own Before instead (the track is Before,
+// the fill is Now) and the real figures stay as text beside it. Any other
+// table is drawn as a plain table. CHANGELOG.md keeps an ordinary markdown
+// table, which is what GitHub and the docs changelog page show.
+const hastText = (n: any): string => (n?.type === "text" ? n.value : (n?.children ?? []).map(hastText).join(""))
+const hastRows = (table: any): string[][] => {
+  const rows: string[][] = []
+  const walk = (n: any) => {
+    if (n?.tagName === "tr") rows.push((n.children ?? []).filter((c: any) => c.tagName === "th" || c.tagName === "td").map((c: any) => hastText(c).trim()))
+    else (n?.children ?? []).forEach(walk)
+  }
+  walk(table)
+  return rows
+}
+const ChangelogTable: React.FC<{ node?: any }> = ({ node }) => {
+  const [head, ...body] = hastRows(node)
+  if (!head) return null
+  const nums = body.map((r) => [Number(r[1]), Number(r[2])])
+  const isComparison = head.length === 3 && body.length > 0 && nums.every(([a, b]) => a > 0 && b >= 0)
+  if (!isComparison) {
+    return (
+      <div className="overflow-x-auto">
+        <table className="text-xs text-muted-foreground">
+          <thead><tr>{head.map((h, i) => <th key={i} className="pr-3 text-left font-semibold text-foreground">{h}</th>)}</tr></thead>
+          <tbody>{body.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} className="pr-3 py-0.5">{c}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+    )
+  }
+  const unit = head[1].match(/\(([^)]+)\)/)?.[1] ?? ""
+  const name = (h: string) => h.replace(/\s*\([^)]*\)\s*$/, "")
+  return (
+    <div className="space-y-1 pt-1 text-xs text-muted-foreground" role="table" aria-label={`${head[0]}: ${name(head[1])} and ${name(head[2])}`}>
+      <div className="flex items-center gap-3">
+        <span className="flex-1 min-w-0 truncate font-semibold text-foreground">{head[0]}{unit ? `, ${unit}` : ""}</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-muted-foreground/25" />{name(head[1])}</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-primary" />{name(head[2])}</span>
+      </div>
+      {body.map((r, i) => {
+        const [before, now] = nums[i]
+        const ratio = before / Math.max(now, 1e-9)
+        return (
+          <div key={i} role="row" className="grid grid-cols-[minmax(0,9.5rem)_minmax(2rem,1fr)_auto] items-center gap-2"
+            title={`${r[0]}: ${before} ${unit} before, ${now} ${unit} now (${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times faster)`}>
+            <span role="cell" className="truncate">{r[0]}</span>
+            <span role="presentation" className="h-2 rounded-sm bg-muted-foreground/25 overflow-hidden">
+              <span className="block h-full rounded-sm bg-primary" style={{ width: `${Math.max(2, Math.min(100, (now / before) * 100))}%` }} />
+            </span>
+            <span role="cell" className="tabular-nums whitespace-nowrap text-right min-w-[5.5rem]">
+              {before} <span aria-hidden>/</span> <span className="font-semibold text-foreground">{now}</span>
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function changelogMarkdownComponents(onImageClick: (src: string, alt?: string) => void) {
   return {
+    table: ChangelogTable,
     ul: ({ children }: any) => <ul className="list-disc pl-4 space-y-1.5 text-sm text-muted-foreground">{children}</ul>,
     strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
     code: ({ children }: any) => <code className="bg-muted px-1 rounded text-xs">{children}</code>,
