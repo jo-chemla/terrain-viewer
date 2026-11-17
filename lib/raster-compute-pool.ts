@@ -1,7 +1,7 @@
 import type { RasterComputeRequest, RasterComputeResponse, RasterKernel, RasterKernelInputs } from "./raster-compute-worker"
 
 /**
- * Raster Compute in a Worker (Settings, Streaming; off by default).
+ * Raster Compute in a Worker (Settings, Streaming; on by default).
  *
  * The heavy viz-mode kernels (Sky View Factor, Openness, Local Dominance) run in a
  * small pool of dedicated workers instead of the main thread. Only the pixel

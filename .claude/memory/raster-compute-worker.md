@@ -144,3 +144,48 @@ readings were taken with Blender running).
   year already seen 208 to 1 ms, same pixels. unpaper: squared distance, no
   Math.hypot. capture: composite returned as a bitmap. pcmosaic and planettile
   are network only, nothing to gain locally.
+
+## Interleaved A/B (2026-11-17, afternoon): the method to use from now on
+
+Absolute timings in the agent preview move 2 to 5x with machine and tab state
+(the same build read Slope at 37, 14 and 32 ms in three sessions the same day;
+a hidden tab is slower and its timers throttle), so two builds timed one after
+the other are only comparable when nothing changed in between. Robust recipe:
+open the NEW build's page and import the OLD build's modules cross-origin from
+its dev server (`import("http://localhost:5192/lib/slope-protocol.ts")`, Vite
+allows localhost origins), then alternate old and new calls per case. Both see
+the same machine state; hash both outputs.
+
+| Mode | Old ms | New ms | Gain |
+|---|---|---|---|
+| DEM difference 512 / 256 px | 153 / 35 | 37 / 6.2 | 4.1x / 5.6x |
+| LRM r16 / r64 | 135 / 213 | 27 / 29 | 5.0x / 7.2x |
+| Slope | 105 | 32 | 3.3x |
+| Curvature combined | 107 | 15.5 | 6.9x |
+| SVF r8 / r32 | 5022 / 18292 | 713 / 1929 | 7.0x / 9.5x |
+| Openness r8 / r32 | 6105 / 18445 | 797 / 1693 | 7.7x / 10.9x |
+| Hard Shadows r16 / r64 | 1035 / 3564 | 90 / 278 | 11.5x / 12.8x |
+| Local Dominance 8-32 | 2835 | 1554 | 1.8x |
+| Blobness | 433 | 39 | 11.1x |
+| Aspect | 256 | 64 | 4.0x |
+
+(Slow machine state: the user was working. The new build alone, an hour
+earlier, three passes: demdiff 10 / 2.1, LRM 6.6 / 6.3, slope 14, curvature 9,
+SVF 167 / 342, openness 139 / 336, shadows 12.6 / 38, LD 255, blobness 16,
+aspect 25. The published changelog table keeps the idle-machine morning run.)
+
+- Keep preview polls at 8.5 s or less: a poll that times out (15 s) kills the
+  task in flight and the awaiting loop hangs forever. Save results per case and
+  make the script resumable (skip cases already saved).
+- `OffscreenCanvas.convertToBlob` takes about 1 s in the agent preview (no
+  frames there): time anything that encodes in headless Chrome instead (a
+  node http server serving one page that POSTs its result back).
+- unpaper, headless Chrome 157: pixel loop of a 256 px tile 2.2 to 0.5 ms
+  (threshold 0.05), 2.6 to 1.1 (0.2); whole handler in the preview about 14 to
+  9 ms; same pixels. capture composite over two COGs: 13.8 to 3.3 ms at 256 px
+  (titiler's size), 35 to 9 ms at 512 px; the PNG encode alone was 8 and 20 ms.
+- Workers on a page: MapLibre's own pool is ONE worker on Chrome, Edge and
+  Firefox (up to 3 on Safari), shared by every map; contours in a worker and
+  vector tile parsing share it (the app never calls setWorkerCount). The raster
+  pool adds up to 4 (cores - 2, spawned one per concurrent tile), and a local
+  COG with contours one more (cog-contour-worker).
