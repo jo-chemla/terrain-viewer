@@ -95,3 +95,20 @@ byte-identical to the old output (FNV hash of the pixels):
 - Not done: iso-band box blur (number[] arrays, ~90 ms at smooth 4), VRT read
   path (already an approximating transformer; network bound), LERC and
   quantized-mesh encodes (256 px, about 1 ms).
+
+## demdiff and iso-band (2026-11-17, evening)
+
+- demdiff is NOT in the worker pool and does not need it: its compute is 6 ms
+  per 256 px tile. Its real cost was fetchOperand walking down from z to the
+  coarse operand's deepest tile one failed request at a time (misses are not
+  cached, so every tile paid it every time): 103 / 196 / 284 ms warm at 1 / 2 / 3
+  levels past the coarse maxzoom. buildDemDiffUrl now writes each operand's
+  maxzoom in the size segment ("256~1~0~16~15") and the protocol starts at
+  max(tile-size depth, z - maxzoom): 6-10 ms. region-readers.ts's regex
+  tolerates the suffix (it rejected "256~2~0" before).
+- Iso-band box blur: running sum on Float64Array, 84 to 38 ms (r4), 202 to 45
+  (r16). Not bit-identical (25 of 50 tiles identical, the rest a few vertices by
+  one tile unit; exact ties at the threshold can flip).
+- VRT (COP30, direct handler call): first tile 3.9 s (XML index), a fresh tile
+  about 280 ms, the same tile again 80-140 ms with the handler's own caches
+  warm. That 80 ms of local work per tile is unprofiled.

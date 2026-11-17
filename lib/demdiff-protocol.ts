@@ -31,11 +31,17 @@ import { toTileImage, type TileImage } from "./tile-image"
 // operand whose tiles are larger than the output's (a 1024 px WMS under
 // 256 px difference tiles) is read from its ancestor that many levels up, at
 // its own pixel density, instead of asking it for every small tile.
-const DEMDIFF_URL_RE = /^demdiff:\/\/(terrarium|mapbox)\/(terrarium|mapbox)\/(\d+)(?:~(\d+)~(\d+))?\/(-?[\d.]+)\/([^/]+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
+//
+// Two more fields may follow, "256~0~0~17~12": each operand's maxzoom (in its
+// own tile numbering, empty when unknown). A 30 m DEM under a 0.5 m DSM has
+// no tile at z18, and without this every tile first asked the coarse source
+// for z18, z17 ... down to z12, one failed request after another, before
+// reaching the tile that exists; past 6 levels it gave up (2026-11-17).
+const DEMDIFF_URL_RE = /^demdiff:\/\/(terrarium|mapbox)\/(terrarium|mapbox)\/(\d+)(?:~(\d+)~(\d+)(?:~(\d*)~(\d*))?)?\/(-?[\d.]+)\/([^/]+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
 
 export function buildDemDiffUrl(
-  minuend: { template: string; encoding: UpstreamEncoding; tileSize?: number },
-  subtrahend: { template: string; encoding: UpstreamEncoding; tileSize?: number },
+  minuend: { template: string; encoding: UpstreamEncoding; tileSize?: number; maxzoom?: number },
+  subtrahend: { template: string; encoding: UpstreamEncoding; tileSize?: number; maxzoom?: number },
   tileSize: number,
   /** Metres added to every difference (see CustomTerrainSource.diffOffsetM). */
   offsetM = 0,
@@ -44,7 +50,9 @@ export function buildDemDiffUrl(
   // maplibre's literal placeholder substitution only touches the trailing ones.
   const depth = (op: { tileSize?: number }) => Math.max(0, Math.round(Math.log2((op.tileSize ?? tileSize) / tileSize)))
   const dA = depth(minuend), dB = depth(subtrahend)
-  const size = dA || dB ? `${tileSize}~${dA}~${dB}` : `${tileSize}`
+  const max = (op: { maxzoom?: number }) => (typeof op.maxzoom === "number" && Number.isFinite(op.maxzoom) ? String(Math.round(op.maxzoom)) : "")
+  const mA = max(minuend), mB = max(subtrahend)
+  const size = mA || mB ? `${tileSize}~${dA}~${dB}~${mA}~${mB}` : dA || dB ? `${tileSize}~${dA}~${dB}` : `${tileSize}`
   return `demdiff://${minuend.encoding}/${subtrahend.encoding}/${size}/${offsetM}/${encodeURIComponent(minuend.template)}/${encodeURIComponent(subtrahend.template)}/{z}/{x}/{y}`
 }
 
@@ -136,9 +144,15 @@ export async function demDiffProtocol(
 ): Promise<{ data: TileImage }> {
   const m = params.url.match(DEMDIFF_URL_RE)
   if (!m) throw new Error(`Invalid demdiff protocol URL: ${params.url}`)
-  const [, encA, encB, sizeStr, dAStr, dBStr, offsetStr, tplA, tplB, zS, xS, yS] = m
-  const dA = parseInt(dAStr ?? "0", 10) || 0, dB = parseInt(dBStr ?? "0", 10) || 0
+  const [, encA, encB, sizeStr, dAStr, dBStr, mAStr, mBStr, offsetStr, tplA, tplB, zS, xS, yS] = m
   const z = parseInt(zS, 10), x = parseInt(xS, 10), y = parseInt(yS, 10)
+  // Start depth: the tile-size shift, or deeper when the operand is known to
+  // stop above the zoom that shift would ask for.
+  const depth = (dStr: string | undefined, maxStr: string | undefined) => {
+    const d = parseInt(dStr ?? "0", 10) || 0
+    return maxStr ? Math.max(d, z - parseInt(maxStr, 10)) : d
+  }
+  const dA = depth(dAStr, mAStr), dB = depth(dBStr, mBStr)
   const n = parseInt(sizeStr, 10)
   const offset = parseFloat(offsetStr) || 0
   const [a, b] = await Promise.all([

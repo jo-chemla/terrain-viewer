@@ -76,7 +76,9 @@ registerRegionReader("vrt", {
 })
 
 // ─── Difference: the difference of the two operands' areas ──────────────────
-const DEMDIFF_TEMPLATE_RE = /^demdiff:\/\/(terrarium|mapbox)\/(terrarium|mapbox)\/(\d+)\/(-?[\d.]+)\/([^/]+)\/([^/]+)\/\{z\}\/\{x\}\/\{y\}$/
+// The size may carry the operands' start depths and maxzooms ("256~2~0~17~12",
+// see demdiff-protocol.ts), which a region read does not use.
+const DEMDIFF_TEMPLATE_RE = /^demdiff:\/\/(terrarium|mapbox)\/(terrarium|mapbox)\/(\d+)(?:~[\d~]*)?\/(-?[\d.]+)\/([^/]+)\/([^/]+)\/\{z\}\/\{x\}\/\{y\}$/
 
 registerRegionReader("demdiff", {
   describe: (template, w, h) => {

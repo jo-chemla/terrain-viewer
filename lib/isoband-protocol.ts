@@ -31,25 +31,36 @@ export function buildIsobandProtocolUrl(upstreamTileTemplate: string, encoding: 
 
 /** Separable box blur of radius r on a stride×stride grid, in place; the
  *  -1e9 nodata values are left out of the averages. */
+/** Each pass keeps a running sum and count along the row or column: the cell
+ *  entering the window is added and the one leaving is subtracted, so a pixel
+ *  costs two steps whatever the radius (the first version re-added all
+ *  2r + 1 cells for every pixel). The running sum rounds differently from a
+ *  fresh one, by about 1e-12 m: on 50 test tiles half came out byte for byte
+ *  the same and the rest moved a few vertices by one tile unit (1/4096 of a
+ *  tile). 84 to 38 ms per 512 px tile at radius 4, 202 to 45 at 16 (2026-11-17). */
 function boxBlur(values: number[], stride: number, r: number) {
-  const tmp = new Array<number>(values.length)
-  const pass = (src: number[], dst: number[], horizontal: boolean) => {
+  const src = Float64Array.from(values)
+  const tmp = new Float64Array(values.length)
+  const pass = (from: Float64Array, to: Float64Array, horizontal: boolean) => {
+    const step = horizontal ? 1 : stride
     for (let a = 0; a < stride; a++) {
+      const base = horizontal ? a * stride : a
+      let sum = 0, cnt = 0
+      for (let c = 0; c <= r && c < stride; c++) {
+        const v = from[base + c * step]
+        if (v > -1e8) { sum += v; cnt++ }
+      }
       for (let b = 0; b < stride; b++) {
-        let sum = 0, cnt = 0
-        for (let k = -r; k <= r; k++) {
-          const c = b + k
-          if (c < 0 || c >= stride) continue
-          const v = horizontal ? src[a * stride + c] : src[c * stride + a]
-          if (v > -1e8) { sum += v; cnt++ }
-        }
-        const i = horizontal ? a * stride + b : b * stride + a
-        dst[i] = cnt ? sum / cnt : -1e9
+        to[base + b * step] = cnt ? sum / cnt : -1e9
+        const enter = b + r + 1, leave = b - r
+        if (enter < stride) { const v = from[base + enter * step]; if (v > -1e8) { sum += v; cnt++ } }
+        if (leave >= 0) { const v = from[base + leave * step]; if (v > -1e8) { sum -= v; cnt-- } }
       }
     }
   }
-  pass(values, tmp, true)
-  pass(tmp, values, false)
+  pass(src, tmp, true)
+  pass(tmp, src, false)
+  for (let i = 0; i < values.length; i++) values[i] = src[i]
 }
 
 export async function isobandProtocol(params: { url: string }, abortController: AbortController): Promise<{ data: Uint8Array }> {

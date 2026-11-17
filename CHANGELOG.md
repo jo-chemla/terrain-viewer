@@ -5,6 +5,7 @@
 #### TL;DR
 
 - **Much faster terrain analysis**: Hard Shadows about 15 times faster per tile, Sky View Factor and Openness 5 to 10 times, Local Dominance about 2 times, and the 3x3 modes (curvature, TPI, TRI, roughness, aspect) 2 to 3 times, with exactly the same pixels.
+- **A second round on every mode**: Blobness about 6 times faster again, DEM differences and LRM about 4 times, Slope and terrain Shadows about 2 times, still with the same pixels. A difference between a fine and a coarse DEM no longer asks the coarse one for tiles it does not have, which cost 0.1 to 0.3 s on every tile.
 - **Off the main thread**: contours and the heavy relief modes (Sky View Factor, Openness, Local Dominance) are computed in background workers, several tiles at once, so panning stays smooth.
 - **Live Phong and Matcap draped by MapLibre**: on 3D terrain they are drawn into MapLibre's terrain tiles only when something changes, instead of every frame.
 
@@ -16,6 +17,8 @@
 - Native Terrain Draping (Settings, Streaming, on by default) uses MapLibre's experimental renderToTerrainTile for live Phong and Matcap. Turn it off to go back to the previous drape, where the app builds its own terrain mesh every frame.
 - Contours: minor lines are drawn from tile zoom 6 instead of 10. A tilted view loads lower-zoom tiles toward the horizon, which used to show major lines only there. The globe view still shows major lines only.
 - A third pass on tile speed, same pixels: Blobness 325 to 50 ms per 512 px tile (gradients computed once per cell, not nine times per pixel), DEM difference 142 to 30, LRM 58 to 15, Slope 75 to 40, terrain Shadows 280 to 122, the 3x3 modes about a third faster. Two causes shared by every mode: writing a pixel as four clamped bytes (now one 32-bit store), and yielding with `setTimeout(0)`, which browsers clamp to 4 ms, so a tile waited about 130 ms doing nothing (now `scheduler.yield()`).
+- DEM difference: the URL carries each operand's maxzoom, so a coarse operand is read straight from the deepest tile it has. Before, every tile tried each zoom in turn (one failed request per level, never cached) and gave up past 6 levels: a warm tile took 103 ms one level past the coarse maxzoom, 196 ms at two, 284 ms at three, now 6 to 10 ms. Exporting a difference whose operands have larger tiles no longer fails on the URL.
+- Iso-band smoothing uses a running sum: 84 to 38 ms per tile at radius 4, 202 to 45 at radius 16. About half the tiles are byte-identical, the others move a few vertices by 1/4096 of a tile.
 - Contours: the Minor slider starts at Off, which draws major lines only, with the Major slider then picking an interval in metres (`contourMinor=0`).
 - The hourglass marks on Sky View Factor, Openness, Local Dominance and terrain Shadows are gone.
 

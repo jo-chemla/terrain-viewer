@@ -107,7 +107,7 @@ mean of the raw per-pixel difference**:
    nearest ancestor, up to 6 levels. This matters more than it sounds: Mapterhorn
    declares `maxzoom: 18` but falls back to Copernicus GLO-30 over most of the
    world and 404s from z13 there, so sampling it directly returned nothing at all
-   against a fine COG.
+   against a fine COG. The tile protocol itself skips the walk where it can: the URL carries each operand's declared `maxzoom`, and a tile deeper than that starts straight at the deepest tile the operand has (a walk of failed requests cost 0.1 to 0.3 s per tile). A source that 404s below its declared maxzoom, as Mapterhorn does, still walks.
 3. Sample a **24 × 24 grid per tile** at fractional positions — fractional so
    operands with different tile sizes still line up — skipping anything the
    validity mask or the DEM sentinel guards reject.
