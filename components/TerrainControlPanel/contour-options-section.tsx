@@ -17,8 +17,11 @@ import { useTheme } from "@/lib/controls-utils"
 const WEIGHT_TOGGLE_ITEM_CLASS = "cursor-pointer px-2 text-xs text-muted-foreground font-normal data-pressed:bg-white data-pressed:font-bold data-pressed:text-foreground"
 
 // ── Contour snap tables ────────────────────────────────────────────────────
-const MINOR_INTERVALS = [0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]
+// 0 is "Off": no minor lines, the major interval is then picked on its own.
+const MINOR_INTERVALS = [0, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]
 const MAJOR_MULTIPLIERS = [2, 4, 5, 10, 20, 25, 50, 100]
+// Major intervals offered when minor lines are off (no minor to multiply).
+const MAJOR_INTERVALS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]
 
 // ── Graticule density — 0 means "auto" (library default adaptive) ──────────
 const DENSITY_VALUES = [0, 0.5, 1, 2, 5, 10, 15, 30, 45]
@@ -90,7 +93,11 @@ export const ContourOptionsSection: React.FC<{
   const isLrm = state.contourReferenceMode === "lrm"
   const minorField = isLrm ? "contourMinorLrm" : "contourMinor"
   const majorField = isLrm ? "contourMajorLrm" : "contourMajor"
-  const currentMinor = Number(state[minorField]) || (isLrm ? 5 : 50)
+  // 0 is a real value here (minor lines off), so only a missing or invalid
+  // value falls back to the default.
+  const rawMinor = Number(state[minorField])
+  const currentMinor = Number.isFinite(rawMinor) && rawMinor >= 0 ? rawMinor : (isLrm ? 5 : 50)
+  const minorOff = currentMinor === 0
   const currentMajor = Number(state[majorField]) || (isLrm ? 20 : 200)
 
   const minorIndex = MINOR_INTERVALS.reduce((best, v, i) =>
@@ -101,7 +108,8 @@ export const ContourOptionsSection: React.FC<{
   const majorMultiplierIndex = MAJOR_MULTIPLIERS.reduce((best, v, i) =>
     Math.abs(v - currentMultiplier) < Math.abs(MAJOR_MULTIPLIERS[best] - currentMultiplier) ? i : best, 0)
   const currentMajorMultiplier = MAJOR_MULTIPLIERS[majorMultiplierIndex]
-  const snappedMajor = snappedMinor * currentMajorMultiplier
+  const majorIntervalIndex = nearestIndex(MAJOR_INTERVALS, currentMajor)
+  const snappedMajor = minorOff ? MAJOR_INTERVALS[majorIntervalIndex] : snappedMinor * currentMajorMultiplier
 
   // ── Graticule derived values ───────────────────────────────────────────
   const densityIndex = nearestIndex(DENSITY_VALUES, Number(state.graticuleDensity) || 0)
@@ -166,20 +174,39 @@ export const ContourOptionsSection: React.FC<{
                 onChange={(v) => setState({ contourReferenceMode: v })}
               />
               <SliderControl
-                label={`Minor: ${snappedMinor}m`}
+                label={minorOff ? "Minor: Off" : `Minor: ${snappedMinor}m`}
                 value={minorIndex}
                 onChange={(i) => {
                   const newMinor = MINOR_INTERVALS[i]
-                  setState({ [minorField]: newMinor, [majorField]: newMinor * currentMajorMultiplier })
+                  if (newMinor === 0) {
+                    // Turning minor off keeps the major lines where they are.
+                    setState({ [minorField]: 0, [majorField]: snappedMajor })
+                    return
+                  }
+                  // Coming back from Off: keep the major interval when it is a
+                  // listed multiple of the new minor, else minor x 5.
+                  const ratio = currentMajor / newMinor
+                  const keepMajor = minorOff && MAJOR_MULTIPLIERS.some((m) => Math.abs(m - ratio) < 1e-9)
+                  const multiplier = minorOff ? 5 : currentMajorMultiplier
+                  setState({ [minorField]: newMinor, [majorField]: keepMajor ? currentMajor : newMinor * multiplier })
                 }}
                 min={0} max={MINOR_INTERVALS.length - 1} step={1} hideValue
               />
-              <SliderControl
-                label={`Major: ${snappedMajor}m (${currentMajorMultiplier}×)`}
-                value={majorMultiplierIndex}
-                onChange={(i) => setState({ [majorField]: snappedMinor * MAJOR_MULTIPLIERS[i] })}
-                min={0} max={MAJOR_MULTIPLIERS.length - 1} step={1} hideValue
-              />
+              {minorOff ? (
+                <SliderControl
+                  label={`Major: ${snappedMajor}m`}
+                  value={majorIntervalIndex}
+                  onChange={(i) => setState({ [majorField]: MAJOR_INTERVALS[i] })}
+                  min={0} max={MAJOR_INTERVALS.length - 1} step={1} hideValue
+                />
+              ) : (
+                <SliderControl
+                  label={`Major: ${snappedMajor}m (${currentMajorMultiplier}×)`}
+                  value={majorMultiplierIndex}
+                  onChange={(i) => setState({ [majorField]: snappedMinor * MAJOR_MULTIPLIERS[i] })}
+                  min={0} max={MAJOR_MULTIPLIERS.length - 1} step={1} hideValue
+                />
+              )}
               {colorRow("Line Color", "contourColor")}
             </>
           )}

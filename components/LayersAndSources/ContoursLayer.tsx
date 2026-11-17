@@ -288,6 +288,11 @@ function buildRegistryDemSource(
 }
 
 function buildThresholds(minor: number, major: number) {
+  // Minor 0 means "minor lines off" (the Minor slider's first stop). The major
+  // interval is then listed twice so every line gets level 1, the major
+  // width and labels (level = highest index whose interval divides the
+  // elevation), as it would with minor lines on.
+  if (!(minor > 0)) return { 2: [major], 6: [major, major] }
   return {
     // low zoom (globe, continents): only major contours (level 0)
     2:  [major],
