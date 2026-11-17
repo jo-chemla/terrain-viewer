@@ -34,6 +34,7 @@
 - DEM difference: the URL carries each operand's maxzoom, so a coarse operand is read straight from the deepest tile it has. Before, every tile tried each zoom in turn (one failed request per level, never cached) and gave up past 6 levels: a warm tile took 103 ms one level past the coarse maxzoom, 196 ms at two, 284 ms at three, now 6 to 10 ms. Exporting a difference whose operands have larger tiles no longer fails on the URL.
 - Iso-band smoothing uses a running sum: 84 to 38 ms per tile at radius 4, 202 to 45 at radius 16. About half the tiles are byte-identical, the others move a few vertices by 1/4096 of a tile.
 - Contours: the Minor slider starts at Off, which draws major lines only, with the Major slider then picking an interval in metres (`contourMinor=0`).
+- Add basemap: the WMS layer list, QuickMapServices and the Editor Layer Index tabs have the same Basemap / Overlay choice as the manual form, WMTS and the catalogue search, so a layer can join the overlays when it is added instead of through Edit afterwards. The Editor Layer Index defaults to As listed (the index marks some layers as overlays).
 - The hourglass marks on Sky View Factor, Openness, Local Dominance and terrain Shadows are gone.
 
 # Changelog — Smoother Terrain, Links That Hold

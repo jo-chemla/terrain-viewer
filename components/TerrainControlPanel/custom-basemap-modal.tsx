@@ -86,6 +86,18 @@ export const CustomBasemapModal: React.FC<{
   }, [])
   const [description, setDescription] = useState("")
   const [role, setRole] = useState<CustomBasemapSource["role"]>("basemap")
+  // The catalogue tabs (WMS layers, QuickMapServices, Editor Layer Index) add
+  // a source in one click, with no form: the same Basemap / Overlay choice sits
+  // above their lists. The Editor Layer Index flags some layers as overlays
+  // itself, so its default keeps that flag.
+  const [eliRole, setEliRole] = useState<"listed" | "basemap" | "overlay">("listed")
+  const withRole = <T extends object>(source: T, r: "basemap" | "overlay") => ({ ...source, role: r, ...(r === "overlay" ? { stack: "under" as const } : {}) })
+  const addAsRow = (
+    <div className="flex items-center gap-2 min-w-0" title="Overlays stack on the active basemap instead of replacing it (Split/Radio basemap mode)">
+      <Label className="text-xs shrink-0">Add as</Label>
+      <SegmentedToggle value={(role ?? "basemap") as "basemap" | "overlay"} onChange={(v) => setRole(v)} options={[{ value: "basemap" as const, label: "Basemap" }, { value: "overlay" as const, label: "Overlay" }]} />
+    </div>
+  )
   const [stack, setStack] = useState<NonNullable<CustomBasemapSource["stack"]>>("under")
   const [cogViaTitiler, setCogViaTitiler] = useState(false)
   // IIIF maps: warped in the browser (sharp, flat views) or from Allmaps'
@@ -413,10 +425,19 @@ export const CustomBasemapModal: React.FC<{
           {type === "auto" ? (
             <SourceUrlAutoPanel key={initialUrl ?? ""} target="basemap" onDetected={handleDetected} initialUrl={initialUrl} />
           ) : type === "qms" ? (
-            <NextGisQmsSearchPanel onSave={(source) => { onSave(source); onOpenChange(false) }} />
+            <div className="space-y-3 min-w-0">
+              {addAsRow}
+              <NextGisQmsSearchPanel onSave={(source) => { onSave(withRole(source, role ?? "basemap")); onOpenChange(false) }} />
+            </div>
           ) : type === "eli" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading the Editor Layer Index…</p>}>
-              <EliSearchPanel mapRef={mapRef} onSave={(source) => { onSave(source); onOpenChange(false) }} />
+              <div className="space-y-3 min-w-0">
+                <div className="flex items-center gap-2 min-w-0" title="As listed: the index marks some layers as overlays, the others are basemaps">
+                  <Label className="text-xs shrink-0">Add as</Label>
+                  <SegmentedToggle value={eliRole} onChange={(v) => setEliRole(v)} options={[{ value: "listed" as const, label: "As listed" }, { value: "basemap" as const, label: "Basemap" }, { value: "overlay" as const, label: "Overlay" }]} />
+                </div>
+                <EliSearchPanel mapRef={mapRef} onSave={(source) => { onSave(eliRole === "listed" ? source : withRole(source, eliRole)); onOpenChange(false) }} />
+              </div>
             </Suspense>
           ) : type === "stac" ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground py-4 text-center">Loading STAC search…</p>}>
@@ -431,14 +452,17 @@ export const CustomBasemapModal: React.FC<{
               onSave={(params) => { onSave({ ...params, opacity: 100 }); fitTo(params.bounds && params.bounds[2] - params.bounds[0] < 300 ? params.bounds : undefined); onOpenChange(false) }}
             />
           ) : type === "wms-picker" ? (
+            <div className="space-y-3 min-w-0">
+            {addAsRow}
             <WmsPickerPanel
               key={detected?.url ?? "manual"}
               initialUrl={detected?.type === "wms-picker" ? detected.url : undefined}
               format="image/png"
               mapCenter={() => { const c = mapRef?.current?.getMap()?.getCenter(); return c ? [c.lng, c.lat] : undefined }}
               tileSize={256}
-              onSave={(params) => { onSave({ ...params, type: "wms" }); onOpenChange(false) }}
+              onSave={(params) => { onSave(withRole({ ...params, type: "wms" as const }, role ?? "basemap")); onOpenChange(false) }}
             />
+            </div>
           ) : (
             <>
               {type === "cog-local" ? (
