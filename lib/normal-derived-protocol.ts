@@ -1,5 +1,5 @@
 import { customScheme, dispatchTile, toBitmap } from "./protocol-registry"
-import { writeTerrarium } from "./elevation-encoding"
+import { terrariumTile } from "./elevation-encoding"
 import { cogProtocol } from "@geomatico/maplibre-cog-protocol"
 import { PMTiles } from "pmtiles"
 import { float32demProtocol, fetchFloat32Raster } from "./float32dem-protocol"
@@ -186,18 +186,22 @@ export async function fetchDecodedTile(
     const bitmap = await loadTileBitmap(url, fetchSignal)
     if (!bitmap) return null
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-    const ctx = canvas.getContext("2d")!
+    // willReadFrequently keeps the canvas in memory: the pixels are read
+    // straight back, and a GPU-backed canvas would upload then download them
+    // (4 ms against 2 ms per 512 px tile, 2026-11-17).
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!
     ctx.drawImage(bitmap, 0, 0)
     const { data, width, height } = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
 
     const elevations = new Float32Array(width * height)
     let valid: Uint8Array | undefined
-    for (let i = 0; i < width * height; i++) {
-      const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2]
-      elevations[i] = encoding === "terrarium"
+    const terrarium = encoding === "terrarium"
+    for (let i = 0, j = 0; i < width * height; i++, j += 4) {
+      const r = data[j], g = data[j + 1], b = data[j + 2]
+      elevations[i] = terrarium
         ? (r * 256 + g + b / 256) - 32768
         : -10000 + (r * 256 * 256 + g * 256 + b) * 0.1
-      if (data[i * 4 + 3] < 255) {
+      if (data[j + 3] < 255) {
         if (!valid) valid = new Uint8Array(width * height).fill(1)
         valid[i] = 0
       }
@@ -563,7 +567,9 @@ export async function runNormalDerivedProtocol(
   const invEwresXscale = 1 / scaledGroundResolutionM
   const invNsresYscale = 1 / scaledGroundResolutionM
 
-  const outData = new Uint8ClampedArray(n * n * 4)
+  // Values first, pixels after: the encode is then one tight loop on its own
+  // (terrariumTile) instead of sitting behind a per-mode callback.
+  const values = new Float64Array(n * n)
   // One window object refilled per pixel, not one allocated per pixel:
   // computeValue reads it synchronously and keeps nothing.
   const window: ElevationWindow = {
@@ -580,25 +586,11 @@ export async function runNormalDerivedProtocol(
       window.a0 = padded[up - 1]; window.a1 = padded[up]; window.a2 = padded[up + 1]
       window.a3 = padded[mid - 1]; window.a4 = padded[mid]; window.a5 = padded[mid + 1]
       window.a6 = padded[down - 1]; window.a7 = padded[down]; window.a8 = padded[down + 1]
-      writeTerrarium(outData, (row * n + col) * 4, computeValue(window))
+      values[row * n + col] = computeValue(window)
     }
   }
 
-  return { data: await toTileImage(outData, n, n) }
-}
-
-export interface RunWindowedProtocolParams {
-  url: string
-  urlRegex: RegExp
-  abortController: AbortController
-  cache: Map<string, Promise<DecodedTile | null>>
-  /** Border width (in pixels) needed around each output pixel — see fetchPaddedElevationGrid. */
-  halo: number
-  /** Called once per output pixel. `sample(dr, dc)` reads the elevation at
-   *  (row+dr, col+dc) relative to the pixel, for |dr|,|dc| <= halo — the
-   *  arbitrary-window equivalent of runNormalDerivedProtocol's fixed ElevationWindow,
-   *  for modes (currently only blobness) whose kernel doesn't fit in a 3x3 window. */
-  computeValue: (sample: (dr: number, dc: number) => number, groundResolutionM: number) => number
+  return { data: await toTileImage(terrariumTile(values), n, n) }
 }
 
 // Hands control back to the browser's main-thread event loop (a macrotask, not
@@ -611,57 +603,27 @@ export interface RunWindowedProtocolParams {
 // registering immediately. Yielding every YIELD_EVERY_ROWS rows interleaves
 // this work with the rest of the event loop without changing its total cost.
 export const YIELD_EVERY_ROWS = 16
+// Not setTimeout(0): browsers clamp nested timeouts to 4 ms, so a 512 px
+// tile yielding every 16 rows waited 32 x 4 = about 130 ms doing nothing,
+// on top of its compute (Blobness: 315 ms a tile, of which 160 ms of work,
+// 2026-11-17). scheduler.yield() where it exists, else a MessageChannel
+// task: both are real macrotasks (input and rendering still get their turn)
+// with no minimum delay.
+const yieldChannel = typeof MessageChannel !== "undefined" ? new MessageChannel() : null
+const yieldResolvers: Array<() => void> = []
+if (yieldChannel) yieldChannel.port1.onmessage = () => { yieldResolvers.shift()?.() }
 export function yieldToMainThread(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler
+  if (scheduler?.yield) return scheduler.yield()
+  if (!yieldChannel) return new Promise((resolve) => setTimeout(resolve, 0))
+  return new Promise((resolve) => { yieldResolvers.push(resolve); yieldChannel.port2.postMessage(0) })
 }
 
-/** Same URL scheme and tile-fetch pipeline as runNormalDerivedProtocol, generalized
- *  to an arbitrary halo instead of always fetching/exposing a fixed 3x3 window. */
-export async function runWindowedProtocol(
-  params: RunWindowedProtocolParams,
-): Promise<{ data: TileImage }> {
-  const { url, urlRegex, abortController, cache, halo, computeValue } = params
-  const match = url.match(urlRegex)
-  if (!match) throw new Error(`Invalid normal-derived protocol URL: ${url}`)
-  const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
-  const encoding = encodingRaw as UpstreamEncoding
-  const n = parseInt(tileSizeStr, 10)
-  const upstreamTemplate = decodeURIComponent(encodedTemplate)
-  const z = parseInt(zStr, 10)
-  const x = parseInt(xStr, 10)
-  const y = parseInt(yStr, 10)
-  const worldSize = 1 << z
-
-  const { padded, stride } = await fetchPaddedElevationGrid(
-    cache, upstreamTemplate, encoding, z, x, y, n, abortController.signal, halo,
-  )
-
-  const groundResolutionM = EARTH_CIRCUMFERENCE_M / (n * worldSize)
-  const latCenterRad = tileRowToLatRad(y + 0.5, z)
-  const scale = Math.cos(latCenterRad)
-  const scaledGroundResolutionM = groundResolutionM * scale
-
-  const outData = new Uint8ClampedArray(n * n * 4)
-  // One sampler for the whole tile, re-aimed per pixel through `base`, instead
-  // of a closure allocated per pixel.
-  let base = 0
-  const sample = (dr: number, dc: number) => padded[base + dr * stride + dc]
-  for (let row = 0; row < n; row++) {
-    // See the identical note in horizon-angle.ts's own row loop: not bailing
-    // out on abort here so a toggle-off mid-tile still finishes and lands in
-    // withTileResultCache instead of being thrown away — the upstream fetch
-    // (the only genuinely cancel-worthy part) is already done by this point.
-    if (row > 0 && row % YIELD_EVERY_ROWS === 0) {
-      await yieldToMainThread()
-    }
-    const pr = row + halo
-    for (let col = 0; col < n; col++) {
-      base = pr * stride + col + halo
-      writeTerrarium(outData, (row * n + col) * 4, computeValue(sample, scaledGroundResolutionM))
-    }
-  }
-
-  return { data: await toTileImage(outData, n, n) }
+/** Mercator-corrected ground size of one pixel of an n-px tile at z/x/y, in
+ *  metres, at the tile's centre latitude: the figure every kernel divides by. */
+export function tileGroundResolutionM(n: number, z: number, y: number): number {
+  const groundResolutionM = EARTH_CIRCUMFERENCE_M / (n * (1 << z))
+  return groundResolutionM * Math.cos(tileRowToLatRad(y + 0.5, z))
 }
 
 /** Ported from lib/slope-protocol.ts's Horn-kernel dx/dy — shared by aspect (which

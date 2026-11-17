@@ -23,9 +23,9 @@
 // pays for the coarse fetch once, unlike a same-zoom box blur which can't share any
 // work between neighboring output tiles.
 
-import { elevationToTerrarium } from "./elevation-encoding"
+import { pixelView, writeTerrariumPx } from "./elevation-encoding"
 import {
-  sharedTileCache, fetchDecodedTile, fetchPaddedElevationGrid, bilinearSamplePadded,
+  sharedTileCache, fetchDecodedTile, fetchPaddedElevationGrid,
   buildProtocolUrl, type UpstreamEncoding, type DecodedTile,
 } from "./normal-derived-protocol"
 import { toTileImage, type TileImage } from "./tile-image"
@@ -166,21 +166,34 @@ export async function lrmProtocol(
   // k=6, which on steep terrain reads as a strong, aspect-correlated relief bias
   // rather than genuine local relief (confirmed empirically: this fix takes the
   // correlation between LRM and local slope gradient from -0.3..-0.6 to ~0).
+  //
+  // The bilinear read is bilinearSamplePadded (normal-derived-protocol.ts)
+  // unrolled: where a pixel lands in the ancestor grid depends on its column
+  // or its row alone, so the two cells and the weight are worked out once per
+  // column and once per row instead of once per pixel, with the same
+  // arithmetic in the same order (identical tiles, 2026-11-17).
+  const { padded, stride } = ancestorGrid
+  const maxIndex = stride - 1
+  const clampIndex = (v: number) => Math.min(Math.max(v, 0), maxIndex)
+  const colX0 = new Int32Array(n), colX1 = new Int32Array(n), colFx = new Float64Array(n)
+  for (let col = 0; col < n; col++) {
+    const gx = (xOffsetTiles * n + col + 0.5) / scale - 0.5 + 1
+    const x0 = Math.floor(gx)
+    colX0[col] = clampIndex(x0); colX1[col] = clampIndex(x0 + 1); colFx[col] = gx - x0
+  }
+  const fine = centerTile.data, fineWidth = centerTile.width
   const outData = new Uint8ClampedArray(n * n * 4)
+  const out32 = pixelView(outData)
   for (let row = 0; row < n; row++) {
-    const ancestorPxY = (yOffsetTiles * n + row + 0.5) / scale - 0.5
+    const gy = (yOffsetTiles * n + row + 0.5) / scale - 0.5 + 1
+    const y0 = Math.floor(gy)
+    const fy = gy - y0
+    const row0 = clampIndex(y0) * stride, row1 = clampIndex(y0 + 1) * stride
     for (let col = 0; col < n; col++) {
-      const ancestorPxX = (xOffsetTiles * n + col + 0.5) / scale - 0.5
-      const coarseElevation = bilinearSamplePadded(ancestorGrid, ancestorPxX, ancestorPxY)
-      const fineElevation = centerTile.data[row * centerTile.width + col]
-      const lrm = fineElevation - coarseElevation
-
-      const [r, g, b, alpha] = elevationToTerrarium(lrm)
-      const idx = (row * n + col) * 4
-      outData[idx] = r
-      outData[idx + 1] = g
-      outData[idx + 2] = b
-      outData[idx + 3] = alpha
+      const x0 = colX0[col], x1 = colX1[col], fx = colFx[col]
+      const coarseElevation = padded[row0 + x0] * (1 - fx) * (1 - fy) + padded[row0 + x1] * fx * (1 - fy)
+        + padded[row1 + x0] * (1 - fx) * fy + padded[row1 + x1] * fx * fy
+      writeTerrariumPx(outData, out32, row * n + col, fine[row * fineWidth + col] - coarseElevation)
     }
   }
 

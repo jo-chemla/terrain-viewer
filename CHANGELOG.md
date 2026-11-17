@@ -15,6 +15,7 @@
 - Tile seams: panning cancelled the shared fetch of a neighbour tile that visible tiles were still waiting on, so they drew an edge band as wide as their search radius, or failed. A shared fetch now stops only when every tile waiting on it is gone, and a cancelled tile never produces a result.
 - Native Terrain Draping (Settings, Streaming, on by default) uses MapLibre's experimental renderToTerrainTile for live Phong and Matcap. Turn it off to go back to the previous drape, where the app builds its own terrain mesh every frame.
 - Contours: minor lines are drawn from tile zoom 6 instead of 10. A tilted view loads lower-zoom tiles toward the horizon, which used to show major lines only there. The globe view still shows major lines only.
+- A third pass on tile speed, same pixels: Blobness 325 to 50 ms per 512 px tile (gradients computed once per cell, not nine times per pixel), DEM difference 142 to 30, LRM 58 to 15, Slope 75 to 40, terrain Shadows 280 to 122, the 3x3 modes about a third faster. Two causes shared by every mode: writing a pixel as four clamped bytes (now one 32-bit store), and yielding with `setTimeout(0)`, which browsers clamp to 4 ms, so a tile waited about 130 ms doing nothing (now `scheduler.yield()`).
 - Contours: the Minor slider starts at Off, which draws major lines only, with the Major slider then picking an interval in metres (`contourMinor=0`).
 - The hourglass marks on Sky View Factor, Openness, Local Dominance and terrain Shadows are gone.
 

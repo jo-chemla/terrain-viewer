@@ -1,4 +1,4 @@
-import { elevationToTerrainrgb } from "./elevation-encoding"
+import { pixelView, writeTerrainrgbPx } from "./elevation-encoding"
 import { toTileImage, type TileImage } from "./tile-image"
 import { sharedTileCache, fetchDecodedTile } from "./normal-derived-protocol"
 import { TITILER_CACHE_KEY } from "./titiler-health"
@@ -932,6 +932,7 @@ export async function vrtProtocol(
   if (!grid) throw new TileNotFound(params.url)
 
   const out = new Uint8ClampedArray(TILE_SIZE * TILE_SIZE * 4)
+  const out32 = pixelView(out)
   for (let i = 0; i < grid.length; i++) {
     const value = grid[i]
     const hole = !Number.isFinite(value)
@@ -939,10 +940,7 @@ export async function vrtProtocol(
     // transparent pixel premultiplies to RGB 0, which in Terrain-RGB is
     // -10 000 m, so a nodata edge would draw a 10 km cliff. See
     // /docs/dev/demdiff-protocol.
-    const [r8, g8, b8] = elevationToTerrainrgb(hole ? 0 : value)
-    const o = i * 4
-    out[o] = r8; out[o + 1] = g8; out[o + 2] = b8
-    out[o + 3] = hole ? 254 : 255
+    writeTerrainrgbPx(out, out32, i, hole ? 0 : value, hole ? 254 : 255)
   }
   return { data: await toTileImage(out, TILE_SIZE, TILE_SIZE) }
 }

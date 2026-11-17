@@ -14,7 +14,7 @@
 // exactly at a level gave degenerate "ele 0" features. With `fill=rrggbb&a=`
 // the tile is instead a raster fill: clear below, the colour above, from the
 // same pixels the outline comes from, so the fill stops at the line.
-import { elevationToTerrarium } from "./elevation-encoding"
+import { elevationToTerrarium, pixelView } from "./elevation-encoding"
 import { sharedTileCache, fetchDecodedTile, buildProtocolUrl, type UpstreamEncoding } from "./normal-derived-protocol"
 import { fetchTileBitmap } from "./protocol-registry"
 import { toTileImage, type TileImage } from "./tile-image"
@@ -57,18 +57,27 @@ export async function thresholdProtocol(
   const out = new Uint8ClampedArray(n * n * 4)
   const upstreamUrl = decodeURIComponent(encodedTemplate).replace("{z}", zStr).replace("{x}", xStr).replace("{y}", yStr)
   const tile = await fetchDecodedTile(sharedTileCache, upstreamUrl, encoding, abortController.signal)
-  for (let i = 0; i < n * n; i++) {
-    let above = false
-    if (tile) {
-      // The upstream may come at another size; nearest sample.
-      const sx = Math.min(tile.width - 1, Math.floor(((i % n) + 0.5) * tile.width / n))
-      const sy = Math.min(tile.height - 1, Math.floor((Math.floor(i / n) + 0.5) * tile.height / n))
-      const j = sy * tile.width + sx
-      const e = tile.data[j]
-      above = Number.isFinite(e) && (!tile.valid || tile.valid[j] !== 0) && e >= value
+  // The upstream may come at another size; nearest sample, its column worked
+  // out once per column.
+  // The two possible pixels, each as one 32-bit store where that is possible.
+  const out32 = pixelView(out)
+  const packed0 = ((alpha0 << 24) | (b0 << 16) | (g0 << 8) | r0) >>> 0, packed1 = ((alpha1 << 24) | (b1 << 16) | (g1 << 8) | r1) >>> 0
+  const sxOf = new Int32Array(n)
+  if (tile) for (let col = 0; col < n; col++) sxOf[col] = Math.min(tile.width - 1, Math.floor((col + 0.5) * tile.width / n))
+  for (let row = 0; row < n; row++) {
+    const rowBase = tile ? Math.min(tile.height - 1, Math.floor((row + 0.5) * tile.height / n)) * tile.width : 0
+    for (let col = 0; col < n; col++) {
+      let above = false
+      if (tile) {
+        const j = rowBase + sxOf[col]
+        const e = tile.data[j]
+        above = Number.isFinite(e) && (!tile.valid || tile.valid[j] !== 0) && e >= value
+      }
+      if (out32) { out32[row * n + col] = above ? packed1 : packed0; continue }
+      const o = (row * n + col) * 4
+      if (above) { out[o] = r1; out[o + 1] = g1; out[o + 2] = b1; out[o + 3] = alpha1 }
+      else { out[o] = r0; out[o + 1] = g0; out[o + 2] = b0; out[o + 3] = alpha0 }
     }
-    const o = i * 4
-    out[o] = above ? r1 : r0; out[o + 1] = above ? g1 : g0; out[o + 2] = above ? b1 : b0; out[o + 3] = above ? alpha1 : alpha0
   }
   return { data: await toTileImage(out, n) }
 }

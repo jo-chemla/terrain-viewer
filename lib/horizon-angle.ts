@@ -19,8 +19,8 @@ import type { TileImage } from "./tile-image"
 // angles, so upgrading is additive, not a rewrite.
 //
 // PERFORMANCE — "fast" precision. The precise path above fetches a native-
-// resolution halo `radiusPx` wide around the tile (runWindowedProtocol/
-// fetchPaddedElevationGrid) — fine at small radii, but at a large one (32-64px)
+// resolution halo `radiusPx` wide around the tile
+// (fetchPaddedElevationGrid) — fine at small radii, but at a large one (32-64px)
 // that's a lot of same-zoom neighbor-tile data to fetch and march through, per
 // output tile. lib/local-dominance-protocol.ts sidesteps the equivalent cost for
 // its own "look at neighbors at increasing radii" quantity via the tile pyramid:
@@ -139,7 +139,7 @@ export async function runHorizonAngleProtocol(params: RunHorizonAngleProtocolPar
 
   const [nearGrid, farRings] = await Promise.all([nearGridPromise, Promise.all(farRingPromises)])
 
-  // Same Mercator-corrected per-tile ground resolution runWindowedProtocol computes.
+  // Same Mercator-corrected per-tile ground resolution tileGroundResolutionM computes.
   const EARTH_CIRCUMFERENCE_M = 2 * Math.PI * 6378137
   const worldSize = 1 << z
   const groundResolutionM = (EARTH_CIRCUMFERENCE_M / (n * worldSize)) * Math.cos(tileRowToLatRad(y + 0.5, z))

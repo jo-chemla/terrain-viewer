@@ -1,6 +1,7 @@
 import { fromArrayBuffer, type GeoTIFFImage } from "geotiff"
 import { NODATA_FILL_PARAM, NODATA_FLOOR_PARAM, resolveNodata, isSentinel } from "./nodata"
 import { toTileImage, type TileImage } from "./tile-image"
+import { pixelView, writeTerrariumPx } from "./elevation-encoding"
 
 /**
  * geotiff's readRasters, tolerant of SPARSE tiled/stripped files. ArcGIS
@@ -506,18 +507,14 @@ export async function float32demProtocol(
   // height = (R*256 + G + B/256) - 32768, so R/G pack the integer meters (16-bit split
   // across two bytes) and B packs the sub-meter fraction at 1/256m resolution.
   const rgbaData = new Uint8ClampedArray(width * height * 4)
+  const rgba32 = pixelView(rgbaData)
   for (let i = 0; i < elevationData.length; i++) {
     let elevation = elevationData[i]
     if (!isFinite(elevation)) elevation = 0
-    const v = elevation + 32768
-    const intPart = Math.floor(v)
-    rgbaData[i * 4 + 0] = Math.floor(intPart / 256) & 0xff
-    rgbaData[i * 4 + 1] = intPart & 0xff
-    rgbaData[i * 4 + 2] = Math.floor((v - intPart) * 256) & 0xff
     // A hole keeps the fill height (MapLibre reads only the colour channels, so
     // terrain stays level there) with alpha 254, which the app's own decoders
     // read as nodata - the convention of the COG reader and demdiff tiles.
-    rgbaData[i * 4 + 3] = hole?.[i] ? 254 : 255
+    writeTerrariumPx(rgbaData, rgba32, i, elevation, hole?.[i] ? 254 : 255)
   }
 
   return { data: await toTileImage(rgbaData, width, height) }

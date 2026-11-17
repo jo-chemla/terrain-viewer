@@ -1,5 +1,5 @@
-import { elevationToTerrainrgb } from "./elevation-encoding"
-import { sharedTileCache, fetchDecodedTile as fetchDecodedTileShared } from "./normal-derived-protocol"
+import { pixelView, writeTerrainrgbPx } from "./elevation-encoding"
+import { sharedTileCache, fetchPaddedElevationGrid } from "./normal-derived-protocol"
 import { toTileImage, type TileImage } from "./tile-image"
 
 // Client-side slope-angle tile computation, registered as the `slope://` maplibre
@@ -37,29 +37,6 @@ export function buildSlopeProtocolUrl(upstreamTileTemplate: string, encoding: "t
   return `slope://${encoding}/${tileSize}/${encodeURIComponent(upstreamTileTemplate)}/{z}/{x}/{y}`
 }
 
-// -------------------------
-// Decoded-tile cache — shared with aspect/tri/curvature-protocol.ts (see
-// lib/normal-derived-protocol.ts): when more than one of these is active at once
-// they're all decoding the exact same upstream tiles, so sharing the cache means
-// the expensive fetch+decode step happens once per tile no matter how many
-// derived layers are turned on.
-// -------------------------
-
-type DecodedTile = { data: Float32Array; width: number; height: number }
-
-function fetchDecodedTile(url: string, encoding: "terrarium" | "mapbox", signal: AbortSignal): Promise<DecodedTile | null> {
-  return fetchDecodedTileShared(sharedTileCache, url, encoding, signal)
-}
-
-// -------------------------
-// Tile math helpers
-// -------------------------
-
-function wrapTileX(x: number, z: number): number {
-  const size = 1 << z
-  return ((x % size) + size) % size
-}
-
 // Web Mercator tile-row -> latitude (radians) of the tile's top edge; standard inverse
 // Mercator formula. y+0.5 gives the tile's vertical center.
 function tileRowToLatRad(y: number, z: number): number {
@@ -89,59 +66,10 @@ export async function slopeProtocol(
   const y = parseInt(yStr, 10)
   const worldSize = 1 << z
 
-  const upstreamUrl = (tx: number, ty: number) =>
-    upstreamTemplate.replace("{z}", String(z)).replace("{x}", String(tx)).replace("{y}", String(ty))
-
-  // Fetch center + 8 neighbors concurrently. Tiles beyond the poles (ty out of range)
-  // are skipped up front — there's no data there, so we fall back to edge replication.
-  const tilePromises = new Map<string, Promise<DecodedTile | null>>()
-  for (let tdy = -1; tdy <= 1; tdy++) {
-    const ty = y + tdy
-    if (ty < 0 || ty >= worldSize) continue
-    for (let tdx = -1; tdx <= 1; tdx++) {
-      const tx = wrapTileX(x + tdx, z)
-      tilePromises.set(`${tdx},${tdy}`, fetchDecodedTile(upstreamUrl(tx, ty), encoding, abortController.signal))
-    }
-  }
-
-  const resolved = new Map<string, DecodedTile | null>()
-  await Promise.all(
-    Array.from(tilePromises.entries()).map(async ([key, promise]) => {
-      resolved.set(key, await promise)
-    }),
-  )
-
-  // Cancelled: its halo may hold edge-clamped stand-ins (see fetchDecodedTile).
-  if (abortController.signal.aborted) throw new DOMException("Aborted", "AbortError")
-  const centerTile = resolved.get("0,0")
-  if (!centerTile) throw new Error(`Failed to fetch center slope source tile at ${z}/${x}/${y}`)
-
-  // Resolved once, not per pixel (the template-string Map lookup per pixel was
-  // most of this mode's time, 2026-11-16); indexed [tdy + 1][tdx + 1].
-  const sources: DecodedTile[][] = [-1, 0, 1].map((tdy) => [-1, 0, 1].map((tdx) => resolved.get(`${tdx},${tdy}`) ?? centerTile))
-  const sampleElevation = (tdx: number, tdy: number, row: number, col: number): number => {
-    const source = sources[tdy + 1][tdx + 1]
-    const r = Math.min(Math.max(row, 0), source.height - 1)
-    const c = Math.min(Math.max(col, 0), source.width - 1)
-    return source.data[r * source.width + c]
-  }
-
-  // Stitch into a padded (n+2)x(n+2) buffer: row/col 0 and n+1 are the one-pixel
-  // border sampled from neighbor tiles (or replicated from the center tile's own
-  // edge when a neighbor is missing).
-  const stride = n + 2
-  const padded = new Float32Array(stride * stride)
-  for (let pr = 0; pr < stride; pr++) {
-    const globalRow = pr - 1
-    const tdy = globalRow < 0 ? -1 : globalRow >= n ? 1 : 0
-    const srcRow = globalRow - tdy * n
-    for (let pc = 0; pc < stride; pc++) {
-      const globalCol = pc - 1
-      const tdx = globalCol < 0 ? -1 : globalCol >= n ? 1 : 0
-      const srcCol = globalCol - tdx * n
-      padded[pr * stride + pc] = sampleElevation(tdx, tdy, srcRow, srcCol)
-    }
-  }
+  // Centre tile + 8 neighbours, stitched into a padded (n+2)x(n+2) buffer by
+  // the pipeline every other derived mode uses (shared decoded-tile cache,
+  // edge replication where a neighbour is missing, one GetMap for a WMS).
+  const { padded, stride } = await fetchPaddedElevationGrid(sharedTileCache, upstreamTemplate, encoding, z, x, y, n, abortController.signal)
 
   // Mercator scale correction: ground distance per pixel shrinks by cos(lat) away
   // from the equator. gdaldem's xscale/yscale are "ratio of vertical to horizontal
@@ -155,6 +83,7 @@ export async function slopeProtocol(
   const invNsresYscale = 1 / (groundResolutionM * scale)
 
   const outData = new Uint8ClampedArray(n * n * 4)
+  const out32 = pixelView(outData)
   for (let row = 0; row < n; row++) {
     const pr = row + 1
     for (let col = 0; col < n; col++) {
@@ -177,12 +106,7 @@ export async function slopeProtocol(
       const key = dx * dx + dy * dy
       const slopeDegrees = Math.atan(Math.sqrt(key) * (1 / 8)) * RAD_TO_DEG
 
-      const [r, g, b, alpha] = elevationToTerrainrgb(slopeDegrees)
-      const idx = (row * n + col) * 4
-      outData[idx] = r
-      outData[idx + 1] = g
-      outData[idx + 2] = b
-      outData[idx + 3] = alpha
+      writeTerrainrgbPx(outData, out32, row * n + col, slopeDegrees)
     }
   }
 

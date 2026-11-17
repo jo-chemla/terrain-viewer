@@ -3,8 +3,8 @@
 // the shared pipeline. Unlike TRI/TPI/Roughness (plain 3x3 neighborhood
 // aggregations), blobness needs the Horn gradient *at* each of the 9 cells of a
 // 3x3 neighborhood, and each of those gradients itself needs its own 3x3
-// neighborhood — so it reads a 5x5 (halo=2) window via runWindowedProtocol rather
-// than runNormalDerivedProtocol's fixed 3x3 ElevationWindow.
+// neighborhood — so it reads a 5x5 (halo=2) window (its own tile loop,
+// blobnessProtocol below) rather than runNormalDerivedProtocol's fixed 3x3 ElevationWindow.
 //
 // This is the Förstner/Harris-style structure tensor: J = [[Ixx, Ixy], [Ixy, Iyy]]
 // where Ixx/Iyy/Ixy are the 3x3-box-averaged gx², gy², gx·gy (gx, gy the Horn
@@ -33,9 +33,10 @@
 //    blob has no dominant axis).
 
 import {
-  sharedTileCache, runWindowedProtocol, buildProtocolUrl, RAD_TO_DEG, type UpstreamEncoding,
+  sharedTileCache, fetchPaddedElevationGrid, tileGroundResolutionM, buildProtocolUrl, RAD_TO_DEG, type UpstreamEncoding,
 } from "./normal-derived-protocol"
-import type { TileImage } from "./tile-image"
+import { pixelView, writeTerrariumPx } from "./elevation-encoding"
+import { toTileImage, type TileImage } from "./tile-image"
 
 export type BlobnessMode = "blobness" | "eigen-ratio" | "orientation"
 
@@ -97,7 +98,12 @@ function computeStructureTensor(
 const BLOBNESS_SCALE = 100 / 64
 
 export function computeBlobness(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
-  const { Ixx, Iyy, Ixy, trace } = computeStructureTensor(sample, groundResolutionM)
+  const { Ixx, Iyy, Ixy } = computeStructureTensor(sample, groundResolutionM)
+  return blobnessFromTensor(Ixx, Iyy, Ixy)
+}
+
+function blobnessFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
+  const trace = Ixx + Iyy
   if (trace < 1e-9) return 0 // flat ground — undefined direction, treat as no blobness
   const det = Ixx * Iyy - Ixy * Ixy
   return (det / trace) * BLOBNESS_SCALE
@@ -109,8 +115,8 @@ export function computeBlobness(sample: (dr: number, dc: number) => number, grou
 // Ixx/Iyy/Ixy cancels out in this ratio (both eigenvalues scale by the same
 // factor), so — unlike computeBlobness — no BLOBNESS_SCALE-style correction is
 // needed here.
-function computeBlobnessEigenRatio(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
-  const { Ixx, Iyy, Ixy, trace } = computeStructureTensor(sample, groundResolutionM)
+function eigenRatioFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
+  const trace = Ixx + Iyy
   if (trace < 1e-9) return 0 // flat ground — undefined shape, treat as maximally linear/0
   const disc = Math.sqrt((Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy)
   const lambdaMax = (trace + disc) / 2
@@ -127,31 +133,75 @@ function computeBlobnessEigenRatio(sample: (dr: number, dc: number) => number, g
 // transform (mathDeg -> 90-mathDeg) purely for convention consistency with the
 // rest of this app's directional modes, then folded mod 180 (not 360) since only
 // the axis, not which end of it, is meaningful here.
-function computeBlobnessOrientation(sample: (dr: number, dc: number) => number, groundResolutionM: number): number {
-  const { Ixx, Iyy, Ixy, trace } = computeStructureTensor(sample, groundResolutionM)
+function orientationFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
+  const trace = Ixx + Iyy
   if (trace < 1e-9) return 0 // flat ground — no dominant axis
   const mathDeg = 0.5 * Math.atan2(2 * Ixy, Ixx - Iyy) * RAD_TO_DEG
   const compassDeg = 90 - mathDeg
   return ((compassDeg % 180) + 180) % 180
 }
 
+// One tile. The structure tensor of a pixel averages gx², gy² and gx·gy over
+// its 3x3 neighbours, and neighbouring pixels share six of those nine
+// gradients, so the Horn gradient is computed ONCE per cell into two grids
+// (the tile plus a one-pixel ring) and each pixel then sums nine products.
+// The first version called a sampling closure 72 times per pixel (nine Horn
+// kernels of eight reads): 160 ms of compute per 512 px tile, plus 130 ms of
+// timer waits from yielding. Same operations in the same order, so the tile
+// is bit for bit the same (2026-11-17).
 export async function blobnessProtocol(
   params: { url: string },
   abortController: AbortController,
 ): Promise<{ data: TileImage }> {
-  const modeMatch = params.url.match(BLOBNESS_URL_RE)
-  const mode = (modeMatch?.[7] as BlobnessMode) ?? "blobness"
+  const match = params.url.match(BLOBNESS_URL_RE)
+  if (!match) throw new Error(`Invalid blobness protocol URL: ${params.url}`)
+  const [, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr, modeRaw] = match
+  const mode = (modeRaw as BlobnessMode) ?? "blobness"
+  const n = parseInt(tileSizeStr, 10)
+  const z = parseInt(zStr, 10), x = parseInt(xStr, 10), y = parseInt(yStr, 10)
+  const HALO = 2
+  const { padded, stride } = await fetchPaddedElevationGrid(
+    sharedTileCache, decodeURIComponent(encodedTemplate), encodingRaw as UpstreamEncoding, z, x, y, n, abortController.signal, HALO,
+  )
+  const invGroundResolutionM = 1 / tileGroundResolutionM(n, z, y)
 
-  return runWindowedProtocol({
-    url: params.url,
-    urlRegex: BLOBNESS_URL_RE,
-    abortController,
-    cache: sharedTileCache,
-    halo: 2,
-    computeValue: (sample, groundResolutionM) => {
-      if (mode === "eigen-ratio") return computeBlobnessEigenRatio(sample, groundResolutionM)
-      if (mode === "orientation") return computeBlobnessOrientation(sample, groundResolutionM)
-      return computeBlobness(sample, groundResolutionM)
-    },
-  })
+  // Gradient grids over the tile and a one-pixel ring: cell (gr, gc) is the
+  // padded cell (gr + 1, gc + 1). Float64, as the closure version kept them.
+  const gStride = n + 2
+  const gxGrid = new Float64Array(gStride * gStride)
+  const gyGrid = new Float64Array(gStride * gStride)
+  for (let gr = 0; gr < gStride; gr++) {
+    const up = gr * stride, mid = up + stride, down = mid + stride
+    for (let gc = 0; gc < gStride; gc++) {
+      const l = gc, c = gc + 1, r = gc + 2
+      gxGrid[gr * gStride + gc] = (
+        padded[up + l] + 2 * padded[mid + l] + padded[down + l]
+        - (padded[up + r] + 2 * padded[mid + r] + padded[down + r])
+      ) * invGroundResolutionM
+      gyGrid[gr * gStride + gc] = (
+        padded[down + l] + 2 * padded[down + c] + padded[down + r]
+        - (padded[up + l] + 2 * padded[up + c] + padded[up + r])
+      ) * invGroundResolutionM
+    }
+  }
+
+  const fromTensor = mode === "eigen-ratio" ? eigenRatioFromTensor : mode === "orientation" ? orientationFromTensor : blobnessFromTensor
+  const outData = new Uint8ClampedArray(n * n * 4)
+  const out32 = pixelView(outData)
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      let sumGxGx = 0, sumGyGy = 0, sumGxGy = 0
+      for (let dr = 0; dr < 3; dr++) {
+        const base = (row + dr) * gStride + col
+        for (let dc = 0; dc < 3; dc++) {
+          const gx = gxGrid[base + dc], gy = gyGrid[base + dc]
+          sumGxGx += gx * gx
+          sumGyGy += gy * gy
+          sumGxGy += gx * gy
+        }
+      }
+      writeTerrariumPx(outData, out32, row * n + col, fromTensor(sumGxGx / 9, sumGyGy / 9, sumGxGy / 9))
+    }
+  }
+  return { data: await toTileImage(outData, n, n) }
 }

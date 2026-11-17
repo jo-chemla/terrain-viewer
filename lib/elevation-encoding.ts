@@ -25,6 +25,84 @@ export function writeTerrarium(out: Uint8ClampedArray, idx: number, elevation: n
   out[idx + 3] = 255
 }
 
+// ---------------------------------------------------------------------------
+// Whole-pixel writers for per-pixel loops.
+//
+// Storing four numbers one by one into a Uint8ClampedArray is the slow part
+// of every derived tile: each store converts a double with clamping, and the
+// Terrarium green byte is a floating-point modulo. Measured on a 512 px tile
+// (2026-11-17): 13.5 ms for the encode alone, against 2.9 ms for a Laplacian
+// kernel feeding it. For a value inside the encoding's range the same four
+// bytes are integer shifts of floor(v), written as ONE 32-bit store through
+// a Uint32Array view of the same buffer: 3.9 ms, byte for byte identical.
+// Out-of-range and NaN values take the old clamped path, so they still
+// saturate exactly as before. The 32-bit store assumes little-endian byte
+// order (every platform a browser runs on); pixelView() returns null on a
+// big-endian one and callers fall back to the byte writers.
+
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1
+
+/** A Uint32Array over an RGBA buffer, one element per pixel, or null where
+ *  the fast writers cannot be used. */
+export function pixelView(out: Uint8ClampedArray): Uint32Array | null {
+  return LITTLE_ENDIAN ? new Uint32Array(out.buffer, out.byteOffset, out.byteLength >> 2) : null
+}
+
+/** writeTerrarium for pixel p (not byte index), with the given alpha (255,
+ *  or 254 for a nodata hole). */
+export function writeTerrariumPx(out: Uint8ClampedArray, out32: Uint32Array | null, p: number, elevation: number, alpha = 255): void {
+  const v = elevation + 32768
+  if (out32 !== null && v >= 0 && v < 65536) {
+    const whole = v | 0
+    out32[p] = (alpha << 24) | ((((v - whole) * 256) | 0) << 16) | ((whole & 255) << 8) | (whole >>> 8)
+    return
+  }
+  writeTerrarium(out, p * 4, elevation)
+  out[p * 4 + 3] = alpha
+}
+
+/** A whole tile of values as Terrarium RGBA, alpha 255: one tight loop with
+ *  the pixel writer inlined, for kernels that fill a value grid first. */
+export function terrariumTile(values: Float64Array): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(values.length * 4)
+  const out32 = pixelView(out)
+  for (let p = 0; p < values.length; p++) {
+    const v = values[p] + 32768
+    if (out32 !== null && v >= 0 && v < 65536) {
+      const whole = v | 0
+      out32[p] = 0xff000000 | ((((v - whole) * 256) | 0) << 16) | ((whole & 255) << 8) | (whole >>> 8)
+    } else {
+      writeTerrarium(out, p * 4, values[p])
+    }
+  }
+  return out
+}
+
+/** elevationToTerrainrgb for pixel p, with the given alpha (255, or 254 for
+ *  a nodata hole). */
+export function writeTerrainrgbPx(out: Uint8ClampedArray, out32: Uint32Array | null, p: number, elevation: number, alpha = 255): void {
+  const v = (elevation - -10000) / 0.1
+  if (out32 !== null && v >= 0 && v < 16777216) {
+    const whole = v | 0
+    out32[p] = (alpha << 24) | ((whole & 255) << 16) | (whole & 0xff00) | (whole >>> 16)
+    return
+  }
+  const idx = p * 4
+  out[idx] = Math.floor(v / 256 / 256) % 256
+  out[idx + 1] = Math.floor(v / 256) % 256
+  out[idx + 2] = Math.floor(v) % 256
+  out[idx + 3] = alpha
+}
+
+/** elevationToTerrainrgb written straight into an RGBA buffer at `idx`. */
+export function writeTerrainrgb(out: Uint8ClampedArray, idx: number, elevation: number): void {
+  const v = (elevation - -10000) / 0.1
+  out[idx] = Math.floor(v / 256 / 256) % 256
+  out[idx + 1] = Math.floor(v / 256) % 256
+  out[idx + 2] = Math.floor(v) % 256
+  out[idx + 3] = 255
+}
+
 export function elevationToTerrarium(elevation: number): [number, number, number, number] {
   const v = elevation + 32768
   return [

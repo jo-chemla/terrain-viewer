@@ -1,4 +1,4 @@
-import { elevationToTerrainrgb } from "./elevation-encoding"
+import { pixelView, writeTerrainrgbPx } from "./elevation-encoding"
 import { sharedTileCache, fetchDecodedTile, type DecodedTile, type UpstreamEncoding } from "./normal-derived-protocol"
 import { toTileImage, type TileImage } from "./tile-image"
 
@@ -89,6 +89,47 @@ export function sampleOperand(op: Operand | null, row: number, col: number, n: n
   return (v00 * (1 - tx) + v10 * tx) * (1 - ty) + (v01 * (1 - tx) + v11 * tx) * ty
 }
 
+/** sampleOperand for every pixel of an n-px tile at once (NaN = nodata).
+ *  A pixel's two source columns and their weight depend on its column alone,
+ *  and likewise for rows, so they are worked out once per column and per row;
+ *  the arithmetic per pixel is sampleOperand's own, in the same order, so the
+ *  values are identical. Float64, as sampleOperand returns. */
+export function sampleOperandTile(op: Operand | null, n: number): Float64Array {
+  const out = new Float64Array(n * n)
+  if (!op) return out.fill(NaN)
+  const { tile: t, scale, ox, oy } = op
+  const { data, valid, width, height } = t
+  const X0 = new Int32Array(n), X1 = new Int32Array(n), TX = new Float64Array(n)
+  for (let col = 0; col < n; col++) {
+    const fx = ((col + 0.5) / n + ox) / scale * width - 0.5
+    const x0 = Math.max(0, Math.min(width - 1, Math.floor(fx)))
+    X0[col] = x0; X1[col] = Math.min(width - 1, x0 + 1); TX[col] = Math.max(0, Math.min(1, fx - x0))
+  }
+  for (let row = 0; row < n; row++) {
+    const fy = ((row + 0.5) / n + oy) / scale * height - 0.5
+    const y0 = Math.max(0, Math.min(height - 1, Math.floor(fy)))
+    const y1 = Math.min(height - 1, y0 + 1)
+    const ty = Math.max(0, Math.min(1, fy - y0))
+    const r0 = y0 * width, r1 = y1 * width
+    for (let col = 0; col < n; col++) {
+      const i00 = r0 + X0[col], i10 = r0 + X1[col], i01 = r1 + X0[col], i11 = r1 + X1[col]
+      const v00 = data[i00], v10 = data[i10], v01 = data[i01], v11 = data[i11]
+      // A cell counts when it is not masked and inside the DEM range (the
+      // comparisons are false for NaN, as Number.isFinite was).
+      const ok00 = !(valid && !valid[i00]) && v00 >= -1000 && v00 <= 10000
+      if (ok00 && !(valid && !valid[i10]) && v10 >= -1000 && v10 <= 10000
+        && !(valid && !valid[i01]) && v01 >= -1000 && v01 <= 10000
+        && !(valid && !valid[i11]) && v11 >= -1000 && v11 <= 10000) {
+        const tx = TX[col]
+        out[row * n + col] = (v00 * (1 - tx) + v10 * tx) * (1 - ty) + (v01 * (1 - tx) + v11 * tx) * ty
+      } else {
+        out[row * n + col] = ok00 ? v00 : NaN
+      }
+    }
+  }
+  return out
+}
+
 export async function demDiffProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -106,20 +147,18 @@ export async function demDiffProtocol(
   ])
   if (abortController.signal.aborted) throw new Error("aborted")
 
+  const gridA = sampleOperandTile(a, n), gridB = sampleOperandTile(b, n)
   const out = new Uint8ClampedArray(n * n * 4)
-  for (let row = 0; row < n; row++) {
-    for (let col = 0; col < n; col++) {
-      const va = sampleOperand(a, row, col, n), vb = sampleOperand(b, row, col, n)
-      const i = (row * n + col) * 4
-      // A hole is written as 0 m with alpha 254: MapLibre reads the colour
-      // channels and keeps the terrain flat there (a transparent floor pixel
-      // made a 10 km pit along every nodata edge), while this app's decoders
-      // still see the cell as invalid - the same convention as the in-browser
-      // COG reader's own tiles (makeElevationColorFunction in MapSources.tsx).
-      const hole = !(Number.isFinite(va) && Number.isFinite(vb))
-      const [r, g, bl] = elevationToTerrainrgb(hole ? 0 : va - vb + offset)
-      out[i] = r; out[i + 1] = g; out[i + 2] = bl; out[i + 3] = hole ? 254 : 255
-    }
+  const out32 = pixelView(out)
+  for (let p = 0; p < n * n; p++) {
+    const va = gridA[p], vb = gridB[p]
+    // A hole is written as 0 m with alpha 254: MapLibre reads the colour
+    // channels and keeps the terrain flat there (a transparent floor pixel
+    // made a 10 km pit along every nodata edge), while this app's decoders
+    // still see the cell as invalid - the same convention as the in-browser
+    // COG reader's own tiles (makeElevationColorFunction in MapSources.tsx).
+    const hole = !(Number.isFinite(va) && Number.isFinite(vb))
+    writeTerrainrgbPx(out, out32, p, hole ? 0 : va - vb + offset, hole ? 254 : 255)
   }
   return { data: await toTileImage(out, n, n) }
 }

@@ -55,7 +55,7 @@ async function computeNormalPixelsUncached(
 
   const pixels = new Uint8ClampedArray(n * n * 4)
   for (let row = 0; row < n; row++) {
-    // See normal-derived-protocol.ts's runWindowedProtocol for why this
+    // See normal-derived-protocol.ts's yieldToMainThread for why this
     // matters: addProtocol handlers (and this direct-call equivalent) run on
     // the main thread, and a matcap/Phong layer can need several new tiles
     // computed back-to-back right when the user zooms/pans — without

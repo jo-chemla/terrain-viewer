@@ -21,7 +21,7 @@ import { pushToast } from "@/components/ui/toast"
 import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
 import { useCogMetadata, zoomRangeFromMetadata, cogSourceMaxzoomCap, type CogMetadata } from "@/lib/cog-metadata"
-import { elevationToTerrainrgb, elevationToTerrarium, resolveCustomEncoding } from "@/lib/elevation-encoding"
+import { writeTerrainrgb, writeTerrarium, resolveCustomEncoding } from "@/lib/elevation-encoding"
 import { resolveNodata, isSentinel, appendNodataMarkers } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
@@ -67,7 +67,10 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 // `nodata` (floor/fill, in metres, post scale/offset) is the optional per-source
 // override from the source modal — see lib/nodata.ts.
 const makeElevationColorFunction = (
-    encode: (elevation: number) => [number, number, number, number],
+    // Writes the four bytes in place: this runs once per pixel of every COG
+    // tile, and the array an encoder returned (then copied by color.set) was
+    // two allocations per pixel.
+    write: (out: Uint8ClampedArray, idx: number, elevation: number) => void,
     scale = 1,
     offset = 0,
     noData?: number,
@@ -76,15 +79,15 @@ const makeElevationColorFunction = (
     const raw = pixel[0]
     const elevation = offset + raw * scale
     const isHole = isSentinel(raw) || raw === noData || (nodata ? elevation <= nodata.floor : false)
-    if (!isHole) { color.set(encode(elevation)); return }
+    if (!isHole) { write(color, 0, elevation); return }
     // A hole keeps its fill value for MapLibre (which reads RGB only: the
     // terrain stays flat there rather than dropping to the -10000 m floor),
     // but is written with alpha 254 so this app's own decoders
     // (fetchDecodedTile's validity mask) can tell it from real data - the
     // difference source (lib/demdiff-protocol.ts) used to read a local COG's
     // nodata as 0 m and subtract the other operand from nothing.
-    const [r, g, b] = encode(nodata?.fill ?? 0)
-    color.set([r, g, b, 254])
+    write(color, 0, nodata?.fill ?? 0)
+    color[3] = 254
 }
 
 // -------------------------
@@ -279,7 +282,7 @@ export const TerrainSources = memo(({
         setColorFunction(
             resolvedCogUrl,
             makeElevationColorFunction(
-                highResTerrain ? elevationToTerrarium : elevationToTerrainrgb,
+                highResTerrain ? writeTerrarium : writeTerrainrgb,
                 scale, offset, noData, nodata,
             )
         )

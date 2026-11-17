@@ -143,17 +143,12 @@ export async function curvatureProtocol(
     urlRegex: CURVATURE_URL_RE,
     abortController,
     cache: sharedTileCache,
-    computeValue: (w) => {
-      let value: number
-      if (mode === "combined") value = computeCombined(w)
-      else if (mode === "det-hessian") value = computeDetHessian(w)
-      else if (mode === "casorati") value = computeCasorati(w)
-      else if (mode === "shape-index") value = computeShapeIndex(w)
-      else {
-        const { profile, plan } = computeProfileAndPlan(w)
-        value = mode === "profile" ? profile : plan
-      }
-      return value * CURVATURE_ENCODE_SCALE
-    },
+    // The formula is picked once per tile, not once per pixel.
+    computeValue: mode === "combined" ? (w) => computeCombined(w) * CURVATURE_ENCODE_SCALE
+      : mode === "det-hessian" ? (w) => computeDetHessian(w) * CURVATURE_ENCODE_SCALE
+      : mode === "casorati" ? (w) => computeCasorati(w) * CURVATURE_ENCODE_SCALE
+      : mode === "shape-index" ? (w) => computeShapeIndex(w) * CURVATURE_ENCODE_SCALE
+      : mode === "profile" ? (w) => computeProfileAndPlan(w).profile * CURVATURE_ENCODE_SCALE
+      : (w) => computeProfileAndPlan(w).plan * CURVATURE_ENCODE_SCALE,
   })
 }
