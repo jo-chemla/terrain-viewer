@@ -76,5 +76,7 @@ function parseChangelog(text: string): ChangelogEntry[] {
   })
 }
 
-export const CHANGELOG_ENTRIES: ChangelogEntry[] = parseChangelog(raw)
+// An entry without a TL;DR is dev-only (its Details never reach the UI), so it
+// is left out of the app: no "No summary" placeholder, no unseen-changes badge.
+export const CHANGELOG_ENTRIES: ChangelogEntry[] = parseChangelog(raw).filter((e) => e.tldrMarkdown !== "")
 export const LATEST_CHANGELOG_RELEASED_AT = CHANGELOG_ENTRIES[0]?.releasedAt ?? ""

@@ -6,9 +6,7 @@
 
 - **Much faster terrain analysis**: Hard Shadows about 15 times faster per tile, Sky View Factor and Openness 5 to 10 times, Local Dominance about 2 times, and the 3x3 modes (curvature, TPI, TRI, roughness, aspect) 2 to 3 times, with exactly the same pixels.
 - **Off the main thread**: contours and the heavy relief modes (Sky View Factor, Openness, Local Dominance) are computed in background workers, several tiles at once, so panning stays smooth.
-- **No more seams in Openness and Sky View Factor**: tiles no longer show a band along their edges after panning.
 - **Live Phong and Matcap draped by MapLibre**: on 3D terrain they are drawn into MapLibre's terrain tiles only when something changes, instead of every frame.
-- **Even contour spacing in tilted views**: distant tiles keep the minor contour lines instead of dropping to major lines only.
 
 #### Details
 
@@ -22,14 +20,6 @@
 # Changelog — Smoother Terrain, Links That Hold
 
 <!-- released: 2026-11-16 -->
-
-#### TL;DR
-
-- **New national sources**: Hong Kong 0.5 m LiDAR DTM, 5 m DSM and their difference as an nDSM (CEDD 2020), Lithuania's 1 m DTM, and Wales' 1 m LiDAR DTM as one national COG.
-- **Smoother terrain past the source resolution**: GEM-15, the Scotland LiDAR and every VRT source interpolate bilinearly when zoomed past their own pixels, instead of drawing blocky steps.
-- **Links that hold**: a link carrying coverage overlays or drawings no longer crashes a fresh browser, and Esri Wayback no longer leaves a view blank until a pill is moved.
-- **Drawing from a URL**: an imported URL stays in the shared link by default, marked read-only since it is re-fetched on every load, and the last layer can be deleted.
-- **Docs buttons open the app as described**: a page's "Open in app" lands with the right dialog, sources and timeline window, a new page covers MapLibre 6.18 layer blend modes, and the custom protocols page lists every scheme the app registers.
 
 #### Details
 
