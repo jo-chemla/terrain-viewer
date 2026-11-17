@@ -189,3 +189,64 @@ aspect 25. The published changelog table keeps the idle-machine morning run.)
   vector tile parsing share it (the app never calls setWorkerCount). The raster
   pool adds up to 4 (cores - 2, spawned one per concurrent tile), and a local
   COG with contours one more (cog-contour-worker).
+
+## Quiet machine, real Chrome (2026-11-18): the reference numbers
+
+Everything closed but T3, agent-browser (headless Chrome 158, visible tab, see
+[[agent-browser-testing]]), one page on the new build importing the old
+build's modules from its dev server, four passes of "all cases old, then all
+cases new" (the user's wish: blocks, not alternated call by call). Spread
+across passes under 3%. Real Chrome is 3 to 4x faster than the agent preview
+for both builds (no throttled timers), so these do not compare with the tables
+above; ratios do.
+
+| Mode (512 px, median ms) | Before 7156dfd | Now | Gain |
+|---|---|---|---|
+| DEM difference 512 / 256 px | 35.5 / 8.4 | 7.4 / 1.6 | 4.8x / 5.4x |
+| LRM r16 / r64 | 22.8 / 22.3 | 2.5 / 2.6 | 9.1x / 8.7x |
+| Slope | 22.5 | 8.8 | 2.6x |
+| Curvature combined | 25.4 | 6.0 | 4.2x |
+| SVF r8 / r32 | 928 / 2936 | 116 / 242 | 8.0x / 12.1x |
+| Openness r8 / r32 | 894 / 2898 | 94 / 218 | 9.5x / 13.3x |
+| Hard Shadows r16 / r64 | 297 / 712 | 12.6 / 37.6 | 23.5x / 18.9x |
+| Local Dominance 8-32 | 474 | 262 | 1.8x |
+| Blobness | 212 | 8.0 | 26x |
+| Aspect | 32.6 | 12.1 | 2.7x |
+
+Whole run: 6 minutes (plus 2 of setup). Old SVF / Openness return something
+OffscreenCanvas cannot draw, so their hash was not retaken here (identical in
+the interleaved run above).
+
+## What the workers alone buy (2026-11-18, same session)
+
+Raster pool off vs on (`setRasterComputeInWorker`), N tiles requested at once,
+median of 3; "dropped" = frames missed (rAF gaps), longest gap in ms:
+
+| Mode, tiles | Main thread: ms / longest gap / dropped | Pool: ms / gap / dropped |
+|---|---|---|
+| SVF r8, 1 / 4 / 12 | 114 / 83 / 4, 470 / 100 / 19, 1415 / 117 / 65 | 115 / 17 / 0, 144 / 17 / 0, 407 / 17 / 0 |
+| SVF r32, 1 / 4 / 12 | 251 / 100 / 9, 987 / 117 / 46, 2982 / 117 / 148 | 248 / 17 / 0, 279 / 17 / 0, 970 / 17 / 0 |
+| Openness r8, 12 | 1152 / 117 / 55 | 334 / 17 / 0 |
+| Local Dominance, 12 | 3128 / 117 / 155 | 825 / 17 / 0 |
+
+So: one tile costs the same, four tiles finish 3.3 to 3.5x sooner, twelve 3.1
+to 3.8x sooner (4 workers), and the page never misses a frame.
+
+Main-thread modes, 12 tiles at once: slope 107 ms, aspect 141, curvature 73,
+blobness 93, LRM 31, no frame missed (each tile is under 12 ms between
+awaits): a worker would buy nothing. Hard Shadows r64 is the exception: 449 ms,
+longest gap 100 ms, 19 frames missed; it is the one remaining candidate for
+the pool.
+
+Contours, 10-12 tiles on screen (toggle on at z12.6, page reloaded per run, 4 runs):
+
+| Path | Mapterhorn (http) ms | LRM contours ms |
+|---|---|---|
+| Switch off (maplibre-contour's own worker / main thread) | 440 | draws nothing (0 features, see [[contour-worker]]) |
+| MapLibre workers: 1 | 560 | 1500 |
+| 2 | 450 | 1100 |
+| 4 | 440 | 920 |
+
+Frames missed are the same in every row (8 to 13, the toggle's own re-render).
+`src/main.tsx` now calls `setWorkerCount(min(4, cores - 2))` before the first
+map; localStorage `tv-map-workers` (1-8) overrides it for measuring.

@@ -27,7 +27,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { startEmbedBridge } from "@/lib/embed-bridge"
 import { migrateLegacyUrlKeys } from "@/lib/url-keys"
-import { setWorkerUrl, getVersion } from "maplibre-gl"
+import { setWorkerUrl, setWorkerCount, getWorkerCount, getVersion } from "maplibre-gl"
 import maplibrePkg from "maplibre-gl/package.json"
 import { pushToast } from "@/components/ui/toast"
 // MapLibre 6 is ESM-only and, under a bundler, cannot find its own worker
@@ -35,6 +35,21 @@ import { pushToast } from "@/components/ui/toast"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
 
 setWorkerUrl(maplibreWorkerUrl)
+
+// MapLibre keeps ONE worker on Chrome, Edge and Firefox (up to 3 on Safari),
+// shared by every map on the page. Contours are traced there (lib/contour-
+// worker-client.ts), next to vector tile parsing, so a split view or a
+// screenful of contour tiles queued on that single worker. The pool is sized
+// like the raster one (lib/raster-compute-pool.ts): cores minus 2, at most 4.
+// It must be set before the first map exists. localStorage "tv-map-workers"
+// (1 to 8) overrides it, for measuring.
+{
+  let override = NaN
+  try { override = Number(localStorage.getItem("tv-map-workers")) } catch { /* storage blocked */ }
+  const cores = navigator.hardwareConcurrency || 4
+  const wanted = override >= 1 && override <= 8 ? Math.round(override) : Math.max(1, Math.min(4, cores - 2))
+  setWorkerCount(override >= 1 ? wanted : Math.max(getWorkerCount(), wanted))
+}
 
 // Dev only: the main thread's MapLibre comes from Vite's dependency cache,
 // the worker from the installed package. After a bump the cache once kept
