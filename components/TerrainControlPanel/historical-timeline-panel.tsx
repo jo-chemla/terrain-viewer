@@ -3,6 +3,7 @@ import { TIMELINE_CATALOGS, TIMELINE_CATALOG_BY_ID, isStacCatalogId, isStacBacke
 import { timelineFootprintsAtom, timelineWindowFilterAtom, timelineFollowViewportAtom, tickPicksKeepAtom } from "@/lib/settings-atoms"
 import { TickCard } from "./tick-card"
 import { PlanetTileCounter } from "./planet-tile-counter"
+import { NATIONAL_SOURCE_BY_ID } from "@/lib/national-historical"
 import { TimelineCatalogPicker } from "./timeline-catalog-picker"
 import { ELI_BASEMAP_PREFIX, isEliBasemapId, eliLayerIdOf, eliLayerAsBasemap } from "@/lib/eli-timeline"
 import type React from "react"
@@ -1304,7 +1305,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
         setCustomBasemaps((prev) => (prev.some((b) => b.id === tick.ref) ? prev.map((b) => (b.id === tick.ref ? { ...b, role: "overlay" as const, stack: b.stack ?? "top", transient: false } : b)) : [...prev, { ...src, role: "overlay" as const, stack: src.stack ?? "top", transient: false }]))
         const field = which === "A" ? "overlayBasemapIds" : `overlayBasemapIds${which}`
         const current: string[] = state[field] || []
-        if (!current.includes(tick.ref)) setState({ [field]: [...current, tick.ref], ...(state.showRasterBasemap ? {} : { showRasterBasemap: true }) })
+        // The pick goes on top, also when it is already in the stack (it may
+        // sit under a later pick). A catalog whose every layer covers the
+        // whole view (a global mosaic a year: Timelapse) keeps one layer per
+        // view: an earlier year would be hidden under the pick and still load.
+        const cat = catalogOfBasemapId(tick.ref)
+        const replaces = !!NATIONAL_SOURCE_BY_ID[cat]?.complete
+        const next = [...current.filter((id) => id !== tick.ref && !(replaces && isCatalogBasemapId(id) && catalogOfBasemapId(id) === cat)), tick.ref]
+        if (next.length !== current.length || next.some((id, i) => id !== current[i])) setState({ [field]: next, ...(state.showRasterBasemap ? {} : { showRasterBasemap: true }) })
       }
     }
     // A catalog item much smaller than the view (a city plan, one flight)

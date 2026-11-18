@@ -23,6 +23,7 @@
 
 #### Details
 
+- Timeline: picking a year of a global yearly mosaic (Google Earth Timelapse, the Planetary Computer Landsat and Sentinel-2 series) replaces the year already on the view instead of stacking a layer per year, and a pick already in the stack comes back on top. Before, stepping back to a year seen earlier changed nothing, and every year visited kept loading.
 - Kernels: ray offsets and distances built once per tile, one atan per direction (none for Hard Shadows, which compares slopes to tan(sun altitude) and stops at the first obstruction), nothing allocated per pixel. The padded elevation grid every mode starts from resolves its nine tiles once instead of a string-keyed lookup per pixel (about 44 ms per tile).
 - MapLibre's worker pool is raised from one worker (its default on Chrome, Edge and Firefox) to cores minus 2, at most four, the same rule as the raster pool. Contours are traced there, so a screenful of ten contour tiles lands sooner: Mapterhorn contours 560 to 440 ms, Local Relief Model contours 1.5 to 0.9 s (two workers already give 450 ms and 1.1 s).
 - Contours in a Worker and Raster Compute in a Worker (Settings, Streaming) are on by default. Contours run inside MapLibre's own workers with maplibre-contour; Sky View Factor, Openness, Local Dominance and Hard Shadows run in one pool of up to four workers, shared by every mode and every view. The DEM is still read on the main thread, so every terrain source works. Turn either off to go back to the main thread.

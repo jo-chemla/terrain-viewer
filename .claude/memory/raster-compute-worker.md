@@ -275,3 +275,28 @@ map; localStorage `tv-map-workers` (1-8) overrides it for measuring.
   Chrome): 4 maplibre-gl-worker chunks, 4 raster-compute-worker chunks and
   geotiff's decoder chunk load; contours, SVF, Hard Shadows and a COP30 VRT
   with contours draw, no console error. Not checked in the desktop webview.
+
+## Checks of 2026-11-18 (agent-browser, real Chrome, and the desktop webview)
+
+- Local COG contours (`cog-contour://`) stay on ONE worker. A pool was tried
+  (tiles routed by 2x2 block so neighbours share a worker) on a 14 MB Web
+  Mercator COG served locally: 96 tiles at z16 took 1.74 s with 1 worker,
+  1.48 with 2, 1.84 with 4; 330 tiles at z17 4.3 / 2.7 to 3.5 / 2.9 to 4.0 s.
+  Each worker keeps its own COG reader and decoded-tile caches and a contour
+  tile reads nine DEM tiles, so the pool re-reads and re-decodes what another
+  worker has. One worker is 18 ms a tile. Sharing MapLibre's workers would
+  need the COG reader loaded into them; not worth it.
+- LRM point and path sampling tested in the browser: finite, plausible values
+  (Matterhorn summit +145 m, Zermatt valley floor -5 m, 41 path points, none
+  null). A point and a path over the same place differ (145 against 394 at
+  the summit): the path reads its mosaic at another zoom and the LRM radius
+  is in pixels. Not looked into.
+- Desktop 2026.11.18 (portable zip, WebView2 = Edge 157): 4 MapLibre workers
+  at launch, 8 once a pool mode is on; contours, Sky View Factor, Hard
+  Shadows and the COP30 VRT with contours draw, no console error. To drive
+  it: set `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`
+  before `bin/launcher.exe`, then `agent-browser --session desk connect 9333`
+  and set `location.href = "views://app/index.html?<params>"`.
+- The "Some tiles have stopped arriving" notice on the COP30 VRT did not come
+  back (dev build and desktop, tiles in within 10 s): on the first cold load
+  the XML index and the first blocks can pass the notice's 20 s.
