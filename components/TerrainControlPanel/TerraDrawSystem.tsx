@@ -536,6 +536,11 @@ function userFeatures(snapshot: GeoJSONFeature[]): GeoJSONFeature[] {
  *  drawing system - which has no access to the URL state - can react to it
  *  and add to it. TerrainControlPanel keeps the two in sync both ways. */
 export const drawingUrlsAtom = atom<string[]>([])
+
+/** The feature the Feature Iterator is on, or null: every view rings it in
+ *  the selection accent (IteratorHighlightLayer). */
+export const iteratorHighlightAtom = atom<GeoJSONFeature | null>(null)
+export const ITERATOR_ACCENT = "#f59e0b"
 /** URLs already fetched into a layer this session (module-level, like
  *  hasHydratedVectorLayers: a remount must not refetch). */
 const loadedDrawingUrls = new Set<string>()
@@ -972,7 +977,9 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
         if (!pending.length) return
         pending.forEach((u) => loadedDrawingUrls.add(u))
         const params = new URLSearchParams(window.location.search)
-        const fit = !params.has("lat") && !params.has("lng")
+        // A link that starts the Feature Iterator frames its first feature
+        // itself: fitting the whole layer first would leave the zoom there.
+        const fit = !params.has("lat") && !params.has("lng") && params.get("scrollTo") !== "featureIterator"
         ;(async () => {
             for (const url of pending) {
                 try {
@@ -1296,6 +1303,13 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [iteratorLayerId, iteratorIndex, iteratorSortActive, iteratorSort, iteratorFilterActive, iteratorFilter])
 
+    // The current feature, ringed on every view in the selection accent.
+    // Not draw.selectFeature (see above): a plain layer, no handles.
+    const setIteratorHighlight = useSetAtom(iteratorHighlightAtom)
+    const iteratorCurrent = iteratorLayerId ? iteratorFeatures[iteratorIndex] ?? null : null
+    useEffect(() => { setIteratorHighlight(iteratorCurrent) }, [iteratorCurrent, setIteratorHighlight])
+    useEffect(() => () => setIteratorHighlight(null), [setIteratorHighlight])
+
     const goToIteratorIndex = (i: number) => {
         if (iteratorTotal === 0) return
         setIteratorIndex(((i % iteratorTotal) + iteratorTotal) % iteratorTotal) // wraps both ways, matching the Repeat2/"loop through" framing
@@ -1409,7 +1423,13 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                     {/* Checkbox = shown or hidden. Clicking a name makes it the
                         layer new drawings go to — shown in bold, no radio. */}
                     <div className="flex flex-col gap-2">
-                        {layers.map((layer) => (
+                        {/* The untouched, empty "Layer 1" is not listed
+                            beside a linked layer: a link that brings its own
+                            data should show that data only. It stays in the
+                            list for drawing, and shows again once it is the
+                            active layer or holds a feature. */}
+                        {layers.filter((layer) => !(layer.id === DEFAULT_LAYER.id && layer.name === DEFAULT_LAYER.name && layer.id !== activeLayerId
+                            && layers.some((l) => l.sourceUrl) && !features.some((f) => (f.properties?.layerId ?? layers[0]?.id) === layer.id))).map((layer) => (
                             <div key={layer.id} className="flex items-center gap-2 min-w-0">
                                 <Tooltip>
                                     <TooltipTrigger

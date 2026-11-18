@@ -5,6 +5,7 @@ import type { FeatureCollection } from "geojson"
 import { useAtomValue } from "jotai"
 import {
   drawingFeaturesAtom, drawingLayersAtom, drawingsOpacityAtom, drawingsVisibleAtom, resolveLayer,
+  iteratorHighlightAtom, ITERATOR_ACCENT,
 } from "@/components/TerrainControlPanel/TerraDrawSystem"
 
 const SOURCE_ID = "drawing-mirror"
@@ -50,6 +51,33 @@ export const DrawingMirrorLayer: React.FC = () => {
           "circle-color": ["get", "_fill"], "circle-stroke-color": ["get", "_stroke"], "circle-stroke-width": ["get", "_width"], "circle-radius": 5,
           "circle-opacity": opacity, "circle-stroke-opacity": opacity,
         }} />
+    </Source>
+  )
+}
+
+const HIGHLIGHT_ID = "iterator-highlight"
+
+/**
+ * The feature the Feature Iterator is on, drawn over the drawings of every
+ * view (A included) in the selection accent: a ring around a point, a wider
+ * stroke on a line or a polygon outline. A plain layer rather than Terra
+ * Draw's own selection, which would show edit handles on every step.
+ */
+export const IteratorHighlightLayer: React.FC = () => {
+  const feature = useAtomValue(iteratorHighlightAtom)
+  const visible = useAtomValue(drawingsVisibleAtom)
+  const data = useMemo<FeatureCollection>(() => ({
+    type: "FeatureCollection",
+    features: feature?.geometry ? [{ type: "Feature" as const, geometry: feature.geometry, properties: {} }] : [],
+  }), [feature])
+  if (!visible || !data.features.length) return null
+  return (
+    <Source id={HIGHLIGHT_ID} type="geojson" data={data}>
+      <Layer id={`${HIGHLIGHT_ID}-line`} type="line" filter={["!=", ["geometry-type"], "Point"]}
+        layout={{ "line-cap": "round", "line-join": "round" }}
+        paint={{ "line-color": ITERATOR_ACCENT, "line-width": 5 }} />
+      <Layer id={`${HIGHLIGHT_ID}-point`} type="circle" filter={["==", ["geometry-type"], "Point"]}
+        paint={{ "circle-color": ITERATOR_ACCENT, "circle-opacity": 0.25, "circle-radius": 11, "circle-stroke-color": ITERATOR_ACCENT, "circle-stroke-width": 3 }} />
     </Source>
   )
 }

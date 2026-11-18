@@ -16,7 +16,7 @@
 // to exclude the sidebar, at each preset's own saved viewport.
 import type React from "react"
 import type { MapRef } from "react-map-gl/maplibre"
-import { parseBookmarkSearch, easeToBookmarkViewport, type Bookmark } from "./bookmarks"
+import { parseBookmarkSearch, easeToBookmarkViewport, bookmarkHref, type Bookmark } from "./bookmarks"
 
 /** Builds a bookmark-shaped query string from a sparse set of field
  *  overrides — any field left unspecified resolves to that field's own
@@ -28,7 +28,18 @@ function presetSearch(overrides: Record<string, string | number | boolean>): str
   return params.toString()
 }
 
-export const PRESET_BOOKMARKS: Bookmark[] = [
+export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
+  {
+    // A whole link rather than a set of fields: it loads a remote drawing
+    // and starts the Feature Iterator, which only a page load does (see
+    // restorePreset).
+    id: "preset-crater-candidates",
+    name: "Crater candidates — Feature Iterator on a remote CSV, split view",
+    ts: 0,
+    thumb: "/bookmark-thumbs/crater-candidates.jpg",
+    reload: true,
+    search: "zoom=13&splitStyle=side-by-side&gridLayout=2x1&vizSync=false&vizViews=showHillshade:A;showColorRelief:A;showRasterBasemap:B&showHillshade=true&showColorRelief=true&hypsoAutoRange=true&showRasterBasemap=true&basemapSourceB=google&drawingUrl=https://raw.githubusercontent.com/wrong-nebula/earth-anomalies/refs/heads/main/detections.csv&scrollTo=featureIterator&iteratorSort=quality&iteratorFilter=status:cross_dem_shape_supported",
+  },
   {
     id: "preset-matterhorn",
     name: "Matterhorn, Alps — Custom Hypsometric Relief",
@@ -110,10 +121,13 @@ export const PRESET_BOOKMARKS: Bookmark[] = [
  *  two cases apart) — always moves the camera there and applies every other
  *  field via setState, same mechanism as a real bookmark restore. */
 export function restorePreset(
-  preset: Bookmark,
+  preset: Bookmark & { reload?: boolean },
   setState: (updates: Record<string, unknown>) => void,
   mapRef?: React.RefObject<MapRef | null>,
 ) {
+  // A preset that is a whole link (a remote drawing, the iterator started
+  // from the link) is opened as that link.
+  if (preset.reload) { window.location.assign(bookmarkHref(preset)); return }
   const patch = parseBookmarkSearch(preset.search)
   const map = mapRef?.current?.getMap()
   if (map) easeToBookmarkViewport(map, patch)

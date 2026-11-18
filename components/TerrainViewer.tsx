@@ -154,7 +154,7 @@ import {
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
 import { CoverageOverlayLayer } from "./LayersAndSources/CoverageOverlayLayer"
-import { DrawingMirrorLayer } from "./LayersAndSources/DrawingMirrorLayer"
+import { DrawingMirrorLayer, IteratorHighlightLayer } from "./LayersAndSources/DrawingMirrorLayer"
 
 import { createParser } from 'nuqs'
 import { parseAsColor } from "@/lib/nuqs-parser-color"
@@ -4486,6 +4486,7 @@ export function TerrainViewer() {
 
           {/* Terra Draw edits on view A; the other views mirror its features read-only */}
           {!isPrimary && <DrawingMirrorLayer />}
+          <IteratorHighlightLayer />
 
           {/* Graticules, every view */}
           {state.showGraticules && !isHistoricalMode && vm("showContoursAndGraticules") && (

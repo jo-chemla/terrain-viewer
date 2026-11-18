@@ -397,6 +397,7 @@ export const TerrainSources = memo(({
     const probeTileUrl = sourceConfig?.tiles?.[0]
     const configuredMaxzoom = sourceConfig?.maxzoom
     const [probedMaxzoom, setProbedMaxzoom] = useState<number | null>(null)
+    const probedForRef = useRef("")
     // Rounded to ~11km — coarser than the underlying probe's own zoom-6 cache
     // bucket would need, but avoids re-running this effect on every sub-pixel
     // lat/lng nudge a live pan/zoom might otherwise produce.
@@ -407,11 +408,18 @@ export const TerrainSources = memo(({
     const viewZoom = useAtomValue(viewportCenterAtom)?.zoom
     const probeNeeded = configuredMaxzoom != null && probeWorthwhile(viewZoom, configuredMaxzoom)
     useEffect(() => {
-        // Reset unconditionally (not just in the early-return branch below) —
-        // otherwise a stale probe result from the PREVIOUS source/template
-        // would keep clamping this new one until its own probe resolves.
-        setProbedMaxzoom(null)
-        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null || !probeNeeded) return
+        // Reset when the SOURCE changed: a stale probe result from the
+        // previous template must not clamp the new one. Not when only the
+        // place changed: the reset put the declared maxzoom back in the
+        // Source key, so every move past 0.1 degree remounted the terrain
+        // and hillshade sources twice (declared, then probed) and the view
+        // went blank each time. The previous place's clamp holds until the
+        // new probe answers, and an equal answer changes nothing.
+        const probeKey = `${probeTileUrl}|${configuredMaxzoom}`
+        const sameSource = probedForRef.current === probeKey
+        probedForRef.current = probeKey
+        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null || !probeNeeded) { setProbedMaxzoom(null); return }
+        if (!sameSource) setProbedMaxzoom(null)
         // A titiler tile exists at every zoom inside the file (see isTitilerTemplate).
         if (isTitilerTemplate(probeTileUrl, titilerEndpoint)) return
         let cancelled = false
@@ -1102,14 +1110,19 @@ export const useClientDemUpstreamOne = (
     const probeTileUrl = baseUpstream?.template
     const configuredMaxzoom = baseUpstream?.maxzoom
     const [probedMaxzoom, setProbedMaxzoom] = useState<number | null>(null)
+    const probedForRef = useRef("")
     const roundedLat = typeof lat === "number" ? Math.round(lat * 10) / 10 : lat
     const roundedLng = typeof lng === "number" ? Math.round(lng * 10) / 10 : lng
     const viewZoom = useAtomValue(viewportCenterAtom)?.zoom
     const probeNeeded = configuredMaxzoom != null && probeWorthwhile(viewZoom, configuredMaxzoom)
     useEffect(() => {
-        setProbedMaxzoom(null)
-        if (roundedLat == null || roundedLng == null) return
-        if (!probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null || !probeNeeded) return
+        // Same rule as the terrain source above: reset on a new source,
+        // keep the last answer while only the place changes.
+        const probeKey = `${probeTileUrl}|${configuredMaxzoom}`
+        const sameSource = probedForRef.current === probeKey
+        probedForRef.current = probeKey
+        if (roundedLat == null || roundedLng == null || !probeTileUrl || !probeTileUrl.includes("{z}") || configuredMaxzoom == null || !probeNeeded) { setProbedMaxzoom(null); return }
+        if (!sameSource) setProbedMaxzoom(null)
         if (isTitilerTemplate(probeTileUrl, titilerEndpoint)) return
         let cancelled = false
         probeMaxZoomAt(probeTileUrl, roundedLng, roundedLat, configuredMaxzoom).then((z) => {
