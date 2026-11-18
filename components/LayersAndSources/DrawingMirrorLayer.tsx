@@ -60,12 +60,15 @@ const HIGHLIGHT_ID = "iterator-highlight"
 /**
  * The feature the Feature Iterator is on, drawn over the drawings of every
  * view (A included) in the selection accent: a ring around a point, a wider
- * stroke on a line or a polygon outline. A plain layer rather than Terra
+ * stroke on a line or a polygon outline. It follows the Drawings panel's
+ * show checkbox and opacity slider, and its layer's own checkbox. A plain layer rather than Terra
  * Draw's own selection, which would show edit handles on every step.
  */
 export const IteratorHighlightLayer: React.FC = () => {
   const feature = useAtomValue(iteratorHighlightAtom)
   const visible = useAtomValue(drawingsVisibleAtom)
+  // The Drawings opacity slider applies to the ring as it does to the features.
+  const opacity = useAtomValue(drawingsOpacityAtom)
   const data = useMemo<FeatureCollection>(() => ({
     type: "FeatureCollection",
     features: feature?.geometry ? [{ type: "Feature" as const, geometry: feature.geometry, properties: {} }] : [],
@@ -75,9 +78,9 @@ export const IteratorHighlightLayer: React.FC = () => {
     <Source id={HIGHLIGHT_ID} type="geojson" data={data}>
       <Layer id={`${HIGHLIGHT_ID}-line`} type="line" filter={["!=", ["geometry-type"], "Point"]}
         layout={{ "line-cap": "round", "line-join": "round" }}
-        paint={{ "line-color": ITERATOR_ACCENT, "line-width": 5 }} />
+        paint={{ "line-color": ITERATOR_ACCENT, "line-width": 5, "line-opacity": opacity }} />
       <Layer id={`${HIGHLIGHT_ID}-point`} type="circle" filter={["==", ["geometry-type"], "Point"]}
-        paint={{ "circle-color": ITERATOR_ACCENT, "circle-opacity": 0.25, "circle-radius": 11, "circle-stroke-color": ITERATOR_ACCENT, "circle-stroke-width": 3 }} />
+        paint={{ "circle-color": ITERATOR_ACCENT, "circle-opacity": 0.25 * opacity, "circle-radius": 11, "circle-stroke-color": ITERATOR_ACCENT, "circle-stroke-width": 3, "circle-stroke-opacity": opacity }} />
     </Source>
   )
 }
