@@ -16,7 +16,7 @@ import { buildIsobandProtocolUrl } from "@/lib/isoband-protocol"
 import { isolineMeasure, isolineMeasureDem, type IsolineMeasureId } from "@/lib/isoline-measures"
 
 export const IsolineLayers = memo(({
-  enabled, mode, measure, value, interval, fill, cliff = false, fillOpacity, color, weight,
+  enabled, mode, measure, value, interval, fill, cliff = false, smooth = 0, fillOpacity, color, weight,
   terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, derived, lighting, mapLoaded, theme,
 }: {
   enabled: boolean
@@ -27,6 +27,9 @@ export const IsolineLayers = memo(({
   fill: boolean
   /** Slope at a value: cliff teeth along the line, into the steep area. */
   cliff?: boolean
+  /** At a value: box blur of the measure in pixels (0 to 16) before the
+   *  line and the fill are traced. */
+  smooth?: number
   fillOpacity: number
   color: string
   weight: number
@@ -62,7 +65,8 @@ export const IsolineLayers = memo(({
   // in the line as in the shading.
   const maxzoom = Math.min(measureDem.maxzoom ?? 19, 19)
   if (mode === "value") {
-    const url = buildIsobandProtocolUrl(measureDem.template, measureDem.encoding, measureDem.tileSize, value * scale)
+    const s = Math.max(0, Math.min(16, Math.round(smooth) || 0))
+    const url = buildIsobandProtocolUrl(measureDem.template, measureDem.encoding, measureDem.tileSize, value * scale, { smooth: s })
     return (
       <>
       <Source id="isoline-band-source" key={`isoline-band-${measureDem.template}`} type="vector" tiles={[url]} maxzoom={maxzoom}>
@@ -76,12 +80,13 @@ export const IsolineLayers = memo(({
       </Source>
       {cliff && measure === "slope" && (
         // Cliff hatching on a simplified edge: the same iso-slope traced on
-        // the measure blurred over 4 px, with runs under 40 px dropped, so
+        // the measure blurred over 4 px (more if Smoothing asks), with runs
+        // under 40 px dropped, so
         // the line is the outline of the steep areas rather than every
         // wiggle and speck of the full-resolution slope (whose teeth
         // pointed every which way). A tooth every 28 px, hanging off the
         // steep side of the ring.
-        <Source id="isoline-cliff-source" key={`isoline-cliff-${measureDem.template}`} type="vector" tiles={[buildIsobandProtocolUrl(measureDem.template, measureDem.encoding, measureDem.tileSize, value * scale, { smooth: 4, minLength: 40 })]} maxzoom={maxzoom}>
+        <Source id="isoline-cliff-source" key={`isoline-cliff-${measureDem.template}`} type="vector" tiles={[buildIsobandProtocolUrl(measureDem.template, measureDem.encoding, measureDem.tileSize, value * scale, { smooth: Math.max(4, s), minLength: 40 })]} maxzoom={maxzoom}>
           <Layer beforeId={LAYER_SLOTS.CONTOURS} id="isoline-cliff-line" type="line" source="isoline-cliff-source" source-layer="isoline"
             layout={{ "line-join": "round", "line-cap": "round" }}
             paint={{ "line-color": color, "line-width": weight + 0.5, "line-opacity": 0.95 }} />

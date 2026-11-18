@@ -120,14 +120,14 @@ The consumers also agree on *which* template to fetch. `useClientDemUpstream` (`
 
 ### Contours
 
-By default (Settings, Streaming, Contours in a Worker) contours run inside MapLibre's own workers: `lib/contour-worker-client.ts` loads maplibre-contour and a small script into them with `importScriptInWorkers`, where it registers a `tv-contour://` protocol. The contour vector source asks for those URLs, MapLibre loads vector tiles in its workers, so the isolines and the vector-tile encoding run there. The worker reads a plain http(s) DEM tile itself and asks the main thread for any other scheme (a `tv-contour-tile` message, answered with `loadTileBitmap`, the loader every derived mode uses). MapLibre runs up to four workers (`setWorkerCount` in `src/main.tsx`), see [Tile Performance and Workers](/dev/performance).
+Contours run inside MapLibre's own workers: `lib/contour-worker-client.ts` loads maplibre-contour and a small script into them with `importScriptInWorkers`, where it registers a `tv-contour://` protocol. The contour vector source asks for those URLs, MapLibre loads vector tiles in its workers, so the isolines and the vector-tile encoding run there. The worker reads a plain http(s) DEM tile itself and asks the main thread for any other scheme (a `tv-contour-tile` message, answered with `loadTileBitmap`, the loader every derived mode uses). MapLibre runs up to four workers (`setWorkerCount` in `src/main.tsx`), see [Tile Performance and Workers](/dev/performance).
 
-With the switch off, maplibre-contour's `DemSource` is used directly. It fetches its DEM tiles itself, in a worker, with `fetch()`, so it cannot read our schemes. For a template on one of them (and for Local Relief Model contours, an `lrm://` template), `buildRegistryDemSource` in `components/LayersAndSources/ContoursLayer.tsx` builds a `DemSource` with `worker: false` and gives its manager two functions:
+The older path is still in the code but no longer reachable from the interface (the Contours in a Worker switch was removed on 2026-11-18): maplibre-contour's `DemSource` used directly. It fetches its DEM tiles itself, in a worker, with `fetch()`, so it cannot read our schemes. For a template on one of them (and for Local Relief Model contours, an `lrm://` template), `buildRegistryDemSource` in `components/LayersAndSources/ContoursLayer.tsx` builds a `DemSource` with `worker: false` and gives its manager two functions:
 
 - a `getTile` that calls `dispatchTile` and returns the bitmap, and
 - a `decodeImage` that draws the bitmap to an `OffscreenCanvas` and hands the pixels to maplibre-contour's own `decodeParsedImage`.
 
-Isolines for these sources are then computed on the main thread, the price of the custom `getTile`. A remote COG with the client toggle on goes to the same worker a local COG file uses (`cog-contour://`) instead, whatever the switch says.
+Isolines for these sources were then computed on the main thread, the price of the custom `getTile`. A remote COG with the client toggle on goes to the same worker a local COG file uses (`cog-contour://`) instead.
 
 ### Region reads
 

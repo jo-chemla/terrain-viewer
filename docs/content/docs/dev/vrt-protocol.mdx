@@ -107,4 +107,4 @@ The index fetch and parse is once per URL per session and cached, as are the ope
 
 ## Decoding off the main thread
 
-Profiled 2026-11-18 on COP30 (a tile whose file and blocks are already cached): 46 ms per tile, of which 31 are `geotiff.js` decompressing blocks (it keeps none decoded between reads), 5 the composite, 4 the projection grid and 2 the encode. The reads therefore go through geotiff's own decoder `Pool` (up to four workers, behind Settings, Streaming, Raster Compute in a Worker): twelve such tiles asked at once went from 600 to 200 ms and from 23 missed frames to none. See [Tile Performance and Workers](/dev/performance).
+Profiled 2026-11-18 on COP30 (a tile whose file and blocks are already cached): 46 ms per tile, of which 31 are `geotiff.js` decompressing blocks (it keeps none decoded between reads), 5 the composite, 4 the projection grid and 2 the encode. The reads therefore go through geotiff's own decoder `Pool` (up to four workers): twelve such tiles asked at once went from 600 to 200 ms and from 23 missed frames to none. See [Tile Performance and Workers](/dev/performance).

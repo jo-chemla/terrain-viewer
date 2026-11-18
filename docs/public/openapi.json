@@ -3748,6 +3748,16 @@
             }
           },
           {
+            "name": "isolineSmooth",
+            "in": "query",
+            "required": false,
+            "description": "State. Iso-line at a value: box blur of the measure, in pixels (0 to 16), before the line and its fill are traced.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
             "name": "isolineFillOpacity",
             "in": "query",
             "required": false,

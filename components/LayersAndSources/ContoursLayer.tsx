@@ -13,7 +13,7 @@ import { buildCogContourUrl } from "@/lib/cog-contour-protocol"
 import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
 import { loadTileBitmap, type UpstreamEncoding } from "@/lib/normal-derived-protocol"
 import { useAtomValue } from "jotai"
-import { useCogProtocolVsTitilerAtom, contourWorkerAtom } from "@/lib/settings-atoms"
+import { useCogProtocolVsTitilerAtom } from "@/lib/settings-atoms"
 import { configureContourWorker, workerContourUrl } from "@/lib/contour-worker-client"
 import { customScheme } from "@/lib/protocol-registry"
 import { useClientDemUpstream, type ClientDemUpstream } from "./MapSources"
@@ -453,7 +453,9 @@ export function ContoursLayer({
   // be reflected here.
   const localFileVersion = useAtomValue(localFileVersionAtom)
   const useCogClient = useAtomValue(useCogProtocolVsTitilerAtom)
-  const contourWorker = useAtomValue(contourWorkerAtom)
+  // Always on since 2026-11-18 (the Settings switch is gone). The DemSource
+  // paths below it are kept for now, unreachable while this is true.
+  const contourWorker: boolean = true
   const clientUpstream = useClientDemUpstream(sourceId, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
   const clientUpstreamTemplate = clientUpstream?.template ?? ""
 
@@ -556,7 +558,7 @@ export function ContoursLayer({
       }
 
       if (contourWorker) {
-        // Settings → Streaming → Contours in a Worker: isolines in MapLibre's
+        // Isolines in MapLibre's
         // workers, the DEM resolved on the main thread (lib/contour-worker-
         // client.ts). One path for http(s), custom schemes and LRM alike.
         try {

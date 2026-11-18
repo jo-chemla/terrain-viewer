@@ -305,6 +305,7 @@ export const ContourOptionsSection: React.FC<{
                     <Label htmlFor="isoline-value" className="text-sm font-medium">Exact value{unit}</Label>
                     <Input id="isoline-value" type="number" step={m.step} value={state.isolineValue} onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) setState({ isolineValue: v }) }} className="h-7 w-24 text-xs" />
                   </div>
+                  <SliderControl label={`Smoothing ${Math.round(state.isolineSmooth) || 0} px`} value={Math.max(0, Math.min(16, state.isolineSmooth || 0))} onChange={(v) => setState({ isolineSmooth: v })} min={0} max={16} step={1} hideValue />
                   {state.isolineMeasure === "slope" && state.isolineMode === "value" && (
                     <CheckboxWithSlider id="isolineCliff" label="Cliff teeth" hideSlider tooltip="Teeth along the line, as a map's cliff symbol: the hatching sits on the steep side, so both edges of a steep band carry it" checked={state.isolineCliff} onCheckedChange={(checked: boolean) => setState({ isolineCliff: checked })} />
                   )}

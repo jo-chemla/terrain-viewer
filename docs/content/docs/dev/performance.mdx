@@ -39,7 +39,7 @@ None of it changed a pixel. The same few rules, applied to every per-pixel loop:
 
 ## What the workers buy
 
-A worker does not make one tile faster. It lets several tiles compute at once and keeps the page drawing while they do. Twelve tiles asked at once, the Raster Compute in a Worker switch off against on:
+A worker does not make one tile faster. It lets several tiles compute at once and keeps the page drawing while they do. Twelve tiles asked at once, on the main thread against in the workers (measured while a switch still chose between them; the workers are now always on):
 
 | Twelve tiles at once | Main thread (ms) | Workers (ms) | Sooner | Frames missed, main thread | Frames missed, workers |
 |---|---|---|---|---|---|

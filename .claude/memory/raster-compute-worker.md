@@ -290,7 +290,10 @@ map; localStorage `tv-map-workers` (1-8) overrides it for measuring.
   (Matterhorn summit +145 m, Zermatt valley floor -5 m, 41 path points, none
   null). A point and a path over the same place differ (145 against 394 at
   the summit): the path reads its mosaic at another zoom and the LRM radius
-  is in pixels. Not looked into.
+  is in pixels. Fixed the same day: both take a `zoom` argument and the
+  picker passes `viewTileZoom(map, tileSize)`, so point, path and the shading
+  on screen agree (a path is lowered only past 4096 px a side). Row lookup
+  in a mosaic is now in Web Mercator (linear latitude was a pixel off).
 - Desktop 2026.11.18 (portable zip, WebView2 = Edge 157): 4 MapLibre workers
   at launch, 8 once a pool mode is on; contours, Sky View Factor, Hard
   Shadows and the COP30 VRT with contours draw, no console error. To drive
@@ -300,3 +303,8 @@ map; localStorage `tv-map-workers` (1-8) overrides it for measuring.
 - The "Some tiles have stopped arriving" notice on the COP30 VRT did not come
   back (dev build and desktop, tiles in within 10 s): on the first cold load
   the XML index and the first blocks can pass the notice's 20 s.
+- 2026-11-18: the two Settings switches (Contours in a Worker, Raster Compute
+  in a Worker) and their atoms are removed, both always on.
+  `setRasterComputeInWorker(false)` stays for measuring. In ContoursLayer.tsx
+  `contourWorker` is a constant `true`; the old DemSource paths under it are
+  kept on purpose (the user said not yet) and are unreachable.

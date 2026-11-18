@@ -3374,6 +3374,16 @@
       "note": "Slope at a value only: cliff teeth along the line, pointing into the steep area (both edges of a steep band get them)."
     },
     {
+      "key": "isolineSmooth",
+      "stateKey": "isolineSmooth",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "Iso-line at a value: box blur of the measure, in pixels (0 to 16), before the line and its fill are traced."
+    },
+    {
       "key": "isolineFillOpacity",
       "stateKey": "isolineFillOpacity",
       "type": "number",
@@ -4006,18 +4016,6 @@
       "key": "cacheVizTiles",
       "default": "true",
       "note": "Gates lib/tile-result-cache.ts — the LRU of finished viz-mode tile bytes that makes re-toggling a mode instant instead of recomputing every visible tile."
-    },
-    {
-      "file": "lib/settings-atoms.ts",
-      "key": "contourWorker",
-      "default": "true",
-      "note": "Contours generated in MapLibre's own workers (Settings → Streaming), DEM tiles still resolved on the main thread: lib/contour-worker-client.ts."
-    },
-    {
-      "file": "lib/settings-atoms.ts",
-      "key": "rasterComputeWorker",
-      "default": "true",
-      "note": "Sky View Factor, Openness and Local Dominance pixel loops in a pool of dedicated workers (Settings → Streaming), DEM still fetched on the main thread: lib/raster-compute-pool.ts, mirrored by TerrainV…"
     },
     {
       "file": "lib/settings-atoms.ts",

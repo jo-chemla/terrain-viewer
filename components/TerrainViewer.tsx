@@ -26,12 +26,11 @@ import {HILLSHADE_METHODS, type TerrainSource } from "@/lib/terrain-types"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
-  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, rasterComputeWorkerAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
+  viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom, addTerrainSourceOpenAtom, dataLayersModalOpenAtom, timelineWindowRequestAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
-import { setRasterComputeInWorker } from "@/lib/raster-compute-pool"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
 import { MAX_BOUNDS_MODES, unionBounds, sharedBounds, bufferBounds, resolveCustomSourceBounds, outsideFence, type LngLatBoundsTuple } from "@/lib/max-bounds"
 import { sectionOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
@@ -938,6 +937,9 @@ export const QUERY_STATE_PARSERS = {
     // Slope at a value only: cliff teeth along the line, pointing into the
     // steep area (both edges of a steep band get them).
     isolineCliff: parseAsBoolean.withDefault(false),
+    // Iso-line at a value: box blur of the measure, in pixels (0 to 16),
+    // before the line and its fill are traced.
+    isolineSmooth: parseAsFloat.withDefault(0),
     isolineFillOpacity: parseAsFloat.withDefault(0.35),
     isolineWeight: parseAsFloat.withDefault(2),
     isolineColor: parseAsString.withDefault("#ef4444"),
@@ -1953,8 +1955,6 @@ export function TerrainViewer() {
   useEffect(() => {
     setTileResultCacheEnabled(cacheVizTiles)
   }, [cacheVizTiles])
-  const [rasterComputeWorker] = useAtom(rasterComputeWorkerAtom)
-  useEffect(() => { setRasterComputeInWorker(rasterComputeWorker) }, [rasterComputeWorker])
 
   // Force the corner AttributionControl (<AttributionControl compact .../>
   // below) to actually START collapsed. `compact` alone doesn't guarantee
@@ -4440,6 +4440,7 @@ export function TerrainViewer() {
             measure={state.isolineMeasure}
             value={state.isolineValue}
             cliff={state.isolineCliff}
+            smooth={state.isolineSmooth}
             interval={state.isolineInterval}
             fill={state.isolineFill}
             fillOpacity={state.isolineFillOpacity}

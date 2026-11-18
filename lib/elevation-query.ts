@@ -37,6 +37,14 @@ export function queryTerrainElevationAtPoint(
   return raw / (exaggeration || 1)
 }
 
+/** Where a latitude falls between the top (0) and the bottom (1) of a tile
+ *  mosaic. Its rows are even in Web Mercator, not in latitude: a linear
+ *  lookup was a pixel off over a mosaic a few tiles tall. */
+function mercatorRowFraction(lat: number, south: number, north: number): number {
+  const y = (d: number) => Math.log(Math.tan(Math.PI / 4 + (Math.max(-85.05, Math.min(85.05, d)) * Math.PI) / 360))
+  return (y(north) - y(lat)) / (y(north) - y(south))
+}
+
 /** Fetches+decodes just the single tile/pixel under a point — the 2D-mode
  *  counterpart to lib/client-export.ts's full-bbox export. `fetchTileBlob`
  *  overrides how tile bytes are obtained (see fetchTileMosaic's own option) —
@@ -47,6 +55,10 @@ export async function sampleClientElevationAtPoint(
   lng: number,
   lat: number,
   fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob | ImageBitmap>,
+  /** Read at this zoom instead of the source's finest. For a measure whose
+   *  kernel is in pixels (LRM), the view's tile zoom makes the number match
+   *  the shading on screen: see viewTileZoom below. */
+  zoom?: number,
 ): Promise<number | null> {
   if (source.type === "cog") {
     return sampleCogPointElevation(source.url, lng, lat)
@@ -61,7 +73,8 @@ export async function sampleClientElevationAtPoint(
   // "overzoom" falls back to an ancestor tile, so a coverage gap at the exact
   // maxzoom doesn't make the whole point unreadable.
   let mosaic: Awaited<ReturnType<typeof fetchTileMosaic>> | null = null
-  for (let zoom = source.maxzoom; zoom >= Math.max(0, source.maxzoom - 6); zoom--) {
+  const topZoom = zoom === undefined ? source.maxzoom : Math.max(0, Math.min(source.maxzoom, Math.floor(zoom)))
+  for (let zoom = topZoom; zoom >= Math.max(0, topZoom - 6); zoom--) {
     try {
       mosaic = await fetchTileMosaic({
         tileUrlTemplate: source.url,
@@ -82,7 +95,7 @@ export async function sampleClientElevationAtPoint(
   const { data, width, height, bbox } = mosaic
   const [west, south, east, north] = bbox
   const px = Math.min(width - 1, Math.max(0, Math.floor(((lng - west) / (east - west)) * width)))
-  const py = Math.min(height - 1, Math.max(0, Math.floor(((north - lat) / (north - south)) * height)))
+  const py = Math.min(height - 1, Math.max(0, Math.floor(mercatorRowFraction(lat, south, north) * height)))
   const value = data[py * width + px]
   return Number.isFinite(value) ? value : null
 }
@@ -149,11 +162,27 @@ async function sampleClientElevationProfile(
     const lng = lerpLng(tAt(i))
     const lat = lerpLat(tAt(i))
     const px = Math.min(width - 1, Math.max(0, Math.floor(((lng - mWest) / (mEast - mWest)) * width)))
-    const py = Math.min(height - 1, Math.max(0, Math.floor(((mNorth - lat) / (mNorth - mSouth)) * height)))
+    const py = Math.min(height - 1, Math.max(0, Math.floor(mercatorRowFraction(lat, mSouth, mNorth) * height)))
     const v = data[py * width + px]
     out.push(Number.isFinite(v) ? v : null)
   }
   return out
+}
+
+/** The zoom MapLibre draws a raster source of this tile size at, for the
+ *  map's current zoom (floor of the zoom plus the 512 px tile offset). */
+export function viewTileZoom(map: MapLibreMap, tileSize: number): number {
+  return Math.max(0, Math.floor(map.getZoom() + Math.log2(512 / tileSize)))
+}
+
+/** A path read at a forced zoom keeps its mosaic under this many pixels a
+ *  side (64 tiles of 512 px at most). */
+const MAX_PATH_MOSAIC_PX = 4096
+/** The longer side, in pixels at `zoom`, of a lng/lat box. */
+function boxPixels(bbox: [number, number, number, number], zoom: number, tileSize: number): number {
+  const world = tileSize * 2 ** zoom
+  const y = (lat: number) => { const r = Math.max(-85.05, Math.min(85.05, lat)) * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 }
+  return Math.max((bbox[2] - bbox[0]) / 360, y(bbox[1]) - y(bbox[3])) * world
 }
 
 /** Like sampleClientElevationProfile but along an arbitrary polyline (a routed
@@ -165,6 +194,10 @@ export async function sampleClientElevationPath(
   source: ClientExportSource,
   coords: [number, number][],
   fetchTileBlob?: (url: string, signal?: AbortSignal) => Promise<Blob | ImageBitmap>,
+  /** Read at this zoom (the view's, for LRM) instead of one picked from the
+   *  path's length. Lowered only if the path's box would pass
+   *  MAX_PATH_MOSAIC_PX on a side at that zoom. */
+  zoom?: number,
 ): Promise<(number | null)[]> {
   if (coords.length === 0) return []
 
@@ -185,7 +218,11 @@ export async function sampleClientElevationPath(
   const bbox: [number, number, number, number] = [west - eps, south - eps, east + eps, north + eps]
   const decodePixel = source.type === "terrainrgb" ? terrainrgbToElevation : terrariumToElevation
   const targetPx = Math.max(128, Math.min(2048, coords.length * 4))
-  const startZoom = Math.min(source.maxzoom, pickZoomForResolution(bbox, targetPx, targetPx, source.tileSize, source.maxzoom))
+  let startZoom = Math.min(source.maxzoom, pickZoomForResolution(bbox, targetPx, targetPx, source.tileSize, source.maxzoom))
+  if (zoom !== undefined) {
+    startZoom = Math.max(0, Math.min(source.maxzoom, Math.floor(zoom)))
+    while (startZoom > 0 && boxPixels(bbox, startZoom, source.tileSize) > MAX_PATH_MOSAIC_PX) startZoom--
+  }
 
   let mosaic: Awaited<ReturnType<typeof fetchTileMosaic>> | null = null
   for (let zoom = startZoom; zoom >= Math.max(0, startZoom - 6); zoom--) {
@@ -203,7 +240,7 @@ export async function sampleClientElevationPath(
   const [mWest, mSouth, mEast, mNorth] = mb
   return coords.map(([lng, lat]) => {
     const px = Math.min(width - 1, Math.max(0, Math.floor(((lng - mWest) / (mEast - mWest)) * width)))
-    const py = Math.min(height - 1, Math.max(0, Math.floor(((mNorth - lat) / (mNorth - mSouth)) * height)))
+    const py = Math.min(height - 1, Math.max(0, Math.floor(mercatorRowFraction(lat, mSouth, mNorth) * height)))
     const v = data[py * width + px]
     return Number.isFinite(v) ? v : null
   })

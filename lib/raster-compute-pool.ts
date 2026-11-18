@@ -1,7 +1,9 @@
 import type { RasterComputeRequest, RasterComputeResponse, RasterKernel, RasterKernelInputs } from "./raster-compute-worker"
 
 /**
- * Raster Compute in a Worker (Settings, Streaming; on by default).
+ * Raster compute in workers. Always on since 2026-11-18 (the Settings switch
+ * is gone); setRasterComputeInWorker(false) is kept for measuring against
+ * the main thread.
  *
  * The heavy viz-mode kernels (Sky View Factor, Openness, Local Dominance, Hard Shadows) run in a
  * small pool of dedicated workers instead of the main thread. Only the pixel
@@ -13,10 +15,8 @@ import type { RasterComputeRequest, RasterComputeResponse, RasterKernel, RasterK
  * MapLibre loads raster tiles from the main thread, so a protocol registered
  * inside MapLibre's own workers (the Contours in a Worker route) would never be
  * called for these layers: hence a pool of our own.
- *
- * TerrainViewer.tsx mirrors rasterComputeWorkerAtom into setRasterComputeInWorker.
  */
-let enabled = false
+let enabled = true
 export function setRasterComputeInWorker(on: boolean): void { enabled = on }
 export function rasterComputeInWorker(): boolean { return enabled && typeof Worker !== "undefined" }
 

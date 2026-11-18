@@ -515,58 +515,6 @@ const P4National: Page = () => (
   </Frame>
 );
 
-const P4bDatasets: Page = () => (
-  <Frame eyebrow="New data sources" title="Global and regional models, added in November 2026">
-    <div style={{ display: 'flex', gap: 24 }}>
-      <Card title="Google GEM-15" accent={teal}>Near-global bare earth and surface at 15 m (October 2026), and their difference as canopy and building height. About 13,500 one-degree cells.</Card>
-      <Card title="Open Buildings 2.5D">Google's yearly building heights at 0.5 m, 2016 to 2023, across the Global South. 2023 minus 2016 reads as building growth.</Card>
-      <Card title="NASA G-LiHT" accent={rose}>2013 lidar over the Maya lowlands of Yucatán: 0.5 m bare earth under the forest canopy, in narrow flight swaths.</Card>
-    </div>
-    <div style={{ display: 'flex', gap: 24, marginTop: 28 }}>
-      <Card title="Scotland LiDAR">0.5 m DTM, DSM and their difference, from about 9,600 files per product that had no index.</Card>
-      <Card title="Global 30 m, side by side" accent={teal}>Copernicus GLO-30, NASADEM, SRTM GL1, GEDTM30, EU DTM, AW3D30, and SRTM15+ with the sea floor.</Card>
-      <Card title="Strips and tiles by catalogue" accent="#a78bfa">EarthDEM, ArcticDEM and REMA strips, NRCan HRDEM, LidarBC, swissALTI3D: the Library opens a search over the view.</Card>
-    </div>
-    <div style={{ display: 'flex', gap: 24, marginTop: 28 }}>
-      <Card title="Copernicus Marine">Sea surface temperature, chlorophyll, surface currents and sea ice as basemap overlays.</Card>
-      <Card title="Sentinel-2, by date">L2A and L1C scenes from the Copernicus Data Space, drawn in true colour, false colour or an index.</Card>
-      <Card title="For GDAL and QGIS too" accent={teal}>Every index is a plain VRT or COG URL: docs, Dataset indexes.</Card>
-    </div>
-  </Frame>
-);
-
-const P4cSourceTypes: Page = () => (
-  <Frame eyebrow="Source types" title="More shapes of source, read with no server">
-    <TwoCol
-      leftWidth={860}
-      left={
-        <Bullets size={28}>
-          <Li k="VRT mosaic">a GDAL VRT URL: the files under a tile are found, read by range request and reprojected in the browser.</Li>
-          <Li k="Cell-routed">one COG per 1° cell in its own UTM zone (GEM-15), or an 80 KB ledger that routes a tile among 1,173 manifests (Open Buildings).</Li>
-          <Li k="WMTS">paste a capabilities URL, pick a layer, its style, format and date. Tested on NASA GIBS, IGN, PNOA, swisstopo.</Li>
-          <Li k="Copernicus Data Space">a catalogue search by date, drawn through your own free Sentinel Hub configuration.</Li>
-          <Li k="Capture mosaic">a Maxar, Vantor or NOAA tick draws the whole capture: up to 25 COGs of one acquisition, as one layer.</Li>
-        </Bullets>
-      }
-      right={
-        <>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-            <Box w={190}>tile z/x/y</Box>
-            <Arrow />
-            <Box w={190} accent={teal}>static index</Box>
-            <Arrow />
-            <Box w={190}>range reads</Box>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 36 }}>
-            <Card title="No tile server" accent={teal}>The index is a static file. The browser asks each COG for the blocks under the tile, nothing else.</Card>
-            <Card title="Your keys stay yours">Sentinel Hub, Planet, Mapbox: entered in Settings, kept in the browser, never in a shared link.</Card>
-          </div>
-        </>
-      }
-    />
-  </Frame>
-);
-
 const P5ModesGrid: Page = () => (
   <Frame eyebrow="Visualization modes" title="Same Matterhorn, twelve ways">
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 24px' }}>
@@ -600,6 +548,44 @@ const P6Stack: Page = () => (
         </Bullets>
       }
       right={<Shot src={combined} caption="Contours + hillshade + hypso + raster basemap, Karakoram" width={940} height={600} />}
+    />
+  </Frame>
+);
+
+const P6bSourceTypes: Page = () => (
+  <Frame eyebrow="Source types" title="Every shape of source the browser reads">
+    <TwoCol
+      leftWidth={900}
+      left={
+        <Bullets size={25}>
+          <Li k="XYZ / TMS tiles">Terrarium or Terrain-RGB, or a TileJSON URL.</Li>
+          <Li k="COG, remote or local">range reads; a local file is never uploaded.</Li>
+          <Li k="VRT mosaic">a GDAL VRT URL, reprojected in the browser.</Li>
+          <Li k="Cell-routed">one COG per 1° cell, or a ledger of manifests.</Li>
+          <Li k="STAC · MosaicJSON">a scene found over the view, added by URL.</Li>
+          <Li k="WMS · WCS · WMTS">float32 GeoTIFF per tile, or a capabilities URL.</Li>
+          <Li k="ArcGIS ImageServer · LERC">float tiles decoded in the browser.</Li>
+          <Li k="Quantized mesh · PMTiles">Cesium terrain rasterised; a tile archive.</Li>
+          <Li k="DEM difference">any two terrain sources, subtracted per tile.</Li>
+          <Li k="Imagery only">IIIF maps, Copernicus scenes by date, capture mosaics.</Li>
+        </Bullets>
+      }
+      right={
+        <>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            <Box w={190}>tile z/x/y</Box>
+            <Arrow />
+            <Box w={190} accent={teal}>static index</Box>
+            <Arrow />
+            <Box w={190}>range reads</Box>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 36 }}>
+            <Card title="No tile server" accent={teal}>A VRT, a cell index or a ledger is a static file. The browser asks each COG for the blocks under the tile, nothing else.</Card>
+            <Card title="Every mode on every source">Each type ends as the same elevation tile, so hillshade, slope, contours or sky-view factor run on all of them.</Card>
+            <Card title="Your keys stay yours">Sentinel Hub, Planet, Mapbox: entered in Settings, kept in the browser, never in a shared link.</Card>
+          </div>
+        </>
+      }
     />
   </Frame>
 );
@@ -719,21 +705,39 @@ const P12Close: Page = () => (
   />
 );
 
+const PA1Datasets: Page = () => (
+  <Frame eyebrow="Appendix · Data sources" title="Global and regional models in the library">
+    <div style={{ display: 'flex', gap: 24 }}>
+      <Card title="Google GEM-15" accent={teal}>Near-global bare earth and surface at 15 m (October 2026), and their difference as canopy and building height. About 13,500 one-degree cells.</Card>
+      <Card title="Open Buildings 2.5D">Google's yearly building heights at 0.5 m, 2016 to 2023, across the Global South. 2023 minus 2016 reads as building growth.</Card>
+      <Card title="NASA G-LiHT" accent={rose}>2013 lidar over the Maya lowlands of Yucatán: 0.5 m bare earth under the forest canopy, in narrow flight swaths.</Card>
+    </div>
+    <div style={{ display: 'flex', gap: 24, marginTop: 28 }}>
+      <Card title="Global 30 m, side by side" accent={teal}>Copernicus GLO-30, NASADEM, SRTM GL1, GEDTM30, EU DTM, AW3D30, and SRTM15+ with the sea floor.</Card>
+      <Card title="Strips and tiles by catalogue" accent="#a78bfa">EarthDEM, ArcticDEM and REMA strips, NRCan HRDEM, LidarBC, swissALTI3D: the Library opens a search over the view.</Card>
+      <Card title="Sentinel-2, by date">L2A and L1C scenes from the Copernicus Data Space, drawn in true colour, false colour or an index.</Card>
+    </div>
+    <div style={{ display: 'flex', gap: 24, marginTop: 28 }}>
+      <Card title="For GDAL and QGIS too" accent={teal}>Every index is a plain VRT or COG URL: docs, Dataset indexes.</Card>
+    </div>
+  </Frame>
+);
+
 export const notes: (string | undefined)[] = [
   'Terrain Viewer: a free browser app for elevation data and historical imagery. Everything you see in this deck is a link you can open.',
   'No backend. The browser fetches tiles, decodes them and computes every derivative. The URL holds the state, so a view is a link.',
   'Five global sources ship built in. Mapterhorn is the default: Copernicus GLO-30 with national LiDAR composited in.',
   'The library streams national LiDAR live from the agencies: half a metre over France and the Netherlands against 30 m for a global DEM.',
-  'New in November 2026: Google GEM-15 and Open Buildings, G-LiHT under the Maya canopy, Scotland, the global 30 m models side by side, and Copernicus for the sea and for Sentinel-2.',
-  'These come as new kinds of source. A VRT or a per-cell index is a static file; the browser finds the files under a tile and reads only the blocks it needs.',
   'Twelve of the modes, same view. All are cards in the Data layers picker.',
   'They stack. Each has its own opacity slider, and each links to the paper it comes from.',
+  'The modes run on any source. Tiles, COGs remote or local, VRT mosaics, STAC scenes, WMS and WMTS, ArcGIS, quantized mesh: each ends as the same elevation tile. A VRT or a per-cell index is a static file; the browser reads only the blocks it needs.',
   'Same camera in 2D, 3D and on the globe. In a split, the camera syncs across every view.',
   'Compare two sources or eight. Overlay has a wipe gutter and blend modes; Side is a grid; Match colors makes different providers agree.',
   'Bookmarks are query strings with a thumbnail. Export, import, hand them out by link.',
   'Share is the current URL. Your own remote sources are written into it so the recipient sees what you see.',
   'There is a skill and an llms.txt, so an assistant can answer a question with a link that opens the right view.',
   'Open it and pan somewhere you know.',
+  'Appendix: the larger models in the library. Google GEM-15 and Open Buildings, G-LiHT under the Maya canopy, the global 30 m models side by side, strips by catalogue, Sentinel-2 by date.',
 ];
 
 export const meta: SlideMeta = {
@@ -746,14 +750,14 @@ export default [
   P2What,
   P3Sources,
   P4National,
-  P4bDatasets,
-  P4cSourceTypes,
   P5ModesGrid,
   P6Stack,
+  P6bSourceTypes,
   P7Views,
   P8Split,
   P9Bookmarks,
   P10Share,
   P11Docs,
   P12Close,
+  PA1Datasets,
 ] satisfies Page[];

@@ -17,7 +17,7 @@ import { customTerrainSourcesAtom, elevationPickerPointsAtom, elevationPickerAct
 import { useClientDemUpstream } from "@/components/LayersAndSources/MapSources"
 import { activeDrawModeAtom } from "./TerraDrawSystem"
 import { getClientExportSource, type ClientExportSource } from "@/lib/client-export"
-import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationPath, type ProfilePoint } from "@/lib/elevation-query"
+import { queryTerrainElevationAtPoint, sampleClientElevationAtPoint, sampleClientElevationPath, viewTileZoom, type ProfilePoint } from "@/lib/elevation-query"
 import { buildLrmProtocolUrl, lrmFetchTileBlob } from "@/lib/lrm-protocol"
 import type { UpstreamEncoding } from "@/lib/normal-derived-protocol"
 import { ElevationProfileChart, computeLineOfSight } from "./elevation-profile-chart"
@@ -195,7 +195,9 @@ export const ElevationPickerSection: React.FC<{
         return { elevation: null, error: "LRM elevation lookup needs a tiled DEM path — switch to Absolute, or pick a different source." }
       }
       try {
-        const elevation = await sampleClientElevationAtPoint(toLrmClientSource(clientSource, s.lrmRadius), lng, lat, lrmFetchTileBlob)
+        // At the view's tile zoom: the LRM radius is in pixels, so this is
+        // the value of the shading on screen, and of a path over the point.
+        const elevation = await sampleClientElevationAtPoint(toLrmClientSource(clientSource, s.lrmRadius), lng, lat, lrmFetchTileBlob, viewTileZoom(map, clientSource.tileSize))
         if (elevation === null) return { elevation: null, error: "No data at this point" }
         return { elevation }
       } catch (err) {
@@ -241,8 +243,9 @@ export const ElevationPickerSection: React.FC<{
       // Same "no 3D-mesh equivalent" reasoning as sampleElevation above —
       // always client-side, regardless of view mode.
       const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
+      const lrmMap = mapRef.current?.getMap()
       elevations = (clientSource && clientSource.type !== "cog")
-        ? await sampleClientElevationPath(toLrmClientSource(clientSource, s.lrmRadius), coords, lrmFetchTileBlob)
+        ? await sampleClientElevationPath(toLrmClientSource(clientSource, s.lrmRadius), coords, lrmFetchTileBlob, lrmMap ? viewTileZoom(lrmMap, clientSource.tileSize) : undefined)
         : new Array(coords.length).fill(null)
     } else if (s.viewMode === "3d" || s.viewMode === "globe") {
       const map = mapRef.current?.getMap()
