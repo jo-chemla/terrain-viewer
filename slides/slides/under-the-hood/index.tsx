@@ -721,6 +721,48 @@ if (isBitmap(result.data)) put(params.url, await createImageBitmap(result.data))
   </Frame>
 );
 
+const PerfRow = ({ k, before, now, gain }: { k: string; before: string; now: string; gain: string }) => (
+  <div style={{ display: 'flex', gap: 20, padding: '11px 0', borderTop: `1px solid ${ink.rule}`, fontSize: 24, lineHeight: 1.3 }}>
+    <span style={{ flex: 1, color: ink.text }}>{k}</span>
+    <span style={{ width: 110, textAlign: 'right', fontFamily: mono, color: ink.muted }}>{before}</span>
+    <span style={{ width: 110, textAlign: 'right', fontFamily: mono, color: ink.text }}>{now}</span>
+    <span style={{ width: 90, textAlign: 'right', fontFamily: mono, color: teal }}>{gain}</span>
+  </div>
+);
+
+const P11bPerf: Page = () => (
+  <Frame eyebrow="Optimizations" title="Same pixels, several times sooner">
+    <TwoCol
+      leftWidth={760}
+      left={
+        <>
+          <div style={{ display: 'flex', gap: 20, paddingBottom: 10, fontSize: 19, color: ink.muted }}>
+            <span style={{ flex: 1 }}>ms per 512 px tile, Chrome, warm caches</span>
+            <span style={{ width: 110, textAlign: 'right' }}>before</span>
+            <span style={{ width: 110, textAlign: 'right' }}>now</span>
+            <span style={{ width: 90, textAlign: 'right' }}>gain</span>
+          </div>
+          <PerfRow k="Blobness" before="212" now="8.0" gain="26x" />
+          <PerfRow k="Hard Shadows, radius 16" before="297" now="12.6" gain="24x" />
+          <PerfRow k="Openness, radius 8" before="894" now="94" gain="9.5x" />
+          <PerfRow k="Local Relief Model" before="22.8" now="2.5" gain="9.1x" />
+          <PerfRow k="Sky View Factor, radius 8" before="928" now="116" gain="8.0x" />
+          <PerfRow k="DEM difference" before="35.5" now="7.4" gain="4.8x" />
+          <PerfRow k="Curvature" before="25.4" now="6.0" gain="4.2x" />
+          <PerfRow k="Slope" before="22.5" now="8.8" gain="2.6x" />
+        </>
+      }
+      right={
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+          <Card title="Faster kernels" accent={teal}>Per-tile constants built once, no trigonometry in the inner loop, nothing allocated per pixel, one 32-bit store per pixel, scheduler.yield() instead of a clamped setTimeout.</Card>
+          <Card title="Four worker pools">Raster compute, MapLibre (contours), GeoTIFF decoders, local COG contours: up to four workers each. Twelve heavy tiles land 3 to 4 times sooner, and no frame is missed.</Card>
+          <Card title="Fewer requests" accent={rose}>Wayback walks eight releases at once (2.6 times faster). A DEM difference skips tiles its coarse operand lacks. Planet months are debounced: 45 tiles where 540 were asked.</Card>
+        </div>
+      }
+    />
+  </Frame>
+);
+
 const P12State: Page = () => (
   <Frame eyebrow="State and catalogs" title="The URL is the API, STAC is the inventory">
     <TwoCol
@@ -783,6 +825,7 @@ export const notes: (string | undefined)[] = [
   'Derived modes read any source scheme. The URL carries every parameter, so the cache key is always right.',
   'The registry: one place to register, one way to fetch. Twice a scheme was missed before it existed.',
   'Two caches, and the rule: clone on both sides, return an ImageBitmap.',
+  'November 2026: every per-pixel loop rewritten for the same output, then the heavy ones moved to workers. A worker does not make a tile faster; it lets several compute at once and keeps the page drawing.',
   'nuqs for the URL, jotai for the personal; the parameter list and the STAC catalog are generated from the code.',
   'Read the dev pages; every formula there is transcribed from its protocol file.',
 ];
@@ -804,6 +847,7 @@ export default [
   P9VizProtocols,
   P10Registry,
   P11Caches,
+  P11bPerf,
   P12State,
   P13Close,
 ] satisfies Page[];
