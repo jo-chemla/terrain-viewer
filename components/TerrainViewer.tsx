@@ -4848,6 +4848,9 @@ export function TerrainViewer() {
     // are stripped from snapshots (data-snapshot-plain / data-snapshot-ignore,
     // see captureMapScreenshot).
     const label = baseLabel
+    // The letter is followed by ": " whenever anything follows it: the
+    // modes alone used to read "AHillshade", "BBasemap".
+    const modesSuffix = distinctModesSuffix(pane.side, !!label)
     // Any split: a pill click selects the view (bold, a touch larger), a
     // second click deselects. With a view selected, per-view mode toggles
     // in the sidebar collapse to that view's single button. In historical
@@ -4917,8 +4920,8 @@ export function TerrainViewer() {
             <TooltipTrigger
               render={
                 <span data-snapshot-plain data-timeline-side-select="" onClick={onPillClick} title={label ?? undefined} className={cn("cursor-pointer block min-w-0 truncate", activeView === pane.side ? "font-bold text-[1.08em]" : selected && "font-bold")}>
-                  {isSplit && <span data-snapshot-ignore>{label ? `${pane.side}: ` : pane.side}</span>}
-                  {label}{distinctModesSuffix(pane.side, !!label)}
+                  {isSplit && <span data-snapshot-ignore>{label || modesSuffix ? `${pane.side}: ` : pane.side}</span>}
+                  {label}{modesSuffix}
                 </span>
               }
             />
@@ -4926,8 +4929,8 @@ export function TerrainViewer() {
           </Tooltip>
         ) : (
           <span data-snapshot-plain title={label ?? undefined} className={cn("block min-w-0 truncate", selected && "font-bold")}>
-            {isSplit && <span data-snapshot-ignore>{label ? `${pane.side}: ` : pane.side}</span>}
-            {label}{distinctModesSuffix(pane.side, !!label)}
+            {isSplit && <span data-snapshot-ignore>{label || modesSuffix ? `${pane.side}: ` : pane.side}</span>}
+            {label}{modesSuffix}
           </span>
         )}
         {activeView === pane.side && (

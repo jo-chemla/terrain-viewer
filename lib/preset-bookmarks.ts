@@ -34,11 +34,11 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
     // and starts the Feature Iterator, which only a page load does (see
     // restorePreset).
     id: "preset-crater-candidates",
-    name: "Crater candidates — Feature Iterator on a remote CSV, split view",
+    name: "Crater candidates — Feature Iterator on a remote CSV, four views",
     ts: 0,
     thumb: "/bookmark-thumbs/crater-candidates.jpg",
     reload: true,
-    search: "zoom=13&splitStyle=side-by-side&gridLayout=2x1&vizSync=false&vizViews=showHillshade:A;showColorRelief:A;showRasterBasemap:B&showHillshade=true&showColorRelief=true&hypsoAutoRange=true&showRasterBasemap=true&basemapSourceB=google&drawingUrl=https://raw.githubusercontent.com/wrong-nebula/earth-anomalies/refs/heads/main/detections.csv&scrollTo=featureIterator&iteratorSort=quality&iteratorFilter=status:cross_dem_shape_supported",
+    search: "zoom=12.24&splitStyle=side-by-side&gridLayout=2x2&terrainSourceB=mapterhorn&showColorRelief=true&showRasterBasemap=true&vizSync=false&vizViews=showHillshade:A;showColorRelief:A;showRasterBasemap:B;showLightingEffects:C;showPhong:C;showReliefVisualization:D;showSvf:D;showSlope:A;showTerrainAnalysis:A&drawingUrl=https://raw.githubusercontent.com/wrong-nebula/earth-anomalies/refs/heads/main/detections.csv&scrollTo=featureIterator&iteratorSort=quality&customHypsoMinMax=true&hypsoAutoRange=true&showLightingEffects=true&slopeMaxDegrees=14&showReliefVisualization=true&showSvf=true&showLrm=false&svfMin=90&showTerrainAnalysis=true&illuminationDir=16.59&illuminationAlt=53.36&lightDayOfYear=110&lightTimeOfDay=11.25&basemapSourceA=google&basemapSourceC=google&colorRamp=deep",
   },
   {
     id: "preset-matterhorn",

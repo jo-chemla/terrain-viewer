@@ -536,6 +536,8 @@ function userFeatures(snapshot: GeoJSONFeature[]): GeoJSONFeature[] {
  *  drawing system - which has no access to the URL state - can react to it
  *  and add to it. TerrainControlPanel keeps the two in sync both ways. */
 export const drawingUrlsAtom = atom<string[]>([])
+/** The drawingUrl entries being fetched: listed with a spinner until drawn. */
+export const drawingUrlsLoadingAtom = atom<string[]>([])
 
 /** The feature the Feature Iterator is on, or null: every view rings it in
  *  the selection accent (IteratorHighlightLayer). */
@@ -971,6 +973,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
     // does not carry its own camera.
     const importDrawing = useDrawingImport(draw, mapRef)
     const drawingUrls = useAtomValue(drawingUrlsAtom)
+    const setDrawingUrlsLoading = useSetAtom(drawingUrlsLoadingAtom)
     useEffect(() => {
         if (!draw) return
         const pending = drawingUrls.filter((u) => u && !loadedDrawingUrls.has(u))
@@ -981,6 +984,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
         // itself: fitting the whole layer first would leave the zoom there.
         const fit = !params.has("lat") && !params.has("lng") && params.get("scrollTo") !== "featureIterator"
         ;(async () => {
+            setDrawingUrlsLoading((prev) => [...new Set([...prev, ...pending])])
             for (const url of pending) {
                 try {
                     const { geojson, format } = await fetchVector(url)
@@ -988,6 +992,8 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
                 } catch (e) {
                     loadedDrawingUrls.delete(url)
                     console.error(`[TerraDraw] drawingUrl ${url}:`, e)
+                } finally {
+                    setDrawingUrlsLoading((prev) => prev.filter((u) => u !== url))
                 }
             }
         })()
@@ -1310,6 +1316,15 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
     useEffect(() => { setIteratorHighlight(iteratorCurrent) }, [iteratorCurrent, setIteratorHighlight])
     useEffect(() => () => setIteratorHighlight(null), [setIteratorHighlight])
 
+    // A linked layer is listed by name, with a spinner, from the moment its
+    // URL is known: before Terra Draw is ready, while the file downloads and
+    // until its features are drawn. A URL whose layer row already exists
+    // (kept from an earlier visit) spins on that row instead.
+    const linkedUrls = useAtomValue(drawingUrlsAtom)
+    const fetchingUrls = useAtomValue(drawingUrlsLoadingAtom)
+    const loadingUrls = linkedUrls.filter((u) => u && (fetchingUrls.includes(u) || (!draw && !loadedDrawingUrls.has(u))))
+    const loadingRows = loadingUrls.filter((u) => !layers.some((l) => l.sourceUrl === u))
+
     const goToIteratorIndex = (i: number) => {
         if (iteratorTotal === 0) return
         setIteratorIndex(((i % iteratorTotal) + iteratorTotal) % iteratorTotal) // wraps both ways, matching the Repeat2/"loop through" framing
@@ -1429,7 +1444,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                             list for drawing, and shows again once it is the
                             active layer or holds a feature. */}
                         {layers.filter((layer) => !(layer.id === DEFAULT_LAYER.id && layer.name === DEFAULT_LAYER.name && layer.id !== activeLayerId
-                            && layers.some((l) => l.sourceUrl) && !features.some((f) => (f.properties?.layerId ?? layers[0]?.id) === layer.id))).map((layer) => (
+                            && (layers.some((l) => l.sourceUrl) || loadingUrls.length > 0) && !features.some((f) => (f.properties?.layerId ?? layers[0]?.id) === layer.id))).map((layer) => (
                             <div key={layer.id} className="flex items-center gap-2 min-w-0">
                                 <Tooltip>
                                     <TooltipTrigger
@@ -1449,7 +1464,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
 
                                 {layer.sourceUrl && (
                                     <Tooltip>
-                                        <TooltipTrigger render={<span className="shrink-0 text-muted-foreground"><Link className="h-3 w-3" /></span>} />
+                                        <TooltipTrigger render={<span className="shrink-0 text-muted-foreground">{loadingUrls.includes(layer.sourceUrl) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link className="h-3 w-3" />}</span>} />
                                         <TooltipContent><p>Linked layer, read-only: re-fetched from {layer.sourceUrl} on every load (listed in the link's drawingUrl parameter), not stored in this browser. Import it again with "Keep in the link" unticked for an editable copy</p></TooltipContent>
                                     </Tooltip>
                                 )}
@@ -1612,105 +1627,37 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                 )}
                             </div>
                         ))}
+                        {loadingRows.map((url) => (
+                            <div key={url} className="flex items-center gap-2 min-w-0 text-sm text-muted-foreground" title={url}>
+                                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                                <span className="min-w-0 flex-1 truncate">{nameFromUrl(url)}</span>
+                                <span className="shrink-0 text-xs">Loading</span>
+                            </div>
+                        ))}
                     </div>
 
                     {iteratorLayerId && iteratorTotal > 0 && (
+                        // One grid: a label column and a control column, every
+                        // control 28 px high in the same small text.
                         <div id="tour-feature-iterator" className="space-y-2 rounded-md border p-2">
-                            <Tooltip>
-                                <TooltipTrigger
-                                    delay={0}
-                                    render={
-                                        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground cursor-default">
-                                            <Repeat2 className="h-3.5 w-3.5" />
-                                            Feature Iterator
-                                        </div>
-                                    }
-                                />
-                                <TooltipContent>
-                                    <p>
-                                        Loop through this layer's features one at a time, auto-framing each on the map.<br />
-                                        Use ←/→ (N for next, or the index field) to navigate, D to delete the current feature.
-                                    </p>
-                                </TooltipContent>
-                            </Tooltip>
-                            <div className="flex items-center justify-center gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex - 1)}>
-                                    <ChevronLeft className="h-4 w-4" />
-                                </Button>
-                                <DraftBoundInput
-                                    value={iteratorIndex + 1}
-                                    onCommit={(v) => { if (v !== undefined) goToIteratorIndex(Math.round(v) - 1) }}
-                                    className="h-7 w-[8ch] px-1 text-center text-sm bg-transparent border rounded"
-                                />
-                                <span className="text-xs text-muted-foreground shrink-0">/{iteratorTotal}</span>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
-                                    <ChevronRight className="h-4 w-4" />
-                                </Button>
-                            </div>
-                            {iteratorFilterOptions.length > 0 && (
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                    <Tooltip>
-                                        <TooltipTrigger render={<Label className="text-xs text-muted-foreground shrink-0 cursor-default">Filter</Label>} />
-                                        <TooltipContent><p>Walk only the features with this value of a text property. The others stay drawn on the map</p></TooltipContent>
-                                    </Tooltip>
-                                    <Select value={iteratorFilterActive ? iteratorFilter! : "__all"} items={{ __all: "All features", ...Object.fromEntries(iteratorFilterOptions.map((o) => [o.id, o.label])) }} onValueChange={(v) => setIteratorFilter(!v || v === "__all" ? null : String(v))}>
-                                        <SelectTrigger className="h-7 flex-1 min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="__all">All features</SelectItem>
-                                            {iteratorFilterOptions.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-                            {iteratorSortKeys.length > 0 && (
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                    <Tooltip>
-                                        <TooltipTrigger render={<Label className="text-xs text-muted-foreground shrink-0 cursor-default">Order</Label>} />
-                                        <TooltipContent><p>The order the iterator walks the layer in: the file's own, or a numeric property, highest value first</p></TooltipContent>
-                                    </Tooltip>
-                                    <Select value={iteratorSortActive ? iteratorSort! : "__file"} items={{ __file: "File order", ...Object.fromEntries(iteratorSortKeys.map((k) => [k, `${k}, highest first`])) }} onValueChange={(v) => setIteratorSort(!v || v === "__file" ? null : String(v))}>
-                                        <SelectTrigger className="h-7 flex-1 min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="__file">File order</SelectItem>
-                                            {iteratorSortKeys.map((k) => <SelectItem key={k} value={k}>{k}, highest first</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    {iteratorSortActive && (
-                                        <span className="text-xs tabular-nums text-muted-foreground shrink-0">{String(iteratorFeatures[iteratorIndex]?.properties?.[iteratorSort!] ?? "")}</span>
-                                    )}
-                                </div>
-                            )}
-                            <div className="flex items-center justify-center gap-1">
-                                <Tooltip>
-                                    <TooltipTrigger render={<Label className="text-xs text-muted-foreground shrink-0 cursor-default">Zoom</Label>} />
-                                    <TooltipContent><p>Zoom level to center a point feature at — only applies to points (polylines/polygons always auto-fit to their own extent). Empty keeps whatever zoom the map is already at.</p></TooltipContent>
-                                </Tooltip>
-                                <DraftBoundInput
-                                    value={iteratorZoom ?? undefined}
-                                    onCommit={(v) => setIteratorZoom(v ?? null)}
-                                    placeholder="Current"
-                                    className="h-7 w-[7ch] px-1 text-xs text-right bg-transparent border rounded"
-                                    step={0.5}
-                                />
+                            <div className="flex items-center gap-1 min-w-0">
                                 <Tooltip>
                                     <TooltipTrigger
+                                        delay={0}
                                         render={
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 shrink-0 cursor-pointer"
-                                                onClick={() => {
-                                                    const zoom = mapRef.current?.getMap()?.getZoom()
-                                                    setIteratorZoom(zoom === undefined ? null : Math.round(zoom * 10) / 10)
-                                                }}
-                                            >
-                                                <Target className="h-3.5 w-3.5" />
-                                            </Button>
+                                            <div className="flex flex-1 min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground cursor-default">
+                                                <Repeat2 className="h-3.5 w-3.5 shrink-0" />
+                                                <span className="truncate">Feature Iterator</span>
+                                            </div>
                                         }
                                     />
-                                    <TooltipContent><p>Set to the map's current zoom</p></TooltipContent>
+                                    <TooltipContent>
+                                        <p>
+                                            Loop through this layer's features one at a time, auto-framing each on the map.<br />
+                                            Use ←/→ (N for next, or the index field) to navigate, D to delete the current feature.
+                                        </p>
+                                    </TooltipContent>
                                 </Tooltip>
-                                <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
                                 <Tooltip>
                                     <TooltipTrigger
                                         render={
@@ -1723,7 +1670,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                                     if (feature) flyToIteratorFeature(feature)
                                                 }}
                                             >
-                                                <MapPin className="h-4 w-4" />
+                                                <MapPin className="h-3.5 w-3.5" />
                                             </Button>
                                         }
                                     />
@@ -1733,12 +1680,95 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                     <TooltipTrigger
                                         render={
                                             <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={deleteIteratorFeature}>
-                                                <Trash2 className="h-4 w-4" />
+                                                <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
                                         }
                                     />
                                     <TooltipContent><p>Delete this feature (D)</p></TooltipContent>
                                 </Tooltip>
+                            </div>
+                            <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1.5">
+                                <Label className="text-xs text-muted-foreground">Feature</Label>
+                                <div className="flex items-center gap-1 min-w-0">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" aria-label="Previous feature" onClick={() => goToIteratorIndex(iteratorIndex - 1)}>
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+                                    <DraftBoundInput
+                                        value={iteratorIndex + 1}
+                                        onCommit={(v) => { if (v !== undefined) goToIteratorIndex(Math.round(v) - 1) }}
+                                        className="h-7 flex-1 min-w-0 px-1 text-center text-xs tabular-nums bg-transparent border rounded"
+                                    />
+                                    <span className="text-xs tabular-nums text-muted-foreground shrink-0">of {iteratorTotal}</span>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" aria-label="Next feature" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                {iteratorFilterOptions.length > 0 && (
+                                    <>
+                                        <Tooltip>
+                                            <TooltipTrigger render={<Label className="text-xs text-muted-foreground cursor-default">Filter</Label>} />
+                                            <TooltipContent><p>Walk only the features with this value of a text property. The others stay drawn on the map</p></TooltipContent>
+                                        </Tooltip>
+                                        <Select value={iteratorFilterActive ? iteratorFilter! : "__all"} items={{ __all: "All features", ...Object.fromEntries(iteratorFilterOptions.map((o) => [o.id, o.label])) }} onValueChange={(v) => setIteratorFilter(!v || v === "__all" ? null : String(v))}>
+                                            <SelectTrigger className="h-7 w-full min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="__all">All features</SelectItem>
+                                                {iteratorFilterOptions.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </>
+                                )}
+                                {iteratorSortKeys.length > 0 && (
+                                    <>
+                                        <Tooltip>
+                                            <TooltipTrigger render={<Label className="text-xs text-muted-foreground cursor-default">Order</Label>} />
+                                            <TooltipContent><p>The order the iterator walks the layer in: the file's own, or a numeric property, highest value first</p></TooltipContent>
+                                        </Tooltip>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <Select value={iteratorSortActive ? iteratorSort! : "__file"} items={{ __file: "File order", ...Object.fromEntries(iteratorSortKeys.map((k) => [k, `${k}, highest first`])) }} onValueChange={(v) => setIteratorSort(!v || v === "__file" ? null : String(v))}>
+                                                <SelectTrigger className="h-7 flex-1 min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__file">File order</SelectItem>
+                                                    {iteratorSortKeys.map((k) => <SelectItem key={k} value={k}>{k}, highest first</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                            {iteratorSortActive && (
+                                                <span className="text-xs tabular-nums text-muted-foreground shrink-0">{String(iteratorFeatures[iteratorIndex]?.properties?.[iteratorSort!] ?? "")}</span>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                                <Tooltip>
+                                    <TooltipTrigger render={<Label className="text-xs text-muted-foreground cursor-default">Zoom</Label>} />
+                                    <TooltipContent><p>Zoom level to center a point feature at — only applies to points (polylines/polygons always auto-fit to their own extent). Empty keeps whatever zoom the map is already at.</p></TooltipContent>
+                                </Tooltip>
+                                <div className="flex items-center gap-1 min-w-0">
+                                    <DraftBoundInput
+                                        value={iteratorZoom ?? undefined}
+                                        onCommit={(v) => setIteratorZoom(v ?? null)}
+                                        placeholder="Current zoom"
+                                        className="h-7 flex-1 min-w-0 px-2 text-xs tabular-nums bg-transparent border rounded"
+                                        step={0.5}
+                                    />
+                                    <Tooltip>
+                                        <TooltipTrigger
+                                            render={
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 shrink-0 cursor-pointer"
+                                                    onClick={() => {
+                                                        const zoom = mapRef.current?.getMap()?.getZoom()
+                                                        setIteratorZoom(zoom === undefined ? null : Math.round(zoom * 10) / 10)
+                                                    }}
+                                                >
+                                                    <Target className="h-3.5 w-3.5" />
+                                                </Button>
+                                            }
+                                        />
+                                        <TooltipContent><p>Set to the map's current zoom</p></TooltipContent>
+                                    </Tooltip>
+                                </div>
                             </div>
                         </div>
                     )}
