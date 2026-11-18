@@ -1,0 +1,84 @@
+---
+title: Tile Performance and Workers
+description: What a tile costs in each visualization mode, what the background workers buy, how many threads a page uses, and how the speed-up of November 2026 was obtained
+---
+
+Every visualization mode is computed per pixel in the browser, tile by tile (see the [Terrain Analysis Rendering Pipeline](/dev/terrain-analysis-pipeline)). This page records what that costs, how it was made several times faster in November 2026 with the same pixels, and what runs off the main thread.
+
+## Time per tile
+
+One tile (Mapterhorn, z12, Alps; 512 px unless said), caches warm, Chrome 158 on a 20-core desktop with nothing else running. "Before" is the commit before the first speed pass (`7156dfd`), "Now" is the release of 2026-11-17. Both builds were loaded in one page and run in four passes; the passes agree within 3% and the pixels are identical.
+
+| Time per tile | Before (ms) | Now (ms) | Gain |
+|---|---|---|---|
+| DEM difference, 512 px (256 px) | 35.5 (8.4) | 7.4 (1.6) | 4.8x (5.4x) |
+| Local Relief Model, radius 16 (64) | 22.8 (22.3) | 2.5 (2.6) | 9.1x (8.7x) |
+| Slope | 22.5 | 8.8 | 2.6x |
+| Curvature | 25.4 | 6.0 | 4.2x |
+| Sky View Factor, radius 8 (32) | 928 (2936) | 116 (242) | 8.0x (12x) |
+| Openness, radius 8 (32) | 894 (2898) | 94 (218) | 9.5x (13x) |
+| Hard Shadows, radius 16 (64) | 297 (712) | 12.6 (37.6) | 24x (19x) |
+| Local Dominance | 474 | 262 | 1.8x |
+| Blobness | 212 | 8.0 | 26x |
+| Aspect | 32.6 | 12.1 | 2.7x |
+
+Hillshade, colour relief, live Phong and Matcap are not in the table: they are shaders, drawn by the GPU.
+
+## How the time was won
+
+None of it changed a pixel. The same few rules, applied to every per-pixel loop:
+
+- **Work out per-tile constants once.** The rays of Sky View Factor, Openness and Hard Shadows are the same for every pixel of a tile: their index offsets and 1/distance are built once per tile, not per pixel.
+- **No trigonometry in the inner loop.** A horizon search keeps the largest elevation/distance ratio and takes one `atan` per direction at the end. Hard Shadows takes none: it compares each slope to `tan(sun altitude)` and stops at the first obstruction.
+- **Nothing allocated per pixel, no string keys.** The padded elevation grid every mode starts from used a template-string `Map` lookup per pixel (about 44 ms per tile); it now resolves its nine tiles once and copies row spans. Windowed modes reuse one window object; Blobness computes its gradient once per cell instead of nine times per pixel.
+- **Bilinear tables.** Local Relief Model and DEM difference sample a coarser tile: the two source columns and their weight depend on the output column alone (likewise for rows), so they are computed once per column and per row.
+- **One 32-bit store per pixel.** Writing a Terrarium or Terrain-RGB pixel as four clamped bytes cost 13.5 ms per tile; one `Uint32` store for in-range values costs 3.9 ms, and out-of-range values keep the clamped path.
+- **Yield without a timer.** Long loops yield so a pan stays responsive. `setTimeout(0)` is clamped to 4 ms once nested, so 32 yields cost about 130 ms per tile; the yield is now `scheduler.yield()` (a `MessageChannel` task where that is missing).
+- **No wasted requests.** A DEM difference over a coarse operand asked for one missing tile per zoom level, on every tile (0.1 to 0.3 s each time). The URL now carries each operand's maxzoom, and a missing tile is remembered for ten minutes so its neighbours do not ask again.
+- **No PNG round trip.** A protocol hands MapLibre an `ImageBitmap`, not PNG bytes it would decode straight back (see [Tile Caches](/dev/tile-caches)).
+
+## What the workers buy
+
+A worker does not make one tile faster. It lets several tiles compute at once and keeps the page drawing while they do. Twelve tiles asked at once, the Raster Compute in a Worker switch off against on:
+
+| Twelve tiles at once | Main thread (ms) | Workers (ms) | Sooner | Frames missed, main thread | Frames missed, workers |
+|---|---|---|---|---|---|
+| Sky View Factor, radius 8 | 1415 | 407 | 3.5x | 65 | 0 |
+| Sky View Factor, radius 32 | 2982 | 970 | 3.1x | 148 | 0 |
+| Openness, radius 8 | 1152 | 334 | 3.4x | 55 | 0 |
+| Local Dominance | 3128 | 825 | 3.8x | 155 | 0 |
+| Hard Shadows, radius 64 | 766 | 252 | 3.0x | 34 | 0 |
+| VRT tiles (COP30, file already open) | 600 | 200 | 3.0x | 23 | 0 |
+
+On the main thread the page froze for about 100 ms at a time; with the workers the longest gap between two frames is one frame.
+
+Slope, Aspect, Curvature, Blobness and Local Relief Model stay on the main thread on purpose: twelve tiles take 31 to 141 ms in all and miss no frame, so a worker would only add the cost of the hand-off.
+
+Contours are traced in MapLibre's own workers. MapLibre keeps one worker on Chrome, Edge and Firefox by default; the app raises that to four:
+
+| Ten contour tiles on screen | Mapterhorn contours (ms) | Local Relief Model contours (ms) |
+|---|---|---|
+| 1 MapLibre worker | 560 | 1500 |
+| 2 | 450 | 1100 |
+| 4 (the app's setting on this machine) | 440 | 920 |
+
+## How many threads a page uses
+
+Each pool is created once for the whole page and shared by every mode and every view. Turning on more layers queues more tiles on the same workers; it does not start more of them. Each pool is sized `cores - 2`, at most four.
+
+| Pool | What runs there | Workers | Started |
+|---|---|---|---|
+| Raster compute (`lib/raster-compute-pool.ts`) | Sky View Factor, Openness, Local Dominance, Hard Shadows | up to 4 | one per concurrent tile, from the first heavy tile |
+| MapLibre (`setWorkerCount` in `src/main.tsx`) | contours, vector tile parsing | up to 4 | at page load |
+| GeoTIFF decoders (`lib/vrt-protocol.ts`) | block decompression of a VRT mosaic read in the browser | up to 4 | first VRT tile |
+| Local COG contours (`lib/cog-contour-worker.ts`) | contours of a local or client-read COG | 1 | first such source |
+
+The worst case is 13 workers beside the main thread, 7 on a four-core laptop. The pools are separate because their work is: MapLibre owns its workers, the GeoTIFF library its decoders, and the raster pool takes plain elevation grids. They rarely peak together: a relief tile first reads its DEM (a decoder), then computes (the raster pool), and contours wait on the same DEM.
+
+The cap stays at four rather than, say, `cores - 8`, because the gain flattens: what remains per tile is the fetch, the decode and the hand-back on the main thread, which more workers do not shorten (contours gain little from 2 to 4 workers above), while every worker costs memory and its own caches.
+
+The DEM itself is always fetched and decoded on the main thread: that is where MapLibre calls a custom protocol and where the tile caches live. Only the pixel loop moves.
+
+## How to measure
+
+Absolute times move two to five times with the browser and with what else the machine is doing; a hidden tab throttles timers. Compare two builds in the same page: open the new build and import the old build's modules from its own dev server (`import("http://localhost:5192/lib/slope-protocol.ts")`, in a second git worktree), call both protocol handlers on the same tile, and hash the pixels of both. Use a real browser that draws frames; frame gaps (`requestAnimationFrame`) show what a timing alone hides.

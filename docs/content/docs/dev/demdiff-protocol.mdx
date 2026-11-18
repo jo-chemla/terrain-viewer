@@ -23,7 +23,7 @@ The two sources are fetched through `fetchDecodedTile` — the same decoded-tile
 
 The interesting case is a 0.5 m DSM minus a 30 m reference. Above the coarse source's maxzoom there is no tile to fetch, and the naive result is that the difference simply stops existing exactly where it is most useful.
 
-`fetchOperand` walks up instead: it tries `z`, then `z-1`, `z-2`, … up to **6 levels**, and returns the first ancestor that exists together with the sub-window to read:
+`fetchOperand` walks up instead: it tries `z`, then `z-1`, `z-2`, … up to **6 levels**, and returns the first ancestor that exists together with the sub-window to read (a tile found missing on the way is remembered for ten minutes, per place, and nothing at or below it is asked for again: the first tile of an area pays the failed requests, its neighbours none):
 
 ```ts
 type Operand = { tile: DecodedTile; scale: number; ox: number; oy: number }

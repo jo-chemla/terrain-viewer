@@ -21,7 +21,7 @@ They are complementary. `sharedTileCache` is why turning on Slope after Hillshad
 
 MapLibre releases a source's tiles when the layer using it goes `visibility: none` — which is what a sub-mode checkbox does — and when the source unmounts entirely, which is what the master viz-mode toggle does. Re-showing a mode therefore re-runs the whole per-pixel computation for every visible tile, even though the decoded upstream DEM is still sitting in `sharedTileCache`.
 
-No network, but measured **~1.2 s of recompute for LRM over a z13 viewport**. Caching the finished tile makes re-toggling near-instant.
+No network, but real work: twelve Sky View Factor tiles at radius 32 are about 1 s even in the worker pool (**~1.2 s for LRM over a z13 viewport** was measured when this cache was built; LRM has since dropped to about 3 ms per tile, see [Tile Performance and Workers](/dev/performance)). Caching the finished tile makes re-toggling near-instant.
 
 It is gated by **Cache computed viz-mode tiles** in [Settings](/features/advanced/settings) (`cacheVizTilesAtom`, synced through `setTileResultCacheEnabled`). Turning it off also frees everything already held — the point of turning it off is reclaiming memory, not merely stopping new inserts.
 

@@ -108,6 +108,8 @@ Every archive sits under its continent, then its country with the ISO alpha-3 co
 
 The paper of these scanned maps can be made transparent: see [Remove paper](/features/basemaps#remove-paper).
 
+Elsewhere, for what an old map can become once it is georeferenced: Mormon Negro's [Buenos Aires, de 1867 a 1940](https://baires.mormon.garden/) raises the 1867 topographic plan of Buenos Aires and five later maps in 3D with three.js and OpenStreetMap, each block, building and tree drawn in the plan's own ink, with today's streets, railways and coastline over them ([first post](https://x.com/mormonnegro/status/2122323973094477884), [the version with six maps](https://x.com/mormonnegro/status/2122472039260827852)).
+
 ### My STAC catalogs
 
 Your own STAC catalogs, attached to the tree, and one shipped there: **Planet Eyes on Heritage 2026**, the yearly SkySat, Pelican and PlanetScope series over eight cultural heritage sites released for the Eyes on Heritage hackathon (145 scenes, CC BY-NC 4.0, on Source Cooperative), also a preset of the STAC search. Each catalog is a STAC API (one `/search` with the view's bbox per move, the timeline window passed as `datetime` when the filter is on) or a static `catalog.json` tree (crawled a few levels down, collections skipped by their extent, items filtered by bbox and date, cached for the session), optionally narrowed to one collection (an API collection id, or one child of a static tree). The same loader serves the HOT catalogs above. Each item covering the view is a tick: its `visual`, `cog` or `image` asset (else the first GeoTIFF that is not a mask), drawn through TiTiler since most are in UTM; `gsd`, a thumbnail and the licence come along when the item has them.

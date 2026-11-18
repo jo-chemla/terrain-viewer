@@ -629,7 +629,7 @@ const P8SourceProtocols: Page = () => (
           <Scheme s="demdiff://" what="the difference of two sources: an nDSM, a change layer" />
           <Scheme s="cog://" what="geomatico: Cloud-Optimized GeoTIFF by range requests" accent={teal} />
           <Scheme s="pmtiles://" what="Protomaps archives" accent={teal} />
-          <Scheme s="dem-contour://" what="maplibre-contour's own worker, fed through the registry" accent={teal} />
+          <Scheme s="tv-contour://" what="maplibre-contour inside MapLibre's own workers, DEM fed through the registry" accent={teal} />
           <p style={{ fontSize: 22, color: dim, marginTop: 14, lineHeight: 1.35 }}>Region readers: a WMS, a VRT or a difference answers a whole export area in a few requests.</p>
         </>
       }
@@ -710,7 +710,7 @@ const P11Caches: Page = () => (
     <div style={{ display: 'flex', gap: 24, marginTop: 28 }}>
       <Card title="Clone both ways" accent={rose}>MapLibre transfers the ArrayBuffer to its worker and may close() a bitmap. Hand out the cache's own copy and the second hit throws DataCloneError. Clone before storing, clone before returning.</Card>
       <Card title="ImageBitmap, not PNG">convertToBlob(image/png) then MapLibre decodes it back: <span style={{ fontFamily: mono, color: 'var(--osd-text)' }}>99 ms</span> median per tile. createImageBitmap: <span style={{ fontFamily: mono, color: 'var(--osd-text)' }}>0.1 ms</span>. maplibre-gl-js #8515 / #8525.</Card>
-      <Card title="For scale">LRM over a z13 viewport: ~1.2 s of recompute. quantized-mesh:// went from ~1000 ms to 3-97 ms per tile; lerc:// from ~1100 to 66-233.</Card>
+      <Card title="For scale">Twelve Sky View Factor tiles at radius 32: ~1 s, in four workers. quantized-mesh:// went from ~1000 ms to 3-97 ms per tile; lerc:// from ~1100 to 66-233.</Card>
     </div>
     <div style={{ marginTop: 28 }}>
       <Code size={22}>{`const hit = lru.get(params.url)

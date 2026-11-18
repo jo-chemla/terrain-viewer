@@ -20,6 +20,7 @@
     "---Custom Protocols---",
     "custom-protocols",
     "terrain-analysis-pipeline",
+    "performance",
     "lrm",
     "lighting-effects",
     "wms-float32-protocol",

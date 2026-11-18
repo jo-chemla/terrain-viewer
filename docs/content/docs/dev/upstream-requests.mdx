@@ -100,6 +100,18 @@ Posted 2026-11-15 in two parts: the description of the registry and `useClientDe
 >
 > Happy to send a PR along those lines if that shape works for you.
 
+### Follow-up to post (drafted 2026-11-18, not posted)
+
+HarelM's answer on style-spec 1374 (`importScriptInWorkers`) made the request above unnecessary. A short reply on issue 434 to say so and leave the recipe for the next reader:
+
+> A follow-up, since this turned out not to need anything from maplibre-contour. Following @HarelM's suggestion on maplibre-style-spec#1374, we now run maplibre-contour inside MapLibre's own workers:
+>
+> - `importScriptInWorkers` loads the UMD build (`dist/index.min.js`) plus a few lines of our own into the workers, where they register a protocol with `self.addProtocol`. MapLibre loads vector tiles in its workers, so the isolines and the vector-tile encoding run there.
+> - The protocol handler builds a `LocalDemManager` with a custom `getTile`: a plain http(s) tile is fetched in the worker; any custom scheme (`vrt://`, `lerc://`, a DEM difference) is asked of the main thread with `self.worker.actor.sendAsync` and comes back as a transferred `ImageBitmap`. One gotcha: the message needs `targetMapId: "global-dispatcher"`, or every map's actor answers it.
+> - `setWorkerCount(4)` then traces several tiles at once (MapLibre defaults to one worker on Chrome): ten contour tiles went from 560 to 440 ms, and from 1.5 to 0.9 s over a computed DEM.
+>
+> Code: [`contour-worker-client.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/contour-worker-client.ts) and [`contour-worker-body.js`](https://github.com/Iconem/terrain-viewer/blob/main/lib/contour-worker-body.js). The one thing that would make this lighter is exposing `dist/index.min.js` (or a worker-ready entry) in the package `exports` map; we import it by its `node_modules` path today. Feel free to close our part of this request.
+
 ## Mapterhorn: a comment on issue 27
 
 A comment on [issue 27](https://github.com/mapterhorn/mapterhorn/issues/27) (possible data sources; Wallonia and the Dutch orthophoto WMS were the last two suggestions):
