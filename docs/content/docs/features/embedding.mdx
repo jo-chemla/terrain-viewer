@@ -67,7 +67,7 @@ These are read once on load and are never written by the app. They stay in the U
 |---|---|
 | `project=<id>` | A named preset (see below): hidden panels, initial state, bundled sources. |
 | `openSections=a,b` / `closeSections=a,b` | Sidebar sections to expand or collapse on load (`general`, `terrainSource`, `hillshade`, `drawing`, …). |
-| `scrollTo=<section>` | Opens that section and scrolls the side panel to it, so a link can land on the hillshade light pad: `scrollTo=hillshade`. `scrollTo=featureIterator` opens Drawing and starts the Feature Iterator on the layer a `drawingUrl` loaded. Section keys as above, or any element id. |
+| `scrollTo=<section>` | Opens that section and scrolls the side panel to it, so a link can land on the hillshade light pad: `scrollTo=hillshade`. `scrollTo=featureIterator` opens Drawing and starts the Feature Iterator on the layer a `drawingUrl` loaded (nothing starts when no layer has features: the link just opens Drawing); add `iteratorSort=<property>` to walk the layer by a numeric property, highest first. Section keys as above, or any element id. |
 | `startTour=true` | Starts the product walkthrough. |
 | `bookmarksGallery=true` | Opens the Bookmarks gallery modal on arrival. |
 | `openLibrary=terrain` / `basemap` | Opens that [Library](/features/terrain-sources) modal, the curated list of national and global datasets, on arrival. One or the other: they are both dialogs. |

@@ -2,7 +2,7 @@ import { defaultExportName } from '@/lib/export-names'
 import { outsideFence } from '@/lib/max-bounds'
 import { pushToast } from '@/components/ui/toast'
 import type * as maplibregl from "maplibre-gl"
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import type { MapRef } from 'react-map-gl/maplibre'
@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ColorAlphaSwatch } from './color-picker'
 import bbox from '@turf/bbox'
 import { v4 as uuidv4 } from 'uuid'
@@ -1181,15 +1182,32 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
     const [iteratorIndex, setIteratorIndex] = useState(0)
     // null = "keep the map's current zoom untouched" for point features.
     const [iteratorZoom, setIteratorZoom] = useState<number | null>(null)
-    const iteratorFeatures = iteratorLayerId
+    // Order: the file's own, or a numeric property, highest first (a
+    // detection score, a diameter). `?iteratorSort=<property>` sets it from
+    // a link. Features without the property go last.
+    const [iteratorSort, setIteratorSort] = useState<string | null>(() => new URLSearchParams(window.location.search).get("iteratorSort") || null)
+    const iteratorLayerFeatures = useMemo(() => iteratorLayerId
         ? features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === iteratorLayerId)
-        : []
+        : [], [features, layers, iteratorLayerId])
+    const iteratorSortKeys = useMemo(() => {
+        const keys = new Set<string>()
+        for (const f of iteratorLayerFeatures.slice(0, 200)) {
+            for (const [k, v] of Object.entries(f.properties ?? {})) if (typeof v === "number" && Number.isFinite(v)) keys.add(k)
+        }
+        return [...keys]
+    }, [iteratorLayerFeatures])
+    const iteratorFeatures = useMemo(() => {
+        if (!iteratorSort || !iteratorSortKeys.includes(iteratorSort)) return iteratorLayerFeatures
+        const val = (f: GeoJSONFeature) => { const v = f.properties?.[iteratorSort]; return typeof v === "number" && Number.isFinite(v) ? v : -Infinity }
+        return [...iteratorLayerFeatures].sort((a, b) => val(b) - val(a))
+    }, [iteratorLayerFeatures, iteratorSort, iteratorSortKeys])
+    const iteratorSortActive = !!iteratorSort && iteratorSortKeys.includes(iteratorSort)
     const iteratorTotal = iteratorFeatures.length
 
     // Jumping to a brand-new layer (or one that's now empty) starts over at
     // the first feature rather than carrying over an index that may no
     // longer exist there.
-    useEffect(() => { setIteratorIndex(0) }, [iteratorLayerId])
+    useEffect(() => { setIteratorIndex(0) }, [iteratorLayerId, iteratorSortActive, iteratorSort])
     // ?scrollTo=featureIterator: a link that starts the iterator. One shot,
     // once a layer has features: the first ?drawingUrl= layer, or else the
     // first layer with any. The panel is then scrolled into view (the
@@ -1249,7 +1267,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         // own D/Delete-key deletion (below) and doesn't need TerraDraw's
         // select mode for that.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [iteratorLayerId, iteratorIndex])
+    }, [iteratorLayerId, iteratorIndex, iteratorSortActive, iteratorSort])
 
     const goToIteratorIndex = (i: number) => {
         if (iteratorTotal === 0) return
@@ -1582,6 +1600,24 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </div>
+                            {iteratorSortKeys.length > 0 && (
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <Tooltip>
+                                        <TooltipTrigger render={<Label className="text-xs text-muted-foreground shrink-0 cursor-default">Order</Label>} />
+                                        <TooltipContent><p>The order the iterator walks the layer in: the file's own, or a numeric property, highest value first</p></TooltipContent>
+                                    </Tooltip>
+                                    <Select value={iteratorSortActive ? iteratorSort! : "__file"} onValueChange={(v) => setIteratorSort(!v || v === "__file" ? null : String(v))}>
+                                        <SelectTrigger className="h-7 flex-1 min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="__file">File order</SelectItem>
+                                            {iteratorSortKeys.map((k) => <SelectItem key={k} value={k}>{k}, highest first</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    {iteratorSortActive && (
+                                        <span className="text-xs tabular-nums text-muted-foreground shrink-0">{String(iteratorFeatures[iteratorIndex]?.properties?.[iteratorSort!] ?? "")}</span>
+                                    )}
+                                </div>
+                            )}
                             <div className="flex items-center justify-center gap-1">
                                 <Tooltip>
                                     <TooltipTrigger render={<Label className="text-xs text-muted-foreground shrink-0 cursor-default">Zoom</Label>} />

@@ -25,7 +25,7 @@
 
 - Hypsometric range: the range button has three states. Off keeps the ramp's own bounds, one click sets the range once from the terrain in view, a second makes it follow the view (the 1st to 99th percentile of the elevations on screen, re-read when the map settles, `hypsoAutoRange` in the link), a third goes back to off.
 - Drawing: a CSV of points imports like any vector file, from a file, a URL or `drawingUrl`. It needs a header row with a latitude and a longitude column (lat, latitude or y; lon, lng, longitude or x); the other columns become properties.
-- `scrollTo=featureIterator` in a link opens the Drawing section and starts the Feature Iterator on the layer the link loaded.
+- `scrollTo=featureIterator` in a link opens the Drawing section and starts the Feature Iterator on the layer the link loaded. The iterator has an **Order** select: the file's own order, or any numeric property, highest first (`iteratorSort=<property>` in a link), with the current feature's value shown beside it.
 - Iso-line at a value: a **Smoothing** slider (0 to 16 px, `isolineSmooth`) blurs the measure before the line and its fill are traced, so the line follows the shape of an area rather than every pixel. Cliff teeth keep their own 4 px minimum.
 - Elevation picker in LRM: a point and a path are now read at the zoom the map is drawn at. Before, a point read the finest zoom and a path a zoom picked from its length, and since the LRM radius is in pixels the same summit read 145 m as a point and 394 m on a long path. A path stays 160 evenly spaced samples.
 - The Contours in a Worker and Raster Compute in a Worker switches are gone from Settings: both are always on.
