@@ -1196,18 +1196,45 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         }
         return [...keys]
     }, [iteratorLayerFeatures])
+    // Filter: one value of a text property that takes few distinct values
+    // (a status, a class), as "property:value". `?iteratorFilter=` sets it
+    // from a link. It narrows what the iterator walks, not what is drawn.
+    const [iteratorFilter, setIteratorFilter] = useState<string | null>(() => new URLSearchParams(window.location.search).get("iteratorFilter") || null)
+    const iteratorFilterOptions = useMemo(() => {
+        const counts = new Map<string, Map<string, number>>()
+        for (const f of iteratorLayerFeatures) {
+            for (const [k, v] of Object.entries(f.properties ?? {})) {
+                if (typeof v !== "string" || !v || k === "mode" || k === "layerId") continue
+                let m = counts.get(k)
+                if (m === undefined) { m = new Map(); counts.set(k, m) }
+                if (m.size <= 40) m.set(v, (m.get(v) ?? 0) + 1)
+            }
+        }
+        const out: { id: string; label: string }[] = []
+        for (const [k, m] of counts) {
+            if (m.size < 2 || m.size > 40) continue
+            for (const [v, n] of [...m].sort((a, b) => b[1] - a[1])) out.push({ id: `${k}:${v}`, label: `${k}: ${v} (${n})` })
+        }
+        return out
+    }, [iteratorLayerFeatures])
+    const iteratorFilterActive = !!iteratorFilter && iteratorFilterOptions.some((o) => o.id === iteratorFilter)
     const iteratorFeatures = useMemo(() => {
-        if (!iteratorSort || !iteratorSortKeys.includes(iteratorSort)) return iteratorLayerFeatures
+        let list = iteratorLayerFeatures
+        if (iteratorFilterActive) {
+            const i = iteratorFilter!.indexOf(":"), k = iteratorFilter!.slice(0, i), v = iteratorFilter!.slice(i + 1)
+            list = list.filter((f) => f.properties?.[k] === v)
+        }
+        if (!iteratorSort || !iteratorSortKeys.includes(iteratorSort)) return list
         const val = (f: GeoJSONFeature) => { const v = f.properties?.[iteratorSort]; return typeof v === "number" && Number.isFinite(v) ? v : -Infinity }
-        return [...iteratorLayerFeatures].sort((a, b) => val(b) - val(a))
-    }, [iteratorLayerFeatures, iteratorSort, iteratorSortKeys])
+        return [...list].sort((a, b) => val(b) - val(a))
+    }, [iteratorLayerFeatures, iteratorSort, iteratorSortKeys, iteratorFilter, iteratorFilterActive])
     const iteratorSortActive = !!iteratorSort && iteratorSortKeys.includes(iteratorSort)
     const iteratorTotal = iteratorFeatures.length
 
     // Jumping to a brand-new layer (or one that's now empty) starts over at
     // the first feature rather than carrying over an index that may no
     // longer exist there.
-    useEffect(() => { setIteratorIndex(0) }, [iteratorLayerId, iteratorSortActive, iteratorSort])
+    useEffect(() => { setIteratorIndex(0) }, [iteratorLayerId, iteratorSortActive, iteratorSort, iteratorFilterActive, iteratorFilter])
     // ?scrollTo=featureIterator: a link that starts the iterator. One shot,
     // once a layer has features: the first ?drawingUrl= layer, or else the
     // first layer with any. The panel is then scrolled into view (the
@@ -1267,7 +1294,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         // own D/Delete-key deletion (below) and doesn't need TerraDraw's
         // select mode for that.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [iteratorLayerId, iteratorIndex, iteratorSortActive, iteratorSort])
+    }, [iteratorLayerId, iteratorIndex, iteratorSortActive, iteratorSort, iteratorFilterActive, iteratorFilter])
 
     const goToIteratorIndex = (i: number) => {
         if (iteratorTotal === 0) return
@@ -1600,13 +1627,28 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </div>
+                            {iteratorFilterOptions.length > 0 && (
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <Tooltip>
+                                        <TooltipTrigger render={<Label className="text-xs text-muted-foreground shrink-0 cursor-default">Filter</Label>} />
+                                        <TooltipContent><p>Walk only the features with this value of a text property. The others stay drawn on the map</p></TooltipContent>
+                                    </Tooltip>
+                                    <Select value={iteratorFilterActive ? iteratorFilter! : "__all"} items={{ __all: "All features", ...Object.fromEntries(iteratorFilterOptions.map((o) => [o.id, o.label])) }} onValueChange={(v) => setIteratorFilter(!v || v === "__all" ? null : String(v))}>
+                                        <SelectTrigger className="h-7 flex-1 min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="__all">All features</SelectItem>
+                                            {iteratorFilterOptions.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                             {iteratorSortKeys.length > 0 && (
                                 <div className="flex items-center gap-1.5 min-w-0">
                                     <Tooltip>
                                         <TooltipTrigger render={<Label className="text-xs text-muted-foreground shrink-0 cursor-default">Order</Label>} />
                                         <TooltipContent><p>The order the iterator walks the layer in: the file's own, or a numeric property, highest value first</p></TooltipContent>
                                     </Tooltip>
-                                    <Select value={iteratorSortActive ? iteratorSort! : "__file"} onValueChange={(v) => setIteratorSort(!v || v === "__file" ? null : String(v))}>
+                                    <Select value={iteratorSortActive ? iteratorSort! : "__file"} items={{ __file: "File order", ...Object.fromEntries(iteratorSortKeys.map((k) => [k, `${k}, highest first`])) }} onValueChange={(v) => setIteratorSort(!v || v === "__file" ? null : String(v))}>
                                         <SelectTrigger className="h-7 flex-1 min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="__file">File order</SelectItem>
