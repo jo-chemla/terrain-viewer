@@ -538,6 +538,8 @@ function userFeatures(snapshot: GeoJSONFeature[]): GeoJSONFeature[] {
 export const drawingUrlsAtom = atom<string[]>([])
 /** The drawingUrl entries being fetched: listed with a spinner until drawn. */
 export const drawingUrlsLoadingAtom = atom<string[]>([])
+/** Stored linked layers are put back in the drawingUrl list once per page load. */
+let restoredLinkedLayers = false
 
 /** The feature the Feature Iterator is on, or null: every view rings it in
  *  the selection accent (IteratorHighlightLayer). */
@@ -972,8 +974,20 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
     // "Keep in the link"). The camera only follows the data when the link
     // does not carry its own camera.
     const importDrawing = useDrawingImport(draw, mapRef)
-    const drawingUrls = useAtomValue(drawingUrlsAtom)
+    const [drawingUrls, setDrawingUrlsList] = useAtom(drawingUrlsAtom)
     const setDrawingUrlsLoading = useSetAtom(drawingUrlsLoadingAtom)
+    // A linked layer is remembered like a drawn one: its row is stored in
+    // this browser (drawingLayers), its features are not. Once per page
+    // load, the URLs of the stored linked layers that the link does not
+    // name go back into the drawingUrl list, so they are fetched again and
+    // the address bar carries them. Deleting the layer forgets the URL.
+    useEffect(() => {
+        if (!draw || restoredLinkedLayers) return
+        restoredLinkedLayers = true
+        const stored = layers.map((l) => l.sourceUrl).filter((u): u is string => !!u)
+        if (stored.length) setDrawingUrlsList((prev) => [...prev, ...stored.filter((u) => !prev.includes(u))])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draw])
     useEffect(() => {
         if (!draw) return
         const pending = drawingUrls.filter((u) => u && !loadedDrawingUrls.has(u))
@@ -1316,7 +1330,9 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
     // The current feature, ringed on every view in the selection accent.
     // Not draw.selectFeature (see above): a plain layer, no handles.
     const setIteratorHighlight = useSetAtom(iteratorHighlightAtom)
-    const iteratorCurrent = iteratorLayerId ? iteratorFeatures[iteratorIndex] ?? null : null
+    // Hidden with its layer: no ring around a feature that is not drawn.
+    const iteratorLayerHidden = !!layers.find((l) => l.id === iteratorLayerId)?.hidden
+    const iteratorCurrent = iteratorLayerId && !iteratorLayerHidden ? iteratorFeatures[iteratorIndex] ?? null : null
     useEffect(() => { setIteratorHighlight(iteratorCurrent) }, [iteratorCurrent, setIteratorHighlight])
     useEffect(() => () => setIteratorHighlight(null), [setIteratorHighlight])
 
