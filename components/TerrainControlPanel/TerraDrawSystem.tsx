@@ -1322,7 +1322,16 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
     // (kept from an earlier visit) spins on that row instead.
     const linkedUrls = useAtomValue(drawingUrlsAtom)
     const fetchingUrls = useAtomValue(drawingUrlsLoadingAtom)
-    const loadingUrls = linkedUrls.filter((u) => u && (fetchingUrls.includes(u) || (!draw && !loadedDrawingUrls.has(u))))
+    // "Until drawn": a URL also counts as loading while its layer row holds
+    // no feature yet (the row kept from an earlier visit shows at once, and
+    // the fetch is over before 30,000 points are on the map). A failed or
+    // empty file leaves loadedDrawingUrls, so its row stops spinning.
+    const loadingUrls = linkedUrls.filter((u) => {
+        if (!u) return false
+        if (fetchingUrls.includes(u) || !draw) return true
+        const row = layers.find((l) => l.sourceUrl === u)
+        return loadedDrawingUrls.has(u) && (!row || !features.some((f) => f.properties?.layerId === row.id))
+    })
     const loadingRows = loadingUrls.filter((u) => !layers.some((l) => l.sourceUrl === u))
 
     const goToIteratorIndex = (i: number) => {
@@ -1464,7 +1473,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
 
                                 {layer.sourceUrl && (
                                     <Tooltip>
-                                        <TooltipTrigger render={<span className="shrink-0 text-muted-foreground">{loadingUrls.includes(layer.sourceUrl) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link className="h-3 w-3" />}</span>} />
+                                        <TooltipTrigger render={<span className="shrink-0 text-muted-foreground"><Link className="h-3 w-3" /></span>} />
                                         <TooltipContent><p>Linked layer, read-only: re-fetched from {layer.sourceUrl} on every load (listed in the link's drawingUrl parameter), not stored in this browser. Import it again with "Keep in the link" unticked for an editable copy</p></TooltipContent>
                                     </Tooltip>
                                 )}
@@ -1495,7 +1504,9 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                                     {/* Count FIRST, and outside the truncating span: as a suffix
                                                         it was the first thing a long layer name pushed out of
                                                         sight, which is exactly when you want to know it. */}
-                                                    <span className="shrink-0 text-muted-foreground font-normal tabular-nums">[{featureCount(layer.id)}]</span>
+                                                    {layer.sourceUrl && loadingUrls.includes(layer.sourceUrl)
+                                                        ? <span className="shrink-0 inline-flex items-center gap-1 text-muted-foreground font-normal"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading</span>
+                                                        : <span className="shrink-0 text-muted-foreground font-normal tabular-nums">[{featureCount(layer.id)}]</span>}
                                                     <span className="truncate min-w-0">{layer.name}</span>
                                                 </button>
                                             }
@@ -1689,16 +1700,19 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                             </div>
                             <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1.5">
                                 <Label className="text-xs text-muted-foreground">Feature</Label>
-                                <div className="flex items-center gap-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 min-w-0">
                                     <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" aria-label="Previous feature" onClick={() => goToIteratorIndex(iteratorIndex - 1)}>
                                         <ChevronLeft className="h-4 w-4" />
                                     </Button>
-                                    <DraftBoundInput
-                                        value={iteratorIndex + 1}
-                                        onCommit={(v) => { if (v !== undefined) goToIteratorIndex(Math.round(v) - 1) }}
-                                        className="h-7 flex-1 min-w-0 px-1 text-center text-xs tabular-nums bg-transparent border rounded"
-                                    />
-                                    <span className="text-xs tabular-nums text-muted-foreground shrink-0">of {iteratorTotal}</span>
+                                    {/* Seven characters wide, centred between the chevrons. */}
+                                    <div className="flex items-center justify-center gap-1.5 min-w-0">
+                                        <DraftBoundInput
+                                            value={iteratorIndex + 1}
+                                            onCommit={(v) => { if (v !== undefined) goToIteratorIndex(Math.round(v) - 1) }}
+                                            className="h-7 w-[calc(7ch+0.75rem)] shrink-0 px-1.5 text-center text-xs tabular-nums bg-transparent border rounded"
+                                        />
+                                        <span className="text-xs tabular-nums text-muted-foreground truncate">of {iteratorTotal}</span>
+                                    </div>
                                     <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" aria-label="Next feature" onClick={() => goToIteratorIndex(iteratorIndex + 1)}>
                                         <ChevronRight className="h-4 w-4" />
                                     </Button>
