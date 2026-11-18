@@ -2,7 +2,7 @@ import type React from "react"
 import { useMemo, useCallback, useRef, useContext, useState } from "react"
 import { useAtom } from "jotai"
 import { useToast } from "@/components/ui/toast"
-import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, Mountain, MountainSnow } from "lucide-react"
+import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, Mountain, MountainSnow, RefreshCw } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -247,7 +247,7 @@ export const HypsometricTintOptionsSection: React.FC<{
   // API the Elevation Picker tool already relies on) sampled across a grid —
   // it reads whatever's actually drawn on screen right now, with no separate
   // tile cache to fall out of sync with.
-  const getLoadedTilesElevationRange = useCallback(() => {
+  const getLoadedTilesElevationRange = useCallback((percentiles = false) => {
     if (!mapRef.current) return null;
 
     const map = mapRef.current.getMap();
@@ -318,6 +318,34 @@ export const HypsometricTintOptionsSection: React.FC<{
         max = Math.max(max, tile.dem.max);
         count++;
       }
+      // Follow-the-view mode: the 1st and 99th percentiles of the pixels in
+      // view (64 x 64 samples per tile) rather than the tiles' extremes, so
+      // one peak or one pit, or relief just outside the view, does not
+      // flatten the ramp.
+      if (percentiles && count > 0) {
+        const samples: number[] = []
+        for (const tile of inViewLoaded) {
+          if (tile.tileID.canonical.z !== maxZ || typeof tile.dem.get !== "function") continue
+          const { x, y } = tile.tileID.canonical
+          const n = 2 ** maxZ, dim = tile.dem.dim, step = Math.max(1, Math.floor(dim / 64))
+          const wrap = tile.tileID.wrap * n
+          for (let py = 0; py < dim; py += step) {
+            const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + (py + 0.5) / dim)) / n))) * 180) / Math.PI
+            if (lat > north || lat < south) continue
+            for (let px = 0; px < dim; px += step) {
+              const lng = ((x + wrap + (px + 0.5) / dim) / n) * 360 - 180
+              if (lng < west || lng > east) continue
+              const v = tile.dem.get(px, py)
+              if (Number.isFinite(v)) samples.push(v)
+            }
+          }
+        }
+        if (samples.length >= 20) {
+          const sorted = Float32Array.from(samples).sort()
+          const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))]
+          return { min: at(0.01), max: at(0.99), tilesCount: count };
+        }
+      }
       if (count > 0) return { min, max, tilesCount: count };
     }
 
@@ -353,9 +381,10 @@ export const HypsometricTintOptionsSection: React.FC<{
     return { min, max, tilesCount: count };
   }, [mapRef]);
 
-  const setElevFromLoadedTiles = useCallback( 
-    () => {
-      const elevationRange = getLoadedTilesElevationRange()
+  const setElevFromLoadedTiles = useCallback(
+    (percentiles = false) => {
+      const elevationRange = getLoadedTilesElevationRange(percentiles)
+      if (percentiles && !elevationRange) return
       // Round to 1 decimal — queryTerrainElevation's exaggeration division
       // otherwise leaves a long, meaningless-precision float (e.g.
       // 4155.842954438225) that the plain min/max inputs don't warrant.
@@ -364,7 +393,10 @@ export const HypsometricTintOptionsSection: React.FC<{
       const maxElevation = elevationRange ? round1(elevationRange.max) : state.maxElevation
       const factor = 0.2
       const hypsoSliderMinBound = Math.floor(minElevation - (maxElevation - minElevation) * factor)
-      const hypsoSliderMaxBound = Math.ceil(maxElevation + (maxElevation - minElevation) * factor) 
+      const hypsoSliderMaxBound = Math.ceil(maxElevation + (maxElevation - minElevation) * factor)
+      // Following the view: skip a change under 2% of the range, so the
+      // idle that follows the repaint does not write again.
+      if (percentiles && state.customHypsoMinMax && Math.abs(minElevation - state.minElevation) + Math.abs(maxElevation - state.maxElevation) < 0.02 * Math.max(1, maxElevation - minElevation)) return
       setState({
         customHypsoMinMax: true,
         minElevation,
@@ -373,7 +405,7 @@ export const HypsometricTintOptionsSection: React.FC<{
         hypsoSliderMaxBound,
       })
     } ,
-    [mapRef, state.minElevation, state.maxElevation]
+    [mapRef, state.minElevation, state.maxElevation, state.customHypsoMinMax, getLoadedTilesElevationRange]
   )
 
   // Remote trigger for the same thing the "Set from viewport" button does —
@@ -407,7 +439,7 @@ export const HypsometricTintOptionsSection: React.FC<{
     let tries = 0
     const tick = () => {
       if (cancelled) return
-      if (getLoadedTilesElevationRange()) { setElevFromLoadedTiles(); return }
+      if (getLoadedTilesElevationRange()) { setElevFromLoadedTiles(false); return }
       if (++tries < 20) timer = setTimeout(tick, 300)
       else toast({
         key: "hypso-auto-range-no-tiles",
@@ -418,6 +450,34 @@ export const HypsometricTintOptionsSection: React.FC<{
     let timer = setTimeout(tick, 300)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [autoRangeRequest, getLoadedTilesElevationRange, setElevFromLoadedTiles, toast])
+
+  // hypsoAutoRange (the third state of the range button): the bounds follow
+  // the view, re-read every time the map settles.
+  const followRef = useRef(setElevFromLoadedTiles)
+  followRef.current = setElevFromLoadedTiles
+  useEffect(() => {
+    if (!state.hypsoAutoRange || !state.showColorRelief) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let map: ReturnType<NonNullable<typeof mapRef.current>["getMap"]> | undefined
+    const onIdle = () => { clearTimeout(timer); timer = setTimeout(() => followRef.current(true), 150) }
+    // On a link the section mounts before the map does: wait for it.
+    const attach = () => {
+      map = mapRef.current?.getMap()
+      if (!map) { timer = setTimeout(attach, 300); return }
+      map.on("idle", onIdle)
+      onIdle()
+    }
+    attach()
+    return () => { clearTimeout(timer); map?.off("idle", onIdle) }
+  }, [mapRef, state.hypsoAutoRange, state.showColorRelief])
+  // One button, three states: default ramp bounds, set once from the view,
+  // following the view.
+  const rangeMode: "off" | "once" | "follow" = state.hypsoAutoRange ? "follow" : state.customHypsoMinMax ? "once" : "off"
+  const cycleRangeMode = () => {
+    if (rangeMode === "off") setAutoRangeRequest((n) => n + 1)
+    else if (rangeMode === "once") setState({ hypsoAutoRange: true })
+    else setState({ hypsoAutoRange: false, customHypsoMinMax: false })
+  }
 
   // All hooks (useRef, useEffect, useCallback, useMemo, useAtom etc) must be above that early return statement
   if (!state.showColorRelief) return null
@@ -470,7 +530,7 @@ export const HypsometricTintOptionsSection: React.FC<{
             </div>
           </TooltipProvider>
         </div>
-          
+
         {/* Tabs for colorramp type */}
         <Tabs
           value={colorRampType}
@@ -652,14 +712,14 @@ export const HypsometricTintOptionsSection: React.FC<{
           <div className="w-full gap-1 flex items-center">
             <div className="flex-[2] flex items-center">
               <div className="flex items-center justify-between py-0.5 w-full">
-                <Checkbox 
-                  id="hypso-min-max" 
-                  checked={state.customHypsoMinMax} 
-                  onCheckedChange={(checked) => setState({ customHypsoMinMax: checked === true })}
-                  className="cursor-pointer" 
+                <Checkbox
+                  id="hypso-min-max"
+                  checked={state.customHypsoMinMax}
+                  onCheckedChange={(checked) => setState({ customHypsoMinMax: checked === true, ...(checked === true ? {} : { hypsoAutoRange: false }) })}
+                  className="cursor-pointer"
                 />
                 <div className="flex items-center flex-1 ml-2 gap-1">
-                  
+
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger
@@ -679,12 +739,12 @@ export const HypsometricTintOptionsSection: React.FC<{
                       className="h-6 px-2 cursor-pointer"
                     />
                     <TooltipIconButton
-                      icon={MountainSnow}
-                      tooltip="Auto set elevation range from terrain tiles loaded in viewport"
-                      onClick={() => setAutoRangeRequest((n) => n + 1)}
+                      icon={rangeMode === "follow" ? RefreshCw : rangeMode === "once" ? MountainSnow : Mountain}
+                      tooltip={rangeMode === "off" ? "Range: the ramp's own bounds. Click to set it once from the terrain in view" : rangeMode === "once" ? "Range: set, fixed. Click to make it follow the view (1st to 99th percentile of the elevations in view)" : "Range: follows the view (1st to 99th percentile). Click to go back to the ramp's own bounds"}
+                      onClick={cycleRangeMode}
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 cursor-pointer"
+                      className={`h-6 px-2 cursor-pointer ${rangeMode === "follow" ? "text-primary bg-primary/10" : rangeMode === "once" ? "text-foreground" : "text-muted-foreground"}`}
                     />
                   </TooltipProvider>
                 </div>

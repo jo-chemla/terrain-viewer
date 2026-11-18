@@ -3868,6 +3868,16 @@
             }
           },
           {
+            "name": "hypsoAutoRange",
+            "in": "query",
+            "required": false,
+            "description": "State. The hypsometric range follows the view: the 1st to 99th percentile of the elevations on screen, re-read when the map settles.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
             "name": "minElevation",
             "in": "query",
             "required": false,

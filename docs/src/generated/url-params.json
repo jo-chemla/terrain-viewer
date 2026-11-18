@@ -3494,6 +3494,16 @@
       "note": "Min/Max mirrored around 0 (one magnitude), like the curvature ramp: for height-above-ground or elevation-change grids (DSM − DTM, dh)."
     },
     {
+      "key": "hypsoAutoRange",
+      "stateKey": "hypsoAutoRange",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "The hypsometric range follows the view: the 1st to 99th percentile of the elevations on screen, re-read when the map settles."
+    },
+    {
       "key": "minElevation",
       "stateKey": "minElevation",
       "type": "number",

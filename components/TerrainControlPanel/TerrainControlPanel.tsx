@@ -431,12 +431,15 @@ export function TerrainControlPanel({
   useEffect(() => {
     const target = new URLSearchParams(window.location.search).get("scrollTo")
     if (!target) return
-    if ((SECTION_KEYS as readonly string[]).includes(target)) {
-      setSectionOpen((prev) => ({ ...prev, [target]: true }))
+    // featureIterator: the Drawing section, where the iterator starts itself
+    // once the link's layer has loaded (TerraDrawSystem.tsx).
+    const section = target === "featureIterator" ? "drawing" : target
+    if ((SECTION_KEYS as readonly string[]).includes(section)) {
+      setSectionOpen((prev) => ({ ...prev, [section]: true }))
       setIsSidebarOpen(true)
     }
     const t = setTimeout(() => {
-      const id = SCROLL_TARGETS[target] ?? target
+      const id = SCROLL_TARGETS[section] ?? target
       document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" })
     }, 900)
     return () => clearTimeout(t)

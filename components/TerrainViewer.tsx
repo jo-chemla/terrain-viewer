@@ -965,6 +965,9 @@ export const QUERY_STATE_PARSERS = {
     // Min/Max mirrored around 0 (one magnitude), like the curvature ramp:
     // for height-above-ground or elevation-change grids (DSM − DTM, dh).
     hypsoSymmetric: parseAsBoolean.withDefault(false),
+    // The hypsometric range follows the view: the 1st to 99th percentile of
+    // the elevations on screen, re-read when the map settles.
+    hypsoAutoRange: parseAsBoolean.withDefault(false),
     minElevation: parseAsFloat.withDefault(0),
     maxElevation: parseAsFloat.withDefault(8100),
     hypsoSliderMinBound: parseAsFloat.withDefault(-8000),
@@ -2977,7 +2980,7 @@ export function TerrainViewer() {
     () => theme === 'light' ? '#000' : '#fff',
     [theme]
   )
-  
+
   // const effectiveGraticuleColor = state.graticuleColor ?? themeColor
 
   // matchThemeColors only overrides the *applied* color here — state's own
@@ -3019,7 +3022,7 @@ export function TerrainViewer() {
   //   if (state.showContoursAndGraticules && state.showGraticules && !state.graticuleColor) {
   //     setState({ graticuleColor: themeColor })
   //   }
-    
+
   //   // When theme changes, update color ONLY if it matches the old theme color
   //   // (meaning user hasn't customized it)
   //   if (state.graticuleColor === (themeColor === '#fff' ? '#000' : '#fff')) {
@@ -3100,7 +3103,7 @@ export function TerrainViewer() {
   //     map.setTerrain(null)
   //     return
   //   }
-    
+
   //   const apply = () => {
   //     if (map.getSource('terrainSource')) {
   //       map.setTerrain({
@@ -3110,14 +3113,14 @@ export function TerrainViewer() {
   //       map.off('sourcedata', apply)
   //     }
   //   }
-    
+
   //   if (map.getSource('terrainSource')) {
   //     map.setTerrain({ source: 'terrainSource', exaggeration: state.exaggeration || 1 })
   //   } else {
   //     map.off('sourcedata', apply) // Clean up any existing listener first
   //     map.on('sourcedata', apply)
   //   }
-    
+
   //   return () => {
   //     map.off('sourcedata', apply)
   //   }
@@ -4502,7 +4505,7 @@ export function TerrainViewer() {
               labelColor={graticuleLabelColor}
               labelTextShadow={graticuleLabelTextShadow}
               gridDensity={state.graticuleDensity || undefined}
-              beforeLayerId={LAYER_SLOTS.CONTOURS}  
+              beforeLayerId={LAYER_SLOTS.CONTOURS}
             />
           )}
 

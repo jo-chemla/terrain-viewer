@@ -1190,6 +1190,21 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
     // the first feature rather than carrying over an index that may no
     // longer exist there.
     useEffect(() => { setIteratorIndex(0) }, [iteratorLayerId])
+    // ?scrollTo=featureIterator: a link that starts the iterator. One shot,
+    // once a layer has features: the first ?drawingUrl= layer, or else the
+    // first layer with any. The panel is then scrolled into view (the
+    // sidebar opened the Drawing section for it, TerrainControlPanel.tsx).
+    const linkIteratorDoneRef = useRef(false)
+    useEffect(() => {
+        if (linkIteratorDoneRef.current) return
+        if (new URLSearchParams(window.location.search).get("scrollTo") !== "featureIterator") { linkIteratorDoneRef.current = true; return }
+        const has = (l: DrawLayer) => features.some((f) => (f.properties?.layerId ?? layers[0]?.id) === l.id)
+        const layer = layers.find((l) => l.sourceUrl && has(l)) ?? (layers.some((l) => l.sourceUrl) ? undefined : layers.find(has))
+        if (!layer) return
+        linkIteratorDoneRef.current = true
+        setIteratorLayerId(layer.id)
+        setTimeout(() => document.getElementById("tour-feature-iterator")?.scrollIntoView({ block: "center", behavior: "smooth" }), 600)
+    }, [features, layers])
     // A layer shrinking (features deleted) while its iterator is open could
     // otherwise leave the index pointing past the end.
     useEffect(() => {
@@ -1535,7 +1550,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                     </div>
 
                     {iteratorLayerId && iteratorTotal > 0 && (
-                        <div className="space-y-2 rounded-md border p-2">
+                        <div id="tour-feature-iterator" className="space-y-2 rounded-md border p-2">
                             <Tooltip>
                                 <TooltipTrigger
                                     delay={0}
@@ -1743,7 +1758,7 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         setImportError(null)
         try {
             const format = vectorFormatFromName(file.name)
-            if (!format) throw new Error(`"${file.name}": unsupported format (GeoJSON, KML, GPX or FlatGeobuf expected).`)
+            if (!format) throw new Error(`"${file.name}": unsupported format (GeoJSON, KML, GPX, FlatGeobuf or a CSV of points expected).`)
             const geojson = await parseVector(await file.arrayBuffer(), format)
             importDrawing(geojson, file.name.replace(/\.[^./]+$/, '') || file.name, format)
             afterImport()
