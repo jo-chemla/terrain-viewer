@@ -271,3 +271,7 @@ map; localStorage `tv-map-workers` (1-8) overrides it for measuring.
   ("[object ImageBitmap]"), so LRM contours with the worker switch off and LRM
   point / path sampling decoded nothing. Contours verified (609 features);
   the sampling fix is by reading the code, not tested in a browser.
+- Production build checked 2026-11-18 (`pnpm build`, `vite preview`, real
+  Chrome): 4 maplibre-gl-worker chunks, 4 raster-compute-worker chunks and
+  geotiff's decoder chunk load; contours, SVF, Hard Shadows and a COP30 VRT
+  with contours draw, no console error. Not checked in the desktop webview.
