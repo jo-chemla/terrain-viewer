@@ -1221,6 +1221,16 @@
             }
           },
           {
+            "name": "colorRampTab",
+            "in": "query",
+            "required": false,
+            "description": "State. The ramp tab (classic, topqgs, topo, cet, sdr, temp, topobath) the ramp was picked in: 31 ramp names are in two tabs.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
             "name": "customStops",
             "in": "query",
             "required": false,

@@ -33,7 +33,7 @@ const PROJECT_EXPORT_VERSION = 1
  *  bucket to values a user would actually want to carry to a new machine. */
 const SETTINGS_STORAGE_KEYS = [
   "mapboxKey", "googleKey", "mapzenKey", "maptilerKey", "titilerEndpoint", "maxResolution",
-  "colorRampType", "licenseFilter", "highResTerrain", "cacheVizTiles", "nativeTerrainDrape",
+  "licenseFilter", "highResTerrain", "cacheVizTiles", "nativeTerrainDrape",
   "terrainAnalysisAdvanced", "reliefVisualizationAdvanced",
   "useCogProtocolVsTitiler", "useClientExport", "isTransparentUi",
   "customThemes", "persistVectorLayers", "persistLocalCogs",

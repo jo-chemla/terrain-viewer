@@ -497,6 +497,10 @@ export const QUERY_STATE_PARSERS = {
     resolutionClasses: parseAsArrayOf(parseAsString).withDefault(["vhr", "medium"]),
     // colorRamp: parseAsString.withDefault("mby"),
     colorRamp: parseAsStringLiteral(COLOR_RAMP_IDS).withDefault("mby"),
+    // The ramp tab (classic, topqgs, topo, cet, sdr, temp, topobath) the ramp
+    // was picked in: 31 ramp names are in two tabs. Empty: the first tab
+    // that holds the ramp.
+    colorRampTab: parseAsString.withDefault(""),
     customStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     customStopsDiscrete: parseAsBoolean.withDefault(false),
     // Native MapLibre Hillshade — its own independent viz mode, entirely

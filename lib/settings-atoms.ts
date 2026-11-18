@@ -279,7 +279,6 @@ export const useClientExportAtom = atomWithStorage("useClientExport", true)
 // filter the View Mode toggle via disableViewModes) and TerrainControlPanel (to hide
 // source-picker sections via hideSourcePanels). null outside of a project embed.
 export const activeProjectConfigAtom = atom<ProjectConfig | null>(null)
-export const colorRampTypeAtom = atomWithStorage('colorRampType', 'classic')
 export const licenseFilterAtom = atomWithStorage('licenseFilter', 'open-distribute' )
 export const highResTerrainAtom = atomWithStorage("highResTerrain", true)
 // Gates lib/tile-result-cache.ts — the LRU of finished viz-mode tile bytes that

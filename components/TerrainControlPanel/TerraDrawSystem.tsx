@@ -11,7 +11,7 @@ import {
     TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode
 } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
-import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target, Link, Loader2, RefreshCw } from 'lucide-react'
+import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target, Link, Loader2, RefreshCw, ArrowDownWideNarrow, ArrowUpNarrowWide } from 'lucide-react'
 import { fetchVector, parseVector, nameFromUrl, vectorFormatFromName, VECTOR_FILE_ACCEPT } from '@/lib/remote-vector'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -1198,7 +1198,9 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
     // Order: the file's own, or a numeric property, highest first (a
     // detection score, a diameter). `?iteratorSort=<property>` sets it from
     // a link. Features without the property go last.
-    const [iteratorSort, setIteratorSort] = useState<string | null>(() => new URLSearchParams(window.location.search).get("iteratorSort") || null)
+    // `iteratorSort=quality` is highest first, `iteratorSort=quality:asc` lowest first.
+    const [iteratorSort, setIteratorSort] = useState<string | null>(() => (new URLSearchParams(window.location.search).get("iteratorSort") || "").replace(/:(asc|desc)$/, "") || null)
+    const [iteratorSortAsc, setIteratorSortAsc] = useState(() => /:asc$/.test(new URLSearchParams(window.location.search).get("iteratorSort") ?? ""))
     const iteratorLayerFeatures = useMemo(() => iteratorLayerId
         ? features.filter((f) => (f.properties?.layerId ?? layers[0]?.id) === iteratorLayerId)
         : [], [features, layers, iteratorLayerId])
@@ -1238,16 +1240,18 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
             list = list.filter((f) => f.properties?.[k] === v)
         }
         if (!iteratorSort || !iteratorSortKeys.includes(iteratorSort)) return list
-        const val = (f: GeoJSONFeature) => { const v = f.properties?.[iteratorSort]; return typeof v === "number" && Number.isFinite(v) ? v : -Infinity }
-        return [...list].sort((a, b) => val(b) - val(a))
-    }, [iteratorLayerFeatures, iteratorSort, iteratorSortKeys, iteratorFilter, iteratorFilterActive])
+        // Features without the property go last in both directions.
+        const missing = iteratorSortAsc ? Infinity : -Infinity
+        const val = (f: GeoJSONFeature) => { const v = f.properties?.[iteratorSort]; return typeof v === "number" && Number.isFinite(v) ? v : missing }
+        return [...list].sort((a, b) => (iteratorSortAsc ? val(a) - val(b) : val(b) - val(a)) || 0)
+    }, [iteratorLayerFeatures, iteratorSort, iteratorSortAsc, iteratorSortKeys, iteratorFilter, iteratorFilterActive])
     const iteratorSortActive = !!iteratorSort && iteratorSortKeys.includes(iteratorSort)
     const iteratorTotal = iteratorFeatures.length
 
     // Jumping to a brand-new layer (or one that's now empty) starts over at
     // the first feature rather than carrying over an index that may no
     // longer exist there.
-    useEffect(() => { setIteratorIndex(0) }, [iteratorLayerId, iteratorSortActive, iteratorSort, iteratorFilterActive, iteratorFilter])
+    useEffect(() => { setIteratorIndex(0) }, [iteratorLayerId, iteratorSortActive, iteratorSort, iteratorSortAsc, iteratorFilterActive, iteratorFilter])
     // ?scrollTo=featureIterator: a link that starts the iterator. One shot,
     // once a layer has features: the first ?drawingUrl= layer, or else the
     // first layer with any. The panel is then scrolled into view (the
@@ -1307,7 +1311,7 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
         // own D/Delete-key deletion (below) and doesn't need TerraDraw's
         // select mode for that.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [iteratorLayerId, iteratorIndex, iteratorSortActive, iteratorSort, iteratorFilterActive, iteratorFilter])
+    }, [iteratorLayerId, iteratorIndex, iteratorSortActive, iteratorSort, iteratorSortAsc, iteratorFilterActive, iteratorFilter])
 
     // The current feature, ringed on every view in the selection accent.
     // Not draw.selectFeature (see above): a plain layer, no handles.
@@ -1736,16 +1740,28 @@ function TerraDrawLayers({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Ref
                                     <>
                                         <Tooltip>
                                             <TooltipTrigger render={<Label className="text-xs text-muted-foreground cursor-default">Order</Label>} />
-                                            <TooltipContent><p>The order the iterator walks the layer in: the file's own, or a numeric property, highest value first</p></TooltipContent>
+                                            <TooltipContent><p>The order the iterator walks the layer in: the file's own, or a numeric property, highest or lowest value first</p></TooltipContent>
                                         </Tooltip>
                                         <div className="flex items-center gap-1.5 min-w-0">
-                                            <Select value={iteratorSortActive ? iteratorSort! : "__file"} items={{ __file: "File order", ...Object.fromEntries(iteratorSortKeys.map((k) => [k, `${k}, highest first`])) }} onValueChange={(v) => setIteratorSort(!v || v === "__file" ? null : String(v))}>
+                                            <Select value={iteratorSortActive ? iteratorSort! : "__file"} items={{ __file: "File order", ...Object.fromEntries(iteratorSortKeys.map((k) => [k, k])) }} onValueChange={(v) => setIteratorSort(!v || v === "__file" ? null : String(v))}>
                                                 <SelectTrigger className="h-7 flex-1 min-w-0 text-xs cursor-pointer"><SelectValue /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="__file">File order</SelectItem>
-                                                    {iteratorSortKeys.map((k) => <SelectItem key={k} value={k}>{k}, highest first</SelectItem>)}
+                                                    {iteratorSortKeys.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
+                                            {iteratorSortActive && (
+                                                <Tooltip>
+                                                    <TooltipTrigger
+                                                        render={
+                                                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" aria-label={iteratorSortAsc ? "Lowest first" : "Highest first"} onClick={() => setIteratorSortAsc((v) => !v)}>
+                                                                {iteratorSortAsc ? <ArrowUpNarrowWide className="h-3.5 w-3.5" /> : <ArrowDownWideNarrow className="h-3.5 w-3.5" />}
+                                                            </Button>
+                                                        }
+                                                    />
+                                                    <TooltipContent><p>{iteratorSortAsc ? "Lowest value first. Click for highest first" : "Highest value first. Click for lowest first"}</p></TooltipContent>
+                                                </Tooltip>
+                                            )}
                                             {iteratorSortActive && (
                                                 <span className="text-xs tabular-nums text-muted-foreground shrink-0">{String(iteratorFeatures[iteratorIndex]?.properties?.[iteratorSort!] ?? "")}</span>
                                             )}

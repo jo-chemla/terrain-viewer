@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Slider } from "@/components/ui/slider"
 import {
-  colorRampTypeAtom, licenseFilterAtom, hypsoAutoRangeRequestAtom
+  licenseFilterAtom, hypsoAutoRangeRequestAtom
 } from "@/lib/settings-atoms"
 import { colorRamps, extractStops, colorRampsFlat, buildCustomRampColors, DEFAULT_SLOPE_CUSTOM_STOPS } from "@/lib/color-ramps"
 // import { Section, TooltipIconButton } from "./controls-components"
@@ -46,27 +46,18 @@ export const HypsometricTintOptionsSection: React.FC<{
   onOpenChange: (open: boolean) => void
   mapRef: React.RefObject<MapRef | null>
 }> = ({ state, setState, isOpen, onOpenChange, mapRef }) => {
-  // The tab is DERIVED from the stored tab and the ramp, never written back
-  // by an effect that reads both. 74 ramp names live in more than one
-  // category, the tab is a jotai atom and the ramp is URL state, so they
-  // commit in separate renders: an effect that "fixed" the tab from the
-  // ramp saw the new tab with the old ramp and sent the tab back. Rules:
-  // the stored tab wins whenever it holds the ramp (or the ramp is custom,
-  // or a tab click is waiting for its ramp); otherwise the first tab that
-  // holds the ramp (a shared link arrives with a ramp and no tab).
-  const [storedRampType, setColorRampType] = useAtom(colorRampTypeAtom)
-  const pendingTabRef = useRef<{ tab: string; from: string } | null>(null)
+  // The tab and the ramp are ONE piece of URL state (colorRampTab,
+  // colorRamp), written together. 31 ramp names are in two tabs, and while
+  // the tab lived in a jotai atom and the ramp in the URL the two committed
+  // in separate renders, so a click on Topo could be read back as Top Qgs.
+  // colorRampTab wins whenever it holds the ramp (or the ramp is custom);
+  // a link with a ramp and no tab opens on the first tab that holds it.
   const tabHolds = (c: string) => !!(colorRamps as any)[c]?.[state.colorRamp]
-  const storedIsTab = (RAMP_TAB_CATEGORIES as readonly string[]).includes(storedRampType)
-  const tabPending = pendingTabRef.current?.tab === storedRampType && pendingTabRef.current?.from === state.colorRamp
-  const colorRampType: string = storedIsTab && (tabHolds(storedRampType) || state.colorRamp === "custom" || tabPending)
-    ? storedRampType
-    : RAMP_TAB_CATEGORIES.find(tabHolds) ?? (storedIsTab ? storedRampType : "classic")
-  // One way only: the stored tab follows the shown one, so a ramp picked
-  // from this tab's list keeps this tab even when an earlier tab has it too.
-  useEffect(() => {
-    if (colorRampType !== storedRampType) setColorRampType(colorRampType)
-  }, [colorRampType, storedRampType, setColorRampType])
+  const stateTab: string = state.colorRampTab ?? ""
+  const stateIsTab = (RAMP_TAB_CATEGORIES as readonly string[]).includes(stateTab)
+  const colorRampType: string = stateIsTab && (tabHolds(stateTab) || state.colorRamp === "custom")
+    ? stateTab
+    : RAMP_TAB_CATEGORIES.find(tabHolds) ?? (stateIsTab ? stateTab : "classic")
   const [licenseFilter, setLicenseFilter] = useAtom(licenseFilterAtom)
   const tabsScrollRef = useRef<HTMLDivElement>(null)
 
@@ -175,8 +166,8 @@ export const HypsometricTintOptionsSection: React.FC<{
     const currentIndex = colorRampKeys.indexOf(state.colorRamp)
     const newIndex = (currentIndex + direction + colorRampKeys.length) % colorRampKeys.length
     // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
-    setState({ colorRamp: colorRampKeys[newIndex] })
-  }, [state.colorRamp, colorRampKeys, setState])
+    setState({ colorRamp: colorRampKeys[newIndex], colorRampTab: colorRampType })
+  }, [state.colorRamp, colorRampKeys, colorRampType, setState])
 
   // Get current slider values, defaulting to ramp bounds if not set
   const sliderValues = useMemo(() => [
@@ -528,22 +519,12 @@ export const HypsometricTintOptionsSection: React.FC<{
           value={colorRampType}
           onValueChange={(value) => {
             if (value) {
-              pendingTabRef.current = { tab: value, from: state.colorRamp }
-              setColorRampType(value)
               const filteredNow = filterColorRamps(colorRamps, value, licenseFilter)
-              // The new tab keeps the current ramp when it has one by that
-              // name (74 names exist in several categories); otherwise its
-              // first ramp. Switching to the first one while the ramp was
-              // also in this tab made the sync effect flip the tab back.
-              if (!filteredNow[state.colorRamp]) {
-                // The ramp's KEY, not its lowercased name: 29 Classic ramps
-                // differ ("diverging-blue-white-red" vs "Diverging (Blue-White-Red)"),
-                // and a name written here was a ramp no tab holds, so the sync
-                // effect below sent the tab elsewhere.
-                const first = Object.keys(filteredNow)[0]
-                // hypsoSliderMinBound/MaxBound reset themselves via the colorRamp-change effect above.
-                if (first) setState({ colorRamp: first })
-              }
+              // The new tab keeps the current ramp when its list has it;
+              // otherwise its first ramp (the KEY: 29 Classic ramps have a
+              // name that differs from their key). One setState for both.
+              const first = Object.keys(filteredNow)[0]
+              setState({ colorRampTab: value, ...(!filteredNow[state.colorRamp] && first ? { colorRamp: first } : {}) })
             }
           }}
           className="w-full"
@@ -555,7 +536,7 @@ export const HypsometricTintOptionsSection: React.FC<{
               our TabsList wrapper isn't a forwardRef component, so a ref couldn't attach to it
               directly. */}
           <div ref={tabsScrollRef} className="overflow-x-auto">
-            <TabsList className="flex h-12 w-full justify-start gap-1 [&>*]:shrink-0">
+            <TabsList className="flex h-12 w-max min-w-full justify-start gap-1 [&>*]:shrink-0">
               {RAMP_TAB_CATEGORIES.map((c) => (
                 <TabsTrigger key={c} value={c} className="cursor-pointer">{RAMP_TAB_LABELS[c]}</TabsTrigger>
               ))}
@@ -571,7 +552,7 @@ export const HypsometricTintOptionsSection: React.FC<{
               // The list changes with the tab before the ramp does, and the
               // select then reports null for a value it no longer lists: a
               // null ramp is the default one (mby, in Top Qgs).
-              onValueChange={(value) => { if (value) setState({ colorRamp: value }) }}
+              onValueChange={(value) => { if (value) setState({ colorRamp: value, ...(value === "custom" ? {} : { colorRampTab: colorRampType }) }) }}
               items={[
                 { value: "custom", label: "-- Custom Colorramp Stops --" },
                 ...Object.entries(filteredColorRamps).map(([key, ramp]: [string, any]) => ({

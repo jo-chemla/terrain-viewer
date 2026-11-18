@@ -876,6 +876,16 @@
       "note": "colorRamp: parseAsString.withDefault(\"mby\"),"
     },
     {
+      "key": "colorRampTab",
+      "stateKey": "colorRampTab",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": "The ramp tab (classic, topqgs, topo, cet, sdr, temp, topobath) the ramp was picked in: 31 ramp names are in two tabs."
+    },
+    {
       "key": "customStops",
       "stateKey": "customStops",
       "type": "ramp-stops",
@@ -4002,12 +4012,6 @@
       "key": "useClientExport",
       "default": "true",
       "note": "DTM export mode: client-side (browser range-reads/tile-mosaic, no titiler, no server-side size limit) vs the original titiler-based export — see lib/client-export.ts."
-    },
-    {
-      "file": "lib/settings-atoms.ts",
-      "key": "colorRampType",
-      "default": "'classic'",
-      "note": ""
     },
     {
       "file": "lib/settings-atoms.ts",

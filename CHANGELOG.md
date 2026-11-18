@@ -30,6 +30,8 @@
 - A **Crater candidates** entry in the Featured bookmarks: four views (hillshade, hypso and slope; Google imagery; Phong; sky-view factor), a remote CSV of detections and the Feature Iterator sorted by quality, opened as a link.
 - The Feature Iterator panel is one grid (Feature, Filter, Order, Zoom) with every control the same height. A linked layer is listed by name with a spinner while its file loads.
 - Colour ramp tabs: the tab is derived from the stored tab and the ramp instead of being corrected by an effect, and the ramp select ignores the empty value it reported while the list changed. Clicking a tab no longer sends the ramp back to mby in Top Qgs.
+- The ramp tab is now in the link with the ramp (`colorRampTab`), both written in one step, so a click on a tab cannot be read back as another tab that has the same ramp. The tab strip's background spans all the tabs.
+- The Feature Iterator's Order has a direction button: highest or lowest first (`iteratorSort=<property>:asc` in a link).
 - Split view pills read "A: Hillshade" where they read "AHillshade" when only the modes are named.
 - Iso-line at a value: a **Smoothing** slider (0 to 16 px, `isolineSmooth`) blurs the measure before the line and its fill are traced, so the line follows the shape of an area rather than every pixel. Cliff teeth keep their own 4 px minimum.
 - Elevation picker in LRM: a point and a path are now read at the zoom the map is drawn at. Before, a point read the finest zoom and a path a zoom picked from its length, and since the LRM radius is in pixels the same summit read 145 m as a point and 394 m on a long path. A path stays 160 evenly spaced samples.

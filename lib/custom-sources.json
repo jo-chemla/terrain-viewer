@@ -1192,8 +1192,8 @@
             "url": "https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp",
             "type": "terrarium",
             "maxzoom": 17,
-            "description": "Merged global + regional bathymetric compilations (GEBCO, EMODnet, NOAA CUDEM, and many more). See https://github.com/openwatersio/seascape",
-            "infoUrl": "https://github.com/openwatersio/seascape"
+            "description": "Open Waters Seascape: the seafloor only, a mosaic of 34 open bathymetry sources (GEBCO 2026, EMODnet 2024, NOAA, AusBathyTopo and regional surveys). Global at about 450 m (zoom 8), regional detail down to about 8 m (zoom 14) where a survey exists. Depths are negative metres; land is not elevation but a flat code (0 water of unknown depth, 1 drying foreshore, 2 land), so pair it with a land source in a split view. The datum varies by source (chart datum or about mean sea level). Terrarium WebP, 512 px tiles, keyless, CORS-open. Not for navigation. Each source keeps its own licence (mostly CC BY 4.0, CC0 or public domain); credit Open Waters.",
+            "infoUrl": "https://openwaters.io/charts/seascape/"
         },
         {
             "id": "custom-pgc-arcticdem",
