@@ -142,6 +142,31 @@ A tile handler answers one z/x/y at a time; an export wants one area at one size
 
 The IGN LiDAR nDSM, a difference of two WMS layers, exports in two GetMap requests instead of a tile mosaic of each operand. COGs already had their own windowed read. A reader returns floats with NaN for nodata; on the export's EPSG:3857 grid, so they go straight into the file.
 
+## Outside the browser: a rendering service
+
+Not built. A note on how close the pieces are.
+
+A protocol URL already says everything about one rendering: the mode, its parameters, the source underneath, and z/x/y. That is the shape of a [TiTiler](https://developmentseed.org/titiler/) request, with the difference that TiTiler computes on a server and this app computes in the page. A middleware that took the same URLs and answered with the bytes would serve the relief modes to clients that cannot run them: QGIS, a notebook, another web map, a report generator.
+
+Two outputs make sense:
+
+- **Tiles**: `GET /tiles/{scheme}/{z}/{x}/{y}.png?<the protocol's own parameters>`, the bitmap the handler returns. Any XYZ client reads it.
+- **Viewport images**: one picture of a bounding box at a pixel size, for a figure or a preview, through the [region readers](#region-reads) and the mode's own compute rather than a mosaic of tiles.
+
+What makes this plausible now and not before is the [speed pass of November 2026](/dev/performance): most modes cost 2 to 13 ms a tile, Sky View Factor and Openness about 100 ms where they cost a second. A server answering a screenful of tiles is no longer a queue of seconds.
+
+What exists:
+
+- The handlers, all behind one registry (`dispatchTile`), with a shared result cache.
+- A first server that renders the app: the [MCP server](/features/mcp-server) drives a headless Chrome and returns a picture of any view in a few seconds. It is a viewport image service already, by the slow road (a whole page per picture).
+- `mcp/app-lib.ts` bundles part of the app's code for Node, which shows the catalog and source code runs there.
+
+What is missing:
+
+- The handlers lean on browser APIs: `createImageBitmap`, `OffscreenCanvas`, WebGL2 for the normal-based modes, web workers. On a server each needs a stand-in (a Node canvas, a headless GL, worker threads), or the service keeps one headless page open and calls `dispatchTile` inside it, which needs no port at all and is the quickest thing to try.
+- Encoding to PNG or WebP on the way out, cache headers, and a disk or object-store cache in front, as a tile server has.
+- Limits: a public endpoint that computes Sky View Factor on demand needs rate limits and a cap on the upstream sources it will fetch.
+
 ## Writing a new one
 
 1. Write the handler in `lib/<name>-protocol.ts`. Return a bitmap through `toTileImage` (`lib/tile-image.ts`), or MVT bytes for a vector source.
