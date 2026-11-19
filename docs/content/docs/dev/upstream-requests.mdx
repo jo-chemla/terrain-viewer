@@ -20,10 +20,10 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | Request | To | Status |
 |---|---|---|
 | [A sweep of national sources finer than what is ingested](#mapterhorn-a-comment-on-issue-27), with the [National Datasets](/features/national-datasets) comparison as the reference and a licence column | Mapterhorn, [a comment on issue 27](https://github.com/mapterhorn/mapterhorn/issues/27#issuecomment-6510656252) | Posted 2026-10-29 |
-| The protocol registry and `useClientDemUpstream` (every derived mode on every source type, custom protocols included) as the case for derived modes reading a `raster-dem` source in core | MapLibre style spec, [a comment on issue 1374](https://github.com/maplibre/maplibre-style-spec/issues/1374#issuecomment-6894499265) (ours, terrain coloured by slope, aspect, curvature) | Posted 2026-11-15 |
-| [Custom-protocol fetch through the main thread](#maplibre-contour-a-follow-up-on-issue-434): a `DemSource` taking a fetch function, the worker optional, linking the 1374 comment | maplibre-contour, [a comment on issue 434](https://github.com/onthegomap/maplibre-contour/issues/434#issuecomment-6894657616) (ours) | Posted 2026-11-15 |
-| A screen-space mask (a per-layer clip in viewport units) and `difference` and `exclusion` blends, after layer blending shipped in 6.18 | MapLibre GL JS, [a reply on issue 48](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6894105178) | Posted 2026-11-15 |
-| Plain images (a URL or an `ImageBitmap`, no `info.json`) as a resource for the renderer, so the Image Georeferencer's bending fits draw exactly | Allmaps, [a comment on issue 643](https://github.com/allmaps/allmaps/issues/643#issuecomment-6894174249) (level-0 services without tiles; Bert Spaan suggests one `tiles` entry per size) | Posted 2026-11-15. No separate feature request: Allmaps is built around IIIF, so a synthetic level-0 IIIF service served from memory is our route; nothing more is posted unless the maintainers show interest |
+| The protocol registry and `useClientDemUpstream` (every derived mode on every source type, custom protocols included) as the case for derived modes reading a `raster-dem` source in core | MapLibre style spec, [a comment on issue 1374](https://github.com/maplibre/maplibre-style-spec/issues/1374#issuecomment-6894499265) (ours, terrain coloured by slope, aspect, curvature) | Posted 2026-11-15. HarelM answered the same day (`importScriptInWorkers`, the terrain API for custom layers); [our reply of 2026-11-19](#maplibre-style-spec-the-reply-on-issue-1374) reports what that gave |
+| [Custom-protocol fetch through the main thread](#maplibre-contour-a-follow-up-on-issue-434): a `DemSource` taking a fetch function, the worker optional, linking the 1374 comment | maplibre-contour, [a comment on issue 434](https://github.com/onthegomap/maplibre-contour/issues/434#issuecomment-6894657616) (ours) | Posted 2026-11-15. No answer, and no longer needed: contours run in MapLibre's workers since 2026-11-16 |
+| A screen-space mask (a per-layer clip in viewport units) and `difference` and `exclusion` blends, after layer blending shipped in 6.18 | MapLibre GL JS, [a reply on issue 48](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6894105178) | Posted 2026-11-15. CommanderStorm answered the same day: clipping is a separate style-spec proposal, more blend modes are welcome as a PR. [Our reply of 2026-11-18](#the-answer-and-our-reply) offers both PRs; waiting for the answer before opening them |
+| Plain images (a URL or an `ImageBitmap`, no `info.json`) as a resource for the renderer, so the Image Georeferencer's bending fits draw exactly | Allmaps, [a comment on issue 643](https://github.com/allmaps/allmaps/issues/643#issuecomment-6894174249) (level-0 services without tiles; Bert Spaan suggests one `tiles` entry per size) | Posted 2026-11-15. No separate feature request: Allmaps is built around IIIF, so a synthetic level-0 IIIF service served from memory is our route; nothing more is posted unless the maintainers show interest. Bert Spaan confirmed on 2026-11-16 that Allmaps stays with tiled IIIF images |
 | `https://terrain-viewer.iconem.com` as an allowed origin on the Almond Blossom PMTiles host, so the library's [impasto entries](/dev/vendored-protocols#pmtiles) work without a local proxy | Lars Maxfield (impasto.dev) | Not to be sent yet |
 | Sparse tiles and the Esri placeholder tile; 3D Tiles | MapLibre, [PR 8335](https://github.com/maplibre/maplibre-gl-js/pull/8335), [PR 8567](https://github.com/maplibre/maplibre-gl-js/pull/8567) | Commented |
 | MapLibre 6 support and label placement | geogrid-maplibre-gl, [issue 18](https://github.com/falseinput/geogrid-maplibre-gl/issues/18) | Posted |
@@ -53,7 +53,27 @@ What we need from projects we depend on, written once, kept here, and linked whe
 >
 > Today we keep two map canvases with CSS `clip-path` and `mix-blend-mode`, which works but leaves the blend out of the map canvas, so exports have to rebuild it by hand.
 
+### The answer and our reply
+
+[CommanderStorm, 2026-11-15](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6897129818): clipping needs a style-spec proposal of its own, separate from blending, to be presented at the monthly TSC; more blend modes are welcome as a PR, since only the modes people asked for were stabilised.
+
+[Our reply, 2026-11-18](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6995205604):
+
+> Thanks for getting back as always! Agreed that clipping is a separate question from blending. I'll try to wrap up a style-spec proposal for it (screen-space mask or clip region per layer, with the overlay/split-view comparison as the context).
+>
+> On the extra blend modes, noted that a PR is welcome, to style-spec then gl-js. I have both ready locally with the ten CSS mix-blend modes still missing, split in two commits sorted by usefulness on our side. Would you want me to PR them all?
+>
+> 1. `difference`, `exclusion`, `soft-light`, `hard-light`, very useful
+> 2. `darken`, `lighten`, `color-dodge`, `color-burn`, `hue`, `saturation` nice to have
+
+Two things follow from it, neither done yet:
+
+- **The blend-mode pull requests.** Both are written and kept local until CommanderStorm answers: the style-spec one first (the ten values and their documentation), then GL JS (the composite shader and a render test per mode on fill and raster layers).
+- **A style-spec proposal for clipping**: a screen-space mask or clip region per layer, with the overlay split as the case.
+
 ## Allmaps: plain images as a resource
+
+**Answer (2026-11-16):** [Bert Spaan](https://github.com/allmaps/allmaps/issues/643#issuecomment-6924645448) sees the use and says it would not be hard, but wants Allmaps to keep working with tiled IIIF images only (manifest metadata, image quality, long-lived hosting).
 
 **Decision (2026-11-16):** Allmaps is built around IIIF, so the route is a synthetic level-0 IIIF service served from memory through the renderer's `fetchFn` (one `tiles` entry covering the whole image, as Bert Spaan suggests on 643). No separate feature request; nothing more is posted unless the maintainers show interest in a non-IIIF resource.
 
@@ -100,9 +120,9 @@ Posted 2026-11-15 in two parts: the description of the registry and `useClientDe
 >
 > Happy to send a PR along those lines if that shape works for you.
 
-### Follow-up to post (drafted 2026-11-18, not posted)
+### Follow-up for issue 434 (drafted 2026-11-18, not posted)
 
-HarelM's answer on style-spec 1374 (`importScriptInWorkers`) made the request above unnecessary. A short reply on issue 434 to say so and leave the recipe for the next reader:
+HarelM's answer on style-spec 1374 (`importScriptInWorkers`) made the request above unnecessary. The substance went into [the reply on 1374](#maplibre-style-spec-the-reply-on-issue-1374) on 2026-11-19; this shorter reply on issue 434, to say so and leave the recipe for the next reader, is still unposted:
 
 > A follow-up, since this turned out not to need anything from maplibre-contour. Following @HarelM's suggestion on maplibre-style-spec#1374, we now run maplibre-contour inside MapLibre's own workers:
 >
@@ -111,6 +131,30 @@ HarelM's answer on style-spec 1374 (`importScriptInWorkers`) made the request ab
 > - `setWorkerCount(4)` then traces several tiles at once (MapLibre defaults to one worker on Chrome): ten contour tiles went from 560 to 440 ms, and from 1.5 to 0.9 s over a computed DEM.
 >
 > Code: [`contour-worker-client.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/contour-worker-client.ts) and [`contour-worker-body.js`](https://github.com/Iconem/terrain-viewer/blob/main/lib/contour-worker-body.js). The one thing that would make this lighter is exposing `dist/index.min.js` (or a worker-ready entry) in the package `exports` map; we import it by its `node_modules` path today. Feel free to close our part of this request.
+
+## MapLibre style spec: the reply on issue 1374
+
+[HarelM, 2026-11-15](https://github.com/maplibre/maplibre-style-spec/issues/1374#issuecomment-6901878330), on our registry comment: maplibre-contour can reach custom protocols by loading code into the worker and using GL JS's internal `makeRequest`; `importScriptInWorkers` helps in some cases; worth trying both with the new terrain API for custom layers, then saying what API is still missing.
+
+[Our reply, 2026-11-19](https://github.com/maplibre/maplibre-style-spec/issues/1374#issuecomment-6995610514):
+
+> Thanks @HarelM, very useful and totally relevant! Some notes after implementing your suggestions over the past few days in Terrain Viewer with Fable:
+>
+> - **Contours in MapLibre's own workers.** maplibre-contour now runs inside the worker pool, loaded with `importScriptInWorkers`: its UMD build plus a small script that registers a protocol in the workers. DEM tiles from a custom protocol are answered by the main thread. With the pool raised from one worker to up to four, a screenful of contour tiles lands about 30% sooner.
+> - **Heavy raster modes in a worker pool.** Our heavy raster compute modes, like Sky View Factor, Openness, Local Dominance and Hard Shadows, run in a shared pool of up to four workers. A screenful lands 3 to 4 times sooner and user interactions stay responsive.
+> - **The terrain API for custom layers.** Live Phong and Matcap are now drawn through `renderToTerrainTile`, removing the need to replicate how MapLibre builds its terrain mesh. Very useful, and also more performant (drawn only when something changes rather than every frame).
+>
+> A potentially easier plugin ergonomics could be a public way for a worker to fetch through the protocols registered with `addProtocol`. Inside MapLibre's workers, `makeRequest` already falls back to the main thread's handlers, which is what maplibre-contour relies on, but it is internal, and a plugin's own worker pool has no equivalent.
+>
+> Details and measurements: https://terrain-viewer.iconem.com/docs/dev/performance/
+
+The reply ends with a folded note on vector and raster workers, checked against the GL JS source (main, 2026-11-16):
+
+- MapLibre loads vector tiles inside its workers, but requests raster and raster-dem tiles from the main thread (`raster_tile_source.ts` and `raster_dem_tile_source.ts` call `ImageRequest` there; only the decoded DEM pixels go to a worker). A worker-side protocol therefore only helps vector sources, contours among them.
+- Raster compute runs in our own pool, which cannot call the internal `makeRequest`: the main thread reads and decodes the DEM, then hands the grid to the pool.
+- Our contour script does not go through `makeRequest` either: it fetches http(s) tiles itself and sends any other scheme to the main thread as a message. In a MapLibre worker, `makeRequest` would do that relay by itself (`src/util/ajax.ts`).
+
+See [Performance](/dev/performance) and [Custom protocols](/dev/custom-protocols).
 
 ## Mapterhorn: a comment on issue 27
 
