@@ -1,5 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
+import { useViewMaps } from "@/lib/use-view-maps"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { PanelBottomOpen, PanelBottomClose } from "lucide-react"
 import * as maplibregl from "maplibre-gl"
@@ -88,10 +89,15 @@ export const ElevationPickerSection: React.FC<{
   state: any
   setState: (updates: any) => void
   mapRef: React.RefObject<MapRef | null>
+  /** Every view's map ref (A..H): clicks are taken, and the markers and the
+   *  line drawn, on all the views on screen. Elevations are still sampled
+   *  from view A's terrain source. */
+  viewMapRefs?: React.RefObject<MapRef | null>[]
   draw: TerraDraw | null
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, setState, mapRef, draw, isOpen, onOpenChange }) => {
+}> = ({ state, setState, mapRef, viewMapRefs, draw, isOpen, onOpenChange }) => {
+  const maps = useViewMaps(mapRef, viewMapRefs)
   const [isActive, setIsActive] = useAtom(elevationPickerActiveAtom)
   // Lifted to an atom so the walkthrough can place a worked pair (see
   // product-tour.tsx's TOOLS_STEPS); the sampling effect below fills in
@@ -133,23 +139,26 @@ export const ElevationPickerSection: React.FC<{
   const [hoverIndex, setHoverIndex] = useAtom(profileHoverIndexAtom)
   const [profileDocked, setProfileDocked] = useAtom(profileDockedAtom)
   const setProfileChart = useSetAtom(profileChartAtom)
-  const hoverMarkerRef = useRef<maplibregl.Marker | null>(null)
+  // One per view, kept and moved rather than rebuilt on every hover.
+  const hoverMarkersRef = useRef(new Map<maplibregl.Map, maplibregl.Marker>())
   useEffect(() => {
-    const map = mapRef.current?.getMap()
     const p = hoverIndex !== null ? profilePoints[hoverIndex] : undefined
-    if (!map || !p) { hoverMarkerRef.current?.remove(); hoverMarkerRef.current = null; return }
-    if (!hoverMarkerRef.current) {
+    const markers = hoverMarkersRef.current
+    for (const [m, marker] of markers) {
+      if (!p || !maps.includes(m)) { marker.remove(); markers.delete(m) }
+    }
+    if (!p) return
+    for (const map of maps) {
+      const marker = markers.get(map)
+      if (marker) { marker.setLngLat([p.lng, p.lat]); continue }
       const el = document.createElement("div")
       el.style.width = "10px"; el.style.height = "10px"; el.style.borderRadius = "50%"
       el.style.background = "#ffffff"; el.style.border = "2px solid #111827"; el.style.boxShadow = "0 0 4px rgba(0,0,0,0.6)"
       el.style.pointerEvents = "none"
-      hoverMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map)
-    } else {
-      hoverMarkerRef.current.setLngLat([p.lng, p.lat])
+      markers.set(map, new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map))
     }
-    return undefined
-  }, [hoverIndex, profilePoints, mapRef])
-  useEffect(() => () => { hoverMarkerRef.current?.remove(); hoverMarkerRef.current = null }, [])
+  }, [hoverIndex, profilePoints, maps])
+  useEffect(() => () => { for (const marker of hoverMarkersRef.current.values()) marker.remove(); hoverMarkersRef.current.clear() }, [])
   // The dock (components/ProfileDock.tsx) draws the same profile from this.
   useEffect(() => {
     setProfileChart(isActive && profileMode && points.length === 2 && !profileLoading && profilePoints.length >= 2 ? { points: profilePoints, poleHeightM: poleHeight } : null)
@@ -182,6 +191,9 @@ export const ElevationPickerSection: React.FC<{
   const clientUpstreamRef = useRef(clientUpstream)
   clientUpstreamRef.current = clientUpstream
 
+  const mapsRef = useRef(maps)
+  mapsRef.current = maps
+
   const sampleElevation = useCallback(async (
     map: maplibregl.Map, lng: number, lat: number,
   ): Promise<{ elevation: number | null; error?: string }> => {
@@ -206,7 +218,13 @@ export const ElevationPickerSection: React.FC<{
     }
 
     if (s.viewMode === "3d" || s.viewMode === "globe") {
-      const elevation = queryTerrainElevationAtPoint(map, lng, lat, s.exaggeration || 1)
+      // View A's terrain first; another view's when A has no tile there
+      // (the views share a camera, so this is rare).
+      let elevation: number | null = null
+      for (const m of [map, ...mapsRef.current.filter((o) => o !== map)]) {
+        elevation = queryTerrainElevationAtPoint(m, lng, lat, s.exaggeration || 1)
+        if (elevation !== null) break
+      }
       if (elevation === null) return { elevation: null, error: "No terrain elevation at this point" }
       return { elevation }
     }
@@ -370,27 +388,26 @@ export const ElevationPickerSection: React.FC<{
   }, [points, mapRef, sampleElevation, setPoints])
 
   useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map || !isActive) return
-    map.on("click", handleMapClick)
+    if (!isActive) return
     // A CSS class (see src/index.css) rather than a plain inline style — maplibre's
     // drag-pan handler keeps re-setting the canvas cursor to grab/grabbing during
     // interaction, which would otherwise stomp a one-time inline assignment.
-    const container = map.getContainer()
-    container.classList.add("elevation-picker-active")
-    return () => {
-      map.off("click", handleMapClick)
-      container.classList.remove("elevation-picker-active")
+    for (const map of maps) {
+      map.on("click", handleMapClick)
+      map.getContainer().classList.add("elevation-picker-active")
     }
-  }, [isActive, mapRef, handleMapClick])
+    return () => {
+      for (const map of maps) {
+        map.off("click", handleMapClick)
+        map.getContainer().classList.remove("elevation-picker-active")
+      }
+    }
+  }, [isActive, maps, handleMapClick])
 
   // Keep on-map markers in sync with picked points.
   useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-
     markersRef.current.forEach((m) => m.remove())
-    markersRef.current = points.map((point, idx) => {
+    markersRef.current = maps.flatMap((map) => points.map((point, idx) => {
       const el = document.createElement("div")
       el.style.width = "14px"
       el.style.height = "14px"
@@ -399,13 +416,13 @@ export const ElevationPickerSection: React.FC<{
       el.style.boxShadow = "0 0 4px rgba(0,0,0,0.6)"
       el.style.background = MARKER_COLORS[idx] || MARKER_COLORS[0]
       return new maplibregl.Marker({ element: el }).setLngLat([point.lng, point.lat]).addTo(map)
-    })
+    }))
 
     return () => {
       markersRef.current.forEach((m) => m.remove())
       markersRef.current = []
     }
-  }, [points, mapRef])
+  }, [points, maps])
 
   // Draped line between the two picked points, colored BY ELEVATION. A `line`
   // layer is draped onto the 3D terrain by maplibre automatically (same as fill
@@ -418,8 +435,7 @@ export const ElevationPickerSection: React.FC<{
   // basemap/style swap doesn't drop it. Keyed on lineKey (not `points`) so it
   // doesn't re-sample when the two picks' own elevation lookups later resolve.
   useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
+    if (!maps.length) return
     const SRC = "elevation-picker-line"
     const LYR = "elevation-picker-line"
 
@@ -428,8 +444,10 @@ export const ElevationPickerSection: React.FC<{
     // one fewer round trip.
     const samples = profilePoints
     if (!(isActive && showLineOnMap && samples.length >= 2)) {
-      if (map.getLayer(LYR)) map.removeLayer(LYR)
-      if (map.getSource(SRC)) map.removeSource(SRC)
+      for (const map of maps) {
+        if (map.getLayer(LYR)) map.removeLayer(LYR)
+        if (map.getSource(SRC)) map.removeSource(SRC)
+      }
       return
     }
 
@@ -457,6 +475,8 @@ export const ElevationPickerSection: React.FC<{
     if (!gradient) gradient = ["interpolate", ["linear"], ["line-progress"], 0, MARKER_COLORS[0], 1, MARKER_COLORS[1]]
 
     let disposed = false
+    // The same line on every view; each map retries on its own events.
+    const cleanups = maps.map((map) => {
     const redraw = () => {
       if (disposed) return
       // Not just `return` on an unloaded style. This used to rely entirely on
@@ -485,18 +505,24 @@ export const ElevationPickerSection: React.FC<{
     }
     redraw()
     map.on("styledata", redraw)
+    return () => {
+      map.off("styledata", redraw)
+      map.off("idle", redraw)
+      // A map that left the layout is already removed: its style is gone.
+      if (!(map as any).style) return
+      if (map.getLayer(LYR)) map.removeLayer(LYR)
+      if (map.getSource(SRC)) map.removeSource(SRC)
+    }
+    })
 
     return () => {
       // disposed guards the pending `once("idle")` above: this effect re-runs
       // on every profilePoints update, so a retry queued by a superseded run
       // must not draw stale geometry after the newer one has taken over.
       disposed = true
-      map.off("styledata", redraw)
-      map.off("idle", redraw)
-      if (map.getLayer(LYR)) map.removeLayer(LYR)
-      if (map.getSource(SRC)) map.removeSource(SRC)
+      cleanups.forEach((fn) => fn())
     }
-  }, [isActive, showLineOnMap, profilePoints, mapRef])
+  }, [isActive, showLineOnMap, profilePoints, maps])
 
   const handleToggle = useCallback((checked: boolean) => {
     setIsActive(checked)

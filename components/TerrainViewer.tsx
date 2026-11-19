@@ -635,7 +635,7 @@ export const QUERY_STATE_PARSERS = {
     // Per-view visualization modes (lib/viz-views.ts): vizSync true draws
     // every mode on every view; false draws each mode on the views listed in
     // vizViews ("showSlope:AC;showLrm:B"), chosen with the view grid in the
-    // sidebar. Tells, contours and graticules stay on view A.
+    // sidebar. Tells show on every view; contours and graticules stay on view A.
     vizSync: parseAsBoolean.withDefault(true),
     vizViews: parseAsString.withDefault(""),
     showColorRelief: parseAsBoolean.withDefault(false),
@@ -1349,10 +1349,13 @@ export function TerrainViewer() {
       // layer re-attaching, so without this the just-unfrozen view can sit on
       // stale/empty tiles until the next actual pan. Re-setting the same
       // tiles array is MapLibre's supported way to force a full reload.
-      const map = mapRefs.A.current?.getMap()
-      const liveSource = map?.getSource("tellsSource") as maplibregl.VectorTileSource | undefined
-      const tiles = (liveSource as unknown as { _options?: { tiles?: string[] } })?._options?.tiles
-      if (liveSource && tiles) liveSource.setTiles(tiles)
+      // Every view carries the source (the candidates show on all of them).
+      for (const v of VIEW_IDS) {
+        const map = mapRefs[v].current?.getMap()
+        const liveSource = map?.getSource("tellsSource") as maplibregl.VectorTileSource | undefined
+        const tiles = (liveSource as unknown as { _options?: { tiles?: string[] } })?._options?.tiles
+        if (liveSource && tiles) liveSource.setTiles(tiles)
+      }
       return
     }
     const map = mapRefs.A.current?.getMap()
@@ -4325,19 +4328,20 @@ export function TerrainViewer() {
             maptilerKey={maptilerKey}
             titilerEndpoint={titilerEndpoint}
           />
-          {isPrimary && (
-            <TellsSource
-              enabled={state.tellsBeta && tellsEverActivated}
-              terrainSource={source}
-              customTerrainSources={customTerrainSources}
-              mapboxKey={mapboxKey}
-              maptilerKey={maptilerKey}
-              titilerEndpoint={titilerEndpoint}
-              tellsOptions={tellsOptions}
-              frozen={state.tellsFrozen}
-              frozenSnapshot={tellsFrozenSnapshot}
-            />
-          )}
+          {/* On every view: the detector's tiles are cached and shared
+              (withTileResultCache), so views on the same terrain source
+              compute each tile once. The frozen snapshot is view A's. */}
+          <TellsSource
+            enabled={state.tellsBeta && tellsEverActivated}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+            tellsOptions={tellsOptions}
+            frozen={state.tellsFrozen}
+            frozenSnapshot={tellsFrozenSnapshot}
+          />
           {isPrimary && (
             <TellsSource
               enabled={state.tellsBeta && tellsEverActivated}
@@ -4397,27 +4401,23 @@ export function TerrainViewer() {
           {/* The georeferenced image, every view: it is content, like a
               basemap overlay, not a tool marker. */}
           <GeorefImageLayer imageUrl={state.georefImage} gcpsParam={state.georefGcps} type={state.georefType} opacity={state.georefOpacity} visible={state.showGeoref} />
-          {isPrimary && (
-            <TellsMarkersLayer
-              enabled={state.tellsBeta}
-              visible={state.showTellsDetector && state.tellsMarkersVisible && !isHistoricalMode}
-              style={state.tellsStyle}
-              outlineColor={state.tellsOutlineColor}
-              pitColor={state.tellsPitColor}
-              sizeByMeasuredScale={state.tellMeasureScale && state.tellsScaleMarkers}
-              scaleMultiplier={state.tellsScaleMultiplier}
-              latDeg={state.lat}
-              colorByPaints={tellsColorByPaints}
-              frozen={state.tellsFrozen}
-            />
-          )}
+          <TellsMarkersLayer
+            enabled={state.tellsBeta}
+            visible={state.showTellsDetector && state.tellsMarkersVisible && !isHistoricalMode}
+            style={state.tellsStyle}
+            outlineColor={state.tellsOutlineColor}
+            pitColor={state.tellsPitColor}
+            sizeByMeasuredScale={state.tellMeasureScale && state.tellsScaleMarkers}
+            scaleMultiplier={state.tellsScaleMultiplier}
+            latDeg={state.lat}
+            colorByPaints={tellsColorByPaints}
+            frozen={state.tellsFrozen}
+          />
           {isPrimary && <TellsUnfilteredLoaderLayer enabled={state.tellsBeta && tellsEverActivated} />}
-          {isPrimary && (
-            <TellsInspectPopup
-              mapRef={mapRefs.A as any}
-              active={!!(mapLoaded.A && state.tellsBeta)}
-            />
-          )}
+          <TellsInspectPopup
+            mapRef={mapRefs[side] as any}
+            active={!!(mapLoaded[side] && state.tellsBeta)}
+          />
           <MatcapRasterLayer
             enabled={state.showLightingEffects && vm("showLightingEffects") && state.showMatcap && vm("showMatcap") && state.matcapRenderer === "raster" && !isHistoricalMode}
             opacity={state.lightingEffectsOpacity * state.matcapOpacity}
@@ -4966,7 +4966,7 @@ export function TerrainViewer() {
                 </button>
               }
             />
-            <TooltipContent><p>{pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (the elevation picker, the sun shadow calculator and the timeline work on view A)`}</p></TooltipContent>
+            <TooltipContent><p>{pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (view A is the reference: the minimap follows it and the Elevation Picker samples its terrain)`}</p></TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -5258,7 +5258,7 @@ export function TerrainViewer() {
           />
         </div>
       )}
-      <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} />
+      <HistoricalTimelinePanel state={state} setState={setState} mapRef={mapRefs.A as any} viewMapRefs={mapRefs as any} />
       {historicalTimelineActive && state.historicalTimelineCollapsed && (
         <HistoricalTimelineToggle onExpand={() => setState({ historicalTimelineCollapsed: false })} widthPx={state.minimapMinimized ? 40 : undefined} bottomPx={timelineDockGapPx + profileDockLift} leftPx={ctrlSideMarginPx} />
       )}

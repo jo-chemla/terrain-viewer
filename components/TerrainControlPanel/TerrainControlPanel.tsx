@@ -1018,12 +1018,12 @@ export function TerrainControlPanel({
                   source — meaningless in historical mode, which has none. */}
               {!historicalMode && !hiddenSections.includes("elevationPicker") && (
                 <div id="tour-elevation-picker-section" className="scroll-mt-[100px]">
-                  <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
+                  <ElevationPickerSection state={state} setState={setState} mapRef={mapRef} viewMapRefs={viewMapRefs} draw={draw} isOpen={sectionOpen.elevationPicker} onOpenChange={toggle("elevationPicker")} />
                 </div>
               )}
               {!hiddenSections.includes("sunShadowCalculator") && (
                 <div id="tour-sun-shadow-section" className="scroll-mt-[100px]">
-                  <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
+                  <SunShadowCalculatorSection state={state} setState={setState} mapRef={mapRef} viewMapRefs={viewMapRefs} draw={draw} isOpen={sectionOpen.sunShadowCalculator} onOpenChange={toggle("sunShadowCalculator")} />
                 </div>
               )}
               {!hiddenSections.includes("georef") && state.georefBeta && (

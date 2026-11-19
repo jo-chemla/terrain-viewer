@@ -216,7 +216,7 @@ const WaybackTickMark: React.FC<{ tick: TimelineTick; leftPct: number; activeSid
   )
 }
 
-export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef | null> }> = ({ state, setState, mapRef }) => {
+export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates: any) => void; mapRef: React.RefObject<MapRef | null>; viewMapRefs?: Partial<Record<ViewId, React.RefObject<MapRef | null>>> }> = ({ state, setState, mapRef, viewMapRefs }) => {
   const collapsed = !!state.historicalTimelineCollapsed
   const setCollapsed = useCallback((v: boolean) => setState({ historicalTimelineCollapsed: v }), [setState])
   const [activeSide, setActiveSide] = useAtom(timelineActiveSideAtom)
@@ -650,8 +650,14 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     const run = () => {
       const map = mapRef.current?.getMap()
       if (!map) { timer = setTimeout(run, 500); return }
-      const b = map.getBounds()
-      const bbox: [number, number, number, number] = [Math.max(-180, b.getWest()), Math.max(-85, b.getSouth()), Math.min(180, b.getEast()), Math.min(85, b.getNorth())]
+      // What any view on screen shows: the views share a camera, but their
+      // panes can differ in size (overlay wipe, uneven grids).
+      let [w, s, e, n] = [180, 90, -180, -90]
+      for (const m of [map, ...Object.values(viewMapRefs ?? {}).map((r) => r?.current?.getMap()).filter((m) => m && m !== map)]) {
+        const b = m!.getBounds()
+        w = Math.min(w, b.getWest()); s = Math.min(s, b.getSouth()); e = Math.max(e, b.getEast()); n = Math.max(n, b.getNorth())
+      }
+      const bbox: [number, number, number, number] = [Math.max(-180, w), Math.max(-85, s), Math.min(180, e), Math.min(85, n)]
       for (const id of catalogsToLoad) {
         setCatalogLoading((prev) => ({ ...prev, [id]: true }))
         loadCatalogTicks(id, bbox, ctrl.signal, windowRange)
@@ -1318,14 +1324,15 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     // A catalog item much smaller than the view (a city plan, one flight)
     // and wholly inside it: frame it, so the pick shows something.
     const b = tick.ref && tick.source in TIMELINE_CATALOG_BY_ID ? catalogBasemap(tick.ref)?.bounds : undefined
-    const map = mapRef.current?.getMap()
+    // Judged on the view the pick went to (panes can differ in size).
+    const map = (viewMapRefs?.[which]?.current ?? mapRef.current)?.getMap()
     if (b && map) {
       const v = map.getBounds()
       const inside = b[0] >= v.getWest() && b[2] <= v.getEast() && b[1] >= v.getSouth() && b[3] <= v.getNorth()
       const small = (b[2] - b[0]) < 0.5 * (v.getEast() - v.getWest()) || (b[3] - b[1]) < 0.5 * (v.getNorth() - v.getSouth())
       if (inside && small) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: 600 })
     }
-  }, [resolveSide, setTickForSide, maybeRecenterWindow, mapRef, picksKeep, setCustomBasemaps, state, setState])
+  }, [resolveSide, setTickForSide, maybeRecenterWindow, mapRef, viewMapRefs, picksKeep, setCustomBasemaps, state, setState])
 
   // The tick card: hovering a tick shows what it is and the buttons to put
   // it on a view (as basemap or overlay) or keep it among the user's sources.

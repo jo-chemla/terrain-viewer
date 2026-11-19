@@ -1065,6 +1065,26 @@ function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: R
     // store mutations).
     const [activeDrawMode, setActiveDrawMode] = useAtom(activeDrawModeAtom)
 
+    // Nothing can be drawn into a layer that is not shown: the new feature
+    // would land invisible. The drawing modes are disabled while the active
+    // layer is hidden or "Show drawings" is off, and a mode already running
+    // goes back to Select.
+    const layers = useAtomValue(drawingLayersAtom)
+    const activeLayerId = useAtomValue(activeLayerIdAtom)
+    const drawingsVisible = useAtomValue(drawingsVisibleAtom)
+    const activeLayer = layers.find((l) => l.id === activeLayerId) ?? layers[0]
+    const drawBlockedReason = !drawingsVisible
+        ? 'Drawings are hidden: tick "Show drawings" to draw'
+        : activeLayer?.hidden
+            ? `"${activeLayer.name}" is hidden: show it, or pick another layer, to draw`
+            : null
+    useEffect(() => {
+        if (!draw || !drawBlockedReason) return
+        try {
+            if (draw.getMode() !== 'select') { draw.setMode('select'); setActiveDrawMode('select') }
+        } catch { }
+    }, [draw, drawBlockedReason, setActiveDrawMode])
+
     useEffect(() => {
         if (!draw) return
         // Fallback only — covers any mode change this component didn't itself
@@ -1136,6 +1156,8 @@ function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: R
                         variant={activeDrawMode === id ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => { draw.setMode(id); setActiveDrawMode(id); if (id !== "select") track("tools-drawing", { action: "mode", mode: id }) }}
+                        disabled={id !== 'select' && !!drawBlockedReason}
+                        title={id !== 'select' && drawBlockedReason ? drawBlockedReason : undefined}
                         className="cursor-pointer"
                     >
                         <Icon className="h-4 w-4 mr-1" />

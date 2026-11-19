@@ -56,7 +56,7 @@ Tree clean, no temp files, `tsc` and `vite build` green for app and docs.
 - Basemap COGs through titiler get no `nodata=` override (terrain does).
 - Library coverage = declared `bounds` bboxes, not survey footprints.
 - Terra Draw editing on secondary views (only read-only mirror,
-  `DrawingMirrorLayer.tsx`).
+  `IteratorHighlightLayer.tsx`).
 - Reusing an existing React STAC browser instead of growing
   `stac-search-panel.tsx` (~560 lines) — see [[stac-browser-components]].
 - Registry-fed catalog lists (stacindex / Portolan) for the STAC panel.

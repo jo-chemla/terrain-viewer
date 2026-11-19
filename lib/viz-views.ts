@@ -5,8 +5,8 @@
 // listed is drawn on every view; a key listed with no views is off there
 // (the mode's own switch then reads as off). The sidebar replaces each
 // mode's checkbox with the view-grid toggle (SourceGridToggle) while sync is
-// off and a split layout is on. Tells stay on view A (their inspect popup,
-// frozen snapshot and export are built around the primary map).
+// off and a split layout is on. Tells are drawn on every view (their
+// frozen snapshot and export read the primary map).
 import { activeViews, type GridLayoutId, type ViewId } from "./grid-layouts"
 
 export type VizViews = Record<string, ViewId[]>

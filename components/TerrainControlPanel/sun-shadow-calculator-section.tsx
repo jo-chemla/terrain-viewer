@@ -1,5 +1,6 @@
 import type React from "react"
 import { useState, useCallback, useEffect, useRef } from "react"
+import { useViewMaps } from "@/lib/use-view-maps"
 import { useAtomValue, useAtom } from "jotai"
 import * as maplibregl from "maplibre-gl"
 import type { MapMouseEvent } from "maplibre-gl"
@@ -59,10 +60,14 @@ export const SunShadowCalculatorSection: React.FC<{
   state: any
   setState: (updates: any) => void
   mapRef: React.RefObject<MapRef | null>
+  /** Every view's map ref (A..H): clicks are taken, and the markers and the
+   *  shadow line drawn, on all the views on screen. */
+  viewMapRefs?: React.RefObject<MapRef | null>[]
   draw: TerraDraw | null
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}> = ({ state, setState, mapRef, draw, isOpen, onOpenChange }) => {
+}> = ({ state, setState, mapRef, viewMapRefs, draw, isOpen, onOpenChange }) => {
+  const maps = useViewMaps(mapRef, viewMapRefs)
   const [isActive, setIsActive] = useAtom(sunShadowActiveAtom)
   // "forward": pick where the object stands, drive the light with the pad —
   // the shadow tip is computed and drawn. "reverse": the light itself is
@@ -83,8 +88,8 @@ export const SunShadowCalculatorSection: React.FC<{
   const [height, setHeight] = useAtom(sunShadowHeightAtom)
   const [lineColor, setLineColor] = useState(DEFAULT_LINE_COLOR)
   const [lineWidth, setLineWidth] = useState(DEFAULT_LINE_WIDTH)
-  const markerRef = useRef<maplibregl.Marker | null>(null)
-  const tipMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const markersRef = useRef<maplibregl.Marker[]>([])
+  const tipMarkersRef = useRef<maplibregl.Marker[]>([])
 
   // Same drawing-mode conflict guard as Elevation Picker — TerraDraw's own
   // click handling would otherwise fight with ours. Derived from the shared
@@ -122,62 +127,53 @@ export const SunShadowCalculatorSection: React.FC<{
   }, [mode, point, tipPoint])
 
   useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map || !isActive) return
-    map.on("click", handleMapClick)
+    if (!isActive) return
     // Reuses the same crosshair cursor styling as Elevation Picker (see
     // src/index.css) — the visual affordance ("clicking the map places
     // something") isn't elevation-specific.
-    const container = map.getContainer()
-    container.classList.add("elevation-picker-active")
-    return () => {
-      map.off("click", handleMapClick)
-      container.classList.remove("elevation-picker-active")
+    for (const map of maps) {
+      map.on("click", handleMapClick)
+      map.getContainer().classList.add("elevation-picker-active")
     }
-  }, [isActive, mapRef, handleMapClick])
+    return () => {
+      for (const map of maps) {
+        map.off("click", handleMapClick)
+        map.getContainer().classList.remove("elevation-picker-active")
+      }
+    }
+  }, [isActive, maps, handleMapClick])
 
-  // Marker at the picked point.
-  useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-    markerRef.current?.remove()
-    markerRef.current = null
-    if (!point) return
+  const makeMarker = (color: string, p: PickedPoint, map: maplibregl.Map) => {
     const el = document.createElement("div")
     el.style.width = "14px"
     el.style.height = "14px"
     el.style.borderRadius = "50%"
     el.style.border = "2px solid white"
     el.style.boxShadow = "0 0 4px rgba(0,0,0,0.6)"
-    el.style.background = MARKER_COLOR
-    markerRef.current = new maplibregl.Marker({ element: el }).setLngLat([point.lng, point.lat]).addTo(map)
+    el.style.background = color
+    return new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map)
+  }
+
+  // Marker at the picked point, on every view.
+  useEffect(() => {
+    markersRef.current.forEach((m) => m.remove())
+    markersRef.current = point ? maps.map((map) => makeMarker(MARKER_COLOR, point, map)) : []
     return () => {
-      markerRef.current?.remove()
-      markerRef.current = null
+      markersRef.current.forEach((m) => m.remove())
+      markersRef.current = []
     }
-  }, [point, mapRef])
+  }, [point, maps])
 
   // Marker at the clicked shadow tip — reverse mode only, distinct color from
   // the base-point marker so the two clicked points read unambiguously.
   useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-    tipMarkerRef.current?.remove()
-    tipMarkerRef.current = null
-    if (!tipPoint) return
-    const el = document.createElement("div")
-    el.style.width = "14px"
-    el.style.height = "14px"
-    el.style.borderRadius = "50%"
-    el.style.border = "2px solid white"
-    el.style.boxShadow = "0 0 4px rgba(0,0,0,0.6)"
-    el.style.background = SHADOW_TIP_COLOR
-    tipMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat([tipPoint.lng, tipPoint.lat]).addTo(map)
+    tipMarkersRef.current.forEach((m) => m.remove())
+    tipMarkersRef.current = tipPoint ? maps.map((map) => makeMarker(SHADOW_TIP_COLOR, tipPoint, map)) : []
     return () => {
-      tipMarkerRef.current?.remove()
-      tipMarkerRef.current = null
+      tipMarkersRef.current.forEach((m) => m.remove())
+      tipMarkersRef.current = []
     }
-  }, [tipPoint, mapRef])
+  }, [tipPoint, maps])
 
   // state.illuminationDir/illuminationAlt is the SAME shared light direction
   // driven by <LightDirectionControl> below (and by Hillshade/Phong/Shadows
@@ -245,34 +241,46 @@ export const SunShadowCalculatorSection: React.FC<{
   // that dragging a slider (which recomputes shadowLength on every tick with
   // debounceMs=0) never removes+re-adds the layer, which was visibly
   // flickering the line off and back on every edit.
+  // Bumped when a view's layer is (re)created, so the geometry effect below
+  // fills it: a view that joins the layout, or a style reload, starts empty.
+  const [layerNonce, setLayerNonce] = useState(0)
   useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map || !isActive) return
-    const ensure = () => {
-      if (!map.isStyleLoaded()) return
-      if (!map.getSource(SRC)) map.addSource(SRC, { type: "geojson", data: EMPTY_LINE })
-      if (!map.getLayer(LYR)) {
-        map.addLayer({
-          id: LYR,
-          type: "line",
-          source: SRC,
-          layout: { "line-cap": "round", visibility: "none" },
-          paint: { "line-width": lineWidth, "line-color": lineColor },
-        })
+    if (!isActive) return
+    const cleanups = maps.map((map) => {
+      const ensure = () => {
+        // `style._loaded`, not isStyleLoaded(): the latter is false while any
+        // source loads tiles, and no later styledata is guaranteed.
+        if (!(map as any).style?._loaded) return
+        let added = false
+        if (!map.getSource(SRC)) { map.addSource(SRC, { type: "geojson", data: EMPTY_LINE }); added = true }
+        if (!map.getLayer(LYR)) {
+          map.addLayer({
+            id: LYR,
+            type: "line",
+            source: SRC,
+            layout: { "line-cap": "round", visibility: "none" },
+            paint: { "line-width": lineWidth, "line-color": lineColor },
+          })
+          added = true
+        }
+        if (added) setLayerNonce((n) => n + 1)
       }
-    }
-    ensure()
-    map.on("styledata", ensure)
-    return () => {
-      map.off("styledata", ensure)
-      if (map.getLayer(LYR)) map.removeLayer(LYR)
-      if (map.getSource(SRC)) map.removeSource(SRC)
-    }
+      ensure()
+      map.on("styledata", ensure)
+      return () => {
+        map.off("styledata", ensure)
+        // A map that left the layout is already removed: its style is gone.
+        if (!(map as any).style) return
+        if (map.getLayer(LYR)) map.removeLayer(LYR)
+        if (map.getSource(SRC)) map.removeSource(SRC)
+      }
+    })
+    return () => cleanups.forEach((fn) => fn())
     // lineColor/lineWidth are only read here as the layer's INITIAL paint —
     // later changes go through the dedicated setPaintProperty effect below,
     // so they're deliberately excluded from this effect's deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, mapRef])
+  }, [isActive, maps])
 
   // Shadow line geometry. Forward mode: from the picked point, pointing away
   // from the sun (azimuth + 180°), length = shadowLength — meters→degrees
@@ -283,46 +291,33 @@ export const SunShadowCalculatorSection: React.FC<{
   // add/removeLayer — so repeated edits update the line in place instead of
   // toggling it off and back on.
   useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map || !map.getSource(SRC) || !map.getLayer(LYR)) return
-
+    let coordinates: [number, number][] | null = null
     if (mode === "reverse") {
-      const canDraw = point && tipPoint
-      map.setLayoutProperty(LYR, "visibility", canDraw ? "visible" : "none")
-      if (!canDraw) return
-      const data = {
-        type: "Feature" as const,
-        geometry: { type: "LineString" as const, coordinates: [[point!.lng, point!.lat], [tipPoint!.lng, tipPoint!.lat]] },
-        properties: {},
-      }
+      if (point && tipPoint) coordinates = [[point.lng, point.lat], [tipPoint.lng, tipPoint.lat]]
+    } else if (point && shadowLength !== null && shadowLength > 0 && shadowLength < MAX_DRAWABLE_SHADOW_M) {
+      const shadowAzRad = (((azimuthDeg + 180) % 360) * Math.PI) / 180
+      const latRad = (point.lat * Math.PI) / 180
+      const dLat = (shadowLength * Math.cos(shadowAzRad)) / 111_320
+      const dLng = (shadowLength * Math.sin(shadowAzRad)) / (111_320 * Math.cos(latRad))
+      coordinates = [[point.lng, point.lat], [point.lng + dLng, point.lat + dLat]]
+    }
+    for (const map of maps) {
+      if (!map.getSource(SRC) || !map.getLayer(LYR)) continue
+      map.setLayoutProperty(LYR, "visibility", coordinates ? "visible" : "none")
+      if (!coordinates) continue
+      const data = { type: "Feature" as const, geometry: { type: "LineString" as const, coordinates }, properties: {} }
       ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data as any)
-      return
     }
-
-    const canDraw = point && shadowLength !== null && shadowLength > 0 && shadowLength < MAX_DRAWABLE_SHADOW_M
-    map.setLayoutProperty(LYR, "visibility", canDraw ? "visible" : "none")
-    if (!canDraw) return
-
-    const shadowAzRad = (((azimuthDeg + 180) % 360) * Math.PI) / 180
-    const latRad = (point!.lat * Math.PI) / 180
-    const dLat = (shadowLength! * Math.cos(shadowAzRad)) / 111_320
-    const dLng = (shadowLength! * Math.sin(shadowAzRad)) / (111_320 * Math.cos(latRad))
-    const tip: [number, number] = [point!.lng + dLng, point!.lat + dLat]
-    const data = {
-      type: "Feature" as const,
-      geometry: { type: "LineString" as const, coordinates: [[point!.lng, point!.lat], tip] },
-      properties: {},
-    }
-    ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data as any)
-  }, [mode, point, tipPoint, shadowLength, azimuthDeg, mapRef, isActive])
+  }, [mode, point, tipPoint, shadowLength, azimuthDeg, maps, isActive, layerNonce])
 
   // Color/width changes update the already-mounted layer's paint directly.
   useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map || !map.getLayer(LYR)) return
-    map.setPaintProperty(LYR, "line-color", lineColor)
-    map.setPaintProperty(LYR, "line-width", lineWidth)
-  }, [lineColor, lineWidth, mapRef])
+    for (const map of maps) {
+      if (!map.getLayer(LYR)) continue
+      map.setPaintProperty(LYR, "line-color", lineColor)
+      map.setPaintProperty(LYR, "line-width", lineWidth)
+    }
+  }, [lineColor, lineWidth, maps])
 
   const handleToggle = useCallback((checked: boolean) => {
     setIsActive(checked)

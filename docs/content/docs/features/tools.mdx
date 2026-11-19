@@ -14,6 +14,8 @@ Sketch directly on the map — a TerraDraw-based sketch/measure layer for annota
 
 In a split, the tools work on every view: draw, select, move a vertex or delete on whichever view shows the feature best, and the result appears on all of them. A shape can be started on one view and finished on another.
 
+Nothing can be drawn into a layer that is not shown: the drawing modes are disabled while the active layer is hidden or **Show drawings** is off.
+
 - **Named layers** — multiple layers, each with its own visibility toggle, style, and zoom-to-bounds button; a layer's contents can be imported from a GeoJSON, KML, GPX or FlatGeobuf file, or a CSV of points (a header row with a latitude and a longitude column: lat, latitude or y; lon, lng, longitude or x; the other columns become properties), or, from the chevron next to **Import**, from a URL (those formats plus a Shapefile, whose `.dbf`/`.prj` are fetched alongside), and exported back out. A layer linked by URL is remembered in this browser like a drawn one and fetched again on the next visit, until it is deleted. A URL import keeps the URL in the link by default (**Keep in the link**, a link icon on the layer), so a shared link loads the same data; untick it for an editable copy stored in the browser (a linked layer is read-only, since it is re-fetched on every load). The trash icon in edit mode deletes a layer and its features; deleting the only layer leaves an empty Layer 1. Only the geometry and attributes are loaded: any styling the file carries is ignored, features take the colours of the layer they land in.
 - **Remote layers in a link** — `?drawingUrl=https://host/features.geojson` (repeatable) loads remote vector data at startup, one layer per URL, and frames it unless the link carries its own camera. Such a layer is re-fetched on every load rather than stored, so the link always shows the current data, while its name and colours are remembered.
 - **Persistence** — drawn/imported layers are kept for the session by default; turn on **Settings → Browser Local Storage Persistence → Vector Layers** to have them survive reloads (OPFS-backed, with a storage-usage readout and Clear button).
@@ -46,6 +48,8 @@ A link can start the iterator: `scrollTo=featureIterator` opens Drawing and star
 
 Click anywhere on the terrain to read off its elevation, sourced from the same active DEM driving the rest of the app (Mapterhorn, Mapbox, MapTiler, AWS, or a custom BYOD source) — useful for a quick spot-check without switching on Elevation Hypso or exporting a GeoTIFF. Several distinct modes live under this one toggle:
 
+In a split, click on any view: the points and the profile line are drawn on all of them. The elevation is the one of view A's terrain source.
+
 - **Single-point altitude** — one click samples the elevation right there.
 - **Altitude delta** — a second click measures the straight-line distance and elevation difference (Δ Elevation) against the first.
 - **Line profile / line of sight** — switches to a full elevation profile chart sampled along the path between two points, plus a mast-height field for a simple line-of-sight check.
@@ -61,7 +65,7 @@ Click anywhere on the terrain to read off its elevation, sourced from the same a
 
 ## Sun and Shadow Calculator
 
-Documented on its own page: [Sun Position](/features/sun-position).
+Documented on its own page: [Sun Position](/features/sun-position). In a split, the point can be clicked on any view, and the shadow line is drawn on all of them.
 
 The rest of the app points the light and shows the shadow; this tool also runs it backwards. **Forward**: a point, a date and time and an object's height give its shadow on the map. **Reverse**: click the base and the tip of a real shadow in the imagery, type the object's height, and read off when the picture was taken. Either way the answer lands in the shared light fields, so Hillshade, Phong and cast shadows follow it at once.
 

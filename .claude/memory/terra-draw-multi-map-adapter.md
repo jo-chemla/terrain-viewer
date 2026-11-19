@@ -62,5 +62,27 @@ split off (1), overlay (2, a new map for B). Dev handles: `window.__draw`,
 `window.__drawAdapter`, `window.__drawPerf`.
 
 Not tested: touch input, globe projection, a shape continued across views
-whose cameras differ. Elevation Picker, Sun Shadow Calculator, Tells and the
-timeline are still view A only (Jonathan: later work).
+whose cameras differ.
+
+## The other tools on every view (2026-11-19, same day)
+
+- `useViewMaps(mapRef, viewMapRefs)` in `lib/use-view-maps.ts`: the maps of
+  the views on screen, A first, polled every 500 ms, stable identity until
+  the set changes. Elevation Picker and Sun Shadow Calculator loop over it
+  for the click listener, the markers and their line layer. Elevations are
+  still sampled from `state.sourceA` (in 3D, view A's terrain, then another
+  view's if A has no tile there).
+- Tells: `TellsSource`, `TellsMarkersLayer` and `TellsInspectPopup` mount on
+  every view, each with that view's terrain source. `tells://` is wrapped in
+  `withTileResultCache`, so views on the same source compute a tile once. The
+  unfiltered source (export), the frozen snapshot and the statistics still
+  read view A: with different DEMs per view, a frozen split shows A's
+  candidates on every view.
+- Timeline: it already had one handle per view. The catalog search bbox is now
+  the union of the views' bounds, and the fit-on-pick test uses the picked
+  view's map.
+- A layer that is hidden (or "Show drawings" off) disables the drawing modes
+  in `TerraDrawControls` and sends a running mode back to Select.
+- Tested in agent-browser on 2x2, 2x1 and 3x2: candidates on four views (B on
+  AWS Terrain showing its own set), popup on D, picker clicks on B and C,
+  sun shadow click on D, no page errors on layout changes.
