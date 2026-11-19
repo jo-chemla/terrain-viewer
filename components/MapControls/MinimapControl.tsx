@@ -518,6 +518,8 @@ export function MinimapInternal({
             // still landing on the map's own canvas without it.
             className="absolute inset-0 z-10 h-full w-full rounded-none bg-background hover:bg-accent hover:cursor-pointer"
             onClick={() => setMinimized(false)}
+            // A button, not part of the picture the MCP server takes (mcp/tools.mjs).
+            data-picture-hide="minimap"
           >
             <MapIcon className="h-4 w-4" />
           </Button>

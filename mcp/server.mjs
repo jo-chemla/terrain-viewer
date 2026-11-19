@@ -155,10 +155,12 @@ function viewResult(view, what) {
   const embedUrl = buildViewUrl(view, { baseUrl: BASE_URL, embed: true })
   const label = `${view.place ?? `${view.lat.toFixed(4)}, ${view.lng.toFixed(4)}`} · ${what}`
   const map = mapSpec(view)
+  // Said in the view's "Why this display?" line.
+  const noMap = map ? null : `the terrain dataset "${view.terrainSource}" is not served as plain tiles (a COG, a WMS or a VRT is read by the app's own code)`
   // The page will ask for the picture of a view its map cannot draw: start
   // rendering now, at the size it asks for, so it is ready or nearly so.
   if (!map?.exact) screenshot(view, { baseUrl: BASE_URL, width: 1100, height: 780 }).catch(() => { })
-  return { content: [{ type: "text", text: `Terrain Viewer link (${label}): ${url}` }], structuredContent: { url, embedUrl, label, origin: BASE_ORIGIN, view, map } }
+  return { content: [{ type: "text", text: `Terrain Viewer link (${label}): ${url}` }], structuredContent: { url, embedUrl, label, origin: BASE_ORIGIN, view, map, noMap } }
 }
 
 function makeServer() {

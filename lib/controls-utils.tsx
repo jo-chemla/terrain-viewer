@@ -1,4 +1,5 @@
 import { useCallback } from "react"
+import { embedImageMetadata, attributionOnScreen } from "@/lib/image-metadata"
 import { useAtom } from "jotai"
 import { useQueryState, parseAsStringLiteral } from "nuqs"
 import { terrainSources } from "@/lib/terrain-sources"
@@ -377,6 +378,24 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
  * @param format - 'png' (lossless, default) or 'jpeg' (lossy, faster, smaller)
  */
 export async function captureMapScreenshot(
+  mapRef: React.RefObject<MapRef | null>,
+  format: ImageFormat = "png",
+  opts: { chrome?: boolean } = {},
+): Promise<Blob | null> {
+  const blob = await captureMapPixels(mapRef, format, opts)
+  if (!blob) return blob
+  // The file says where it comes from: the link that reopens this view and
+  // the data credits on screen (EXIF in a JPEG, text chunks in a PNG).
+  const credits = attributionOnScreen()
+  return embedImageMetadata(blob, {
+    url: window.location.href,
+    description: `Terrain Viewer view: ${window.location.href}`,
+    copyright: credits ? `Map data: ${credits}. Rendered with Terrain Viewer (Iconem).` : "Rendered with Terrain Viewer (Iconem). Data credits: see the sources of the linked view.",
+    software: "Terrain Viewer (https://terrain-viewer.iconem.com)",
+  })
+}
+
+async function captureMapPixels(
   mapRef: React.RefObject<MapRef | null>,
   format: ImageFormat = "png",
   { chrome = true }: { chrome?: boolean } = {},

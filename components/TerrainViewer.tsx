@@ -2949,7 +2949,10 @@ export function TerrainViewer() {
         map.dragRotate.disable()
         map.touchZoomRotate.disableRotation()
         ;(map.keyboard as any)?.disableRotation?.()
-        map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
+        // Only when there is something to level: an ease that changes
+        // nothing still pins the centre to its starting screen point, and on
+        // load the canvas is resized under it (see the padding effect).
+        if (map.getBearing() !== 0 || map.getPitch() !== 0) map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
         // A right-drag (or ctrl-drag) is how one tilts a 3D map: in 2D it
         // does nothing, so say why, once per session, with the way out.
         const onDown = (e: maplibregl.MapMouseEvent) => {
@@ -3416,6 +3419,14 @@ export function TerrainViewer() {
       if (!mapLoaded[side]) continue
       const map = mapRefs[side].current?.getMap()
       if (!map) continue
+      // Nothing to ease: no ease at all. An ease that changes nothing still
+      // runs its frames, and each frame puts the centre back at the screen
+      // point it had when the ease started. On load this effect runs while
+      // the canvas is still MapLibre's default 400 x 300 (the container is
+      // measured a moment later): the resize then landed mid-ease and the
+      // view ended half the size difference away from the link's centre
+      // (seen with the side panel closed, where the padding is all zero).
+      if (getTransform(map).isPaddingEqual(mapPaddingFor(side))) continue
       map.easeTo({
         padding: mapPaddingFor(side),
         duration: PADDING_EASE_MS,

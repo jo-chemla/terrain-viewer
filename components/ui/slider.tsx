@@ -30,7 +30,7 @@ function Slider<Value extends number | readonly number[]>({
   ...props
 }: SliderPrimitive.Root.Props<Value> & SliderExtras) {
   // Fine drag. With Ctrl or Shift held, a pointer drag moves the value by
-  // the distance travelled, ten times slower and in steps ten times finer,
+  // the distance travelled, twenty times slower and in steps twenty times finer,
   // instead of putting the thumb under the cursor. The modifier can be
   // pressed before the press (nothing jumps, wherever the track is grabbed)
   // or in the middle of a drag (the thumb carries on from where it is).
@@ -56,8 +56,8 @@ function Slider<Value extends number | readonly number[]>({
       const start = at(anchorRef.current.from) ?? at(next) ?? min
       const control = rootRef.current?.querySelector('[data-slot="slider-control"]')
       const width = control?.getBoundingClientRect().width || 200
-      const fineStep = (Number(step) || 1) / 10
-      const raw = start + ((e.clientX - anchorRef.current.x) / width) * (max - min) * 0.1
+      const fineStep = (Number(step) || 1) / 20
+      const raw = start + ((e.clientX - anchorRef.current.x) / width) * (max - min) * 0.05
       let v = Math.round(raw / fineStep) * fineStep
       // Rounding noise of the division (0.30000000000000004).
       v = Number(v.toFixed(Math.min(12, Math.max(0, Math.ceil(-Math.log10(fineStep)) + 2))))

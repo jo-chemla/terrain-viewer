@@ -26,7 +26,8 @@
 </head>
 <body>
 <div id="wrap"><div id="msg">Waiting for a view…</div></div>
-<div id="bar"><span id="title"></span><span id="modes"></span><button id="open" hidden>Open in the browser</button></div>
+<div id="bar"><span id="title"></span><span id="modes"></span><button id="why" hidden title="Why this display, and what this host allows">?</button><button id="open" hidden>Open in the browser</button></div>
+<div id="whyText" hidden style="font-size:11px;opacity:.8;padding:4px 2px 0;line-height:1.5"></div>
 <script>
 /*__MAPLIBRE__*/
 </script>
@@ -37,6 +38,9 @@ const msg = document.getElementById("msg")
 const title = document.getElementById("title")
 const modesBar = document.getElementById("modes")
 const openBtn = document.getElementById("open")
+const whyBtn = document.getElementById("why")
+const whyText = document.getElementById("whyText")
+whyBtn.addEventListener("click", () => { whyText.hidden = !whyText.hidden })
 let current = null
 let forced = null // the display the person picked: "map" | "picture" | "live"
 let mapFailed = false
@@ -195,6 +199,16 @@ function show(data) {
     b.addEventListener("click", () => { forced = id; show(data) })
     return b
   }))
+  // What was shown and why, without opening the host's console.
+  const reported = app.getHostCapabilities()?.sandbox?.csp?.frameDomains
+  const host = app.getHostVersion?.()
+  whyText.textContent = [
+    "Showing: " + (now === "live" ? "the live app" : now === "map" ? "the interactive map" : now === "picture" ? "a picture of the exact view" : "nothing"),
+    "Live app: " + (allowed === true ? "this host allows framing " + data.origin : allowed === false ? "this host does not allow framing " + data.origin + " (it reports: " + (reported.length ? reported.join(", ") : "no site") + ")" : "this host does not say which sites it allows"),
+    "Interactive map: " + (data.map ? (mapFailed ? "it did not load here (worker, WebGL or tiles blocked)" : data.map.exact ? "draws this view fully" : "draws the relief only, not the modes asked for") : "not available, " + (data.noMap || "no tile dataset")),
+    host ? "Host: " + host.name + " " + (host.version || "") : "",
+  ].filter(Boolean).join(" · ")
+  whyBtn.hidden = false
   if (now === "live") showLive(data)
   else if (now === "map") showMap(data)
   else if (now === "picture") showPicture(data)

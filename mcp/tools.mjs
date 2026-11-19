@@ -187,6 +187,15 @@ async function render(view, { baseUrl, width, height, waitMs }) {
     // with a ceiling, then let the map draw.
     const exact = await quiet(); lap(exact ? "settled" : "quiet")
     await page.evaluate(() => { for (const b of document.querySelectorAll("button")) if (b.textContent?.trim() === "Skip") b.click() }).catch(() => { })
+    // The picture is of the map, not of the interface: no search box, zoom,
+    // compass, locate or full-screen buttons, no panel or minimap toggles,
+    // no split handle. What says something about the image stays: the
+    // scale, the credits, date pills, an open minimap, timeline or profile.
+    await page.addStyleTag({ content: `
+      .maplibregl-ctrl-top-left > *, .maplibregl-ctrl-top-right > *, [data-picture-hide], [data-snapshot-ignore],
+      .rounded-md:has(> * > [data-picture-hide="minimap"]) { display: none !important }
+      .maplibregl-ctrl-top-left > .maplibregl-ctrl-scale, .maplibregl-ctrl-top-right > .maplibregl-ctrl-scale { display: block !important }
+    ` }).catch(() => { })
     // Two frames for the last tiles to reach the screen, or the old pause.
     await page.waitForTimeout((exact ? 250 : 1200) + waitMs)
     const jpeg = await page.screenshot({ type: "jpeg", quality: 80 })

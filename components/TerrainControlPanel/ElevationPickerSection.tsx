@@ -374,14 +374,43 @@ export const ElevationPickerSection: React.FC<{
       return [pa.lng + (pb.lng - pa.lng) * t, pa.lat + (pb.lat - pa.lat) * t] as [number, number]
     })
   })()
-  const pathKey = profilePath ? `${profileView}:${sourceOfView(state, profileView)}:${profilePath.length}:${profilePath[0]?.join(",")}:${profilePath[profilePath.length - 1]?.join(",")}` : ""
+  // What a view's samples are read from: its source, and the resolved
+  // upstream of that source (a COG's or a VRT's description arrives after
+  // the source is picked: sampling before it has landed read nothing, and
+  // nothing asked again).
+  const readKey = (v: ViewId) => {
+    const u = clientUpstreams[v] as Record<string, unknown> | null | undefined
+    // Shallow on purpose: an upstream can hold a whole VRT index.
+    const up = u ? Object.entries(u).map(([k, val]) => (val === null || typeof val !== "object" ? `${k}=${typeof val === "function" ? "fn" : String(val).slice(0, 120)}` : `${k}:${Array.isArray(val) ? val.length : "o"}`)).join(",") : "-"
+    return `${sourceOfView(state, v)}~${up}`
+  }
+  // In 3D the samples come from the terrain mesh of the view's map, which
+  // is still loading just after a source change or when a view has just
+  // been added: the profile is read again on the maps' next few idles.
+  const [settleTick, setSettleTick] = useState(0)
+  const viewsKey = maps.map((m) => `${viewOfMap(m)}=${readKey(viewOfMap(m))}`).join("|")
+  useEffect(() => {
+    if (!profileMode || !maps.length) return
+    let left = 4, timer: ReturnType<typeof setTimeout> | undefined
+    const onIdle = () => {
+      if (left <= 0) return
+      clearTimeout(timer)
+      timer = setTimeout(() => { left--; setSettleTick((t) => t + 1) }, 250)
+    }
+    for (const m of maps) m.on("idle", onIdle)
+    return () => { clearTimeout(timer); for (const m of maps) m.off("idle", onIdle) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileMode, viewsKey, state.viewMode, state.elevationPickerReferenceMode])
+  const pathKey = profilePath ? `${profileView}:${readKey(profileView)}:${settleTick}:${state.viewMode}:${profilePath.length}:${profilePath[0]?.join(",")}:${profilePath[profilePath.length - 1]?.join(",")}` : ""
 
   useEffect(() => {
     if (!profilePath) { setProfilePoints([]); return }
     let cancelled = false
     setProfileLoading(true)
     computeProfile(profilePath)
-      .then((pts) => { if (!cancelled) setProfilePoints(pts) })
+      // A re-read that found nothing (the mesh is between two sources)
+      // does not blank a profile that is on screen.
+      .then((pts) => { if (!cancelled) setProfilePoints((prev) => (settleTick > 0 && prev.length && !pts.some((p) => p.elevation !== null) ? prev : pts)) })
       .catch(() => { if (!cancelled) setProfilePoints([]) })
       .finally(() => { if (!cancelled) setProfileLoading(false) })
     return () => { cancelled = true }
@@ -391,20 +420,21 @@ export const ElevationPickerSection: React.FC<{
   // In a split, the same line is also sampled on the other views' terrain
   // sources and drawn on the same chart, each in its view's colour (a DSM
   // against a DTM, two surveys). The main profile (line of sight, map line,
-  // hover marker) stays the one of the view of the last point clicked. Views
-  // that show the same source as one already drawn are skipped.
+  // hover marker) stays the one of the view of the last point clicked. One
+  // line per view, also when two views show the same source (their lines
+  // then lie on each other, and the legend still names every view).
   const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
   const colorOfView = (v: ViewId) => sideColorOverrides[v] ?? SIDE_COLORS[v]
   const activeViews = maps.map((m) => viewOfMap(m))
-  const compareViews = activeViews.filter((v, i) => v !== profileView
-    && sourceOfView(state, v) !== sourceOfView(state, profileView)
-    && activeViews.findIndex((u) => sourceOfView(state, u) === sourceOfView(state, v)) === i)
-  const compareKey = compareViews.map((v) => `${v}=${sourceOfView(state, v)}`).join("|")
+  const compareViews = activeViews.filter((v, i) => v !== profileView && activeViews.indexOf(v) === i)
+  const compareKey = compareViews.map((v) => `${v}=${readKey(v)}`).join("|")
   const [compareProfiles, setCompareProfiles] = useState<{ view: ViewId; points: ProfilePoint[] }[]>([])
   useEffect(() => {
     if (!profilePath || !compareViews.length) { setCompareProfiles([]); return }
     let cancelled = false
-    setCompareProfiles([])
+    // Lines of views that are gone leave at once; the others stay until
+    // their new samples land.
+    setCompareProfiles((prev) => (prev.every((c) => compareViews.includes(c.view)) ? prev : prev.filter((c) => compareViews.includes(c.view))))
     for (const view of compareViews) {
       computeProfile(profilePath, view)
         .then((pts) => { if (!cancelled && pts.some((p) => p.elevation !== null)) setCompareProfiles((prev) => [...prev.filter((c) => c.view !== view), { view, points: pts }].sort((a, b) => a.view.localeCompare(b.view))) })

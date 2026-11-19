@@ -748,7 +748,7 @@ export function TerrainControlPanel({
         <Tooltip>
           <TooltipTrigger
             render={
-              <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" onClick={() => setIsSidebarOpen(true)}>
+              <Button variant="secondary" size="icon" className="absolute right-4 top-4 cursor-pointer" data-picture-hide="panel" onClick={() => setIsSidebarOpen(true)}>
                 <PanelRightOpen className="h-5 w-5" />
               </Button>
             }
