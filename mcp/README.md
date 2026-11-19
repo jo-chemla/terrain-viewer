@@ -57,7 +57,7 @@ added as a custom connector.
 | Display | What it is | When it is the default |
 |---|---|---|
 | Interactive map | MapLibre GL JS drawn by the page itself (inlined, worker from a blob): hillshade, 3D terrain, satellite imagery, on tile datasets | The view needs nothing else (`map.exact` in the tool result) |
-| Exact picture | The `screenshot` tool, called by the page: every mode, about 10 s | The view needs the app's computed modes, dated imagery or a split |
+| Exact picture | The `screenshot` tool, called by the page: every mode, a few seconds | The view needs the app's computed modes, dated imagery or a split |
 | Live app | The site in a frame, embed layout | Only where the host says the origin may be framed |
 
 Claude frames a website only for some connectors: never for a local server,

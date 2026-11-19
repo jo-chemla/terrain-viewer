@@ -113,14 +113,44 @@ export async function browser() {
   return browserPromise
 }
 
+// One browser context for every render: its HTTP cache keeps the app's
+// bundle and the tiles, so a second picture of the same place is quick.
+// Nothing else carries over, the storage is emptied before each page runs.
+let contextPromise
+async function context() {
+  if (!contextPromise) {
+    contextPromise = (async () => {
+      const ctx = await (await browser()).newContext({ deviceScaleFactor: 1 })
+      // The first-visit walkthrough would cover the map.
+      await ctx.addInitScript(() => { try { localStorage.clear(); localStorage.setItem("hasSeenTour", "true") } catch { } })
+      return ctx
+    })().catch((e) => { contextPromise = undefined; throw e })
+  }
+  return contextPromise
+}
+
+// The model looks at a view, then the page in the conversation asks for the
+// same picture: rendered once. Kept ten minutes, twenty pictures.
+const pictures = new Map() // key -> { at, promise }
+const PICTURE_TTL = 10 * 60 * 1000
+
 /** A picture of the view, rendered by the app in a headless browser. */
-export async function screenshot(view, { baseUrl, width = 1024, height = 640, waitMs = 0 } = {}) {
+export function screenshot(view, { baseUrl, width = 1024, height = 640, waitMs = 0 } = {}) {
+  const key = `${buildViewUrl(view, { baseUrl, embed: true })}|${width}x${height}|${waitMs}`
+  const have = pictures.get(key)
+  if (have && Date.now() - have.at < PICTURE_TTL) return have.promise
+  const promise = render(view, { baseUrl, width, height, waitMs })
+  pictures.set(key, { at: Date.now(), promise })
+  promise.catch(() => pictures.delete(key))
+  for (const [k, v] of pictures) if (pictures.size > 20 || Date.now() - v.at > PICTURE_TTL) pictures.delete(k); else break
+  return promise
+}
+
+async function render(view, { baseUrl, width, height, waitMs }) {
   const url = buildViewUrl(view, { baseUrl, embed: true })
-  const b = await browser()
-  const ctx = await b.newContext({ viewport: { width, height }, deviceScaleFactor: 1 })
-  // The first-visit walkthrough would cover the map.
-  await ctx.addInitScript(() => { try { localStorage.setItem("hasSeenTour", "true") } catch { } })
+  const ctx = await context()
   const page = await ctx.newPage()
+  await page.setViewportSize({ width, height })
   // Done when tile and data requests have stopped for a moment. Playwright's
   // "networkidle" never comes here (long-lived requests keep it busy), so
   // every render waited out the full timeout.
@@ -133,14 +163,21 @@ export async function screenshot(view, { baseUrl, width = 1024, height = 640, wa
   page.on("request", (r) => { if (counted(r)) { inFlight++; lastActivity = Date.now(); if (process.env.TV_TIMING && Date.now() - tStart > 7000) console.error("  late", Date.now() - tStart, r.url().slice(0, 110)) } })
   const done = (r) => { if (counted(r)) { inFlight = Math.max(0, inFlight - 1); lastActivity = Date.now() } }
   page.on("requestfinished", done); page.on("requestfailed", done)
+  // The app says when its maps have drawn everything (window.__tvBusy and
+  // __tvIdleSeen, components/TerrainViewer.tsx): then the picture is taken
+  // as soon as the network has also been still for a moment. Without the
+  // signal (an older deployment), a longer silence and a pause.
+  const settled = () => page.evaluate(() => window.__tvIdleSeen === true && window.__tvBusy?.size === 0).catch(() => false)
   const quiet = async (idleMs = 1500, maxMs = 25000) => {
     const t0 = Date.now()
     // In-flight requests older than 6 s do not hold the picture back.
     while (Date.now() - t0 < maxMs) {
       const idle = Date.now() - lastActivity
-      if ((inFlight === 0 && idle >= idleMs) || idle >= 6000) return
-      await page.waitForTimeout(200)
+      if (inFlight === 0 && idle >= 400 && await settled()) return true
+      if ((inFlight === 0 && idle >= idleMs) || idle >= 6000) return false
+      await page.waitForTimeout(100)
     }
+    return false
   }
   try {
     const T = Date.now(); const lap = (n) => process.env.TV_TIMING && console.error(n, Date.now() - T, "inflight", inFlight)
@@ -148,12 +185,13 @@ export async function screenshot(view, { baseUrl, width = 1024, height = 640, wa
     await page.waitForSelector("canvas.maplibregl-canvas", { timeout: 30000 }); lap("canvas")
     // Tiles keep arriving for a while: wait for the network to go quiet,
     // with a ceiling, then let the map draw.
-    await quiet(); lap("quiet")
+    const exact = await quiet(); lap(exact ? "settled" : "quiet")
     await page.evaluate(() => { for (const b of document.querySelectorAll("button")) if (b.textContent?.trim() === "Skip") b.click() }).catch(() => { })
-    await page.waitForTimeout(1200 + waitMs)
+    // Two frames for the last tiles to reach the screen, or the old pause.
+    await page.waitForTimeout((exact ? 250 : 1200) + waitMs)
     const jpeg = await page.screenshot({ type: "jpeg", quality: 80 })
     return { url: buildViewUrl(view, { baseUrl }), jpeg }
-  } finally { await ctx.close() }
+  } finally { await page.close().catch(() => { }) }
 }
 
-export async function closeBrowser() { if (browserPromise) { const b = await browserPromise.catch(() => null); browserPromise = undefined; await b?.close() } }
+export async function closeBrowser() { contextPromise = undefined; pictures.clear(); if (browserPromise) { const b = await browserPromise.catch(() => null); browserPromise = undefined; await b?.close() } }

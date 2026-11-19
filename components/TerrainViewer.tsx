@@ -3906,6 +3906,14 @@ export function TerrainViewer() {
           // would rebuild the Terrain + RenderToTexture pair and throw away
           // the render-to-texture tile cache on every single idle (the
           // "terrain blinks through several states while loading" flicker).
+          // "Everything asked for is drawn", for whoever takes a picture of
+          // the page (the MCP server's headless render, mcp/tools.mjs): the
+          // maps with data on its way, and whether one has settled yet. Two
+          // assignments per event, nothing reads them in the app.
+          const busyMaps: Set<unknown> = ((window as any).__tvBusy ??= new Set())
+          mapInstance.on('dataloading', () => { busyMaps.add(mapInstance) })
+          mapInstance.on('idle', () => { busyMaps.delete(mapInstance); (window as any).__tvIdleSeen = true })
+          mapInstance.on('remove', () => { busyMaps.delete(mapInstance) })
           mapInstance.on('idle', () => {
             // No terrain (2D historical mode): nothing to re-resolve, but the
             // views still have to be pulled back together. Returning early

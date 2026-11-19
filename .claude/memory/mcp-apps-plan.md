@@ -54,6 +54,25 @@ datasets_covering, open_view) and which modes fit which subject.
 - Claude Desktop's config has a `terrain-viewer` entry (backup beside it,
   `claude_desktop_config.json.bak-2026-11-19`).
 
+## Remote connector test by Jonathan (2026-11-19)
+
+Added the Cloudflare tunnel address as a custom connector: Claude did not
+ask to allow terrain-viewer.iconem.com, so no framed app. Per Claude's
+docs the framed site also needs a conversation in the "unified Claude
+experience" (chat and Cowork in one; Team/Enterprise owners switch it in
+Organization settings > Capabilities, "Chat and Cowork unified"), and is
+only on for a limited set of organizations: there is no other switch. The
+console line starting `[mcp-ext-apps-host]` that names `frameDomains` says
+which case applies. Jonathan saw the picture, not the interactive map; not
+known whether the view asked for a computed mode (picture is then the
+default) or the map failed there.
+
+Picture speed: one shared browser context (HTTP cache), results cached ten
+minutes by URL and size, `open_view` starts the render before the page
+asks, and the app sets `window.__tvBusy` / `__tvIdleSeen` (TerrainViewer
+onLoad) so the picture is taken when the maps are idle. About 4 to 6 s
+with the signal, which the live site only has after a deploy.
+
 ## Since 0.3.0 (2026-11-19, later the same day)
 
 Ten tools: plus `compare_sources`, `imagery_dates`, `search_stac`,

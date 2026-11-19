@@ -98,7 +98,7 @@ async function showPicture(data) {
   msg.hidden = false
   // A headless browser loads the tiles and computes the modes: say so, and count.
   const t0 = Date.now()
-  const tick = () => { msg.innerHTML = '<div><div id="spin"></div>Rendering a picture of the view… ' + Math.round((Date.now() - t0) / 1000) + ' s<br><span style="opacity:.7">Usually about 10 seconds.</span></div>' }
+  const tick = () => { msg.innerHTML = '<div><div id="spin"></div>Rendering a picture of the view… ' + Math.round((Date.now() - t0) / 1000) + ' s<br><span style="opacity:.7">Usually a few seconds.</span></div>' }
   tick()
   const timer = setInterval(tick, 1000)
   try {

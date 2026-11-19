@@ -23,8 +23,91 @@ function Slider<Value extends number | readonly number[]>({
   min = 0,
   max = 100,
   origin,
+  step = 1,
+  onValueChange,
+  onValueCommitted,
+  ref: outerRef,
   ...props
 }: SliderPrimitive.Root.Props<Value> & SliderExtras) {
+  // Fine drag. With Ctrl or Shift held, a pointer drag moves the value by
+  // the distance travelled, ten times slower and in steps ten times finer,
+  // instead of putting the thumb under the cursor. The modifier can be
+  // pressed before the press (nothing jumps, wherever the track is grabbed)
+  // or in the middle of a drag (the thumb carries on from where it is).
+  // Base UI still reports the value under the cursor: it is replaced here.
+  const rootRef = React.useRef<HTMLDivElement | null>(null)
+  const lastRef = React.useRef<number | readonly number[] | undefined>(undefined)
+  const anchorRef = React.useRef<{ x: number; from: number | readonly number[] | undefined } | null>(null)
+  const draggingRef = React.useRef(false)
+  const fineRef = React.useRef<number | readonly number[] | null>(null)
+  const current = (value ?? lastRef.current ?? defaultValue) as number | readonly number[] | undefined
+  const currentRef = React.useRef(current)
+  currentRef.current = current
+  const handleChange = (next: number | readonly number[], details: SliderPrimitive.Root.ChangeEventDetails) => {
+    const e = details.event as PointerEvent
+    const pointer = typeof e?.clientX === 'number' && /^(pointer|mouse|touch)/.test(e.type)
+    const fine = pointer && (e.shiftKey || e.ctrlKey || e.metaKey)
+    let out = next
+    if (fine) {
+      const index = Math.max(0, details.activeThumbIndex ?? 0)
+      const cur = currentRef.current
+      const at = (v: number | readonly number[] | undefined) => (Array.isArray(v) ? v[index] : v) as number | undefined
+      if (!anchorRef.current) anchorRef.current = { x: e.clientX, from: cur }
+      const start = at(anchorRef.current.from) ?? at(next) ?? min
+      const control = rootRef.current?.querySelector('[data-slot="slider-control"]')
+      const width = control?.getBoundingClientRect().width || 200
+      const fineStep = (Number(step) || 1) / 10
+      const raw = start + ((e.clientX - anchorRef.current.x) / width) * (max - min) * 0.1
+      let v = Math.round(raw / fineStep) * fineStep
+      // Rounding noise of the division (0.30000000000000004).
+      v = Number(v.toFixed(Math.min(12, Math.max(0, Math.ceil(-Math.log10(fineStep)) + 2))))
+      const base = Array.isArray(cur) ? cur : Array.isArray(next) ? next : null
+      if (base) {
+        const lo = index > 0 ? base[index - 1] : min
+        const hi = index < base.length - 1 ? base[index + 1] : max
+        const arr = base.slice()
+        arr[index] = Math.min(hi, Math.max(lo, v))
+        out = arr
+      } else {
+        out = Math.min(max, Math.max(min, v))
+      }
+      fineRef.current = out
+    } else {
+      anchorRef.current = null
+      fineRef.current = null
+    }
+    lastRef.current = out
+    ;(onValueChange as ((v: unknown, d: unknown) => void) | undefined)?.(out, details)
+  }
+  // The anchor is taken on the first move with the modifier down, here and
+  // not in handleChange: Base UI reports nothing while the value under the
+  // cursor has not changed, and the anchor would be taken late.
+  React.useEffect(() => {
+    const doc = rootRef.current?.ownerDocument
+    if (!doc) return
+    const move = (e: PointerEvent) => {
+      if (!draggingRef.current) return
+      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        if (!anchorRef.current) anchorRef.current = { x: e.clientX, from: currentRef.current }
+      } else anchorRef.current = null
+    }
+    const up = () => { draggingRef.current = false }
+    doc.addEventListener('pointermove', move, true)
+    doc.addEventListener('pointerup', up, true)
+    doc.addEventListener('pointercancel', up, true)
+    return () => {
+      doc.removeEventListener('pointermove', move, true)
+      doc.removeEventListener('pointerup', up, true)
+      doc.removeEventListener('pointercancel', up, true)
+    }
+  }, [])
+  const handleCommitted = (next: number | readonly number[], details: SliderPrimitive.Root.CommitEventDetails) => {
+    // The release reports the value under the cursor: keep the fine one.
+    const out = fineRef.current ?? next
+    anchorRef.current = null
+    fineRef.current = null
+    ;(onValueCommitted as ((v: unknown, d: unknown) => void) | undefined)?.(out, details)
+  }
   // The official pattern's `_values` fallback only accounts for array vs.
   // "nothing passed" — it renders 2 <Thumb>s (`[min, max]`) whenever `value`/
   // `defaultValue` isn't an array, even for a genuine single-thumb slider
@@ -42,6 +125,16 @@ function Slider<Value extends number | readonly number[]>({
 
   return (
     <SliderPrimitive.Root
+      ref={(el: HTMLDivElement | null) => {
+        rootRef.current = el
+        if (typeof outerRef === 'function') outerRef(el)
+        else if (outerRef) (outerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+      }}
+      step={step}
+      onValueChange={handleChange as never}
+      onValueCommitted={handleCommitted as never}
+      // A drag that ended without a commit leaves no stale anchor.
+      onPointerDownCapture={() => { anchorRef.current = null; fineRef.current = null; draggingRef.current = true }}
       data-slot="slider"
       defaultValue={defaultValue}
       value={value}

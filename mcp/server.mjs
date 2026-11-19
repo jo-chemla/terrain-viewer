@@ -154,7 +154,11 @@ function viewResult(view, what) {
   const url = buildViewUrl(view, { baseUrl: BASE_URL })
   const embedUrl = buildViewUrl(view, { baseUrl: BASE_URL, embed: true })
   const label = `${view.place ?? `${view.lat.toFixed(4)}, ${view.lng.toFixed(4)}`} · ${what}`
-  return { content: [{ type: "text", text: `Terrain Viewer link (${label}): ${url}` }], structuredContent: { url, embedUrl, label, origin: BASE_ORIGIN, view, map: mapSpec(view) } }
+  const map = mapSpec(view)
+  // The page will ask for the picture of a view its map cannot draw: start
+  // rendering now, at the size it asks for, so it is ready or nearly so.
+  if (!map?.exact) screenshot(view, { baseUrl: BASE_URL, width: 1100, height: 780 }).catch(() => { })
+  return { content: [{ type: "text", text: `Terrain Viewer link (${label}): ${url}` }], structuredContent: { url, embedUrl, label, origin: BASE_ORIGIN, view, map } }
 }
 
 function makeServer() {
@@ -293,7 +297,7 @@ function makeServer() {
 
   server.registerTool("screenshot", {
     title: "Picture of a terrain view",
-    description: "Render a view in a headless browser and return the picture, so you can look at the terrain yourself: to describe what is there, check that a mode shows the feature, or compare two renderings. Same arguments as open_view. Takes about 10 seconds. To show the view to the user, use open_view instead.",
+    description: "Render a view in a headless browser and return the picture, so you can look at the terrain yourself: to describe what is there, check that a mode shows the feature, or compare two renderings. Same arguments as open_view. Takes a few seconds. To show the view to the user, use open_view instead.",
     inputSchema: z.object({ ...viewShape, imagerySourceB: z.enum(IMAGERY_SOURCES).optional(), imageryDateB: z.string().optional(), width: z.number().int().min(320).max(1600).optional(), height: z.number().int().min(240).max(1200).optional() }),
     annotations: { ...READ_ONLY, openWorldHint: true },
   }, async ({ width, height, ...view }) => {
