@@ -33,7 +33,7 @@
 - [Reminders](reminders.md) — things to bring up at the start of a session (upstream requests to post, Google Search Console service account)
 - [MapLibre 6.13 draping](maplibre-613-drape.md) — renderToTerrainTile etc.: planned route for Allmaps on 3D terrain, live Phong/Matcap, building shadows
 - [Fast Refresh and self-calling hooks](react-refresh-recursive-hook.md) — a hook calling itself overflows @react-refresh computeFullKey; split into leaf + wrapper; scripts to find the culprit
-- [MCP Apps plan](mcp-apps-plan.md) — Terrain Viewer as an in-chat app for Claude and ChatGPT (MCP Apps + Apps SDK), tools and widget sketched, not built
+- [MCP Apps plan](mcp-apps-plan.md) — Terrain Viewer as an in-chat app for Claude and ChatGPT (MCP Apps); prototype in mcp/ with one tool, open_view, tested locally, not yet in a real host
 - [Changelog style](changelog-style.md) — TL;DR of 3 to 5 bullets at most, repeats folded, details under a second heading, link and one picture per feature page
 - [deck.gl-raster custom projections](deckgl-raster-custom-projections.md) — PR 694: COGs in polar stereographic and other planar projections on deck.gl v10, a route for polar DEM views; issue 322 on browser EPSG resolution (devseed epsg, clj-proj)
 - [Custom STAC catalogs on the timeline](custom-stac-timeline-catalogs.md) — My catalogs group (built 2026-10-08): lib/stac-crawl.ts shared loader, cat-stac- self-describing ids, the Proxy on TIMELINE_CATALOG_BY_ID and SOURCE_CONFIG, the dialog, what is unverified
