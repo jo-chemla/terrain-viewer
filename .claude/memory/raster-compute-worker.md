@@ -10,7 +10,7 @@ type: project
   and takes one atan per direction. Pixel-identical to the old loop (max
   difference 0 on 4 configurations, Mapterhorn z12/2133/1442).
 - `lib/raster-compute-pool.ts`: up to 4 dedicated workers (cores - 2), gated by
-  `rasterComputeWorkerAtom` (Settings, Streaming, on by default since 2026-11-17), mirrored by
+  `rasterComputeWorkerAtom` (removed 2026-11-18: the pool is always on, `setRasterComputeInWorker` stays for measuring), once mirrored by
   TerrainViewer.tsx. DEM fetch and decode stay on the main thread; grids are
   copied in (they may be cached), pixels transferred back.
 - MapLibre requests raster tiles from the main thread, so registering a raster

@@ -6,27 +6,29 @@ type: feedback
 
 # Reminders (bring up at the start of a session, then prune)
 
-- **Upstream requests**: nothing left to post on the docs page
-  (docs/content/docs/dev/upstream-requests.mdx). Posted 2026-11-15: the
-  MapLibre issue 48 reply, the Allmaps plain-images comment (on issue 643),
-  the protocol registry write-up on style-spec 1374 and the small ask on
-  maplibre-contour 434 linking it. Watch those four for answers.
-  The Planet OAuth post was dropped 2026-11-13. Mapterhorn
-  issue 27 was commented 2026-10-29. The impasto CORS request is "not to be
-  sent yet" by his choice. Check with `gh search issues --author jo-chemla
-  --repo <repo>` before reminding again.
-- **Later, wanted by Jonathan**: WMTS, Copernicus Data Space and Library
-  Browse are done (2026-11-14). "Another time": drawing on secondary views
-  (B..H) and the MCP app (.claude/memory/mcp-apps-plan.md). Dropped by
-  Jonathan 2026-11-15, do not raise again: canopy height (GEDI, no
-  browser-readable endpoint) and the slight Sentinel-2 shift.
+- **Upstream requests**: state on 2026-11-19 in [[handoff-2026-11-19]].
+  MapLibre 48: Jonathan replied 2026-11-19 offering the blend-mode PRs
+  (ready locally, branch `feat/w3c-blend-modes` in C:\Dev\maplibre-style-spec
+  and C:\Dev\maplibre-gl-js); WAIT for CommanderStorm's answer before
+  opening them. style-spec 1374: answered by HarelM, replied 2026-11-19.
+  Allmaps 643: declined (IIIF only), closed for us. maplibre-contour 434:
+  no answer, no longer needed. The impasto CORS request: Jonathan said
+  2026-11-19 it is time to send it; draft it, he posts.
+- **Next, Jonathan's order of 2026-11-19**: drawing on secondary views
+  (B..H), the MCP app (.claude/memory/mcp-apps-plan.md), the Umami website
+  swap, the impasto request; later, evaluate Moon LOLA and feat-stac-maxar
+  (Maxar, Nearmap, Vexcel). WMTS, Copernicus Data Space and Library Browse
+  are done (2026-11-14). Dropped by Jonathan 2026-11-15, do not raise
+  again: canopy height (GEDI, no browser-readable endpoint) and the slight
+  Sentinel-2 shift.
 - **MapLibre 6.18 layer blend modes** (maplibre-gl-js #48, closed by #8073
   and #8986, 2026-11): native per-layer blending (multiply, screen, ...).
   We are on 6.13; candidate uses: hillshade multiplied over the basemap
   instead of opacity, viz modes combined in one map, the split blend
   without the CSS mix-blend-mode across canvases. Plan written: docs/content/docs/dev/layer-blend-modes.mdx. Not started; raised by
-  Jonathan as exciting, ask before upgrading. On hold (2026-11-15) until the
-  MapLibre team answers the screen-space mask / stencil reply on #48.
+  Jonathan as exciting, ask before upgrading. The #48 answer came 2026-11-15
+  (clipping is a separate style-spec proposal, which Jonathan may write);
+  still not started.
 - **Moon LOLA**: branch `moon-lola` on both remotes (the only one kept; the old-history t3code branch was deleted 2026-11-15), set aside by Jonathan
   2026-11-14; do not merge until he asks.
 - **Git history purge**: done on both remotes 2026-11-13 (see

@@ -4,7 +4,7 @@ description: The "Contours in a Worker" setting (2026-11-16) - maplibre-contour 
 type: project
 ---
 
-`contourWorkerAtom` (Settings, Streaming, on by default since 2026-11-17) routes ContoursLayer.tsx
+Since 2026-11-18 there is no switch: `contourWorkerAtom` was removed and ContoursLayer.tsx's `contourWorker` is a constant `true` (the old DemSource paths stay, unreachable, until Jonathan says to delete them). It routes ContoursLayer.tsx
 through `lib/contour-worker-client.ts` + `lib/contour-worker-body.js` instead
 of maplibre-contour's DemSource. HarelM's suggestion on maplibre-style-spec#1374
 (2026-11-15); it makes our maplibre-contour#434 request unnecessary.
