@@ -154,7 +154,7 @@ import {
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
 import { CoverageOverlayLayer } from "./LayersAndSources/CoverageOverlayLayer"
-import { DrawingMirrorLayer, IteratorHighlightLayer } from "./LayersAndSources/DrawingMirrorLayer"
+import { IteratorHighlightLayer } from "./LayersAndSources/IteratorHighlightLayer"
 
 import { createParser } from 'nuqs'
 import { parseAsColor } from "@/lib/nuqs-parser-color"
@@ -1027,6 +1027,7 @@ export function TerrainViewer() {
   const mapRefs = useMemo<Record<ViewId, React.RefObject<MapRef | null>>>(() => ({
     A: mapRefA, B: mapRefB, C: mapRefC, D: mapRefD, E: mapRefE, F: mapRefF, G: mapRefG, H: mapRefH,
   }), [])
+  const viewMapRefList = useMemo(() => VIEW_IDS.map((v) => mapRefs[v]), [mapRefs])
   // The stalled-tiles watchdog goes on each map as soon as it exists, not in
   // onLoad: MapLibre's "load" waits for the first complete render, which a
   // wedged tile queue never produces, so the watchdog used to be missing in
@@ -4488,8 +4489,8 @@ export function TerrainViewer() {
           {/* Coverage footprints picked in Source Info — every view */}
           <CoverageOverlayLayer publishInView={isPrimary} />
 
-          {/* Terra Draw edits on view A; the other views mirror its features read-only */}
-          {!isPrimary && <DrawingMirrorLayer />}
+          {/* Terra Draw puts its own td-* layers on every view
+              (lib/terra-draw-multi-map-adapter.ts); this is only the ring. */}
           <IteratorHighlightLayer />
 
           {/* Graticules, every view */}
@@ -4965,7 +4966,7 @@ export function TerrainViewer() {
                 </button>
               }
             />
-            <TooltipContent><p>{pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (drawing and most tools work on view A)`}</p></TooltipContent>
+            <TooltipContent><p>{pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (the elevation picker, the sun shadow calculator and the timeline work on view A)`}</p></TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -5266,6 +5267,7 @@ export function TerrainViewer() {
         setState={setState}
         getMapBounds={getMapBounds}
         mapRef={mapRefs.A as any}
+        viewMapRefs={viewMapRefList}
       />
       <ToastHost />
     </div>

@@ -66,3 +66,4 @@
 - [Live GL layers on terrain tiles](live-gl-render-to-terrain-tile.md) — live Phong/Matcap drape via renderToTerrainTile (lib/live-dem-gl-layer.ts): revision getter, DEM zoom per terrain tile, Phong stack-split blend, what was deleted
 - [agent-browser testing](agent-browser-testing.md) — real Chrome CLI that renders MapLibre; how to drive and screenshot the app with it
 - [Sprint handoff 2026-11-19](handoff-2026-11-19.md) — Feature Iterator (sort, filter, highlight, link start), CSV and remembered linked drawings, hypso range follow, ramp tab in the link, source-remount fix, upstream replies; next: drawing on B..H, MCP app, Umami swap, impasto; what to check
+- [Drawing on every view](terra-draw-multi-map-adapter.md) — one Terra Draw, a custom adapter over all maps; terra-draw 1.37 internals it relies on, the two perf traps (helper points, getSnapshot), drawingFeaturesAtom lags up to 250 ms

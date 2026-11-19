@@ -12,6 +12,8 @@ The catalog searches (STAC, NextGIS QMS, the Editor Layer Index) are tabs of the
 
 Sketch directly on the map — a TerraDraw-based sketch/measure layer for annotating or roughly measuring distances and areas over the terrain, independent of any export pipeline. Tools: Select, Point, Line, Polygon, Rectangle, and Circle (`Esc` cancels the active tool back to Select — see [Keyboard Shortcuts](/features/keyboard-shortcuts)).
 
+In a split, the tools work on every view: draw, select, move a vertex or delete on whichever view shows the feature best, and the result appears on all of them. A shape can be started on one view and finished on another.
+
 - **Named layers** — multiple layers, each with its own visibility toggle, style, and zoom-to-bounds button; a layer's contents can be imported from a GeoJSON, KML, GPX or FlatGeobuf file, or a CSV of points (a header row with a latitude and a longitude column: lat, latitude or y; lon, lng, longitude or x; the other columns become properties), or, from the chevron next to **Import**, from a URL (those formats plus a Shapefile, whose `.dbf`/`.prj` are fetched alongside), and exported back out. A layer linked by URL is remembered in this browser like a drawn one and fetched again on the next visit, until it is deleted. A URL import keeps the URL in the link by default (**Keep in the link**, a link icon on the layer), so a shared link loads the same data; untick it for an editable copy stored in the browser (a linked layer is read-only, since it is re-fetched on every load). The trash icon in edit mode deletes a layer and its features; deleting the only layer leaves an empty Layer 1. Only the geometry and attributes are loaded: any styling the file carries is ignored, features take the colours of the layer they land in.
 - **Remote layers in a link** — `?drawingUrl=https://host/features.geojson` (repeatable) loads remote vector data at startup, one layer per URL, and frames it unless the link carries its own camera. Such a layer is re-fetched on every load rather than stored, so the link always shows the current data, while its name and colours are remembered.
 - **Persistence** — drawn/imported layers are kept for the session by default; turn on **Settings → Browser Local Storage Persistence → Vector Layers** to have them survive reloads (OPFS-backed, with a storage-usage readout and Clear button).
@@ -19,11 +21,26 @@ Sketch directly on the map — a TerraDraw-based sketch/measure layer for annota
 
 ### Feature Iterator
 
-The loop toggle on a layer row steps through that layer's features one at a time, auto-framing each on the map: lines/polygons get fit to the viewport with a 20% margin, points are centered at a fixed zoom of your choosing (or the current zoom). The index wraps in both directions, clicking a feature of the iterated layer on the map jumps the iterator to it, and `→`/`N`, `←`, and `D`/`Delete` step or delete without touching the panel (full list under [Keyboard Shortcuts](/features/keyboard-shortcuts)) — handy for reviewing an imported inventory of sites one by one.
-
 ![The Drawing tools panel, with an imported GeoJSON layer of polygons plus a second hand-drawn layer of points](/screenshots/tools/draw.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">Drawing — an imported GeoJSON layer (world heritage site boundaries) alongside a second, hand-drawn point layer</p>
+
+The loop toggle on a layer row steps through that layer's features one at a time, framing each on the map: lines and polygons are fitted to the viewport with a 20% margin, points are centred. It is made for reviewing an inventory of sites one by one, in a split where each view shows the same place in another mode.
+
+| Row | What it does |
+|---|---|
+| **Feature** | The position in the walk, with previous and next arrows. Type a number to jump. The index wraps in both directions. |
+| **Filter** | Walks only the features with one value of a text property (a status, a class). Listed for properties with 2 to 40 distinct values, each with its count. It narrows what is walked, not what is drawn. |
+| **Order** | The file's own order, or any numeric property (a score, a diameter). The button beside it switches between highest first and lowest first, and the current feature's value is shown next to it. Features without the property come last. |
+| **Zoom** | The zoom points are centred at. Empty keeps the current zoom; the target button takes the map's zoom. |
+
+The current feature is ringed in amber on every view. The ring follows the **Show drawings** checkbox and opacity slider, and hides with its layer. Clicking a feature of the iterated layer on the map jumps the iterator to it. `→` or `N` and `←` or `P` step, `D` or `Delete` removes the current feature (full list under [Keyboard Shortcuts](/features/keyboard-shortcuts)).
+
+A link can start the iterator: `scrollTo=featureIterator` opens Drawing and starts on the layer a `drawingUrl` loaded, `iteratorSort=<property>` (or `<property>:asc`) sets the order and `iteratorFilter=<property>:<value>` the filter. See [Embedding and links](/features/embedding). The **Crater candidates** entry of the Featured bookmarks is such a link.
+
+![The Feature Iterator on a remote CSV of 32,751 crater candidates, sorted by quality, the first one ringed in amber on four views: hillshade with hypsometric tint and slope, satellite imagery, Phong shading and sky-view factor](/screenshots/tools/feature-iterator.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">Feature Iterator — a remote CSV of detections walked by quality, the current one ringed on all four views (Roter Kamm crater, Namibia)</p>
 
 ## Elevation Picker
 

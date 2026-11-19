@@ -105,7 +105,6 @@
     "sugar-high": "^2.0.0",
     "tailwind-merge": "^2.5.5",
     "terra-draw": "^1.37.0",
-    "terra-draw-maplibre-gl-adapter": "^1.5.0",
     "terser": "5.49.0",
     "theme-editor": "workspace:*",
     "tinycolor2": "^1.6.0",

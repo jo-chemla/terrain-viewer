@@ -10,7 +10,7 @@ import {
     TerraDraw, TerraDrawPointMode, TerraDrawLineStringMode,
     TerraDrawPolygonMode, TerraDrawRectangleMode, TerraDrawCircleMode, TerraDrawSelectMode
 } from 'terra-draw'
-import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
+import { TerraDrawMultiMapAdapter, drawPerf } from '@/lib/terra-draw-multi-map-adapter'
 import { Download, Upload, Trash2, MousePointer, MapPin, Minus, Pentagon, Square, Circle, Plus, Edit, Layers as LayersIcon, Repeat2, ChevronLeft, ChevronRight, ChevronDown, Target, Link, Loader2, RefreshCw, ArrowDownWideNarrow, ArrowUpNarrowWide } from 'lucide-react'
 import { fetchVector, parseVector, nameFromUrl, vectorFormatFromName, VECTOR_FILE_ACCEPT } from '@/lib/remote-vector'
 import { Button } from '@/components/ui/button'
@@ -106,9 +106,9 @@ export const drawingExportScopeAtom = atomWithStorage<DrawingExportScope | null>
 export const activeDrawModeAtom = atom<string>('select')
 
 // The Drawings panel's "Show drawings" checkbox and its opacity slider.
-// Session-only (never persisted, never in the URL): view A applies them to
-// its td-* layers through setTerraDrawVisibility / setTerraDrawOpacity, and
-// the DrawingMirrorLayer on views B..H reads them so every view agrees.
+// Session-only (never persisted, never in the URL): the adapter applies them
+// to the td-* layers of every view (setVisible / setOpacity), and the
+// Feature Iterator ring reads them.
 export const drawingsVisibleAtom = atom<boolean>(true)
 export const drawingsOpacityAtom = atom<number>(1)
 // Bumped by the Retry button on the initialising message (TerraDrawControls): useTerraDraw's
@@ -267,38 +267,14 @@ function parseFeatures(rawFeatures: any[], resolveLayerId: (fileLayerId: unknown
         })
 }
 
-// --- LAYER VISIBILITY HELPERS ---
+// --- THE ADAPTER ---
 
-function getTerraDrawLayers(map: maplibregl.Map): string[] {
-    return (map.getStyle()?.layers ?? [])
-        .map((l) => l.id)
-        .filter((id) => id.startsWith('td-'))
-}
+// The adapter of the live Terra Draw instance (lib/terra-draw-multi-map-adapter.ts):
+// it draws the td-* layers on every view and takes the pointer from every
+// view. Module-level so the panel's show checkbox, opacity slider and import
+// reach all the views without each holding a list of maps.
+let drawAdapter: TerraDrawMultiMapAdapter | null = null
 
-function setTerraDrawVisibility(map: maplibregl.Map, visible: boolean) {
-    getTerraDrawLayers(map).forEach((id) => {
-        try {
-            map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none')
-        } catch { }
-    })
-}
-
-function setTerraDrawOpacity(map: maplibregl.Map, opacity: number) {
-    getTerraDrawLayers(map).forEach((id) => {
-        try {
-            const layer = map.getLayer(id)
-            if (!layer) return
-            const type = layer.type
-            // Each layer type uses a different paint property for opacity
-            if (type === 'fill') map.setPaintProperty(id, 'fill-opacity', opacity)
-            else if (type === 'line') map.setPaintProperty(id, 'line-opacity', opacity)
-            else if (type === 'circle') {
-                map.setPaintProperty(id, 'circle-opacity', opacity)
-                map.setPaintProperty(id, 'circle-stroke-opacity', opacity)
-            } else if (type === 'symbol') map.setPaintProperty(id, 'icon-opacity', opacity)
-        } catch { }
-    })
-}
 async function getProj4String(srsId: number): Promise<string | null> {
     if (srsId === 4326) return null // already WGS84
     try {
@@ -615,13 +591,13 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef | nul
         }
 
         // An import shows the drawings again at full opacity on every view
-        // (the atoms drive the mirror views, the two calls below drive A).
+        // (the atoms hold the panel's state, the adapter applies it to the layers).
         setDrawingsVisible(true)
         setDrawingsOpacity(1)
+        drawAdapter?.setVisible(true)
+        drawAdapter?.setOpacity(1)
         const map = mapRef.current?.getMap()
         if (map) {
-            setTerraDrawVisibility(map, true)
-            setTerraDrawOpacity(map, 1)
             if (opts.fit !== false) {
                 try {
                     const bounds = bbox(geojson)
@@ -635,7 +611,20 @@ function useDrawingImport(draw: TerraDraw | null, mapRef: RefObject<MapRef | nul
     }, [draw, mapRef, setFeatures, setLayers, setActiveLayerId])
 }
 
-export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
+/**
+ * `mapRef` is view A, the one the tools start on. `viewMapRefs` are all the
+ * views (A included): each one whose map exists is attached to the adapter,
+ * so drawing, selecting and deleting work on whichever view the pointer is on.
+ */
+export function useTerraDraw(mapRef: RefObject<MapRef | null>, viewMapRefs?: RefObject<MapRef | null>[]) {
+    const drawingsVisible = useAtomValue(drawingsVisibleAtom)
+    const drawingsOpacity = useAtomValue(drawingsOpacityAtom)
+    const drawingsVisibleRef = useRef(drawingsVisible)
+    const drawingsOpacityRef = useRef(drawingsOpacity)
+    drawingsVisibleRef.current = drawingsVisible
+    drawingsOpacityRef.current = drawingsOpacity
+    const viewMapRefsRef = useRef(viewMapRefs)
+    viewMapRefsRef.current = viewMapRefs
     const initNonce = useAtomValue(drawInitNonceAtom)
     const [draw, setDraw] = useState<TerraDraw | null>(null)
     const [features, setFeatures] = useAtom(drawingFeaturesAtom)
@@ -741,33 +730,33 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
         // instance already accumulated more features (e.g. from an import), making the
         // "Features: N" counter silently drop back down even though nothing was deleted.
         let isCurrent = true
-        // Tracks which map the styledata/sourcedata/render listeners below are
-        // currently attached to, so tryInit() can attach them exactly once.
-        let mapWithListeners: maplibregl.Map | null = null
-
-        const handleStyleData = () => {
-            const map = mapRef.current?.getMap()
-            if (!map || !drawRef.current) return
-            try {
-                const styleLayers = map.getStyle()?.layers ?? []
-                const tdLayers = styleLayers.filter((l) => l.id.startsWith('td-'))
-                if (tdLayers.length === 0) return
-                if (!styleLayers[styleLayers.length - 1].id.startsWith('td-')) {
-                    tdLayers.forEach((l) => { try { map.moveLayer(l.id) } catch { } })
-                }
-            } catch { }
+        // Per attached view: the hover-cursor listener's cleanup.
+        const viewCleanups = new Map<maplibregl.Map, () => void>()
+        let viewsTimer: ReturnType<typeof setInterval> | null = null
+        // Copies a pending change into the atom before the instance stops:
+        // the copy is throttled (see syncAtom), and the next instance is
+        // refilled from the atom.
+        let flushSync: (() => void) | null = null
+        const detachAllViews = () => {
+            viewCleanups.forEach((off) => off())
+            viewCleanups.clear()
         }
 
         const createDraw = (map: maplibregl.Map) => {
             if (drawRef.current) {
+                flushSync?.(); flushSync = null
                 try { drawRef.current.stop() } catch (e) { console.error('Error stopping draw:', e) }
                 drawRef.current = null
                 backspaceCleanupRef.current?.(); backspaceCleanupRef.current = null
+                detachAllViews()
+                drawAdapter = null
                 setDraw(null)
             }
 
             try {
-                const adapter = new TerraDrawMapLibreGLAdapter({ map, renderBelowLayerId: undefined })
+                const adapter = new TerraDrawMultiMapAdapter({ maps: [map] })
+                adapter.setVisible(drawingsVisibleRef.current)
+                adapter.setOpacity(drawingsOpacityRef.current)
                 const modeStyles = buildModeStyles(layersRef)
                 // terra-draw's default pointerDistance is 40 px: any click that
                 // close to the previous vertex is swallowed and one that close
@@ -821,7 +810,7 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
                 newDraw.setMode('select')
                 // Dev builds only, like window.__tv (TerrainViewer.tsx): lets an
                 // automated browser add features and test hover and selection.
-                if (import.meta.env.DEV) (window as any).__draw = newDraw
+                if (import.meta.env.DEV) { (window as any).__draw = newDraw; (window as any).__drawPerf = drawPerf; (window as any).__drawAdapter = adapter }
                 // terra-draw's select mode only sets a hover cursor on the
                 // feature that is ALREADY selected (its "move" hand), and on
                 // every other pointer move it clears the cursor. An unselected
@@ -833,29 +822,57 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
                 // over a selection and its handles stand. (A `cursors` mode
                 // option does not work for this: terra-draw resets cursors to
                 // its defaults on every updateOptions call without them.)
-                let hoverCursorSet = false
-                const onHoverMove = (e: maplibregl.MapMouseEvent) => {
-                    if (!isCurrent || newDraw.getMode() !== 'select') return
-                    const canvas = map.getCanvas()
-                    let hit = false
-                    try {
-                        hit = newDraw.getFeaturesAtLngLat(e.lngLat, { pointerDistance: SELECT_POINTER_DISTANCE, ignoreSelectFeatures: true }).length > 0
-                    } catch { /* store mid-update */ }
-                    if (hit && !canvas.style.cursor) {
-                        canvas.style.cursor = 'pointer'
-                        hoverCursorSet = true
-                    } else if (!hit && hoverCursorSet) {
-                        if (canvas.style.cursor === 'pointer') canvas.style.removeProperty('cursor')
-                        hoverCursorSet = false
+                // One listener per view, added when the view is attached.
+                const hookView = (viewMap: maplibregl.Map) => {
+                    let hoverCursorSet = false
+                    const canvas = viewMap.getCanvas()
+                    const onHoverMove = (e: maplibregl.MapMouseEvent) => {
+                        if (!isCurrent || newDraw.getMode() !== 'select') return
+                        let hit = false
+                        try {
+                            hit = newDraw.getFeaturesAtLngLat(e.lngLat, { pointerDistance: SELECT_POINTER_DISTANCE, ignoreSelectFeatures: true }).length > 0
+                        } catch { /* store mid-update */ }
+                        if (hit && !canvas.style.cursor) {
+                            canvas.style.cursor = 'pointer'
+                            hoverCursorSet = true
+                        } else if (!hit && hoverCursorSet) {
+                            if (canvas.style.cursor === 'pointer') canvas.style.removeProperty('cursor')
+                            hoverCursorSet = false
+                        }
+                    }
+                    viewMap.on('mousemove', onHoverMove)
+                    viewCleanups.set(viewMap, () => {
+                        try { viewMap.off('mousemove', onHoverMove) } catch { }
+                        if (hoverCursorSet && canvas.style.cursor === 'pointer') canvas.style.removeProperty('cursor')
+                    })
+                }
+                hookView(map)
+                // The other views join as their maps appear and leave when
+                // they go (a layout change, the split switched off and on,
+                // which builds a new map for the same view id). Eight ref
+                // reads twice a second; nothing happens when nothing changed.
+                const syncViews = () => {
+                    if (!isCurrent || drawAdapter !== adapter) return
+                    const live = new Set<maplibregl.Map>([map])
+                    for (const ref of viewMapRefsRef.current ?? []) {
+                        const m = ref.current?.getMap() as maplibregl.Map | undefined
+                        if (m && (m as any).style?._loaded) live.add(m)
+                    }
+                    for (const m of adapter.maps) {
+                        if (live.has(m)) continue
+                        adapter.detach(m)
+                        viewCleanups.get(m)?.(); viewCleanups.delete(m)
+                    }
+                    for (const m of live) {
+                        if (adapter.has(m)) continue
+                        adapter.attach(m)
+                        hookView(m)
                     }
                 }
-                map.on('mousemove', onHoverMove)
-                const prevBackspaceCleanup = backspaceCleanupRef.current
-                backspaceCleanupRef.current = () => {
-                    prevBackspaceCleanup?.()
-                    map.off('mousemove', onHoverMove)
-                    if (hoverCursorSet && map.getCanvas().style.cursor === 'pointer') map.getCanvas().style.removeProperty('cursor')
-                }
+                drawAdapter = adapter
+                syncViews()
+                if (viewsTimer) clearInterval(viewsTimer)
+                viewsTimer = setInterval(syncViews, 500)
                 // A fresh instance (e.g. a mapRef swap) always resets to
                 // 'select' internally regardless of whatever mode the old
                 // instance was last left in — keep the shared atom in sync so
@@ -867,12 +884,43 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
                 // own internal store — nothing synced it back to drawingFeaturesAtom, so
                 // "Features: N" and Export both silently ignored anything drawn on the map
                 // (only imported features, which call setFeatures directly, ever showed up).
-                newDraw.on('change', () => {
+                //
+                // The copy into the atom is throttled, not run on every change:
+                // getSnapshot() clones the whole store, and terra-draw fires
+                // 'change' on every pointer move while a shape is drawn or a
+                // vertex dragged. With 32,751 points loaded that was 25 ms per
+                // move (measured 2026-11-19). The wait grows with the cost of
+                // the last copy, so a small drawing still updates at once.
+                let syncTimer: ReturnType<typeof setTimeout> | null = null
+                let lastSyncMs = 0
+                const syncAtom = () => {
+                    syncTimer = null
                     if (!isCurrent) return
+                    const t0 = performance.now()
                     try { setFeatures(userFeatures(newDraw.getSnapshot() as GeoJSONFeature[])) } catch { }
+                    lastSyncMs = performance.now() - t0
+                    drawPerf.lastSyncMs = lastSyncMs
+                    drawPerf.syncs++
+                }
+                flushSync = () => {
+                    if (!syncTimer) return
+                    clearTimeout(syncTimer); syncTimer = null
+                    try {
+                        const snapshot = userFeatures(newDraw.getSnapshot() as GeoJSONFeature[])
+                        featuresRef.current = snapshot
+                        setFeatures(snapshot)
+                    } catch { }
+                }
+                newDraw.on('change', (ids, type) => {
+                    if (!isCurrent) return
+                    // A costly copy (a large store) waits for a pause in the
+                    // changes instead, so it never lands in the middle of a drag.
+                    if (lastSyncMs > 30) { if (syncTimer) clearTimeout(syncTimer); syncTimer = setTimeout(syncAtom, 250) }
+                    else if (syncTimer == null) syncTimer = setTimeout(syncAtom, Math.max(16, lastSyncMs * 8))
 
                     // Tag any feature that just entered the store without a layer yet, so it
-                    // renders (and counts) as belonging to whichever layer is active. Deferred
+                    // renders (and counts) as belonging to whichever layer is active. Only the
+                    // created ids are looked at (not the whole snapshot). Deferred
                     // one tick so this doesn't run reentrantly inside terra-draw's own
                     // change-dispatch. IMPORTANT: only pass the new `layerId` key here, never
                     // `...f.properties` — every feature's properties already carries `mode`,
@@ -883,17 +931,16 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
                     // every drawn feature fell back to layers[0] no matter which layer was
                     // selected as active — this is what was actually causing "always draws
                     // into the first layer".
+                    if (type !== 'create') return
                     setTimeout(() => {
                         if (!isCurrent) return
-                        try {
-                            const snapshot = userFeatures(newDraw.getSnapshot() as GeoJSONFeature[])
-                            snapshot.forEach((f) => {
-                                if (f.id == null || f.properties?.layerId != null) return
-                                try {
-                                    newDraw.updateFeatureProperties(f.id as any, { layerId: activeLayerIdRef.current })
-                                } catch (e) { console.error('[TerraDraw] failed to tag feature with layer:', f.id, e) }
-                            })
-                        } catch (e) { console.error('[TerraDraw] failed to read snapshot for layer tagging:', e) }
+                        for (const id of ids) {
+                            try {
+                                const f = newDraw.getSnapshotFeature(id) as GeoJSONFeature | undefined
+                                if (!f || f.properties?.layerId != null || GUIDANCE_KEYS.some((k) => f.properties?.[k])) continue
+                                newDraw.updateFeatureProperties(id as any, { layerId: activeLayerIdRef.current })
+                            } catch (e) { console.error('[TerraDraw] failed to tag feature with layer:', id, e) }
+                        }
                     }, 0)
                 })
 
@@ -917,17 +964,9 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
             const map = mapRef.current?.getMap()
             if (!map) return false
 
-            // Attached as soon as the map object exists, independent of the style
-            // being loaded yet — handleStyleData no-ops until drawRef.current is
-            // set, so this is safe early, and only needs doing once per map.
-            if (mapWithListeners !== map) {
-                map.on('styledata', handleStyleData)
-                map.on('sourcedata', handleStyleData)
-                map.on('render', handleStyleData)
-                mapWithListeners = map
-            }
-
-            if (!map.isStyleLoaded()) return false
+            // The style document, not isStyleLoaded(): that one waits for
+            // every tile of every source, which a slow source holds off.
+            if (!(map as any).style?._loaded) return false
             requestAnimationFrame(() => createDraw(map))
             return true
         }
@@ -951,17 +990,16 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>) {
 
         return () => {
             isCurrent = false
-            if (mapWithListeners) {
-                mapWithListeners.off('styledata', handleStyleData)
-                mapWithListeners.off('sourcedata', handleStyleData)
-                mapWithListeners.off('render', handleStyleData)
-            }
             if (pollTimer) clearInterval(pollTimer)
+            if (viewsTimer) clearInterval(viewsTimer)
             if (drawRef.current) {
+                flushSync?.(); flushSync = null
                 try { drawRef.current.stop() } catch { }
                 drawRef.current = null
                 backspaceCleanupRef.current?.(); backspaceCleanupRef.current = null
             }
+            detachAllViews()
+            drawAdapter = null
         }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1045,7 +1083,9 @@ function TerraDrawControls({ draw, mapRef }: { draw: TerraDraw | null; mapRef: R
     useEffect(() => {
         const map = mapRef.current?.getMap()
         if (!map) return
-        const container = map.getContainer()
+        // The element that holds every view's pane, so the crosshair shows
+        // on all of them (the minimap sits outside it).
+        const container = (map.getContainer().closest('[data-snapshot-root]') as HTMLElement | null) ?? map.getContainer()
         container.classList.toggle('terradraw-drawing-active', activeDrawMode !== 'select')
         return () => { container.classList.remove('terradraw-drawing-active') }
     }, [activeDrawMode, mapRef])
@@ -1890,19 +1930,15 @@ function TerraDrawActions({ draw, mapRef }: { draw: TerraDraw | null; mapRef: Re
         importErrorTimer.current = setTimeout(() => setImportError(null), 6000)
     }
 
-    const getMap = () => mapRef.current?.getMap()
-
     const handleVisibilityChange = (checked: boolean) => {
         setVisible(checked)
-        const map = getMap()
-        if (map) setTerraDrawVisibility(map, checked)
+        drawAdapter?.setVisible(checked)
     }
 
     const handleOpacityChange = (value: number) => {
         const newOpacity = value
         setOpacity(newOpacity)
-        const map = getMap()
-        if (map) setTerraDrawOpacity(map, newOpacity)
+        drawAdapter?.setOpacity(newOpacity)
     }
 
     const exportGeoJSON = () => {

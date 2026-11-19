@@ -173,6 +173,8 @@ interface TerrainControlPanelProps {
   setState: (updates: any, options?: { shallow?: boolean }) => void
   getMapBounds: () => Bounds
   mapRef: React.RefObject<MapRef | null>
+  /** Every view's map ref (A to H), for what works on all of them: drawing. */
+  viewMapRefs?: React.RefObject<MapRef | null>[]
 }
 
 /** A list kept in the URL (nuqs state) and mirrored in a jotai atom, both
@@ -209,6 +211,7 @@ export function TerrainControlPanel({
   setState,
   getMapBounds,
   mapRef,
+  viewMapRefs,
 }: TerrainControlPanelProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useAtom(isSidebarOpenAtom)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -261,7 +264,7 @@ export function TerrainControlPanel({
     if (touchesBasemap && !state.showRasterBasemap && !("showRasterBasemap" in updates)) setState({ ...updates, showRasterBasemap: true }, options)
     else setState(updates, options)
   }, [setState, state.showRasterBasemap])
-  const { draw } = useTerraDraw(mapRef)
+  const { draw } = useTerraDraw(mapRef, viewMapRefs)
   // drawingUrl (state list) <-> drawingUrlsAtom, both ways: the URL seeds
   // the atom, and a layer imported with "Keep in the link" or deleted in the
   // Drawing panel writes back. Compared as strings so equal lists never loop.

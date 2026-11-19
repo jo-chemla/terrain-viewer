@@ -15,9 +15,11 @@ type: feedback
   no answer, no longer needed. The impasto CORS request: Jonathan said
   2026-11-19 it is time to send it; draft it, he posts.
 - **Next, Jonathan's order of 2026-11-19**: drawing on secondary views
-  (B..H), the MCP app (.claude/memory/mcp-apps-plan.md), the Umami website
-  swap, the impasto request; later, evaluate Moon LOLA and feat-stac-maxar
-  (Maxar, Nearmap, Vexcel). WMTS, Copernicus Data Space and Library Browse
+  (B..H) is done ([[terra-draw-multi-map-adapter]]); then the MCP app
+  (.claude/memory/mcp-apps-plan.md), the Umami website swap, the impasto
+  request; later, evaluate Moon LOLA and feat-stac-maxar (Maxar, Nearmap,
+  Vexcel), and the view-A-only tools (Elevation Picker, Sun Shadow
+  Calculator, Tells, timeline) on every view. WMTS, Copernicus Data Space and Library Browse
   are done (2026-11-14). Dropped by Jonathan 2026-11-15, do not raise
   again: canopy height (GEDI, no browser-readable endpoint) and the slight
   Sentinel-2 shift.
