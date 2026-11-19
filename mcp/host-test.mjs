@@ -13,7 +13,10 @@ import http from "node:http"
 import { Client } from "@modelcontextprotocol/client"
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio"
 
-const args = { lat: 45.9763, lng: 7.6586, zoom: 12.5, viewMode: "3d", modes: ["hillshade", "slope"], place: "Matterhorn" }
+// HOST_VIEW=exact: a view the in-chat map draws by itself; otherwise one that needs the app's modes.
+const args = process.env.HOST_VIEW === "exact"
+  ? { lat: 45.9763, lng: 7.6586, zoom: 12.5, viewMode: "3d", modes: ["hillshade", "basemap"], place: "Matterhorn" }
+  : { lat: 45.9763, lng: 7.6586, zoom: 12.5, viewMode: "3d", modes: ["hillshade", "slope"], place: "Matterhorn" }
 
 const client = new Client({ name: "tv-host-test", version: "0.0.0" })
 await client.connect(new StdioClientTransport({ command: process.execPath, args: ["server.mjs", "--stdio"], env: process.env }))
@@ -23,13 +26,16 @@ const page = (await client.readResource({ uri: "ui://terrain-viewer/view.html" }
 const sandbox = process.env.HOST_FRAMES === "allow" ? { csp: { frameDomains: page._meta.ui.csp.frameDomains } } : process.env.HOST_FRAMES === "deny" ? { csp: { frameDomains: [] } } : undefined
 
 const frames = page._meta.ui.csp.frameDomains.join(" ")
-const csp = `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; frame-src ${process.env.HOST_FRAMES === "allow" ? frames : "'none'"}`
+const tiles = (page._meta.ui.csp.connectDomains ?? []).join(" ")
+// A guess at a strict host: inline scripts, workers from a blob, requests and
+// images only to the declared hosts.
+const csp = `default-src 'none'; script-src 'unsafe-inline' blob:; worker-src blob:; style-src 'unsafe-inline'; img-src data: blob: ${tiles}; connect-src ${tiles}; frame-src ${process.env.HOST_FRAMES === "allow" ? frames : "'none'"}`
 
 const host = `<!doctype html><meta charset="utf-8"><title>MCP Apps host test</title>
 <body style="font:14px system-ui;max-width:860px;margin:24px auto">
 <p><b>open_view</b> ${JSON.stringify(args).replace(/</g, "&lt;")}</p>
 <pre id="log" style="font-size:11px;white-space:pre-wrap;opacity:.7"></pre>
-<iframe id="view" sandbox="allow-scripts allow-same-origin" src="/view" style="width:100%;height:580px;border:0"></iframe>
+<iframe id="view" sandbox="allow-scripts" src="/view" style="width:100%;height:580px;border:0"></iframe>
 <script>
 const result = ${JSON.stringify({ content: result.content, structuredContent: result.structuredContent })};
 const frame = document.getElementById("view"), log = document.getElementById("log");

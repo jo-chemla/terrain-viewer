@@ -42,7 +42,7 @@ console.log(`view page: ${(item.text.length / 1024).toFixed(0)} KB`)
 // The lookups (network): a place, the datasets there, dated imagery, a picture.
 const call = async (name, args) => { const r = await client.callTool({ name, arguments: args }, { timeout: 90000 }); assert.ok(!r.isError, `${name}: ${JSON.stringify(r.content).slice(0, 300)}`); return r }
 const names = tools.map((t) => t.name).sort().join(",")
-assert.equal(names, "catalog_items,datasets_covering,geocode,open_view,screenshot")
+assert.equal(names, "catalog_items,compare_sources,datasets_covering,elevation,export_geotiff,geocode,imagery_dates,open_view,screenshot,search_stac")
 
 const geo = (await call("geocode", { query: "Matterhorn" })).structuredContent.places[0]
 assert.ok(Math.abs(geo.lat - 45.976) < 0.05 && Math.abs(geo.lng - 7.658) < 0.05, JSON.stringify(geo))
@@ -55,6 +55,39 @@ console.log(`datasets_covering Veluwe: ${ds.terrain.length} terrain (${ds.terrai
 const cat = (await call("catalog_items", { lat: 36.2, lng: 36.16, radiusKm: 4, catalogs: ["cat-oam", "cat-maxar", "nope"], limit: 3 })).structuredContent.catalogs
 assert.ok(cat["cat-oam"].count > 0 && cat.nope.error, JSON.stringify(cat).slice(0, 300))
 console.log(`catalog_items Antakya: OAM ${cat["cat-oam"].count}, Maxar ${cat["cat-maxar"].count ?? cat["cat-maxar"].error}; first ${JSON.stringify(cat["cat-oam"].items[0]).slice(0, 260)}`)
+
+// Numbers and files.
+const A = { lat: 45.9763, lng: 7.6586 }, B = { lat: 46.0207, lng: 7.7491 }
+const ele = (await call("elevation", { points: [A, B], sources: ["mapterhorn", "aws", "custom-nl-ahn-dtm"] })).structuredContent
+assert.ok(Math.abs(ele.mapterhorn.points[0].elevationM - 4450) < 60, JSON.stringify(ele.mapterhorn))
+assert.ok(ele["custom-nl-ahn-dtm"].error, "a WMS dataset is refused with a reason")
+const prof = (await call("elevation", { points: [A, B], profile: true, samples: 32 })).structuredContent.mapterhorn
+assert.ok(prof.samples.length === 32 && prof.lengthM > 8000 && prof.lossM > 2500, JSON.stringify(prof).slice(0, 200))
+console.log(`elevation: Matterhorn ${ele.mapterhorn.points[0].elevationM} m (Mapterhorn), ${ele.aws.points[0].elevationM} m (AWS); profile ${prof.lengthM} m, ${prof.minM} to ${prof.maxM} m`)
+
+const tif = (await call("export_geotiff", { west: 7.62, south: 45.96, east: 7.70, north: 46.0, maxSide: 500 })).structuredContent
+const { fromFile } = await import("geotiff")
+const img = await (await fromFile(tif.file)).getImage()
+const [band] = await img.readRasters()
+assert.equal(img.getWidth(), tif.widthPx)
+assert.equal(img.getGeoKeys().ProjectedCSTypeGeoKey, 3857)
+assert.ok(band.reduce((m, v) => (v > m ? v : m), -Infinity) > 4300, "the summit is in the raster")
+console.log(`export_geotiff: ${tif.widthPx} x ${tif.heightPx} px, ${tif.groundResolutionM} m, ${tif.minM} to ${tif.maxM} m, EPSG:${img.getGeoKeys().ProjectedCSTypeGeoKey}, origin ${img.getOrigin().slice(0, 2).map(Math.round)}`)
+
+const stac = (await call("search_stac", { endpoint: "https://earth-search.aws.element84.com/v1", collection: "sentinel-2-l2a", lat: 36.2, lng: 36.16, from: "2023-02-01", to: "2023-02-20", limit: 2 })).structuredContent
+assert.ok(stac.count > 0 && stac.items[0].imageryUrl, JSON.stringify(stac).slice(0, 200))
+console.log(`search_stac: ${stac.count} Sentinel-2 items, newest ${stac.items[0].date}`)
+
+const dates = (await call("imagery_dates", { lat: 36.2, lng: 36.16 })).structuredContent
+assert.ok(dates["ge-historical"].dates?.length > 5, JSON.stringify(dates["ge-historical"]).slice(0, 200))
+console.log(`imagery_dates Antakya: Google Earth ${dates["ge-historical"].dates.length} dates (newest ${dates["ge-historical"].dates[0]}), Wayback ${dates.wayback.dates?.length ?? dates.wayback.error}`)
+
+const cmp = (await call("compare_sources", { lat: 36.2, lng: 36.16, zoom: 16, place: "Antakya", a: { imagerySource: "wayback", imageryDate: "2022-12-08" }, b: { imagerySource: "wayback", imageryDate: "2023-04-26" } })).structuredContent
+assert.ok(cmp.url.includes("historicalActiveSourceB=wayback") && cmp.url.includes("dateA=") && cmp.url.includes("splitStyle=side-by-side"), cmp.url)
+const exact = (await call("open_view", { lat: 45.9763, lng: 7.6586, viewMode: "3d", modes: ["hillshade", "basemap"] })).structuredContent
+assert.ok(exact.map.exact && exact.map.terrain && exact.map.dem.tiles.includes("mapterhorn"))
+assert.equal((await call("open_view", { lat: 52.2, lng: 5.85, terrainSource: "custom-nl-ahn-dtm" })).structuredContent.map, null)
+console.log(`compare_sources: ${cmp.label}`)
 
 if (!process.env.NO_SCREENSHOT) {
   const shot = await call("screenshot", { lat: 45.9763, lng: 7.6586, zoom: 12, modes: ["hillshade", "slope"], width: 800, height: 500 })

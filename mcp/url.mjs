@@ -25,6 +25,7 @@ export const MODES = {
   moundDetector: { showTellsDetector: true },
 }
 export const MODE_NAMES = Object.keys(MODES)
+export const IMAGERY_SOURCES = ["wayback", "ge-historical", "bing", "hls", "eox-s2"]
 
 const round = (n, d) => Number(Number(n).toFixed(d))
 
@@ -41,6 +42,8 @@ const round = (n, d) => Number(Number(n).toFixed(d))
  * @param {string} [view.terrainSourceB] second source, shown with `split`
  * @param {"off"|"side-by-side"|"overlay"} [view.split]
  * @param {string} [view.imageryUrl] imagery under the terrain: XYZ tiles ({z}/{x}/{y}) or a COG
+ * @param {string} [view.imagerySource] dated imagery built into the app (IMAGERY_SOURCES), with `imageryDate` (YYYY-MM-DD)
+ * @param {string} [view.imagerySourceB] the same for a second view, with `imageryDateB`
  * @param {string} [view.place] label shown in the geocoder box
  * @param {Record<string,string|number|boolean>} [view.params] any other URL parameter, as is
  * @param {object} [opts]
@@ -80,6 +83,27 @@ export function buildViewUrl(view, opts = {}) {
     if (!view.split) p.set("splitStyle", "side-by-side")
   }
   if (view.imageryUrl) { p.set("basemapSource", view.imageryUrl); p.set("showRasterBasemap", "true") }
+  // Dated imagery built into the app (Esri Wayback, Google Earth historical,
+  // Bing, HLS, EOX Sentinel-2), per view. With no terrain mode asked for, the
+  // app opens in its historical mode (imagery and timeline, no shading).
+  const dated = (side, source, date) => {
+    if (!source) return
+    if (!IMAGERY_SOURCES.includes(source)) throw new Error(`Unknown imagerySource "${source}". Known: ${IMAGERY_SOURCES.join(", ")}`)
+    p.set(`basemapSource${side}`, "historical")
+    p.set(`historicalActiveSource${side}`, source)
+    if (date) {
+      const ms = typeof date === "number" ? date : Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T12:00:00Z` : date)
+      if (!Number.isFinite(ms)) throw new Error(`imageryDate "${date}" is not a date (YYYY-MM-DD).`)
+      p.set(`date${side}`, String(ms))
+    }
+    p.set("showRasterBasemap", "true")
+    if (!view.modes?.length) p.set("appMode", "historical")
+  }
+  dated("A", view.imagerySource, view.imageryDate)
+  if (view.imagerySourceB) {
+    dated("B", view.imagerySourceB, view.imageryDateB)
+    if (!view.split) p.set("splitStyle", "side-by-side")
+  }
   if (view.place) p.set("place", view.place)
   for (const [k, v] of Object.entries(view.params ?? {})) p.set(k, String(v))
   if (opts.embed) p.set("sidebarCollapsed", "true")

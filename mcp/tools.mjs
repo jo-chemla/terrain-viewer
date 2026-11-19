@@ -8,7 +8,7 @@ const here = (p) => fileURLToPath(new URL(p, import.meta.url))
 const UA = "terrain-viewer-mcp/0.2 (+https://terrain-viewer.iconem.com)"
 
 let libraryCache
-function library() {
+export function library() {
   if (!libraryCache) {
     const p = here("./generated/library.json")
     if (!existsSync(p)) throw new Error("generated/library.json is missing: run `pnpm build` in mcp/")
@@ -71,7 +71,7 @@ export async function catalogItems({ bbox, catalogs, from, to, limit = 20 }) {
   const range = from || to ? [from ? Date.parse(from) : 0, to ? Date.parse(to) : Date.now()] : undefined
   const out = {}
   await Promise.all(catalogs.map(async (id) => {
-    if (!known.has(id)) { out[id] = { error: "Unknown catalog id. Use datasets_covering to list the ids for a place." }; return }
+    if (!known.has(id) && !lib.isStacCatalogId(id)) { out[id] = { error: "Unknown catalog id. Use datasets_covering to list the ids for a place." }; return }
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 25000)
     try {
@@ -97,7 +97,7 @@ export async function catalogItems({ bbox, catalogs, from, to, limit = 20 }) {
 }
 
 let browserPromise
-async function browser() {
+export async function browser() {
   if (!browserPromise) {
     browserPromise = (async () => {
       const { chromium } = await import("playwright-core")

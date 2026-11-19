@@ -54,6 +54,21 @@ datasets_covering, open_view) and which modes fit which subject.
 - Claude Desktop's config has a `terrain-viewer` entry (backup beside it,
   `claude_desktop_config.json.bak-2026-11-19`).
 
+## Since 0.3.0 (2026-11-19, later the same day)
+
+Ten tools: plus `compare_sources`, `imagery_dates`, `search_stac`,
+`elevation` (points or a profile, several sources), `export_geotiff`
+(`mcp/data-tools.mjs`). `view.html` has three displays: an interactive
+MapLibre map drawn by the page (maplibre-gl 5 classic build inlined, its
+worker from a blob: works in a frame without an origin; v6 is ESM with a
+separate worker and does not), the exact picture, the framed app. The map
+draws hillshade, 3D and imagery on tile datasets only; `map.exact` in the
+tool result says whether that is the whole view. Elevation values are read
+by decoding tiles in a headless page (no native image library in Node).
+Playwright's "networkidle" never comes on the app (background metadata
+polling): `screenshot` waits for tile requests to go quiet instead.
+Not yet seen: the interactive map inside Claude itself.
+
 ## Next
 
 A public HTTPS host (`mcp/Dockerfile`, untested; Jonathan chooses where),

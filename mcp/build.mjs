@@ -25,6 +25,9 @@ const src = JSON.parse(readFileSync(here("../lib/custom-sources.json"), "utf8"))
 const terrain = src.SAMPLE_TERRAIN_SOURCES
   // Ids made on one machine (custom-<timestamp>) and project-only entries are not library datasets.
   .filter((s) => /^custom-[a-z]/.test(s.id))
-  .map((s) => ({ id: s.id, name: s.name, type: s.type, bounds: s.bounds ?? null, resolutionM: s.resolutionM ?? null, description: s.description ?? "", infoUrl: s.infoUrl ?? "" }))
+  // `tiles`: only for plain Terrarium / Terrain-RGB pyramids, which the
+  // server can sample itself and the in-chat map can draw; a COG, WMS or VRT
+  // dataset is read by the app alone.
+  .map((s) => ({ id: s.id, name: s.name, type: s.type, tiles: (s.type === "terrarium" || s.type === "terrainrgb") && s.redFactor == null && s.baseShift == null && /^https:\/\//.test(s.url) ? s.url : null, maxzoom: s.maxzoom ?? null, bounds: s.bounds ?? null, resolutionM: s.resolutionM ?? null, description: s.description ?? "", infoUrl: s.infoUrl ?? "" }))
 writeFileSync(here("./generated/library.json"), JSON.stringify({ terrain, mapterhornBestResolutionM: src.MAPTERHORN_BEST_RESOLUTION_M }))
 console.log(`generated: app-lib.mjs, library.json (${terrain.length} terrain datasets)`)

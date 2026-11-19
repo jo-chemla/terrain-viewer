@@ -33,7 +33,7 @@ RUN corepack enable
 WORKDIR /app
 COPY mcp/package.json mcp/pnpm-lock.yaml mcp/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
-COPY mcp/server.mjs mcp/tools.mjs mcp/url.mjs mcp/view.html ./
+COPY mcp/server.mjs mcp/tools.mjs mcp/data-tools.mjs mcp/url.mjs mcp/view.html ./
 COPY --from=bundle /repo/mcp/generated ./generated
 ENV CHROME_PATH=/usr/bin/chromium TV_SOFTWARE_GL=1 PORT=3300
 EXPOSE 3300
