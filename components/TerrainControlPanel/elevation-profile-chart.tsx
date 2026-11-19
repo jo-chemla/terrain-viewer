@@ -61,7 +61,9 @@ export const ElevationProfileChart: React.FC<{
   label?: string
   color?: string
   series?: { label: string; color: string; points: ProfilePoint[] }[]
-}> = ({ points, poleHeightM, onHover, width, height, label, color, series = [] }) => {
+  /** The dashed sight line between the endpoints and the terrain above it in red. */
+  showLineOfSight?: boolean
+}> = ({ points, poleHeightM, onHover, width, height, label, color, series = [], showLineOfSight = false }) => {
   const W = width && width > 40 ? width : DEFAULT_W
   const H = height && height > 40 ? height : DEFAULT_H
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -83,8 +85,8 @@ export const ElevationProfileChart: React.FC<{
   const elevs = valid.map((p) => p.elevation as number)
   const losElevs = valid.map((p) => losElevationAt(p.distanceM, startElev, endElev, totalDistanceM))
   const seriesElevs = series.flatMap((s) => s.points.filter((p) => p.elevation !== null).map((p) => p.elevation as number))
-  let minE = Math.min(...elevs, ...losElevs, ...seriesElevs)
-  let maxE = Math.max(...elevs, ...losElevs, ...seriesElevs)
+  let minE = Math.min(...elevs, ...(showLineOfSight ? losElevs : []), ...seriesElevs)
+  let maxE = Math.max(...elevs, ...(showLineOfSight ? losElevs : []), ...seriesElevs)
   if (maxE === minE) { maxE += 1; minE -= 1 }
   // A little headroom so the top line / LOS aren't flush against the frame.
   const margin = (maxE - minE) * 0.08
@@ -166,6 +168,25 @@ export const ElevationProfileChart: React.FC<{
     }
   }
 
+  // A regular grid: per axis, the round step (1, 2 or 5 times a power of
+  // ten) that cuts the visible range in about five. The two axes have their
+  // own step (a profile is usually far longer than it is high), and the
+  // vertical exaggeration that results is written on the chart.
+  const niceStep = (range: number, parts = 5) => {
+    const raw = Math.max(range, 1e-9) / parts
+    const p = 10 ** Math.floor(Math.log10(raw))
+    const m = raw / p
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p
+  }
+  const eStep = niceStep(maxE - minE, H > 220 ? 6 : 4)
+  const dStep = niceStep(d1 - d0, W > 700 ? 10 : 5)
+  const eTicks: number[] = []
+  for (let e = Math.ceil(minE / eStep) * eStep; e <= maxE; e += eStep) eTicks.push(e)
+  const dTicks: number[] = []
+  for (let d = Math.ceil(d0 / dStep) * dStep; d <= d1; d += dStep) if (d > d0) dTicks.push(d)
+  const exaggeration = ((H - PAD.t - PAD.b) / (maxE - minE)) / ((W - PAD.l - PAD.r) / Math.max(d1 - d0, 1e-9))
+  const fmtTick = (m: number, step: number) => (step >= 1000 ? `${+(m / 1000).toFixed(1)} km` : step >= 1 ? `${Math.round(m)} m` : `${+m.toFixed(2)} m`)
+
   const fmt = (m: number) => (Math.abs(m) >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${Math.round(m)}m`)
 
   return (
@@ -182,16 +203,19 @@ export const ElevationProfileChart: React.FC<{
       {/* frame */}
       <rect x={PAD.l} y={PAD.t} width={W - PAD.l - PAD.r} height={H - PAD.t - PAD.b} fill="none" stroke="currentColor" strokeOpacity={0.15} strokeWidth={1} />
       <g clipPath="url(#profile-clip)">
+      {/* grid */}
+      {eTicks.map((e) => <line key={`e${e}`} x1={PAD.l} x2={W - PAD.r} y1={y(e)} y2={y(e)} stroke="currentColor" strokeOpacity={0.12} strokeWidth={1} vectorEffect="non-scaling-stroke" />)}
+      {dTicks.map((d) => <line key={`d${d}`} x1={x(d)} x2={x(d)} y1={PAD.t} y2={H - PAD.b} stroke="currentColor" strokeOpacity={0.12} strokeWidth={1} vectorEffect="non-scaling-stroke" />)}
       {/* terrain */}
-      <path d={areaPath} fill="currentColor" fillOpacity={0.12} />
+      <path d={areaPath} fill="currentColor" fillOpacity={0.08} />
       {series.map((s) => (
         <polyline key={s.label} points={s.points.filter((p) => p.elevation !== null).map((p) => `${x(p.distanceM).toFixed(1)},${y(p.elevation as number).toFixed(1)}`).join(" ")} fill="none" stroke={s.color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
       ))}
       <polyline points={terrainLine} fill="none" stroke={color ?? "currentColor"} strokeOpacity={color ? 1 : 0.7} strokeWidth={color ? 1.5 : 1.25} vectorEffect="non-scaling-stroke" />
       {/* line of sight */}
-      <line x1={x(0)} y1={y(startElev)} x2={x(totalDistanceM)} y2={y(endElev)} stroke="#f59e0b" strokeWidth={1.25} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+      {showLineOfSight && <line x1={x(0)} y1={y(startElev)} x2={x(totalDistanceM)} y2={y(endElev)} stroke="#f59e0b" strokeWidth={1.25} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />}
       {/* intrusions */}
-      {intrusionSegments.map((d, i) => (
+      {showLineOfSight && intrusionSegments.map((d, i) => (
         <path key={i} d={d} fill="none" stroke="#ef4444" strokeWidth={2} vectorEffect="non-scaling-stroke" />
       ))}
       {/* endpoint dots (match the map marker colors) */}
@@ -213,8 +237,9 @@ export const ElevationProfileChart: React.FC<{
         <text key={s.label} x={W - PAD.r - 4 - (all.length - 1 - i) * 28} y={PAD.t + 9} fontSize={9} fontWeight={600} fill={s.color} textAnchor="end">▬ {s.label}</text>
       ))}
       {/* labels */}
-      <text x={PAD.l + 2} y={PAD.t + 8} fontSize={9} fill="currentColor" fillOpacity={0.6}>{Math.round(maxE)} m</text>
-      <text x={PAD.l + 2} y={H - PAD.b - 2} fontSize={9} fill="currentColor" fillOpacity={0.6}>{Math.round(minE)} m</text>
+      {eTicks.filter((e) => y(e) > PAD.t + 9 && y(e) < H - PAD.b - 10).map((e) => <text key={`el${e}`} x={PAD.l + 2} y={y(e) - 2} fontSize={8} fill="currentColor" fillOpacity={0.6}>{fmtTick(e, eStep)}</text>)}
+      {dTicks.filter((d) => x(d) > PAD.l + 24 && x(d) < W - PAD.r - 44).map((d) => <text key={`dl${d}`} x={x(d) + 2} y={H - PAD.b - 2} fontSize={8} fill="currentColor" fillOpacity={0.6}>{fmtTick(d, dStep)}</text>)}
+      <text x={PAD.l + 2} y={PAD.t + 8} fontSize={8} fill="currentColor" fillOpacity={0.6}><title>How much taller the relief is drawn than it is, against the horizontal scale</title>vertical ×{exaggeration >= 10 ? Math.round(exaggeration) : +exaggeration.toFixed(1)}</text>
       <text x={W - PAD.r - 2} y={H - PAD.b - 2} fontSize={9} fill="currentColor" fillOpacity={0.6} textAnchor="end">{win[0] > 0 || win[1] < 1 ? `${fmt(d0)} – ${fmt(d1)}` : fmt(totalDistanceM)}</text>
     </svg>
   )

@@ -124,6 +124,10 @@ export const ElevationPickerSection: React.FC<{
   const [profilePoints, setProfilePoints] = useState<ProfilePoint[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [poleHeight, setPoleHeight] = useState(0)
+  // The sight line between the two points, the terrain above it in red and
+  // the Clear / Blocked verdict: off by default, so that the profiles of a
+  // split read by their view colours.
+  const [showLineOfSight, setShowLineOfSight] = useState(false)
   // Draw the sampled line on the map itself (draped over the terrain), a
   // blue→red gradient matching the two endpoint markers, so it's clear on the
   // map where the profile runs.
@@ -171,8 +175,8 @@ export const ElevationPickerSection: React.FC<{
   const chartMainRef = useRef<{ label?: string; color?: string }>({})
   const [chartKey, setChartKey] = useState("")
   useEffect(() => {
-    setProfileChart(isActive && profileMode && points.length === 2 && !profileLoading && profilePoints.length >= 2 ? { points: profilePoints, poleHeightM: poleHeight, ...chartMainRef.current, series: chartSeriesRef.current } : null)
-  }, [isActive, profileMode, points.length, profileLoading, profilePoints, poleHeight, setProfileChart, chartKey])
+    setProfileChart(isActive && profileMode && points.length === 2 && !profileLoading && profilePoints.length >= 2 ? { points: profilePoints, poleHeightM: poleHeight, showLineOfSight, ...chartMainRef.current, series: chartSeriesRef.current } : null)
+  }, [isActive, profileMode, points.length, profileLoading, profilePoints, poleHeight, showLineOfSight, setProfileChart, chartKey])
   useEffect(() => () => { setProfileChart(null); setHoverIndex(null) }, [setProfileChart, setHoverIndex])
 
   // TerraDraw's own click handling (placing vertices) would otherwise fight with
@@ -602,7 +606,7 @@ export const ElevationPickerSection: React.FC<{
     if (!checked) { setPoints([]); setProfilePoints([]) }
   }, [profileMode])
 
-  const lineOfSight = profileMode ? computeLineOfSight(profilePoints, poleHeight) : null
+  const lineOfSight = profileMode && showLineOfSight ? computeLineOfSight(profilePoints, poleHeight) : null
 
   const formatElevation = (p: PickedPoint) => {
     if (p.error) return p.error
@@ -780,8 +784,12 @@ export const ElevationPickerSection: React.FC<{
                   </div>
                   {profileDocked
                     ? <p className="text-xs text-muted-foreground">The profile is docked under the map.</p>
-                    : <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} onHover={setHoverIndex} {...chartMain} series={chartSeries} />}
+                    : <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} showLineOfSight={showLineOfSight} onHover={setHoverIndex} {...chartMain} series={chartSeries} />}
                   <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="line-of-sight" className="text-sm font-medium cursor-pointer" title="Draw the straight sight line between the two points, mark the terrain that rises above it in red, and say whether the view is clear">Line of sight</Label>
+                    <Switch id="line-of-sight" checked={showLineOfSight} onCheckedChange={setShowLineOfSight} className="cursor-pointer" />
+                  </div>
+                  {showLineOfSight && <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="pole-height" className="text-sm font-medium">Mast height</Label>
                     <div className="flex items-center gap-1">
                       <Input
@@ -795,10 +803,10 @@ export const ElevationPickerSection: React.FC<{
                       />
                       <span className="text-xs text-muted-foreground">m</span>
                     </div>
-                  </div>
+                  </div>}
                   {lineOfSight && (
                     <div className={`flex items-center justify-between gap-2 px-2 py-1 rounded text-sm font-medium ${lineOfSight.clear ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-red-500/15 text-red-700 dark:text-red-400"}`}>
-                      <span>Line of sight</span>
+                      <span>{chartMain.label && chartSeries.length ? `View ${chartMain.label}` : "Sight line"}</span>
                       <span className="font-mono">
                         {lineOfSight.clear ? "Clear" : `Blocked by ${lineOfSight.maxIntrusionM.toFixed(1)} m`}
                       </span>

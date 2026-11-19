@@ -385,6 +385,36 @@ async function fetchWmsPaddedGrid(
  *  component. `halo` defaults to 1 (a 3x3 window, what every mode except blobness
  *  uses) — blobness-protocol.ts passes 2 for the wider 5x5 window its structure
  *  tensor needs (a 3x3 grid of Horn gradients, each itself needing a 3x3 neighborhood). */
+const fittedTiles = new WeakMap<DecodedTile, DecodedTile>()
+/** A decoded tile whose side is a whole multiple of the size the caller
+ *  works at, averaged down to that size (holes left out of the averages);
+ *  any other tile as it is. Kept per tile: nine grids share each one. */
+function fitTileToSize(t: DecodedTile, n: number): DecodedTile {
+  if (t.width === n || t.width !== t.height || t.width < n || t.width % n !== 0) return t
+  const hit = fittedTiles.get(t)
+  if (hit && hit.width === n) return hit
+  const k = t.width / n
+  const data = new Float32Array(n * n)
+  const valid = t.valid ? new Uint8Array(n * n) : undefined
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      let sum = 0, cnt = 0
+      for (let dj = 0; dj < k; dj++) {
+        const row = (j * k + dj) * t.width + i * k
+        for (let di = 0; di < k; di++) {
+          if (t.valid && !t.valid[row + di]) continue
+          sum += t.data[row + di]; cnt++
+        }
+      }
+      data[j * n + i] = cnt ? sum / cnt : t.data[j * k * t.width + i * k]
+      if (valid) valid[j * n + i] = cnt ? 1 : 0
+    }
+  }
+  const out = { ...t, data, width: n, height: n, valid } as DecodedTile
+  fittedTiles.set(t, out)
+  return out
+}
+
 export async function fetchPaddedElevationGrid(
   cache: Map<string, Promise<DecodedTile | null>>,
   upstreamTemplate: string,
@@ -445,6 +475,11 @@ export async function fetchPaddedElevationGrid(
   // the last to wait on: its halo could hold edge-clamped stand-ins, so it must
   // never produce a result (a result cache would keep the seam).
   if (abortSignal.aborted) throw new DOMException("Aborted", "AbortError")
+  // A source declared 256 that serves 512 px tiles (Open Waters Seascape, the
+  // Spanish IDEE Terrain-RGB, Re:Earth): the grid below copies n columns, so
+  // it took the top-left quarter of each tile and every computed mode (and
+  // the Iso-line) was drawn at twice its size from the tile's corner.
+  for (const [key, t] of resolved) if (t) resolved.set(key, fitTileToSize(t, n))
   const centerTile = resolved.get("0,0")
   if (!centerTile) throw new Error(`Failed to fetch center tile at ${z}/${x}/${y}`)
 
