@@ -390,7 +390,7 @@ export async function captureMapScreenshot(
   return embedImageMetadata(blob, {
     url: window.location.href,
     description: `Terrain Viewer view: ${window.location.href}`,
-    copyright: credits ? `Map data: ${credits}. Rendered with Terrain Viewer (Iconem).` : "Rendered with Terrain Viewer (Iconem). Data credits: see the sources of the linked view.",
+    copyright: credits ? `Map data: ${credits}. Rendered with Terrain Viewer (Iconem CTO, Jonathan Chemla).` : "Rendered with Terrain Viewer (Iconem CTO, Jonathan Chemla). Data credits: see the sources of the linked view.",
     software: "Terrain Viewer (https://terrain-viewer.iconem.com)",
   })
 }
