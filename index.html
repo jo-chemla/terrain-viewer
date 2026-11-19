@@ -26,6 +26,52 @@
     <meta name="apple-mobile-web-app-title" content="Terrain Viewer" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-apple-180.png" />
     <script>
+      // A frame without an origin of its own (sandbox without
+      // allow-same-origin: some chat hosts frame an MCP App that way) has no
+      // storage: reading window.localStorage throws, and the app stayed
+      // blank. Settings then live in memory for the visit.
+      (function () {
+        function memory() {
+          var data = Object.create(null)
+          return {
+            getItem: function (k) { return k in data ? data[k] : null },
+            setItem: function (k, v) { data[k] = String(v) },
+            removeItem: function (k) { delete data[k] },
+            clear: function () { data = Object.create(null) },
+            key: function (i) { return Object.keys(data)[i] || null },
+            get length() { return Object.keys(data).length },
+          }
+        }
+        ["localStorage", "sessionStorage"].forEach(function (name) {
+          try { window[name].getItem("tv-probe") } catch (e) {
+            try { Object.defineProperty(window, name, { value: memory(), configurable: true }) } catch (e2) { /* left as is */ }
+            window.__tvNoStorage = true
+          }
+        })
+        // The same frame cannot start a worker from a URL either ("cannot be
+        // accessed from origin 'null'"), so MapLibre drew nothing. What it may
+        // start is a script of its own that loads the real one: a blob with
+        // importScripts for a classic worker, a data: URL with an import for
+        // a module worker (a module worker from a blob is refused there too).
+        if (window.origin === "null" && window.Worker && window.Blob && window.URL) {
+          var NativeWorker = window.Worker
+          var BlobWorker = function (url, opts) {
+            var abs = new URL(String(url), location.href).href
+            if (/^(blob|data):/.test(abs)) return new NativeWorker(url, opts)
+            if (opts && opts.type === "module") return new NativeWorker("data:text/javascript," + encodeURIComponent("import " + JSON.stringify(abs) + ";"), opts)
+            return new NativeWorker(URL.createObjectURL(new Blob(["importScripts(" + JSON.stringify(abs) + ");"], { type: "text/javascript" })), opts)
+          }
+          BlobWorker.prototype = NativeWorker.prototype
+          window.Worker = BlobWorker
+        }
+        if (window.parent !== window && /[?&]tvRelayErrors=1/.test(location.search)) {
+          var relay = function (m) { try { window.parent.postMessage({ tvError: String(m) }, "*") } catch (e) { } }
+          window.addEventListener("error", function (e) { relay((e.message || "error") + " @ " + (e.filename || "") + ":" + (e.lineno || "")) })
+          window.addEventListener("unhandledrejection", function (e) { relay("rejection: " + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason)) })
+        }
+      })()
+    </script>
+    <script>
       (function () {
         var h = location.hostname
         if (h === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(h)) {

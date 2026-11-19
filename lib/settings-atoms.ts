@@ -125,7 +125,7 @@ export const revealSectionAtom = atom<string | null>(null)
 // component state, so something outside them can seed a worked example - the
 // level-2 walkthrough places real points and lets the tool compute the answer,
 // instead of describing what would happen if you clicked. Session-only.
-export interface PickedLngLat { lng: number; lat: number; elevation: number | null; error?: string }
+export interface PickedLngLat { lng: number; lat: number; elevation: number | null; error?: string; /** The view (A..H) the point was clicked on; absent means A. */ view?: string }
 export const elevationPickerPointsAtom = atom<PickedLngLat[]>([])
 export const sunShadowPicksAtom = atom<{ base: PickedLngLat | null; tip: PickedLngLat | null }>({ base: null, tip: null })
 // Whether each tool is armed for picking. Lifted for the same reason as the

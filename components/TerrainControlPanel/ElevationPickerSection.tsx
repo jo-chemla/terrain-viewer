@@ -1,6 +1,7 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useViewMaps } from "@/lib/use-view-maps"
+import { VIEW_IDS, sourceFieldName, type ViewId } from "@/lib/grid-layouts"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { PanelBottomOpen, PanelBottomClose } from "lucide-react"
 import * as maplibregl from "maplibre-gl"
@@ -35,6 +36,9 @@ interface PickedPoint {
   lat: number
   elevation: number | null
   error?: string
+  /** The view the point was clicked on: its elevation is read from that
+   *  view's terrain source. Absent (a seeded point) means view A. */
+  view?: string
 }
 
 const MARKER_COLORS = ["#3b82f6", "#ef4444"]
@@ -90,8 +94,8 @@ export const ElevationPickerSection: React.FC<{
   setState: (updates: any) => void
   mapRef: React.RefObject<MapRef | null>
   /** Every view's map ref (A..H): clicks are taken, and the markers and the
-   *  line drawn, on all the views on screen. Elevations are still sampled
-   *  from view A's terrain source. */
+   *  line drawn, on all the views on screen. A point's elevation is sampled
+   *  from the terrain source of the view it was clicked on. */
   viewMapRefs?: React.RefObject<MapRef | null>[]
   draw: TerraDraw | null
   isOpen: boolean
@@ -187,22 +191,43 @@ export const ElevationPickerSection: React.FC<{
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
-  const clientUpstream = useClientDemUpstream(state.sourceA, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint)
-  const clientUpstreamRef = useRef(clientUpstream)
-  clientUpstreamRef.current = clientUpstream
+  // One upstream per view (a fixed number of hooks): a point is sampled from
+  // the terrain source of the view it was clicked on.
+  const sourceOfView = (st: any, v: ViewId) => st[sourceFieldName(v)] ?? st.sourceA
+  const upstreamArgs = [customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint] as const
+  const clientUpstreams: Record<ViewId, ReturnType<typeof useClientDemUpstream>> = {
+    A: useClientDemUpstream(sourceOfView(state, "A"), ...upstreamArgs),
+    B: useClientDemUpstream(sourceOfView(state, "B"), ...upstreamArgs),
+    C: useClientDemUpstream(sourceOfView(state, "C"), ...upstreamArgs),
+    D: useClientDemUpstream(sourceOfView(state, "D"), ...upstreamArgs),
+    E: useClientDemUpstream(sourceOfView(state, "E"), ...upstreamArgs),
+    F: useClientDemUpstream(sourceOfView(state, "F"), ...upstreamArgs),
+    G: useClientDemUpstream(sourceOfView(state, "G"), ...upstreamArgs),
+    H: useClientDemUpstream(sourceOfView(state, "H"), ...upstreamArgs),
+  }
+  const clientUpstreamsRef = useRef(clientUpstreams)
+  clientUpstreamsRef.current = clientUpstreams
+  const viewOfMap = (map: maplibregl.Map | undefined): ViewId => {
+    const i = (viewMapRefs ?? []).findIndex((r) => r.current?.getMap() === map)
+    return i >= 0 ? VIEW_IDS[i] : "A"
+  }
+  const mapOfView = (v: ViewId): maplibregl.Map | undefined =>
+    (viewMapRefs?.[VIEW_IDS.indexOf(v)]?.current?.getMap() as maplibregl.Map | undefined) ?? (mapRef.current?.getMap() as maplibregl.Map | undefined)
+  const viewHelpersRef = useRef({ viewOfMap, mapOfView })
+  viewHelpersRef.current = { viewOfMap, mapOfView }
 
   const mapsRef = useRef(maps)
   mapsRef.current = maps
 
   const sampleElevation = useCallback(async (
-    map: maplibregl.Map, lng: number, lat: number,
+    map: maplibregl.Map, lng: number, lat: number, view: ViewId = "A",
   ): Promise<{ elevation: number | null; error?: string }> => {
     const s = stateRef.current
 
     // LRM has no 3D-mesh equivalent — always sample client-side, regardless
     // of view mode (see toLrmClientSource above).
     if (s.elevationPickerReferenceMode === "lrm") {
-      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
+      const clientSource = getClientExportSource(sourceOfView(s, view), customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamsRef.current[view])
       if (!clientSource || clientSource.type === "cog") {
         return { elevation: null, error: "LRM elevation lookup needs a tiled DEM path — switch to Absolute, or pick a different source." }
       }
@@ -218,8 +243,8 @@ export const ElevationPickerSection: React.FC<{
     }
 
     if (s.viewMode === "3d" || s.viewMode === "globe") {
-      // View A's terrain first; another view's when A has no tile there
-      // (the views share a camera, so this is rare).
+      // The clicked view's terrain first; another view's when it has no
+      // tile there (the views share a camera, so this is rare).
       let elevation: number | null = null
       for (const m of [map, ...mapsRef.current.filter((o) => o !== map)]) {
         elevation = queryTerrainElevationAtPoint(m, lng, lat, s.exaggeration || 1)
@@ -229,7 +254,7 @@ export const ElevationPickerSection: React.FC<{
       return { elevation }
     }
 
-    const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
+    const clientSource = getClientExportSource(sourceOfView(s, view), customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamsRef.current[view])
     if (!clientSource) {
       return { elevation: null, error: "This source has no client-side tile path to sample in 2D — switch to 3D" }
     }
@@ -252,26 +277,32 @@ export const ElevationPickerSection: React.FC<{
   // 2-point segment resampled to PROFILE_SAMPLES, or a routed path). Distance is
   // cumulative great-circle length along the path, so a winding route reads its
   // true along-track distance rather than the straight endpoint separation.
+  const profileView: ViewId = ((points[points.length - 1]?.view as ViewId | undefined) ?? "A")
+  const profileViewRef = useRef(profileView)
+  profileViewRef.current = profileView
+
   const computeProfile = useCallback(async (coords: [number, number][]): Promise<ProfilePoint[]> => {
     if (coords.length < 2) return []
     const s = stateRef.current
+    // The profile reads the view of the last point clicked.
+    const view = profileViewRef.current
 
     let elevations: (number | null)[]
     if (s.elevationPickerReferenceMode === "lrm") {
       // Same "no 3D-mesh equivalent" reasoning as sampleElevation above —
       // always client-side, regardless of view mode.
-      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
-      const lrmMap = mapRef.current?.getMap()
+      const clientSource = getClientExportSource(sourceOfView(s, view), customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamsRef.current[view])
+      const lrmMap = viewHelpersRef.current.mapOfView(view)
       elevations = (clientSource && clientSource.type !== "cog")
         ? await sampleClientElevationPath(toLrmClientSource(clientSource, s.lrmRadius), coords, lrmFetchTileBlob, lrmMap ? viewTileZoom(lrmMap, clientSource.tileSize) : undefined)
         : new Array(coords.length).fill(null)
     } else if (s.viewMode === "3d" || s.viewMode === "globe") {
-      const map = mapRef.current?.getMap()
+      const map = viewHelpersRef.current.mapOfView(view)
       elevations = map
         ? coords.map(([lng, lat]) => queryTerrainElevationAtPoint(map, lng, lat, s.exaggeration || 1))
         : new Array(coords.length).fill(null)
     } else {
-      const clientSource = getClientExportSource(s.sourceA, customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamRef.current)
+      const clientSource = getClientExportSource(sourceOfView(s, view), customTerrainSourcesRef.current, getTilesUrlRef.current, clientUpstreamsRef.current[view])
       elevations = clientSource
         ? await sampleClientElevationPath(clientSource, coords)
         : new Array(coords.length).fill(null)
@@ -333,7 +364,7 @@ export const ElevationPickerSection: React.FC<{
       return [pa.lng + (pb.lng - pa.lng) * t, pa.lat + (pb.lat - pa.lat) * t] as [number, number]
     })
   })()
-  const pathKey = profilePath ? `${profilePath.length}:${profilePath[0]?.join(",")}:${profilePath[profilePath.length - 1]?.join(",")}` : ""
+  const pathKey = profilePath ? `${profileView}:${profilePath.length}:${profilePath[0]?.join(",")}:${profilePath[profilePath.length - 1]?.join(",")}` : ""
 
   useEffect(() => {
     if (!profilePath) { setProfilePoints([]); return }
@@ -348,20 +379,22 @@ export const ElevationPickerSection: React.FC<{
   }, [profileMode, pathKey, computeProfile])
 
   const handleMapClick = useCallback((e: MapMouseEvent) => {
-    const map = mapRef.current?.getMap()
+    // The map that was clicked: its view's terrain source gives the elevation.
+    const map = ((e.target as unknown as maplibregl.Map | undefined) ?? mapRef.current?.getMap()) as maplibregl.Map | undefined
     if (!map) return
+    const view = viewHelpersRef.current.viewOfMap(map)
     const { lng, lat } = e.lngLat
 
     // A pair already exists (or this is the very first click) — start a fresh
     // pair rather than accumulating a growing list of points.
-    setPoints((prev) => (prev.length >= 2 ? [{ lng, lat, elevation: null }] : [...prev, { lng, lat, elevation: null }]))
+    setPoints((prev) => (prev.length >= 2 ? [{ lng, lat, elevation: null, view }] : [...prev, { lng, lat, elevation: null, view }]))
 
-    sampleElevation(map, lng, lat).then(({ elevation, error }) => {
+    sampleElevation(map, lng, lat, view).then(({ elevation, error }) => {
       setPoints((prev) => {
         const idx = prev.findIndex((p) => p.lng === lng && p.lat === lat && p.elevation === null && !p.error)
         if (idx === -1) return prev
         const next = [...prev]
-        next[idx] = { lng, lat, elevation, error }
+        next[idx] = { lng, lat, elevation, error, view }
         return next
       })
     })
@@ -378,7 +411,8 @@ export const ElevationPickerSection: React.FC<{
     if (!pending.length) return
     let cancelled = false
     for (const p of pending) {
-      sampleElevation(map, p.lng, p.lat).then(({ elevation, error }) => {
+      const view = (p.view as ViewId | undefined) ?? "A"
+      sampleElevation(viewHelpersRef.current.mapOfView(view) ?? map, p.lng, p.lat, view).then(({ elevation, error }) => {
         if (cancelled) return
         setPoints((prev) => prev.map((q) => (q.lng === p.lng && q.lat === p.lat && q.elevation === null && !q.error
           ? { ...q, elevation, error } : q)))
@@ -605,6 +639,7 @@ export const ElevationPickerSection: React.FC<{
                   style={{ background: MARKER_COLORS[idx] }}
                 />
                 Point {idx + 1}
+                {maps.length > 1 && <span className="text-xs text-muted-foreground" title={`Elevation read from view ${p.view ?? "A"}'s terrain source`}>view {p.view ?? "A"}</span>}
               </span>
               <span className="flex items-center gap-2">
                 <span className="font-mono text-xs text-muted-foreground">{formatLatLng(p)}</span>
