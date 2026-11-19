@@ -56,7 +56,12 @@ export const ElevationProfileChart: React.FC<{
   onHover?: (index: number | null) => void
   width?: number
   height?: number
-}> = ({ points, poleHeightM, onHover, width, height }) => {
+  /** In a split: the view and colour of the main line, and the same line
+   *  sampled on the other views' terrain sources, drawn with it. */
+  label?: string
+  color?: string
+  series?: { label: string; color: string; points: ProfilePoint[] }[]
+}> = ({ points, poleHeightM, onHover, width, height, label, color, series = [] }) => {
   const W = width && width > 40 ? width : DEFAULT_W
   const H = height && height > 40 ? height : DEFAULT_H
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -77,8 +82,9 @@ export const ElevationProfileChart: React.FC<{
 
   const elevs = valid.map((p) => p.elevation as number)
   const losElevs = valid.map((p) => losElevationAt(p.distanceM, startElev, endElev, totalDistanceM))
-  let minE = Math.min(...elevs, ...losElevs)
-  let maxE = Math.max(...elevs, ...losElevs)
+  const seriesElevs = series.flatMap((s) => s.points.filter((p) => p.elevation !== null).map((p) => p.elevation as number))
+  let minE = Math.min(...elevs, ...losElevs, ...seriesElevs)
+  let maxE = Math.max(...elevs, ...losElevs, ...seriesElevs)
   if (maxE === minE) { maxE += 1; minE -= 1 }
   // A little headroom so the top line / LOS aren't flush against the frame.
   const margin = (maxE - minE) * 0.08
@@ -178,7 +184,10 @@ export const ElevationProfileChart: React.FC<{
       <g clipPath="url(#profile-clip)">
       {/* terrain */}
       <path d={areaPath} fill="currentColor" fillOpacity={0.12} />
-      <polyline points={terrainLine} fill="none" stroke="currentColor" strokeOpacity={0.7} strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+      {series.map((s) => (
+        <polyline key={s.label} points={s.points.filter((p) => p.elevation !== null).map((p) => `${x(p.distanceM).toFixed(1)},${y(p.elevation as number).toFixed(1)}`).join(" ")} fill="none" stroke={s.color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+      ))}
+      <polyline points={terrainLine} fill="none" stroke={color ?? "currentColor"} strokeOpacity={color ? 1 : 0.7} strokeWidth={color ? 1.5 : 1.25} vectorEffect="non-scaling-stroke" />
       {/* line of sight */}
       <line x1={x(0)} y1={y(startElev)} x2={x(totalDistanceM)} y2={y(endElev)} stroke="#f59e0b" strokeWidth={1.25} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
       {/* intrusions */}
@@ -197,8 +206,12 @@ export const ElevationProfileChart: React.FC<{
       )}
       </g>
       {hovered && (
-        <text x={Math.min(W - PAD.r - 2, Math.max(PAD.l + 2, x(hovered.distanceM)))} y={PAD.t + 18} fontSize={9} fill="currentColor" textAnchor={x(hovered.distanceM) > W / 2 ? "end" : "start"}>{Math.round(hovered.elevation as number)} m · {fmt(hovered.distanceM)}</text>
+        <text x={Math.min(W - PAD.r - 2, Math.max(PAD.l + 2, x(hovered.distanceM)))} y={PAD.t + 18} fontSize={9} fill="currentColor" textAnchor={x(hovered.distanceM) > W / 2 ? "end" : "start"}>{label && series.length ? `${label} ` : ""}{Math.round(hovered.elevation as number)} m{series.map((s) => { const e = hoverIdx !== null ? s.points[hoverIdx]?.elevation : null; return e == null ? "" : ` · ${s.label} ${Math.round(e)} m` }).join("")} · {fmt(hovered.distanceM)}</text>
       )}
+      {/* legend: one coloured letter per view drawn */}
+      {label && series.length > 0 && [{ label, color: color ?? "currentColor" }, ...series].map((s, i, all) => (
+        <text key={s.label} x={W - PAD.r - 4 - (all.length - 1 - i) * 28} y={PAD.t + 9} fontSize={9} fontWeight={600} fill={s.color} textAnchor="end">▬ {s.label}</text>
+      ))}
       {/* labels */}
       <text x={PAD.l + 2} y={PAD.t + 8} fontSize={9} fill="currentColor" fillOpacity={0.6}>{Math.round(maxE)} m</text>
       <text x={PAD.l + 2} y={H - PAD.b - 2} fontSize={9} fill="currentColor" fillOpacity={0.6}>{Math.round(minE)} m</text>

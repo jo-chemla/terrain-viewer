@@ -48,7 +48,7 @@ A link can start the iterator: `scrollTo=featureIterator` opens Drawing and star
 
 Click anywhere on the terrain to read off its elevation, sourced from the same active DEM driving the rest of the app (Mapterhorn, Mapbox, MapTiler, AWS, or a custom BYOD source) — useful for a quick spot-check without switching on Elevation Hypso or exporting a GeoTIFF. Several distinct modes live under this one toggle:
 
-In a split, click on any view: the points and the profile line are drawn on all of them. Each point's elevation is read from the terrain source of the view it was clicked on, so the same spot clicked on two views compares two DEMs; the profile follows the view of the last point.
+In a split, click on any view: the points and the profile line are drawn on all of them. Each point's elevation is read from the terrain source of the view it was clicked on, so the same spot clicked on two views compares two DEMs; the profile follows the view of the last point, and the same line sampled on the other views' sources is drawn on the same chart, each in its view's colour (a surface model against a ground model, two surveys). Views that show the same source are drawn once.
 
 - **Single-point altitude** — one click samples the elevation right there.
 - **Altitude delta** — a second click measures the straight-line distance and elevation difference (Δ Elevation) against the first.

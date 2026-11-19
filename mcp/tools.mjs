@@ -101,7 +101,10 @@ async function browser() {
   if (!browserPromise) {
     browserPromise = (async () => {
       const { chromium } = await import("playwright-core")
-      const args = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--hide-scrollbars"]
+      // The machine's GPU when there is one (several times faster on the
+      // heavy modes); TV_SOFTWARE_GL=1 forces software rendering, for a
+      // container without one.
+      const args = process.env.TV_SOFTWARE_GL ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--hide-scrollbars"] : ["--enable-gpu", "--ignore-gpu-blocklist", "--hide-scrollbars"]
       const exe = process.env.CHROME_PATH
       // An installed Chrome by default; CHROME_PATH for a container's Chromium.
       return chromium.launch(exe ? { executablePath: exe, args } : { channel: "chrome", args })
@@ -118,14 +121,36 @@ export async function screenshot(view, { baseUrl, width = 1024, height = 640, wa
   // The first-visit walkthrough would cover the map.
   await ctx.addInitScript(() => { try { localStorage.setItem("hasSeenTour", "true") } catch { } })
   const page = await ctx.newPage()
+  // Done when tile and data requests have stopped for a moment. Playwright's
+  // "networkidle" never comes here (long-lived requests keep it busy), so
+  // every render waited out the full timeout.
+  let inFlight = 0, lastActivity = Date.now()
+  // Not what the picture is made of: imagery-date metadata the app polls for
+  // its attribution, analytics.
+  const BACKGROUND = /World_Imagery_Metadata|metadata\.maptiles|umami|plausible|analytics|sentry/i
+  const counted = (r) => ["fetch", "xhr", "image"].includes(r.resourceType()) && !BACKGROUND.test(r.url())
+  const tStart = Date.now()
+  page.on("request", (r) => { if (counted(r)) { inFlight++; lastActivity = Date.now(); if (process.env.TV_TIMING && Date.now() - tStart > 7000) console.error("  late", Date.now() - tStart, r.url().slice(0, 110)) } })
+  const done = (r) => { if (counted(r)) { inFlight = Math.max(0, inFlight - 1); lastActivity = Date.now() } }
+  page.on("requestfinished", done); page.on("requestfailed", done)
+  const quiet = async (idleMs = 1500, maxMs = 25000) => {
+    const t0 = Date.now()
+    // In-flight requests older than 6 s do not hold the picture back.
+    while (Date.now() - t0 < maxMs) {
+      const idle = Date.now() - lastActivity
+      if ((inFlight === 0 && idle >= idleMs) || idle >= 6000) return
+      await page.waitForTimeout(200)
+    }
+  }
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 })
-    await page.waitForSelector("canvas.maplibregl-canvas", { timeout: 30000 })
+    const T = Date.now(); const lap = (n) => process.env.TV_TIMING && console.error(n, Date.now() - T, "inflight", inFlight)
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 }); lap("goto")
+    await page.waitForSelector("canvas.maplibregl-canvas", { timeout: 30000 }); lap("canvas")
     // Tiles keep arriving for a while: wait for the network to go quiet,
     // with a ceiling, then let the map draw.
-    await page.waitForLoadState("networkidle", { timeout: 25000 }).catch(() => { })
+    await quiet(); lap("quiet")
     await page.evaluate(() => { for (const b of document.querySelectorAll("button")) if (b.textContent?.trim() === "Skip") b.click() }).catch(() => { })
-    await page.waitForTimeout(1500 + waitMs)
+    await page.waitForTimeout(1200 + waitMs)
     const jpeg = await page.screenshot({ type: "jpeg", quality: 80 })
     return { url: buildViewUrl(view, { baseUrl }), jpeg }
   } finally { await ctx.close() }

@@ -6,6 +6,8 @@ description: A skill and an llms.txt that let ChatGPT, Claude and coding agents 
 
 Every setting of Terrain Viewer lives in its URL, so an assistant can answer "show me the slope around Mont Blanc in 3D" with a link that opens exactly that. Two things teach it how.
 
+An assistant that supports MCP can go further than a link, and show the view in the conversation: see the [MCP server](/features/mcp-server).
+
 ## The Terrain Viewer skill
 
 A skill is a small instruction file an agent loads when a request matches it. The **terrain-viewer** skill tells the agent how to pick the camera, the view mode, the visualization and the terrain source, how to open a DEM file or tile URL the user shares, and which pages hold the full reference. It lives in the repository at [`skills/terrain-viewer/SKILL.md`](https://github.com/Iconem/terrain-viewer/blob/main/skills/terrain-viewer/SKILL.md).

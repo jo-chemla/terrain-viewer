@@ -87,4 +87,10 @@ that sandbox host and `https://claude.ai`. GitHub Pages sends no
   label and button; the framed app stayed blank, which is Claude's rule for
   local servers and the reason for the picture fallback. The fallback itself
   was not seen in Claude Desktop yet.
-- Not tried: claude.ai, ChatGPT, the Dockerfile, a public host.
+- The picture fallback in Claude Desktop: seen by Jonathan on 2026-11-19.
+  A render went from about 25 s to about 8 s the same day (the wait was on
+  background metadata requests, not on tiles).
+- Through a temporary public address (a Cloudflare quick tunnel,
+  `npx cloudflared tunnel --url http://localhost:3300 --http-host-header localhost`):
+  the five tools answer over HTTPS.
+- Not tried: claude.ai and ChatGPT as a custom connector, the Dockerfile.

@@ -1,0 +1,64 @@
+---
+title: MCP Server
+icon: Plug
+description: Ask Claude or another assistant for a place in plain words and get the Terrain Viewer view in the conversation, through a server it can call
+---
+
+> **Paste this in the Claude desktop app to install it and start:**
+>
+> Set up the Terrain Viewer MCP server on this computer. Clone https://github.com/Iconem/terrain-viewer, run `pnpm install` at its root and again in its `mcp` folder, then `pnpm build` in `mcp`. Add it to my Claude Desktop configuration file (`claude_desktop_config.json`, under `mcpServers`) as `terrain-viewer`, with the command `node` and the arguments `<path of the clone>/mcp/server.mjs` and `--stdio`. Keep what the file already holds. Tell me when to restart Claude. After the restart I will ask: show me the slope of the terrain around the Matterhorn in 3D.
+
+It needs git, Node 20 or later, pnpm and Google Chrome on the computer. Claude runs the commands and asks before each one unless you allowed them. After the restart, ask in your own words; no tool has to be named.
+
+The [skill](/features/ai-assistants) teaches an assistant to write a link. The server goes further: the assistant can look things up (where a place is, which datasets cover it, which dated images exist) and the result shows in the conversation.
+
+## What you can ask
+
+- "Show me the slope of the terrain around the Matterhorn in 3D."
+- "I am looking for ancient earthworks in the forest of the Veluwe. Which elevation data is best there, and show it so they stand out."
+- "Which satellite images exist over Antakya after the February 2023 earthquake? Show the most recent."
+- "Compare the surface model and the ground model over Amsterdam."
+
+## Tools
+
+| Tool | What it does |
+|---|---|
+| `open_view` | A place and modes to a Terrain Viewer link, shown in the conversation |
+| `geocode` | A place name to coordinates (OpenStreetMap) |
+| `datasets_covering` | The terrain datasets of the library that cover a point, finest first, and the imagery catalogs that have something there |
+| `catalog_items` | Dated satellite and aerial images and old maps for an area, from the catalogs the [timeline](/features/historical-imagery) reads |
+| `screenshot` | A picture of a view, so the assistant can look at the terrain itself |
+
+## By hand
+
+```bash
+git clone https://github.com/Iconem/terrain-viewer
+cd terrain-viewer && pnpm install
+cd mcp && pnpm install && pnpm build
+```
+
+Claude Desktop: Settings, Developer, Edit Config, then restart the app.
+
+```json
+{
+  "mcpServers": {
+    "terrain-viewer": { "command": "node", "args": ["/path/to/terrain-viewer/mcp/server.mjs", "--stdio"] }
+  }
+}
+```
+
+Claude Code:
+
+```bash
+claude mcp add terrain-viewer -- node /path/to/terrain-viewer/mcp/server.mjs --stdio
+```
+
+claude.ai and ChatGPT reach a server by its address, not on your computer: run `pnpm start` in `mcp` (it listens on `http://localhost:3300/mcp`), put it behind a public HTTPS address, and add that address as a custom connector.
+
+## What shows in the conversation
+
+A picture of the view, rendered by the server in about ten seconds, with an **Open in the browser** button for the live view. The picture is not interactive.
+
+Claude frames a live website inside a conversation only for some connectors: never for a server that runs on your computer, and for a server reached by its address only after you allow the site, in organizations where the feature is on ([Claude's documentation](https://claude.com/docs/connectors/building/mcp-apps/embedded-sites)). Where the host allows it, the view shows the live app instead, in its [embed layout](/features/embedding).
+
+The server's own notes, with the files and what was tested, are in [`mcp/README.md`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/README.md).

@@ -1,7 +1,8 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { useViewMaps } from "@/lib/use-view-maps"
-import { VIEW_IDS, sourceFieldName, type ViewId } from "@/lib/grid-layouts"
+import { VIEW_IDS, SIDE_COLORS, sourceFieldName, type ViewId } from "@/lib/grid-layouts"
+import { sideColorOverridesAtom } from "@/lib/layout-constants"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { PanelBottomOpen, PanelBottomClose } from "lucide-react"
 import * as maplibregl from "maplibre-gl"
@@ -164,9 +165,14 @@ export const ElevationPickerSection: React.FC<{
   }, [hoverIndex, profilePoints, maps])
   useEffect(() => () => { for (const marker of hoverMarkersRef.current.values()) marker.remove(); hoverMarkersRef.current.clear() }, [])
   // The dock (components/ProfileDock.tsx) draws the same profile from this.
+  // The other views' profiles are computed further down: read through refs,
+  // and chartKey changes when they do.
+  const chartSeriesRef = useRef<{ label: string; color: string; points: ProfilePoint[] }[]>([])
+  const chartMainRef = useRef<{ label?: string; color?: string }>({})
+  const [chartKey, setChartKey] = useState("")
   useEffect(() => {
-    setProfileChart(isActive && profileMode && points.length === 2 && !profileLoading && profilePoints.length >= 2 ? { points: profilePoints, poleHeightM: poleHeight } : null)
-  }, [isActive, profileMode, points.length, profileLoading, profilePoints, poleHeight, setProfileChart])
+    setProfileChart(isActive && profileMode && points.length === 2 && !profileLoading && profilePoints.length >= 2 ? { points: profilePoints, poleHeightM: poleHeight, ...chartMainRef.current, series: chartSeriesRef.current } : null)
+  }, [isActive, profileMode, points.length, profileLoading, profilePoints, poleHeight, setProfileChart, chartKey])
   useEffect(() => () => { setProfileChart(null); setHoverIndex(null) }, [setProfileChart, setHoverIndex])
 
   // TerraDraw's own click handling (placing vertices) would otherwise fight with
@@ -281,11 +287,11 @@ export const ElevationPickerSection: React.FC<{
   const profileViewRef = useRef(profileView)
   profileViewRef.current = profileView
 
-  const computeProfile = useCallback(async (coords: [number, number][]): Promise<ProfilePoint[]> => {
+  // `view`: whose terrain source is sampled; the view of the last point
+  // clicked unless one is given.
+  const computeProfile = useCallback(async (coords: [number, number][], view: ViewId = profileViewRef.current): Promise<ProfilePoint[]> => {
     if (coords.length < 2) return []
     const s = stateRef.current
-    // The profile reads the view of the last point clicked.
-    const view = profileViewRef.current
 
     let elevations: (number | null)[]
     if (s.elevationPickerReferenceMode === "lrm") {
@@ -364,7 +370,7 @@ export const ElevationPickerSection: React.FC<{
       return [pa.lng + (pb.lng - pa.lng) * t, pa.lat + (pb.lat - pa.lat) * t] as [number, number]
     })
   })()
-  const pathKey = profilePath ? `${profileView}:${profilePath.length}:${profilePath[0]?.join(",")}:${profilePath[profilePath.length - 1]?.join(",")}` : ""
+  const pathKey = profilePath ? `${profileView}:${sourceOfView(state, profileView)}:${profilePath.length}:${profilePath[0]?.join(",")}:${profilePath[profilePath.length - 1]?.join(",")}` : ""
 
   useEffect(() => {
     if (!profilePath) { setProfilePoints([]); return }
@@ -377,6 +383,38 @@ export const ElevationPickerSection: React.FC<{
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileMode, pathKey, computeProfile])
+
+  // In a split, the same line is also sampled on the other views' terrain
+  // sources and drawn on the same chart, each in its view's colour (a DSM
+  // against a DTM, two surveys). The main profile (line of sight, map line,
+  // hover marker) stays the one of the view of the last point clicked. Views
+  // that show the same source as one already drawn are skipped.
+  const [sideColorOverrides] = useAtom(sideColorOverridesAtom)
+  const colorOfView = (v: ViewId) => sideColorOverrides[v] ?? SIDE_COLORS[v]
+  const activeViews = maps.map((m) => viewOfMap(m))
+  const compareViews = activeViews.filter((v, i) => v !== profileView
+    && sourceOfView(state, v) !== sourceOfView(state, profileView)
+    && activeViews.findIndex((u) => sourceOfView(state, u) === sourceOfView(state, v)) === i)
+  const compareKey = compareViews.map((v) => `${v}=${sourceOfView(state, v)}`).join("|")
+  const [compareProfiles, setCompareProfiles] = useState<{ view: ViewId; points: ProfilePoint[] }[]>([])
+  useEffect(() => {
+    if (!profilePath || !compareViews.length) { setCompareProfiles([]); return }
+    let cancelled = false
+    setCompareProfiles([])
+    for (const view of compareViews) {
+      computeProfile(profilePath, view)
+        .then((pts) => { if (!cancelled && pts.some((p) => p.elevation !== null)) setCompareProfiles((prev) => [...prev.filter((c) => c.view !== view), { view, points: pts }].sort((a, b) => a.view.localeCompare(b.view))) })
+        .catch(() => { })
+    }
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileMode, pathKey, compareKey, computeProfile])
+  const chartSeries = compareProfiles.map((c) => ({ label: c.view as string, color: colorOfView(c.view), points: c.points }))
+  const chartMain: { label?: string; color?: string } = maps.length > 1 ? { label: profileView, color: colorOfView(profileView) } : {}
+  chartSeriesRef.current = chartSeries
+  chartMainRef.current = chartMain
+  const nextChartKey = `${chartMain.label ?? ""}${chartMain.color ?? ""}|${chartSeries.map((c) => c.label + c.color + c.points.length).join(",")}`
+  useEffect(() => { setChartKey(nextChartKey) }, [nextChartKey])
 
   const handleMapClick = useCallback((e: MapMouseEvent) => {
     // The map that was clicked: its view's terrain source gives the elevation.
@@ -742,7 +780,7 @@ export const ElevationPickerSection: React.FC<{
                   </div>
                   {profileDocked
                     ? <p className="text-xs text-muted-foreground">The profile is docked under the map.</p>
-                    : <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} onHover={setHoverIndex} />}
+                    : <ElevationProfileChart points={profilePoints} poleHeightM={poleHeight} onHover={setHoverIndex} {...chartMain} series={chartSeries} />}
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="pole-height" className="text-sm font-medium">Mast height</Label>
                     <div className="flex items-center gap-1">

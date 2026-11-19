@@ -169,7 +169,8 @@ export const sourcesEditModeAtom = atom(false)
 export const profileDockedAtom = atomWithStorage("profileDocked", false)
 /** What the picker section has to draw: the sampled line and the mast
  *  height, published for the dock; null when there is no profile. */
-export const profileChartAtom = atom<{ points: { lng: number; lat: number; distanceM: number; elevation: number | null }[]; poleHeightM: number } | null>(null)
+type ProfileSample = { lng: number; lat: number; distanceM: number; elevation: number | null }
+export const profileChartAtom = atom<{ points: ProfileSample[]; poleHeightM: number; /** The main line's view and colour, and the other views' profiles, in a split. */ label?: string; color?: string; series?: { label: string; color: string; points: ProfileSample[] }[] } | null>(null)
 /** The sample under the pointer, in either chart; the section's marker follows. */
 export const profileHoverIndexAtom = atom<number | null>(null)
 export const sunShadowActiveAtom = atom(false)

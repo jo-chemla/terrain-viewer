@@ -13,6 +13,9 @@
   #pic { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
   #note { position: absolute; left: 8px; bottom: 8px; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: rgba(0,0,0,.55); color: #fff; }
   #msg { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; opacity: .7; padding: 16px; text-align: center; }
+  #spin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid color-mix(in srgb, currentColor 20%, transparent); border-top-color: currentColor; animation: spin .9s linear infinite; margin: 0 auto 10px; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { #spin { animation-duration: 4s } }
   #bar { display: flex; gap: 8px; align-items: center; padding: 6px 2px 0; font-size: 12px; }
   #title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .8; }
   button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; color: inherit; padding: 3px 8px; }
@@ -46,8 +49,14 @@ function frameAllowed(origin) {
 
 async function showPicture(data) {
   wrap.querySelector("iframe")?.remove()
+  document.getElementById("pic")?.remove(); document.getElementById("note")?.remove()
   msg.hidden = false
-  msg.textContent = "Rendering the view…"
+  // The picture takes 5 to 30 seconds (a headless browser loads the tiles
+  // and computes the modes): say so, and count.
+  const t0 = Date.now()
+  const tick = () => { msg.innerHTML = '<div><div id="spin"></div>Rendering a picture of the view… ' + Math.round((Date.now() - t0) / 1000) + ' s<br><span style="opacity:.7">Usually 5 to 30 seconds. “Open in the browser” has the live view now.</span></div>' }
+  tick()
+  const timer = setInterval(tick, 1000)
   try {
     const r = await app.callServerTool({ name: "screenshot", arguments: { ...data.view, width: 1100, height: 780 } })
     const img = r.content?.find((c) => c.type === "image")
@@ -64,8 +73,8 @@ async function showPicture(data) {
     pic.src = "data:" + img.mimeType + ";base64," + img.data
     msg.hidden = true
   } catch (e) {
-    msg.textContent = "The live view cannot be shown here. Use “Open in the browser”."
-  }
+    if (current === data) msg.textContent = "The picture could not be rendered (" + (e && e.message ? String(e.message).slice(0, 120) : "error") + "). Use “Open in the browser”."
+  } finally { clearInterval(timer) }
 }
 
 function show(data) {
@@ -76,6 +85,9 @@ function show(data) {
   const allowed = frameAllowed(data.origin)
   liveBtn.hidden = allowed !== null || !data.view
   if (data.view && allowed !== true && !forceLive) return void showPicture(data)
+  // A result from an older version of the server has no view to render, and
+  // a refused frame would only paint white.
+  if (!data.view && allowed !== true) { wrap.querySelector("iframe")?.remove(); msg.hidden = false; msg.textContent = "This view was made by an older version of the server. Use “Open in the browser”, or ask again."; return }
   document.getElementById("pic")?.remove(); document.getElementById("note")?.remove()
   let frame = wrap.querySelector("iframe")
   if (!frame) {
@@ -95,7 +107,7 @@ app.onerror = (e) => { msg.hidden = false; msg.textContent = "Terrain Viewer: " 
 openBtn.addEventListener("click", async () => {
   if (!current) return
   const r = await app.openLink({ url: current.url }).catch(() => ({ isError: true }))
-  if (r && r.isError) { title.textContent = current.url }
+  if (r && r.isError) { title.textContent = current.url; title.title = "The host did not open the link: copy it." }
 })
 await app.connect()
 connected = true

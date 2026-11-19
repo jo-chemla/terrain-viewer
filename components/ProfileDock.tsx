@@ -75,7 +75,7 @@ export const ProfileDock: React.FC<{ isMobile: boolean; rightOffset: string }> =
         </Tooltip>
       </div>
       <div ref={measureChart} className={cn(isMobile ? "h-[110px]" : "h-[130px]", "[&>svg]:h-full")}>
-        <ElevationProfileChart points={chart.points} poleHeightM={chart.poleHeightM} onHover={setHover} width={chartWidth} height={isMobile ? 110 : 130} />
+        <ElevationProfileChart points={chart.points} label={chart.label} color={chart.color} series={chart.series} poleHeightM={chart.poleHeightM} onHover={setHover} width={chartWidth} height={isMobile ? 110 : 130} />
       </div>
     </div>
   )
