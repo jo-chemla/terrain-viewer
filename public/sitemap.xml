@@ -44,7 +44,7 @@
   <url><loc>https://terrain-viewer.iconem.com/docs/dev/tech-stack/</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/dev/terrain-analysis-pipeline/</loc><lastmod>2026-11-18</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/dev/tile-caches/</loc><lastmod>2026-11-18</lastmod></url>
-  <url><loc>https://terrain-viewer.iconem.com/docs/dev/upstream-requests/</loc><lastmod>2026-11-18</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/dev/upstream-requests/</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/dev/url-api/</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/dev/ux-flows/</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/dev/vendored-protocols/</loc><lastmod>2026-10-19</lastmod></url>
@@ -58,30 +58,31 @@
   <url><loc>https://terrain-viewer.iconem.com/docs/features/advanced/projects/</loc><lastmod>2026-10-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/advanced/settings/</loc><lastmod>2026-10-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/advanced/streaming-settings/</loc><lastmod>2026-11-18</lastmod></url>
-  <url><loc>https://terrain-viewer.iconem.com/docs/features/ai-assistants/</loc><lastmod>2026-10-19</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/features/ai-assistants/</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/api-keys/</loc><lastmod>2026-11-14</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/auto-source-detection/</loc><lastmod>2026-11-14</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/basemaps/</loc><lastmod>2026-10-19</lastmod></url>
-  <url><loc>https://terrain-viewer.iconem.com/docs/features/bookmarks/</loc><lastmod>2026-10-19</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/features/bookmarks/</loc><lastmod>2026-11-18</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/byod/</loc><lastmod>2026-11-14</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/catalog-search/</loc><lastmod>2026-11-14</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/coverage-overlays/</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/demo-videos/</loc><lastmod>2026-10-19</lastmod></url>
-  <url><loc>https://terrain-viewer.iconem.com/docs/features/embedding/</loc><lastmod>2026-11-13</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/features/embedding/</loc><lastmod>2026-11-18</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/export-and-share/</loc><lastmod>2026-11-05</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/historical-imagery/</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/historical-sources/</loc><lastmod>2026-11-18</lastmod></url>
-  <url><loc>https://terrain-viewer.iconem.com/docs/features/keyboard-shortcuts/</loc><lastmod>2026-10-19</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/features/keyboard-shortcuts/</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/features/mcp-server/</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/national-datasets/</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/national-datasets-tablecn/</loc><lastmod>2026-10-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/ndsm-and-comparison/</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/river-rem/</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/slide-decks/</loc><lastmod>2026-11-12</lastmod></url>
-  <url><loc>https://terrain-viewer.iconem.com/docs/features/split-modes/</loc><lastmod>2026-11-13</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/features/split-modes/</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/sun-position/</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/terrain-sources/</loc><lastmod>2026-11-13</lastmod></url>
-  <url><loc>https://terrain-viewer.iconem.com/docs/features/tools/</loc><lastmod>2026-11-16</lastmod></url>
-  <url><loc>https://terrain-viewer.iconem.com/docs/features/visualization-modes/</loc><lastmod>2026-11-17</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/features/tools/</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://terrain-viewer.iconem.com/docs/features/visualization-modes/</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/visualization-modes-description/</loc><lastmod>2026-10-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/features/walkthrough/</loc><lastmod>2026-10-19</lastmod></url>
   <url><loc>https://terrain-viewer.iconem.com/docs/overview/</loc><lastmod>2026-11-13</lastmod></url>
