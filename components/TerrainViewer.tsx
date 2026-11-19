@@ -4966,7 +4966,7 @@ export function TerrainViewer() {
                 </button>
               }
             />
-            <TooltipContent><p>{pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (view A is the reference: the minimap follows it and the Elevation Picker samples its terrain)`}</p></TooltipContent>
+            <TooltipContent><p>{pane.side === "A" ? `Swap views A and ${activeViewIds.find((v) => v !== "A")}` : `Swap view ${pane.side} with view A (view A is the reference: the minimap follows it)`}</p></TooltipContent>
           </Tooltip>
         )}
       </div>

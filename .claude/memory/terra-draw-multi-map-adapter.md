@@ -69,9 +69,10 @@ whose cameras differ.
 - `useViewMaps(mapRef, viewMapRefs)` in `lib/use-view-maps.ts`: the maps of
   the views on screen, A first, polled every 500 ms, stable identity until
   the set changes. Elevation Picker and Sun Shadow Calculator loop over it
-  for the click listener, the markers and their line layer. Elevations are
-  still sampled from `state.sourceA` (in 3D, view A's terrain, then another
-  view's if A has no tile there).
+  for the click listener, the markers and their line layer. A point carries
+  the view it was clicked on (`PickedLngLat.view`) and is sampled from that
+  view's terrain source (eight `useClientDemUpstream` hooks, one per view;
+  in 3D that view's map terrain). The profile uses the last point's view.
 - Tells: `TellsSource`, `TellsMarkersLayer` and `TellsInspectPopup` mount on
   every view, each with that view's terrain source. `tells://` is wrapped in
   `withTileResultCache`, so views on the same source compute a tile once. The

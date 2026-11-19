@@ -19,10 +19,11 @@ const client = new Client({ name: "tv-host-test", version: "0.0.0" })
 await client.connect(new StdioClientTransport({ command: process.execPath, args: ["server.mjs", "--stdio"], env: process.env }))
 const result = await client.callTool({ name: "open_view", arguments: args })
 const page = (await client.readResource({ uri: "ui://terrain-viewer/view.html" })).contents[0]
-await client.close()
+// HOST_FRAMES=allow | deny | (unset: the host says nothing), to see the three cases.
+const sandbox = process.env.HOST_FRAMES === "allow" ? { csp: { frameDomains: page._meta.ui.csp.frameDomains } } : process.env.HOST_FRAMES === "deny" ? { csp: { frameDomains: [] } } : undefined
 
 const frames = page._meta.ui.csp.frameDomains.join(" ")
-const csp = `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src ${frames}`
+const csp = `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; frame-src ${process.env.HOST_FRAMES === "allow" ? frames : "'none'"}`
 
 const host = `<!doctype html><meta charset="utf-8"><title>MCP Apps host test</title>
 <body style="font:14px system-ui;max-width:860px;margin:24px auto">
@@ -38,15 +39,21 @@ window.addEventListener("message", (e) => {
   if (e.source !== frame.contentWindow) return;
   const m = e.data; if (!m || m.jsonrpc !== "2.0") return;
   say("view -> host: " + (m.method || "response " + m.id));
-  if (m.method === "ui/initialize") send({ id: m.id, result: { protocolVersion: m.params.protocolVersion, hostInfo: { name: "host-test", version: "0" }, hostCapabilities: { openLinks: {} }, hostContext: { theme: "light", displayMode: "inline" } } });
+  if (m.method === "ui/initialize") send({ id: m.id, result: { protocolVersion: m.params.protocolVersion, hostInfo: { name: "host-test", version: "0" }, hostCapabilities: { openLinks: {}, serverTools: {}, sandbox: ${JSON.stringify(sandbox)} }, hostContext: { theme: "light", displayMode: "inline" } } });
   else if (m.method === "ui/notifications/initialized") { send({ method: "ui/notifications/tool-input", params: { arguments: ${JSON.stringify(args)} } }); send({ method: "ui/notifications/tool-result", params: result }); say("host -> view: tool-result"); }
+  else if (m.method === "tools/call") { say("view -> server: " + m.params.name); fetch("/call", { method: "POST", body: JSON.stringify(m.params) }).then((r) => r.json()).then((r) => send({ id: m.id, result: r })) }
   else if (m.method === "ui/open-link") { say("open-link " + m.params.url); send({ id: m.id, result: {} }); }
   else if (m.id !== undefined && m.method) send({ id: m.id, result: {} });
 });
 </script>`
 
 const port = Number(process.env.PORT || 3301)
-http.createServer((req, res) => {
+http.createServer(async (req, res) => {
+  if (req.url === "/call") {
+    let body = ""; for await (const c of req) body += c
+    const r = await client.callTool(JSON.parse(body), { timeout: 90000 }).catch((e) => ({ isError: true, content: [{ type: "text", text: String(e.message) }] }))
+    res.writeHead(200, { "content-type": "application/json" }); return void res.end(JSON.stringify(r))
+  }
   if (req.url === "/view") { res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": csp }); return void res.end(page.text) }
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(host)
 }).listen(port, () => console.log(`host test on http://localhost:${port}/`))

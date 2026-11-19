@@ -40,6 +40,7 @@ const round = (n, d) => Number(Number(n).toFixed(d))
  * @param {string} [view.terrainSource] a library id or a tile/COG URL
  * @param {string} [view.terrainSourceB] second source, shown with `split`
  * @param {"off"|"side-by-side"|"overlay"} [view.split]
+ * @param {string} [view.imageryUrl] imagery under the terrain: XYZ tiles ({z}/{x}/{y}) or a COG
  * @param {string} [view.place] label shown in the geocoder box
  * @param {Record<string,string|number|boolean>} [view.params] any other URL parameter, as is
  * @param {object} [opts]
@@ -78,6 +79,7 @@ export function buildViewUrl(view, opts = {}) {
     p.set("terrainSourceB", view.terrainSourceB)
     if (!view.split) p.set("splitStyle", "side-by-side")
   }
+  if (view.imageryUrl) { p.set("basemapSource", view.imageryUrl); p.set("showRasterBasemap", "true") }
   if (view.place) p.set("place", view.place)
   for (const [k, v] of Object.entries(view.params ?? {})) p.set(k, String(v))
   if (opts.embed) p.set("sidebarCollapsed", "true")

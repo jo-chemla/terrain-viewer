@@ -20,8 +20,7 @@ type: feedback
   request; later, evaluate Moon LOLA and feat-stac-maxar (Maxar, Nearmap,
   Vexcel). The view-A-only tools (Elevation Picker, Sun Shadow Calculator,
   Tells, timeline) are on every view since 2026-11-19; what still reads
-  view A: the minimap, the Tells freeze, export and statistics, and the
-  picker's elevation source. WMTS, Copernicus Data Space and Library Browse
+  view A: the minimap, the Tells freeze, export and statistics. WMTS, Copernicus Data Space and Library Browse
   are done (2026-11-14). Dropped by Jonathan 2026-11-15, do not raise
   again: canopy height (GEDI, no browser-readable endpoint) and the slight
   Sentinel-2 shift.

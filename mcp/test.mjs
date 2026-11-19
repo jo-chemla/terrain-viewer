@@ -39,5 +39,31 @@ assert.ok(item.text.includes("const App = "), "the client library is inlined")
 assert.ok(!item.text.includes("/*__APP_BUNDLE__*/"))
 console.log(`view page: ${(item.text.length / 1024).toFixed(0)} KB`)
 
+// The lookups (network): a place, the datasets there, dated imagery, a picture.
+const call = async (name, args) => { const r = await client.callTool({ name, arguments: args }, { timeout: 90000 }); assert.ok(!r.isError, `${name}: ${JSON.stringify(r.content).slice(0, 300)}`); return r }
+const names = tools.map((t) => t.name).sort().join(",")
+assert.equal(names, "catalog_items,datasets_covering,geocode,open_view,screenshot")
+
+const geo = (await call("geocode", { query: "Matterhorn" })).structuredContent.places[0]
+assert.ok(Math.abs(geo.lat - 45.976) < 0.05 && Math.abs(geo.lng - 7.658) < 0.05, JSON.stringify(geo))
+console.log(`geocode: ${geo.name.slice(0, 50)} z${geo.zoom}`)
+
+const ds = (await call("datasets_covering", { lat: 52.2, lng: 5.85 })).structuredContent
+assert.ok(ds.terrain.some((d) => d.id === "custom-nl-ahn-dtm"), "AHN covers the Veluwe")
+console.log(`datasets_covering Veluwe: ${ds.terrain.length} terrain (${ds.terrain.slice(0, 3).map((d) => d.id + " " + d.resolutionM + "m").join(", ")}), ${ds.imageryCatalogsHere.length} local catalogs, ${ds.imageryCatalogsGlobal.length} global`)
+
+const cat = (await call("catalog_items", { lat: 36.2, lng: 36.16, radiusKm: 4, catalogs: ["cat-oam", "cat-maxar", "nope"], limit: 3 })).structuredContent.catalogs
+assert.ok(cat["cat-oam"].count > 0 && cat.nope.error, JSON.stringify(cat).slice(0, 300))
+console.log(`catalog_items Antakya: OAM ${cat["cat-oam"].count}, Maxar ${cat["cat-maxar"].count ?? cat["cat-maxar"].error}; first ${JSON.stringify(cat["cat-oam"].items[0]).slice(0, 260)}`)
+
+if (!process.env.NO_SCREENSHOT) {
+  const shot = await call("screenshot", { lat: 45.9763, lng: 7.6586, zoom: 12, modes: ["hillshade", "slope"], width: 800, height: 500 })
+  const img = shot.content.find((c) => c.type === "image")
+  assert.ok(img && img.data.length > 20000, "a picture came back")
+  const { writeFileSync } = await import("node:fs")
+  writeFileSync(new URL("./generated/test-shot.jpg", import.meta.url), Buffer.from(img.data, "base64"))
+  console.log(`screenshot: ${(img.data.length * 0.75 / 1024).toFixed(0)} KB -> generated/test-shot.jpg`)
+}
+
 await client.close()
 console.log("ok")
