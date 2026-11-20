@@ -72,6 +72,17 @@ Three displays, picked by what the view needs and what the host allows, with but
 - **Exact picture**: the view with every mode asked for (slope, local relief model, sky-view factor, dated imagery, a split), rendered by the server in a few seconds. A view that needs the app's computed modes opens this way, with the interactive map one click away.
 - **Live app**: the app itself, in its [embed layout](/features/embedding). Claude frames a website inside a conversation only for some connectors: never for a server that runs on your computer, and for a server reached by its address only after you allow the site, in organizations where the feature is on ([Claude's documentation](https://claude.com/docs/connectors/building/mcp-apps/embedded-sites)).
 
+When Claude shows the live app depends on how the server reached it:
+
+| Server | Live app in the conversation |
+|---|---|
+| In Claude's directory, Verified listing | Shown, when the listing allows the site |
+| In Claude's directory, Community listing | Refused |
+| Added by its address (custom connector) | Only after you allow the site in the conversation, and only in a limited set of organizations that Anthropic chooses, in the unified chat and Cowork experience |
+| Running on your computer | Refused |
+
+No setting in Claude adds a site to an allowed list. Tested on 2026-11-20 with a custom connector on a personal Max plan and on a team with the unified experience on: Claude refused the site both times without asking, and the picture and the interactive map were shown instead. The **?** button on the view says which display was picked and what Claude reported.
+
 **Open in the browser** always opens the full app, at the place the interactive map was moved to.
 
 The server's own notes, with the files and what was tested, are in [`mcp/README.md`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/README.md).
