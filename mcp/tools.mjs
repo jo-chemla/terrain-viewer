@@ -1,6 +1,10 @@
 // The lookups behind the tools, kept apart from the MCP wiring so they can be
 // tested directly.
 import { existsSync, readFileSync } from "node:fs"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { buildViewUrl } from "./url.mjs"
 
@@ -130,19 +134,52 @@ async function context() {
 }
 
 // The model looks at a view, then the page in the conversation asks for the
-// same picture: rendered once. Kept ten minutes, twenty pictures.
+// same picture, and asks again each time the conversation is reopened:
+// rendered once. Kept a day in memory (sixty pictures) and a week on disk,
+// so a reopened conversation or a restarted server answers at once.
 const pictures = new Map() // key -> { at, promise }
-const PICTURE_TTL = 10 * 60 * 1000
+const PICTURE_TTL = 24 * 60 * 60 * 1000
+const DISK_TTL = 7 * PICTURE_TTL
+const PICTURE_DIR = process.env.PICTURE_CACHE_DIR || path.join(os.tmpdir(), "terrain-viewer-mcp-pictures")
+const pictureFile = (key) => path.join(PICTURE_DIR, createHash("sha1").update(key).digest("hex") + ".jpg")
+
+async function fromDisk(key) {
+  try {
+    const file = pictureFile(key)
+    const stat = await fs.stat(file)
+    if (Date.now() - stat.mtimeMs > DISK_TTL) return null
+    return await fs.readFile(file)
+  } catch { return null }
+}
+
+async function toDisk(key, jpeg) {
+  try {
+    await fs.mkdir(PICTURE_DIR, { recursive: true })
+    await fs.writeFile(pictureFile(key), jpeg)
+    // Old pictures leave when a new one arrives.
+    for (const name of await fs.readdir(PICTURE_DIR)) {
+      const file = path.join(PICTURE_DIR, name)
+      const stat = await fs.stat(file).catch(() => null)
+      if (stat && Date.now() - stat.mtimeMs > DISK_TTL) await fs.unlink(file).catch(() => { })
+    }
+  } catch { /* a cache: never worth failing a picture for */ }
+}
 
 /** A picture of the view, rendered by the app in a headless browser. */
 export function screenshot(view, { baseUrl, width = 1024, height = 640, waitMs = 0 } = {}) {
   const key = `${buildViewUrl(view, { baseUrl, embed: true })}|${width}x${height}|${waitMs}`
   const have = pictures.get(key)
   if (have && Date.now() - have.at < PICTURE_TTL) return have.promise
-  const promise = render(view, { baseUrl, width, height, waitMs })
+  const promise = (async () => {
+    const jpeg = await fromDisk(key)
+    if (jpeg) return { url: buildViewUrl(view, { baseUrl }), jpeg }
+    const made = await render(view, { baseUrl, width, height, waitMs })
+    toDisk(key, made.jpeg)
+    return made
+  })()
   pictures.set(key, { at: Date.now(), promise })
   promise.catch(() => pictures.delete(key))
-  for (const [k, v] of pictures) if (pictures.size > 20 || Date.now() - v.at > PICTURE_TTL) pictures.delete(k); else break
+  for (const [k, v] of pictures) if (pictures.size > 60 || Date.now() - v.at > PICTURE_TTL) pictures.delete(k); else break
   return promise
 }
 
