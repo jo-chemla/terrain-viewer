@@ -10,6 +10,12 @@ description: Ask Claude or another assistant for a place in plain words and get 
 
 It needs git, Node 20 or later, pnpm and Google Chrome on the computer. Claude runs the commands and asks before each one unless you allowed them. After the restart, ask in your own words; no tool has to be named.
 
+> **Or paste this in Claude Code, to have it install the server for Claude Code and for the Claude desktop app:**
+>
+> Set up the Terrain Viewer MCP server on this computer. Clone https://github.com/Iconem/terrain-viewer (skip it when this folder is already a clone), run `pnpm install` at its root and again in its `mcp` folder, then `pnpm build` in `mcp`. Register it for Claude Code with `claude mcp add --scope user terrain-viewer -- node <path of the clone>/mcp/server.mjs --stdio`. Then add the same server to the Claude desktop app: in its configuration file (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS), under `mcpServers`, an entry `terrain-viewer` with the command `node` and the arguments `<path of the clone>/mcp/server.mjs` and `--stdio`. Save a copy of the file first and keep everything it already holds. Check with `claude mcp list` that the server connects, and tell me to quit and reopen the Claude desktop app.
+
+Both apps then start the same server from the same folder, each its own copy, when they open. To update it later: `git pull` in the clone, `pnpm build` in `mcp`, and restart the apps.
+
 The [skill](/features/ai-assistants) teaches an assistant to write a link. The server goes further: the assistant can look things up (where a place is, which datasets cover it, which dated images exist) and the result shows in the conversation.
 
 ## What you can ask
@@ -83,7 +89,9 @@ When Claude shows the live app depends on how the server reached it:
 
 No setting in Claude adds a site to an allowed list. Tested on 2026-11-20 with a custom connector on a personal Max plan and on a team with the unified experience on: Claude refused the site both times without asking, and the picture and the interactive map were shown instead. The **?** button on the view says which display was picked and what Claude reported.
 
-A fourth display, **App here (test)**, runs the app itself in the conversation without a frame: the view loads the app's script and styles from its address, which Claude allows for declared hosts. It needs no permission to frame a site. Being tested: it reads only the hosts the server declares (the tile datasets, the French LiDAR service, the dated imagery catalogs), so a dataset on another host stays blank there. The **?** line lists what the host let through.
+A fourth display, **App here (test)**, runs the app itself in the conversation without a frame: the view loads the app's script and styles from its address, which Claude allows for declared hosts. It needs no permission to frame a site. Being tested: it reads only the hosts the server declares. Since 2026-11-20 these are all the hosts of the app's built-in lists (the terrain and raster libraries, the built-in terrain and basemaps, the dated imagery and its catalogs, about 90 hosts). Two kinds cannot be declared in advance and stay blank there: the files a VRT or a STAC item points to on another host, and an address you paste yourself. Claude reads the list when the connector is added, so remove and re-add the connector after an update. The **?** line lists what the host let through.
+
+WebAssembly, when the host forbids it: the map, its workers and the computed modes (hillshade, slope, local relief model, sky-view factor, contours on tile datasets) are plain JavaScript and do not need it. What needs it are decoders: LERC elevation tiles, the GeoTIFF reader (so a COG dataset, and contours drawn on one), and GeoPackage files in the drawing tools. This comes from reading the code; in the local test of 2026-11-20 the one failure without WebAssembly was the contour worker of COG datasets.
 
 ### Getting a Verified listing
 
@@ -95,6 +103,20 @@ The only way to the framed live app for everyone is a Verified listing in Claude
 - **Documentation** and a privacy policy address. No sign-in is accepted for public data, which is the case here.
 - **Not accepted**: financial transactions, and AI generation of images, video or audio. The `screenshot` tool renders a map and generates nothing, but a reviewer may ask.
 - **Review**: a submission is scanned and listed as Community by default, which still refuses the frame. Only some get the human review that leads to Verified, with no stated delay. Escalations: `mcp-review@anthropic.com`. The site to frame has to be named in the listing.
+
+### A permanent address
+
+A directory listing, and a connector that does not change address every two hours, both need the server on a permanent `https://` address. The server answers tool calls with computed results and runs a headless Chrome to render the pictures, which decides where it can live:
+
+| Host | Fits |
+|---|---|
+| Static site (GitHub Pages) | No: it cannot answer tool calls |
+| Serverless functions (Cloudflare Workers, Vercel) | The tools yes; the pictures only with a separate paid browser service and a rewrite of the rendering |
+| Container host (Google Cloud Run, Fly.io, Render, Railway) | Yes: runs `mcp/Dockerfile` as it is, Chrome included. It can sleep when unused, at the price of a slower first answer |
+| A server you already run with Docker | Yes: the same container, behind your HTTPS reverse proxy |
+| MCP hosting services (Cloudflare, Smithery and others) | Built for light servers without a browser |
+
+The plan is the container on an Iconem server, at an address such as `mcp.terrain-viewer.iconem.com`. Not done: the Dockerfile has not been built or run yet. The container needs `TV_PUBLIC_URL` (its public address, for the GeoTIFF download links), `TV_ALLOWED_HOSTS` (its host name) and, to keep the pictures across restarts, a volume at `PICTURE_CACHE_DIR`.
 
 **Open in the browser** always opens the full app, at the place the interactive map was moved to.
 

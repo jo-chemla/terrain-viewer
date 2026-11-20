@@ -32,7 +32,7 @@ import { z } from "zod"
 import { McpServer, createMcpHandler } from "@modelcontextprotocol/server"
 import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server"
 import { buildViewUrl, MODE_NAMES, IMAGERY_SOURCES, DEFAULT_BASE_URL } from "./url.mjs"
-import { geocode, datasetsCovering, catalogItems, screenshot } from "./tools.mjs"
+import { geocode, datasetsCovering, catalogItems, screenshot, library } from "./tools.mjs"
 import { elevation, exportGeotiff, imageryDates, searchStac, resolveDem, demOrigins, EXPORT_DIR_NAME } from "./data-tools.mjs"
 
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
@@ -74,9 +74,12 @@ The default terrain, mapterhorn, is global: about 0.25 to 2 m where a national L
 // plain name) and MapLibre GL JS with its stylesheet (the classic build,
 // which starts its worker from a blob it makes itself).
 // Hosts the app itself reads when it runs inside the view ("App here", a
-// test): dated imagery catalogs, the French LiDAR service, place search. Not
-// the full list of what the app can reach: a dataset on another host stays
-// blank there and still opens in the browser.
+// test). The list is every host of the app's built-in lists (the terrain and
+// raster libraries, the dated imagery and its catalogs: `origins` in
+// generated/library.json, made by build.mjs) plus the ones below, which the
+// scan cannot see (built at run time, or a wildcard). Still not covered: the
+// files a VRT or a STAC item points to, and an address pasted by the user;
+// those stay blank there and still open in the browser.
 const APP_EXTRA_ORIGINS = ["https://data.geopf.fr", "https://s3-us-west-2.amazonaws.com", "https://wayback.maptiles.arcgis.com", "https://metadata.maptiles.arcgis.com", "https://*.ssl.ak.tiles.virtualearth.net", "https://khmdb.google.com", "https://nominatim.openstreetmap.org", "https://unpkg.com"]
 
 function buildViewHtml() {
@@ -224,12 +227,13 @@ function makeServer() {
     // itself: framed where the host frames websites, or its code loaded into
     // the page (scripts, styles and data from the app's address).
     const tileOrigins = [...demOrigins(), new URL(IMAGERY_TILES.replace(/[{}]/g, "")).origin]
+    const declared = [...new Set([BASE_ORIGIN, ...tileOrigins, ...APP_EXTRA_ORIGINS, ...(library().origins ?? [])])]
     return {
       contents: [{
         uri: VIEW_URI,
         mimeType: RESOURCE_MIME_TYPE,
         text: VIEW_HTML,
-        _meta: { ui: { csp: { connectDomains: [BASE_ORIGIN, ...tileOrigins, ...APP_EXTRA_ORIGINS], resourceDomains: [BASE_ORIGIN, ...tileOrigins, ...APP_EXTRA_ORIGINS], frameDomains: [BASE_ORIGIN] }, prefersBorder: false } },
+        _meta: { ui: { csp: { connectDomains: declared, resourceDomains: declared, frameDomains: [BASE_ORIGIN] }, prefersBorder: false } },
       }],
     }
   })

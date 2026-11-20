@@ -124,5 +124,15 @@ host the app reads (`APP_EXTRA_ORIGINS`, incomplete). Found with
 - After a deploy the asset names change: a stale name is a 404 and the app
   never starts (cache of five minutes in `appAssets()`).
 - Without `'wasm-unsafe-eval'` the contour worker fails; the rest draws.
+  By the code that is `lib/cog-contour-worker.ts` only (it imports the COG
+  reader, whose decoders are WebAssembly). MapLibre's workers,
+  maplibre-contour and the computed modes are plain JavaScript; LERC tiles
+  and sql.js (GeoPackage) also need it. Not re-run to confirm which contour
+  path failed.
+- Declared hosts (2026-11-20): `build.mjs` collects every https host of the
+  app's built-in lists into `origins` of `generated/library.json` (82), and
+  the resource declares them with `APP_EXTRA_ORIGINS` (89 in all). Claude
+  reads the list when the connector is added: re-add it after a change.
+  Whether Claude caps the length of the list is not known.
 - Not yet seen in Claude itself: whether its policy lets the site's scripts
   load is the open question.

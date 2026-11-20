@@ -71,8 +71,12 @@ sandbox host and `https://claude.ai`); GitHub Pages sends no
 `frame-ancestors` today, which allows everyone.
 
 The page declares the hosts it reads (`connectDomains`, `resourceDomains`):
-the tile hosts of Mapterhorn, AWS, the library's Terrarium and Terrain-RGB
-datasets, and Esri World Imagery. A dataset that is not plain tiles (COG,
+the app's address and every https host of the app's built-in lists (terrain
+and raster libraries, built-in terrain and basemaps, dated imagery and its
+catalogs), collected by `build.mjs` into `origins` of
+`generated/library.json`, plus `APP_EXTRA_ORIGINS` in `server.mjs` for the
+ones the scan cannot see. The interactive map only needs the tile hosts; the
+rest is for the app running in the view ("App here"). A dataset that is not plain tiles (COG,
 WMS, VRT, mesh) has no interactive map, and `elevation` and
 `export_geotiff` refuse it with the reason.
 
