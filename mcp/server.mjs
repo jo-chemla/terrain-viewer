@@ -73,6 +73,12 @@ The default terrain, mapterhorn, is global: about 0.25 to 2 m where a national L
 // (an ES module: its export list is dropped and the App class bound to a
 // plain name) and MapLibre GL JS with its stylesheet (the classic build,
 // which starts its worker from a blob it makes itself).
+// Hosts the app itself reads when it runs inside the view ("App here", a
+// test): dated imagery catalogs, the French LiDAR service, place search. Not
+// the full list of what the app can reach: a dataset on another host stays
+// blank there and still opens in the browser.
+const APP_EXTRA_ORIGINS = ["https://data.geopf.fr", "https://s3-us-west-2.amazonaws.com", "https://wayback.maptiles.arcgis.com", "https://metadata.maptiles.arcgis.com", "https://*.ssl.ak.tiles.virtualearth.net", "https://khmdb.google.com", "https://nominatim.openstreetmap.org", "https://unpkg.com"]
+
 function buildViewHtml() {
   const require = createRequire(import.meta.url)
   const safe = (js) => js.replace(/<\/script/gi, "<\\/script")
@@ -150,7 +156,25 @@ function mapSpec(view) {
   }
 }
 
-function viewResult(view, what) {
+// The app's own entry script and stylesheets, read from the deployed page
+// (their names change with each deploy): what the view loads to run the app
+// itself in the conversation, without a frame. Kept five minutes.
+let appAssetsCache = null
+async function appAssets() {
+  if (appAssetsCache && Date.now() - appAssetsCache.at < 5 * 60 * 1000) return appAssetsCache.value
+  let value = null
+  try {
+    const html = await (await fetch(BASE_URL, { signal: AbortSignal.timeout(8000) })).text()
+    const abs = (p) => new URL(p, BASE_URL).href
+    const js = html.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/)?.[1]
+    const css = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="(\.\/assets\/[^"]+)"/g)].map((m) => abs(m[1]))
+    if (js) value = { js: abs(js), css, base: new URL("./", BASE_URL).href }
+  } catch { /* the app display is then not offered */ }
+  appAssetsCache = { at: Date.now(), value }
+  return value
+}
+
+async function viewResult(view, what) {
   const url = buildViewUrl(view, { baseUrl: BASE_URL })
   const embedUrl = buildViewUrl(view, { baseUrl: BASE_URL, embed: true })
   const label = `${view.place ?? `${view.lat.toFixed(4)}, ${view.lng.toFixed(4)}`} · ${what}`
@@ -160,7 +184,7 @@ function viewResult(view, what) {
   // The page will ask for the picture of a view its map cannot draw: start
   // rendering now, at the size it asks for, so it is ready or nearly so.
   if (!map?.exact) screenshot(view, { baseUrl: BASE_URL, width: 1100, height: 780 }).catch(() => { })
-  return { content: [{ type: "text", text: `Terrain Viewer link (${label}): ${url}` }], structuredContent: { url, embedUrl, label, origin: BASE_ORIGIN, view, map, noMap } }
+  return { content: [{ type: "text", text: `Terrain Viewer link (${label}): ${url}` }], structuredContent: { url, embedUrl, label, origin: BASE_ORIGIN, view, map, noMap, app: await appAssets() } }
 }
 
 function makeServer() {
@@ -173,7 +197,7 @@ function makeServer() {
     annotations: { readOnlyHint: true, openWorldHint: false },
     _meta: { ui: { resourceUri: VIEW_URI } },
   }, async (args) => {
-    try { return viewResult(args, args.modes?.length ? args.modes.join(", ") : args.imagerySource ? `${args.imagerySource} ${args.imageryDate ?? ""}`.trim() : "hillshade") } catch (e) { return fail(e) }
+    try { return await viewResult(args, args.modes?.length ? args.modes.join(", ") : args.imagerySource ? `${args.imagerySource} ${args.imageryDate ?? ""}`.trim() : "hillshade") } catch (e) { return fail(e) }
   })
 
   registerAppTool(server, "compare_sources", {
@@ -191,20 +215,21 @@ function makeServer() {
         imagerySource: a.imagerySource, imageryDate: a.imageryDate, imagerySourceB: b.imagerySource, imageryDateB: b.imageryDate,
       }
       const side = (s) => [s.terrainSource, s.imagerySource && `${s.imagerySource} ${s.imageryDate ?? "newest"}`].filter(Boolean).join(" + ") || "mapterhorn"
-      return viewResult(view, `${side(a)} | ${side(b)}`)
+      return await viewResult(view, `${side(a)} | ${side(b)}`)
     } catch (e) { return fail(e) }
   })
 
   registerAppResource(server, "Terrain Viewer", VIEW_URI, { description: "Terrain Viewer, in the conversation" }, async () => {
     // What the page may reach: the tile hosts its own map reads, and the app
-    // itself where the host frames websites.
+    // itself: framed where the host frames websites, or its code loaded into
+    // the page (scripts, styles and data from the app's address).
     const tileOrigins = [...demOrigins(), new URL(IMAGERY_TILES.replace(/[{}]/g, "")).origin]
     return {
       contents: [{
         uri: VIEW_URI,
         mimeType: RESOURCE_MIME_TYPE,
         text: VIEW_HTML,
-        _meta: { ui: { csp: { connectDomains: tileOrigins, resourceDomains: tileOrigins, frameDomains: [BASE_ORIGIN] }, prefersBorder: false } },
+        _meta: { ui: { csp: { connectDomains: [BASE_ORIGIN, ...tileOrigins, ...APP_EXTRA_ORIGINS], resourceDomains: [BASE_ORIGIN, ...tileOrigins, ...APP_EXTRA_ORIGINS], frameDomains: [BASE_ORIGIN] }, prefersBorder: false } },
       }],
     }
   })

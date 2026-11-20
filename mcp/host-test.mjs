@@ -22,6 +22,7 @@ const client = new Client({ name: "tv-host-test", version: "0.0.0" })
 await client.connect(new StdioClientTransport({ command: process.execPath, args: ["server.mjs", "--stdio"], env: process.env }))
 const result = await client.callTool({ name: "open_view", arguments: args })
 const page = (await client.readResource({ uri: "ui://terrain-viewer/view.html" })).contents[0]
+// HOST_ORIGIN=1: the view keeps an origin (a real host gives it one, on another address).
 // HOST_FRAMES=allow | deny | (unset: the host says nothing), to see the three cases.
 const sandbox = process.env.HOST_FRAMES === "allow" ? { csp: { frameDomains: page._meta.ui.csp.frameDomains } } : process.env.HOST_FRAMES === "deny" ? { csp: { frameDomains: [] } } : undefined
 
@@ -29,13 +30,14 @@ const frames = page._meta.ui.csp.frameDomains.join(" ")
 const tiles = (page._meta.ui.csp.connectDomains ?? []).join(" ")
 // A guess at a strict host: inline scripts, workers from a blob, requests and
 // images only to the declared hosts.
-const csp = `default-src 'none'; script-src 'unsafe-inline' blob:; worker-src blob:; style-src 'unsafe-inline'; img-src data: blob: ${tiles}; connect-src ${tiles}; frame-src ${process.env.HOST_FRAMES === "allow" ? frames : "'none'"}`
+const res = (page._meta.ui.csp.resourceDomains ?? []).join(" ")
+const csp = `default-src 'none'; script-src 'unsafe-inline' ${process.env.HOST_WASM ? "'wasm-unsafe-eval' " : ""}blob: ${res}; worker-src blob:; style-src 'unsafe-inline' ${res}; font-src ${res}; img-src data: blob: ${res}; connect-src ${tiles}; frame-src ${process.env.HOST_FRAMES === "allow" ? frames : "'none'"}`
 
 const host = `<!doctype html><meta charset="utf-8"><title>MCP Apps host test</title>
 <body style="font:14px system-ui;max-width:860px;margin:24px auto">
 <p><b>open_view</b> ${JSON.stringify(args).replace(/</g, "&lt;")}</p>
 <pre id="log" style="font-size:11px;white-space:pre-wrap;opacity:.7"></pre>
-<iframe id="view" sandbox="allow-scripts" src="/view" style="width:100%;height:580px;border:0"></iframe>
+<iframe id="view" sandbox="allow-scripts${process.env.HOST_ORIGIN ? " allow-same-origin" : ""}" src="/view" style="width:100%;height:580px;border:0"></iframe>
 <script>
 const result = ${JSON.stringify({ content: result.content, structuredContent: result.structuredContent })};
 const frame = document.getElementById("view"), log = document.getElementById("log");

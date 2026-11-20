@@ -97,3 +97,32 @@ show live in every host, without framing the site.
 
 **Why:** the skill only composes links; a server runs the lookups and shows
 the result in the chat. See [[reminders]].
+
+## Framing refused, app loaded in the view instead (2026-11-20)
+
+Jonathan tested a custom connector on a personal Max plan and on a team with
+"Chat and Cowork unified" on: Claude reported an empty `frameDomains` both
+times and never asked. Console: "Not among the sites that Claude allows this
+connector to show". No admin setting exists for it. Routes left: a Verified
+directory listing (needs a permanent host; steps in the MCP server docs
+page), or not framing at all.
+
+"App here (test)" in `mcp/view.html` does the second: the view sets its own
+address to the embed parameters (`history.replaceState`), adds a `<base>` to
+the site, loads the site's stylesheets and entry module (names read from the
+deployed `index.html` by `appAssets()` in `server.mjs`), and mounts the app in
+`#root`. Needs the site in `resourceDomains` and `connectDomains`, plus every
+host the app reads (`APP_EXTRA_ORIGINS`, incomplete). Found with
+`host-test.mjs` (HOST_ORIGIN, HOST_WASM switches):
+
+- A worker whose first script is `import "<site url>"` is checked against
+  `worker-src`, not `script-src`: refused when the host only lists the site
+  for scripts. MapLibre 6 makes exactly that blob for a cross-origin worker
+  URL. The view replaces it with a classic blob worker that does a dynamic
+  `import()` (checked against `script-src`) and replays the messages received
+  meanwhile. Works with and without an origin.
+- After a deploy the asset names change: a stale name is a 404 and the app
+  never starts (cache of five minutes in `appAssets()`).
+- Without `'wasm-unsafe-eval'` the contour worker fails; the rest draws.
+- Not yet seen in Claude itself: whether its policy lets the site's scripts
+  load is the open question.

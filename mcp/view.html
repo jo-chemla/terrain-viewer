@@ -42,9 +42,12 @@ const whyBtn = document.getElementById("why")
 const whyText = document.getElementById("whyText")
 whyBtn.addEventListener("click", () => { whyText.hidden = !whyText.hidden })
 let current = null
-let forced = null // the display the person picked: "map" | "picture" | "live"
+let forced = null // the display the person picked: "map" | "picture" | "live" | "app"
 let mapFailed = false
 let map = null
+let whyLine = ""
+const appReport = []
+const renderWhy = () => { whyText.textContent = whyLine + (appReport.length ? " · App test: " + appReport.join("; ") : "") }
 const MAP_NOTE = "Interactive relief only. The modes asked for are in the picture and in the browser."
 const pictures = new WeakMap() // tool result -> the picture rendered for it
 
@@ -66,6 +69,7 @@ function frameAllowed(origin) {
 const clear = (keep) => {
   if (keep !== "live") wrap.querySelector("iframe")?.remove()
   if (keep !== "picture") document.getElementById("pic")?.remove()
+  const root = document.getElementById("root"); if (root) root.style.display = keep === "app" ? "" : "none"
   if (keep !== "map" && map) { try { map.remove() } catch { } map = null; document.getElementById("map")?.remove() }
   document.getElementById("note")?.remove()
 }
@@ -115,6 +119,87 @@ async function showPicture(data) {
   } catch (e) {
     if (current === data) msg.textContent = "The picture could not be rendered (" + (e && e.message ? String(e.message).slice(0, 120) : "error") + "). Use “Open in the browser”."
   } finally { clearInterval(timer) }
+}
+
+// The app itself, run by this page: its script and styles are loaded from
+// the app's address (no frame, so no permission to frame a site is needed).
+// A test: every step says what the host let through, in the "?" line.
+let appStarted = false
+function showApp(data) {
+  clear("app")
+  msg.hidden = true
+  if (appStarted) return
+  appStarted = true
+  const say = (t) => { if (!appReport.includes(t)) { appReport.push(t); renderWhy() } }
+  const a = data.app
+  say("origin " + window.origin + ", page " + location.protocol + "//" + location.host)
+  document.addEventListener("securitypolicyviolation", (e) => say("blocked by the host (" + e.effectiveDirective + "): " + String(e.blockedURI).slice(0, 80)))
+  window.addEventListener("error", (e) => say("error: " + String(e.message || e).slice(0, 140)))
+  window.addEventListener("unhandledrejection", (e) => say("rejection: " + String((e.reason && e.reason.message) || e.reason).slice(0, 140)))
+  // Storage: a page without an origin has none; settings then live in memory.
+  for (const name of ["localStorage", "sessionStorage"]) {
+    try { window[name].getItem("tv-probe") } catch {
+      let d = Object.create(null)
+      const mem = { getItem: (k) => (k in d ? d[k] : null), setItem: (k, v) => { d[k] = String(v) }, removeItem: (k) => { delete d[k] }, clear: () => { d = Object.create(null) }, key: (i) => Object.keys(d)[i] || null, get length() { return Object.keys(d).length } }
+      try { Object.defineProperty(window, name, { value: mem, configurable: true }); say(name + ": in memory") } catch { say(name + ": unavailable") }
+    }
+  }
+  try { localStorage.setItem("hasSeenTour", "true") } catch { }
+  // The view's parameters go in this page's address, where the app reads them.
+  try { history.replaceState(null, "", new URL(data.embedUrl).search); say("address: " + (location.search ? "parameters set" : "unchanged")) } catch (e) { say("address: cannot be changed (" + e.name + "), the app opens its default view") }
+  // A worker cannot start from another site's address: start one of this
+  // page's own that loads the real script. The loader imports it after it
+  // has started (a host may let a page's scripts come from the app's site
+  // and still refuse that address to a worker's first script), and keeps
+  // the messages that arrive meanwhile.
+  const loader = (abs, module) => module
+    ? "const q=[],h=(e)=>q.push(e);self.addEventListener('message',h);import(" + JSON.stringify(abs) + ").then(()=>{self.removeEventListener('message',h);for(const e of q)self.dispatchEvent(new MessageEvent('message',{data:e.data,ports:[...e.ports]}))},(e)=>{setTimeout(()=>{throw e})})"
+    : "importScripts(" + JSON.stringify(abs) + ");"
+  const blobUrl = (code) => URL.createObjectURL(new NativeBlob([code], { type: "text/javascript" }))
+  // MapLibre makes such a one-line worker itself ("import <address>"): find it again by its text.
+  const NativeBlob = window.Blob, blobText = new WeakMap(), urlText = new Map()
+  const TextBlob = function (parts, opts) {
+    const b = new NativeBlob(parts, opts)
+    if (parts && parts.length === 1 && typeof parts[0] === "string" && parts[0].length < 600) blobText.set(b, parts[0])
+    return b
+  }
+  TextBlob.prototype = NativeBlob.prototype
+  window.Blob = TextBlob
+  const nativeCreate = URL.createObjectURL.bind(URL)
+  URL.createObjectURL = (o) => { const u = nativeCreate(o); if (blobText.has(o)) urlText.set(u, blobText.get(o)); return u }
+  const NativeWorker = window.Worker
+  let workers = 0
+  const Wrapped = function (url, opts) {
+    const abs = new URL(String(url), document.baseURI).href
+    const module = !!(opts && opts.type === "module")
+    const own = /^blob:/.test(abs) && module && urlText.get(abs)?.match(/^import\s*"(https?:\/\/[^"]+)";?\s*$/)?.[1]
+    const target = own || (/^(blob|data):/.test(abs) ? null : abs)
+    if (!target) return new NativeWorker(url, opts)
+    const code = loader(target, module)
+    // Always a classic worker from a blob (a page without an origin may start
+    // no other kind); a module script is then imported by it, which a classic worker can do.
+    const w = new NativeWorker(blobUrl(code), module ? { ...opts, type: "classic" } : opts)
+    workers++
+    w.addEventListener("error", (e) => say("worker error: " + String(e.message || "refused").slice(0, 100)))
+    return w
+  }
+  Wrapped.prototype = NativeWorker.prototype
+  window.Worker = Wrapped
+  // Relative addresses in the app (its data files) resolve against the app's site.
+  const base = document.createElement("base"); base.href = a.base; document.head.appendChild(base)
+  say("base: " + (document.baseURI === a.base ? "set" : "refused"))
+  for (const href of a.css) {
+    const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.crossOrigin = "anonymous"
+    l.onload = () => say("style loaded"); l.onerror = () => say("style refused: " + href.slice(-40))
+    document.head.appendChild(l)
+  }
+  // The app fills the page: keep it inside the picture's box, and this page's own bar readable under it.
+  wrap.style.transform = "translateZ(0)"
+  for (const el of [document.getElementById("bar"), whyText]) el.style.cssText += ";position:relative;z-index:2147483647;background:Canvas;color:CanvasText"
+  const root = document.createElement("div"); root.id = "root"; root.style.cssText = "position:absolute;inset:0;z-index:1"
+  wrap.appendChild(root)
+  import(a.js).then(() => say("script loaded"), (e) => say("script refused: " + String(e && e.message).slice(0, 140)))
+  setTimeout(() => say((root.querySelector("canvas") ? "after 10 s: a map canvas is there" + (window.__tvIdleSeen ? ", maps idle" : ", maps not idle yet") : "after 10 s: no map canvas") + ", " + workers + " workers started"), 10000)
 }
 
 function showMap(data) {
@@ -171,7 +256,7 @@ function showMap(data) {
 function mode(data) {
   const allowed = frameAllowed(data.origin)
   const canMap = !!data.map && !mapFailed && typeof maplibregl !== "undefined"
-  const options = [canMap && "map", data.view && "picture", allowed !== false && "live"].filter(Boolean)
+  const options = [canMap && "map", data.view && "picture", allowed !== false && "live", data.app && "app"].filter(Boolean)
   if (forced && options.includes(forced)) return forced
   if (allowed === true) return "live"
   if (canMap && data.map.exact) return "map"
@@ -192,6 +277,7 @@ function show(data) {
     canMap && ["map", "Interactive map", "Pan, zoom and tilt the relief here"],
     data.view && ["picture", "Exact picture", "The view with every mode asked for, as a picture"],
     allowed !== false && ["live", allowed === true ? "Live app" : "Try the live app", "The app itself, framed here. It stays blank where the host does not allow it."],
+    data.app && ["app", "App here (test)", "The app itself, run by this page instead of framed. A test: press ? to see what the host let through."],
   ].filter(Boolean)
   modesBar.replaceChildren(...(buttons.length > 1 ? buttons : []).map(([id, text, tip]) => {
     const b = document.createElement("button")
@@ -202,14 +288,16 @@ function show(data) {
   // What was shown and why, without opening the host's console.
   const reported = app.getHostCapabilities()?.sandbox?.csp?.frameDomains
   const host = app.getHostVersion?.()
-  whyText.textContent = [
-    "Showing: " + (now === "live" ? "the live app" : now === "map" ? "the interactive map" : now === "picture" ? "a picture of the exact view" : "nothing"),
+  whyLine = [
+    "Showing: " + (now === "app" ? "the app, run by this page (test)" : now === "live" ? "the live app" : now === "map" ? "the interactive map" : now === "picture" ? "a picture of the exact view" : "nothing"),
     "Live app: " + (allowed === true ? "this host allows framing " + data.origin : allowed === false ? "this host does not allow framing " + data.origin + " (it reports: " + (reported.length ? reported.join(", ") : "no site") + ")" : "this host does not say which sites it allows"),
     "Interactive map: " + (data.map ? (mapFailed ? "it did not load here (worker, WebGL or tiles blocked)" : data.map.exact ? "draws this view fully" : "draws the relief only, not the modes asked for") : "not available, " + (data.noMap || "no tile dataset")),
     host ? "Host: " + host.name + " " + (host.version || "") : "",
   ].filter(Boolean).join(" · ")
+  renderWhy()
   whyBtn.hidden = false
-  if (now === "live") showLive(data)
+  if (now === "app") showApp(data)
+  else if (now === "live") showLive(data)
   else if (now === "map") showMap(data)
   else if (now === "picture") showPicture(data)
   else { clear(); msg.hidden = false; msg.textContent = "This view cannot be shown here. Use “Open in the browser”." }
