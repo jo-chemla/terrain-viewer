@@ -136,3 +136,14 @@ host the app reads (`APP_EXTRA_ORIGINS`, incomplete). Found with
   Whether Claude caps the length of the list is not known.
 - Not yet seen in Claude itself: whether its policy lets the site's scripts
   load is the open question.
+
+## Docker image (2026-11-20)
+
+`docker build -f mcp/Dockerfile -t terrain-viewer-mcp .` from the root works
+(1.6 GB), with `mcp/Dockerfile.dockerignore` as an allowlist (no root
+`.dockerignore`, or `node_modules` goes into the build context).
+`mcp/docker-compose.yml` is the Portainer stack (`MCP_HOST`, `MCP_PORT`,
+pictures on a volume at `/data/pictures`, owned by `node`). Jonathan: an
+Iconem server through Portainer, which one not chosen yet. On his laptop
+Docker Desktop can sit frozen (CLI hangs, WSL distro stopped): kill its
+processes and start it again.

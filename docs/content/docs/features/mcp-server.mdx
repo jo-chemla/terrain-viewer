@@ -116,7 +116,7 @@ A directory listing, and a connector that does not change address every two hour
 | A server you already run with Docker | Yes: the same container, behind your HTTPS reverse proxy |
 | MCP hosting services (Cloudflare, Smithery and others) | Built for light servers without a browser |
 
-The plan is the container on an Iconem server, at an address such as `mcp.terrain-viewer.iconem.com`. Not done: the Dockerfile has not been built or run yet. The container needs `TV_PUBLIC_URL` (its public address, for the GeoTIFF download links), `TV_ALLOWED_HOSTS` (its host name) and, to keep the pictures across restarts, a volume at `PICTURE_CACHE_DIR`.
+The plan is the container on an Iconem server, at an address such as `mcp.terrain-viewer.iconem.com`. The image was built and run on a laptop on 2026-11-20 (1.6 GB; the ten tools answer, and a slope view in 3D renders in 9 s without a graphics card); it has not run on a server yet. [`mcp/docker-compose.yml`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/docker-compose.yml) is the stack for Portainer (Stacks, Add stack, Repository, compose path `mcp/docker-compose.yml`): set `MCP_HOST` to the public host name, and have the server's HTTPS reverse proxy forward that name to port 3300. The rendered pictures are kept on a volume, so they survive a restart.
 
 **Open in the browser** always opens the full app, at the place the interactive map was moved to.
 

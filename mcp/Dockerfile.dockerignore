@@ -1,0 +1,19 @@
+# Read by `docker build -f mcp/Dockerfile .` in place of a root .dockerignore.
+# Everything is left out except what the Dockerfile copies.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.json
+!patches
+!docs/package.json
+!slides/package.json
+!theme-editor/package.json
+!lib
+!components
+!hooks
+!src
+!mcp
+mcp/node_modules
+mcp/generated
+**/.env*

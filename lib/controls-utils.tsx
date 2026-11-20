@@ -497,17 +497,30 @@ export async function captureBookmarkThumbnail(
  * picture copied by a browser is re-encoded and loses the link written in the
  * file. It is written before the capture, while the click still counts as a
  * user gesture; a refused link write does not stop the picture.
+ * Both writes are started before anything is awaited: Safari refuses a
+ * clipboard write that comes after an await (WebKit bug 222262), so the
+ * picture is handed over as a promise the browser waits for. A browser that
+ * does not take a promise there gets the picture once it is ready.
  * Uses PNG for clipboard (better compatibility, supports transparency)
  */
 export async function captureAndCopyMapToClipboard(
   mapRef: React.RefObject<MapRef | null>
 ): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(window.location.href).catch(() => {})
-    const blob = await captureMapScreenshot(mapRef, "png")
-    if (!blob) return false
-
-    await copyBlobToClipboard(blob)
+    const link = navigator.clipboard.writeText(window.location.href).catch(() => {})
+    const picture = captureMapScreenshot(mapRef, "png").then((blob) => {
+      if (!blob) throw new Error("The map could not be captured")
+      return blob
+    })
+    picture.catch(() => {})
+    let write: Promise<void>
+    try {
+      write = navigator.clipboard.write([new ClipboardItem({ "image/png": picture })])
+    } catch {
+      write = picture.then(copyBlobToClipboard)
+    }
+    await link
+    await write
     return true
   } catch (error) {
     console.error("Failed to copy map screenshot to clipboard:", error)

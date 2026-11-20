@@ -91,7 +91,7 @@ WMS, VRT, mesh) has no interactive map, and `elevation` and
 | `view.html` | The page the host renders. The MCP Apps client library and MapLibre are inlined at start, since the sandbox blocks network scripts (about 1.6 MB). |
 | `app-lib.ts`, `build.mjs` | Bundle the app's own catalog, Wayback, Google Earth and STAC code for Node into `generated/` (not tracked), with `import.meta.env` empty so no key from `.env` can get in. |
 | `test.mjs`, `host-test.mjs` | End-to-end test over stdio; a hand-written host for a visual check. |
-| `Dockerfile` | For a public host. Not built or run yet. |
+| `Dockerfile`, `Dockerfile.dockerignore`, `docker-compose.yml` | For a public host: the image (Chromium included, software GL), what is sent to its build, and a stack for Portainer. Built and run locally on 2026-11-20, not yet on a server. |
 
 ## Tested, and not
 
@@ -105,6 +105,9 @@ WMS, VRT, mesh) has no interactive map, and `elevation` and
 - A render went from about 25 s to about 8 s (the wait was on background
   metadata requests, not on tiles).
 - Through a Cloudflare quick tunnel the tools answer over HTTPS.
+- The Docker image (2026-11-20, Docker Desktop): `tools/list`, `elevation`
+  and `screenshot` over HTTP; a slope view in 3D in 9 s with SwiftShader;
+  the picture written to the volume as user `node`.
 - Not tried: the interactive map inside Claude (its CSP may refuse the blob
   worker or the tile hosts: the page then falls back to the picture after
-  12 s), claude.ai and ChatGPT as a custom connector, the Dockerfile.
+  12 s), claude.ai and ChatGPT as a custom connector, the container on a server.

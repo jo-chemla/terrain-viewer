@@ -1,0 +1,25 @@
+# Terrain Viewer MCP server as a stack (Portainer: Stacks, Add stack,
+# Repository, compose path mcp/docker-compose.yml; or `docker compose -f
+# mcp/docker-compose.yml up -d --build` from the repository root).
+# Put it behind the server's HTTPS reverse proxy, which forwards the public
+# host name to port 3300, and set the two variables to that host name.
+services:
+  terrain-viewer-mcp:
+    build:
+      context: ..
+      dockerfile: mcp/Dockerfile
+    image: terrain-viewer-mcp
+    restart: unless-stopped
+    ports:
+      - "${MCP_PORT:-3300}:3300"
+    environment:
+      # The public host name, accepted in the Host header.
+      TV_ALLOWED_HOSTS: ${MCP_HOST:-mcp.example.com}
+      # The public address, for the download links of export_geotiff.
+      TV_PUBLIC_URL: https://${MCP_HOST:-mcp.example.com}
+    volumes:
+      - pictures:/data/pictures
+    # Chromium needs more shared memory than Docker's 64 MB default.
+    shm_size: 1gb
+volumes:
+  pictures:
