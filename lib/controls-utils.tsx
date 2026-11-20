@@ -491,14 +491,19 @@ export async function captureBookmarkThumbnail(
 }
 
 /**
- * Captures the map canvas and copies it to clipboard
+ * Copies the link of the view, then a picture of it, to the clipboard: two
+ * writes, so a clipboard history (Win+V, or a clipboard manager) holds both
+ * and a plain paste gives the picture. The link goes first because the
+ * picture copied by a browser is re-encoded and loses the link written in the
+ * file. It is written before the capture, while the click still counts as a
+ * user gesture; a refused link write does not stop the picture.
  * Uses PNG for clipboard (better compatibility, supports transparency)
  */
 export async function captureAndCopyMapToClipboard(
   mapRef: React.RefObject<MapRef | null>
 ): Promise<boolean> {
   try {
-    // Use PNG for clipboard (better compatibility, supports transparency)
+    await navigator.clipboard.writeText(window.location.href).catch(() => {})
     const blob = await captureMapScreenshot(mapRef, "png")
     if (!blob) return false
 

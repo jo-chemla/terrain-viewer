@@ -179,7 +179,7 @@ export const DownloadSection: React.FC<{
       const success = await captureAndCopyMapToClipboard(mapRef)
       if (success) {
         track("actions-export", { kind: "snapshot-clipboard" })
-        pushToast({ key: "snapshot", title: "Snapshot copied", body: "The current view is on the clipboard." })
+        pushToast({ key: "snapshot", title: "Snapshot copied", body: "The picture is on the clipboard, and the link of the view just before it in the clipboard history." })
       } else {
         pushToast({ key: "snapshot", tone: "alert", title: "Copy failed", body: "The browser refused the clipboard write, or the map canvas could not be read." })
       }
