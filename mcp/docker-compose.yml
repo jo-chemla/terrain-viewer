@@ -1,14 +1,18 @@
-# Terrain Viewer MCP server as a stack (Portainer: Stacks, Add stack,
-# Repository, compose path mcp/docker-compose.yml; or `docker compose -f
-# mcp/docker-compose.yml up -d --build` from the repository root).
-# Put it behind the server's HTTPS reverse proxy, which forwards the public
-# host name to port 3300, and set the two variables to that host name.
+# Terrain Viewer MCP server and tile service as a stack (Portainer: Stacks,
+# Add stack, Repository, compose path mcp/docker-compose.yml; or `docker
+# compose -f mcp/docker-compose.yml up -d` from the repository root).
+# The images come from ghcr.io, published by
+# .github/workflows/docker-publish.yml; `docker compose ... up -d --build`
+# builds them from this checkout instead.
+# Put the stack behind the server's HTTPS reverse proxy, which forwards each
+# public host name to its port, and set the variables to those host names.
 services:
   terrain-viewer-mcp:
+    image: ghcr.io/iconem/terrain-viewer-mcp:latest
     build:
       context: ..
       dockerfile: mcp/Dockerfile
-    image: terrain-viewer-mcp
+      target: mcp
     restart: unless-stopped
     ports:
       - "${MCP_PORT:-3300}:3300"
@@ -21,5 +25,23 @@ services:
       - pictures:/data/pictures
     # Chromium needs more shared memory than Docker's 64 MB default.
     shm_size: 1gb
+
+  # The app's rendering as XYZ tiles and pictures of a viewport
+  # (mcp/tile-server.mjs). Leave it out when only the MCP server is wanted.
+  terrain-viewer-tiles:
+    image: ghcr.io/iconem/terrain-viewer-tiles:latest
+    build:
+      context: ..
+      dockerfile: mcp/Dockerfile
+      target: tiles
+    restart: unless-stopped
+    ports:
+      - "${TILES_PORT:-3400}:3400"
+    environment:
+      TV_ALLOWED_HOSTS: ${TILES_HOST:-tiles.example.com}
+    volumes:
+      - tiles:/data/tiles
+    shm_size: 1gb
 volumes:
   pictures:
+  tiles:

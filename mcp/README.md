@@ -95,7 +95,8 @@ datasets only and refuse a COG, WMS, VRT or mesh with the reason.
 | `view.html` | The page the host renders. The MCP Apps client library is inlined at start (about 500 KB). |
 | `app-lib.ts`, `build.mjs` | Bundle the app's own catalog, Wayback, Google Earth and STAC code for Node into `generated/` (not tracked), with `import.meta.env` empty so no key from `.env` can get in. |
 | `test.mjs`, `host-test.mjs` | End-to-end test over stdio; a hand-written host for a visual check. |
-| `Dockerfile`, `Dockerfile.dockerignore`, `docker-compose.yml` | For a public host: the image (Chromium included, software GL), what is sent to its build, and a stack for Portainer. Built and run locally on 2026-11-20, not yet on a server. |
+| `tile-server.mjs` | The tile service: `/tiles/{z}/{x}/{y}.png` and `/render.png`, drawn by the app in the headless browser of `tools.mjs` (`withSettledPage`), in 2048 px blocks cut into tiles and cached a week. `node tile-server.mjs`, port 3400. |
+| `Dockerfile`, `Dockerfile.dockerignore`, `docker-compose.yml` | Two images from one Dockerfile (targets `mcp`, the default, and `tiles`; Chromium included, software GL), what is sent to the build, and a stack for Portainer. Published to `ghcr.io/iconem/terrain-viewer-mcp` and `-tiles` by `.github/workflows/docker-publish.yml`. Built and run locally on 2026-11-20 and 21, not yet on a server. |
 
 ## Tested, and not
 
@@ -112,6 +113,12 @@ datasets only and refuse a COG, WMS, VRT or mesh with the reason.
 - The Docker image (2026-11-20, Docker Desktop): `tools/list`, `elevation`
   and `screenshot` over HTTP; a slope view in 3D in 9 s with SwiftShader;
   the picture written to the volume as user `node`.
+- The tile service (2026-11-21, locally and in its container): an imagery
+  tile equals Esri's own tile of the same z/x/y (mean difference 1.7 of
+  255) and joins its neighbour; first tile of a block 7 s with Chrome, 10 s
+  in the container, neighbours from the cache; `/render.jpg?bbox=`. The MCP
+  image answers `initialize` and `tools/list` over
+  `docker run -i ... node server.mjs --stdio`.
 - Claude with a custom connector (2026-11-21, Jonathan): the app runs in
   the view. Not tried: the same with the local stdio server, ChatGPT, the
   container on a server.

@@ -1,7 +1,8 @@
 import type React from "react"
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown, Plus, Edit, Library, RotateCcw, Lightbulb, Braces } from "lucide-react"
+import { ChevronDown, Plus, Edit, Library, RotateCcw, Lightbulb, Braces, ExternalLink } from "lucide-react"
+import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
 import { pushToast } from "@/components/ui/toast"
@@ -39,6 +40,43 @@ import { JsonEditor } from "@/components/ui/json-editor"
 import customSources from "@/lib/custom-sources.json"
 import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
+
+/** Library datasets listed under Worldwide Defaults, in this order, after
+ *  the built-in sources. */
+const PINNED_LIBRARY_DEFAULTS = [
+  { id: "custom-global-gem15-dtm", name: "Google GEM-15 DTM - 15 m COG cells" },
+]
+
+/** The row of a pinned library dataset: its name (the description on hover)
+ *  and the link to its documentation. */
+const PinnedLibraryDefault: React.FC<{
+  entry: { id: string; name: string; description: string; link: string }
+  linkCallback: (link: string) => () => void
+  onSelect?: (id: string) => void
+}> = ({ entry, linkCallback, onSelect }) => (
+  <>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Label htmlFor={`pinned-${entry.id}`} onClick={onSelect ? () => onSelect(entry.id) : undefined} className="flex-1 text-sm truncate min-w-0 cursor-pointer">
+            <span className="truncate min-w-0">{entry.name}</span>
+          </Label>
+        }
+      />
+      <TooltipContent className="max-w-sm"><p>{entry.description}</p></TooltipContent>
+    </Tooltip>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={linkCallback(entry.link)}>
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        }
+      />
+      <TooltipContent><p>Open documentation</p></TooltipContent>
+    </Tooltip>
+  </>
+)
 const SAMPLE_TERRAIN_BROWSE_ONLY = customSources['SAMPLE_TERRAIN_BROWSE_ONLY'] as LibraryBrowseEntry[]
 
 export const TerrainSourceSection: React.FC<{
@@ -136,6 +174,19 @@ export const TerrainSourceSection: React.FC<{
       return add.length ? [...prev, ...add] : prev
     })
   }, [setCustomTerrainSources, addLinkedBasemaps])
+
+  // Library datasets offered among the worldwide defaults, after the
+  // built-in ones. They stay library entries (the cell reader, the zoom
+  // floor and the export all hang on that): picking one loads it into Bring
+  // Your Own Data first, then selects it. GEM-15 is last because its tiles
+  // take a second or two the first time.
+  const pinnedLibraryDefaults = useMemo(
+    () => PINNED_LIBRARY_DEFAULTS.map(({ id, name }) => {
+      const entry = (customSources.SAMPLE_TERRAIN_SOURCES as any[]).find((s) => s.id === id)
+      return entry ? { id, name, description: entry.description as string, link: entry.infoUrl as string } : null
+    }).filter((e): e is { id: string; name: string; description: string; link: string } => !!e),
+    [],
+  )
 
   const [byodQuery, setByodQuery] = useState("")
   const byodQ = byodQuery.trim().toLowerCase()
@@ -364,7 +415,9 @@ export const TerrainSourceSection: React.FC<{
     const n = customTerrainSources.length
     if (prevTerrainCountRef.current !== null && n > prevTerrainCountRef.current) {
       const added = customTerrainSources[n - 1]
-      if (added) void handleFitToBounds(added, true)
+      // Not a pinned worldwide default: it covers the globe, and the forced
+      // fit would pull the view out to its whole extent.
+      if (added && !PINNED_LIBRARY_DEFAULTS.some((d) => d.id === added.id)) void handleFitToBounds(added, true)
     }
     prevTerrainCountRef.current = n
   }, [customTerrainSources, handleFitToBounds])
@@ -416,13 +469,29 @@ export const TerrainSourceSection: React.FC<{
                     <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} onSelect={selectTerrainAll} />
                   </div>
                 ))}
+                {pinnedLibraryDefaults.map((d) => (
+                  <div key={d.id} className="flex items-center gap-2 min-w-0">
+                    <SourceGridToggle
+                      gridLayout={effectiveGridLayout}
+                      isActive={(side) => state[sourceFieldName(side)] === d.id}
+                      onSelect={(side) => { loadLibrarySourcesById([d.id]); selectTerrainSide(side, d.id) }}
+                    />
+                    <PinnedLibraryDefault entry={d} linkCallback={linkCallback} onSelect={(id) => { loadLibrarySourcesById([id]); selectTerrainAll(id) }} />
+                  </div>
+                ))}
               </div>
             ) : (
-              <RadioGroup value={state.sourceA} onValueChange={selectTerrainA} className="gap-2 grid-cols-[minmax(0,1fr)]">
+              <RadioGroup value={state.sourceA} onValueChange={(id: string) => { if (pinnedLibraryDefaults.some((d) => d.id === id)) loadLibrarySourcesById([id]); selectTerrainA(id) }} className="gap-2 grid-cols-[minmax(0,1fr)]">
                 {visibleTerrainSources.map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2 min-w-0">
                     <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
                     <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
+                  </div>
+                ))}
+                {pinnedLibraryDefaults.map((d) => (
+                  <div key={d.id} className="flex items-center gap-2 min-w-0">
+                    <RadioGroupItem value={d.id} id={`pinned-${d.id}`} className="cursor-pointer shrink-0" />
+                    <PinnedLibraryDefault entry={d} linkCallback={linkCallback} />
                   </div>
                 ))}
               </RadioGroup>

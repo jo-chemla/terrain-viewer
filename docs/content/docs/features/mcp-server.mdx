@@ -14,7 +14,13 @@ It needs git, Node 20 or later, pnpm and Google Chrome on the computer. Claude r
 >
 > Set up the Terrain Viewer MCP server on this computer. Clone https://github.com/Iconem/terrain-viewer (skip it when this folder is already a clone), run `pnpm install` at its root and again in its `mcp` folder, then `pnpm build` in `mcp`. Register it for Claude Code with `claude mcp add --scope user terrain-viewer -- node <path of the clone>/mcp/server.mjs --stdio`. Then add the same server to the Claude desktop app: in its configuration file (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS), under `mcpServers`, an entry `terrain-viewer` with the command `node` and the arguments `<path of the clone>/mcp/server.mjs` and `--stdio`. Save a copy of the file first and keep everything it already holds. Check with `claude mcp list` that the server connects, and tell me to quit and reopen the Claude desktop app.
 
-Both apps then start the same server from the same folder, each its own copy, when they open. To update it later: `git pull` in the clone, `pnpm build` in `mcp`, and restart the apps.
+> **Or with Docker, without a clone or Node (paste in Claude Code):**
+>
+> Set up the Terrain Viewer MCP server on this computer from its Docker image. Check that Docker runs, then `docker pull ghcr.io/iconem/terrain-viewer-mcp:latest`. Register it for Claude Code with `claude mcp add --scope user terrain-viewer -- docker run -i --rm --shm-size=1g ghcr.io/iconem/terrain-viewer-mcp node server.mjs --stdio`. Then add the same server to the Claude desktop app: in its configuration file (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS), under `mcpServers`, an entry `terrain-viewer` with the command `docker` and the arguments `run`, `-i`, `--rm`, `--shm-size=1g`, `ghcr.io/iconem/terrain-viewer-mcp`, `node`, `server.mjs`, `--stdio`. Save a copy of the file first and keep everything it already holds. Check with `claude mcp list` that the server connects, and tell me to quit and reopen the Claude desktop app.
+
+The image holds its own browser, so only Docker is needed. It is 1.6 GB and renders the pictures without the graphics card, slower than the clone does with your Chrome (about 9 s a picture against a few). To update it: `docker pull` again and restart the apps.
+
+With the clone, both apps start the same server from the same folder, each its own copy, when they open. To update it later: `git pull` in the clone, `pnpm build` in `mcp`, and restart the apps.
 
 The [skill](/features/ai-assistants) teaches an assistant to write a link. The server goes further: the assistant can look things up (where a place is, which datasets cover it, which dated images exist) and the result shows in the conversation.
 
@@ -121,6 +127,23 @@ A directory listing, and a connector that does not change address every two hour
 | A server you already run with Docker | Yes: the same container, behind your HTTPS reverse proxy |
 | MCP hosting services (Cloudflare, Smithery and others) | Built for light servers without a browser |
 
-The plan is the container on an Iconem server, at an address such as `mcp.terrain-viewer.iconem.com`. The image was built and run on a laptop on 2026-11-20 (1.6 GB; the ten tools answer, and a slope view in 3D renders in 9 s without a graphics card); it has not run on a server yet. [`mcp/docker-compose.yml`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/docker-compose.yml) is the stack for Portainer (Stacks, Add stack, Repository, compose path `mcp/docker-compose.yml`): set `MCP_HOST` to the public host name, and have the server's HTTPS reverse proxy forward that name to port 3300. The rendered pictures are kept on a volume, so they survive a restart.
+The plan is the container on an Iconem server, at an address such as `mcp.terrain-viewer.iconem.com`. The image was built and run on a laptop on 2026-11-20 (1.6 GB; the ten tools answer, and a slope view in 3D renders in 9 s without a graphics card); it has not run on a server yet. [`mcp/docker-compose.yml`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/docker-compose.yml) is the stack for Portainer (Stacks, Add stack, Repository, compose path `mcp/docker-compose.yml`): set `MCP_HOST` to the public host name, and have the server's HTTPS reverse proxy forward that name to port 3300. The rendered pictures are kept on a volume, so they survive a restart. The stack takes the image from `ghcr.io/iconem/terrain-viewer-mcp`, which a workflow ([`docker-publish.yml`](https://github.com/Iconem/terrain-viewer/blob/main/.github/workflows/docker-publish.yml)) rebuilds on each change of the server.
+
+### The tile service
+
+A second image, `ghcr.io/iconem/terrain-viewer-tiles`, serves what the app draws as map tiles and as pictures, over plain HTTP, for a map library, QGIS or a script. It is the same renderer as the `screenshot` tool: the app in a headless browser, so any source the app reads and any mode it computes comes out the same.
+
+| Address | Answers |
+|---|---|
+| `/tiles/{z}/{x}/{y}.png` or `.jpg` | One Web Mercator tile (XYZ), 256 px or `size=512` |
+| `/render.png` or `.jpg` | A viewport: `lat`, `lng`, `zoom`, or `bbox=west,south,east,north`, with `width` and `height`; also `viewMode`, `pitch`, `bearing` |
+
+Both take the view as query parameters: `terrainSource` (a library id or a tile or COG address), `modes` (comma-separated: `slope`, `contours`, `svf`, `lrm`, the names the MCP tools use), `imageryUrl`, `imagerySource` with `imageryDate`, and any [URL parameter](/reference/url-parameters) of the app as it is. Example: `/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=custom-nl-ahn-dtm`.
+
+```bash
+docker run -p 3400:3400 --shm-size=1g -v tv-tiles:/data/tiles ghcr.io/iconem/terrain-viewer-tiles
+```
+
+A tile is not drawn alone: the app draws the 2048 px block it belongs to in one page, the block is cut into tiles and all of them are kept a week. Measured on a laptop on 2026-11-21 without a graphics card: 10 s for the first tile of a block, under 0.1 s for its neighbours; an imagery tile differs from the provider's own by under 1 % (JPEG compression). It is slow next to a tile server that reads the data itself: it suits a few views or a cache filled in advance, not a busy map. The browser in the container reads any address given as a source, so keep the service away from a private network. Not yet run on a server, and the MCP server does not use it yet: the plan is for the MCP image to ask this service for its pictures and drop its own browser.
 
 The server's own notes, with the files and what was tested, are in [`mcp/README.md`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/README.md).

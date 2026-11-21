@@ -185,6 +185,15 @@ export function screenshot(view, { baseUrl, width = 1024, height = 640, waitMs =
 
 async function render(view, { baseUrl, width, height, waitMs }) {
   const url = buildViewUrl(view, { baseUrl, embed: true })
+  const jpeg = await withSettledPage(url, { width, height, waitMs }, (page) => page.screenshot({ type: "jpeg", quality: 80 }))
+  return { url: buildViewUrl(view, { baseUrl }), jpeg }
+}
+
+/** Opens the app at `url` in a page of the given size, waits until its maps
+ *  have drawn everything, hides the interface, then hands the page to `use`.
+ *  `bare` hides everything but the map itself (for a tile: no scale, no
+ *  credits, no pills). */
+export async function withSettledPage(url, { width, height, waitMs = 0, bare = false }, use) {
   const ctx = await context()
   const page = await ctx.newPage()
   await page.setViewportSize({ width, height })
@@ -234,9 +243,18 @@ async function render(view, { baseUrl, width, height, waitMs }) {
       .maplibregl-ctrl-top-left > .maplibregl-ctrl-scale, .maplibregl-ctrl-top-right > .maplibregl-ctrl-scale { display: block !important }
     ` }).catch(() => { })
     // Two frames for the last tiles to reach the screen, or the old pause.
+    if (bare) {
+      // Only the largest map canvas stays visible: a child may be visible
+      // inside hidden parents.
+      await page.addStyleTag({ content: `body, body * { visibility: hidden !important } canvas[data-tile-shot] { visibility: visible !important }` }).catch(() => { })
+      await page.evaluate(() => {
+        const all = [...document.querySelectorAll("canvas.maplibregl-canvas")]
+        all.sort((a, b) => b.width * b.height - a.width * a.height)
+        all[0]?.setAttribute("data-tile-shot", "")
+      })
+    }
     await page.waitForTimeout((exact ? 250 : 1200) + waitMs)
-    const jpeg = await page.screenshot({ type: "jpeg", quality: 80 })
-    return { url: buildViewUrl(view, { baseUrl }), jpeg }
+    return await use(page, { exact })
   } finally { await page.close().catch(() => { }) }
 }
 

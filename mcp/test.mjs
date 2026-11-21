@@ -4,6 +4,16 @@ import assert from "node:assert/strict"
 import { Client } from "@modelcontextprotocol/client"
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio"
 import { buildViewUrl } from "./url.mjs"
+import { blockOf, viewOf } from "./tile-server.mjs"
+
+// The tile service: a 256 px tile is drawn one MapLibre zoom lower, in a block of 8 x 8.
+{
+  const b = blockOf(12, 2125, 1464, 256)
+  assert.deepEqual([b.per, b.side, b.zoom, b.col, b.row], [8, 2048, 11, 5, 0])
+  assert.ok(Math.abs(b.lng - (2124 / 4096 * 360 - 180)) < 1e-9 && b.lat > 45 && b.lat < 47)
+  assert.deepEqual([blockOf(1, 1, 0, 512).per, blockOf(1, 1, 0, 512).side, blockOf(1, 1, 0, 512).lng], [2, 1024, 0])
+  assert.deepEqual(viewOf("?modes=slope,svf&terrainSource=x&slopeOpacity=0.5").view.modes, ["slope", "svf"])
+}
 
 // The link builder alone.
 assert.equal(

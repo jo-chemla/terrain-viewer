@@ -42,6 +42,10 @@ Global coverage at 0.1m elevation increments — a compressed, optimized success
 
 A composite of multiple high-resolution DEMs curated by MapTiler's geodata team — ~30m resolution globally, down to 5m in several European countries. MapTiler also publishes a separate "Ocean RGB" tileset for bathymetry, though this app only wires up the land-elevation Terrain-RGB one. Requires a MapTiler API key.
 
+### Google GEM-15 DTM — 15 m COG cells
+
+Last in the Worldwide Defaults list since 2026-11-21: Google Research's bare-earth model at 15 m from stereo satellite imagery of 2022-2024 (CC BY 4.0, experimental). It is a [Library](#the-library) dataset shown among the defaults: picking it adds it to Bring Your Own Data, where its settings are. It is last because it is slower, a second or two per tile the first time, and it has holes: no Russia, China, Mongolia, Greenland or Antarctica, and nothing below zoom 7. How it is read: [cell-routed sources](/dev/cell-routed-sources).
+
 ### AWS Terrain Tiles — Terrarium (Mapzen)
 
 [registry.opendata.aws](https://registry.opendata.aws/terrain-tiles/) · Terrarium encoding · zoom 16 · 256px tiles
