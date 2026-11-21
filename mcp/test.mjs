@@ -4,7 +4,10 @@ import assert from "node:assert/strict"
 import { Client } from "@modelcontextprotocol/client"
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio"
 import { buildViewUrl } from "./url.mjs"
+import { readFileSync } from "node:fs"
 import { blockOf, viewOf } from "./tile-server.mjs"
+import { DOCS_COPY, docsCopyText } from "./tile-openapi.mjs"
+import { viewToQuery, queryToView } from "./url.mjs"
 
 // The tile service: a 256 px tile is drawn one MapLibre zoom lower, in a block of 8 x 8.
 {
@@ -13,6 +16,12 @@ import { blockOf, viewOf } from "./tile-server.mjs"
   assert.ok(Math.abs(b.lng - (2124 / 4096 * 360 - 180)) < 1e-9 && b.lat > 45 && b.lat < 47)
   assert.deepEqual([blockOf(1, 1, 0, 512).per, blockOf(1, 1, 0, 512).side, blockOf(1, 1, 0, 512).lng], [2, 1024, 0])
   assert.deepEqual(viewOf("?modes=slope,svf&terrainSource=x&slopeOpacity=0.5").view.modes, ["slope", "svf"])
+  // titiler's names, and a view through the query and back.
+  assert.deepEqual(viewOf("?url=x&algorithm=slope").view, { terrainSource: "x", modes: ["slope"] })
+  const v = { lat: 45.8, lng: 6.9, zoom: 11, viewMode: "3d", modes: [], terrainSource: "a", params: { slopeOpacity: "0.5" } }
+  const back = queryToView(viewToQuery(v))
+  assert.deepEqual({ ...back.view, params: Object.fromEntries(back.rest) }, v)
+  assert.equal(readFileSync(DOCS_COPY, "utf8").replaceAll(String.fromCharCode(13), ""), docsCopyText(), "docs/public/tile-service-openapi.json is stale: run `node tile-openapi.mjs` in mcp/")
 }
 
 // The link builder alone.

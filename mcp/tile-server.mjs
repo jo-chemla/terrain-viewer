@@ -3,17 +3,26 @@
 // headless browser (the renderer of the MCP server's `screenshot` tool), so
 // every source the app reads and every mode it computes comes out the same.
 //
-//   GET /tiles/{z}/{x}/{y}.png|jpg   one Web Mercator tile (XYZ)
-//   GET /render.png|jpg              a viewport: lat, lng, zoom or bbox=w,s,e,n
+//   GET /tiles/{z}/{x}/{y}.png|jpg     one Web Mercator tile (XYZ), 256 px;
+//                                      {y}@2x or tilesize=512 for 512 px
+//   GET /render.png|jpg                a viewport, like a WMS GetMap: lat, lng,
+//                                      zoom or bbox=w,s,e,n, width, height
+//   GET /openapi.json, /docs           the description, and a page to try it
 //   GET /health
 //
 // Both take the view as query parameters, the vocabulary of url.mjs:
 //   terrainSource   a library id or a tile/COG URL (default: the app's own)
 //   modes           comma-separated names (slope, contours, svf, ...; see MODES)
 //   imageryUrl, imagerySource, imageryDate
-//   size            tiles: 256 (default) or 512; render: width, height
 //   anything else   passed to the app as a URL parameter, as is
 // /render also takes viewMode, pitch, bearing, split, terrainSourceB.
+//
+// The addresses of titiler are answered too, so a client written for it
+// needs few changes: /tiles/WebMercatorQuad/{z}/{x}/{y}[@2x].png,
+// /WebMercatorQuad/tilejson.json, /bbox/{w},{s},{e},{n}/{width}x{height}.png,
+// with `url` for the source, `algorithm` for one mode and `tilesize`. Only
+// Web Mercator; titiler's rescale, colormap, bidx and expression are not
+// read (the app's own parameters set the ramps).
 //
 // A tile is not rendered alone: the app draws the 2048 px block it belongs
 // to in one page, and the block is cut into tiles, all of them cached. The
@@ -29,8 +38,9 @@ import os from "node:os"
 import path from "node:path"
 import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
-import { buildViewUrl, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
-import { withSettledPage, closeBrowser } from "./tools.mjs"
+import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
+import { withSettledPage, closeBrowser } from "./render.mjs"
+import { openapi, DOCS_HTML } from "./tile-openapi.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
@@ -40,19 +50,13 @@ const CONCURRENCY = Math.max(1, Number(process.env.TV_RENDER_CONCURRENCY || 2))
 const BLOCK_PX = 2048
 const MAX_ZOOM = 22
 
-/** The view a request describes, without its camera. */
+/** The view a request describes. titiler's names are read as ours: `url`
+ *  is the source, `algorithm` one mode. */
 export function viewOf(query) {
   const q = new URLSearchParams(query)
-  const take = (k) => { const v = q.get(k); q.delete(k); return v ?? undefined }
-  const view = {
-    terrainSource: take("terrainSource"),
-    imageryUrl: take("imageryUrl"),
-    imagerySource: take("imagerySource"),
-    imageryDate: take("imageryDate"),
-  }
-  const modes = take("modes")
-  if (modes !== undefined) view.modes = modes.split(",").map((s) => s.trim()).filter(Boolean)
-  return { view, rest: q, take }
+  const alias = (from, to) => { const v = q.get(from); q.delete(from); if (v !== null && !q.has(to)) q.set(to, v) }
+  alias("url", "terrainSource"); alias("algorithm", "modes")
+  return queryToView(q)
 }
 
 /** Tile x/y/z and its size -> the block rendered for it and where the tile
@@ -106,12 +110,14 @@ async function slot(work) {
 const shot = (ext) => (ext === "png" ? { type: "png" } : { type: "jpeg", quality: 85 })
 const blocks = new Map() // block key -> promise, while it renders
 
-async function tile(z, x, y, ext, query) {
+async function tile(z, x, y, ext, query, scale = 1) {
   const { view, rest, take } = viewOf(query)
-  const size = Number(take("size") || 256)
-  if (size !== 256 && size !== 512) throw Object.assign(new Error("size is 256 or 512"), { status: 400 })
+  const asked = take("tilesize") ?? take("size")
+  const size = Number(asked || 256) * scale
+  if (size !== 256 && size !== 512) throw Object.assign(new Error("A tile is 256 px, or 512 px with @2x or tilesize=512"), { status: 400 })
   // The camera of a tile is the tile's: these are not the caller's to set.
-  for (const k of ["lat", "lng", "zoom", "pitch", "bearing", "viewMode", "split", "splitStyle", "terrainSourceB", "width", "height"]) rest.delete(k)
+  for (const k of ["lat", "lng", "zoom", "pitch", "bearing", "viewMode", "split", "terrainSourceB", "place"]) delete view[k]
+  for (const k of ["splitStyle", "width", "height"]) rest.delete(k)
   const b = blockOf(z, x, y, size)
   const params = Object.fromEntries(rest)
   const url = buildViewUrl({ ...view, lat: b.lat, lng: b.lng, zoom: b.zoom, viewMode: "2d", pitch: 0, bearing: 0, params }, { baseUrl: BASE_URL, embed: true })
@@ -138,7 +144,7 @@ async function picture(ext, query) {
   const { view, rest, take } = viewOf(query)
   const num = (k, d) => { const v = take(k); if (v === undefined) return d; const n = Number(v); if (!Number.isFinite(n)) throw Object.assign(new Error(`${k} is not a number`), { status: 400 }); return n }
   const width = Math.min(4096, Math.max(64, Math.round(num("width", 1024)))), height = Math.min(4096, Math.max(64, Math.round(num("height", 640))))
-  let lat = num("lat"), lng = num("lng"), zoom = num("zoom")
+  let { lat, lng, zoom } = view
   const bbox = take("bbox")
   if (bbox) {
     const [w, s, e, n] = bbox.split(",").map(Number)
@@ -151,11 +157,7 @@ async function picture(ext, query) {
     zoom = Math.min(Math.log2(width / 512 / ((e - w) / 360)), Math.log2(height / 512 / (my(s) - my(n))))
   }
   if (lat === undefined || lng === undefined) throw Object.assign(new Error("lat and lng, or bbox, are required"), { status: 400 })
-  const full = {
-    ...view, lat, lng, zoom: zoom ?? 12,
-    viewMode: take("viewMode"), pitch: num("pitch"), bearing: num("bearing"), split: take("split"), terrainSourceB: take("terrainSourceB"),
-  }
-  full.params = Object.fromEntries(rest)
+  const full = { ...view, lat, lng, zoom: zoom ?? 12, params: Object.fromEntries(rest) }
   const url = buildViewUrl(full, { baseUrl: BASE_URL, embed: true })
   const key = `${url}|${width}x${height}`
   const have = await cached(key, ext)
@@ -179,18 +181,39 @@ export function start(port = PORT) {
       const u = new URL(req.url, "http://x")
       if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL }))
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify({
-        tiles: "/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>&size=256",
+        docs: "/docs", openapi: "/openapi.json",
+        tiles: "/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
         render: "/render.jpg?lat=45.83&lng=6.86&zoom=11&width=1024&height=640&modes=hillshade,contours",
         modes: MODE_NAMES, app: BASE_URL,
       }, null, 2))
-      const t = u.pathname.match(/^\/tiles\/(\d+)\/(\d+)\/(\d+)\.(png|jpg)$/)
+      const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
+      if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self), null, 2))
+      if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
+      const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
       if (t) {
         const [z, x, y] = t.slice(1, 4).map(Number)
+        const ext = t[5] === "png" ? "png" : "jpg"
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
-        return send(200, TYPES[t[4]], await tile(z, x, y, t[4], u.search), { "cache-control": "public, max-age=86400" })
+        return send(200, TYPES[ext], await tile(z, x, y, ext, u.search, t[4] === "@2x" ? 2 : 1), { "cache-control": "public, max-age=86400" })
       }
-      const r = u.pathname.match(/^\/render\.(png|jpg)$/)
-      if (r) return send(200, TYPES[r[1]], await picture(r[1], u.search), { "cache-control": "public, max-age=86400" })
+      if (u.pathname === "/WebMercatorQuad/tilejson.json" || u.pathname === "/tilejson.json") {
+        const q = new URLSearchParams(u.search)
+        const fmt = q.get("tile_format") === "jpg" || q.get("tile_format") === "jpeg" ? "jpg" : "png"; q.delete("tile_format")
+        const scale = q.get("tile_scale") === "2" ? "@2x" : ""; q.delete("tile_scale")
+        const qs = q.toString()
+        return send(200, "application/json", JSON.stringify({
+          tilejson: "2.2.0", name: "Terrain Viewer", scheme: "xyz", minzoom: 0, maxzoom: MAX_ZOOM, bounds: [-180, -85.0511, 180, 85.0511],
+          tiles: [`${self}/tiles/WebMercatorQuad/{z}/{x}/{y}${scale}.${fmt}${qs ? "?" + qs : ""}`],
+        }))
+      }
+      const bb = u.pathname.match(/^\/bbox\/([-\d.,]+)\/(\d+)x(\d+)\.(png|jpg|jpeg)$/)
+      const r = u.pathname.match(/^\/render\.(png|jpg|jpeg)$/)
+      if (bb || r) {
+        const q = new URLSearchParams(u.search)
+        if (bb) { q.set("bbox", bb[1]); q.set("width", bb[2]); q.set("height", bb[3]) }
+        const ext = (bb ? bb[4] : r[1]) === "png" ? "png" : "jpg"
+        return send(200, TYPES[ext], await picture(ext, q), { "cache-control": "public, max-age=86400" })
+      }
       send(404, "text/plain", "Not found: see /")
     } catch (e) {
       send(e?.status || 500, "text/plain", String(e?.message ?? e))

@@ -19,6 +19,7 @@
 // Environment: TV_BASE_URL (default https://terrain-viewer.iconem.com/),
 // PORT (default 3300), CHROME_PATH (a Chromium for the tools that need a
 // browser; an installed Chrome when unset), TV_SOFTWARE_GL=1 (no GPU),
+// TV_RENDER_URL (the tile service: the pictures are asked from it),
 // TV_ALLOWED_HOSTS (comma-separated host names accepted in the Host header
 // when served on a public address), TV_PUBLIC_URL (the server's public
 // address, for download links).

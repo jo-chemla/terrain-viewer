@@ -112,3 +112,35 @@ export function buildViewUrl(view, opts = {}) {
   // "%20" survives being pasted into more places.
   return `${base}${base.includes("?") ? "&" : "?"}${p.toString().replace(/\+/g, "%20")}`
 }
+
+// A view as query parameters and back: what the tile service takes
+// (tile-server.mjs) and what the MCP server sends it.
+const VIEW_NUMBERS = ["lat", "lng", "zoom", "pitch", "bearing"]
+const VIEW_STRINGS = ["viewMode", "split", "terrainSource", "terrainSourceB", "imageryUrl", "imagerySource", "imageryDate", "imagerySourceB", "imageryDateB", "place"]
+
+/** @returns {URLSearchParams} */
+export function viewToQuery(view) {
+  const q = new URLSearchParams()
+  for (const k of [...VIEW_NUMBERS, ...VIEW_STRINGS]) if (view[k] != null) q.set(k, String(view[k]))
+  if (view.modes) q.set("modes", view.modes.join(","))
+  for (const [k, v] of Object.entries(view.params ?? {})) q.set(k, String(v))
+  return q
+}
+
+/** The view a query describes; every parameter that is not a view field is
+ *  left in `rest`, for the app as it is. */
+export function queryToView(query) {
+  const rest = new URLSearchParams(query)
+  const take = (k) => { const v = rest.get(k); rest.delete(k); return v ?? undefined }
+  const view = {}
+  for (const k of VIEW_NUMBERS) {
+    const v = take(k)
+    if (v === undefined || v === "") continue
+    if (!Number.isFinite(Number(v))) throw Object.assign(new Error(`${k} is not a number`), { status: 400 })
+    view[k] = Number(v)
+  }
+  for (const k of VIEW_STRINGS) { const v = take(k); if (v !== undefined) view[k] = v }
+  const modes = take("modes")
+  if (modes !== undefined) view.modes = modes.split(",").map((s) => s.trim()).filter(Boolean)
+  return { view, rest, take }
+}

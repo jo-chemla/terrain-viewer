@@ -95,7 +95,8 @@ datasets only and refuse a COG, WMS, VRT or mesh with the reason.
 | `view.html` | The page the host renders. The MCP Apps client library is inlined at start (about 500 KB). |
 | `app-lib.ts`, `build.mjs` | Bundle the app's own catalog, Wayback, Google Earth and STAC code for Node into `generated/` (not tracked), with `import.meta.env` empty so no key from `.env` can get in. |
 | `test.mjs`, `host-test.mjs` | End-to-end test over stdio; a hand-written host for a visual check. |
-| `tile-server.mjs` | The tile service: `/tiles/{z}/{x}/{y}.png` and `/render.png`, drawn by the app in the headless browser of `tools.mjs` (`withSettledPage`), in 2048 px blocks cut into tiles and cached a week. `node tile-server.mjs`, port 3400. |
+| `render.mjs` | The renderer, the base block: the app in a headless browser, waited on until its maps have drawn (`withSettledPage`). Imported by `tools.mjs` and by `tile-server.mjs`; it knows neither. |
+| `tile-server.mjs`, `tile-openapi.mjs` | The tile service: `/tiles/{z}/{x}/{y}.png`, `/render.png`, titiler's addresses for the same, `/openapi.json` and `/docs` (Scalar). 2048 px blocks cut into tiles, cached a week. `node tile-server.mjs`, port 3400. `node tile-openapi.mjs` rewrites the docs site's copy of the description. With `TV_RENDER_URL` set, `tools.mjs` asks this service for the pictures. |
 | `Dockerfile`, `Dockerfile.dockerignore`, `docker-compose.yml` | Two images from one Dockerfile (targets `mcp`, the default, and `tiles`; Chromium included, software GL), what is sent to the build, and a stack for Portainer. Published to `ghcr.io/iconem/terrain-viewer-mcp` and `-tiles` by `.github/workflows/docker-publish.yml`. Built and run locally on 2026-11-20 and 21, not yet on a server. |
 
 ## Tested, and not

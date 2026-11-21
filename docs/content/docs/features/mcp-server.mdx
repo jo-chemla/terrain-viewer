@@ -131,19 +131,6 @@ The plan is the container on an Iconem server, at an address such as `mcp.terrai
 
 ### The tile service
 
-A second image, `ghcr.io/iconem/terrain-viewer-tiles`, serves what the app draws as map tiles and as pictures, over plain HTTP, for a map library, QGIS or a script. It is the same renderer as the `screenshot` tool: the app in a headless browser, so any source the app reads and any mode it computes comes out the same.
-
-| Address | Answers |
-|---|---|
-| `/tiles/{z}/{x}/{y}.png` or `.jpg` | One Web Mercator tile (XYZ), 256 px or `size=512` |
-| `/render.png` or `.jpg` | A viewport: `lat`, `lng`, `zoom`, or `bbox=west,south,east,north`, with `width` and `height`; also `viewMode`, `pitch`, `bearing` |
-
-Both take the view as query parameters: `terrainSource` (a library id or a tile or COG address), `modes` (comma-separated: `slope`, `contours`, `svf`, `lrm`, the names the MCP tools use), `imageryUrl`, `imagerySource` with `imageryDate`, and any [URL parameter](/reference/url-parameters) of the app as it is. Example: `/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=custom-nl-ahn-dtm`.
-
-```bash
-docker run -p 3400:3400 --shm-size=1g -v tv-tiles:/data/tiles ghcr.io/iconem/terrain-viewer-tiles
-```
-
-A tile is not drawn alone: the app draws the 2048 px block it belongs to in one page, the block is cut into tiles and all of them are kept a week. Measured on a laptop on 2026-11-21 without a graphics card: 10 s for the first tile of a block, under 0.1 s for its neighbours; an imagery tile differs from the provider's own by under 1 % (JPEG compression). It is slow next to a tile server that reads the data itself: it suits a few views or a cache filled in advance, not a busy map. The browser in the container reads any address given as a source, so keep the service away from a private network. Not yet run on a server, and the MCP server does not use it yet: the plan is for the MCP image to ask this service for its pictures and drop its own browser.
+A second image, `ghcr.io/iconem/terrain-viewer-tiles`, serves what the app draws as map tiles and as pictures over plain HTTP. In the stack the MCP server takes its pictures from it (`TV_RENDER_URL`). Its addresses, parameters and a page to try them: [Tile service](/dev/tile-service).
 
 The server's own notes, with the files and what was tested, are in [`mcp/README.md`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/README.md).

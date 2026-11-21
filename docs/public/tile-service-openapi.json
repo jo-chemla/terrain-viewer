@@ -1,0 +1,1031 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Terrain Viewer tile service",
+    "version": "0.1.0",
+    "description": "What Terrain Viewer draws, as map tiles and as pictures of a viewport. The app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app. A tile is drawn with the 2048 px block around it and the block is kept a week: the first tile of a block takes seconds, its neighbours milliseconds. Web Mercator only.",
+    "license": {
+      "name": "MIT",
+      "url": "https://github.com/Iconem/terrain-viewer"
+    }
+  },
+  "externalDocs": {
+    "description": "Documentation",
+    "url": "https://terrain-viewer.iconem.com/docs/dev/tile-service"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3400"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Tiles"
+    },
+    {
+      "name": "Viewport"
+    },
+    {
+      "name": "titiler addresses",
+      "description": "The same answers at the addresses titiler uses."
+    },
+    {
+      "name": "Service"
+    }
+  ],
+  "paths": {
+    "/tiles/{z}/{x}/{y}.{format}": {
+      "get": {
+        "tags": [
+          "Tiles"
+        ],
+        "operationId": "tile",
+        "summary": "One XYZ tile",
+        "description": "A 256 px Web Mercator tile. For 512 px write `{y}@2x` in the address or add `tilesize=512`. The camera is the tile's: `lat`, `lng`, `zoom`, `pitch` and `bearing` are not read.",
+        "parameters": [
+          {
+            "name": "z",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 22
+            },
+            "example": 12
+          },
+          {
+            "name": "x",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 2125
+          },
+          {
+            "name": "y",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 1464
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpg"
+              ],
+              "default": "png"
+            }
+          },
+          {
+            "name": "tilesize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                256,
+                512
+              ],
+              "default": 256
+            },
+            "description": "The side of the tile in pixels."
+          },
+          {
+            "name": "terrainSource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "mapterhorn",
+                "custom-nl-ahn-dtm"
+              ]
+            },
+            "description": "The elevation source: a built-in id (`mapterhorn`, `esri`, `aws`), a library id, or the address of XYZ elevation tiles or of a COG. Unset: the app's default. `url` is read as the same parameter."
+          },
+          {
+            "name": "modes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "hillshade",
+                  "colorRelief",
+                  "contours",
+                  "slope",
+                  "aspect",
+                  "curvature",
+                  "tpi",
+                  "roughness",
+                  "lrm",
+                  "svf",
+                  "openness",
+                  "localDominance",
+                  "phong",
+                  "matcap",
+                  "shadows",
+                  "basemap",
+                  "moundDetector"
+                ]
+              }
+            },
+            "description": "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "imageryUrl",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Imagery under the terrain: XYZ tiles (`{z}/{x}/{y}`) or a COG. Shown with the mode `basemap`."
+          },
+          {
+            "name": "imagerySource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "ge-historical",
+                "bing",
+                "hls",
+                "eox-s2"
+              ]
+            },
+            "description": "Dated imagery built into the app, with `imageryDate`."
+          },
+          {
+            "name": "imageryDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "The date of `imagerySource`, YYYY-MM-DD."
+          },
+          {
+            "name": "appParams",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": "Any other URL parameter of the app, given as it is at the top level of the query (for example `slopeOpacity=0.6`): ramps, opacities, light direction, contour interval. The list is the app's URL reference.",
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tile",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is wrong; the body says which",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The app could not be rendered; the body says why",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/render.{format}": {
+      "get": {
+        "tags": [
+          "Viewport"
+        ],
+        "operationId": "render",
+        "summary": "A picture of a viewport",
+        "description": "Like a WMS GetMap: a picture of a given size, placed by its centre and zoom or by a bounding box. Unlike a tile it keeps the scale bar and the credits, and it can be tilted or split.",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpg"
+              ],
+              "default": "png"
+            }
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": -85,
+              "maximum": 85
+            },
+            "description": "Latitude of the centre. Required unless `bbox` is given.",
+            "example": 45.83
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            "description": "Longitude of the centre. Required unless `bbox` is given.",
+            "example": 6.86
+          },
+          {
+            "name": "zoom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 22,
+              "default": 12
+            },
+            "description": "MapLibre zoom (512 px tiles)."
+          },
+          {
+            "name": "bbox",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^-?[\\d.]+,-?[\\d.]+,-?[\\d.]+,-?[\\d.]+$"
+            },
+            "description": "west,south,east,north in degrees, in place of `lat`, `lng` and `zoom`. The whole box is inside the picture; when its shape differs from the picture's, more is shown on two sides."
+          },
+          {
+            "name": "width",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 4096,
+              "default": 1024
+            },
+            "description": "Width in pixels."
+          },
+          {
+            "name": "height",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 4096,
+              "default": 640
+            },
+            "description": "Height in pixels."
+          },
+          {
+            "name": "viewMode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "2d",
+                "3d",
+                "globe"
+              ],
+              "default": "2d"
+            },
+            "description": "Flat, tilted over the relief, or the globe."
+          },
+          {
+            "name": "pitch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 85
+            },
+            "description": "Tilt in degrees; 55 by default in 3D."
+          },
+          {
+            "name": "bearing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Rotation in degrees, clockwise from north."
+          },
+          {
+            "name": "split",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "off",
+                "side-by-side",
+                "overlay"
+              ]
+            },
+            "description": "Two views in one picture, with `terrainSourceB`."
+          },
+          {
+            "name": "terrainSourceB",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The second view's elevation source."
+          },
+          {
+            "name": "terrainSource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "mapterhorn",
+                "custom-nl-ahn-dtm"
+              ]
+            },
+            "description": "The elevation source: a built-in id (`mapterhorn`, `esri`, `aws`), a library id, or the address of XYZ elevation tiles or of a COG. Unset: the app's default. `url` is read as the same parameter."
+          },
+          {
+            "name": "modes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "hillshade",
+                  "colorRelief",
+                  "contours",
+                  "slope",
+                  "aspect",
+                  "curvature",
+                  "tpi",
+                  "roughness",
+                  "lrm",
+                  "svf",
+                  "openness",
+                  "localDominance",
+                  "phong",
+                  "matcap",
+                  "shadows",
+                  "basemap",
+                  "moundDetector"
+                ]
+              }
+            },
+            "description": "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "imageryUrl",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Imagery under the terrain: XYZ tiles (`{z}/{x}/{y}`) or a COG. Shown with the mode `basemap`."
+          },
+          {
+            "name": "imagerySource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "ge-historical",
+                "bing",
+                "hls",
+                "eox-s2"
+              ]
+            },
+            "description": "Dated imagery built into the app, with `imageryDate`."
+          },
+          {
+            "name": "imageryDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "The date of `imagerySource`, YYYY-MM-DD."
+          },
+          {
+            "name": "appParams",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": "Any other URL parameter of the app, given as it is at the top level of the query (for example `slopeOpacity=0.6`): ramps, opacities, light direction, contour interval. The list is the app's URL reference.",
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The picture",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is wrong; the body says which",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The app could not be rendered; the body says why",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tiles/WebMercatorQuad/{z}/{x}/{y}.{format}": {
+      "get": {
+        "tags": [
+          "titiler addresses"
+        ],
+        "operationId": "titilerTile",
+        "summary": "One tile, at titiler's address",
+        "description": "The same as `/tiles/{z}/{x}/{y}`. `url` is the source and `algorithm` one mode; `@2x` after `{y}` and `tilesize` work the same. titiler's `rescale`, `colormap_name`, `bidx`, `expression` and `nodata` are not read.",
+        "parameters": [
+          {
+            "name": "z",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "x",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "y",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpg"
+              ],
+              "default": "png"
+            }
+          },
+          {
+            "name": "url",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The elevation source (as `terrainSource`)."
+          },
+          {
+            "name": "algorithm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hillshade",
+                "colorRelief",
+                "contours",
+                "slope",
+                "aspect",
+                "curvature",
+                "tpi",
+                "roughness",
+                "lrm",
+                "svf",
+                "openness",
+                "localDominance",
+                "phong",
+                "matcap",
+                "shadows",
+                "basemap",
+                "moundDetector"
+              ]
+            },
+            "description": "One mode (as `modes`)."
+          },
+          {
+            "name": "tilesize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                256,
+                512
+              ],
+              "default": 256
+            },
+            "description": "The side of the tile in pixels."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tile",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is wrong; the body says which",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The app could not be rendered; the body says why",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/WebMercatorQuad/tilejson.json": {
+      "get": {
+        "tags": [
+          "titiler addresses"
+        ],
+        "operationId": "tilejson",
+        "summary": "A TileJSON for a view",
+        "description": "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address.",
+        "parameters": [
+          {
+            "name": "tile_format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpg"
+              ],
+              "default": "png"
+            },
+            "description": "Tile format."
+          },
+          {
+            "name": "tile_scale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ],
+              "default": 1
+            },
+            "description": "2 for 512 px tiles."
+          },
+          {
+            "name": "terrainSource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "mapterhorn",
+                "custom-nl-ahn-dtm"
+              ]
+            },
+            "description": "The elevation source: a built-in id (`mapterhorn`, `esri`, `aws`), a library id, or the address of XYZ elevation tiles or of a COG. Unset: the app's default. `url` is read as the same parameter."
+          },
+          {
+            "name": "modes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "hillshade",
+                  "colorRelief",
+                  "contours",
+                  "slope",
+                  "aspect",
+                  "curvature",
+                  "tpi",
+                  "roughness",
+                  "lrm",
+                  "svf",
+                  "openness",
+                  "localDominance",
+                  "phong",
+                  "matcap",
+                  "shadows",
+                  "basemap",
+                  "moundDetector"
+                ]
+              }
+            },
+            "description": "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "imageryUrl",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Imagery under the terrain: XYZ tiles (`{z}/{x}/{y}`) or a COG. Shown with the mode `basemap`."
+          },
+          {
+            "name": "imagerySource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "ge-historical",
+                "bing",
+                "hls",
+                "eox-s2"
+              ]
+            },
+            "description": "Dated imagery built into the app, with `imageryDate`."
+          },
+          {
+            "name": "imageryDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "The date of `imagerySource`, YYYY-MM-DD."
+          },
+          {
+            "name": "appParams",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": "Any other URL parameter of the app, given as it is at the top level of the query (for example `slopeOpacity=0.6`): ramps, opacities, light direction, contour interval. The list is the app's URL reference.",
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "TileJSON 2.2.0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bbox/{bbox}/{width}x{height}.{format}": {
+      "get": {
+        "tags": [
+          "titiler addresses"
+        ],
+        "operationId": "bbox",
+        "summary": "A picture of a bounding box, at titiler's address",
+        "description": "The same as `/render` with `bbox`, `width` and `height`.",
+        "parameters": [
+          {
+            "name": "bbox",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "west,south,east,north in degrees",
+            "example": "6.7,45.75,7.0,45.95"
+          },
+          {
+            "name": "width",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 800
+          },
+          {
+            "name": "height",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 600
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpg"
+              ],
+              "default": "png"
+            }
+          },
+          {
+            "name": "terrainSource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "mapterhorn",
+                "custom-nl-ahn-dtm"
+              ]
+            },
+            "description": "The elevation source: a built-in id (`mapterhorn`, `esri`, `aws`), a library id, or the address of XYZ elevation tiles or of a COG. Unset: the app's default. `url` is read as the same parameter."
+          },
+          {
+            "name": "modes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "hillshade",
+                  "colorRelief",
+                  "contours",
+                  "slope",
+                  "aspect",
+                  "curvature",
+                  "tpi",
+                  "roughness",
+                  "lrm",
+                  "svf",
+                  "openness",
+                  "localDominance",
+                  "phong",
+                  "matcap",
+                  "shadows",
+                  "basemap",
+                  "moundDetector"
+                ]
+              }
+            },
+            "description": "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "imageryUrl",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Imagery under the terrain: XYZ tiles (`{z}/{x}/{y}`) or a COG. Shown with the mode `basemap`."
+          },
+          {
+            "name": "imagerySource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "wayback",
+                "ge-historical",
+                "bing",
+                "hls",
+                "eox-s2"
+              ]
+            },
+            "description": "Dated imagery built into the app, with `imageryDate`."
+          },
+          {
+            "name": "imageryDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "The date of `imagerySource`, YYYY-MM-DD."
+          },
+          {
+            "name": "appParams",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": "Any other URL parameter of the app, given as it is at the top level of the query (for example `slopeOpacity=0.6`): ramps, opacities, light direction, contour interval. The list is the app's URL reference.",
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The picture",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is wrong; the body says which",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The app could not be rendered; the body says why",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "operationId": "health",
+        "summary": "Is the service up",
+        "responses": {
+          "200": {
+            "description": "Up, and the app it renders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "app": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

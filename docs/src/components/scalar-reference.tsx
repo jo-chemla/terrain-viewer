@@ -24,7 +24,7 @@ function useSiteDark() {
 // are every state and instruction parameter of the viewer, so its "try it"
 // form doubles as a URL builder with the right control for each type.
 // Its light or dark look follows the docs site (its own toggle is hidden).
-export function ScalarReference() {
+export function ScalarReference({ url = '/docs/openapi.json', sidebar = false }: { url?: string; sidebar?: boolean }) {
   const dark = useSiteDark();
   return (
     <div className="not-prose -mx-4 my-4">
@@ -32,11 +32,11 @@ export function ScalarReference() {
         // Scalar reads the dark mode setting once, at mount: remount on a switch.
         key={dark ? 'dark' : 'light'}
         configuration={{
-          url: '/docs/openapi.json',
+          url,
           hideModels: true,
           hideDarkModeToggle: true,
           hideClientButton: true,
-          showSidebar: false,
+          showSidebar: sidebar,
           layout: 'classic',
           theme: 'none',
           darkMode: dark,

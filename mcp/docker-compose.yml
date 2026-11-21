@@ -21,13 +21,16 @@ services:
       TV_ALLOWED_HOSTS: ${MCP_HOST:-mcp.example.com}
       # The public address, for the download links of export_geotiff.
       TV_PUBLIC_URL: https://${MCP_HOST:-mcp.example.com}
+      # The pictures come from the tile service below. Remove the line to
+      # have this container render them itself.
+      TV_RENDER_URL: http://terrain-viewer-tiles:3400
     volumes:
       - pictures:/data/pictures
     # Chromium needs more shared memory than Docker's 64 MB default.
     shm_size: 1gb
 
   # The app's rendering as XYZ tiles and pictures of a viewport
-  # (mcp/tile-server.mjs). Leave it out when only the MCP server is wanted.
+  # (mcp/tile-server.mjs), and the MCP server's pictures.
   terrain-viewer-tiles:
     image: ghcr.io/iconem/terrain-viewer-tiles:latest
     build:
@@ -38,7 +41,8 @@ services:
     ports:
       - "${TILES_PORT:-3400}:3400"
     environment:
-      TV_ALLOWED_HOSTS: ${TILES_HOST:-tiles.example.com}
+      # The public host name, and the name the MCP server calls it by.
+      TV_ALLOWED_HOSTS: ${TILES_HOST:-tiles.example.com},terrain-viewer-tiles
     volumes:
       - tiles:/data/tiles
     shm_size: 1gb

@@ -1,0 +1,101 @@
+---
+title: Tile service (Scalar)
+icon: Grid3x3
+description: What the app draws, served as XYZ tiles and as pictures of a viewport over HTTP, from a Docker image; its addresses and parameters browsed with Scalar
+---
+
+import { ScalarReference } from '@/components/scalar-reference';
+
+The app runs in the browser and has no server. The tile service is a small server that opens the app in a headless browser and hands out what it draws, so a map library, QGIS or a script can use a Terrain Viewer view without running the app.
+
+```bash
+docker run -p 3400:3400 --shm-size=1g -v tv-tiles:/data/tiles ghcr.io/iconem/terrain-viewer-tiles
+```
+
+Then `http://localhost:3400/docs` is the reference below with a working **Test request** button, and `http://localhost:3400/openapi.json` its OpenAPI document.
+
+## The two answers
+
+| Address | Answers | Like |
+|---|---|---|
+| `/tiles/{z}/{x}/{y}.png` or `.jpg` | One Web Mercator tile by its index. 256 px; `{y}@2x` or `tilesize=512` for 512 px | An XYZ tile layer, titiler's `/tiles` |
+| `/render.png` or `.jpg` | A picture of a viewport: `lat`, `lng`, `zoom`, or `bbox=west,south,east,north`, with `width` and `height`. Can be tilted (`viewMode=3d`, `pitch`, `bearing`) or split | A WMS GetMap |
+
+A tile is the map alone. A viewport keeps the scale bar and the credits.
+
+Both take the view as query parameters, the same words the [MCP server](/features/mcp-server) uses:
+
+| Parameter | Meaning |
+|---|---|
+| `terrainSource` | A built-in id (`mapterhorn`, `esri`, `aws`), a [library](/features/terrain-sources#the-library) id, or the address of elevation tiles or of a COG |
+| `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `basemap`, `moundDetector` |
+| `imageryUrl`, `imagerySource`, `imageryDate` | Imagery under the terrain, drawn with the mode `basemap` |
+| anything else | Passed to the app as a [URL parameter](/dev/url-api): ramps, opacities, light direction, contour interval |
+
+```text
+/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=custom-nl-ahn-dtm
+/render.jpg?bbox=6.7,45.75,7.0,45.95&width=800&height=600&modes=hillshade,contours
+```
+
+In MapLibre:
+
+```js
+map.addSource("tv-slope", { type: "raster", tileSize: 256, tiles: ["http://localhost:3400/tiles/{z}/{x}/{y}.png?modes=slope"] })
+```
+
+## titiler's addresses
+
+A client written for [titiler](https://developmentseed.org/titiler/) needs few changes: the service answers at the same addresses, for Web Mercator only.
+
+| titiler | Here |
+|---|---|
+| `/tiles/WebMercatorQuad/{z}/{x}/{y}@2x.png` | The same tile as `/tiles/{z}/{x}/{y}@2x.png` |
+| `/WebMercatorQuad/tilejson.json` | A TileJSON whose tile address keeps the parameters given; `tile_format`, `tile_scale` |
+| `/bbox/{w},{s},{e},{n}/{width}x{height}.png` | `/render` with `bbox`, `width`, `height` |
+| `url` | Read as `terrainSource` |
+| `algorithm` | Read as one name of `modes` |
+| `tilesize` | 256 or 512 |
+| `rescale`, `colormap_name`, `bidx`, `expression`, `nodata`, other tile matrix sets | Not read. The app's own parameters set the ramps |
+
+## How a tile is made, and how fast
+
+The service does not compute a tile: the app draws it. For a tile, the app is opened on the 2048 px block that holds it (8 by 8 tiles of 256 px), the picture is cut into tiles, and all of them are kept a week on disk (`/data/tiles` in the image).
+
+Measured on a laptop on 2026-11-21:
+
+| | Time |
+|---|---|
+| First tile of a block, Chrome with a graphics card | 7 to 9 s |
+| First tile of a block, in the container (no graphics card) | 10 s |
+| Its 63 neighbours, and any tile asked again within a week | under 0.1 s |
+| A viewport, 600 by 400, 3D slope | 3 s |
+
+An imagery tile from the service equals the provider's own tile of the same index (mean difference 1.7 on 255, the JPEG compression), and joins its neighbour without a seam.
+
+It is slow next to a server that computes tiles from the data. It suits a few views, a cache filled in advance, or pictures for a report or an assistant; not a busy map.
+
+<Callout type="info">
+**Computing a tile without the browser** is possible for the modes the app computes in JavaScript from elevation tiles (slope, aspect, curvature, TPI, roughness, LRM, sky-view factor, openness, local dominance): their code is plain array arithmetic, and the app already has a colour ramp evaluator that runs without a map. It needs an image decoder for Node in place of the browser's, and the hillshade, the colour relief and the contours, which MapLibre draws itself, would have to be written again. Not built; this is from reading the code, not from a test.
+</Callout>
+
+## Settings
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `PORT` | The port | 3400 |
+| `TV_BASE_URL` | The app to render | `https://terrain-viewer.iconem.com/` |
+| `TILE_CACHE_DIR` | Where tiles and pictures are kept a week | `/data/tiles` in the image |
+| `TV_RENDER_CONCURRENCY` | Pages rendered at the same time; each is a whole app | 2 |
+| `TV_ALLOWED_HOSTS` | Host names accepted in the `Host` header, comma-separated | any |
+
+The browser in the container reads any address given as a source: keep the service away from a private network, or behind a proxy that restricts who can call it. It has no sign-in.
+
+The code is `mcp/tile-server.mjs`. It shares one renderer, `mcp/render.mjs`, with the MCP server: neither service imports the other. With `TV_RENDER_URL` set to the tile service's address, the MCP server asks it for its pictures in place of rendering them, which is how [`mcp/docker-compose.yml`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/docker-compose.yml) wires the two. The MCP image still holds a browser for the `elevation` tool, which decodes elevation tiles in a page.
+
+Not yet run on a server.
+
+## Reference
+
+The document is written by `mcp/tile-openapi.mjs`. **Test request** below calls `http://localhost:3400`, so it answers when the container runs on your computer.
+
+<ScalarReference url="/docs/tile-service-openapi.json" sidebar />
