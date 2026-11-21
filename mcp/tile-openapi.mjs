@@ -12,7 +12,7 @@ const q = (name, schema, description, extra = {}) => ({ name, in: "query", requi
 
 // What a tile and a viewport share: the source and the modes.
 const VIEW_PARAMS = [
-  q("terrainSource", { type: "string", examples: ["mapterhorn", "custom-nl-ahn-dtm", "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"] }, "The elevation source: an id from `/sources`, the address of Terrarium tiles or of a COG, or a configuration as JSON, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"wms-raw\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."),
+  q("terrainSource", { type: "string", examples: ["mapterhorn", "custom-nl-ahn-dtm", "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"] }, "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."),
   q("engine", { type: "string", enum: ["auto", "direct", "browser"] }, "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."),
   q("modes", { type: "array", items: { type: "string", enum: MODE_NAMES } }, "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.", { style: "form", explode: false }),
   q("imageryUrl", { type: "string" }, "Imagery under the terrain: XYZ tiles (`{z}/{x}/{y}`) or a COG. Shown with the mode `basemap`."),
@@ -34,7 +34,7 @@ export function openapi(server = "http://localhost:3400") {
     info: {
       title: "Terrain Viewer tile service",
       version: "0.1.0",
-      description: "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server from Terrarium or Terrain-RGB elevation tiles with the app's own code, in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.",
+      description: "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.",
       license: { name: "MIT", url: "https://github.com/Iconem/terrain-viewer" },
     },
     externalDocs: { description: "Documentation", url: "https://terrain-viewer.iconem.com/docs/dev/tile-service" },
@@ -127,14 +127,14 @@ export function openapi(server = "http://localhost:3400") {
       "/contours/{z}/{x}/{y}.pbf": {
         get: {
           tags: ["Tiles"], operationId: "contours", summary: "Contour lines as a vector tile",
-          description: "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Terrarium or Terrain-RGB sources only.",
+          description: "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Sources the direct engine reads (see `/sources`).",
           parameters: [
             { name: "z", in: "path", required: true, schema: { type: "integer" }, example: 13 }, { name: "x", in: "path", required: true, schema: { type: "integer" }, example: 4250 }, { name: "y", in: "path", required: true, schema: { type: "integer" }, example: 2928 },
             q("terrainSource", { type: "string" }, "The elevation source: an id from `/sources`, a tile address or a JSON configuration."),
             q("contourMinor", { type: "number", default: 50 }, "Minor interval in metres (0: major lines only)."),
             q("contourMajor", { type: "number", default: 200 }, "Major interval in metres."),
           ],
-          responses: { 200: { description: "The vector tile", content: { "application/vnd.mapbox-vector-tile": { schema: { type: "string", format: "binary" } } } }, 400: { description: "The source is not a Terrarium or Terrain-RGB pyramid" } },
+          responses: { 200: { description: "The vector tile", content: { "application/vnd.mapbox-vector-tile": { schema: { type: "string", format: "binary" } } } }, 400: { description: "The source cannot be read by the direct engine" } },
         },
       },
       "/algorithms": {

@@ -1,10 +1,14 @@
-// Elevation tiles read in Node, without a browser: a Terrarium or
-// Terrain-RGB pyramid fetched and decoded (PNG or WebP, by sharp, the
-// decoder a browser has built in and Node has not). The base of the MCP
-// server's elevation tools (data-tools.mjs) and of the tile service's
-// direct engine (direct.mjs).
+// Elevation tiles read in Node, without a browser, for every terrain source
+// the app reads: the app's own tile spec (lib/terrain-tile-spec.ts) says
+// what a source's tiles are, and the app's own readers fetch them
+// (mcp/app-sources.ts: COG, VRT, WMS / WCS, LERC, quantized mesh, nDSM
+// difference, PMTiles, ...). A plain https pyramid is fetched and decoded by
+// sharp (PNG or WebP, the decoder a browser has built in and Node has not).
+// The base of the MCP server's elevation tools (data-tools.mjs) and of the
+// tile service's direct engine (direct.mjs).
 import { readFileSync } from "node:fs"
 import sharp from "sharp"
+import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
 
 const AWS_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
 const MAPTERHORN_TILES = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"
@@ -17,35 +21,152 @@ export function library() {
   return libraryCache
 }
 
-/** The sources read here without a browser. */
+let appPromise
+/** The app's readers, registered once (generated/app-render.mjs). */
+const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs").then((A) => { A.registerSourceProtocols(); return A })))
+
+/** Two plain pyramids, also listed for the in-chat map's CSP (data-tools.mjs). */
 export const BUILTIN_DEMS = [
   { id: "mapterhorn", name: "Mapterhorn - Terrarium", tiles: MAPTERHORN_TILES, encoding: "terrarium", tileSize: 512, maxzoom: 17 },
   { id: "aws", name: "AWS Terrain - Terrarium Mapzen", tiles: AWS_TILES, encoding: "terrarium", tileSize: 256, maxzoom: 15 },
 ]
+const BUILTIN_IDS = ["mapterhorn", "esri", "mapbox", "maptiler", "aws", "cesium"]
+const NEEDS_KEY = { mapbox: "Mapbox", maptiler: "MapTiler", cesium: "Cesium ion" }
+/** The default ceiling of a source with no pyramid of its own (a WMS): the
+ *  app's fallback range (zoomRangeFromMetadata in lib/cog-metadata.ts). */
+const DEFAULT_MAXZOOM = 20
 
-/** A terrain source as tiles that can be decoded here, or null: a COG, WMS,
- *  VRT, LERC or mesh dataset is read by the app alone. `source` is an id, a
- *  tile address, or a configuration `{ url, type, maxzoom?, tileSize? }`
- *  with type `terrarium` or `terrainrgb`. */
-export function resolveDem(source) {
-  if (!source || source === "mapterhorn") return BUILTIN_DEMS[0]
-  if (source === "aws") return BUILTIN_DEMS[1]
-  if (typeof source === "object") {
-    if (!/^https:\/\/.+\{z\}.+/.test(source.url ?? "") || !["terrarium", "terrainrgb"].includes(source.type)) return null
-    return { id: source.url, tiles: source.url, encoding: source.type === "terrainrgb" ? "mapbox" : "terrarium", tileSize: source.tileSize ?? 256, maxzoom: source.maxzoom ?? 14, external: true }
-  }
-  const lib = library().terrain.find((s) => s.id === source)
-  if (lib) return lib.tiles ? { id: lib.id, name: lib.name, tiles: lib.tiles, encoding: lib.type === "terrainrgb" ? "mapbox" : "terrarium", tileSize: 256, maxzoom: lib.maxzoom ?? 14 } : null
-  if (/^https:\/\/.+\{z\}.+\{x\}.+\{y\}/.test(source)) return { id: source, tiles: source, encoding: "terrarium", tileSize: 256, maxzoom: 14, external: true }
+const isHttps = (u) => /^https:\/\//i.test(u)
+// A library url may leave out https:// (wms-raw, quantized mesh) or carry one
+// of the app's prefixes before it (pmtiles://, epsg3395://).
+const bareUrl = (u) => (u ?? "").replace(/^(pmtiles|epsg3395):\/\//i, "")
+// gem15://, openbuildings://, metachm://: the VRT reader's cell-routed mosaics.
+const schemeOk = (u) => isHttps(u) || /^(gem15|openbuildings|metachm):\/\//i.test(u) || !/^[a-z][a-z0-9+.-]*:/i.test(u)
+const hostOf = (u) => { try { const b = bareUrl(u); return new URL(isHttps(b) ? b : `https://${b}`).hostname } catch { return undefined } }
+
+/** Why a source, by its entry, cannot be read here; null when it can. Read
+ *  from the entry alone (no request), for listings (/sources). */
+export function whyNotDirect(entry) {
+  if (!entry) return "unknown terrain source: see /sources"
+  if (NEEDS_KEY[entry.id]) return `${NEEDS_KEY[entry.id]} needs an API key, which the tile service does not hold`
+  if (entry.type === "stac" || entry.type === "mosaicjson") return "STAC and MosaicJSON sources are read by the app alone"
+  if (entry.type === "cog-local") return "a local file exists only in the browser that opened it"
+  if (entry.type === "quantized-mesh" && /^ion\//.test(entry.url ?? "")) return "Cesium ion assets need an API key, which the tile service does not hold"
+  if (entry.type !== "dem-diff" && entry.url != null && !schemeOk(bareUrl(entry.url))) return "the source's address is not https"
   return null
+}
+
+/** The library or built-in entry of an id, or a configuration as an entry. */
+function entryOf(source) {
+  if (!source) return { id: "mapterhorn", builtin: true }
+  if (typeof source === "object") {
+    const url = String(source.url ?? "")
+    const type = source.type ?? (/\.tiff?(\?|$)/i.test(url) ? "cog" : /\.vrt(\?|$)/i.test(url) ? "vrt" : /\{z\}/.test(url) ? "terrarium" : null)
+    return { ...source, id: source.id ?? url, name: source.name, url, type, external: true }
+  }
+  if (BUILTIN_IDS.includes(source)) return { id: source, builtin: true }
+  const lib = library().terrain.find((s) => s.id === source)
+  if (lib) return lib
+  // A tile address: a Terrarium pyramid unless it says otherwise (a COG or a VRT).
+  if (isHttps(source)) return entryOf({ url: source })
+  return null
+}
+
+/** A source as `{ dem }` (`{ id, name, tiles, encoding, tileSize, minzoom?,
+ *  maxzoom, bounds?, customEncoding? }`, tiles being the template the
+ *  app's decoders read, possibly one of its schemes) or `{ why }`. `source`:
+ *  a built-in or library id, a tile address (https, with {z}/{x}/{y}; a .tif
+ *  is a COG, a .vrt a VRT), or a configuration `{ url, type, ... }` with
+ *  the fields of a library entry. */
+export async function resolveDemOrWhy(source, settings = {}) {
+  const entry = entryOf(source)
+  if (!entry) return { why: `unknown terrain source "${String(source).slice(0, 80)}": see /sources` }
+  const why = whyNotDirect(entry)
+  if (why) return { why }
+  if (!entry.builtin && !entry.type) return { why: "a source configuration needs a type" }
+  const A = await app()
+  const lookup = (id) => { const e = entryOf(id); return e && !e.builtin ? e : undefined }
+  let spec
+  try {
+    spec = await A.resolveTerrainTiles(entry.id, entry.builtin ? undefined : entry, lookup, settings)
+  } catch (e) {
+    return { why: `this source could not be read here: ${e.message}` }
+  }
+  if (!spec) {
+    return { why: entry.type === "cog" ? "this COG could not be read here (not Web Mercator, or no answer): the browser reads it through titiler"
+      : entry.type === "dem-diff" ? "an operand of this difference cannot be read here"
+      : "this source could not be read here" }
+  }
+  const builtin = BUILTIN_DEMS.find((d) => d.id === entry.id)
+  return {
+    dem: {
+      id: entry.id,
+      name: entry.name ?? builtin?.name ?? A.terrainSources[entry.id]?.name ?? hostOf(entry.url),
+      tiles: spec.template,
+      encoding: spec.encoding,
+      tileSize: spec.tileSize,
+      ...(spec.minzoom != null ? { minzoom: spec.minzoom } : {}),
+      // Mapterhorn declares z18 but most places stop at z15-17: the map
+      // probes each place (lib/tile-max-zoom.ts), the ceiling here stays z17.
+      // A tile address given without a maxzoom keeps the z14 it always had here.
+      maxzoom: builtin?.maxzoom ?? spec.maxzoom ?? (entry.external && /\{z\}/.test(spec.template) && isHttps(spec.template) ? 14 : DEFAULT_MAXZOOM),
+      ...(spec.bounds ? { bounds: spec.bounds } : {}),
+      ...(spec.customEncoding ? { customEncoding: spec.customEncoding } : {}),
+      ...(entry.external ? { external: true } : {}),
+    },
+  }
+}
+
+/** A source as tiles that can be decoded here, or null (see resolveDemOrWhy). */
+export async function resolveDem(source, settings) {
+  return (await resolveDemOrWhy(source, settings)).dem ?? null
 }
 
 // Decoded tiles, newest last: a Float32 grid each (NaN where there is no data).
 const tiles = new Map()
 const MAX_TILES = 160
+const ORIGIN = 20037508.342789244
 
-/** One tile as elevations: `{ side, data: Float32Array }`, or null when the
- *  tile does not exist. */
+/** The tile's address: {z}/{x}/{y}, and the bbox of a WMS template. */
+function tileUrl(template, z, x, y) {
+  const span = (2 * ORIGIN) / 2 ** z
+  return template.replace("{z}", z).replace("{x}", x).replace("{y}", y)
+    .replace("{bbox-epsg-3857}", [-ORIGIN + x * span, ORIGIN - (y + 1) * span, -ORIGIN + (x + 1) * span, ORIGIN - y * span].join(","))
+}
+
+/** RGBA to elevations, with the source's packing. `holeBelow`: alpha under
+ *  which a pixel is a hole (the app's protocols write holes with 254). */
+function decode(data, n, dem, holeBelow) {
+  const out = new Float32Array(n)
+  const c = dem.customEncoding, mapbox = dem.encoding === "mapbox"
+  for (let i = 0, o = 0; i < n; i++, o += 4) {
+    const r = data[o], g = data[o + 1], b = data[o + 2]
+    const v = c ? r * c.redFactor + g * c.greenFactor + b * c.blueFactor - c.baseShift
+      : mapbox ? -10000 + (r * 65536 + g * 256 + b) * 0.1 : r * 256 + g + b / 256 - 32768
+    out[i] = data[o + 3] < holeBelow || v < -12000 ? NaN : v
+  }
+  return out
+}
+
+/** A grid resampled to `side` over the same extent (a 514 px WMS answer for
+ *  a 512 px tile, a 512 px PMTiles tile declared 256), bilinear where the
+ *  four neighbours have data, nearest otherwise. */
+function resampleTo(src, w, h, side) {
+  const out = new Float32Array(side * side)
+  for (let j = 0; j < side; j++) {
+    const fy = Math.min(h - 1, Math.max(0, ((j + 0.5) * h) / side - 0.5)), y0 = Math.floor(fy), y1 = Math.min(h - 1, y0 + 1), ty = fy - y0
+    for (let i = 0; i < side; i++) {
+      const fx = Math.min(w - 1, Math.max(0, ((i + 0.5) * w) / side - 0.5)), x0 = Math.floor(fx), x1 = Math.min(w - 1, x0 + 1), tx = fx - x0
+      const a = src[y0 * w + x0], b = src[y0 * w + x1], c = src[y1 * w + x0], d = src[y1 * w + x1]
+      const v = (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
+      out[j * side + i] = Number.isNaN(v) ? src[Math.round(fy) * w + Math.round(fx)] : v
+    }
+  }
+  return out
+}
+
+/** One tile as elevations: `{ side, data: Float32Array }`, side being the
+ *  source's tile size, or null when the tile does not exist. */
 export function loadTile(dem, z, x, y) {
   const n = 2 ** z
   if (y < 0 || y >= n || z < 0) return Promise.resolve(null)
@@ -54,16 +175,25 @@ export function loadTile(dem, z, x, y) {
   const have = tiles.get(key)
   if (have) { tiles.delete(key); tiles.set(key, have); return have }
   const promise = (async () => {
-    const res = await fetch(dem.tiles.replace("{z}", z).replace("{x}", x).replace("{y}", y), { headers: { "user-agent": UA }, signal: AbortSignal.timeout(20000) })
-    if (!res.ok) return null
-    const { data, info } = await sharp(Buffer.from(await res.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-    const out = new Float32Array(info.width * info.height)
-    const mapbox = dem.encoding === "mapbox"
-    for (let i = 0, o = 0; i < out.length; i++, o += 4) {
-      const v = mapbox ? -10000 + (data[o] * 65536 + data[o + 1] * 256 + data[o + 2]) * 0.1 : data[o] * 256 + data[o + 1] + data[o + 2] / 256 - 32768
-      out[i] = data[o + 3] === 0 || v < -12000 ? NaN : v
+    const url = tileUrl(dem.tiles, z, x, y)
+    let data, width, height, holeBelow
+    if (/^https?:\/\//.test(url)) {
+      const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(20000) })
+      if (!res.ok) return null
+      const r = await sharp(Buffer.from(await res.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      data = r.data; width = r.info.width; height = r.info.height; holeBelow = 1
+    } else {
+      // One of the app's schemes, through its own reader (lib/normal-derived-protocol.ts).
+      const A = await app()
+      const bitmap = await A.loadTileBitmap(url, AbortSignal.timeout(60000))
+      if (!bitmap) return null
+      const px = await pixelsOf({ data: bitmap })
+      data = px.data; width = px.width; height = px.height; holeBelow = 255
     }
-    return { side: info.width, data: out }
+    let out = decode(data, width * height, dem, holeBelow)
+    const side = dem.tileSize ?? width
+    if (width !== side || height !== side) out = resampleTo(out, width, height, side)
+    return { side, data: out }
   })().catch(() => null)
   tiles.set(key, promise)
   promise.then((t) => { if (!t) tiles.delete(key) })

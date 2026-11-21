@@ -649,7 +649,8 @@ const MERCATOR_M_PER_PX_Z0 = 156543.03392
 // are deliberately drawn oversized. User-adjustable via the tellsScaleMultiplier
 // nuqs state (tells-options-section.tsx's "Size markers to Nx..." control);
 // this is only the fallback default for that state.
-export const TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT = 10
+// (Defined in lib/tells-protocol.ts, so the tile service bundles it too.)
+export { TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT } from "@/lib/tells-protocol"
 
 // Reference zoom for the interpolation below — deliberately NOT 24 (the style
 // spec's nominal max). MapLibre's "exponential" interpolate is evaluated in

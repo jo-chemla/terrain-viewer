@@ -26,8 +26,35 @@ import { plan } from "./direct.mjs"
   assert.equal((await plan({ modes: ["hillshade", "slope", "contours"] }, new URLSearchParams("slopeOpacity=0.5"))).engine, "direct")
   for (const m of ["lrm", "svf", "phong", "matcap", "shapeIndex", "contours"]) assert.equal((await plan({ modes: [m] }, new URLSearchParams())).engine, "direct", m)
   assert.deepEqual((await plan({ modes: ["aspect"] }, new URLSearchParams())).layers, ["aspect"])
-  assert.match((await plan({ terrainSource: "esri" }, new URLSearchParams())).why, /pyramid/)
-  assert.match((await plan({ modes: ["moundDetector"] }, new URLSearchParams())).why, /mound/)
+  // The overlays, in the map's order, and the dark theme.
+  assert.deepEqual((await plan({ modes: ["contours", "planeSlicer", "moundDetector", "graticules", "isoline", "hillshade"] }, new URLSearchParams("contourReferenceMode=lrm&theme=dark"))).layers, ["hillshade", "isoline", "graticules", "tells", "planeSlicer", "contours"])
+  assert.equal((await plan({ modes: ["isoline"] }, new URLSearchParams())).state.showContours, false, "the iso-line alone does not bring the contours")
+  // A default written as a constant's name resolves from the bundle.
+  {
+    const { state } = await plan({ modes: ["moundDetector"] }, new URLSearchParams())
+    for (const k of ["tellsScaleMultiplier", "matcapTextureId", "shapeIndexCustomStops"]) assert.ok(state[k] !== undefined && typeof state[k] !== "string" || k === "matcapTextureId" && state[k], k)
+  }
+  // Every source type the app reads is read here, with the app's readers.
+  for (const [id, scheme] of [
+    ["esri", /^lerc:\/\//],
+    ["custom-np-bhotekoshi-dsm-rasuwagadhi", /^cog:\/\/https:/],
+    ["custom-uk-wg-lidar-dtm1", /^https:\/\/titiler\.xyz\/cog\/tiles\//],
+    ["custom-ht-cnigs-dtm15", /^vrt:\/\//],
+    ["custom-us-hi-dtm1-lerc", /^lerc:\/\//],
+    ["custom-ign-lidarhd-dtm-wms-raw", /^float32dem-bbox:\/\//],
+    ["custom-nl-ahn-nhm", /^demdiff:\/\//],
+    ["custom-ch-swisstopo-terrain3d-qm", /^quantized-mesh:\/\//],
+    ["custom-global-smartmaps-gel", /^pmtiles:\/\//],
+  ]) {
+    const how = await plan({ terrainSource: id, modes: ["hillshade"] }, new URLSearchParams())
+    assert.equal(how.engine, "direct", `${id}: ${how.why}`)
+    assert.match(how.dem.tiles, scheme, id)
+  }
+  assert.equal((await plan({ terrainSource: "custom-ign-lidarhd-dtm-wms-raw" }, new URLSearchParams())).dem.encoding, "terrarium")
+  assert.equal((await plan({ terrainSource: '{"url":"https://example.com/dem.vrt"}' }, new URLSearchParams())).engine, "browser", "a VRT that does not answer")
+  assert.match((await plan({ terrainSource: "mapbox" }, new URLSearchParams())).why, /API key/)
+  assert.match((await plan({ terrainSource: "nope" }, new URLSearchParams())).why, /unknown terrain source/)
+  assert.match((await plan({ modes: ["hillshade"], viewMode: "3d" }, new URLSearchParams())).why, /3D/)
   assert.match((await plan({ modes: ["basemap"] }, new URLSearchParams())).why, /imagery/)
   assert.equal((await plan({ terrainSource: '{"url":"https://x/{z}/{x}/{y}.png","type":"terrainrgb"}' }, new URLSearchParams())).dem.encoding, "mapbox")
   assert.equal(readFileSync(DOCS_COPY, "utf8").replaceAll(String.fromCharCode(13), ""), docsCopyText(), "docs/public/tile-service-openapi.json is stale: run `node tile-openapi.mjs` in mcp/")
@@ -86,9 +113,10 @@ console.log(`catalog_items Antakya: OAM ${cat["cat-oam"].count}, Maxar ${cat["ca
 
 // Numbers and files.
 const A = { lat: 45.9763, lng: 7.6586 }, B = { lat: 46.0207, lng: 7.7491 }
-const ele = (await call("elevation", { points: [A, B], sources: ["mapterhorn", "aws", "custom-nl-ahn-dtm"] })).structuredContent
+const ele = (await call("elevation", { points: [A, B], sources: ["mapterhorn", "aws", "esri", "nope"] })).structuredContent
 assert.ok(Math.abs(ele.mapterhorn.points[0].elevationM - 4450) < 60, JSON.stringify(ele.mapterhorn))
-assert.ok(ele["custom-nl-ahn-dtm"].error, "a WMS dataset is refused with a reason")
+assert.ok(Math.abs(ele.esri.points[0].elevationM - 4450) < 80, `the LERC reader: ${JSON.stringify(ele.esri)}`)
+assert.ok(ele.nope.error, "an unknown source is refused with a reason")
 const prof = (await call("elevation", { points: [A, B], profile: true, samples: 32 })).structuredContent.mapterhorn
 assert.ok(prof.samples.length === 32 && prof.lengthM > 8000 && prof.lossM > 2500, JSON.stringify(prof).slice(0, 200))
 console.log(`elevation: Matterhorn ${ele.mapterhorn.points[0].elevationM} m (Mapterhorn), ${ele.aws.points[0].elevationM} m (AWS); profile ${prof.lengthM} m, ${prof.minM} to ${prof.maxM} m`)

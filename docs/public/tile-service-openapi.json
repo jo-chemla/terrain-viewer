@@ -3,7 +3,7 @@
   "info": {
     "title": "Terrain Viewer tile service",
     "version": "0.1.0",
-    "description": "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server from Terrarium or Terrain-RGB elevation tiles with the app's own code, in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.",
+    "description": "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/Iconem/terrain-viewer"
@@ -117,7 +117,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles or of a COG, or a configuration as JSON, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"wms-raw\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -163,7 +163,10 @@
                   "matcap",
                   "shadows",
                   "basemap",
-                  "moundDetector"
+                  "moundDetector",
+                  "isoline",
+                  "graticules",
+                  "planeSlicer"
                 ]
               }
             },
@@ -424,7 +427,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles or of a COG, or a configuration as JSON, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"wms-raw\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -470,7 +473,10 @@
                   "matcap",
                   "shadows",
                   "basemap",
-                  "moundDetector"
+                  "moundDetector",
+                  "isoline",
+                  "graticules",
+                  "planeSlicer"
                 ]
               }
             },
@@ -652,7 +658,10 @@
                 "matcap",
                 "shadows",
                 "basemap",
-                "moundDetector"
+                "moundDetector",
+                "isoline",
+                "graticules",
+                "planeSlicer"
               ]
             },
             "description": "One mode (as `modes`)."
@@ -762,7 +771,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles or of a COG, or a configuration as JSON, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"wms-raw\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -808,7 +817,10 @@
                   "matcap",
                   "shadows",
                   "basemap",
-                  "moundDetector"
+                  "moundDetector",
+                  "isoline",
+                  "graticules",
+                  "planeSlicer"
                 ]
               }
             },
@@ -942,7 +954,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles or of a COG, or a configuration as JSON, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"wms-raw\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -988,7 +1000,10 @@
                   "matcap",
                   "shadows",
                   "basemap",
-                  "moundDetector"
+                  "moundDetector",
+                  "isoline",
+                  "graticules",
+                  "planeSlicer"
                 ]
               }
             },
@@ -1209,7 +1224,7 @@
         ],
         "operationId": "contours",
         "summary": "Contour lines as a vector tile",
-        "description": "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Terrarium or Terrain-RGB sources only.",
+        "description": "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Sources the direct engine reads (see `/sources`).",
         "parameters": [
           {
             "name": "z",
@@ -1281,7 +1296,7 @@
             }
           },
           "400": {
-            "description": "The source is not a Terrarium or Terrain-RGB pyramid"
+            "description": "The source cannot be read by the direct engine"
           }
         }
       }

@@ -21,3 +21,5 @@ export { computeColorReliefPaint, computeHillshadePaint } from "../lib/layer-pai
 export { MODE_RELIEF } from "../lib/mode-relief"
 export { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from "../lib/matcap-textures"
 export { parseAsCustomRampStops, DEFAULT_SLOPE_CUSTOM_STOPS, DEFAULT_SHAPE_INDEX_CUSTOM_STOPS } from "../lib/color-ramps"
+export * from "./app-sources"
+export * from "./app-overlays"

@@ -10,7 +10,7 @@ The app runs in the browser and has no server. The tile service is a small serve
 
 | Engine | Draws | Time per tile |
 |---|---|---|
-| **Direct** | Every 2D terrain mode, computed in the server from Terrarium or Terrain-RGB elevation tiles by the app's own code | 0.05 to 2.5 s |
+| **Direct** | Every 2D terrain mode and overlay (contours with labels, iso-line, mound detector, plane slicer, graticule, dark theme), computed in the server by the app's own code from any source the app reads, read with the app's own readers | 0.05 to 2.5 s |
 | **Browser** | Everything: the app itself in a headless browser, so every source, every mode, imagery, 3D, split views and combined layouts | 3 to 10 s for a new block, then milliseconds |
 
 Tiles and viewports take the direct engine whenever they can. 3D, tilted, rotated and split views always take the browser, and so do imagery and the few layers listed in [What goes to the browser](#what-goes-to-the-browser).
@@ -34,8 +34,8 @@ Both take the view as query parameters, the same words the [MCP server](/feature
 
 | Parameter | Meaning |
 |---|---|
-| `terrainSource` | An id from `/sources` (the built-in sources and the [library](/features/terrain-sources#the-library)), the address of Terrarium tiles or of a COG, or a configuration as JSON: `{"url": "…/{z}/{x}/{y}.png", "type": "terrainrgb", "maxzoom": 15}` (types `terrarium`, `terrainrgb`, `cog`, `wms-raw`) |
-| `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `basemap`, `moundDetector` |
+| `terrainSource` | An id from `/sources` (the built-in sources and the [library](/features/terrain-sources#the-library)), the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry: `{"url": "…/{z}/{x}/{y}.png", "type": "terrainrgb", "maxzoom": 15}` (types `terrarium`, `terrainrgb`, `cog`, `vrt`, `wms-raw`, `lerc`, `quantized-mesh`, `tilejson`) |
+| `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `moundDetector`, `isoline`, `graticules`, `planeSlicer`, `basemap` (also `tri`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`) |
 | `imageryUrl`, `imagerySource`, `imageryDate` | Imagery under the terrain, drawn with the mode `basemap` |
 | `engine` | `auto` (the default: direct when it can), `direct` (an error when it cannot), `browser` |
 | anything else | Passed to the app as a [URL parameter](/dev/url-api): ramps, opacities, light direction, contour interval |
@@ -56,7 +56,7 @@ A source that is not listed can still be given whole, as its address or as a JSO
 
 ## Contour lines as vector tiles
 
-`/contours/{z}/{x}/{y}.pbf` answers the contour lines of a tile as a Mapbox Vector Tile, layer `contours`, each line with `ele` (its elevation in metres) and `level` (1 for a major line), the attributes of the app's own contour tiles. The client places the labels, where its map library wants them. `contourMinor` and `contourMajor` set the intervals (major lines only below zoom 6), `terrainSource` the source (Terrarium or Terrain-RGB).
+`/contours/{z}/{x}/{y}.pbf` answers the contour lines of a tile as a Mapbox Vector Tile, layer `contours`, each line with `ele` (its elevation in metres) and `level` (1 for a major line), the attributes of the app's own contour tiles. The client places the labels, where its map library wants them. `contourMinor` and `contourMajor` set the intervals (major lines only below zoom 6), `terrainSource` the source (any source the direct engine reads, see [Sources](#sources)).
 
 ```js
 map.addSource("tv-contours", { type: "vector", tiles: ["http://localhost:3400/contours/{z}/{x}/{y}.pbf"], maxzoom: 15 })
@@ -99,65 +99,103 @@ The direct engine computes the tile in the server, with no browser. It opens not
 | Hillshade | MapLibre's two shader passes, rewritten in JavaScript line by line, fed with the paint the map computes: the five methods and the app's three multi-light presets |
 | Matcap, Phong | The app's live GL layers, its default renderer: their fragment shaders rewritten in JavaScript (the normal of each pixel from the bilinear elevation, Phong's multiply and add passes over the layers below, the camera-relative matcap lookup). With `matcapRenderer=raster` or `phongRenderer=raster`, the app's tile protocols, as the app then draws them |
 | Cast shadows | The app's tile protocol |
-| Contours | Marching squares at the app's intervals and widths; no labels on the picture, and [vector tiles](#contour-lines-as-vector-tiles) with `ele` for a client to label |
+| Contours | maplibre-contour, the app's contour library, with its intervals, widths and colours; on the terrain, or on its local relief model with `contourReferenceMode=lrm`. The labels are drawn on the picture (elevation and "m" on major lines, bold 10 px with a halo, every 250 px along the line, upright, not on sharp bends or over another label), placed close to MapLibre's line symbols but not identically. The [vector tiles](#contour-lines-as-vector-tiles) carry `ele` for a client that places its own |
+| Iso-line | At a value: the app's `isoband://` vector tiles over the chosen measure (elevation, slope, any computed mode or lighting), the fill and the line, and on slope the cliff teeth every 28 px. Every interval: the contour engine over the measure's tiles |
+| Mound detector | The app's `tells://` vector tiles, a circle per candidate with the map's radius (fixed, or the measured diameter times `tellsScaleMultiplier`) and colours (outline, or coloured by blobness, plan curvature, Hessian or LRM) |
+| Plane slicer | The colour relief the map draws for it, on the elevation or on the local relief model |
+| Graticule | The lines at the app's spacing for the zoom, or `graticuleDensity`. Its labels sit on the edges of the screen in the app, so a tile has none |
+| Dark theme | The black background, and the contour, label and graticule colours that follow the theme |
 
-The layers stack in the map's order over its white background, with the app's opacities. Every URL parameter the app reads for these layers applies: ramps, ranges, inversion, custom ramp stops, radii, light direction, exaggeration, opacities.
+The layers stack in the map's order (the relief and lighting layers, then iso-line and graticule, mound markers, plane slicer, and the contours on top) over its white or black background, with the app's opacities. A colour ramp is read as MapLibre reads it: the stops rounded to the elevation encoding's step and the colours taken from an 8-bit texture. Every URL parameter the app reads for these layers applies: ramps, ranges, inversion, custom ramp stops, radii, light direction, exaggeration, opacities.
+
+### Sources
+
+The direct engine reads every source type the app reads, with the app's own readers. What a source's elevation tiles are (template, RGB packing, tile size, zoom range) comes from the function the map uses for its own decoders, `terrainTileSpec` in `lib/terrain-tile-spec.ts`, with the app's default settings (the in-browser COG reader on, Terrarium tiles, titiler at `titiler.xyz`). The readers are the app's protocols, registered in Node through the app's registry (`lib/protocol-registry.ts`) by `mcp/app-sources.ts`:
+
+| Type | Read by |
+|---|---|
+| Terrarium, Terrain-RGB, custom RGB packing | The tiles fetched and decoded in the server |
+| PMTiles | `pmtiles://`, Range reads of the archive |
+| COG | `cog://` (geotiff.js), with the elevation colour function the map registers. A COG the in-browser reader refuses, or one pinned to titiler (`cogViaTitiler`, most of the library's), is read through titiler as in the app |
+| VRT | `vrt://`: the VRT's own index, its files Range-read by geotiff.js and warped by proj4. Also GEM-15, Open Buildings and Meta's canopy height, whose indexes come from the deployed app. A VRT pinned to titiler goes through titiler |
+| WMS, WCS, ArcGIS exportImage (`wms-raw`) | `float32dem://`, one Float32 GeoTIFF request per tile |
+| LERC (ArcGIS tiled elevation, Esri World Elevation) | `lerc://`, Esri's wasm decoder |
+| Quantized mesh | `quantized-mesh://`, the meshes rasterised |
+| Difference (nDSM, change) | `demdiff://` over its two operands, each read as above |
+| TileJSON | The manifest's tile template |
+
+Not read in the server, so drawn by the browser: Mapbox, MapTiler and Cesium ion (they need an API key, which the service does not hold), STAC and MosaicJSON entries, a local file, a source whose address is not https, and a COG or VRT that does not answer. `/sources` gives each source its engine, and the reason when it is the browser.
 
 ### What goes to the browser
 
-3D, tilted, rotated and split views; imagery and basemaps; the mound detector; graticules; the iso-line; contours of the local relief model; the plane slicer; building shadows; the sky and fog background; the historical mode; the dark theme; a source that is not a Terrarium or Terrain-RGB pyramid (COG, VRT, WMS, LERC, quantized mesh, difference). The answer's `x-tv-engine-why` header names the reason.
+3D, tilted, rotated and split views (the camera is the app's); imagery and basemaps; building shadows (OpenStreetMap buildings); the sky and fog background; the historical mode; a source the server does not read (see [Sources](#sources)). The answer's `x-tv-engine-why` header names the reason.
 
 ### Compared with the app
 
-Run on 2026-11-21: every case below drawn by both engines at the same index, at Matterhorn (z12, 4,000 m of relief) and in Paris (z14, almost flat), as 256 px tiles and as `@2x`, 152 pairs. The table keeps the worst of the four tiles for each case; times are the median of the four, with the elevation tiles already in memory for the direct engine and a new 2048 px block for each browser tile.
+Run on 2026-11-21: every case below drawn by both engines at the same index, at Matterhorn (z12, 4,000 m of relief) and in Paris (z14, almost flat), as 256 px tiles and as `@2x`, 196 pairs. The table keeps the worst of the four tiles for each case; times are the median of the four, with the elevation tiles already in memory for the direct engine and a new 2048 px block for each browser tile.
 
 | Case | Largest mean difference (0-255) | Largest share of pixels off by more than 24 | Direct, median | Browser, median |
 |---|---|---|---|---|
-| hillshade (combined, default) | 0.9 | 0.13 % | 459 ms | 6671 ms |
-| hillshade standard | 2.27 | 0.97 % | 194 ms | 5178 ms |
-| hillshade igor | 1.6 | 0.06 % | 137 ms | 6347 ms |
-| hillshade basic, light 200/30 | 0.21 | 0.09 % | 126 ms | 4383 ms |
-| hillshade combined, exaggeration 0.6, coloured | 0.65 | 0.08 % | 147 ms | 5301 ms |
-| hillshade multidir-colors | 0.82 | 0.17 % | 164 ms | 4659 ms |
-| hillshade duotone-nw-ne | 0.51 | 0.13 % | 136 ms | 4848 ms |
-| hillshade aspect-multidir | 1.08 | 0.19 % | 137 ms | 4797 ms |
-| colour relief (default) | 0.22 | 0 % | 39 ms | 3999 ms |
-| colour relief dem_screen 300-4500, opaque | 0.07 | 0 % | 48 ms | 3911 ms |
-| slope | 0.02 | 0 % | 728 ms | 4579 ms |
-| slope 0-45 inverted | 0.09 | 0 % | 153 ms | 5571 ms |
-| aspect | 0.15 | 0 % | 175 ms | 5636 ms |
-| TRI | 0.1 | 0 % | 152 ms | 5249 ms |
-| curvature | 0.17 | 0 % | 129 ms | 5156 ms |
-| TPI | 0.22 | 0 % | 172 ms | 4951 ms |
-| roughness | 0.21 | 0 % | 175 ms | 5247 ms |
-| shape index | 5.61 | 3.24 % | 210 ms | 5648 ms |
-| blobness | 0.13 | 0 % | 193 ms | 4636 ms |
-| eigen ratio | 0.18 | 0 % | 215 ms | 5637 ms |
-| orientation | 0.07 | 0 % | 280 ms | 5698 ms |
-| LRM | 0.17 | 0 % | 367 ms | 4878 ms |
-| LRM radius 32 | 0.2 | 0 % | 376 ms | 4138 ms |
-| sky-view factor | 0.06 | 0 % | 913 ms | 5792 ms |
-| openness | 0.07 | 0 % | 843 ms | 5594 ms |
-| local dominance | 0.09 | 0 % | 1497 ms | 6483 ms |
-| contours | 2.76 | 1.51 % | 323 ms | 5894 ms |
-| contours 20/100 | 4.82 | 2.53 % | 280 ms | 6009 ms |
-| matcap (live renderer in the app) | 1.82 | 0.26 % | 526 ms | 6328 ms |
-| matcap, raster renderer | 0.64 | 0 % | 888 ms | 5832 ms |
-| phong (live renderer in the app) | 1.72 | 0.15 % | 341 ms | 6069 ms |
-| phong, raster renderer | 0.26 | 0 % | 257 ms | 5716 ms |
-| cast shadows | 0 | 0 % | 239 ms | 4508 ms |
-| hillshade + colour relief + contours | 2.19 | 0.96 % | 232 ms | 5610 ms |
-| slope + hillshade | 0.9 | 0.13 % | 224 ms | 5600 ms |
-| LRM + sky-view factor + hillshade | 1 | 0.11 % | 1100 ms | 6278 ms |
-| cast shadows, sun at 15 degrees | 0 | 0 % | 192 ms | 4770 ms |
-| phong, rim light 0.6, two lights | 1.36 | 0.14 % | 223 ms | 5852 ms |
+| hillshade (combined, default) | 0.9 | 0 % | 451 ms | 6290 ms |
+| hillshade standard | 2.27 | 0.97 % | 141 ms | 5811 ms |
+| hillshade igor | 1.6 | 0 % | 125 ms | 5885 ms |
+| hillshade basic, light 200/30 | 0.21 | 0.09 % | 82 ms | 4002 ms |
+| hillshade combined, exaggeration 0.6, coloured | 0.65 | 0 % | 122 ms | 5057 ms |
+| hillshade multidir-colors | 0.82 | 0 % | 124 ms | 4205 ms |
+| hillshade duotone-nw-ne | 0.51 | 0 % | 110 ms | 5075 ms |
+| hillshade aspect-multidir | 1.08 | 0 % | 112 ms | 4524 ms |
+| colour relief (default) | 0.22 | 0 % | 53 ms | 3931 ms |
+| colour relief dem_screen 300-4500, opaque | 0.07 | 0 % | 54 ms | 4555 ms |
+| slope | 0.02 | 0 % | 864 ms | 4607 ms |
+| slope 0-45 inverted | 0.04 | 0 % | 121 ms | 5509 ms |
+| aspect | 0.15 | 0 % | 174 ms | 5589 ms |
+| TRI | 0.1 | 0 % | 122 ms | 5216 ms |
+| curvature | 0.17 | 0 % | 121 ms | 5423 ms |
+| TPI | 0.22 | 0 % | 141 ms | 4948 ms |
+| roughness | 0.21 | 0 % | 190 ms | 5446 ms |
+| shape index | 5.61 | 3.24 % | 188 ms | 5579 ms |
+| blobness | 0.13 | 0 % | 168 ms | 4610 ms |
+| eigen ratio | 0.18 | 0 % | 206 ms | 5635 ms |
+| orientation | 0.07 | 0 % | 263 ms | 5047 ms |
+| LRM | 0.17 | 0 % | 343 ms | 4234 ms |
+| LRM radius 32 | 0.2 | 0 % | 366 ms | 4578 ms |
+| sky-view factor | 0.06 | 0 % | 855 ms | 5691 ms |
+| openness | 0.07 | 0 % | 765 ms | 5597 ms |
+| local dominance | 0.09 | 0 % | 1112 ms | 5703 ms |
+| contours | 3.43 | 2.17 % | 675 ms | 3961 ms |
+| contours 20/100 † | 7.41 | 5.39 % | 1236 ms | 4165 ms |
+| matcap (live renderer in the app) | 1.82 | 0.26 % | 222 ms | 5165 ms |
+| matcap, raster renderer | 0.64 | 0 % | 286 ms | 5431 ms |
+| phong (live renderer in the app) | 1.72 | 0.15 % | 211 ms | 4952 ms |
+| phong, raster renderer | 0.26 | 0 % | 225 ms | 4848 ms |
+| cast shadows | 0 | 0 % | 228 ms | 4094 ms |
+| cast shadows, sun at 15 degrees | 0 | 0 % | 217 ms | 4140 ms |
+| phong, rim light 0.6, two lights | 1.36 | 0.14 % | 239 ms | 5138 ms |
+| hillshade + colour relief + contours | 3 | 2.13 % | 372 ms | 5068 ms |
+| slope + hillshade | 0.9 | 0 % | 199 ms | 5607 ms |
+| LRM + sky-view factor + hillshade | 1 | 0 % | 977 ms | 5699 ms |
+| contours, no labels | 2.13 | 0.97 % | 70 ms | 4046 ms |
+| contours of the local relief model † | 13.11 | 12.15 % | 3664 ms | 4414 ms |
+| iso-line, slope 30 degrees | 1.88 | 2.36 % | 408 ms | 5824 ms |
+| iso-line, slope 30 with fill and cliff teeth | 13.56 | 17.16 % | 310 ms | 6437 ms |
+| iso-line, slope every 10 degrees | 1.91 | 2.13 % | 355 ms | 4419 ms |
+| iso-line, elevation every 50 m | 1.54 | 1.6 % | 136 ms | 4070 ms |
+| graticules | 0.93 | 0 % | 127 ms | 5543 ms |
+| plane slicer at 2800 m | 0.53 | 0 % | 135 ms | 5128 ms |
+| plane slicer, local relief above 0 | 0.78 | 0 % | 184 ms | 5512 ms |
+| mound detector | 11.14 | 26.02 % | 704 ms | 5594 ms |
+| dark theme, hillshade + contours | 3.32 | 2.06 % | 382 ms | 5091 ms |
 
 What the remaining differences are:
 
-- **Contours**: the same lines, from the same library and options. The app writes its labels on the map tile and the direct engine does not, and the line edges are smoothed by a different rasteriser.
-- **Shape index**: its default ramp is discrete, so a value next to a class boundary flips class on a difference of a thousandth. On the almost flat Paris tile the index hovers around those boundaries everywhere, hence scattered pixels; at Matterhorn the worst case is 1.2.
+- **† Dense contours at Matterhorn**: in this run the app gave up before its 1x tile was drawn (the browser picture is blank), so the line keeps the value of an earlier run of the same case on the same day.
+- **Contour labels**: the lines are the same, from the same library and options; the labels are placed close to MapLibre's line symbols but not identically, its collision rules keep fewer of them on short wiggly lines (the local relief model), and the server's font is Liberation Sans where MapLibre draws its Noto glyphs. Without labels, 2.1.
+- **Shape index**: in Paris, every difference is a pixel at exactly +1 (a dome), drawn transparent by the app and dark red by the direct engine. That is an app bug, fixed in this release (see the changelog): MapLibre rounds a ramp's stops to the elevation's encoding, so the last pair of a discrete ramp became one value and the shader divided 0 by 0. Once the fix is deployed both engines draw it dark red.
+- **Iso-line cliff teeth** and **mound markers**: the same marks; the teeth start at a different offset along each line, and a few markers near a tile edge are missing on one side or the other.
 - **Hillshade** on flat ground: the gradient is kept in 8 bits, as in MapLibre's own texture, and a tiny slope rounds one way or the other.
 - **Matcap and Phong**: compared with the app's default live renderer, and with its raster renderer when `matcapRenderer=raster` or `phongRenderer=raster`.
+
+Sources other than Mapterhorn compare the same way: a COG within 0.4 to 2.5, a VRT 0.2 to 0.8, a WMS 0.02 to 1.3, LERC 0.02 to 1.7, quantized mesh 0.01 to 0.5 (hillshade, colour relief and slope). Where a source has holes, the direct engine leaves them transparent while the map draws them at the fill height titiler gives them (0 m), so a GEM-15 hole or the ground under a building in a nDSM differs; the map's own source configuration and the decoders' will be one in the coming source schema.
 
 `node mcp/compare-engines.mjs <service>` runs the comparison again and writes the table and, for each case, the two tiles side by side with their difference.
 

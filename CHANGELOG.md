@@ -4,7 +4,7 @@
 
 #### TL;DR
 
-- **[Tile service](/docs/dev/tile-service)**: what the app draws, as XYZ tiles, pictures of a viewport and contour vector tiles, from a Docker image (`ghcr.io/iconem/terrain-viewer-tiles`). Every 2D terrain mode is computed in the server by the app's own code in a fraction of a second, matching the app's tiles within a level out of 255; 3D, imagery and split views are drawn by the app in a headless browser. `/sources`, `/colorramps` and `/algorithms` name what can be asked for, titiler's addresses work, and a Scalar page tries it all.
+- **[Tile service](/docs/dev/tile-service)**: what the app draws, as XYZ tiles, pictures of a viewport and contour vector tiles, from a Docker image (`ghcr.io/iconem/terrain-viewer-tiles`). Every 2D terrain mode, and the overlays (contours with their labels, the iso-line, the mound detector, the plane slicer, the graticule, the dark theme), is computed in the server by the app's own code in a fraction of a second, from every kind of source the app reads, matching the app's tiles within a level or two out of 255; 3D, imagery and split views are drawn by the app in a headless browser. `/sources`, `/colorramps` and `/algorithms` name what can be asked for, titiler's addresses work, and a Scalar page tries it all.
 - **[Terrain Viewer in Claude](/docs/features/mcp-server)**: the MCP server shows the app itself in the conversation, interactive with every mode asked for, and a picture of the exact view when the host will not run it. It installs from a Claude Code prompt, with or without Docker (`ghcr.io/iconem/terrain-viewer-mcp`), and its elevations and pictures of flat views need no browser.
 - **Land cover in the Library**: ESA WorldCover, Esri 10 m, MODIS, Corine 2018, NLCD 2021, IGN OCS GE (cover and use) and CoSIA, Copernicus 100 m (2015, 2019) and the Copernicus 10 m LCM-10 map of 2020. A Library search ignores hyphens and spaces and tolerates typos ("landcover", "land-use").
 - **New terrain**: Meta/WRI canopy height v2 (1 m, global), and Google GEM-15 DTM as the last of the Worldwide Defaults.
@@ -18,7 +18,9 @@
 - MCP server: in a stack with the tile service it asks it for the pictures it cannot draw itself (`TV_RENDER_URL`); both images are rebuilt by a GitHub workflow on each change.
 - Copy snapshot: both clipboard writes start inside the click, so Safari accepts the second one.
 - Library: class rasters (the Copernicus 100 m maps) are read with nearest neighbour, where bilinear blended class codes along every edge.
-- Asking for one mode of a group (aspect, sky-view factor, matcap) through the MCP server or the tile service no longer also shows the group's default mode (slope, LRM, Phong).
+- Asking for one mode of a group (aspect, sky-view factor, matcap, the iso-line, the graticule) through the MCP server or the tile service no longer also shows the group's default mode (slope, LRM, Phong, the contours).
+- Discrete colour ramps: the class above the last stop drew transparent (shape index's domes, any value at or past the top of a custom discrete ramp). MapLibre packs the stops in the elevation's encoding, so the last pair of stops, a thousandth apart, became one value and the shader divided 0 by 0; a last stop beyond the encoding's step keeps them apart.
+- Tile service: the direct engine reads the colour ramps as MapLibre does (stops rounded to the encoding's step, an 8-bit colour texture), and draws the overlays as the map stacks them: iso-line and graticule, mound markers, plane slicer, then the contours and their labels on top. `/contours` follows `contourReferenceMode=lrm`.
 
 # Changelog — Faster Terrain Analysis, Native Draping
 

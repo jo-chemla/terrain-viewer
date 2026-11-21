@@ -28,6 +28,9 @@ export const MODES = {
   shadows: { showLightingEffects: true, showShadows: true },
   basemap: { showRasterBasemap: true },
   moundDetector: { showTellsDetector: true },
+  isoline: { showContoursAndGraticules: true, showIsoline: true },
+  graticules: { showContoursAndGraticules: true, showGraticules: true },
+  planeSlicer: { showPlaneSlicer: true },
 }
 export const MODE_NAMES = Object.keys(MODES)
 export const IMAGERY_SOURCES = ["wayback", "ge-historical", "bing", "hls", "eox-s2"]
@@ -81,9 +84,9 @@ export function buildViewUrl(view, opts = {}) {
     for (const [k, v] of Object.entries(MODES[m])) p.set(k, String(v))
   }
   // One mode of each group is on by default in the app (slope, the local
-  // relief model, Phong): switching a group on for another mode would show
-  // that one too.
-  for (const [group, mode, flag] of [["showTerrainAnalysis", "slope", "showSlope"], ["showReliefVisualization", "lrm", "showLrm"], ["showLightingEffects", "phong", "showPhong"]]) {
+  // relief model, Phong, the contours): switching a group on for another
+  // mode would show that one too.
+  for (const [group, mode, flag] of [["showTerrainAnalysis", "slope", "showSlope"], ["showReliefVisualization", "lrm", "showLrm"], ["showLightingEffects", "phong", "showPhong"], ["showContoursAndGraticules", "contours", "showContours"]]) {
     if (p.get(group) === "true" && !modes.includes(mode)) p.set(flag, "false")
   }
 

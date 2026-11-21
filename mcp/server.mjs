@@ -273,7 +273,7 @@ function makeServer() {
 
   server.registerTool("elevation", {
     title: "Elevation of points, or a profile",
-    description: "Heights in metres read from the terrain data itself. With profile false: the elevation of each point. With profile true: the elevation along the line through the points (two or more), as evenly spaced samples with the length, lowest and highest point, total climb and descent. Give several sources to compare datasets on the same points (a surface model minus a ground model is the height of what stands on the ground). Reads tile datasets only: 'mapterhorn' (default), 'aws', a Terrarium tile URL, or a library dataset of type terrarium or terrainrgb.",
+    description: "Heights in metres read from the terrain data itself. With profile false: the elevation of each point. With profile true: the elevation along the line through the points (two or more), as evenly spaced samples with the length, lowest and highest point, total climb and descent. Give several sources to compare datasets on the same points (a surface model minus a ground model is the height of what stands on the ground). Reads 'mapterhorn' (default), 'aws', 'esri', a Terrarium tile URL, a COG or VRT address, or any library dataset (COG, VRT, WMS, LERC, mesh, difference, tile pyramid) except STAC and MosaicJSON, with the app's own readers.",
     inputSchema: z.object({
       points: z.array(pointShape).min(1).max(50).describe("The points, or the vertices of the profile line"),
       profile: z.boolean().optional().describe("true for a profile along the line; false (default) for the points themselves"),
@@ -285,7 +285,7 @@ function makeServer() {
 
   server.registerTool("export_geotiff", {
     title: "Elevation of an area as a GeoTIFF",
-    description: "Write the elevation of a box to a GeoTIFF file (32-bit float, metres, EPSG:3857, nodata -9999) that opens in QGIS or any GIS. Returns where the file is, its size in pixels, its resolution and its elevation range. At most 2048 pixels a side: a larger box gets a coarser resolution. Reads tile datasets only (see elevation); the app's own Download section exports the other datasets and every visualization mode.",
+    description: "Write the elevation of a box to a GeoTIFF file (32-bit float, metres, EPSG:3857, nodata -9999) that opens in QGIS or any GIS. Returns where the file is, its size in pixels, its resolution and its elevation range. At most 2048 pixels a side: a larger box gets a coarser resolution. Reads the datasets the elevation tool reads; the app's own Download section also exports every visualization mode.",
     inputSchema: z.object({
       west: z.number().min(-180).max(180), south: z.number().min(-85).max(85), east: z.number().min(-180).max(180), north: z.number().min(-85).max(85),
       source: z.string().optional().describe("Terrain source; 'mapterhorn' by default"),

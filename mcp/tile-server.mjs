@@ -55,9 +55,9 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./tile-openapi.mjs"
-import { plan, draw, drawViewport, flatView, DIRECT_MODES } from "./direct.mjs"
+import { plan, draw, drawViewport, flatView, DIRECT_MODES, contourSource } from "./direct.mjs"
 import { contourVectorTile } from "./contours.mjs"
-import { library, BUILTIN_DEMS, resolveDem } from "./dem.mjs"
+import { library, BUILTIN_DEMS, whyNotDirect } from "./dem.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
@@ -137,15 +137,19 @@ function appSource(view, rest) {
   return undefined
 }
 
-/** The terrain sources, by id: the built-in ones and the app's library. */
+/** The terrain sources, by id: the built-in ones and the app's library.
+ *  `engine`: direct when the server reads the source itself (dem.mjs, with
+ *  the app's readers), else browser, with why. */
 export function sources() {
+  const engine = (entry) => { const why = whyNotDirect(entry); return why ? { engine: "browser", why } : { engine: "direct" } }
   return [
     ...BUILTIN_DEMS.map((d) => ({ id: d.id, name: d.name, type: d.encoding === "mapbox" ? "terrainrgb" : "terrarium", url: d.tiles, maxzoom: d.maxzoom, engine: "direct" })),
-    { id: "esri", name: "Esri World Elevation - LERC", type: "lerc", engine: "browser" },
-    ...library().terrain.map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.tiles ? { url: s.tiles } : {}), ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.bounds ? { bounds: s.bounds } : {}), ...(s.resolutionM != null ? { resolutionM: s.resolutionM } : {}), engine: resolveDem(s.id) ? "direct" : "browser" })),
+    { id: "esri", name: "Esri World Elevation - LERC", type: "lerc", maxzoom: 16, engine: "direct" },
+    ...["mapbox", "maptiler", "cesium"].map((id) => ({ id, type: id === "cesium" ? "quantized-mesh" : "terrainrgb", ...engine({ id }) })),
+    ...library().terrain.map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.tiles ? { url: s.tiles } : {}), ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.bounds ? { bounds: s.bounds } : {}), ...(s.resolutionM != null ? { resolutionM: s.resolutionM } : {}), ...engine(s) })),
   ]
 }
-const SOURCES_NOTE = 'Give an id as terrainSource (or url). A source that is not listed: its tile address, or a configuration as JSON, {"url": "...", "type": "terrarium" | "terrainrgb" | "cog" | "wms-raw"}.'
+const SOURCES_NOTE = 'Give an id as terrainSource (or url). A source that is not listed: its tile address (a .tif is read as a COG, a .vrt as a VRT), or a configuration as JSON with the fields of a library entry, {"url": "...", "type": "terrarium" | "terrainrgb" | "cog" | "vrt" | "wms-raw" | "lerc" | "quantized-mesh" | "tilejson", ...}.'
 
 const shot = (ext) => (ext === "png" ? { type: "png" } : { type: "jpeg", quality: 85 })
 const blocks = new Map() // block key -> promise, while it renders
@@ -274,7 +278,7 @@ export function start(port = PORT) {
       }
       if (u.pathname === "/algorithms") return send(200, "application/json", JSON.stringify({
         algorithms: MODE_NAMES.map((id) => ({ id, engine: DIRECT_MODES.includes(id) ? "direct" : "browser" })),
-        note: "A tile is computed directly when every mode asked for is `direct` and the source is a Terrarium or Terrain-RGB pyramid (see /sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, split views, imagery, the mound detector, graticules, the iso-line, the plane slicer, building shadows and the dark theme go to the browser.",
+        note: "A tile is computed directly when every mode asked for is `direct` and the source can be read in the server (see /sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, tilted and split views, imagery and basemaps, building shadows, the sky background and the historical mode go to the browser.",
       }))
       const c = u.pathname.match(/^\/contours\/(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
       if (c) {
@@ -282,10 +286,12 @@ export function start(port = PORT) {
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
         const { view, rest } = viewOf(u.search)
         const how = await plan({ terrainSource: view.terrainSource, modes: ["contours"] }, rest)
-        if (how.engine !== "direct") return send(400, "text/plain", `Contour tiles are made from Terrarium or Terrain-RGB sources only: ${how.why}`)
-        const key = `contours|${JSON.stringify([how.dem.tiles, how.state.contourMinor, how.state.contourMajor])}|${z}/${x}/${y}`
+        if (how.engine !== "direct") return send(400, "text/plain", `Contour tiles cannot be made here: ${how.why}`)
+        // contourReferenceMode=lrm: the lines of the local relief model.
+        const src = await contourSource(how.dem, how.state)
+        const key = `contours|${JSON.stringify([src.dem.tiles, src.minor, src.major])}|${z}/${x}/${y}`
         let bytes = await cached(key, "pbf")
-        if (!bytes) { bytes = await contourVectorTile(how.dem, how.state, z, x, y); store(key, "pbf", bytes) }
+        if (!bytes) { bytes = await contourVectorTile(src.dem, src, z, x, y); store(key, "pbf", bytes) }
         return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
       }
       const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)

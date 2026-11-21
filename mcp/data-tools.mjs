@@ -2,7 +2,7 @@
 // profiles read from the tiles themselves, a GeoTIFF of an area, the dates
 // of the app's built-in dated imagery, a search of any STAC catalog.
 import { appLib, catalogItems } from "./tools.mjs"
-import { library, resolveDem, loadTile, window as demWindow, probe, BUILTIN_DEMS } from "./dem.mjs"
+import { library, resolveDem, resolveDemOrWhy, loadTile, window as demWindow, probe, BUILTIN_DEMS } from "./dem.mjs"
 
 export { resolveDem }
 
@@ -11,7 +11,7 @@ export function demOrigins() {
   const urls = [...BUILTIN_DEMS.map((d) => d.tiles), ...library().terrain.map((s) => s.tiles).filter(Boolean)]
   return [...new Set(urls.map((u) => new URL(u.replace(/[{}]/g, "")).origin))]
 }
-const notTiles = (source) => new Error(`"${source}" is not a plain tile dataset (it is a COG, a WMS, a VRT or a mesh), so only the app can read it: use open_view. Values can be read from "mapterhorn" (default), "aws", a Terrarium tile URL, or a library dataset of type terrarium or terrainrgb.`)
+const notTiles = (source, why) => new Error(`"${typeof source === "string" ? source : JSON.stringify(source)}" cannot be read here (${why}): use open_view. Values can be read from "mapterhorn" (default), "aws", "esri", a Terrarium tile URL, a COG or VRT address, or any library dataset (COG, VRT, WMS, LERC, mesh, difference, tile pyramid) except STAC and MosaicJSON.`)
 
 // Decodes the tiles under the points and reads them bilinearly, or copies a
 // rectangle of pixels (`grid`). Tiles are decoded in Node (dem.mjs): no
@@ -85,8 +85,8 @@ export async function elevation({ points, profile = false, samples = 64, sources
   }
   const result = {}
   for (const source of sources?.length ? sources : ["mapterhorn"]) {
-    const dem = resolveDem(source)
-    if (!dem) { result[source] = { error: notTiles(source).message }; continue }
+    const { dem, why } = await resolveDemOrWhy(source)
+    if (!dem) { result[source] = { error: notTiles(source, why).message }; continue }
     const r = await sample(dem, { zoom: Math.min(zoom ?? (profile ? 13 : 14), dem.maxzoom), points: coords })
     const vals = r.values.map((v) => (v === null ? null : Math.round(v * 10) / 10))
     const got = vals.filter((v) => v !== null)
@@ -104,10 +104,10 @@ export async function elevation({ points, profile = false, samples = 64, sources
 }
 
 /** A Float32 GeoTIFF (EPSG:3857) of the elevation over a box, written to a
- *  file. Tile datasets only, at most `maxSide` pixels a side. */
+ *  file. Any source dem.mjs reads, at most `maxSide` pixels a side. */
 export async function exportGeotiff({ bbox, source, maxSide = 1024 }) {
-  const dem = resolveDem(source)
-  if (!dem) throw notTiles(source)
+  const { dem, why } = await resolveDemOrWhy(source)
+  if (!dem) throw notTiles(source, why)
   const [west, south, east, north] = bbox
   if (!(east > west && north > south)) throw new Error("bbox is [west, south, east, north] in degrees.")
   const r = await sample(dem, { zoom: dem.maxzoom, points: [[(west + east) / 2, (south + north) / 2]], grid: { west, south, east, north, maxSide: Math.min(2048, maxSide) } })

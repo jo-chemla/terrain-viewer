@@ -6,7 +6,9 @@
 // import.meta.env is defined empty: no key from .env can reach the bundle.
 // Keyed catalogs (Planet) therefore answer nothing here, which is intended.
 import { build } from "esbuild"
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
+import { basename } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url))
@@ -22,17 +24,38 @@ await build({
   loader: { ".gz": "empty", ".png": "empty", ".jpg": "empty", ".svg": "empty", ".css": "empty", ".mdx": "empty" },
 })
 
-// The app's tile protocols and layer paints, for the tile service's direct
-// engine (app-render.ts). maplibre-gl is replaced by a stub: the protocols
-// only register themselves with it.
+// `import x from "<file>?url"` (Vite's asset URL): a wasm file (the LERC
+// decoder's) is copied into generated/ and the import becomes its path on
+// disk, which the decoder reads with fs in Node; any other file (the EPSG
+// table the VRT reader fetches) becomes a data: URL, which Node's fetch reads.
+const rootRequire = createRequire(here("../package.json"))
+const assetUrls = {
+  name: "asset-url",
+  setup(b) {
+    b.onResolve({ filter: /\?url$/ }, (args) => ({ path: rootRequire.resolve(args.path.replace(/\?url$/, "")), namespace: "asset-url" }))
+    b.onLoad({ filter: /.*/, namespace: "asset-url" }, (args) => {
+      if (!args.path.endsWith(".wasm")) return { contents: `export default ${JSON.stringify(`data:application/octet-stream;base64,${readFileSync(args.path).toString("base64")}`)}`, loader: "js" }
+      copyFileSync(args.path, here(`./generated/${basename(args.path)}`))
+      return { contents: `import { fileURLToPath } from "node:url"
+export default fileURLToPath(new URL(${JSON.stringify(`./${basename(args.path)}`)}, import.meta.url))`, loader: "js" }
+    })
+  },
+}
+
+// The app's tile protocols, source readers and layer paints, for the tile
+// service's direct engine (app-render.ts, app-sources.ts). maplibre-gl is
+// replaced by a stub: the protocols only register themselves with it.
+// BASE_URL is the deployed app: the VRT reader fetches its indexes (Open
+// Buildings, Meta canopy height) from the app's own public folder.
 await build({
   entryPoints: [here("./app-render.ts")],
   outfile: here("./generated/app-render.mjs"),
   bundle: true, platform: "node", format: "esm", target: "node20",
   tsconfig: here("../tsconfig.json"),
   logLevel: "error",
-  define: { "import.meta.env": "{}" },
+  define: { "import.meta.env.BASE_URL": JSON.stringify("https://terrain-viewer.iconem.com/"), "import.meta.env": "{}" },
   alias: { "maplibre-gl": here("./maplibre-stub.mjs") },
+  plugins: [assetUrls],
   loader: { ".gz": "empty", ".png": "empty", ".jpg": "empty", ".svg": "empty", ".css": "empty", ".mdx": "empty", ".wgsl": "text", ".glsl": "text" },
 })
 
@@ -42,13 +65,16 @@ await build({
 writeFileSync(here("./generated/url-params.json"), readFileSync(here("../docs/src/generated/url-params.json")))
 
 const src = JSON.parse(readFileSync(here("../lib/custom-sources.json"), "utf8"))
+const SPEC_FIELDS = ["url", "minzoom", "tileSize", "encoding", "cogViaTitiler", "titilerNodata", "nodataFloor", "nodataFill", "diffMinuendId", "diffSubtrahendId", "diffOffsetM", "redFactor", "greenFactor", "blueFactor", "baseShift"]
+const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, o[k]]))
 const terrain = src.SAMPLE_TERRAIN_SOURCES
   // Ids made on one machine (custom-<timestamp>) and project-only entries are not library datasets.
   .filter((s) => /^custom-[a-z]/.test(s.id))
   // `tiles`: only for plain Terrarium / Terrain-RGB pyramids, which the
-  // server can sample itself and the in-chat map can draw; a COG, WMS or VRT
-  // dataset is read by the app alone.
-  .map((s) => ({ id: s.id, name: s.name, type: s.type, tiles: (s.type === "terrarium" || s.type === "terrainrgb") && s.redFactor == null && s.baseShift == null && /^https:\/\//.test(s.url) ? s.url : null, maxzoom: s.maxzoom ?? null, bounds: s.bounds ?? null, resolutionM: s.resolutionM ?? null, description: s.description ?? "", infoUrl: s.infoUrl ?? "" }))
+  // in-chat map can draw itself. The fields after `infoUrl` are what the
+  // app's tile spec reads (lib/terrain-tile-spec.ts): the tile service and
+  // the elevation tools read every type through it (dem.mjs).
+  .map((s) => ({ id: s.id, name: s.name, type: s.type, tiles: (s.type === "terrarium" || s.type === "terrainrgb") && s.redFactor == null && s.baseShift == null && /^https:\/\//.test(s.url) ? s.url : null, maxzoom: s.maxzoom ?? null, bounds: s.bounds ?? null, resolutionM: s.resolutionM ?? null, description: s.description ?? "", infoUrl: s.infoUrl ?? "", ...pick(s, SPEC_FIELDS) }))
 
 // `origins`: every https host the app's built-in lists read (the terrain and
 // raster libraries, the built-in terrain and basemaps, the dated imagery and

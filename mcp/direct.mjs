@@ -25,13 +25,16 @@
 // gets and why.
 import { readFileSync } from "node:fs"
 import sharp from "sharp"
+import { VectorTile } from "@mapbox/vector-tile"
+import { PbfReader } from "pbf"
+import { latest as styleSpec, normalizePropertyExpression } from "@maplibre/maplibre-gl-style-spec"
 import { contourSvg } from "./contours.mjs"
-import { resolveDem, window as demWindow } from "./dem.mjs"
+import { resolveDemOrWhy, window as demWindow } from "./dem.mjs"
 import { buildViewUrl, DEFAULT_BASE_URL } from "./url.mjs"
 import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
 
 let appPromise
-const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs")))
+const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs").then((A) => { A.registerDerivedProtocols(); return A })))
 
 const PI = Math.PI
 const EARTH = 2 * PI * 6378137
@@ -80,6 +83,8 @@ async function stateFor(view, rest) {
     if (v !== undefined) state[p.stateKey ?? key] = v
     given.push(p)
   }
+  // The theme is its own URL parameter (useTheme), not in the reference.
+  state.theme = url.searchParams.get("theme") === "dark" ? "dark" : "light"
   return { state, given }
 }
 
@@ -102,6 +107,13 @@ function layersOf(s) {
   for (const [m, flag, group] of DERIVED) if (s[GROUP[group]] && s[flag]) out.push(m)
   if (s.showHillshade) out.push("hillshade")
   if (s.showLightingEffects) { if (s.showMatcap) out.push("matcap"); if (s.showPhong) out.push("phong"); if (s.showShadows) out.push("shadows") }
+  // Above the lighting, in the map's order: the iso-line and the graticule
+  // (before slot-contours), the mound markers (slot-tells), the plane
+  // slicer (slot-plane-slicer), then the contours, added last on top.
+  if (s.showContoursAndGraticules && s.showIsoline) out.push("isoline")
+  if (s.showContoursAndGraticules && s.showGraticules) out.push("graticules")
+  if (s.showTellsDetector && s.tellsMarkersVisible !== false) out.push("tells")
+  if (s.showPlaneSlicer) out.push("planeSlicer")
   if (s.showContoursAndGraticules && s.showContours) out.push("contours")
   return out
 }
@@ -109,15 +121,9 @@ function layersOf(s) {
 /** What the direct engine does not draw: a state flag and why. */
 const BROWSER_ONLY = [
   [(s) => s.showRasterBasemap, "imagery and basemaps are drawn by the app"],
-  [(s) => s.showTellsDetector, "the mound detector is drawn by the app"],
-  [(s) => s.showContoursAndGraticules && s.showGraticules, "graticules are drawn by the app"],
-  [(s) => s.showContoursAndGraticules && s.showIsoline, "the iso-line is drawn by the app"],
-  [(s) => s.showContoursAndGraticules && s.showContours && s.contourReferenceMode === "lrm", "contours of the local relief model are drawn by the app"],
-  [(s) => s.showPlaneSlicer, "the plane slicer is drawn by the app"],
   [(s) => s.showLightingEffects && s.showBuildingShadows, "building shadows are drawn by the app"],
   [(s) => s.showBackground, "the sky and fog background is drawn by the app"],
   [(s) => s.appMode === "historical", "the historical mode is drawn by the app"],
-  [(s) => s.theme === "dark", "the dark theme is drawn by the app"],
   [(s) => (s.viewMode && s.viewMode !== "2d") || s.pitch || s.bearing, "3D, tilted or rotated views are drawn by the app"],
   [(s) => s.splitStyle && s.splitStyle !== "off", "split views are drawn by the app"],
   [(s) => s.vizViews, "per-view modes are drawn by the app"],
@@ -132,8 +138,8 @@ export async function plan(view, rest) {
   if (view.split || view.terrainSourceB) return no("split views are drawn by the app")
   let source = view.terrainSource
   if (source && source.trim().startsWith("{")) { try { source = JSON.parse(source) } catch { return no("terrainSource is not valid JSON") } }
-  const dem = resolveDem(source)
-  if (!dem) return no("this source is not a Terrarium or Terrain-RGB tile pyramid")
+  const { dem, why } = await resolveDemOrWhy(source)
+  if (!dem) return no(why)
   const { state, given } = await stateFor(view, rest)
   for (const [test, why] of BROWSER_ONLY) if (test(state)) return no(why)
   const layers = layersOf(state)
@@ -142,7 +148,15 @@ export async function plan(view, rest) {
 }
 
 /** The modes the direct engine draws, by the names of url.mjs. */
-export const DIRECT_MODES = ["hillshade", "colorRelief", "contours", "slope", "aspect", "tri", "curvature", "tpi", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "svf", "openness", "localDominance", "matcap", "phong", "shadows"]
+export const DIRECT_MODES = ["hillshade", "colorRelief", "contours", "slope", "aspect", "tri", "curvature", "tpi", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "svf", "openness", "localDominance", "matcap", "phong", "shadows", "moundDetector", "isoline", "graticules", "planeSlicer"]
+
+/** The elevation and intervals of the contour lines: the terrain, or with
+ *  contourReferenceMode=lrm its local relief model (ContoursLayer.tsx). */
+export async function contourSource(dem, s) {
+  if (s.contourReferenceMode !== "lrm") return { dem, minor: s.contourMinor, major: s.contourMajor }
+  const A = await app()
+  return { dem: { ...dem, tiles: A.buildLrmProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, s.lrmRadius), encoding: "terrarium" }, minor: s.contourMinorLrm, major: s.contourMajorLrm }
+}
 
 // ── Colours ───────────────────────────────────────────────────────────────
 
@@ -163,19 +177,33 @@ function colour(c, ch, opacity = 1) {
 }
 
 /** A color-relief expression (`interpolate` over elevation) as a function
- *  to premultiplied RGBA, interpolating between the stops like MapLibre's
- *  color-relief shader (a search for the two stops around the value). */
-function rampOf(expr, ch) {
+ *  to premultiplied RGBA, as MapLibre's color-relief layer computes it: the
+ *  stops are packed in the source's own encoding (packDEMData: rounded to
+ *  its step, 1/256 m for Terrarium, 0.1 m for Terrain-RGB), the shader
+ *  searches the two stops around the value and samples a colour texture
+ *  (8-bit, linear, clamped) at `l + t`. The rounding matters for discrete
+ *  ramps, whose stops come in pairs a thousandth apart: 999.999 packs to
+ *  1000, so the pair collapses and the class above the last stop is never
+ *  reached. */
+function rampOf(expr, ch, encoding = "terrarium") {
+  const step = encoding === "mapbox" ? 0.1 : 1 / 256, shift = encoding === "mapbox" ? 10000 : 32768
   const stops = [], cols = []
-  for (let i = 3; i + 1 < expr.length; i += 2) { stops.push(Number(expr[i])); cols.push(colour(expr[i + 1], ch)) }
+  for (let i = 3; i + 1 < expr.length; i += 2) {
+    stops.push(Math.round((Number(expr[i]) + shift) / step) * step - shift)
+    cols.push(colour(expr[i + 1], ch).map((c) => Math.round(c * 255) / 255))
+  }
   const n = stops.length
   return (v, out) => {
-    if (n === 1 || v <= stops[0]) { out.set(cols[0]); return }
-    if (v >= stops[n - 1]) { out.set(cols[n - 1]); return }
+    if (n === 1) { out.set(cols[0]); return }
     let l = 0, r = n - 1
     while (r - l > 1) { const mid = (l + r) >> 1; if (v < stops[mid]) r = mid; else l = mid }
-    const t = (v - stops[l]) / (stops[r] - stops[l] || 1), a = cols[l], b = cols[r]
-    out[0] = a[0] + (b[0] - a[0]) * t; out[1] = a[1] + (b[1] - a[1]) * t; out[2] = a[2] + (b[2] - a[2]) * t; out[3] = a[3] + (b[3] - a[3]) * t
+    // 0/0 where two stops pack to the same value: the GPU samples a NaN
+    // position, which reads transparent.
+    const t = (v - stops[l]) / (stops[r] - stops[l])
+    if (Number.isNaN(t)) { out.fill(0); return }
+    const p = Math.min(n - 1, Math.max(0, l + t))
+    const i = Math.floor(p), f = p - i, a = cols[i], b = cols[Math.min(n - 1, i + 1)]
+    out[0] = a[0] + (b[0] - a[0]) * f; out[1] = a[1] + (b[1] - a[1]) * f; out[2] = a[2] + (b[2] - a[2]) * f; out[3] = a[3] + (b[3] - a[3]) * f
   }
 }
 
@@ -330,7 +358,7 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
   const gx0 = Math.floor(x0 * k) - M - 1, gy0 = Math.floor(y0 * k) - M - 1
   const gw = Math.ceil((x0 + width) * k) + M + 1 - gx0, gh = Math.ceil((y0 + height) * k) + M + 1 - gy0
   const live = (l) => (l === "matcap" && s.matcapRenderer !== "raster") || (l === "phong" && s.phongRenderer !== "raster")
-  const needElevation = layers.some((l) => l === "colorRelief" || l === "hillshade" || live(l))
+  const needElevation = layers.some((l) => l === "colorRelief" || l === "hillshade" || live(l) || (l === "planeSlicer" && s.planeSlicerReferenceMode !== "lrm"))
   const E = needElevation ? await demWindow(dem, zd, side, gx0, gy0, gw, gh) : null
   if (E && E.every(Number.isNaN)) throw Object.assign(new Error("This source has no data here"), { status: 404 })
   const clampAt = (G, c = 1) => (i, j, q = 0) => G[(Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))) * c + q]
@@ -352,10 +380,13 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
   }
   const latOf = (wy) => Math.atan(Math.sinh(PI * (1 - (2 * wy) / world)))
 
-  // Premultiplied RGBA 0..1, white to start with (the map's light background).
+  // Premultiplied RGBA 0..1, the map's background to start with: white, or
+  // black in the dark theme (BackgroundLayer).
   const img = new Float32Array(width * height * 4).fill(1)
-  const paintValues = (values, paint) => {
-    const ramp = rampOf(paint["color-relief-color"], ch), op = paint["color-relief-opacity"] ?? 1, c = new Float32Array(4)
+  if (s.theme === "dark") for (let i = 0; i < img.length; i += 4) { img[i] = 0; img[i + 1] = 0; img[i + 2] = 0 }
+  const rect = { world, x0, y0, width, height }
+  const paintValues = (values, paint, encoding) => {
+    const ramp = rampOf(paint["color-relief-color"], ch, encoding), op = paint["color-relief-opacity"] ?? 1, c = new Float32Array(4)
     for (let i = 0; i < values.length; i++) {
       if (Number.isNaN(values[i])) continue
       ramp(values[i], c)
@@ -363,10 +394,9 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
     }
   }
 
-  let picture
   for (const layer of layers) {
     if (layer === "colorRelief") {
-      paintValues(resample(clampAt(E)), A.computeColorReliefPaint({ ...s }))
+      paintValues(resample(clampAt(E)), A.computeColorReliefPaint({ ...s }), dem.encoding)
     } else if (layer === "hillshade") {
       // MapLibre's prepare pass on the source grid (the Sobel sums, its zoom
       // factor, the 8-bit texture it keeps them in), then its shading pass.
@@ -395,7 +425,20 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
     } else if (live(layer)) {
       await liveLighting(layer, s, { E: clampAt(E), bil, FX, FY, P, width, height, img, zd, side, gy0, base: baseUrl })
     } else if (layer === "contours") {
-      picture = { contours: true }
+      const c = await contourSource(dem, s)
+      await overSvg(img, width, height, await contourSvg(c.dem, { minor: c.minor, major: c.major, weight: s.contourWeight, color: s.contourColor, labels: s.showContourLabels, theme: s.theme }, rect))
+    } else if (layer === "isoline") {
+      await overSvg(img, width, height, await isolineSvg(A, dem, s, rect, baseUrl))
+    } else if (layer === "graticules") {
+      await overSvg(img, width, height, graticuleSvg(A, s, rect))
+    } else if (layer === "tells") {
+      await overSvg(img, width, height, await tellsSvg(A, dem, s, rect))
+    } else if (layer === "planeSlicer") {
+      const paint = A.computePlaneSlicerPaint({ value: s.planeSlicerReferenceMode === "lrm" ? s.planeSlicerValueLrm : s.planeSlicerValue, side: s.planeSlicerSide, color: s.planeSlicerColor, opacity: s.planeSlicerOpacity })
+      if (s.planeSlicerReferenceMode === "lrm") {
+        const G = await protocolWindow({ url: A.buildLrmProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, s.lrmRadius), run: A.lrmProtocol }, zd, side, gx0, gy0, gw, gh)
+        paintValues(resample(clampAt(G)), paint, "terrarium")
+      } else paintValues(resample(clampAt(E)), paint, dem.encoding)
     } else {
       const p = protocolOf(A, layer, dem, s, baseUrl)
       const G = await protocolWindow(p, zd, side, gx0, gy0, gw, gh)
@@ -406,7 +449,7 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
           over(img, (j * width + i) * 4, bil(at, fx, fy, 0) * op, bil(at, fx, fy, 1) * op, bil(at, fx, fy, 2) * op, bil(at, fx, fy, 3) * op)
         }
       } else {
-        paintValues(resample(clampAt(G)), A.computeColorReliefPaint(A.MODE_RELIEF[layer](s)))
+        paintValues(resample(clampAt(G)), A.computeColorReliefPaint(A.MODE_RELIEF[layer](s)), p.enc ?? "terrarium")
       }
     }
   }
@@ -417,7 +460,6 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
     rgba[i * 4] = Math.round(Math.min(1, img[i * 4] / a) * 255); rgba[i * 4 + 1] = Math.round(Math.min(1, img[i * 4 + 1] / a) * 255); rgba[i * 4 + 2] = Math.round(Math.min(1, img[i * 4 + 2] / a) * 255); rgba[i * 4 + 3] = Math.round(Math.min(1, a) * 255)
   }
   let out = sharp(rgba, { raw: { width, height, channels: 4 } })
-  if (picture?.contours) out = sharp(await out.png().toBuffer()).composite([{ input: Buffer.from(await contourSvg(dem, s, { world, x0, y0, width, height })) }])
   if (credit) {
     // The source's name, bottom right, as the map's attribution sits.
     const esc = (t) => t.replace(/[<&>]/g, (c) => ({ "<": "&lt;", "&": "&amp;", ">": "&gt;" })[c])
@@ -510,6 +552,177 @@ async function liveLighting(layer, s, { E, bil, FX, FY, P, width, height, img, z
       over(img, (j * width + i) * 4, col[0] * op, col[1] * op, col[2] * op, op)
     }
   }
+}
+
+// ── Overlays: vector tiles and lines, drawn as SVG ────────────────────────
+
+/** Source-over of an SVG (the picture's size) onto the premultiplied canvas. */
+async function overSvg(img, width, height, svg) {
+  if (!svg) return
+  // unlimited: dense contours at a small scale make SVGs of many megabytes.
+  const { data } = await sharp(Buffer.from(svg), { unlimited: true }).resize(width, height).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  for (let i = 0, o = 0; i < width * height; i++, o += 4) {
+    const a = data[o + 3] / 255
+    if (a > 0) over(img, o, (data[o] / 255) * a, (data[o + 1] / 255) * a, (data[o + 2] / 255) * a, a)
+  }
+}
+
+const svgOf = (width, height, body) => `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${body}</svg>`
+const attr = (v) => String(v).replace(/[<&>"]/g, (c) => ({ "<": "&lt;", "&": "&amp;", ">": "&gt;", '"': "&quot;" })[c])
+const pathOf = (rings) => rings.map((r) => "M" + r.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join("L")).join("")
+
+/** The features of a vector tile source over a rectangle: the tiles the map
+ *  would load at this scale (512 px each, a vector source's size, at most
+ *  `maxzoom`), fetched through the app's registry. Geometry in the
+ *  picture's pixels. */
+async function vectorFeatures(A, template, maxzoom, { world, x0, y0, width, height }, pad = 0) {
+  const zv = Math.max(0, Math.min(maxzoom, Math.floor(Math.log2(world / 512) + 1e-9)))
+  const n = 2 ** zv, tilePx = world / n
+  const layers = {}
+  const jobs = []
+  for (let ty = Math.floor((y0 - pad) / tilePx); ty <= Math.floor((y0 + height + pad - 1) / tilePx); ty++) for (let tx = Math.floor((x0 - pad) / tilePx); tx <= Math.floor((x0 + width + pad - 1) / tilePx); tx++) {
+    if (ty < 0 || ty >= n) continue
+    const url = template.replace("{z}", zv).replace("{x}", ((tx % n) + n) % n).replace("{y}", ty)
+    jobs.push((async () => {
+      const r = await A.dispatchAppTile(url, undefined, "arrayBuffer")
+      const bytes = r.data instanceof Uint8Array ? r.data : new Uint8Array(r.data)
+      const vt = new VectorTile(new PbfReader(bytes))
+      for (const [name, layer] of Object.entries(vt.layers)) {
+        const k = tilePx / layer.extent, ox = tx * tilePx - x0, oy = ty * tilePx - y0
+        const list = (layers[name] ??= [])
+        for (let i = 0; i < layer.length; i++) {
+          const f = layer.feature(i)
+          list.push({ type: f.type, properties: f.properties, rings: f.loadGeometry().map((ring) => ring.map((p) => [ox + p.x * k, oy + p.y * k])) })
+        }
+      }
+    })().catch((e) => { if (process.env.TV_DEBUG) console.error("vector tile", url.slice(0, 100), e.message) }))
+  }
+  await Promise.all(jobs)
+  return { zv, mapZoom: Math.log2(world / 512), layers }
+}
+
+/** The iso-line (IsolineLayers.tsx): at a value, the isoband:// tiles of the
+ *  measure (a fill and its boundary, cliff teeth on a slope); every
+ *  interval, the contour engine over the measure's own tiles. */
+async function isolineSvg(A, dem, s, rect, baseUrl) {
+  const up = { template: dem.tiles, encoding: dem.encoding, tileSize: dem.tileSize, maxzoom: dem.maxzoom }
+  const derived = {
+    curvatureMode: s.curvatureMode, lrmRadius: s.lrmRadius, svfRadius: s.svfRadius, svfPrecision: s.svfPrecision,
+    opennessRadius: s.opennessRadius, opennessMode: s.opennessMode, opennessPrecision: s.opennessPrecision,
+    localDominanceMinRadius: s.localDominanceMinRadius, localDominanceMaxRadius: s.localDominanceMaxRadius,
+  }
+  const tex = A.MATCAP_TEXTURES.find((t) => t.id === s.matcapTextureId) ?? A.MATCAP_TEXTURES.find((t) => t.id === A.DEFAULT_MATCAP_ID)
+  const lighting = {
+    matcapUrl: new URL(tex.url, baseUrl).href, matcapRotationDeg: s.matcapRotationDeg,
+    phongDiffuse: s.phongDiffuseStrength, phongSpecular: s.phongSpecularStrength,
+    phongFresnelStrength: s.phongFresnelStrength, phongFresnelPower: s.phongFresnelPower, phongFresnelDark: s.theme !== "dark",
+    lightDir: s.illuminationDir, lightAlt: s.illuminationAlt, exaggeration: s.exaggeration, shadowRadiusPx: s.shadowRadiusPx,
+  }
+  const m = A.isolineMeasure(s.isolineMeasure)
+  const md = A.isolineMeasureDem(s.isolineMeasure, up, derived, lighting)
+  if (!md) return ""
+  const scale = m.scale(derived)
+  const maxzoom = Math.min(md.maxzoom ?? 19, 19)
+  const color = s.isolineColor || "#ef4444", weight = s.isolineWeight
+  const { width, height } = rect
+  if (s.isolineMode !== "value") {
+    const step = Math.max(1e-6, s.isolineInterval * scale)
+    return contourSvg({ tiles: md.template, encoding: md.encoding, tileSize: md.tileSize, maxzoom }, { minor: step, major: step, weight, color, labels: false, theme: s.theme }, rect)
+  }
+  const smooth = Math.max(0, Math.min(16, Math.round(s.isolineSmooth) || 0))
+  const cliff = s.isolineCliff && s.isolineMeasure === "slope"
+  const band = await vectorFeatures(A, A.buildIsobandProtocolUrl(md.template, md.encoding, md.tileSize, s.isolineValue * scale, { smooth }), maxzoom, rect)
+  let body = ""
+  if (s.isolineFill) body += `<path fill="${attr(color)}" fill-opacity="${s.isolineFillOpacity}" fill-rule="evenodd" d="${(band.layers.isoband ?? []).map((f) => pathOf(f.rings)).join("")}"/>`
+  body += `<path fill="none" stroke="${attr(color)}" stroke-opacity="${cliff ? 0.35 : 0.9}" stroke-width="${weight}" stroke-linejoin="round" stroke-linecap="round" d="${(band.layers.isoline ?? []).map((f) => pathOf(f.rings)).join("")}"/>`
+  if (cliff) {
+    // The simplified edge, a tooth every 28 px hanging 8 px off it on the
+    // steep side (the icon's offset [0, 8], rotated with the line).
+    const edge = await vectorFeatures(A, A.buildIsobandProtocolUrl(md.template, md.encoding, md.tileSize, s.isolineValue * scale, { smooth: Math.max(4, smooth), minLength: 40 }), maxzoom, rect)
+    const lines = (edge.layers.isoline ?? []).flatMap((f) => f.rings)
+    body += `<path fill="none" stroke="${attr(color)}" stroke-opacity="0.95" stroke-width="${weight + 0.5}" stroke-linejoin="round" stroke-linecap="round" d="${pathOf(lines)}"/>`
+    const teeth = []
+    for (const line of lines) {
+      let next = 14
+      let walked = 0
+      for (let i = 1; i < line.length; i++) {
+        const [ax, ay] = line[i - 1], [bx, by] = line[i], len = Math.hypot(bx - ax, by - ay)
+        if (!len) continue
+        const a = Math.atan2(by - ay, bx - ax), c = Math.cos(a), sn = Math.sin(a)
+        while (next <= walked + len) {
+          const t = (next - walked) / len, x = ax + (bx - ax) * t, y = ay + (by - ay) * t
+          const pt = ([u, v]) => `${(x + u * c - v * sn).toFixed(2)},${(y + u * sn + v * c).toFixed(2)}`
+          teeth.push(`M${pt([-9, 1])}L${pt([9, 1])}L${pt([0, 15])}Z`)
+          next += 28
+        }
+        walked += len
+      }
+    }
+    body += `<path fill="${attr(color)}" fill-opacity="0.9" d="${teeth.join("")}"/>`
+  }
+  return svgOf(width, height, body)
+}
+
+/** The graticule (GraticuleLayer.tsx, geogrid): meridians and parallels
+ *  every `graticuleDensity` degrees, or the app's spacing for the zoom. Its
+ *  labels sit on the edges of the screen, so a tile has none. */
+function graticuleSvg(A, s, { world, x0, y0, width, height }) {
+  const mapZoom = Math.log2(world / 512)
+  const step = s.graticuleDensity || A.niceGraticuleDensity(mapZoom)
+  const color = s.graticuleColor || (s.theme === "dark" ? "#fff" : "#000")
+  const lngOf = (px) => (px / world) * 360 - 180
+  const latOf = (py) => (Math.atan(Math.sinh(PI * (1 - (2 * py) / world))) * 180) / PI
+  const xOf = (lng) => ((lng + 180) / 360) * world - x0
+  const yOf = (lat) => ((1 - Math.asinh(Math.tan((lat * PI) / 180)) / PI) / 2) * world - y0
+  let d = ""
+  for (let lng = Math.ceil(lngOf(x0) / step) * step; lng <= lngOf(x0 + width); lng += step) d += `M${xOf(lng).toFixed(2)},0V${height}`
+  for (let lat = Math.ceil(latOf(y0 + height) / step) * step; lat <= latOf(y0); lat += step) d += `M0,${yOf(lat).toFixed(2)}H${width}`
+  return svgOf(width, height, `<path fill="none" stroke="${attr(color)}" stroke-width="${s.graticuleWidth ?? 1}" d="${d}"/>`)
+}
+
+const expressionOf = (value, prop) => normalizePropertyExpression(value, prop, styleSpec.paint_circle[prop])
+const cssColor = (c) => `rgba(${Math.round((c.r / (c.a || 1)) * 255)},${Math.round((c.g / (c.a || 1)) * 255)},${Math.round((c.b / (c.a || 1)) * 255)},${c.a})`
+const latOfView = ({ world, y0, height }) => (Math.atan(Math.sinh(PI * (1 - (2 * (y0 + height / 2)) / world))) * 180) / PI
+
+/** The mound detector's markers (TellsSource, TellsMarkersLayer): the
+ *  tells:// vector tiles on the terrain, a circle per candidate with the
+ *  app's radius and colours. */
+async function tellsSvg(A, dem, s, rect) {
+  const options = {
+    tellSizeMeters: s.tellSize, radiusPx: s.tellRadius, minReliefMeters: s.tellMinRelief, blobnessMin: s.tellBlobnessMin,
+    planMin: s.tellPlanMin, detHessianMin: s.tellDetHessianMin, measureScale: s.tellMeasureScale, vetoResolution: s.tellVetoResolution, polarity: s.tellsPolarity,
+  }
+  const { mapZoom, layers } = await vectorFeatures(A, A.buildTellsProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, options), 15, rect, 60)
+  const colorBy = {
+    byBlobness: A.computePropertyRampExpression(s.blobnessColorRamp, s.blobnessMin, s.blobnessMax, s.blobnessInvertColorRamp, "blobness"),
+    byPlan: A.computePropertyRampExpression(s.curvatureColorRamp, s.curvatureMin, s.curvatureMax, !s.curvatureInvertColorRamp, "plan"),
+    byDetHessian: A.computePropertyRampExpression(s.curvatureColorRamp, s.curvatureMin, s.curvatureMax, s.curvatureInvertColorRamp, "detHessian"),
+    byLrm: A.computePropertyRampExpression(s.lrmColorRamp, s.lrmMin, s.lrmMax, s.lrmInvertColorRamp, "a"),
+  }[s.tellsStyle]
+  // tellsMeasuredScaleRadius uses the view's latitude (state.lat).
+  const mPerPxZ0 = 156543.03392 * Math.cos((latOfView(rect) * PI) / 180), REF = 18
+  const radiusM = ["*", ["coalesce", ["get", "scaleM"], 50], s.tellsScaleMultiplier / 2]
+  const radius = s.tellMeasureScale && s.tellsScaleMarkers
+    ? ["interpolate", ["exponential", 2], ["zoom"], 0, ["/", radiusM, mPerPxZ0], REF, ["/", radiusM, mPerPxZ0 / 2 ** REF]]
+    : ["interpolate", ["linear"], ["zoom"], 10, 12, 16, 28]
+  const outline = s.tellsStyle === "outline" || !colorBy
+  const R = expressionOf(radius, "circle-radius")
+  const fill = outline ? null : expressionOf(colorBy, "circle-color")
+  const stroke = outline ? expressionOf(["case", ["==", ["coalesce", ["get", "pit"], 0], 1], s.tellsPitColor, s.tellsOutlineColor], "circle-stroke-color") : null
+  const seen = new Set()
+  const circles = []
+  for (const f of layers.tells ?? []) {
+    for (const [x, y] of f.rings.flat()) {
+      // A point in a tile's buffer comes again in its neighbour.
+      const key = `${Math.round(x * 4)},${Math.round(y * 4)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const g = { zoom: mapZoom }, feat = { properties: f.properties }
+      // The stroke lies outside the radius: a 2 px ring from r to r + 2.
+      circles.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${(R.evaluate(g, feat) + 1).toFixed(2)}" fill="${outline ? "none" : cssColor(fill.evaluate(g, feat))}" stroke="${outline ? cssColor(stroke.evaluate(g, feat)) : "#000000"}" stroke-width="2"/>`)
+    }
+  }
+  return svgOf(rect.width, rect.height, circles.join(""))
 }
 
 /** A flat, unrotated viewport (MapLibre's zoom, 512 px tiles), with the

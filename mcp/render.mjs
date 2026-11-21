@@ -31,7 +31,7 @@ async function context() {
     contextPromise = (async () => {
       const ctx = await (await browser()).newContext({ deviceScaleFactor: 1 })
       // The first-visit walkthrough would cover the map.
-      await ctx.addInitScript(() => { try { localStorage.clear(); localStorage.setItem("hasSeenTour", "true") } catch { } })
+      await ctx.addInitScript(() => { try { localStorage.clear(); localStorage.setItem("hasSeenTour", "true"); localStorage.setItem("betaEnabled", JSON.stringify({ tells: true, georef: false })) } catch { } })
       return ctx
     })().catch((e) => { contextPromise = undefined; throw e })
   }

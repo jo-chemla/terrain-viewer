@@ -141,6 +141,11 @@ const TELLS_DEFAULTS: TellsOptions = {
   vetoResolution: "coarse",
 }
 
+/** Drawn marker diameter = this many times the mound's measured diameter
+ *  (the tellsScaleMultiplier default; see tellsMeasuredScaleRadius in
+ *  components/LayersAndSources/MapLayers.tsx). */
+export const TELLS_MEASURED_SCALE_MULTIPLIER_DEFAULT = 10
+
 export function buildTellsProtocolUrl(
   upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number, opts: Partial<TellsOptions> = {},
 ): string {

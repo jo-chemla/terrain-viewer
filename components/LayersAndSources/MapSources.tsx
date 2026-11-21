@@ -3,7 +3,7 @@ import { VectorBasemapLayer, OsmBuildingsLayer } from "./VectorBasemapLayer"
 import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
 import { terrainSources } from "@/lib/terrain-sources"
-import type { TerrainSource, TerrainSourceConfig } from "@/lib/terrain-types"
+import type { TerrainSource } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, osmBuildings3dAtom, allmapsRemoveColorAtom, geHiDpiTilesAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
 import { buildUnpaperUrl, sampleTileFor } from "@/lib/unpaper-protocol"
 
@@ -22,11 +22,11 @@ import type { RasterDEMSourceSpecification } from 'maplibre-gl'
 import { setColorFunction } from '@geomatico/maplibre-cog-protocol'
 import { useCogMetadata, zoomRangeFromMetadata, cogSourceMaxzoomCap, type CogMetadata } from "@/lib/cog-metadata"
 import { writeTerrainrgb, writeTerrarium, resolveCustomEncoding } from "@/lib/elevation-encoding"
-import { resolveNodata, isSentinel, appendNodataMarkers } from "@/lib/nodata"
+import { resolveNodata } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
-import { buildDemDiffUrl } from "@/lib/demdiff-protocol"
-import { buildVrtUrl, isCellRoutedUrl } from "@/lib/vrt-protocol"
+import { isCellRoutedUrl } from "@/lib/vrt-protocol"
+import { terrainTileSpec, terrainTileInputs, builtinTileUrl, makeElevationColorFunction, type TilejsonMetadata } from "@/lib/terrain-tile-spec"
 import { useVrtInfo } from "@/lib/use-vrt-info"
 import { withQuantizedMeshDetail } from "@/lib/quantized-mesh-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
@@ -54,57 +54,11 @@ import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 
-// Per-pixel COG decode, registered with geomatico's setColorFunction below — this
-// runs inside the cog:// protocol, so it IS the elevation path, not just colouring.
-//
-// The sentinel guard is load-bearing: `raw === noData` cannot catch a NaN
-// sentinel (NaN !== NaN), and NaN is exactly what several DSMs use — the Dura
-// Europos scans declare GDAL_NODATA as literally NaN and carry NaN across 12-57%
-// of their pixels. Unguarded, NaN reaches elevationToTerrarium, whose components
-// come out NaN, get clamped to 0 by the Uint8ClampedArray write, and decode back
-// as -32768 m: a 32 km abyss around the perimeter.
-//
-// `nodata` (floor/fill, in metres, post scale/offset) is the optional per-source
-// override from the source modal — see lib/nodata.ts.
-const makeElevationColorFunction = (
-    // Writes the four bytes in place: this runs once per pixel of every COG
-    // tile, and the array an encoder returned (then copied by color.set) was
-    // two allocations per pixel.
-    write: (out: Uint8ClampedArray, idx: number, elevation: number) => void,
-    scale = 1,
-    offset = 0,
-    noData?: number,
-    nodata?: { floor: number; fill: number } | null,
-) => (pixel: any, color: any) => {
-    const raw = pixel[0]
-    const elevation = offset + raw * scale
-    const isHole = isSentinel(raw) || raw === noData || (nodata ? elevation <= nodata.floor : false)
-    if (!isHole) { write(color, 0, elevation); return }
-    // A hole keeps its fill value for MapLibre (which reads RGB only: the
-    // terrain stays flat there rather than dropping to the -10000 m floor),
-    // but is written with alpha 254 so this app's own decoders
-    // (fetchDecodedTile's validity mask) can tell it from real data - the
-    // difference source (lib/demdiff-protocol.ts) used to read a local COG's
-    // nodata as 0 m and subtract the other operand from nothing.
-    write(color, 0, nodata?.fill ?? 0)
-    color[3] = 254
-}
-
 // -------------------------
 // Hook
 // -------------------------
 
-export interface TilejsonMetadata {
-    encoding?: "terrarium" | "mapbox"
-    bounds?: [number, number, number, number]
-    minzoom?: number
-    maxzoom?: number
-    /** The manifest's own tile URL template — maplibre reads this natively for the
-     *  primary DEM source (it's just handed the tilejson `url`), but slope-and-more
-     *  bypasses maplibre's Source machinery to fetch neighbor tiles directly, so it
-     *  needs the real template itself. */
-    tiles?: string[]
-}
+export type { TilejsonMetadata }
 
 // Most TileJSON DEM manifests (e.g. Mapterhorn's) declare their own "encoding" —
 // fetch it instead of asking the user to guess, same spirit as useCogMetadata above.
@@ -151,17 +105,6 @@ const WAYBACK_MAXZOOM = 19
 // 30m native resolution reasonably well for the titiler-cmr rasterio backend.
 const HLS_TILE_SIZE = 256
 const HLS_MAXZOOM = 16
-
-// -------------------------
-// Helpers
-// -------------------------
-
-function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
-    const config: TerrainSourceConfig = (terrainSources as any)[key]
-    if (!config) return ""
-    return (config.sourceConfig.tiles?.[0] ?? "")
-        .replace("{API_KEY}", key === "mapbox" ? mapboxKey : key === "maptiler" ? maptilerKey : "")
-}
 
 // -------------------------
 // TerrainSources
@@ -946,162 +889,36 @@ export const useClientDemUpstreamOne = (
     // without CORS) must stay on titiler here too - the primary source honours
     // the pin, and this resolver used to ignore it, so every client-computed
     // mode (and the difference source) tried the in-browser reader instead:
-    // no CORS, no metadata, no tiles.
-    const useCogProtocolForSource = useCogProtocol && !customSource?.cogViaTitiler
-    const isCogRemote = customSource?.type === "cog" && useCogProtocolForSource
+    // no CORS, no metadata, no tiles. (terrainTileInputs applies the pin.)
+    const inputs = terrainTileInputs(customSource, useCogProtocol)
     const cogUrlForMetadata = isCogLocal
         ? resolveLocalFileUrl(localFileId(customSource!.url))
-        : isCogRemote ? customSource!.url : null
+        : inputs.cogUrl
     const { data: cogMetadata } = useCogMetadata(cogUrlForMetadata)
     const cogZoomRange = useMemo(() => zoomRangeFromMetadata(cogMetadata), [cogMetadata])
     // A VRT read in-browser needs the same treatment from its own XML index:
     // it has no COG header, and its minzoom is a real floor (below it one tile
     // spans more source files than vrt-protocol.ts will Range-read).
-    const isVrtClient = customSource?.type === "vrt" && (useCogProtocolForSource || isCellRoutedUrl(customSource.url))
-    const vrtInfo = useVrtInfo(isVrtClient ? customSource!.url : null)
+    const vrtInfo = useVrtInfo(inputs.vrtUrl)
 
+    // The resolution itself is pure (lib/terrain-tile-spec.ts, shared with the
+    // tile service's direct engine); this hook supplies what it waits for.
     const baseUpstream = useMemo<ClientDemUpstream | null>(() => {
-        if (customSource?.type === "dem-diff") {
-            if (_nested || !diffA || !diffB) return null
-            const a = diffA, b = diffB
-            // Zooms in the difference's own 256 px tiles: an operand with
-            // 1024 px tiles at z16 has the pixels of a 256 px one at z18.
-            const shift = (op: { tileSize?: number }) => Math.max(0, Math.round(Math.log2((op.tileSize ?? 256) / 256)))
-            const mins = [a, b].filter((op) => typeof op.minzoom === "number").map((op) => op.minzoom! + shift(op))
-            const maxs = [a, b].filter((op) => typeof op.maxzoom === "number").map((op) => op.maxzoom! + shift(op))
-            // maxzoom is the FINER operand's: the protocol upsamples the coarser
-            // one from its ancestor tiles (see demdiff-protocol.ts), so the
-            // difference keeps the detail of the finer side. With the coarser
-            // maxzoom maplibre stopped requesting tiles before the fallback
-            // could ever run.
-            return {
-                template: buildDemDiffUrl(a, b, 256, customSource.diffOffsetM ?? 0),
-                encoding: "mapbox" as const,
-                tileSize: 256,
-                ...(mins.length ? { minzoom: Math.max(...mins) } : {}),
-                ...(maxs.length ? { maxzoom: Math.max(...maxs) } : {}),
-            }
-        }
-        if (!customSource) {
-            const builtin = (terrainSources as any)[terrainSource as TerrainSource]
-            if (!builtin || builtin.encoding === "3dtiles") return null
-            return {
-                template: builtinTileUrl(terrainSource as TerrainSource, mapboxKey, maptilerKey),
-                encoding: builtin.sourceConfig.encoding === "terrarium" ? "terrarium" as const : "mapbox" as const,
-                tileSize: builtin.sourceConfig.tileSize,
-                maxzoom: builtin.sourceConfig.maxzoom,
-            }
-        }
-
-        if (customSource.type === "tilejson") {
-            if (!tilejsonMetadata?.tiles?.length) return null
-            return {
-                template: tilejsonMetadata.tiles[0],
-                encoding: (tilejsonMetadata.encoding === "terrarium" ? "terrarium" : tilejsonMetadata.encoding === "mapbox" ? "mapbox" : (customSource.encoding ?? "mapbox")) as "terrarium" | "mapbox",
-                tileSize: 256,
-                minzoom: tilejsonMetadata.minzoom,
-                maxzoom: tilejsonMetadata.maxzoom,
-            }
-        }
-        if (isVrtClient) {
-            // vrt:// re-encodes to Terrain-RGB, matching what titiler's
-            // algorithm=terrainrgb returns for the same mosaic, so the two
-            // modes hand every client-side viz mode the same bytes.
-            if (!vrtInfo) return null // wait for the index, as the COG path waits for metadata
-            return {
-                template: buildVrtUrl(customSource.url, !useCogProtocolForSource),
-                encoding: "mapbox" as const,
-                tileSize: 256,
-                minzoom: customSource.minzoom ?? vrtInfo.minzoom,
-                maxzoom: customSource.maxzoom ?? vrtInfo.maxzoom,
-            }
-        }
-        if (customSource.type === "stac" || customSource.type === "mosaicjson") return null
-
-        if (customSource.type === "cog-local") {
-            // Always the geomatico protocol — no titiler server could reach the
-            // user's disk — same `cog://<url>/{z}/{x}/{y}` shape the "cog" case
-            // below builds, just pointed at this session's blob: object URL
-            // instead of a remote https:// one.
-            const resolvedUrl = resolveLocalFileUrl(localFileId(customSource.url))
-            if (!resolvedUrl) return null // not (re-)picked yet this session
-            if (!cogMetadata) return null // wait for real metadata, same as the primary terrain Source
-            return {
-                template: `cog://${resolvedUrl}/{z}/{x}/{y}`,
-                encoding: (highResTerrain ? "terrarium" : "mapbox") as "terrarium" | "mapbox",
-                tileSize: 256,
-                minzoom: cogZoomRange.minzoom,
-                maxzoom: cogZoomRange.maxzoom,
-            }
-        }
-
-        if (customSource.type === "wms-raw" && useCogProtocol) {
-            // No titiler in the picture — buildRasterTileSource's float32dem:// output
-            // is a single GetMap template (its own {bbox-epsg-3857} placeholder, not
-            // a per-tile one), so wrap it for per-tile bbox substitution instead of
-            // using the built url/encoding directly. WMS serves whatever resolution
-            // is requested rather than a fixed pyramid, so there's no native zoom
-            // ceiling to auto-detect here — only the user-set maxzoom (custom-terrain-
-            // source-modal.tsx's "Max Zoom (optional)" field) can supply one; when
-            // that's also unset, MatcapSource/PhongSource fall back to a hardcoded
-            // default themselves (a plain `type: "raster"` source can't take an
-            // explicit `undefined` maxzoom at all).
-            // The source's nodata pair rides along as it does on the display
-            // path (source-builder.ts): without it a difference, a derived mode
-            // or an export read the WMS's -9999 and its reprojection smear as
-            // ground, and an nDSM grew spikes up to 1000 m along coverage edges.
-            return {
-                template: `float32dem-bbox://${encodeURIComponent(appendNodataMarkers(customSource.url.replace(/^https?:\/\//, ""), customSource))}/{z}/{x}/{y}`,
-                encoding: "terrarium" as const,
-                tileSize: customSource.tileSize ?? 512,
-                maxzoom: customSource.maxzoom,
-            }
-        }
-
-        // Remote "cog" streamed directly via the in-browser geomatico protocol has
-        // the exact same fixed-pyramid limitation as cog-local above.
-        if (isCogRemote && !cogMetadata) return null
-
-        const built = buildRasterTileSource({
-            url: customSource.url,
-            type: customSource.type,
-            useCogProtocol: useCogProtocolForSource,
-            titilerEndpoint,
-            isDem: true,
-            nodata: customSource,
-            titilerNodata: customSource.titilerNodata,
-            // This hook feeds decoders in this app (fetchDecodedTile), which
-            // read titiler's nodata mask as a validity flag.
-            forClientDecode: true,
+        const spec = terrainTileSpec(terrainSource, customSource, {
+            titilerEndpoint, useCogProtocol, highResTerrain, cesiumDetailOffset, mapboxKey, maptilerKey,
+            tilejson: tilejsonMetadata,
+            cogZoomRange: cogMetadata ? cogZoomRange : null,
+            vrtInfo,
+            localFileUrl: isCogLocal ? resolveLocalFileUrl(localFileId(customSource!.url)) : null,
+            diffOperands: !_nested && diffA && diffB ? [diffA, diffB] : null,
         })
-        const encoding = (customSource.type === "cog" && useCogProtocolForSource
-            ? (highResTerrain ? "terrarium" : "mapbox")
-            // lerc:// re-encodes the decoded floats as Terrarium (its fractional
-            // byte resolves to ~4 mm, against Terrain-RGB's 10 cm step), so the
-            // viz-mode decoders have to be told that rather than assuming mapbox.
-            : customSource.type === "terrarium" || customSource.type === "lerc" || customSource.type === "quantized-mesh"
-            ? "terrarium"
-            : "mapbox") as "terrarium" | "mapbox"
-
-        if ("url" in built) {
-            // cog:// (geomatico mode) — append the z/x/y placeholders maplibre would
-            // otherwise supply itself via a tilejson round-trip we bypass here.
-            return {
-                template: `${built.url}/{z}/{x}/{y}`, encoding, tileSize: 256,
-                ...(isCogRemote ? { minzoom: cogZoomRange.minzoom, maxzoom: cogZoomRange.maxzoom } : {}),
-            }
-        }
-        // A titiler-served COG/VRT/WMS has no metadata-derived pyramid here,
-        // but the source's own declared zoom range still applies (a library
-        // DSM at maxzoom 19); without it the difference source inherited the
-        // other operand's ceiling and stopped requesting tiles too early.
-        return {
-            template: withQuantizedMeshDetail(built.tiles[0], cesiumDetailOffset), encoding, tileSize: 256,
-            ...(customSource.minzoom !== undefined ? { minzoom: customSource.minzoom } : {}),
-            ...(customSource.maxzoom !== undefined ? { maxzoom: customSource.maxzoom } : {}),
-        }
+        if (!spec) return null
+        // ClientDemUpstream's fields only: bounds and a custom packing are
+        // not passed on to the browser's consumers.
+        const { template, encoding, tileSize, minzoom, maxzoom } = spec
+        return { template, encoding, tileSize, ...(minzoom !== undefined ? { minzoom } : {}), ...(maxzoom !== undefined ? { maxzoom } : {}) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [diffA, diffB, _nested, customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, useCogProtocolForSource, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogRemote, isVrtClient, vrtInfo])
+    }, [diffA, diffB, _nested, customSource, terrainSource, mapboxKey, maptilerKey, titilerEndpoint, useCogProtocol, highResTerrain, tilejsonMetadata, localFileVersion, cogMetadata, cogZoomRange, isCogLocal, vrtInfo])
 
     // Same per-viewport real-coverage probe TerrainSources runs for the
     // primary elevation Source (see lib/tile-max-zoom.ts) — only actually

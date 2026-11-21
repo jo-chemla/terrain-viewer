@@ -157,7 +157,7 @@ export const computeColorReliefPaint = ({
     }
     return {
       "color-relief-opacity": colorReliefOpacity,
-      "color-relief-color": withHoleStop(colors),
+      "color-relief-color": withTopStop(withHoleStop(colors)),
     }
   }
 
@@ -184,8 +184,23 @@ export const computeColorReliefPaint = ({
 
   return {
     "color-relief-opacity": colorReliefOpacity,
-    "color-relief-color": withHoleStop(colors),
+    "color-relief-color": withTopStop(withHoleStop(colors)),
   }
+}
+
+/** MapLibre packs color-relief stops in the DEM's own encoding (steps of
+ *  1/256 m for Terrarium, 0.1 m for Terrain-RGB), so a discrete ramp's pair
+ *  of stops a hair apart (buildCustomRampColors) collapses into one value.
+ *  Inside the ramp that is harmless, but when it is the last pair the
+ *  shader divides 0 by 0 for every value at or above it and samples a NaN
+ *  position: the top class drew transparent (shape index's domes, any value
+ *  past a discrete ramp's last stop). One more stop with the last colour,
+ *  beyond the coarsest step, keeps the last pair apart. */
+function withTopStop(colors: any[]): any[] {
+  if (!Array.isArray(colors) || colors[0] !== "interpolate" || colors.length < 7) return colors
+  const last = colors[colors.length - 2], before = colors[colors.length - 4]
+  if (typeof last !== "number" || typeof before !== "number" || last - before >= 0.25) return colors
+  return [...colors, last + 0.25, colors[colors.length - 1]]
 }
 
 /** Terrain-RGB's floor, -10000 m: what a transparent (nodata) DEM pixel
