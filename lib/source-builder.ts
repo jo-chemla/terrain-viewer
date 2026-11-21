@@ -58,8 +58,14 @@ export function buildRasterTileSource(params: {
    *  keeps its nodata mask, which those decoders read as a validity flag.
    *  See TITILER_FLAT_NODATA. */
   forClientDecode?: boolean
+  /** A class raster (land cover codes with a colour table): titiler reads and
+   *  warps it with nearest neighbour. Bilinear averages two class codes into a
+   *  third that is another class or not in the table at all, which drew holes
+   *  along every class edge (Copernicus LC100, measured 2026-11-21). */
+  categorical?: boolean
 }): { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" } {
-  const { type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata, titilerNodata, forClientDecode } = params
+  const { type, useCogProtocol, titilerEndpoint, scheme, isDem, nodata, titilerNodata, forClientDecode, categorical } = params
+  const kernel = categorical ? "nearest" : "bilinear"
   const url = fillKeyPlaceholders(params.url)
 
   switch (type) {
@@ -82,7 +88,7 @@ export function buildRasterTileSource(params: {
                 ? // encodeURIComponent: a float32 sentinel like 3.4e38 stringifies as
                   // "3.4e+38", and a raw "+" in a query string is a space.
                   `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${TITILER_CACHE_KEY}&nodata=${encodeURIComponent(String(titilerNodata ?? 0))}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(url)}${forClientDecode ? '' : TITILER_FLAT_NODATA}`
-                : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${TITILER_CACHE_KEY}&resampling=bilinear&reproject=bilinear&url=${encodeURIComponent(url)}`,
+                : `${titilerEndpoint}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${TITILER_CACHE_KEY}&resampling=${kernel}&reproject=${kernel}&url=${encodeURIComponent(url)}`,
             ],
           }
 

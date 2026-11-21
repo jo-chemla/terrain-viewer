@@ -14,6 +14,7 @@ const LAND_COVER = [
   "esa-worldcover-2021-map-tms", "esa-worldcover-2020-map-tms", "esri-io-landcover-10m",
   "nasa-gibs-modis-igbp-landcover", "eea-corine-land-cover-2018", "usgs-nlcd-2021-land-cover",
   "custom-basemap-ign-ocsge-couverture", "custom-basemap-ign-ocsge-usage", "custom-basemap-ign-cosia",
+  "copernicus-lcfm-lcm10-2020", "copernicus-cgls-lc100-2019", "copernicus-cgls-lc100-2015",
 ]
 
 for (const q of ["landcover", "land cover", "land-cover", "landuse", "land use", "land-use", "LandCover", " Land  Cover ", "lancover", "landcovr", "land covre", "lulc"]) {

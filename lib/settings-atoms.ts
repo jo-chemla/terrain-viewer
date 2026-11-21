@@ -542,6 +542,9 @@ export interface CustomBasemapSource {
    *  setting: the in-browser reader only handles EPSG:3857 (STAC search sets
    *  it from the projection extension). */
   cogViaTitiler?: boolean
+  /** A class raster served through titiler (a land cover COG with a colour
+   *  table): read with nearest neighbour, see buildRasterTileSource. */
+  categorical?: boolean
   /** 0-100 — lets an overlay (or a basemap) render partially see-through
    *  instead of fully opaque. Defaults to 100 for sources created before this
    *  field existed. */

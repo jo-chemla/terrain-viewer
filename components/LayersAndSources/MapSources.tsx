@@ -558,6 +558,7 @@ export const RasterBasemapSource = memo(({
                 useCogProtocol: isCogLocal ? true : useCogProtocol && !customBasemap.cogViaTitiler,
                 titilerEndpoint,
                 scheme: customBasemap.scheme,
+                categorical: customBasemap.categorical,
             }), customBasemap, removeColor)
         }
 
@@ -722,6 +723,7 @@ export const OverlayBasemapSources = memo(({
                     useCogProtocol: isCogLocal ? true : useCogProtocol && !source.cogViaTitiler,
                     titilerEndpoint,
                     scheme: source.scheme,
+                    categorical: source.categorical,
                 }), source, removeColor)
                 return (
                     <Source

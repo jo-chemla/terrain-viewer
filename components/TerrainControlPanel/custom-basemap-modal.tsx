@@ -284,6 +284,8 @@ export const CustomBasemapModal: React.FC<{
       linkedTerrainId: linkedTerrainId || undefined,
       bounds: parsedBounds,
       cogViaTitiler: type === "cog" && cogViaTitiler ? true : undefined,
+      // No field of its own in this form: a library entry's flag is kept.
+      categorical: type === "cog" && editingSource?.categorical ? true : undefined,
       ...(resolutionM ? { resolutionM } : {}),
     })
     onOpenChange(false)
