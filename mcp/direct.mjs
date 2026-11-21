@@ -1,93 +1,182 @@
 // The tile service's direct engine: a tile computed in Node from elevation
-// tiles, with no browser. For the views it understands it answers in a
-// fraction of a second; everything else goes to the browser (render.mjs).
+// tiles, with no browser. It rebuilds the map's layer stack from the app's
+// state (the same URL the browser would open) and computes every layer with
+// the app's own code, bundled for Node (app-render.ts):
 //
-// What it draws, in the app's layer order over a white background:
-//   colorRelief  the elevation through a ramp of the app (lib/color-ramps.ts)
-//   slope        Horn's slope in degrees through a ramp
-//   hillshade    MapLibre's own shader, ported line by line (its five
-//                methods, and the app's three multi-light presets)
-//   contours     marching squares (d3-contour), drawn as an SVG; no labels
+//   colour relief, and the 14 derived modes (slope, aspect, TRI, curvature,
+//   TPI, LRM, roughness, shape index, blobness, eigen ratio, orientation,
+//   sky-view factor, openness, local dominance): the app's tile protocols,
+//   coloured with the paint the map computes (lib/layer-paints.ts,
+//   lib/mode-relief.ts), interpolated between the stops as MapLibre does
+//   hillshade: MapLibre's two shader passes, ported line by line, fed with
+//   the paint the map computes (computeHillshadePaint)
+//   matcap, phong: the app's live GL layers (its default renderer), their
+//   fragment shaders ported line by line (per-pixel Horn normal on the
+//   bilinear elevation, Phong's multiply and add passes, the camera-relative
+//   matcap lookup); with matcapRenderer or phongRenderer=raster, the app's
+//   tile protocols instead
+//   cast shadows: the app's tile protocol
+//   contours: maplibre-contour, the app's contour library, with the app's
+//   options (contours.mjs); no labels on the picture, and /contours serves
+//   the vector tiles with `ele` for a client to label
 //
-// What it does not: any other mode, imagery, 3D, split views, a source that
-// is not a Terrarium or Terrain-RGB pyramid, custom ramp stops, and any URL
-// parameter not listed in DIRECT_PARAMS. `plan()` says which engine a
-// request gets and why.
+// Layers stack in the map's order (LAYER_SLOTS) over its white background.
+// Anything else goes to the browser: `plan()` says which engine a request
+// gets and why.
+import { readFileSync } from "node:fs"
 import sharp from "sharp"
-import { contours as d3contours } from "d3-contour"
+import { contourSvg } from "./contours.mjs"
 import { resolveDem, window as demWindow } from "./dem.mjs"
+import { buildViewUrl, DEFAULT_BASE_URL } from "./url.mjs"
+import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
 
-let appLibPromise
-const appLib = () => (appLibPromise ??= import("./generated/app-lib.mjs"))
-
-export const DIRECT_MODES = ["hillshade", "colorRelief", "slope", "contours"]
-
-/** The app parameters the direct engine reads, with the app's defaults. */
-export const DIRECT_PARAMS = {
-  hillshadeMethod: "combined", illuminationDir: 315, illuminationAlt: 45, shadowColor: "#000000", highlightColor: "#FFFFFF", accentColor: "#808080", hillshadeExag: 1, hillshadeOpacity: 1,
-  colorRamp: "mby", colorReliefOpacity: 0.35, customHypsoMinMax: false, minElevation: 0, maxElevation: 8100, invertColorRamp: false,
-  slopeColorRamp: "slope-plantopo", slopeOpacity: 1, slopeMinDegrees: 0, slopeMaxDegrees: 55, slopeInvertColorRamp: false,
-  contourMinor: 50, contourMajor: 200, contourWeight: 1, contourColor: "", showContourLabels: true,
-}
-const HILLSHADE_METHODS = ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors", "duotone-nw-ne", "aspect-multidir"]
-
-/** Which engine draws this view: `{ engine: "direct", dem, modes, p }` or
- *  `{ engine: "browser", why }`. `rest` holds the app parameters given. */
-export async function plan(view, rest) {
-  const no = (why) => ({ engine: "browser", why })
-  const modes = view.modes ?? ["hillshade"]
-  const other = modes.filter((m) => !DIRECT_MODES.includes(m))
-  if (other.length) return no(`the mode ${other.join(", ")} is drawn by the app`)
-  if (view.imageryUrl || view.imagerySource) return no("imagery is drawn by the app")
-  let source = view.terrainSource
-  if (source && source.trim().startsWith("{")) { try { source = JSON.parse(source) } catch { return no("terrainSource is not valid JSON") } }
-  const dem = resolveDem(source)
-  if (!dem) return no("this source is not a Terrarium or Terrain-RGB tile pyramid")
-  const p = { ...DIRECT_PARAMS }
-  for (const [k, v] of rest) {
-    if (!(k in DIRECT_PARAMS)) return no(`the parameter ${k} is read by the app`)
-    const d = DIRECT_PARAMS[k]
-    p[k] = typeof d === "number" ? Number(v) : typeof d === "boolean" ? v === "true" : v
-    if (typeof d === "number" && !Number.isFinite(p[k])) return no(`${k} is not a number`)
-  }
-  if (!HILLSHADE_METHODS.includes(p.hillshadeMethod)) return no(`the hillshade method ${p.hillshadeMethod} is not ported`)
-  const { colorRampsFlat } = await appLib()
-  if (modes.includes("colorRelief") && !colorRampsFlat[p.colorRamp]) return no(`the ramp ${p.colorRamp} is not a named ramp`)
-  if (modes.includes("slope") && !colorRampsFlat[p.slopeColorRamp]) return no(`the ramp ${p.slopeColorRamp} is not a named ramp`)
-  return { engine: "direct", dem, modes, p }
-}
+let appPromise
+const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs")))
 
 const PI = Math.PI
 const EARTH = 2 * PI * 6378137
 
+// ── The app's state ────────────────────────────────────────────────────────
+
+let defaultsCache
+/** Every URL parameter of the app with its default and type, from the
+ *  generated URL reference (docs/src/generated/url-params.json, copied into
+ *  generated/ by build.mjs). */
+function paramTable() {
+  if (!defaultsCache) {
+    const { params } = JSON.parse(readFileSync(new URL("./generated/url-params.json", import.meta.url), "utf8"))
+    defaultsCache = new Map(params.map((p) => [p.key, p]))
+  }
+  return defaultsCache
+}
+
+function parseValue(p, raw, A) {
+  switch (p.type) {
+    case "ramp-stops": return A.parseAsCustomRampStops.parse(raw) ?? undefined
+    case "number": case "integer": return Number(raw)
+    case "boolean": return raw === "true" || raw === "1"
+    case "array": return raw.split(",").filter(Boolean)
+    default: return raw
+  }
+}
+
+/** The state the app would have for this view: its URL's parameters over
+ *  the defaults. A default written as a constant's name in the source is
+ *  read from the bundle (DEFAULT_MATCAP_ID, the default ramp stops). */
+async function stateFor(view, rest) {
+  const A = await app()
+  const state = {}
+  for (const [key, p] of paramTable()) {
+    let d = p.default
+    if (typeof d === "string" && /^[A-Z][A-Z0-9_]+$/.test(d)) d = A[d]
+    if (d !== undefined && d !== null) state[p.stateKey ?? key] = d
+  }
+  const url = new URL(buildViewUrl({ ...view, lat: 0, lng: 0, params: Object.fromEntries(rest) }, { baseUrl: DEFAULT_BASE_URL }))
+  const given = []
+  for (const [key, raw] of url.searchParams) {
+    const p = paramTable().get(key)
+    if (!p) continue
+    const v = parseValue(p, raw, A)
+    if (v !== undefined) state[p.stateKey ?? key] = v
+    given.push(p)
+  }
+  return { state, given }
+}
+
+// ── Which layers, and can they be drawn here ──────────────────────────────
+
+/** The derived modes, in the map's layer order: state flag, protocol. */
+const DERIVED = [
+  ["slope", "showSlope", "terrain"], ["aspect", "showAspect", "terrain"], ["tri", "showTri", "terrain"],
+  ["curvature", "showCurvature", "terrain"], ["tpi", "showTpi", "terrain"], ["lrm", "showLrm", "relief"],
+  ["roughness", "showRoughness", "terrain"], ["shapeIndex", "showShapeIndex", "terrain"], ["blobness", "showBlobness", "terrain"],
+  ["eigenRatio", "showEigenRatio", "terrain"], ["orientation", "showOrientation", "terrain"], ["svf", "showSvf", "relief"],
+  ["openness", "showOpenness", "relief"], ["localDominance", "showLocalDominance", "relief"],
+]
+const GROUP = { terrain: "showTerrainAnalysis", relief: "showReliefVisualization" }
+
+/** The layers the map would draw for this state, bottom to top. */
+function layersOf(s) {
+  const out = []
+  if (s.showColorRelief) out.push("colorRelief")
+  for (const [m, flag, group] of DERIVED) if (s[GROUP[group]] && s[flag]) out.push(m)
+  if (s.showHillshade) out.push("hillshade")
+  if (s.showLightingEffects) { if (s.showMatcap) out.push("matcap"); if (s.showPhong) out.push("phong"); if (s.showShadows) out.push("shadows") }
+  if (s.showContoursAndGraticules && s.showContours) out.push("contours")
+  return out
+}
+
+/** What the direct engine does not draw: a state flag and why. */
+const BROWSER_ONLY = [
+  [(s) => s.showRasterBasemap, "imagery and basemaps are drawn by the app"],
+  [(s) => s.showTellsDetector, "the mound detector is drawn by the app"],
+  [(s) => s.showContoursAndGraticules && s.showGraticules, "graticules are drawn by the app"],
+  [(s) => s.showContoursAndGraticules && s.showIsoline, "the iso-line is drawn by the app"],
+  [(s) => s.showContoursAndGraticules && s.showContours && s.contourReferenceMode === "lrm", "contours of the local relief model are drawn by the app"],
+  [(s) => s.showPlaneSlicer, "the plane slicer is drawn by the app"],
+  [(s) => s.showLightingEffects && s.showBuildingShadows, "building shadows are drawn by the app"],
+  [(s) => s.showBackground, "the sky and fog background is drawn by the app"],
+  [(s) => s.appMode === "historical", "the historical mode is drawn by the app"],
+  [(s) => s.theme === "dark", "the dark theme is drawn by the app"],
+  [(s) => (s.viewMode && s.viewMode !== "2d") || s.pitch || s.bearing, "3D, tilted or rotated views are drawn by the app"],
+  [(s) => s.splitStyle && s.splitStyle !== "off", "split views are drawn by the app"],
+  [(s) => s.vizViews, "per-view modes are drawn by the app"],
+]
+const HILLSHADE_METHODS = ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors", "duotone-nw-ne", "aspect-multidir"]
+
+/** Which engine draws this view: `{ engine: "direct", dem, layers, state }`
+ *  or `{ engine: "browser", why }`. `rest` holds the app parameters given. */
+export async function plan(view, rest) {
+  const no = (why) => ({ engine: "browser", why })
+  if (view.imageryUrl || view.imagerySource) return no("imagery is drawn by the app")
+  if (view.split || view.terrainSourceB) return no("split views are drawn by the app")
+  let source = view.terrainSource
+  if (source && source.trim().startsWith("{")) { try { source = JSON.parse(source) } catch { return no("terrainSource is not valid JSON") } }
+  const dem = resolveDem(source)
+  if (!dem) return no("this source is not a Terrarium or Terrain-RGB tile pyramid")
+  const { state, given } = await stateFor(view, rest)
+  for (const [test, why] of BROWSER_ONLY) if (test(state)) return no(why)
+  const layers = layersOf(state)
+  if (!HILLSHADE_METHODS.includes(state.hillshadeMethod)) return no(`the hillshade method ${state.hillshadeMethod} is not ported`)
+  return { engine: "direct", dem, layers, state }
+}
+
+/** The modes the direct engine draws, by the names of url.mjs. */
+export const DIRECT_MODES = ["hillshade", "colorRelief", "contours", "slope", "aspect", "tri", "curvature", "tpi", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "svf", "openness", "localDominance", "matcap", "phong", "shadows"]
+
+// ── Colours ───────────────────────────────────────────────────────────────
+
+let chromaPromise
+const chroma = () => (chromaPromise ??= import("./generated/app-lib.mjs").then((m) => m.chroma))
+
 /** Any colour MapLibre takes, as premultiplied RGBA 0..1. */
-function colour(c, chroma, opacity = 1) {
+function colour(c, ch, opacity = 1) {
   let r, g, b, a
   const m = /^rgba?\(([^)]+)\)$/i.exec(String(c).trim())
   if (m) {
     const parts = m[1].split(/[\s,/]+/).filter(Boolean)
     ;[r, g, b] = parts.slice(0, 3).map(Number)
     a = parts[3] === undefined ? 1 : parts[3].endsWith("%") ? parseFloat(parts[3]) / 100 : Number(parts[3])
-  } else [r, g, b, a] = chroma(c).rgba()
+  } else [r, g, b, a] = ch(c).rgba()
   a *= opacity
   return [(r / 255) * a, (g / 255) * a, (b / 255) * a, a]
 }
 
-/** A MapLibre `interpolate` expression over elevation, as a 1024-entry table
- *  of premultiplied RGBA (MapLibre also draws from a table of the stops). */
-function rampTable(expr, chroma) {
+/** A color-relief expression (`interpolate` over elevation) as a function
+ *  to premultiplied RGBA, interpolating between the stops like MapLibre's
+ *  color-relief shader (a search for the two stops around the value). */
+function rampOf(expr, ch) {
   const stops = [], cols = []
-  for (let i = 3; i + 1 < expr.length; i += 2) { stops.push(Number(expr[i])); cols.push(colour(expr[i + 1], chroma)) }
-  const lo = stops[0], hi = stops[stops.length - 1], N = 1024
-  const table = new Float32Array(N * 4)
-  let k = 1
-  for (let n = 0; n < N; n++) {
-    const v = lo + ((hi - lo) * n) / (N - 1)
-    while (k < stops.length - 1 && stops[k] < v) k++
-    const t = Math.min(1, Math.max(0, (v - stops[k - 1]) / (stops[k] - stops[k - 1] || 1)))
-    for (let c = 0; c < 4; c++) table[n * 4 + c] = cols[k - 1][c] + (cols[k][c] - cols[k - 1][c]) * t
+  for (let i = 3; i + 1 < expr.length; i += 2) { stops.push(Number(expr[i])); cols.push(colour(expr[i + 1], ch)) }
+  const n = stops.length
+  return (v, out) => {
+    if (n === 1 || v <= stops[0]) { out.set(cols[0]); return }
+    if (v >= stops[n - 1]) { out.set(cols[n - 1]); return }
+    let l = 0, r = n - 1
+    while (r - l > 1) { const mid = (l + r) >> 1; if (v < stops[mid]) r = mid; else l = mid }
+    const t = (v - stops[l]) / (stops[r] - stops[l] || 1), a = cols[l], b = cols[r]
+    out[0] = a[0] + (b[0] - a[0]) * t; out[1] = a[1] + (b[1] - a[1]) * t; out[2] = a[2] + (b[2] - a[2]) * t; out[3] = a[3] + (b[3] - a[3]) * t
   }
-  return { lo, hi, N, table }
 }
 
 // Source-over of a premultiplied colour onto the premultiplied canvas.
@@ -96,39 +185,29 @@ function over(dst, o, r, g, b, a) {
   dst[o] = r + dst[o] * k; dst[o + 1] = g + dst[o + 1] * k; dst[o + 2] = b + dst[o + 2] * k; dst[o + 3] = a + dst[o + 3] * k
 }
 
-function paintRamp(dst, values, ramp, opacity) {
-  const { lo, hi, N, table } = ramp, scale = (N - 1) / (hi - lo || 1)
-  for (let i = 0; i < values.length; i++) {
-    const v = values[i]
-    if (Number.isNaN(v)) continue
-    const n = Math.min(N - 1, Math.max(0, Math.round((v - lo) * scale))) * 4
-    over(dst, i * 4, table[n] * opacity, table[n + 1] * opacity, table[n + 2] * opacity, table[n + 3] * opacity)
-  }
-}
+// ── MapLibre's hillshade ──────────────────────────────────────────────────
 
-/** MapLibre's hillshade uniforms from the app's parameters (the app's
- *  computeHillshadePaint, components/LayersAndSources/MapLayers.tsx). */
-function hillshadeUniforms(p, chroma) {
+/** The hillshade uniforms MapLibre derives from the paint the map computes. */
+function hillshadeUniforms(paint, ch) {
+  const list = (v, d) => (Array.isArray(v) ? v : [v ?? d])
+  const dirs = list(paint["hillshade-illumination-direction"], 335)
+  const n = dirs.length
+  const pad = (arr, d) => Array.from({ length: n }, (_, i) => arr[i] ?? arr[arr.length - 1] ?? d)
   const rad = (d) => (d * PI) / 180
-  const multi = (highlights, shadows, dirs, alts) => ({ method: "multidirectional", highlights: highlights.map((c) => colour(c, chroma)), shadows: shadows.map((c) => colour(c, chroma)), azimuths: dirs.map(rad), altitudes: alts.map(rad) })
-  if (p.hillshadeMethod === "multidir-colors") return multi(["#FF4000", "#FFFF00", "#40ff00", "#00FF80"], ["#00bfff", "#0000ff", "#bf00ff", "#FF0080"], [270, 315, 0, 45], [30, 30, 30, 30])
-  if (p.hillshadeMethod === "duotone-nw-ne") return multi(["#FFFFFF", "#4A90D9"], ["#000000", "#B8692E"], [315, 45], [35, 35])
-  if (p.hillshadeMethod === "aspect-multidir") return multi(["#CC0000", "#0000CC"], ["#00CCCC", "#CCCC00"], [0, 270], [30, 30])
-  if (p.hillshadeMethod === "multidirectional") return multi(["#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF"], ["#000000", "#000000", "#000000", "#000000"], [270, 315, 0, 45], [45, 45, 45, 45])
-  // The altitude only reaches the two methods that read it; `basic` gets
-  // the app's correction.
-  const alt = p.hillshadeMethod === "basic" ? 90 - (90 - p.illuminationAlt) / 6.28 : p.hillshadeMethod === "combined" ? p.illuminationAlt : 45
   return {
-    method: p.hillshadeMethod, exaggeration: p.hillshadeExag,
-    azimuths: [rad(p.illuminationDir)], altitudes: [rad(alt)],
-    shadows: [colour(p.shadowColor, chroma, p.hillshadeOpacity)], highlights: [colour(p.highlightColor, chroma, p.hillshadeOpacity)],
-    accent: colour(p.accentColor, chroma),
+    method: paint["hillshade-method"] ?? "standard",
+    exaggeration: paint["hillshade-exaggeration"] ?? 0.5,
+    azimuths: dirs.map(rad),
+    altitudes: pad(list(paint["hillshade-illumination-altitude"], 45), 45).map(rad),
+    shadows: pad(list(paint["hillshade-shadow-color"], "#000000"), "#000000").map((c) => colour(c, ch)),
+    highlights: pad(list(paint["hillshade-highlight-color"], "#FFFFFF"), "#FFFFFF").map((c) => colour(c, ch)),
+    accent: colour(paint["hillshade-accent-color"] ?? "#000000", ch),
   }
 }
 
 // MapLibre's hillshade fragment shader (maplibre-gl 6, hillshade.fragment.glsl).
 function shade(u, dx, dy, out) {
-  const ex = u.exaggeration ?? 1
+  const ex = u.exaggeration
   const aspect = (x, y) => (x !== 0 ? Math.atan2(y, -x) : (PI / 2) * (y > 0 ? 1 : -1))
   const mod = (a, n) => a - n * Math.floor(a / n)
   const S = u.shadows, H = u.highlights
@@ -177,89 +256,157 @@ function shade(u, dx, dy, out) {
   out[0] = r; out[1] = g; out[2] = b; out[3] = a
 }
 
+// ── Tiles of the app's protocols ──────────────────────────────────────────
+
+/** The protocol tile template of a derived or lighting layer, and how to read it. */
+function protocolOf(A, layer, dem, s, base) {
+  const t = dem.tiles, e = dem.encoding, n = dem.tileSize
+  switch (layer) {
+    case "slope": return { url: A.buildSlopeProtocolUrl(t, e, n), run: A.slopeProtocol, enc: "mapbox" }
+    case "aspect": return { url: A.buildAspectProtocolUrl(t, e, n), run: A.aspectProtocol }
+    case "tri": return { url: A.buildTriProtocolUrl(t, e, n), run: A.triProtocol }
+    case "curvature": return { url: A.buildCurvatureProtocolUrl(t, e, n, s.curvatureMode), run: A.curvatureProtocol }
+    case "tpi": return { url: A.buildTpiProtocolUrl(t, e, n), run: A.tpiProtocol }
+    case "roughness": return { url: A.buildRoughnessProtocolUrl(t, e, n), run: A.roughnessProtocol }
+    case "shapeIndex": return { url: A.buildCurvatureProtocolUrl(t, e, n, "shape-index"), run: A.curvatureProtocol }
+    case "blobness": return { url: A.buildBlobnessProtocolUrl(t, e, n, "blobness"), run: A.blobnessProtocol }
+    case "eigenRatio": return { url: A.buildBlobnessProtocolUrl(t, e, n, "eigen-ratio"), run: A.blobnessProtocol }
+    case "orientation": return { url: A.buildBlobnessProtocolUrl(t, e, n, "orientation"), run: A.blobnessProtocol }
+    case "lrm": return { url: A.buildLrmProtocolUrl(t, e, n, s.lrmRadius), run: A.lrmProtocol }
+    case "svf": return { url: A.buildSvfProtocolUrl(t, e, n, s.svfRadius, s.svfPrecision), run: A.svfProtocol }
+    case "openness": return { url: A.buildOpennessProtocolUrl(t, e, n, s.opennessRadius, s.opennessMode, s.opennessPrecision), run: A.opennessProtocol }
+    case "localDominance": return { url: A.buildLocalDominanceProtocolUrl(t, e, n, s.localDominanceMinRadius, s.localDominanceMaxRadius), run: A.localDominanceProtocol }
+    case "matcap": {
+      const tex = A.MATCAP_TEXTURES.find((x) => x.id === s.matcapTextureId) ?? A.MATCAP_TEXTURES.find((x) => x.id === A.DEFAULT_MATCAP_ID)
+      return { url: A.buildMatcapProtocolUrl(new URL(tex.url, base).href, s.matcapRotationDeg, s.exaggeration, t, e, n), run: A.matcapProtocol, rgba: true, opacity: s.matcapOpacity * s.lightingEffectsOpacity }
+    }
+    case "phong": return { url: A.buildPhongProtocolUrl(s.phongDiffuseStrength, s.phongSpecularStrength, s.illuminationDir, s.illuminationAlt, s.exaggeration, t, e, n, { strength: s.phongFresnelStrength, power: s.phongFresnelPower, dark: s.theme !== "dark" }), run: A.phongProtocol, rgba: true, opacity: s.phongOpacity * s.lightingEffectsOpacity }
+    case "shadows": return { url: A.buildShadowProtocolUrl(s.illuminationDir, s.illuminationAlt, s.shadowRadiusPx, t, e, n), run: A.shadowProtocol, rgba: true, opacity: s.lightingEffectsOpacity * s.shadowOpacity }
+  }
+  return null
+}
+
+/** A rectangle of a protocol's tiles at zoom z: `channels` floats a pixel
+ *  (1: the decoded value, NaN for no data; 4: premultiplied RGBA 0..1). */
+async function protocolWindow(p, z, side, x0, y0, w, h) {
+  const ch = p.rgba ? 4 : 1
+  const out = new Float32Array(w * h * ch).fill(p.rgba ? 0 : NaN)
+  const n = 2 ** z
+  const jobs = []
+  for (let ty = Math.floor(y0 / side); ty <= Math.floor((y0 + h - 1) / side); ty++) for (let tx = Math.floor(x0 / side); tx <= Math.floor((x0 + w - 1) / side); tx++) {
+    if (ty < 0 || ty >= n) continue
+    const wx = ((tx % n) + n) % n
+    jobs.push((async () => {
+      let px
+      try { px = await pixelsOf(await p.run({ url: p.url.replace("{z}", z).replace("{x}", wx).replace("{y}", ty) }, new AbortController())) } catch { return }
+      if (px.width !== side) return
+      const d = px.data, mapbox = p.enc === "mapbox"
+      for (let j = Math.max(y0, ty * side); j < Math.min(y0 + h, (ty + 1) * side); j++) for (let i = Math.max(x0, tx * side); i < Math.min(x0 + w, (tx + 1) * side); i++) {
+        const o = ((j - ty * side) * side + (i - tx * side)) * 4, q = (j - y0) * w + (i - x0)
+        if (p.rgba) { const a = d[o + 3] / 255; out[q * 4] = (d[o] / 255) * a; out[q * 4 + 1] = (d[o + 1] / 255) * a; out[q * 4 + 2] = (d[o + 2] / 255) * a; out[q * 4 + 3] = a }
+        else if (d[o + 3] !== 0) out[q] = mapbox ? -10000 + (d[o] * 65536 + d[o + 1] * 256 + d[o + 2]) * 0.1 : d[o] * 256 + d[o + 1] + d[o + 2] / 256 - 32768
+      }
+    })())
+  }
+  await Promise.all(jobs)
+  return out
+}
+
+// ── Drawing ───────────────────────────────────────────────────────────────
+
 /**
- * A rectangle of the Web Mercator world drawn from elevation tiles.
- * `world` is the side of the whole world in output pixels (a tile of side S
- * at zoom z: S * 2^z), `x0`, `y0` the rectangle's corner in those pixels.
+ * A rectangle of the Web Mercator world. `world` is the side of the whole
+ * world in output pixels (a tile of side S at zoom z: S * 2^z), `x0`, `y0`
+ * the rectangle's corner in those pixels.
  * @returns {Promise<Buffer>} PNG or JPEG
  */
-export async function draw({ dem, modes, p }, { world, x0, y0, width, height, format = "png" }) {
-  const { colorRampsFlat, remapColorRampStops, chroma } = await appLib()
-  // The pyramid zoom whose pixels are the output's, or the deepest there is.
+export async function draw({ dem, layers, state: s }, { world, x0, y0, width, height, format = "png", baseUrl = DEFAULT_BASE_URL, credit }) {
+  const A = await app(), ch = await chroma()
+  // The source zoom MapLibre picks: the pyramid's pixels at the output's
+  // scale, or its deepest level, overzoomed.
   const zd = Math.max(0, Math.min(dem.maxzoom, Math.round(Math.log2(world / dem.tileSize))))
-  const side = dem.tileSize, demWorld = side * 2 ** zd, k = demWorld / world
-  // Elevations on the pyramid's own grid, two pixels wider than the output on each side.
+  const side = dem.tileSize, k = (side * 2 ** zd) / world
   const M = 2
   const gx0 = Math.floor(x0 * k) - M - 1, gy0 = Math.floor(y0 * k) - M - 1
   const gw = Math.ceil((x0 + width) * k) + M + 1 - gx0, gh = Math.ceil((y0 + height) * k) + M + 1 - gy0
-  const E = await demWindow(dem, zd, side, gx0, gy0, gw, gh)
-  if (E.every(Number.isNaN)) throw Object.assign(new Error("This source has no data here"), { status: 404 })
-  const at = (i, j) => E[Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))]
+  const live = (l) => (l === "matcap" && s.matcapRenderer !== "raster") || (l === "phong" && s.phongRenderer !== "raster")
+  const needElevation = layers.some((l) => l === "colorRelief" || l === "hillshade" || live(l))
+  const E = needElevation ? await demWindow(dem, zd, side, gx0, gy0, gw, gh) : null
+  if (E && E.every(Number.isNaN)) throw Object.assign(new Error("This source has no data here"), { status: 404 })
+  const clampAt = (G, c = 1) => (i, j, q = 0) => G[(Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))) * c + q]
 
-  // The output pixels' elevations, read bilinearly from that grid.
-  const P = 3 // a margin, for the contours to close outside the picture
-  const ow = width + 2 * P, oh = height + 2 * P
-  const elev = new Float32Array(ow * oh), FX = new Float32Array(ow), FY = new Float32Array(oh)
+  // Output pixel centres on the source grid, with a margin for the contours.
+  const P = 3, ow = width + 2 * P, oh = height + 2 * P
+  const FX = new Float32Array(ow), FY = new Float32Array(oh)
   for (let i = 0; i < ow; i++) FX[i] = (x0 + i - P + 0.5) * k - 0.5 - gx0
   for (let j = 0; j < oh; j++) FY[j] = (y0 + j - P + 0.5) * k - 0.5 - gy0
-  const bil = (G, fx, fy) => {
+  const bil = (G, fx, fy, q) => {
     const i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j
-    const a = G(i, j), b = G(i + 1, j), c = G(i, j + 1), d = G(i + 1, j + 1)
+    const a = G(i, j, q), b = G(i + 1, j, q), c = G(i, j + 1, q), d = G(i + 1, j + 1, q)
     return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
   }
-  for (let j = 0; j < oh; j++) for (let i = 0; i < ow; i++) elev[j * ow + i] = bil(at, FX[i], FY[j])
-  const inner = (G) => { const out = new Float32Array(width * height); for (let j = 0; j < height; j++) out.set(G.subarray((j + P) * ow + P, (j + P) * ow + P + width), j * width); return out }
+  const resample = (G, margin = 0) => {
+    const w = width + 2 * margin, h = height + 2 * margin, out = new Float32Array(w * h)
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) out[j * w + i] = bil(G, FX[i + P - margin], FY[j + P - margin])
+    return out
+  }
   const latOf = (wy) => Math.atan(Math.sinh(PI * (1 - (2 * wy) / world)))
 
-  // Premultiplied RGBA 0..1, white to start with (the app's light background).
+  // Premultiplied RGBA 0..1, white to start with (the map's light background).
   const img = new Float32Array(width * height * 4).fill(1)
-
-  if (modes.includes("colorRelief")) {
-    const base = colorRampsFlat[p.colorRamp].colors
-    const expr = p.customHypsoMinMax || p.invertColorRamp ? remapColorRampStops(base, p.customHypsoMinMax ? p.minElevation : undefined, p.customHypsoMinMax ? p.maxElevation : undefined, p.invertColorRamp) : base
-    paintRamp(img, inner(elev), rampTable(expr, chroma), p.colorReliefOpacity)
+  const paintValues = (values, paint) => {
+    const ramp = rampOf(paint["color-relief-color"], ch), op = paint["color-relief-opacity"] ?? 1, c = new Float32Array(4)
+    for (let i = 0; i < values.length; i++) {
+      if (Number.isNaN(values[i])) continue
+      ramp(values[i], c)
+      over(img, i * 4, c[0] * op, c[1] * op, c[2] * op, c[3] * op)
+    }
   }
 
-  if (modes.includes("slope")) {
-    // Horn's kernel on the output grid, the ground distance corrected for latitude.
-    const slope = new Float32Array(width * height)
-    for (let j = 0; j < height; j++) {
-      const res = (EARTH * Math.cos(latOf(y0 + j + 0.5))) / world
-      for (let i = 0; i < width; i++) {
-        const o = (j + P) * ow + i + P
-        const a = elev[o - ow - 1], b = elev[o - ow], c = elev[o - ow + 1], d = elev[o - 1], f = elev[o + 1], g = elev[o + ow - 1], h = elev[o + ow], n = elev[o + ow + 1]
-        const dzdx = (c + 2 * f + n - (a + 2 * d + g)) / (8 * res), dzdy = (g + 2 * h + n - (a + 2 * b + c)) / (8 * res)
-        slope[j * width + i] = (Math.atan(Math.hypot(dzdx, dzdy)) * 180) / PI
+  let picture
+  for (const layer of layers) {
+    if (layer === "colorRelief") {
+      paintValues(resample(clampAt(E)), A.computeColorReliefPaint({ ...s }))
+    } else if (layer === "hillshade") {
+      // MapLibre's prepare pass on the source grid (the Sobel sums, its zoom
+      // factor, the 8-bit texture it keeps them in), then its shading pass.
+      const at = clampAt(E)
+      const factor = zd < 2 ? 0.4 : zd < 4.5 ? 0.35 : 0.3
+      const exag = zd < 15 ? (zd - 15) * factor : 0
+      const scale = side / Math.pow(2, exag + (28.2562 - zd))
+      const q8 = (v) => (Math.round(Math.min(1, Math.max(0, v / 8 + 128 / 255)) * 255) / 255 - 128 / 255) * 8
+      const DX = new Float32Array(gw * gh), DY = new Float32Array(gw * gh)
+      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+        const a = at(i - 1, j - 1), b = at(i, j - 1), c = at(i + 1, j - 1), d = at(i - 1, j), f = at(i + 1, j), g = at(i - 1, j + 1), h = at(i, j + 1), n = at(i + 1, j + 1)
+        DX[j * gw + i] = q8((c + f + f + n - (a + d + d + g)) * scale)
+        DY[j * gw + i] = q8((g + h + h + n - (a + b + b + c)) * scale)
       }
-    }
-    const expr = remapColorRampStops(colorRampsFlat[p.slopeColorRamp].colors, p.slopeMinDegrees, p.slopeMaxDegrees, p.slopeInvertColorRamp)
-    paintRamp(img, slope, rampTable(expr, chroma), p.slopeOpacity)
-  }
-
-  if (modes.includes("hillshade")) {
-    // MapLibre's prepare pass on the pyramid's grid (the Sobel sums, its zoom
-    // factor, the 8-bit texture it stores them in), then its shading pass.
-    const factor = zd < 2 ? 0.4 : zd < 4.5 ? 0.35 : 0.3
-    const exag = zd < 15 ? (zd - 15) * factor : 0
-    const scale = side / Math.pow(2, exag + (28.2562 - zd))
-    const q = (v) => (Math.round(Math.min(1, Math.max(0, v / 8 + 128 / 255)) * 255) / 255 - 128 / 255) * 8
-    const DX = new Float32Array(gw * gh), DY = new Float32Array(gw * gh)
-    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
-      const a = at(i - 1, j - 1), b = at(i, j - 1), c = at(i + 1, j - 1), d = at(i - 1, j), f = at(i + 1, j), g = at(i - 1, j + 1), h = at(i, j + 1), n = at(i + 1, j + 1)
-      DX[j * gw + i] = q((c + f + f + n - (a + d + d + g)) * scale)
-      DY[j * gw + i] = q((g + h + h + n - (a + b + b + c)) * scale)
-    }
-    const gdx = (i, j) => DX[Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))]
-    const gdy = (i, j) => DY[Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))]
-    const u = hillshadeUniforms(p, chroma), px = [0, 0, 0, 0]
-    for (let j = 0; j < height; j++) {
-      const cosLat = Math.cos(latOf(y0 + j + 0.5))
-      for (let i = 0; i < width; i++) {
-        if (Number.isNaN(elev[(j + P) * ow + i + P])) continue
-        const dx = bil(gdx, FX[i + P], FY[j + P]) / cosLat, dy = bil(gdy, FX[i + P], FY[j + P]) / cosLat
-        if (Number.isNaN(dx) || Number.isNaN(dy)) continue
-        shade(u, dx, dy, px)
-        over(img, (j * width + i) * 4, px[0], px[1], px[2], px[3])
+      const gdx = clampAt(DX), gdy = clampAt(DY)
+      const u = hillshadeUniforms(A.computeHillshadePaint(s), ch), px = [0, 0, 0, 0]
+      for (let j = 0; j < height; j++) {
+        const cosLat = Math.cos(latOf(y0 + j + 0.5))
+        for (let i = 0; i < width; i++) {
+          const dx = bil(gdx, FX[i + P], FY[j + P]) / cosLat, dy = bil(gdy, FX[i + P], FY[j + P]) / cosLat
+          if (Number.isNaN(dx) || Number.isNaN(dy)) continue
+          shade(u, dx, dy, px)
+          over(img, (j * width + i) * 4, px[0], px[1], px[2], px[3])
+        }
+      }
+    } else if (live(layer)) {
+      await liveLighting(layer, s, { E: clampAt(E), bil, FX, FY, P, width, height, img, zd, side, gy0, base: baseUrl })
+    } else if (layer === "contours") {
+      picture = { contours: true }
+    } else {
+      const p = protocolOf(A, layer, dem, s, baseUrl)
+      const G = await protocolWindow(p, zd, side, gx0, gy0, gw, gh)
+      if (p.rgba) {
+        const at = clampAt(G, 4), op = p.opacity ?? 1
+        for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
+          const fx = FX[i + P], fy = FY[j + P]
+          over(img, (j * width + i) * 4, bil(at, fx, fy, 0) * op, bil(at, fx, fy, 1) * op, bil(at, fx, fy, 2) * op, bil(at, fx, fy, 3) * op)
+        }
+      } else {
+        paintValues(resample(clampAt(G)), A.computeColorReliefPaint(A.MODE_RELIEF[layer](s)))
       }
     }
   }
@@ -269,25 +416,110 @@ export async function draw({ dem, modes, p }, { world, x0, y0, width, height, fo
     const a = img[i * 4 + 3] || 1
     rgba[i * 4] = Math.round(Math.min(1, img[i * 4] / a) * 255); rgba[i * 4 + 1] = Math.round(Math.min(1, img[i * 4 + 1] / a) * 255); rgba[i * 4 + 2] = Math.round(Math.min(1, img[i * 4 + 2] / a) * 255); rgba[i * 4 + 3] = Math.round(Math.min(1, a) * 255)
   }
-  let picture = sharp(rgba, { raw: { width, height, channels: 4 } })
-
-  if (modes.includes("contours")) {
-    // The app's intervals: major lines alone below zoom 6, then minor and major.
-    const z256 = Math.log2(world / 256)
-    const minor = z256 < 6 || !(p.contourMinor > 0) ? p.contourMajor : p.contourMinor, major = p.contourMajor
-    let lo = Infinity, hi = -Infinity
-    for (const v of elev) if (!Number.isNaN(v)) { if (v < lo) lo = v; if (v > hi) hi = v }
-    const levels = []
-    for (let v = Math.ceil(lo / minor) * minor; v <= hi && levels.length < 400; v += minor) levels.push(v)
-    const filled = Float64Array.from(elev, (v) => (Number.isNaN(v) ? -1e9 : v))
-    const stroke = p.contourColor || "rgba(0,0,0,0.5)"
-    const paths = { 0: [], 1: [] }
-    for (const c of d3contours().size([ow, oh]).thresholds(levels)(filled)) {
-      const d = c.coordinates.map((poly) => poly.map((ring) => "M" + ring.map(([x, y]) => `${(x - P).toFixed(2)},${(y - P).toFixed(2)}`).join("L") + "Z").join("")).join("")
-      if (d) paths[Math.abs(c.value / major - Math.round(c.value / major)) < 1e-9 ? 1 : 0].push(d)
-    }
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><g fill="none" stroke="${stroke}" stroke-linejoin="round"><path stroke-width="${0.5 * p.contourWeight}" d="${paths[0].join("")}"/><path stroke-width="${p.contourWeight}" d="${paths[1].join("")}"/></g></svg>`
-    picture = picture.composite([{ input: Buffer.from(svg) }])
+  let out = sharp(rgba, { raw: { width, height, channels: 4 } })
+  if (picture?.contours) out = sharp(await out.png().toBuffer()).composite([{ input: Buffer.from(await contourSvg(dem, s, { world, x0, y0, width, height })) }])
+  if (credit) {
+    // The source's name, bottom right, as the map's attribution sits.
+    const esc = (t) => t.replace(/[<&>]/g, (c) => ({ "<": "&lt;", "&": "&amp;", ">": "&gt;" })[c])
+    const text = esc(credit), tw = Math.min(width - 8, Math.round(text.length * 6.2) + 12)
+    out = sharp(await out.png().toBuffer()).composite([{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect x="${width - tw}" y="${height - 18}" width="${tw}" height="18" fill="rgba(255,255,255,0.7)"/><text x="${width - 6}" y="${height - 5}" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333" text-anchor="end">${text}</text></svg>`) }])
   }
-  return format === "png" ? picture.png().toBuffer() : picture.flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer()
+  return format === "png" ? out.png().toBuffer() : out.flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer()
 }
+
+// ── The live Phong and matcap layers ──────────────────────────────────────
+
+const matcapImages = new Map()
+async function matcapImage(url) {
+  if (!matcapImages.has(url)) matcapImages.set(url, (async () => {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`The matcap ${url} answered ${res.status}`)
+    const { data, info } = await sharp(Buffer.from(await res.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    return { w: info.width, h: info.height, d: data }
+  })().catch((e) => { matcapImages.delete(url); throw e }))
+  return matcapImages.get(url)
+}
+
+const hexRgb01 = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h ?? "")); const n = m ? parseInt(m[1], 16) : 0xffffff; return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255] }
+
+/** lib/phong-live-gl-layer.ts and lib/matcap-live-gl-layer.ts, per output
+ *  pixel, for a flat view (bearing and pitch 0: the camera-relative light
+ *  and matcap basis reduce to fixed vectors). */
+async function liveLighting(layer, s, { E, bil, FX, FY, P, width, height, img, zd, side, gy0, base }) {
+  const A = await app()
+  const ex = s.exaggeration
+  // DEM_NORMAL_GLSL: Horn on the bilinear elevation, one source pixel either
+  // side, the hornGradient signs (dx west − east), no /8; the ground
+  // resolution of the source tile the pixel falls in.
+  const normal = (i, j, out) => {
+    const fx = FX[i + P], fy = FY[j + P]
+    const at = (dx, dy) => bil(E, fx + dx, fy + dy)
+    const a0 = at(-1, -1), a1 = at(0, -1), a2 = at(1, -1), a3 = at(-1, 0), a5 = at(1, 0), a6 = at(-1, 1), a7 = at(0, 1), a8 = at(1, 1)
+    const row = Math.floor((gy0 + fy + 0.5) / side)
+    const lat = Math.atan(Math.sinh(PI * (1 - (2 * (row + 0.5)) / 2 ** zd)))
+    const inv = 1 / ((EARTH * Math.cos(lat)) / (side * 2 ** zd))
+    const gx = (a0 + a3 + a3 + a6 - (a2 + a5 + a5 + a8)) * inv, gy = (a6 + a7 + a7 + a8 - (a0 + a1 + a1 + a2)) * inv
+    const nx = -gx * ex, ny = -gy * ex, len = Math.hypot(nx, ny, 1)
+    out[0] = nx / len; out[1] = ny / len; out[2] = 1 / len
+  }
+  const n = [0, 0, 0]
+  if (layer === "phong") {
+    const toLight = (dir, alt) => { const az = (dir * PI) / 180, el = (alt * PI) / 180; return [-Math.sin(az) * Math.cos(el), -Math.cos(az) * Math.cos(el), Math.sin(el)] }
+    const lights = [{ v: toLight(s.illuminationDir, s.illuminationAlt), c: hexRgb01(s.phongLight1Color) },
+      ...[[s.phongLight2Dir, s.phongLight2Alt, s.phongLight2Color], [s.phongLight3Dir, s.phongLight3Alt, s.phongLight3Color]].slice(0, Math.max(0, Math.min(3, s.phongLightCount) - 1)).map(([d, a, c]) => ({ v: toLight(d, a), c: hexRgb01(c) }))]
+    const H = lights.map(({ v }) => { const h = [v[0], v[1], v[2] + 1], l = Math.hypot(...h); return h.map((x) => x / l) })
+    const AMBIENT = 0.35, SHININESS = 32, count = lights.length, op = s.phongOpacity * s.lightingEffectsOpacity
+    const kd = s.phongDiffuseStrength, ks = s.phongSpecularStrength, fs = s.phongFresnelStrength, fp = s.phongFresnelPower, dark = s.theme !== "dark" ? 1 : 0
+    for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
+      normal(i, j, n)
+      if (Number.isNaN(n[0])) continue
+      const diff = [0, 0, 0]
+      let spec = 0
+      lights.forEach(({ v, c }, q) => {
+        const d = Math.max(n[0] * v[0] + n[1] * v[1] + n[2] * v[2], 0)
+        diff[0] += c[0] * d; diff[1] += c[1] * d; diff[2] += c[2] * d
+        spec += Math.pow(Math.max(n[0] * H[q][0] + n[1] * H[q][1] + n[2] * H[q][2], 0), SHININESS)
+      })
+      const rim = fs * Math.pow(1 - Math.min(1, Math.max(0, n[2])), fp)
+      const add = Math.min(1, Math.max(0, ((ks * spec) / count + (1 - dark) * rim) * op))
+      const o = (j * width + i) * 4
+      let darkSum = 0
+      for (let c = 0; c < 3; c++) {
+        const intensity = Math.min(1, Math.max(0, (AMBIENT + (kd * diff[c]) / count) / (AMBIENT + kd)))
+        const shade = 1 + (intensity * (1 - dark * Math.min(1, Math.max(0, rim))) - 1) * op
+        img[o + c] = img[o + c] * shade
+        darkSum += 1 - shade
+      }
+      const da = darkSum / 3
+      img[o + 3] = da + img[o + 3] * (1 - da)
+      if (ks > 0 || (fs > 0 && !dark)) { img[o] += add; img[o + 1] += add; img[o + 2] += add }
+    }
+  } else {
+    const tex = A.MATCAP_TEXTURES.find((x) => x.id === s.matcapTextureId) ?? A.MATCAP_TEXTURES.find((x) => x.id === A.DEFAULT_MATCAP_ID)
+    const m = await matcapImage(new URL(tex.url, base).href)
+    const rot = (s.matcapRotationDeg * PI) / 180, cb = Math.cos(rot), sb = Math.sin(rot), op = s.matcapOpacity * s.lightingEffectsOpacity
+    const texel = (x, y, c) => m.d[(Math.min(m.h - 1, Math.max(0, y)) * m.w + Math.min(m.w - 1, Math.max(0, x))) * 4 + c] / 255
+    for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
+      normal(i, j, n)
+      if (Number.isNaN(n[0])) continue
+      const rx = n[0] * cb + n[1] * sb, ry = -n[0] * sb + n[1] * cb
+      // Camera basis at bearing 0, pitch 0: right (1, 0, 0), up (0, -1, 0).
+      const [u, v] = s.matcapLightRelativeToCamera !== false ? [0.5 - 0.5 * rx, 0.5 + 0.5 * ry] : [rx * 0.5 + 0.5, ry * 0.5 + 0.5]
+      const px = u * m.w - 0.5, py = v * m.h - 0.5, x0 = Math.floor(px), y0 = Math.floor(py), tx = px - x0, ty = py - y0
+      const col = [0, 1, 2].map((c) => (texel(x0, y0, c) * (1 - tx) + texel(x0 + 1, y0, c) * tx) * (1 - ty) + (texel(x0, y0 + 1, c) * (1 - tx) + texel(x0 + 1, y0 + 1, c) * tx) * ty)
+      over(img, (j * width + i) * 4, col[0] * op, col[1] * op, col[2] * op, op)
+    }
+  }
+}
+
+/** A flat, unrotated viewport (MapLibre's zoom, 512 px tiles), with the
+ *  source credited bottom right. */
+export function drawViewport(how, { lat, lng, zoom = 12, width, height, format = "jpg", baseUrl }) {
+  const world = 512 * 2 ** zoom
+  const cx = ((lng + 180) / 360) * world, cy = ((1 - Math.asinh(Math.tan((lat * Math.PI) / 180)) / Math.PI) / 2) * world
+  const credit = `Terrain Viewer · ${how.dem.name ?? new URL(how.dem.tiles.replace(/[{}]/g, "")).hostname}`
+  return draw(how, { world, x0: Math.round(cx - width / 2), y0: Math.round(cy - height / 2), width, height, format, baseUrl, credit })
+}
+
+/** Whether a view can be a direct viewport: flat, unrotated, single. */
+export const flatView = (v) => (!v.viewMode || v.viewMode === "2d") && !v.pitch && !v.bearing && (!v.split || v.split === "off") && !v.terrainSourceB

@@ -24,9 +24,11 @@ import { plan } from "./direct.mjs"
   assert.deepEqual({ ...back.view, params: Object.fromEntries(back.rest) }, v)
   // Which engine draws what.
   assert.equal((await plan({ modes: ["hillshade", "slope", "contours"] }, new URLSearchParams("slopeOpacity=0.5"))).engine, "direct")
-  assert.match((await plan({ modes: ["lrm"] }, new URLSearchParams())).why, /lrm/)
+  for (const m of ["lrm", "svf", "phong", "matcap", "shapeIndex", "contours"]) assert.equal((await plan({ modes: [m] }, new URLSearchParams())).engine, "direct", m)
+  assert.deepEqual((await plan({ modes: ["aspect"] }, new URLSearchParams())).layers, ["aspect"])
   assert.match((await plan({ terrainSource: "esri" }, new URLSearchParams())).why, /pyramid/)
-  assert.match((await plan({}, new URLSearchParams("showSvf=true"))).why, /showSvf/)
+  assert.match((await plan({ modes: ["moundDetector"] }, new URLSearchParams())).why, /mound/)
+  assert.match((await plan({ modes: ["basemap"] }, new URLSearchParams())).why, /imagery/)
   assert.equal((await plan({ terrainSource: '{"url":"https://x/{z}/{x}/{y}.png","type":"terrainrgb"}' }, new URLSearchParams())).dem.encoding, "mapbox")
   assert.equal(readFileSync(DOCS_COPY, "utf8").replaceAll(String.fromCharCode(13), ""), docsCopyText(), "docs/public/tile-service-openapi.json is stale: run `node tile-openapi.mjs` in mcp/")
 }

@@ -152,6 +152,7 @@ import {
   computePlaneSlicerPaint,
 } from "./LayersAndSources/MapLayers"
 import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
+import { MODE_RELIEF } from "@/lib/mode-relief"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
 import { CoverageOverlayLayer } from "./LayersAndSources/CoverageOverlayLayer"
 import { IteratorHighlightLayer } from "./LayersAndSources/IteratorHighlightLayer"
@@ -1436,100 +1437,33 @@ export function TerrainViewer() {
   // a 0-55° slope domain. Opacity composites (multiplies) with the "Terrain Analysis"
   // master opacity rather than replacing it — see VisualizationModesSection.
   const slopeReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.slopeColorRamp,
-      customStops: state.slopeCustomStops,
-      customStopsDiscrete: state.slopeCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.slopeMinDegrees,
-      maxElevation: state.slopeMaxDegrees,
-      colorReliefOpacity: state.slopeOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.slopeInvertColorRamp,
-      sessionOverride: rampOverrides[state.slopeColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.slope(state), sessionOverride: rampOverrides[state.slopeColorRamp] }),
     [ state.slopeColorRamp, state.slopeCustomStops, state.slopeCustomStopsDiscrete, state.slopeMinDegrees, state.slopeMaxDegrees, state.slopeOpacity, state.terrainAnalysisOpacity, state.slopeInvertColorRamp, rampOverrides[state.slopeColorRamp] ]
   )
 
   // Aspect/TRI/curvature: same trick as slope above, just with their own state fields.
   const aspectReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.aspectColorRamp,
-      customStops: state.aspectCustomStops,
-      customStopsDiscrete: state.aspectCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.aspectMinDegrees,
-      maxElevation: state.aspectMaxDegrees,
-      colorReliefOpacity: state.aspectOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.aspectInvertColorRamp,
-      shiftDegrees: state.aspectShiftDegrees,
-      sessionOverride: rampOverrides[state.aspectColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.aspect(state), sessionOverride: rampOverrides[state.aspectColorRamp] }),
     [ state.aspectColorRamp, state.aspectCustomStops, state.aspectCustomStopsDiscrete, state.aspectMinDegrees, state.aspectMaxDegrees, state.aspectOpacity, state.terrainAnalysisOpacity, state.aspectInvertColorRamp, state.aspectShiftDegrees, rampOverrides[state.aspectColorRamp] ]
   )
 
   const triReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.triColorRamp,
-      customStops: state.triCustomStops,
-      customStopsDiscrete: state.triCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.triMin,
-      maxElevation: state.triMax,
-      colorReliefOpacity: state.triOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.triInvertColorRamp,
-      sessionOverride: rampOverrides[state.triColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.tri(state), sessionOverride: rampOverrides[state.triColorRamp] }),
     [ state.triColorRamp, state.triCustomStops, state.triCustomStopsDiscrete, state.triMin, state.triMax, state.triOpacity, state.terrainAnalysisOpacity, state.triInvertColorRamp, rampOverrides[state.triColorRamp] ]
   )
 
   const curvatureReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.curvatureColorRamp,
-      // The curvature:// protocol wire-encodes its value ×CURVATURE_ENCODE_SCALE
-      // for finer Terrarium quantization (see curvature-protocol.ts) — the raw
-      // ["elevation"] this color-relief layer reads back is scaled the same
-      // way, so custom stops (authored in ordinary curvature units, like every
-      // other curvature field here) need the same factor applied to line up.
-      customStops: state.curvatureCustomStops?.map((s: CustomRampStop) => ({ ...s, value: s.value * CURVATURE_ENCODE_SCALE })),
-      customStopsDiscrete: state.curvatureCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      // The slider/state itself (curvatureMin/Max) stays in ordinary curvature units.
-      minElevation: state.curvatureMin * CURVATURE_ENCODE_SCALE,
-      maxElevation: state.curvatureMax * CURVATURE_ENCODE_SCALE,
-      colorReliefOpacity: state.curvatureOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.curvatureInvertColorRamp,
-      sessionOverride: rampOverrides[state.curvatureColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.curvature(state), sessionOverride: rampOverrides[state.curvatureColorRamp] }),
     [ state.curvatureColorRamp, state.curvatureCustomStops, state.curvatureCustomStopsDiscrete, state.curvatureMin, state.curvatureMax, state.curvatureOpacity, state.terrainAnalysisOpacity, state.curvatureInvertColorRamp, rampOverrides[state.curvatureColorRamp] ]
   )
 
   const tpiReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.tpiColorRamp,
-      customStops: state.tpiCustomStops,
-      customStopsDiscrete: state.tpiCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.tpiMin,
-      maxElevation: state.tpiMax,
-      colorReliefOpacity: state.tpiOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.tpiInvertColorRamp,
-      sessionOverride: rampOverrides[state.tpiColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.tpi(state), sessionOverride: rampOverrides[state.tpiColorRamp] }),
     [ state.tpiColorRamp, state.tpiCustomStops, state.tpiCustomStopsDiscrete, state.tpiMin, state.tpiMax, state.tpiOpacity, state.terrainAnalysisOpacity, state.tpiInvertColorRamp, rampOverrides[state.tpiColorRamp] ]
   )
 
   const lrmReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.lrmColorRamp,
-      customStops: state.lrmCustomStops,
-      customStopsDiscrete: state.lrmCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.lrmMin,
-      maxElevation: state.lrmMax,
-      colorReliefOpacity: state.lrmOpacity * state.reliefVisualizationOpacity,
-      invertColorRamp: state.lrmInvertColorRamp,
-      sessionOverride: rampOverrides[state.lrmColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.lrm(state), sessionOverride: rampOverrides[state.lrmColorRamp] }),
     [ state.lrmColorRamp, state.lrmCustomStops, state.lrmCustomStopsDiscrete, state.lrmMin, state.lrmMax, state.lrmOpacity, state.reliefVisualizationOpacity, state.lrmInvertColorRamp, rampOverrides[state.lrmColorRamp] ]
   )
 
@@ -1544,129 +1478,42 @@ export function TerrainViewer() {
   )
 
   const roughnessReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.roughnessColorRamp,
-      customStops: state.roughnessCustomStops,
-      customStopsDiscrete: state.roughnessCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.roughnessMin,
-      maxElevation: state.roughnessMax,
-      colorReliefOpacity: state.roughnessOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.roughnessInvertColorRamp,
-      sessionOverride: rampOverrides[state.roughnessColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.roughness(state), sessionOverride: rampOverrides[state.roughnessColorRamp] }),
     [ state.roughnessColorRamp, state.roughnessCustomStops, state.roughnessCustomStopsDiscrete, state.roughnessMin, state.roughnessMax, state.roughnessOpacity, state.terrainAnalysisOpacity, state.roughnessInvertColorRamp, rampOverrides[state.roughnessColorRamp] ]
   )
 
   const shapeIndexReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.shapeIndexColorRamp,
-      // Shape Index is still wire-encoded through the shared curvature://
-      // protocol, which applies CURVATURE_ENCODE_SCALE to every mode's value
-      // uniformly (see curvature-protocol.ts) — the raw ["elevation"] this
-      // color-relief layer reads back is in that ×1000-scaled space, same as
-      // curvatureReliefPaint above, even though the slider/state itself
-      // (shapeIndexMin/Max, custom stop values) stays in ordinary [-1, 1]
-      // shape-index units.
-      customStops: state.shapeIndexCustomStops?.map((s: CustomRampStop) => ({ ...s, value: s.value * CURVATURE_ENCODE_SCALE })),
-      customStopsDiscrete: state.shapeIndexCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.shapeIndexMin * CURVATURE_ENCODE_SCALE,
-      maxElevation: state.shapeIndexMax * CURVATURE_ENCODE_SCALE,
-      colorReliefOpacity: state.shapeIndexOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.shapeIndexInvertColorRamp,
-      sessionOverride: rampOverrides[state.shapeIndexColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.shapeIndex(state), sessionOverride: rampOverrides[state.shapeIndexColorRamp] }),
     [ state.shapeIndexColorRamp, state.shapeIndexCustomStops, state.shapeIndexCustomStopsDiscrete, state.shapeIndexMin, state.shapeIndexMax, state.shapeIndexOpacity, state.terrainAnalysisOpacity, state.shapeIndexInvertColorRamp, rampOverrides[state.shapeIndexColorRamp] ]
   )
 
   const blobnessReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.blobnessColorRamp,
-      customStops: state.blobnessCustomStops,
-      customStopsDiscrete: state.blobnessCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.blobnessMin,
-      maxElevation: state.blobnessMax,
-      colorReliefOpacity: state.blobnessOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.blobnessInvertColorRamp,
-      sessionOverride: rampOverrides[state.blobnessColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.blobness(state), sessionOverride: rampOverrides[state.blobnessColorRamp] }),
     [ state.blobnessColorRamp, state.blobnessCustomStops, state.blobnessCustomStopsDiscrete, state.blobnessMin, state.blobnessMax, state.blobnessOpacity, state.terrainAnalysisOpacity, state.blobnessInvertColorRamp, rampOverrides[state.blobnessColorRamp] ]
   )
 
   const eigenRatioReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.eigenRatioColorRamp,
-      customStops: state.eigenRatioCustomStops,
-      customStopsDiscrete: state.eigenRatioCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.eigenRatioMin,
-      maxElevation: state.eigenRatioMax,
-      colorReliefOpacity: state.eigenRatioOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.eigenRatioInvertColorRamp,
-      sessionOverride: rampOverrides[state.eigenRatioColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.eigenRatio(state), sessionOverride: rampOverrides[state.eigenRatioColorRamp] }),
     [ state.eigenRatioColorRamp, state.eigenRatioCustomStops, state.eigenRatioCustomStopsDiscrete, state.eigenRatioMin, state.eigenRatioMax, state.eigenRatioOpacity, state.terrainAnalysisOpacity, state.eigenRatioInvertColorRamp, rampOverrides[state.eigenRatioColorRamp] ]
   )
 
   const orientationReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.orientationColorRamp,
-      customStops: state.orientationCustomStops,
-      customStopsDiscrete: state.orientationCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.orientationMin,
-      maxElevation: state.orientationMax,
-      colorReliefOpacity: state.orientationOpacity * state.terrainAnalysisOpacity,
-      invertColorRamp: state.orientationInvertColorRamp,
-      sessionOverride: rampOverrides[state.orientationColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.orientation(state), sessionOverride: rampOverrides[state.orientationColorRamp] }),
     [ state.orientationColorRamp, state.orientationCustomStops, state.orientationCustomStopsDiscrete, state.orientationMin, state.orientationMax, state.orientationOpacity, state.terrainAnalysisOpacity, state.orientationInvertColorRamp, rampOverrides[state.orientationColorRamp] ]
   )
 
   const svfReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.svfColorRamp,
-      customStops: state.svfCustomStops,
-      customStopsDiscrete: state.svfCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.svfMin,
-      maxElevation: state.svfMax,
-      colorReliefOpacity: state.svfOpacity * state.reliefVisualizationOpacity,
-      invertColorRamp: state.svfInvertColorRamp,
-      sessionOverride: rampOverrides[state.svfColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.svf(state), sessionOverride: rampOverrides[state.svfColorRamp] }),
     [ state.svfColorRamp, state.svfCustomStops, state.svfCustomStopsDiscrete, state.svfMin, state.svfMax, state.svfOpacity, state.reliefVisualizationOpacity, state.svfInvertColorRamp, rampOverrides[state.svfColorRamp] ]
   )
 
   const opennessReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.opennessColorRamp,
-      customStops: state.opennessCustomStops,
-      customStopsDiscrete: state.opennessCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.opennessMin,
-      maxElevation: state.opennessMax,
-      colorReliefOpacity: state.opennessOpacity * state.reliefVisualizationOpacity,
-      invertColorRamp: state.opennessInvertColorRamp,
-      sessionOverride: rampOverrides[state.opennessColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.openness(state), sessionOverride: rampOverrides[state.opennessColorRamp] }),
     [ state.opennessColorRamp, state.opennessCustomStops, state.opennessCustomStopsDiscrete, state.opennessMin, state.opennessMax, state.opennessOpacity, state.reliefVisualizationOpacity, state.opennessInvertColorRamp, rampOverrides[state.opennessColorRamp] ]
   )
 
   const localDominanceReliefPaint = useMemo(
-    () => computeColorReliefPaint({
-      colorRamp: state.localDominanceColorRamp,
-      customStops: state.localDominanceCustomStops,
-      customStopsDiscrete: state.localDominanceCustomStopsDiscrete,
-      customHypsoMinMax: true,
-      minElevation: state.localDominanceMin,
-      maxElevation: state.localDominanceMax,
-      colorReliefOpacity: state.localDominanceOpacity * state.reliefVisualizationOpacity,
-      invertColorRamp: state.localDominanceInvertColorRamp,
-      sessionOverride: rampOverrides[state.localDominanceColorRamp],
-    }),
+    () => computeColorReliefPaint({ ...MODE_RELIEF.localDominance(state), sessionOverride: rampOverrides[state.localDominanceColorRamp] }),
     [ state.localDominanceColorRamp, state.localDominanceCustomStops, state.localDominanceCustomStopsDiscrete, state.localDominanceMin, state.localDominanceMax, state.localDominanceOpacity, state.reliefVisualizationOpacity, state.localDominanceInvertColorRamp, rampOverrides[state.localDominanceColorRamp] ]
   )
 

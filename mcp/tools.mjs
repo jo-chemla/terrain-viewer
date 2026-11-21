@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, viewToQuery } from "./url.mjs"
 import { browser, withSettledPage, closeBrowser as closeRenderer } from "./render.mjs"
 import { library } from "./dem.mjs"
+import { plan, drawViewport, flatView } from "./direct.mjs"
 
 export { browser, library }
 
@@ -151,6 +152,12 @@ export function screenshot(view, { baseUrl, width = 1024, height = 640, waitMs =
 const RENDER_URL = (process.env.TV_RENDER_URL || "").replace(/\/$/, "")
 
 async function render(view, { baseUrl, width, height, waitMs }) {
+  // A flat view of the modes the direct engine draws: computed here, in a
+  // fraction of a second, with no browser (direct.mjs).
+  if (flatView(view)) {
+    const how = await plan(view, new URLSearchParams(Object.entries(view.params ?? {}).map(([k, v]) => [k, String(v)]))).catch(() => null)
+    if (how?.engine === "direct") return { url: buildViewUrl(view, { baseUrl }), jpeg: await drawViewport(how, { lat: view.lat, lng: view.lng, zoom: view.zoom ?? 12, width, height, format: "jpg", baseUrl }), engine: "direct" }
+  }
   if (RENDER_URL) {
     const q = viewToQuery(view)
     q.set("width", String(width)); q.set("height", String(height))

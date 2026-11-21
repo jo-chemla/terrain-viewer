@@ -13,7 +13,7 @@ const q = (name, schema, description, extra = {}) => ({ name, in: "query", requi
 // What a tile and a viewport share: the source and the modes.
 const VIEW_PARAMS = [
   q("terrainSource", { type: "string", examples: ["mapterhorn", "custom-nl-ahn-dtm", "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"] }, "The elevation source: an id from `/sources`, the address of Terrarium tiles or of a COG, or a configuration as JSON, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"wms-raw\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."),
-  q("engine", { type: "string", enum: ["auto", "direct", "browser"] }, "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. Tiles default to `auto` (direct when it can), viewports to `browser`. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."),
+  q("engine", { type: "string", enum: ["auto", "direct", "browser"] }, "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."),
   q("modes", { type: "array", items: { type: "string", enum: MODE_NAMES } }, "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.", { style: "form", explode: false }),
   q("imageryUrl", { type: "string" }, "Imagery under the terrain: XYZ tiles (`{z}/{x}/{y}`) or a COG. Shown with the mode `basemap`."),
   q("imagerySource", { type: "string", enum: IMAGERY_SOURCES }, "Dated imagery built into the app, with `imageryDate`."),
@@ -34,7 +34,7 @@ export function openapi(server = "http://localhost:3400") {
     info: {
       title: "Terrain Viewer tile service",
       version: "0.1.0",
-      description: "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes hillshade, colour relief, slope and contours in the server from Terrarium or Terrain-RGB elevation tiles, in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.",
+      description: "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server from Terrarium or Terrain-RGB elevation tiles with the app's own code, in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.",
       license: { name: "MIT", url: "https://github.com/Iconem/terrain-viewer" },
     },
     externalDocs: { description: "Documentation", url: "https://terrain-viewer.iconem.com/docs/dev/tile-service" },
@@ -124,8 +124,21 @@ export function openapi(server = "http://localhost:3400") {
       "/colorramps/{id}": {
         get: { tags: ["Catalogs"], operationId: "colorramp", summary: "One colour ramp", description: "Its stops, as a MapLibre expression over the value.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, example: "slope-plantopo" }], responses: { 200: { description: "The ramp", content: { "application/json": { schema: { type: "object" } } } }, 404: { description: "No such ramp" } } },
       },
+      "/contours/{z}/{x}/{y}.pbf": {
+        get: {
+          tags: ["Tiles"], operationId: "contours", summary: "Contour lines as a vector tile",
+          description: "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Terrarium or Terrain-RGB sources only.",
+          parameters: [
+            { name: "z", in: "path", required: true, schema: { type: "integer" }, example: 13 }, { name: "x", in: "path", required: true, schema: { type: "integer" }, example: 4250 }, { name: "y", in: "path", required: true, schema: { type: "integer" }, example: 2928 },
+            q("terrainSource", { type: "string" }, "The elevation source: an id from `/sources`, a tile address or a JSON configuration."),
+            q("contourMinor", { type: "number", default: 50 }, "Minor interval in metres (0: major lines only)."),
+            q("contourMajor", { type: "number", default: 200 }, "Major interval in metres."),
+          ],
+          responses: { 200: { description: "The vector tile", content: { "application/vnd.mapbox-vector-tile": { schema: { type: "string", format: "binary" } } } }, 400: { description: "The source is not a Terrarium or Terrain-RGB pyramid" } },
+        },
+      },
       "/algorithms": {
-        get: { tags: ["Catalogs"], operationId: "algorithms", summary: "The modes, and which engine draws them", description: "Each mode with `direct` or `browser`, and the app parameters the direct engine reads with their defaults.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
+        get: { tags: ["Catalogs"], operationId: "algorithms", summary: "The modes, and which engine draws them", description: "Each mode with `direct` or `browser`.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
       },
       "/health": {
         get: { tags: ["Service"], operationId: "health", summary: "Is the service up", responses: { 200: { description: "Up, and the app it renders", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" }, app: { type: "string" } } } } } } } },

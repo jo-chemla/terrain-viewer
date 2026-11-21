@@ -1,3 +1,25 @@
+# Changelog — Tile Service, Terrain Viewer in Claude, Land Cover
+
+<!-- released: 2026-11-21 -->
+
+#### TL;DR
+
+- **[Tile service](/docs/dev/tile-service)**: what the app draws, as XYZ tiles, pictures of a viewport and contour vector tiles, from a Docker image (`ghcr.io/iconem/terrain-viewer-tiles`). Every 2D terrain mode is computed in the server by the app's own code in a fraction of a second, matching the app's tiles within a level out of 255; 3D, imagery and split views are drawn by the app in a headless browser. `/sources`, `/colorramps` and `/algorithms` name what can be asked for, titiler's addresses work, and a Scalar page tries it all.
+- **[Terrain Viewer in Claude](/docs/features/mcp-server)**: the MCP server shows the app itself in the conversation, interactive with every mode asked for, and a picture of the exact view when the host will not run it. It installs from a Claude Code prompt, with or without Docker (`ghcr.io/iconem/terrain-viewer-mcp`), and its elevations and pictures of flat views need no browser.
+- **Land cover in the Library**: ESA WorldCover, Esri 10 m, MODIS, Corine 2018, NLCD 2021, IGN OCS GE (cover and use) and CoSIA, Copernicus 100 m (2015, 2019) and the Copernicus 10 m LCM-10 map of 2020. A Library search ignores hyphens and spaces and tolerates typos ("landcover", "land-use").
+- **New terrain**: Meta/WRI canopy height v2 (1 m, global), and Google GEM-15 DTM as the last of the Worldwide Defaults.
+- **Copy snapshot** copies the link of the view first, then the picture, so a clipboard history holds both.
+
+#### Details
+
+- Tile service: the direct engine rebuilds the map's layer stack from the app's URL parameters and computes each layer with the app's protocols and paint functions (moved to `lib/layer-paints.ts` and `lib/mode-relief.ts` so the map and the server share them); the hillshade is MapLibre's shader rewritten in JavaScript. `node mcp/compare-engines.mjs` compares the two engines tile by tile.
+- Tile service: a source can be named by id or given whole as a JSON configuration; `x-tv-engine` and `x-tv-engine-why` say which engine drew an answer and why not the direct one.
+- MCP server: the view loads the app's script and stylesheets from its address and runs it in the conversation (Claude refuses to frame a site for a custom connector); every host of the built-in terrain and raster lists is declared. The app's own stylesheets from other hosts (MapLibre, the geocoder, the fonts) are loaded, and the view's styles no longer reach the app.
+- MCP server: in a stack with the tile service it asks it for the pictures it cannot draw itself (`TV_RENDER_URL`); both images are rebuilt by a GitHub workflow on each change.
+- Copy snapshot: both clipboard writes start inside the click, so Safari accepts the second one.
+- Library: class rasters (the Copernicus 100 m maps) are read with nearest neighbour, where bilinear blended class codes along every edge.
+- Asking for one mode of a group (aspect, sky-view factor, matcap) through the MCP server or the tile service no longer also shows the group's default mode (slope, LRM, Phong).
+
 # Changelog — Faster Terrain Analysis, Native Draping
 
 <!-- released: 2026-11-17 -->

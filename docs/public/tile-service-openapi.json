@@ -3,7 +3,7 @@
   "info": {
     "title": "Terrain Viewer tile service",
     "version": "0.1.0",
-    "description": "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes hillshade, colour relief, slope and contours in the server from Terrarium or Terrain-RGB elevation tiles, in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.",
+    "description": "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server from Terrarium or Terrain-RGB elevation tiles with the app's own code, in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/Iconem/terrain-viewer"
@@ -131,7 +131,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. Tiles default to `auto` (direct when it can), viewports to `browser`. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "modes",
@@ -150,6 +150,11 @@
                   "curvature",
                   "tpi",
                   "roughness",
+                  "tri",
+                  "shapeIndex",
+                  "blobness",
+                  "eigenRatio",
+                  "orientation",
                   "lrm",
                   "svf",
                   "openness",
@@ -433,7 +438,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. Tiles default to `auto` (direct when it can), viewports to `browser`. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "modes",
@@ -452,6 +457,11 @@
                   "curvature",
                   "tpi",
                   "roughness",
+                  "tri",
+                  "shapeIndex",
+                  "blobness",
+                  "eigenRatio",
+                  "orientation",
                   "lrm",
                   "svf",
                   "openness",
@@ -629,6 +639,11 @@
                 "curvature",
                 "tpi",
                 "roughness",
+                "tri",
+                "shapeIndex",
+                "blobness",
+                "eigenRatio",
+                "orientation",
                 "lrm",
                 "svf",
                 "openness",
@@ -761,7 +776,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. Tiles default to `auto` (direct when it can), viewports to `browser`. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "modes",
@@ -780,6 +795,11 @@
                   "curvature",
                   "tpi",
                   "roughness",
+                  "tri",
+                  "shapeIndex",
+                  "blobness",
+                  "eigenRatio",
+                  "orientation",
                   "lrm",
                   "svf",
                   "openness",
@@ -936,7 +956,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. Tiles default to `auto` (direct when it can), viewports to `browser`. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "modes",
@@ -955,6 +975,11 @@
                   "curvature",
                   "tpi",
                   "roughness",
+                  "tri",
+                  "shapeIndex",
+                  "blobness",
+                  "eigenRatio",
+                  "orientation",
                   "lrm",
                   "svf",
                   "openness",
@@ -1177,6 +1202,90 @@
         }
       }
     },
+    "/contours/{z}/{x}/{y}.pbf": {
+      "get": {
+        "tags": [
+          "Tiles"
+        ],
+        "operationId": "contours",
+        "summary": "Contour lines as a vector tile",
+        "description": "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Terrarium or Terrain-RGB sources only.",
+        "parameters": [
+          {
+            "name": "z",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 13
+          },
+          {
+            "name": "x",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 4250
+          },
+          {
+            "name": "y",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 2928
+          },
+          {
+            "name": "terrainSource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The elevation source: an id from `/sources`, a tile address or a JSON configuration."
+          },
+          {
+            "name": "contourMinor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 50
+            },
+            "description": "Minor interval in metres (0: major lines only)."
+          },
+          {
+            "name": "contourMajor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 200
+            },
+            "description": "Major interval in metres."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The vector tile",
+            "content": {
+              "application/vnd.mapbox-vector-tile": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The source is not a Terrarium or Terrain-RGB pyramid"
+          }
+        }
+      }
+    },
     "/algorithms": {
       "get": {
         "tags": [
@@ -1184,7 +1293,7 @@
         ],
         "operationId": "algorithms",
         "summary": "The modes, and which engine draws them",
-        "description": "Each mode with `direct` or `browser`, and the app parameters the direct engine reads with their defaults.",
+        "description": "Each mode with `direct` or `browser`.",
         "responses": {
           "200": {
             "description": "The list",

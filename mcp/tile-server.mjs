@@ -25,17 +25,18 @@
 // read (the app's own parameters set the ramps).
 //
 // Two engines draw. `direct` computes the tile in Node from elevation tiles
-// (direct.mjs): hillshade, colour relief, slope and contours on a Terrarium
+// with the app's own code (direct.mjs): every 2D terrain mode on a Terrarium
 // or Terrain-RGB source, in a fraction of a second. `browser` opens the app
 // in a headless browser: every source, every mode, 3D and split views.
 // A tile takes the direct engine when it can (the answer's `x-tv-engine`
 // header says which, `x-tv-engine-why` why not); `engine=direct` or
-// `engine=browser` forces one. A viewport takes the browser unless
-// `engine=direct` is given (the direct picture has no scale bar or credits).
+// `engine=browser` forces one. A viewport too: drawn directly it carries
+// the source's credit but no scale bar.
 //
 //   GET /sources, /sources/{id}        the terrain sources, by id
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id
 //   GET /algorithms                    the modes, and which engine draws them
+//   GET /contours/{z}/{x}/{y}.pbf      contour lines as vector tiles (`ele`, `level`)
 //
 // With the browser, a tile is not rendered alone: the app draws the 2048 px block it belongs
 // to in one page, and the block is cut into tiles, all of them cached. The
@@ -54,7 +55,8 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./tile-openapi.mjs"
-import { plan, draw, DIRECT_MODES, DIRECT_PARAMS } from "./direct.mjs"
+import { plan, draw, drawViewport, flatView, DIRECT_MODES } from "./direct.mjs"
+import { contourVectorTile } from "./contours.mjs"
 import { library, BUILTIN_DEMS, resolveDem } from "./dem.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
@@ -162,10 +164,10 @@ async function tile(z, x, y, ext, query, scale = 1) {
   if (engine !== "browser") {
     const how = await plan(view, rest)
     if (how.engine === "direct") {
-      const key = `direct|${JSON.stringify([how.dem.tiles, how.modes, how.p])}|${size}|${z}/${x}/${y}`
+      const key = `direct|${JSON.stringify([how.dem.tiles, how.layers, how.state])}|${size}|${z}/${x}/${y}`
       const have = await cached(key, ext)
       if (have) return { bytes: have, engine: "direct" }
-      const bytes = await draw(how, { world: size * 2 ** z, x0: x * size, y0: y * size, width: size, height: size, format: ext })
+      const bytes = await draw(how, { world: size * 2 ** z, x0: x * size, y0: y * size, width: size, height: size, format: ext, baseUrl: BASE_URL })
       store(key, ext, bytes)
       return { bytes, engine: "direct" }
     }
@@ -212,24 +214,24 @@ async function picture(ext, query) {
     zoom = Math.min(Math.log2(width / 512 / ((e - w) / 360)), Math.log2(height / 512 / (my(s) - my(n))))
   }
   if (lat === undefined || lng === undefined) throw Object.assign(new Error("lat and lng, or bbox, are required"), { status: 400 })
-  const engine = take("engine") ?? "browser"
-  if (engine === "direct") {
-    if ((view.viewMode && view.viewMode !== "2d") || view.pitch || view.bearing || view.split || view.terrainSourceB) throw Object.assign(new Error("The direct engine draws flat, unrotated, single views"), { status: 400 })
-    const how = await plan(view, rest)
-    if (how.engine !== "direct") throw Object.assign(new Error(`The direct engine cannot draw this: ${how.why}`), { status: 400 })
-    const world = 512 * 2 ** (zoom ?? 12)
-    const cx = ((lng + 180) / 360) * world, cy = ((1 - Math.asinh(Math.tan((lat * Math.PI) / 180)) / Math.PI) / 2) * world
-    return { bytes: await draw(how, { world, x0: Math.round(cx - width / 2), y0: Math.round(cy - height / 2), width, height, format: ext }), engine: "direct" }
+  const engine = take("engine") ?? "auto"
+  if (!["auto", "direct", "browser"].includes(engine)) throw Object.assign(new Error("engine is auto, direct or browser"), { status: 400 })
+  let why
+  if (engine !== "browser") {
+    const how = flatView(view) ? await plan(view, rest) : { engine: "browser", why: "3D, tilted, rotated or split views are drawn by the app" }
+    if (how.engine === "direct") return { bytes: await drawViewport(how, { lat, lng, zoom: zoom ?? 12, width, height, format: ext, baseUrl: BASE_URL }), engine: "direct" }
+    if (engine === "direct") throw Object.assign(new Error(`The direct engine cannot draw this: ${how.why}`), { status: 400 })
+    why = how.why
   }
   view.terrainSource = appSource(view, rest)
   const full = { ...view, lat, lng, zoom: zoom ?? 12, params: Object.fromEntries(rest) }
   const url = buildViewUrl(full, { baseUrl: BASE_URL, embed: true })
   const key = `${url}|${width}x${height}`
   const have = await cached(key, ext)
-  if (have) return { bytes: have, engine: "browser" }
+  if (have) return { bytes: have, engine: "browser", why }
   const bytes = await slot(() => withSettledPage(url, { width, height }, (page) => page.screenshot(shot(ext))))
   store(key, ext, bytes)
-  return { bytes, engine: "browser" }
+  return { bytes, engine: "browser", why }
 }
 
 const TYPES = { png: "image/png", jpg: "image/jpeg" }
@@ -272,9 +274,20 @@ export function start(port = PORT) {
       }
       if (u.pathname === "/algorithms") return send(200, "application/json", JSON.stringify({
         algorithms: MODE_NAMES.map((id) => ({ id, engine: DIRECT_MODES.includes(id) ? "direct" : "browser" })),
-        directParameters: DIRECT_PARAMS,
-        note: "A tile is computed directly when every mode asked for is `direct`, the source is a Terrarium or Terrain-RGB pyramid (see /sources) and only the parameters listed here are given; otherwise the app draws it in a browser.",
+        note: "A tile is computed directly when every mode asked for is `direct` and the source is a Terrarium or Terrain-RGB pyramid (see /sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, split views, imagery, the mound detector, graticules, the iso-line, the plane slicer, building shadows and the dark theme go to the browser.",
       }))
+      const c = u.pathname.match(/^\/contours\/(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
+      if (c) {
+        const [z, x, y] = c.slice(1, 4).map(Number)
+        if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
+        const { view, rest } = viewOf(u.search)
+        const how = await plan({ terrainSource: view.terrainSource, modes: ["contours"] }, rest)
+        if (how.engine !== "direct") return send(400, "text/plain", `Contour tiles are made from Terrarium or Terrain-RGB sources only: ${how.why}`)
+        const key = `contours|${JSON.stringify([how.dem.tiles, how.state.contourMinor, how.state.contourMajor])}|${z}/${x}/${y}`
+        let bytes = await cached(key, "pbf")
+        if (!bytes) { bytes = await contourVectorTile(how.dem, how.state, z, x, y); store(key, "pbf", bytes) }
+        return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
+      }
       const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
       if (t) {
         const [z, x, y] = t.slice(1, 4).map(Number)
@@ -300,7 +313,7 @@ export function start(port = PORT) {
         if (bb) { q.set("bbox", bb[1]); q.set("width", bb[2]); q.set("height", bb[3]) }
         const ext = (bb ? bb[4] : r[1]) === "png" ? "png" : "jpg"
         const made = await picture(ext, q)
-        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, "access-control-expose-headers": "x-tv-engine" })
+        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
       }
       send(404, "text/plain", "Not found: see /")
     } catch (e) {

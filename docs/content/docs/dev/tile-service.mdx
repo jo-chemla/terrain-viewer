@@ -10,10 +10,10 @@ The app runs in the browser and has no server. The tile service is a small serve
 
 | Engine | Draws | Time per tile |
 |---|---|---|
-| **Direct** | Hillshade, colour relief, slope and contours, computed in the server from Terrarium or Terrain-RGB elevation tiles | 0.05 to 0.7 s |
+| **Direct** | Every 2D terrain mode, computed in the server from Terrarium or Terrain-RGB elevation tiles by the app's own code | 0.05 to 2.5 s |
 | **Browser** | Everything: the app itself in a headless browser, so every source, every mode, imagery, 3D, split views and combined layouts | 3 to 10 s for a new block, then milliseconds |
 
-A tile takes the direct engine whenever it can. 3D, split and combined views always take the browser, and so does any mode, source or app parameter the direct engine does not know (see [What the direct engine draws](#what-the-direct-engine-draws)).
+Tiles and viewports take the direct engine whenever they can. 3D, tilted, rotated and split views always take the browser, and so do imagery and the few layers listed in [What goes to the browser](#what-goes-to-the-browser).
 
 ```bash
 docker run -p 3400:3400 --shm-size=1g -v tv-tiles:/data/tiles ghcr.io/iconem/terrain-viewer-tiles
@@ -37,7 +37,7 @@ Both take the view as query parameters, the same words the [MCP server](/feature
 | `terrainSource` | An id from `/sources` (the built-in sources and the [library](/features/terrain-sources#the-library)), the address of Terrarium tiles or of a COG, or a configuration as JSON: `{"url": "…/{z}/{x}/{y}.png", "type": "terrainrgb", "maxzoom": 15}` (types `terrarium`, `terrainrgb`, `cog`, `wms-raw`) |
 | `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `basemap`, `moundDetector` |
 | `imageryUrl`, `imagerySource`, `imageryDate` | Imagery under the terrain, drawn with the mode `basemap` |
-| `engine` | `auto` (tiles: direct when it can), `direct` (an error when it cannot), `browser` (viewports by default) |
+| `engine` | `auto` (the default: direct when it can), `direct` (an error when it cannot), `browser` |
 | anything else | Passed to the app as a [URL parameter](/dev/url-api): ramps, opacities, light direction, contour interval |
 
 Every answer says which engine drew it in its `x-tv-engine` header, and `x-tv-engine-why` says why not the direct one.
@@ -50,9 +50,19 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 |---|---|
 | `/sources`, `/sources/{id}` | The 138 terrain sources: built-in and library, with type, tile address, zoom range, extent, and the engine that can draw each |
 | `/colorramps`, `/colorramps/{id}` | The app's 268 colour ramps, to name as `colorRamp` (colour relief) or `slopeColorRamp` (slope); one ramp gives its stops |
-| `/algorithms` | The modes with the engine that draws each, and the parameters the direct engine reads with their defaults |
+| `/algorithms` | The modes with the engine that draws each |
 
 A source that is not listed can still be given whole, as its address or as a JSON configuration.
+
+## Contour lines as vector tiles
+
+`/contours/{z}/{x}/{y}.pbf` answers the contour lines of a tile as a Mapbox Vector Tile, layer `contours`, each line with `ele` (its elevation in metres) and `level` (1 for a major line), the attributes of the app's own contour tiles. The client places the labels, where its map library wants them. `contourMinor` and `contourMajor` set the intervals (major lines only below zoom 6), `terrainSource` the source (Terrarium or Terrain-RGB).
+
+```js
+map.addSource("tv-contours", { type: "vector", tiles: ["http://localhost:3400/contours/{z}/{x}/{y}.pbf"], maxzoom: 15 })
+map.addLayer({ id: "contour-lines", type: "line", source: "tv-contours", "source-layer": "contours", paint: { "line-width": ["match", ["get", "level"], 1, 1, 0.5] } })
+map.addLayer({ id: "contour-labels", type: "symbol", source: "tv-contours", "source-layer": "contours", filter: ["==", ["get", "level"], 1], layout: { "symbol-placement": "line", "text-field": ["concat", ["get", "ele"], " m"], "text-size": 10 } })
+```
 
 ```text
 /tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=custom-nl-ahn-dtm
@@ -81,16 +91,75 @@ A client written for [titiler](https://developmentseed.org/titiler/) needs few c
 
 ## What the direct engine draws
 
-The direct engine computes the tile in the server, with no browser. It reads the elevation tiles the app reads, and draws with the app's own rules:
+The direct engine computes the tile in the server, with no browser. It opens nothing: it rebuilds the map's layer stack from the same URL parameters the app would read, and computes every layer with the app's own code, bundled for Node.
 
-- **Hillshade**: MapLibre's shader, ported line by line: the gradient it computes per elevation tile (with its zoom factor and its 8-bit storage), then the shading, for the five methods (`standard`, `combined`, `igor`, `basic`, `multidirectional`) and the app's three multi-light presets (`multidir-colors`, `duotone-nw-ne`, `aspect-multidir`).
-- **Colour relief**: the elevation through a named ramp of the app, rescaled by `minElevation`, `maxElevation` and `invertColorRamp` as in the app.
-- **Slope**: Horn's kernel in degrees, corrected for latitude, through the slope ramp and its bounds.
-- **Contours**: marching squares, minor and major lines at the app's widths and intervals (major lines only below zoom 6). No labels.
+| Layers | How |
+|---|---|
+| Colour relief, and the 14 computed modes: slope, aspect, TRI, curvature, TPI, LRM, roughness, shape index, blobness, eigen ratio, orientation, sky-view factor, openness, local dominance | The app's tile protocols (`lib/*-protocol.ts`), coloured with the paint the map computes (`lib/layer-paints.ts`, `lib/mode-relief.ts`) and interpolated between the ramp's stops as MapLibre does |
+| Hillshade | MapLibre's two shader passes, rewritten in JavaScript line by line, fed with the paint the map computes: the five methods and the app's three multi-light presets |
+| Matcap, Phong | The app's live GL layers, its default renderer: their fragment shaders rewritten in JavaScript (the normal of each pixel from the bilinear elevation, Phong's multiply and add passes over the layers below, the camera-relative matcap lookup). With `matcapRenderer=raster` or `phongRenderer=raster`, the app's tile protocols, as the app then draws them |
+| Cast shadows | The app's tile protocol |
+| Contours | Marching squares at the app's intervals and widths; no labels on the picture, and [vector tiles](#contour-lines-as-vector-tiles) with `ele` for a client to label |
 
-Compared on 2026-11-21 with the app's own rendering of the same 512 px tile (Mont Blanc, zoom 12): a mean difference of 0.4 levels on 255 for the hillshade, 0.2 for colour relief and slope; the contours fall on the same lines, the labels missing.
+The layers stack in the map's order over its white background, with the app's opacities. Every URL parameter the app reads for these layers applies: ramps, ranges, inversion, custom ramp stops, radii, light direction, exaggeration, opacities.
 
-It goes to the browser for anything else: the other modes (aspect, curvature, TPI, roughness, LRM, sky-view factor, openness, local dominance, lighting effects, mound detector; they are plain JavaScript in the app too and can be added), imagery, a source that is not a Terrarium or Terrain-RGB pyramid (COG, VRT, WMS, LERC, quantized mesh, difference), custom ramp stops, and any app parameter it does not read. A viewport drawn directly (`engine=direct`) has no scale bar and no credits.
+### What goes to the browser
+
+3D, tilted, rotated and split views; imagery and basemaps; the mound detector; graticules; the iso-line; contours of the local relief model; the plane slicer; building shadows; the sky and fog background; the historical mode; the dark theme; a source that is not a Terrarium or Terrain-RGB pyramid (COG, VRT, WMS, LERC, quantized mesh, difference). The answer's `x-tv-engine-why` header names the reason.
+
+### Compared with the app
+
+Run on 2026-11-21: every case below drawn by both engines at the same index, at Matterhorn (z12, 4,000 m of relief) and in Paris (z14, almost flat), as 256 px tiles and as `@2x`, 152 pairs. The table keeps the worst of the four tiles for each case; times are the median of the four, with the elevation tiles already in memory for the direct engine and a new 2048 px block for each browser tile.
+
+| Case | Largest mean difference (0-255) | Largest share of pixels off by more than 24 | Direct, median | Browser, median |
+|---|---|---|---|---|
+| hillshade (combined, default) | 0.9 | 0.13 % | 459 ms | 6671 ms |
+| hillshade standard | 2.27 | 0.97 % | 194 ms | 5178 ms |
+| hillshade igor | 1.6 | 0.06 % | 137 ms | 6347 ms |
+| hillshade basic, light 200/30 | 0.21 | 0.09 % | 126 ms | 4383 ms |
+| hillshade combined, exaggeration 0.6, coloured | 0.65 | 0.08 % | 147 ms | 5301 ms |
+| hillshade multidir-colors | 0.82 | 0.17 % | 164 ms | 4659 ms |
+| hillshade duotone-nw-ne | 0.51 | 0.13 % | 136 ms | 4848 ms |
+| hillshade aspect-multidir | 1.08 | 0.19 % | 137 ms | 4797 ms |
+| colour relief (default) | 0.22 | 0 % | 39 ms | 3999 ms |
+| colour relief dem_screen 300-4500, opaque | 0.07 | 0 % | 48 ms | 3911 ms |
+| slope | 0.02 | 0 % | 728 ms | 4579 ms |
+| slope 0-45 inverted | 0.09 | 0 % | 153 ms | 5571 ms |
+| aspect | 0.15 | 0 % | 175 ms | 5636 ms |
+| TRI | 0.1 | 0 % | 152 ms | 5249 ms |
+| curvature | 0.17 | 0 % | 129 ms | 5156 ms |
+| TPI | 0.22 | 0 % | 172 ms | 4951 ms |
+| roughness | 0.21 | 0 % | 175 ms | 5247 ms |
+| shape index | 5.61 | 3.24 % | 210 ms | 5648 ms |
+| blobness | 0.13 | 0 % | 193 ms | 4636 ms |
+| eigen ratio | 0.18 | 0 % | 215 ms | 5637 ms |
+| orientation | 0.07 | 0 % | 280 ms | 5698 ms |
+| LRM | 0.17 | 0 % | 367 ms | 4878 ms |
+| LRM radius 32 | 0.2 | 0 % | 376 ms | 4138 ms |
+| sky-view factor | 0.06 | 0 % | 913 ms | 5792 ms |
+| openness | 0.07 | 0 % | 843 ms | 5594 ms |
+| local dominance | 0.09 | 0 % | 1497 ms | 6483 ms |
+| contours | 2.76 | 1.51 % | 323 ms | 5894 ms |
+| contours 20/100 | 4.82 | 2.53 % | 280 ms | 6009 ms |
+| matcap (live renderer in the app) | 1.82 | 0.26 % | 526 ms | 6328 ms |
+| matcap, raster renderer | 0.64 | 0 % | 888 ms | 5832 ms |
+| phong (live renderer in the app) | 1.72 | 0.15 % | 341 ms | 6069 ms |
+| phong, raster renderer | 0.26 | 0 % | 257 ms | 5716 ms |
+| cast shadows | 0 | 0 % | 239 ms | 4508 ms |
+| hillshade + colour relief + contours | 2.19 | 0.96 % | 232 ms | 5610 ms |
+| slope + hillshade | 0.9 | 0.13 % | 224 ms | 5600 ms |
+| LRM + sky-view factor + hillshade | 1 | 0.11 % | 1100 ms | 6278 ms |
+| cast shadows, sun at 15 degrees | 0 | 0 % | 192 ms | 4770 ms |
+| phong, rim light 0.6, two lights | 1.36 | 0.14 % | 223 ms | 5852 ms |
+
+What the remaining differences are:
+
+- **Contours**: the same lines, from the same library and options. The app writes its labels on the map tile and the direct engine does not, and the line edges are smoothed by a different rasteriser.
+- **Shape index**: its default ramp is discrete, so a value next to a class boundary flips class on a difference of a thousandth. On the almost flat Paris tile the index hovers around those boundaries everywhere, hence scattered pixels; at Matterhorn the worst case is 1.2.
+- **Hillshade** on flat ground: the gradient is kept in 8 bits, as in MapLibre's own texture, and a tiny slope rounds one way or the other.
+- **Matcap and Phong**: compared with the app's default live renderer, and with its raster renderer when `matcapRenderer=raster` or `phongRenderer=raster`.
+
+`node mcp/compare-engines.mjs <service>` runs the comparison again and writes the table and, for each case, the two tiles side by side with their difference.
 
 ## How the browser draws a tile, and how fast
 
@@ -100,8 +169,8 @@ Measured on a laptop on 2026-11-21:
 
 | | Time |
 |---|---|
-| Direct tile, one mode | 0.05 to 0.7 s (hillshade is the slowest) |
-| Direct tile, four modes | 0.5 s |
+| Direct tile, one mode | 0.03 to 0.4 s once the elevation tiles are in memory; up to 2.5 s for local dominance or a first tile |
+| Direct viewport, 900 by 600, three modes (MCP picture) | 1.8 s |
 | Browser, first tile of a block, Chrome with a graphics card | 3 to 9 s |
 | Browser, first tile of a block, in the container (no graphics card) | 10 s |
 | Browser, its 63 neighbours, and any tile asked again within a week | under 0.1 s |
@@ -109,7 +178,7 @@ Measured on a laptop on 2026-11-21:
 
 An imagery tile from the browser engine equals the provider's own tile of the same index (mean difference 1.7 on 255, the JPEG compression), and joins its neighbour without a seam.
 
-The browser engine suits a few views, a cache filled in advance, or pictures for a report or an assistant; not a busy map. The direct engine can serve a live map.
+The browser engine suits a few views, a cache filled in advance, or pictures of 3D views for a report or an assistant; not a busy map. The direct engine can serve a live map.
 
 ## Settings
 
@@ -123,7 +192,7 @@ The browser engine suits a few views, a cache filled in advance, or pictures for
 
 The browser in the container reads any address given as a source: keep the service away from a private network, or behind a proxy that restricts who can call it. It has no sign-in.
 
-The code is `mcp/tile-server.mjs`. The direct engine is `mcp/direct.mjs`, on the elevation reader `mcp/dem.mjs`, which the MCP server's `elevation` and `export_geotiff` tools use too. The browser engine is `mcp/render.mjs`, shared with the MCP server's pictures. Neither service imports the other. With `TV_RENDER_URL` set to the tile service's address, the MCP server asks it for its pictures in place of rendering them, which is how [`mcp/docker-compose.yml`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/docker-compose.yml) wires the two. The MCP server's elevation tools need no browser any more.
+The code is `mcp/tile-server.mjs`. The direct engine is `mcp/direct.mjs`, on the elevation reader `mcp/dem.mjs`, which the MCP server's `elevation` and `export_geotiff` tools use too. The browser engine is `mcp/render.mjs`, shared with the MCP server's pictures. Neither service imports the other. With `TV_RENDER_URL` set to the tile service's address, the MCP server asks it for its pictures in place of rendering them, which is how [`mcp/docker-compose.yml`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/docker-compose.yml) wires the two. The MCP server's elevation tools need no browser any more, and its pictures of flat views are drawn by the direct engine in the server itself; only 3D, imagery and the other browser layers need a browser, its own or the tile service's.
 
 Not yet run on a server.
 

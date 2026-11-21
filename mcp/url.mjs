@@ -14,6 +14,11 @@ export const MODES = {
   curvature: { showTerrainAnalysis: true, showCurvature: true },
   tpi: { showTerrainAnalysis: true, showTpi: true },
   roughness: { showTerrainAnalysis: true, showRoughness: true },
+  tri: { showTerrainAnalysis: true, showTri: true },
+  shapeIndex: { showTerrainAnalysis: true, showShapeIndex: true },
+  blobness: { showTerrainAnalysis: true, showBlobness: true },
+  eigenRatio: { showTerrainAnalysis: true, showEigenRatio: true },
+  orientation: { showTerrainAnalysis: true, showOrientation: true },
   lrm: { showReliefVisualization: true, showLrm: true },
   svf: { showReliefVisualization: true, showSvf: true },
   openness: { showReliefVisualization: true, showOpenness: true },
@@ -74,6 +79,12 @@ export function buildViewUrl(view, opts = {}) {
   for (const m of modes) {
     if (m === "hillshade") continue
     for (const [k, v] of Object.entries(MODES[m])) p.set(k, String(v))
+  }
+  // One mode of each group is on by default in the app (slope, the local
+  // relief model, Phong): switching a group on for another mode would show
+  // that one too.
+  for (const [group, mode, flag] of [["showTerrainAnalysis", "slope", "showSlope"], ["showReliefVisualization", "lrm", "showLrm"], ["showLightingEffects", "phong", "showPhong"]]) {
+    if (p.get(group) === "true" && !modes.includes(mode)) p.set(flag, "false")
   }
 
   if (view.terrainSource) p.set("terrainSourceA", view.terrainSource)

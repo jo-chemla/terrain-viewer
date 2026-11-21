@@ -14,12 +14,14 @@
     "host": "node host-test.mjs"
   },
   "dependencies": {
+    "@mapbox/vector-tile": "^3.0.0",
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/ext-apps": "^2.0.4",
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
-    "d3-contour": "^4.0.3",
     "geotiff": "^3.0.5",
+    "maplibre-contour": "0.1.1",
+    "pbf": "^5.2.0",
     "playwright-core": "^1.65.1",
     "sharp": "^0.35.5",
     "zod": "^4.6.7"

@@ -9,6 +9,7 @@
 !docs/package.json
 !slides/package.json
 !theme-editor/package.json
+!docs/src/generated/url-params.json
 !lib
 !components
 !hooks

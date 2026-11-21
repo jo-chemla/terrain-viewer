@@ -1,5 +1,6 @@
 // Prepares generated/ (not tracked):
 //   app-lib.mjs   the app's own catalog code, bundled for Node (app-lib.ts)
+//   app-render.mjs the app's tile protocols and layer paints (app-render.ts)
 //   library.json  the terrain library and the catalogs with their extents
 //
 // import.meta.env is defined empty: no key from .env can reach the bundle.
@@ -20,6 +21,25 @@ await build({
   define: { "import.meta.env": "{}" },
   loader: { ".gz": "empty", ".png": "empty", ".jpg": "empty", ".svg": "empty", ".css": "empty", ".mdx": "empty" },
 })
+
+// The app's tile protocols and layer paints, for the tile service's direct
+// engine (app-render.ts). maplibre-gl is replaced by a stub: the protocols
+// only register themselves with it.
+await build({
+  entryPoints: [here("./app-render.ts")],
+  outfile: here("./generated/app-render.mjs"),
+  bundle: true, platform: "node", format: "esm", target: "node20",
+  tsconfig: here("../tsconfig.json"),
+  logLevel: "error",
+  define: { "import.meta.env": "{}" },
+  alias: { "maplibre-gl": here("./maplibre-stub.mjs") },
+  loader: { ".gz": "empty", ".png": "empty", ".jpg": "empty", ".svg": "empty", ".css": "empty", ".mdx": "empty", ".wgsl": "text", ".glsl": "text" },
+})
+
+// Every URL parameter of the app with its type and default, for the direct
+// engine to rebuild the app's state (docs/scripts/build-url-params.mjs
+// writes it; tracked, so a fresh clone has it).
+writeFileSync(here("./generated/url-params.json"), readFileSync(here("../docs/src/generated/url-params.json")))
 
 const src = JSON.parse(readFileSync(here("../lib/custom-sources.json"), "utf8"))
 const terrain = src.SAMPLE_TERRAIN_SOURCES
