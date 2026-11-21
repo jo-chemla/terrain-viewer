@@ -87,6 +87,22 @@ import { TITILER_CACHE_KEY } from "./titiler-health"
  * URL and the tile comes from one `/cog/tiles` request per cell (`bidx=1`,
  * GDAL's own warp), composited where the mask says data.
  *
+ * ### `metachm://v2`: Meta and WRI canopy height, cells served by titiler
+ *
+ * Meta's global canopy height maps (CHM v2, 2026) are one COG per Web
+ * Mercator quadkey cell on a public S3 bucket: zoom 10 cells at 1.19 m
+ * (213 109 files, uint8 metres, internal mask) and a 10 m mean derivative in
+ * zoom 7 cells (4 376 files, nodata 255). The cell of a tile follows from its
+ * own z/x/y, so there is nothing to reproject and no manifest to read. The
+ * bucket answers Range requests but sends no CORS header, on GET or on
+ * preflight, so a browser cannot read the files: every tile is asked from
+ * titiler, one `/cog/tiles` request per cell, the road the GEM-15 DSM takes
+ * when the user picks titiler. Tiles to zoom 14 come from the 10 m cells (one
+ * cell from zoom 7 up, four at zoom 6), tiles from zoom 15 from the 1 m cell,
+ * or the 10 m one where the 1 m cell does not exist. titiler answers a
+ * missing file with a slow 500, so docs/scripts/build-meta-chm-index.mjs
+ * lists the bucket once into public/meta-chm/cells.bin, one bit per cell.
+ *
  * URL shape: `vrt://<encodeURIComponent(vrt url)>/{z}/{x}/{y}`.
  * Output: Terrain-RGB, matching what titiler's `algorithm=terrainrgb` returns
  * for the same file, so both modes agree with the `encoding: "terrainrgb"` that
@@ -136,7 +152,18 @@ const OB_MANIFESTS_PER_TILE = 6
 /** The 0.5 m tiles are 12.5 km: below z11 one tile is more files than it is
  *  worth (the same floor getVrtInfo derived for the old per-manifest VRTs). */
 const OB_MINZOOM = 11, OB_MAXZOOM = 18
-export function isCellRoutedUrl(url: string): boolean { return GEM15_RE.test(url) || OB_RE.test(url) }
+/** `metachm://v2` where a VRT URL is expected (see the header). */
+const CHM_RE = /^metachm:\/\/v2$/
+const CHM_BASE = "https://dataforgood-fb-data.s3.amazonaws.com/forests/v2/global"
+/** Cell zoom of the 10 m mean product and of the 1 m maps. */
+const CHM_COARSE_Z = 7, CHM_FINE_Z = 10
+/** First tile zoom read from the 1 m cells: the 10 m cells are 9.55 m a
+ *  pixel, one tile pixel at zoom 14. */
+const CHM_FINE_FROM = 15
+/** 1.19 m is one tile pixel at zoom 17; at zoom 6 a tile is four 10 m cells,
+ *  four titiler requests. */
+export const CHM_INFO: VrtInfo = { bounds: [-180, -56, 180, 80], maxzoom: 17, minzoom: 6, sourceCount: 213109 }
+export function isCellRoutedUrl(url: string): boolean { return GEM15_RE.test(url) || OB_RE.test(url) || CHM_RE.test(url) }
 
 /** A public Cloud Storage object through the JSON API media endpoint, which
  *  sends CORS headers (origin echoed, Range allowed) where the plain
@@ -465,6 +492,114 @@ async function readGem15TitilerTile(band: string, z: number, x: number, y: numbe
   return grid
 }
 
+// ---- Meta canopy height: which cells exist, and a tile through titiler ----
+
+let chmCells: Promise<Uint8Array> | null = null
+function loadChmCells(signal?: AbortSignal): Promise<Uint8Array> {
+  if (chmCells) return chmCells
+  const url = `${import.meta.env.BASE_URL}meta-chm/cells.bin`
+  chmCells = fetch(url, { signal })
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${url}`); return r.arrayBuffer() })
+    .then((b) => {
+      if (b.byteLength !== 2048 + 131072) throw new Error(`${url} is not the canopy height cell index`)
+      return new Uint8Array(b)
+    })
+    .catch((e) => { chmCells = null; throw e })
+  return chmCells
+}
+
+/** Whether the cell exists: two bitmaps, zoom 7 then zoom 10, see
+ *  docs/scripts/build-meta-chm-index.mjs. */
+function chmHasCell(cells: Uint8Array, z: number, x: number, y: number): boolean {
+  const n = 2 ** z
+  if (x < 0 || y < 0 || x >= n || y >= n) return false
+  const bit = y * n + x
+  return (cells[(z === CHM_COARSE_Z ? 0 : 2048) + (bit >> 3)] & (1 << (bit & 7))) !== 0
+}
+
+function chmCellUrl(z: number, x: number, y: number): string {
+  let q = ""
+  for (let i = z; i > 0; i--) q += ((x >> (i - 1)) & 1) + 2 * ((y >> (i - 1)) & 1)
+  return `${CHM_BASE}/${z === CHM_COARSE_Z ? "dinov3_global_chm_v2_ml3_10m_mean" : "dinov3_global_chm_v2_ml3"}/chm/${q}.tif`
+}
+
+/** The files one tile is made of: its 1 m cell from zoom 15 where there is
+ *  one, else its 10 m cell, or the 10 m cells under it below zoom 7. */
+function chmFilesOfTile(cells: Uint8Array, z: number, x: number, y: number): string[] {
+  if (z >= CHM_FINE_FROM) {
+    const s = z - CHM_FINE_Z
+    if (chmHasCell(cells, CHM_FINE_Z, x >> s, y >> s)) return [chmCellUrl(CHM_FINE_Z, x >> s, y >> s)]
+  }
+  if (z >= CHM_COARSE_Z) {
+    const s = z - CHM_COARSE_Z
+    return chmHasCell(cells, CHM_COARSE_Z, x >> s, y >> s) ? [chmCellUrl(CHM_COARSE_Z, x >> s, y >> s)] : []
+  }
+  const k = 2 ** (CHM_COARSE_Z - z), files: string[] = []
+  for (let cy = y * k; cy < (y + 1) * k; cy++) {
+    for (let cx = x * k; cx < (x + 1) * k; cx++) if (chmHasCell(cells, CHM_COARSE_Z, cx, cy)) files.push(chmCellUrl(CHM_COARSE_Z, cx, cy))
+  }
+  return files
+}
+
+/** A canopy height map tile through titiler, composited where a cell has
+ *  data; null where no cell exists. */
+async function readChmTile(z: number, x: number, y: number, signal: AbortSignal): Promise<Float32Array | null> {
+  const files = chmFilesOfTile(await loadChmCells(signal), z, x, y)
+  if (!files.length) return null
+  if (files.length > 16) throw new Error(`vrt://: tile z${z}/${x}/${y} spans ${files.length} canopy height cells - zoom in`)
+  const base = titilerEndpoint()
+  const tiles = await Promise.all(files.map((f) =>
+    fetchDecodedTile(sharedTileCache, `${base}/cog/tiles/WebMercatorQuad/${z}/${x}/${y}.png?${TITILER_CACHE_KEY}&resampling=bilinear&reproject=bilinear&algorithm=terrainrgb&url=${encodeURIComponent(f)}`, "mapbox", signal)))
+  // Every file is known to exist, so a tile that did not come back is a
+  // failed request, not a hole: failing the tile keeps it out of the result
+  // cache and MapLibre asks again.
+  if (tiles.some((t) => !t) && !signal.aborted) throw new Error(`vrt://: titiler did not answer for canopy height tile z${z}/${x}/${y}`)
+  let grid: Float32Array | null = null
+  for (const t of tiles) {
+    if (!t || t.width !== TILE_SIZE || t.height !== TILE_SIZE) continue
+    if (!grid) grid = new Float32Array(TILE_SIZE * TILE_SIZE).fill(NaN)
+    for (let i = 0; i < grid.length; i++) {
+      if (Number.isFinite(grid[i])) continue
+      if (t.valid && t.valid[i] === 0) continue
+      grid[i] = t.data[i]
+    }
+  }
+  return grid
+}
+
+/** The canopy height over any Web Mercator window (the export's road),
+ *  sampled from the titiler tiles of the zoom that matches the output. */
+async function readChmWindow(minX: number, maxY: number, spanX: number, spanY: number, W: number, H: number, signal: AbortSignal, label: string): Promise<Float32Array | null> {
+  const z = Math.max(CHM_INFO.minzoom, Math.min(CHM_INFO.maxzoom, Math.ceil(Math.log2((2 * ORIGIN * W) / (TILE_SIZE * spanX)))))
+  const span = (2 * ORIGIN) / 2 ** z
+  const x0 = Math.floor((minX + ORIGIN) / span), x1 = Math.floor((minX + spanX + ORIGIN - 1e-6) / span)
+  const y0 = Math.floor((ORIGIN - maxY) / span), y1 = Math.floor((ORIGIN - maxY + spanY - 1e-6) / span)
+  const count = (x1 - x0 + 1) * (y1 - y0 + 1)
+  if (count > 400) throw new Error(`vrt://: ${label} spans ${count} canopy height tiles (limit 400) - reduce the area or the resolution`)
+  const out = new Float32Array(W * H).fill(NaN)
+  let any = false
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      const tile = await readChmTile(z, tx, ty, signal)
+      if (!tile) continue
+      any = true
+      const left = -ORIGIN + tx * span, top = ORIGIN - ty * span
+      const c0 = Math.max(0, Math.floor(((left - minX) / spanX) * W)), c1 = Math.min(W, Math.ceil(((left + span - minX) / spanX) * W))
+      const r0 = Math.max(0, Math.floor(((maxY - top) / spanY) * H)), r1 = Math.min(H, Math.ceil(((maxY - top + span) / spanY) * H))
+      for (let r = r0; r < r1; r++) {
+        const v = Math.floor(((top - (maxY - ((r + 0.5) / H) * spanY)) / span) * TILE_SIZE)
+        if (v < 0 || v >= TILE_SIZE) continue
+        for (let c = c0; c < c1; c++) {
+          const u = Math.floor(((minX + ((c + 0.5) / W) * spanX - left) / span) * TILE_SIZE)
+          if (u < 0 || u >= TILE_SIZE) continue
+          out[r * W + c] = tile[v * TILE_SIZE + u]
+        }
+      }
+    }
+  }
+  return any ? out : null
+}
+
 type Transform = (x: number, y: number) => [number, number]
 
 const IS_MERCATOR = /Pseudo-Mercator|EPSG["':,\s]*(?:3857|3785|900913)\b/i
@@ -562,6 +697,7 @@ const mercToLngLat = (x: number, y: number): [number, number] => [
  */
 export async function getVrtInfo(vrtUrl: string, signal?: AbortSignal): Promise<VrtInfo> {
   if (isGem15Url(vrtUrl)) return GEM15_INFO
+  if (CHM_RE.test(vrtUrl)) return CHM_INFO
   const ob = OB_RE.exec(vrtUrl)
   if (ob) return obInfo(ob[1], signal)
   const vrt = await loadVrt(vrtUrl, signal)
@@ -716,6 +852,7 @@ async function readVrtGrid(
   vrtUrl: string, minX: number, maxY: number, spanX: number, spanY: number, W: number, H: number,
   signal: AbortSignal, label: string, maxSources: number, maxReadPixels: number,
 ): Promise<Float32Array | null> {
+  if (CHM_RE.test(vrtUrl)) return readChmWindow(minX, maxY, spanX, spanY, W, H, signal, label)
   const gem = GEM15_RE.exec(vrtUrl), ob = OB_RE.exec(vrtUrl)
   const docs = gem
     ? await loadGem15Docs(gem[1], minX, maxY, spanX, spanY, signal, label)
@@ -940,7 +1077,9 @@ export async function vrtProtocol(
 
   const span = (2 * ORIGIN) / 2 ** z
   const gem = GEM15_RE.exec(vrtUrl)
-  const grid = gem && viaTitiler
+  const grid = CHM_RE.test(vrtUrl)
+    ? await readChmTile(z, x, y, signal)
+    : gem && viaTitiler
     ? await readGem15TitilerTile(gem[1], z, x, y, signal)
     : await readVrtGrid(vrtUrl, -ORIGIN + x * span, ORIGIN - y * span, span, span, TILE_SIZE, TILE_SIZE,
       signal, `tile z${z}/${x}/${y}`, MAX_SOURCES_PER_TILE, MAX_READ_PIXELS)
@@ -991,7 +1130,8 @@ export async function readVrtRegion(
 
 /** The tile template for a VRT read in-browser: `vrt://<url>/{z}/{x}/{y}`.
  *  `viaTitiler` only means something for a gem15:// URL, whose cells titiler
- *  can serve one by one; an openbuildings:// URL has no titiler road. */
+ *  can serve one by one; an openbuildings:// URL has no titiler road and a
+ *  metachm:// URL has no other. */
 export function buildVrtUrl(vrtUrl: string, viaTitiler = false): string {
   return `vrt://${encodeURIComponent(viaTitiler && GEM15_RE.test(vrtUrl) ? vrtUrl + VIA_TITILER : vrtUrl)}/{z}/{x}/{y}`
 }

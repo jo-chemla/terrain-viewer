@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CopyModalLinkButton } from "./controls-components"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { searchLibrary } from "@/lib/library-search"
 import { compareWithMapterhorn, resolutionOf, formatRes, type MapterhornComparison, type MapterhornVerdict, type ResolutionMetric } from "@/lib/mapterhorn-compare"
 
 /** The fields every sample entry (terrain or basemap) is guaranteed to have. */
@@ -23,6 +24,9 @@ export interface SampleLike {
   bounds?: [number, number, number, number]
   url?: string
   infoUrl?: string
+  /** Extra words the search finds the entry by and nothing shows: the other
+   *  spellings of its subject ("landcover land use LULC"). */
+  keywords?: string
   /** A catalog search for the same data: adds a Browse button beside Add. */
   stac?: LibraryStacLink
 }
@@ -128,7 +132,7 @@ function kindOf(name: string): { label: string; title: string } | null {
   // close-range scans are surface models even though nothing in the name says so.
   // Derived normalised height models (DSM − DTM) and elevation-change rasters
   // are neither surface nor terrain: what stands on the ground, or what moved.
-  if (/\bnDSM\b|DSM − DTM|height above ground|elevation change|\(dh\)|\bChange:/i.test(name)) return { label: "nDSM", title: "nDSM, normalised digital surface model: DSM − DTM, the height of what stands on the ground (a CHM, canopy height model, over forest). Also used here for elevation-change grids: 0 is the ground, or no change" }
+  if (/\bnDSM\b|DSM − DTM|height above ground|canopy height|elevation change|\(dh\)|\bChange:/i.test(name)) return { label: "nDSM", title: "nDSM, normalised digital surface model: DSM − DTM, the height of what stands on the ground (a CHM, canopy height model, over forest). Also used here for elevation-change grids: 0 is the ground, or no change" }
   if (/\(surface\)|\b(DSM|DOM|DMP|MNS)\b|FO_DSM|ArcticDEM|REMA|GLO-30|Amphipolis/i.test(name)) {
     return { label: "DSM", title: "Digital Surface Model: buildings and trees included" }
   }
@@ -203,6 +207,8 @@ export function SampleSourcesModal<T extends SampleLike>({
   const [metric, setMetric] = useState<ResolutionMetric>("api")
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
+  /** What the search reads of a row (see lib/library-search.ts). */
+  const rowText = (s: SampleLike | BrowseRow) => `${s.name} ${s.id} ${s.type ?? ""} ${(s as SampleLike).keywords ?? ""}${isBrowseRow(s) ? " stac browse" : ""}`
   const hasBulk = useMemo(() => samples.some((s) => s.bulkResolutionM !== undefined), [samples])
   const browseRows = useMemo<BrowseRow[]>(() => browseOnly.map((s) => ({ ...s, browseOnly: true as const })), [browseOnly])
   const comparisons = useMemo(() => {
@@ -228,8 +234,8 @@ export function SampleSourcesModal<T extends SampleLike>({
     // Browse-only rows take index -1: they are not in the file's editorial
     // order, so only their name ("Global - "), bounds and loadWithSamples
     // place them, and they sort after the mosaics of their section.
-    ;[...samples.map((s, i) => [s, i] as const), ...browseRows.map((s) => [s, -1] as const)].forEach(([s, i]) => {
-      if (q && !`${s.name} ${s.id} ${s.type ?? ""}${isBrowseRow(s) ? " stac browse" : ""}`.toLowerCase().includes(q)) return
+    const all = [...samples.map((s, i) => [s, i] as const), ...browseRows.map((s) => [s, -1] as const)]
+    searchLibrary(all, ([s]) => rowText(s), q).forEach(([s, i]) => {
       const c = comparisons.get(s.id)
       const tier: TierKey = !compareToMapterhorn ? "better"
         : kindOf(s.name)?.label === "Bathy" ? "bathy"
@@ -288,13 +294,12 @@ export function SampleSourcesModal<T extends SampleLike>({
     setNewCatalogUrl("")
   }
   const catalogs = useMemo(
-    () => (!stacTarget ? [] : [
+    () => (!stacTarget ? [] : searchLibrary([
       ...STAC_PRESETS,
       // Catalogs the visitor pasted into the search and kept. Same rows, same
       // Browse, same on/off - the only difference is where they came from.
       ...savedCatalogs.map((c) => ({ ...c, group: "Yours" as const, note: "Added by you." })),
-    ].filter((p) => (p.target === "both" || p.target === stacTarget)
-      && (!q || `${p.name} ${p.group} ${p.note ?? ""}`.toLowerCase().includes(q)))),
+    ].filter((p) => p.target === "both" || p.target === stacTarget), (p) => `${p.name} ${p.group} ${p.note ?? ""}`, q)),
     [stacTarget, q, savedCatalogs],
   )
 

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 import { activeSliderAtom, transparentUiAtom, vizActivationAtom, revealSectionAtom , activeViewAtom } from "@/lib/settings-atoms"
 import { GRID_LAYOUTS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { holdControl } from "@/lib/slider-hold"
+import { matchesLibraryQuery } from "@/lib/library-search"
 
 
 // ─── Active-slider atom (global, no prop drilling) ────────────────────────────
@@ -932,9 +933,10 @@ export function clampMaxCommit(v: number | undefined, currentMin: number): numbe
 // Filters a Bring Your Own Data list by name and description. Shown only once
 // the list is long enough to need it; plain component state, not in the URL.
 
-/** Rows matching a lower-cased query in their name or description. */
-export const matchesByodQuery = (s: { name: string; description?: string }, q: string) =>
-  !q || `${s.name} ${s.description ?? ""}`.toLowerCase().includes(q)
+/** Rows matching a query in their name, description or keywords, whatever
+ *  the separators ("land cover", "land-cover", "landcover"). */
+export const matchesByodQuery = (s: { name: string; description?: string; keywords?: string }, q: string) =>
+  matchesLibraryQuery(`${s.name} ${s.description ?? ""} ${s.keywords ?? ""}`, q)
 
 export const BYOD_FILTER_MIN = 6
 
