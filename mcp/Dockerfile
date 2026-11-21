@@ -42,7 +42,7 @@ RUN corepack enable
 WORKDIR /app
 COPY mcp/package.json mcp/pnpm-lock.yaml mcp/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
-COPY mcp/server.mjs mcp/tile-server.mjs mcp/tile-openapi.mjs mcp/render.mjs mcp/tools.mjs mcp/data-tools.mjs mcp/url.mjs mcp/view.html ./
+COPY mcp/server.mjs mcp/tile-server.mjs mcp/tile-openapi.mjs mcp/render.mjs mcp/direct.mjs mcp/dem.mjs mcp/tools.mjs mcp/data-tools.mjs mcp/url.mjs mcp/view.html ./
 COPY --from=bundle /repo/mcp/generated ./generated
 ENV CHROME_PATH=/usr/bin/chromium TV_SOFTWARE_GL=1
 

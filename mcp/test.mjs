@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs"
 import { blockOf, viewOf } from "./tile-server.mjs"
 import { DOCS_COPY, docsCopyText } from "./tile-openapi.mjs"
 import { viewToQuery, queryToView } from "./url.mjs"
+import { plan } from "./direct.mjs"
 
 // The tile service: a 256 px tile is drawn one MapLibre zoom lower, in a block of 8 x 8.
 {
@@ -21,6 +22,12 @@ import { viewToQuery, queryToView } from "./url.mjs"
   const v = { lat: 45.8, lng: 6.9, zoom: 11, viewMode: "3d", modes: [], terrainSource: "a", params: { slopeOpacity: "0.5" } }
   const back = queryToView(viewToQuery(v))
   assert.deepEqual({ ...back.view, params: Object.fromEntries(back.rest) }, v)
+  // Which engine draws what.
+  assert.equal((await plan({ modes: ["hillshade", "slope", "contours"] }, new URLSearchParams("slopeOpacity=0.5"))).engine, "direct")
+  assert.match((await plan({ modes: ["lrm"] }, new URLSearchParams())).why, /lrm/)
+  assert.match((await plan({ terrainSource: "esri" }, new URLSearchParams())).why, /pyramid/)
+  assert.match((await plan({}, new URLSearchParams("showSvf=true"))).why, /showSvf/)
+  assert.equal((await plan({ terrainSource: '{"url":"https://x/{z}/{x}/{y}.png","type":"terrainrgb"}' }, new URLSearchParams())).dem.encoding, "mapbox")
   assert.equal(readFileSync(DOCS_COPY, "utf8").replaceAll(String.fromCharCode(13), ""), docsCopyText(), "docs/public/tile-service-openapi.json is stale: run `node tile-openapi.mjs` in mcp/")
 }
 
@@ -119,3 +126,5 @@ if (!process.env.NO_SCREENSHOT) {
 
 await client.close()
 console.log("ok")
+// The bundled app code (colour ramps) keeps a handle open.
+process.exit(0)

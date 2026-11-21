@@ -24,7 +24,20 @@
 // Web Mercator; titiler's rescale, colormap, bidx and expression are not
 // read (the app's own parameters set the ramps).
 //
-// A tile is not rendered alone: the app draws the 2048 px block it belongs
+// Two engines draw. `direct` computes the tile in Node from elevation tiles
+// (direct.mjs): hillshade, colour relief, slope and contours on a Terrarium
+// or Terrain-RGB source, in a fraction of a second. `browser` opens the app
+// in a headless browser: every source, every mode, 3D and split views.
+// A tile takes the direct engine when it can (the answer's `x-tv-engine`
+// header says which, `x-tv-engine-why` why not); `engine=direct` or
+// `engine=browser` forces one. A viewport takes the browser unless
+// `engine=direct` is given (the direct picture has no scale bar or credits).
+//
+//   GET /sources, /sources/{id}        the terrain sources, by id
+//   GET /colorramps, /colorramps/{id}  the colour ramps, by id
+//   GET /algorithms                    the modes, and which engine draws them
+//
+// With the browser, a tile is not rendered alone: the app draws the 2048 px block it belongs
 // to in one page, and the block is cut into tiles, all of them cached. The
 // first tile of a block takes what a picture takes (seconds), its neighbours
 // then answer from the cache.
@@ -41,6 +54,8 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./tile-openapi.mjs"
+import { plan, draw, DIRECT_MODES, DIRECT_PARAMS } from "./direct.mjs"
+import { library, BUILTIN_DEMS, resolveDem } from "./dem.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
@@ -107,6 +122,29 @@ async function slot(work) {
   try { return await work() } finally { running--; waiting.shift()?.() }
 }
 
+/** The source for the app: an id or an address as it is; a configuration
+ *  `{ url, type }` becomes the app's `terrainUrl` and `terrainType`. */
+function appSource(view, rest) {
+  const s = view.terrainSource
+  if (!s || !s.trim().startsWith("{")) return s
+  let o
+  try { o = JSON.parse(s) } catch { throw Object.assign(new Error("terrainSource is not valid JSON"), { status: 400 }) }
+  if (!o.url) throw Object.assign(new Error("A source configuration needs a url"), { status: 400 })
+  rest.set("terrainUrl", o.url)
+  if (o.type) rest.set("terrainType", o.type)
+  return undefined
+}
+
+/** The terrain sources, by id: the built-in ones and the app's library. */
+export function sources() {
+  return [
+    ...BUILTIN_DEMS.map((d) => ({ id: d.id, name: d.name, type: d.encoding === "mapbox" ? "terrainrgb" : "terrarium", url: d.tiles, maxzoom: d.maxzoom, engine: "direct" })),
+    { id: "esri", name: "Esri World Elevation - LERC", type: "lerc", engine: "browser" },
+    ...library().terrain.map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.tiles ? { url: s.tiles } : {}), ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.bounds ? { bounds: s.bounds } : {}), ...(s.resolutionM != null ? { resolutionM: s.resolutionM } : {}), engine: resolveDem(s.id) ? "direct" : "browser" })),
+  ]
+}
+const SOURCES_NOTE = 'Give an id as terrainSource (or url). A source that is not listed: its tile address, or a configuration as JSON, {"url": "...", "type": "terrarium" | "terrainrgb" | "cog" | "wms-raw"}.'
+
 const shot = (ext) => (ext === "png" ? { type: "png" } : { type: "jpeg", quality: 85 })
 const blocks = new Map() // block key -> promise, while it renders
 
@@ -118,12 +156,29 @@ async function tile(z, x, y, ext, query, scale = 1) {
   // The camera of a tile is the tile's: these are not the caller's to set.
   for (const k of ["lat", "lng", "zoom", "pitch", "bearing", "viewMode", "split", "terrainSourceB", "place"]) delete view[k]
   for (const k of ["splitStyle", "width", "height"]) rest.delete(k)
+  const engine = take("engine") ?? "auto"
+  if (!["auto", "direct", "browser"].includes(engine)) throw Object.assign(new Error("engine is auto, direct or browser"), { status: 400 })
+  let why
+  if (engine !== "browser") {
+    const how = await plan(view, rest)
+    if (how.engine === "direct") {
+      const key = `direct|${JSON.stringify([how.dem.tiles, how.modes, how.p])}|${size}|${z}/${x}/${y}`
+      const have = await cached(key, ext)
+      if (have) return { bytes: have, engine: "direct" }
+      const bytes = await draw(how, { world: size * 2 ** z, x0: x * size, y0: y * size, width: size, height: size, format: ext })
+      store(key, ext, bytes)
+      return { bytes, engine: "direct" }
+    }
+    if (engine === "direct") throw Object.assign(new Error(`The direct engine cannot draw this: ${how.why}`), { status: 400 })
+    why = how.why
+  }
+  view.terrainSource = appSource(view, rest)
   const b = blockOf(z, x, y, size)
   const params = Object.fromEntries(rest)
   const url = buildViewUrl({ ...view, lat: b.lat, lng: b.lng, zoom: b.zoom, viewMode: "2d", pitch: 0, bearing: 0, params }, { baseUrl: BASE_URL, embed: true })
   const tileKey = (col, row) => `${url}|${size}|${b.bx * b.per + col}/${b.by * b.per + row}`
   const have = await cached(tileKey(b.col, b.row), ext)
-  if (have) return have
+  if (have) return { bytes: have, engine: "browser", why }
   const blockKey = `${url}|${size}|${ext}`
   if (!blocks.has(blockKey)) {
     const work = slot(() => withSettledPage(url, { width: b.side, height: b.side, bare: true }, async (page) => {
@@ -137,7 +192,7 @@ async function tile(z, x, y, ext, query, scale = 1) {
     })).finally(() => blocks.delete(blockKey))
     blocks.set(blockKey, work)
   }
-  return (await blocks.get(blockKey)).get(`${b.col}/${b.row}`)
+  return { bytes: (await blocks.get(blockKey)).get(`${b.col}/${b.row}`), engine: "browser", why }
 }
 
 async function picture(ext, query) {
@@ -157,14 +212,24 @@ async function picture(ext, query) {
     zoom = Math.min(Math.log2(width / 512 / ((e - w) / 360)), Math.log2(height / 512 / (my(s) - my(n))))
   }
   if (lat === undefined || lng === undefined) throw Object.assign(new Error("lat and lng, or bbox, are required"), { status: 400 })
+  const engine = take("engine") ?? "browser"
+  if (engine === "direct") {
+    if ((view.viewMode && view.viewMode !== "2d") || view.pitch || view.bearing || view.split || view.terrainSourceB) throw Object.assign(new Error("The direct engine draws flat, unrotated, single views"), { status: 400 })
+    const how = await plan(view, rest)
+    if (how.engine !== "direct") throw Object.assign(new Error(`The direct engine cannot draw this: ${how.why}`), { status: 400 })
+    const world = 512 * 2 ** (zoom ?? 12)
+    const cx = ((lng + 180) / 360) * world, cy = ((1 - Math.asinh(Math.tan((lat * Math.PI) / 180)) / Math.PI) / 2) * world
+    return { bytes: await draw(how, { world, x0: Math.round(cx - width / 2), y0: Math.round(cy - height / 2), width, height, format: ext }), engine: "direct" }
+  }
+  view.terrainSource = appSource(view, rest)
   const full = { ...view, lat, lng, zoom: zoom ?? 12, params: Object.fromEntries(rest) }
   const url = buildViewUrl(full, { baseUrl: BASE_URL, embed: true })
   const key = `${url}|${width}x${height}`
   const have = await cached(key, ext)
-  if (have) return have
+  if (have) return { bytes: have, engine: "browser" }
   const bytes = await slot(() => withSettledPage(url, { width, height }, (page) => page.screenshot(shot(ext))))
   store(key, ext, bytes)
-  return bytes
+  return { bytes, engine: "browser" }
 }
 
 const TYPES = { png: "image/png", jpg: "image/jpeg" }
@@ -181,7 +246,7 @@ export function start(port = PORT) {
       const u = new URL(req.url, "http://x")
       if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL }))
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify({
-        docs: "/docs", openapi: "/openapi.json",
+        docs: "/docs", openapi: "/openapi.json", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
         tiles: "/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
         render: "/render.jpg?lat=45.83&lng=6.86&zoom=11&width=1024&height=640&modes=hillshade,contours",
         modes: MODE_NAMES, app: BASE_URL,
@@ -189,12 +254,34 @@ export function start(port = PORT) {
       const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
       if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self), null, 2))
       if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
+      if (u.pathname === "/sources") return send(200, "application/json", JSON.stringify({ sources: sources(), note: SOURCES_NOTE }))
+      const one = u.pathname.match(/^\/sources\/([^/]+)$/)
+      if (one) {
+        const id = decodeURIComponent(one[1])
+        const found = sources().find((x) => x.id === id)
+        if (!found) return send(404, "text/plain", "No such source: see /sources")
+        return send(200, "application/json", JSON.stringify({ ...found, description: library().terrain.find((x) => x.id === id)?.description }))
+      }
+      if (u.pathname === "/colorramps" || u.pathname.startsWith("/colorramps/")) {
+        const { colorRampsFlat } = await import("./generated/app-lib.mjs")
+        if (u.pathname === "/colorramps") return send(200, "application/json", JSON.stringify({ colorramps: Object.entries(colorRampsFlat).map(([id, r]) => ({ id, name: r.name ?? id })), note: "Give an id as colorRamp (colour relief) or slopeColorRamp (slope)." }))
+        const id = decodeURIComponent(u.pathname.slice(12))
+        const ramp = colorRampsFlat[id]
+        if (!ramp) return send(404, "text/plain", "No such ramp: see /colorramps")
+        return send(200, "application/json", JSON.stringify({ id, name: ramp.name, colors: ramp.colors }))
+      }
+      if (u.pathname === "/algorithms") return send(200, "application/json", JSON.stringify({
+        algorithms: MODE_NAMES.map((id) => ({ id, engine: DIRECT_MODES.includes(id) ? "direct" : "browser" })),
+        directParameters: DIRECT_PARAMS,
+        note: "A tile is computed directly when every mode asked for is `direct`, the source is a Terrarium or Terrain-RGB pyramid (see /sources) and only the parameters listed here are given; otherwise the app draws it in a browser.",
+      }))
       const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
       if (t) {
         const [z, x, y] = t.slice(1, 4).map(Number)
         const ext = t[5] === "png" ? "png" : "jpg"
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
-        return send(200, TYPES[ext], await tile(z, x, y, ext, u.search, t[4] === "@2x" ? 2 : 1), { "cache-control": "public, max-age=86400" })
+        const made = await tile(z, x, y, ext, u.search, t[4] === "@2x" ? 2 : 1)
+        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
       }
       if (u.pathname === "/WebMercatorQuad/tilejson.json" || u.pathname === "/tilejson.json") {
         const q = new URLSearchParams(u.search)
@@ -212,7 +299,8 @@ export function start(port = PORT) {
         const q = new URLSearchParams(u.search)
         if (bb) { q.set("bbox", bb[1]); q.set("width", bb[2]); q.set("height", bb[3]) }
         const ext = (bb ? bb[4] : r[1]) === "png" ? "png" : "jpg"
-        return send(200, TYPES[ext], await picture(ext, q), { "cache-control": "public, max-age=86400" })
+        const made = await picture(ext, q)
+        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, "access-control-expose-headers": "x-tv-engine" })
       }
       send(404, "text/plain", "Not found: see /")
     } catch (e) {

@@ -7,3 +7,7 @@ export { stacCatalogId, isStacCatalogId } from "../lib/timeline-catalogs"
 export { listWaybackTicksInRange } from "../lib/wayback"
 export { listGeHistoricalTicksInRange } from "../lib/ge-historical"
 export { TIMELAPSE_FIRST_YEAR, TIMELAPSE_LAST_YEAR } from "../lib/google-timelapse"
+// The colour ramps and their rescaling, for the tile service's direct engine
+// (direct.mjs), which colours elevation and slope grids without a map.
+export { colorRampsFlat, remapColorRampStops } from "../lib/color-ramps"
+export { default as chroma } from "chroma-js"

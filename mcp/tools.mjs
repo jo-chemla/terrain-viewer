@@ -8,21 +8,13 @@ import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { buildViewUrl, viewToQuery } from "./url.mjs"
 import { browser, withSettledPage, closeBrowser as closeRenderer } from "./render.mjs"
+import { library } from "./dem.mjs"
 
-export { browser }
+export { browser, library }
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url))
 const UA = "terrain-viewer-mcp/0.2 (+https://terrain-viewer.iconem.com)"
 
-let libraryCache
-export function library() {
-  if (!libraryCache) {
-    const p = here("./generated/library.json")
-    if (!existsSync(p)) throw new Error("generated/library.json is missing: run `pnpm build` in mcp/")
-    libraryCache = JSON.parse(readFileSync(p, "utf8"))
-  }
-  return libraryCache
-}
 let appLibPromise
 /** The app's own catalog code (bundled by build.mjs). */
 export function appLib() {

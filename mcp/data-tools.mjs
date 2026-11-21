@@ -1,82 +1,31 @@
 // Lookups that return numbers and files rather than a view: elevations and
 // profiles read from the tiles themselves, a GeoTIFF of an area, the dates
 // of the app's built-in dated imagery, a search of any STAC catalog.
-import { appLib, browser, catalogItems, library } from "./tools.mjs"
+import { appLib, catalogItems } from "./tools.mjs"
+import { library, resolveDem, loadTile, window as demWindow, probe, BUILTIN_DEMS } from "./dem.mjs"
 
-const AWS_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
-const MAPTERHORN_TILES = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"
+export { resolveDem }
 
-/** A terrain source as tiles the server can decode and the in-chat map can
- *  draw, or null: a COG, WMS, VRT or mesh dataset is read by the app alone. */
-export function resolveDem(source) {
-  if (!source || source === "mapterhorn") return { id: "mapterhorn", tiles: MAPTERHORN_TILES, encoding: "terrarium", tileSize: 512, maxzoom: 17 }
-  if (source === "aws") return { id: "aws", tiles: AWS_TILES, encoding: "terrarium", tileSize: 256, maxzoom: 15 }
-  const lib = library().terrain.find((s) => s.id === source)
-  if (lib) return lib.tiles ? { id: lib.id, tiles: lib.tiles, encoding: lib.type === "terrainrgb" ? "mapbox" : "terrarium", tileSize: 256, maxzoom: lib.maxzoom ?? 14 } : null
-  if (/^https:\/\/.+\{z\}.+\{x\}.+\{y\}/.test(source)) return { id: source, tiles: source, encoding: "terrarium", tileSize: 256, maxzoom: 14, external: true }
-  return null
-}
 /** Hosts of every tile source the in-chat map may read (for the view's CSP). */
 export function demOrigins() {
-  const urls = [MAPTERHORN_TILES, AWS_TILES, ...library().terrain.map((s) => s.tiles).filter(Boolean)]
+  const urls = [...BUILTIN_DEMS.map((d) => d.tiles), ...library().terrain.map((s) => s.tiles).filter(Boolean)]
   return [...new Set(urls.map((u) => new URL(u.replace(/[{}]/g, "")).origin))]
 }
 const notTiles = (source) => new Error(`"${source}" is not a plain tile dataset (it is a COG, a WMS, a VRT or a mesh), so only the app can read it: use open_view. Values can be read from "mapterhorn" (default), "aws", a Terrarium tile URL, or a library dataset of type terrarium or terrainrgb.`)
 
-let samplerPagePromise
-async function samplerPage() {
-  if (!samplerPagePromise) {
-    samplerPagePromise = (async () => {
-      const b = await browser()
-      const ctx = await b.newContext()
-      const page = await ctx.newPage()
-      // A real https origin, so the tile hosts' CORS headers apply to fetch.
-      await page.route("https://sampler.invalid/", (r) => r.fulfill({ contentType: "text/html", body: "<!doctype html><title>sampler</title>" }))
-      await page.goto("https://sampler.invalid/")
-      return page
-    })().catch((e) => { samplerPagePromise = undefined; throw e })
-  }
-  return samplerPagePromise
-}
-
-// Runs in the page: decodes the tiles under the points and reads them
-// bilinearly, or copies a rectangle of pixels (`grid`). null where there is
-// no tile or the pixel is a hole.
-const SAMPLE_IN_PAGE = async ({ tiles, encoding, zoom, points, grid }) => {
-  const cache = new Map()
-  const load = (z, x, y) => {
-    const key = z + "/" + x + "/" + y
-    if (!cache.has(key)) cache.set(key, (async () => {
-      const n = 2 ** z
-      if (y < 0 || y >= n) return null
-      const r = await fetch(tiles.replace("{z}", z).replace("{x}", ((x % n) + n) % n).replace("{y}", y))
-      if (!r.ok) return null
-      const bmp = await createImageBitmap(await r.blob(), { premultiplyAlpha: "none", colorSpaceConversion: "none" })
-      const c = new OffscreenCanvas(bmp.width, bmp.height)
-      const g = c.getContext("2d", { willReadFrequently: true })
-      g.drawImage(bmp, 0, 0)
-      return { w: bmp.width, h: bmp.height, d: g.getImageData(0, 0, bmp.width, bmp.height).data }
-    })().catch(() => null))
-    return cache.get(key)
-  }
-  const decode = (t, i, j) => {
-    const o = (j * t.w + i) * 4
-    if (t.d[o + 3] === 0) return null
-    const v = encoding === "mapbox" ? -10000 + (t.d[o] * 65536 + t.d[o + 1] * 256 + t.d[o + 2]) * 0.1 : t.d[o] * 256 + t.d[o + 1] + t.d[o + 2] / 256 - 32768
-    return v < -12000 ? null : v
-  }
+// Decodes the tiles under the points and reads them bilinearly, or copies a
+// rectangle of pixels (`grid`). Tiles are decoded in Node (dem.mjs): no
+// browser. null where there is no tile or the pixel is a hole.
+async function sample(dem, { zoom, points, grid }) {
   const project = (lng, lat, z) => {
     const n = 2 ** z
     return [((lng + 180) / 360) * n, ((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * n]
   }
   // The tile side comes from a first tile; the zoom steps down while that tile is missing.
-  let z = zoom, side = 0
-  for (; z >= 0; z -= 1) {
-    const [x, y] = project(points[0][0], points[0][1], z)
-    const t = await load(z, Math.floor(x), Math.floor(y))
-    if (t) { side = t.w; break }
-  }
-  if (!side) return { zoom: null, values: points.map(() => null) }
+  const [wx, wy] = project(points[0][0], points[0][1], 0)
+  const found = await probe(dem, zoom, wx, wy)
+  if (!found) return { zoom: null, values: points.map(() => null) }
+  let { z, side } = found
   if (grid) {
     const rect = (zz) => {
       const [a, b] = project(grid.west, grid.north, zz), [c, d] = project(grid.east, grid.south, zz)
@@ -85,27 +34,17 @@ const SAMPLE_IN_PAGE = async ({ tiles, encoding, zoom, points, grid }) => {
     }
     let { x0, y0, w, h } = rect(z)
     while (Math.max(w, h) > grid.maxSide && z > 0) { z -= 1; ({ x0, y0, w, h } = rect(z)) }
-    const out = new Float32Array(w * h).fill(-9999)
-    const wanted = []
-    for (let ty = Math.floor(y0 / side); ty <= Math.floor((y0 + h - 1) / side); ty++) for (let tx = Math.floor(x0 / side); tx <= Math.floor((x0 + w - 1) / side); tx++) wanted.push([tx, ty])
-    await Promise.all(wanted.map(async ([tx, ty]) => {
-      const t = await load(z, tx, ty)
-      if (!t) return
-      for (let j = Math.max(y0, ty * side); j < Math.min(y0 + h, (ty + 1) * side); j++) for (let i = Math.max(x0, tx * side); i < Math.min(x0 + w, (tx + 1) * side); i++) {
-        const v = decode(t, i - tx * side, j - ty * side)
-        if (v !== null) out[(j - y0) * w + (i - x0)] = v
-      }
-    }))
-    let bin = ""
-    const u8 = new Uint8Array(out.buffer)
-    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000))
-    return { zoom: z, side, x0, y0, w, h, b64: btoa(bin) }
+    const values = await demWindow(dem, z, side, x0, y0, w, h)
+    for (let i = 0; i < values.length; i++) if (Number.isNaN(values[i])) values[i] = -9999
+    return { zoom: z, side, x0, y0, w, h, values }
   }
   // Global pixel (a tile's pixels are cell centres) at zoom z.
   const at = async (gx, gy) => {
     const px = Math.floor(gx), py = Math.floor(gy)
-    const t = await load(z, Math.floor(px / side), Math.floor(py / side))
-    return t ? decode(t, ((px % side) + side) % side, ((py % side) + side) % side) : null
+    const t = await loadTile(dem, z, Math.floor(px / side), Math.floor(py / side))
+    if (!t || t.side !== side) return null
+    const v = t.data[(((py % side) + side) % side) * side + (((px % side) + side) % side)]
+    return Number.isNaN(v) ? null : v
   }
   const values = []
   for (const [lng, lat] of points) {
@@ -128,7 +67,6 @@ const metresPerPixel = (lat, zoom, side) => (2 * Math.PI * R * Math.cos((lat * M
 /** Elevations of points, or a profile along the line through them, on one
  *  or several terrain sources. */
 export async function elevation({ points, profile = false, samples = 64, sources, zoom }) {
-  const page = await samplerPage()
   let coords = points.map((p) => [p.lng, p.lat])
   let distances = null
   if (profile) {
@@ -149,7 +87,7 @@ export async function elevation({ points, profile = false, samples = 64, sources
   for (const source of sources?.length ? sources : ["mapterhorn"]) {
     const dem = resolveDem(source)
     if (!dem) { result[source] = { error: notTiles(source).message }; continue }
-    const r = await page.evaluate(SAMPLE_IN_PAGE, { tiles: dem.tiles, encoding: dem.encoding, zoom: Math.min(zoom ?? (profile ? 13 : 14), dem.maxzoom), points: coords })
+    const r = await sample(dem, { zoom: Math.min(zoom ?? (profile ? 13 : 14), dem.maxzoom), points: coords })
     const vals = r.values.map((v) => (v === null ? null : Math.round(v * 10) / 10))
     const got = vals.filter((v) => v !== null)
     const entry = { tileZoom: r.zoom, groundResolutionM: r.zoom === null ? null : Math.round(metresPerPixel(coords[0][1], r.zoom, r.side) * 10) / 10 }
@@ -172,11 +110,9 @@ export async function exportGeotiff({ bbox, source, maxSide = 1024 }) {
   if (!dem) throw notTiles(source)
   const [west, south, east, north] = bbox
   if (!(east > west && north > south)) throw new Error("bbox is [west, south, east, north] in degrees.")
-  const page = await samplerPage()
-  const r = await page.evaluate(SAMPLE_IN_PAGE, { tiles: dem.tiles, encoding: dem.encoding, zoom: dem.maxzoom, points: [[(west + east) / 2, (south + north) / 2]], grid: { west, south, east, north, maxSide: Math.min(2048, maxSide) } })
-  if (r.zoom === null || !r.b64) throw new Error("No tile of this dataset covers the box.")
-  const bytes = Buffer.from(r.b64, "base64")
-  const values = new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4).slice()
+  const r = await sample(dem, { zoom: dem.maxzoom, points: [[(west + east) / 2, (south + north) / 2]], grid: { west, south, east, north, maxSide: Math.min(2048, maxSide) } })
+  if (r.zoom === null || !r.values) throw new Error("No tile of this dataset covers the box.")
+  const values = r.values
   const px = (2 * Math.PI * R) / (r.side * 2 ** r.zoom)
   const originX = -Math.PI * R + r.x0 * px, originY = Math.PI * R - r.y0 * px
   const { writeArrayBuffer } = await import("geotiff")

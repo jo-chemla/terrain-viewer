@@ -18,8 +18,10 @@
     "@modelcontextprotocol/ext-apps": "^2.0.4",
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
+    "d3-contour": "^4.0.3",
     "geotiff": "^3.0.5",
     "playwright-core": "^1.65.1",
+    "sharp": "^0.35.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {
