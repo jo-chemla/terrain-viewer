@@ -31,7 +31,7 @@ The [skill](/features/ai-assistants) teaches an assistant to write a link. The s
 
 | Tool | What it does |
 |---|---|
-| `open_view` | A place and modes, shown in the conversation, with the link that opens it |
+| `open_view` | A place and modes, shown in the conversation as the app itself, with the link that opens it |
 | `compare_sources` | One place twice, side by side or as an overlay: two terrain datasets, or the imagery of two dates |
 | `geocode` | A place name to coordinates (OpenStreetMap) |
 | `datasets_covering` | The terrain datasets of the library that cover a point, finest first, and the imagery catalogs that have something there |
@@ -72,30 +72,35 @@ claude.ai and ChatGPT reach a server by its address, not on your computer: run `
 
 ## What shows in the conversation
 
-Three displays, picked by what the view needs and what the host allows, with buttons to switch:
+Two displays, with a button for each:
 
-- **Interactive map**: a map drawn in the conversation itself, to pan, zoom and tilt. It draws hillshade, 3D terrain and satellite imagery on the tile datasets. A view that needs nothing else opens this way.
-- **Exact picture**: the view with every mode asked for (slope, local relief model, sky-view factor, dated imagery, a split), rendered by the server in a few seconds. A view that needs the app's computed modes opens this way, with the interactive map one click away.
-- **Live app**: the app itself, in its [embed layout](/features/embedding). Claude frames a website inside a conversation only for some connectors: never for a server that runs on your computer, and for a server reached by its address only after you allow the site, in organizations where the feature is on ([Claude's documentation](https://claude.com/docs/connectors/building/mcp-apps/embedded-sites)).
+- **Interactive map**: the app itself, in its [embed layout](/features/embedding), with every mode asked for: pan, zoom, tilt, search, change the modes. The view loads the app's script and styles from its address and runs it in the conversation. Seen working in Claude with a custom connector on 2026-11-21. It is what opens by default.
+- **Exact picture**: the same view as a picture, rendered by the server in a few seconds. It shows by itself when the app cannot run in the host (its script refused, or no map after 12 seconds).
 
-When Claude shows the live app depends on how the server reached it:
+**Open in the browser** opens the full app at the place and with the modes the interactive map was left on. The **?** button is for debugging: it says which display was picked and what the host let through.
 
-| Server | Live app in the conversation |
+The interactive map reads only the hosts the server declares: all the hosts of the app's built-in lists (the terrain and raster libraries, the built-in terrain and basemaps, the dated imagery and its catalogs, about 90 hosts). Two kinds cannot be declared in advance and stay blank there: the files a VRT or a STAC item points to on another host, and an address you paste yourself. Claude reads the list when the connector is added, so remove and re-add the connector after an update of the server.
+
+What a strict host may still refuse, from the local test host: WebAssembly (needed by LERC elevation tiles, by the GeoTIFF reader, so by a COG dataset, and by GeoPackage files in the drawing tools) and `eval` (the contour lines' worker failed without it on 2026-11-21). The map, its workers and the computed modes are plain JavaScript. Which of these Claude refuses has not been checked mode by mode.
+
+### Framing the site instead
+
+Where a host allows it, the view frames the site itself, which needs no declared hosts. Claude frames a website inside a conversation only for some connectors: never for a server that runs on your computer, and for a server reached by its address only after you allow the site, in organizations where the feature is on ([Claude's documentation](https://claude.com/docs/connectors/building/mcp-apps/embedded-sites)).
+
+When Claude frames the site depends on how the server reached it:
+
+| Server | Site framed in the conversation |
 |---|---|
 | In Claude's directory, Verified listing | Shown, when the listing allows the site |
 | In Claude's directory, Community listing | Refused |
 | Added by its address (custom connector) | Only after you allow the site in the conversation, and only in a limited set of organizations that Anthropic chooses, in the unified chat and Cowork experience |
 | Running on your computer | Refused |
 
-No setting in Claude adds a site to an allowed list. Tested on 2026-11-20 with a custom connector on a personal Max plan and on a team with the unified experience on: Claude refused the site both times without asking, and the picture and the interactive map were shown instead. The **?** button on the view says which display was picked and what Claude reported.
-
-A fourth display, **App here (test)**, runs the app itself in the conversation without a frame: the view loads the app's script and styles from its address, which Claude allows for declared hosts. It needs no permission to frame a site. Being tested: it reads only the hosts the server declares. Since 2026-11-20 these are all the hosts of the app's built-in lists (the terrain and raster libraries, the built-in terrain and basemaps, the dated imagery and its catalogs, about 90 hosts). Two kinds cannot be declared in advance and stay blank there: the files a VRT or a STAC item points to on another host, and an address you paste yourself. Claude reads the list when the connector is added, so remove and re-add the connector after an update. The **?** line lists what the host let through.
-
-WebAssembly, when the host forbids it: the map, its workers and the computed modes (hillshade, slope, local relief model, sky-view factor, contours on tile datasets) are plain JavaScript and do not need it. What needs it are decoders: LERC elevation tiles, the GeoTIFF reader (so a COG dataset, and contours drawn on one), and GeoPackage files in the drawing tools. This comes from reading the code; in the local test of 2026-11-20 the one failure without WebAssembly was the contour worker of COG datasets.
+No setting in Claude adds a site to an allowed list. Tested on 2026-11-20 with a custom connector on a personal Max plan and on a team with the unified experience on: Claude refused the site both times without asking. That is why the view runs the app itself instead.
 
 ### Getting a Verified listing
 
-The only way to the framed live app for everyone is a Verified listing in Claude's directory. Not done; what it takes, from Anthropic's pages ([submission](https://claude.com/docs/connectors/building/submission), [review criteria](https://claude.com/docs/connectors/building/review-criteria)), read on 2026-11-20:
+The only way to the framed site for everyone is a Verified listing in Claude's directory. Not done; what it takes, from Anthropic's pages ([submission](https://claude.com/docs/connectors/building/submission), [review criteria](https://claude.com/docs/connectors/building/review-criteria)), read on 2026-11-20:
 
 - **Where**: `claude.ai/directory/manage`, then Submit new, then MCP connector. Any paid Claude plan can submit.
 - **A permanent `https://` address** for the server. A temporary tunnel does not qualify. The server runs a headless Chrome for the pictures, so it needs a container host (the `mcp/Dockerfile`), not a static site or a serverless function.
@@ -117,7 +122,5 @@ A directory listing, and a connector that does not change address every two hour
 | MCP hosting services (Cloudflare, Smithery and others) | Built for light servers without a browser |
 
 The plan is the container on an Iconem server, at an address such as `mcp.terrain-viewer.iconem.com`. The image was built and run on a laptop on 2026-11-20 (1.6 GB; the ten tools answer, and a slope view in 3D renders in 9 s without a graphics card); it has not run on a server yet. [`mcp/docker-compose.yml`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/docker-compose.yml) is the stack for Portainer (Stacks, Add stack, Repository, compose path `mcp/docker-compose.yml`): set `MCP_HOST` to the public host name, and have the server's HTTPS reverse proxy forward that name to port 3300. The rendered pictures are kept on a volume, so they survive a restart.
-
-**Open in the browser** always opens the full app, at the place the interactive map was moved to.
 
 The server's own notes, with the files and what was tested, are in [`mcp/README.md`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/README.md).

@@ -85,8 +85,8 @@ console.log(`imagery_dates Antakya: Google Earth ${dates["ge-historical"].dates.
 const cmp = (await call("compare_sources", { lat: 36.2, lng: 36.16, zoom: 16, place: "Antakya", a: { imagerySource: "wayback", imageryDate: "2022-12-08" }, b: { imagerySource: "wayback", imageryDate: "2023-04-26" } })).structuredContent
 assert.ok(cmp.url.includes("historicalActiveSourceB=wayback") && cmp.url.includes("dateA=") && cmp.url.includes("splitStyle=side-by-side"), cmp.url)
 const exact = (await call("open_view", { lat: 45.9763, lng: 7.6586, viewMode: "3d", modes: ["hillshade", "basemap"] })).structuredContent
-assert.ok(exact.map.exact && exact.map.terrain && exact.map.dem.tiles.includes("mapterhorn"))
-assert.equal((await call("open_view", { lat: 52.2, lng: 5.85, terrainSource: "custom-nl-ahn-dtm" })).structuredContent.map, null)
+assert.ok(exact.app?.js?.startsWith("https://") && exact.app.css.some((u) => u.includes("maplibre-gl-geocoder")) && exact.app.origins.includes("https://unpkg.com"), JSON.stringify(exact.app))
+assert.equal(exact.map, undefined)
 console.log(`compare_sources: ${cmp.label}`)
 
 if (!process.env.NO_SCREENSHOT) {

@@ -33,7 +33,7 @@ import { McpServer, createMcpHandler } from "@modelcontextprotocol/server"
 import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server"
 import { buildViewUrl, MODE_NAMES, IMAGERY_SOURCES, DEFAULT_BASE_URL } from "./url.mjs"
 import { geocode, datasetsCovering, catalogItems, screenshot, library } from "./tools.mjs"
-import { elevation, exportGeotiff, imageryDates, searchStac, resolveDem, demOrigins, EXPORT_DIR_NAME } from "./data-tools.mjs"
+import { elevation, exportGeotiff, imageryDates, searchStac, demOrigins, EXPORT_DIR_NAME } from "./data-tools.mjs"
 
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
 const BASE_ORIGIN = new URL(BASE_URL).origin
@@ -41,7 +41,6 @@ const STDIO = process.argv.includes("--stdio")
 const PORT = Number(process.env.PORT || 3300)
 const PUBLIC_URL = (process.env.TV_PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "")
 const VIEW_URI = "ui://terrain-viewer/view.html"
-const IMAGERY_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
 const INSTRUCTIONS = `Terrain Viewer shows the relief of any place on Earth in the browser: hillshade, slope, local relief model, sky-view factor, contours, 3D, and dated satellite imagery.
 
@@ -64,23 +63,21 @@ Modes by subject:
 - a landscape, a mountain, a valley: viewMode 3d (zoom 13 at most)
 - continental scale: viewMode globe
 
-In the conversation the view is an interactive map when it only needs hillshade, 3D and satellite imagery, and a picture of the exact view when it needs the app's computed modes; the link always opens the full app.
+In the conversation the view is the app itself, interactive, with every mode asked for, where the host lets it run, and a picture of the exact view otherwise; the link always opens the full app.
 
 The default terrain, mapterhorn, is global: about 0.25 to 2 m where a national LiDAR survey is open, 30 m elsewhere. At 30 m a building or a small earthwork is a few pixels: say so rather than promise detail. Never invent a dataset id: use the ids datasets_covering returns.`
 
-// The view runs in a sandbox whose CSP blocks scripts from the network, so
-// everything it runs is inlined into the page: the MCP Apps client library
-// (an ES module: its export list is dropped and the App class bound to a
-// plain name) and MapLibre GL JS with its stylesheet (the classic build,
-// which starts its worker from a blob it makes itself).
-// Hosts the app itself reads when it runs inside the view ("App here", a
-// test). The list is every host of the app's built-in lists (the terrain and
+// The view's own script is inlined into the page: the MCP Apps client
+// library (an ES module: its export list is dropped and the App class bound
+// to a plain name). The app itself is loaded by the page from the app's
+// address, which the resource declares.
+// Hosts the app itself reads when it runs inside the view. The list is every host of the app's built-in lists (the terrain and
 // raster libraries, the dated imagery and its catalogs: `origins` in
 // generated/library.json, made by build.mjs) plus the ones below, which the
 // scan cannot see (built at run time, or a wildcard). Still not covered: the
 // files a VRT or a STAC item points to, and an address pasted by the user;
 // those stay blank there and still open in the browser.
-const APP_EXTRA_ORIGINS = ["https://data.geopf.fr", "https://s3-us-west-2.amazonaws.com", "https://wayback.maptiles.arcgis.com", "https://metadata.maptiles.arcgis.com", "https://*.ssl.ak.tiles.virtualearth.net", "https://khmdb.google.com", "https://nominatim.openstreetmap.org", "https://unpkg.com"]
+const APP_EXTRA_ORIGINS = ["https://data.geopf.fr", "https://s3-us-west-2.amazonaws.com", "https://*.maptiles.arcgis.com", "https://*.ssl.ak.tiles.virtualearth.net", "https://khmdb.google.com", "https://nominatim.openstreetmap.org", "https://unpkg.com"]
 
 function buildViewHtml() {
   const require = createRequire(import.meta.url)
@@ -91,10 +88,8 @@ function buildViewHtml() {
   const exportAt = bundle.lastIndexOf("export{")
   if (exportAt < 0) throw new Error("ext-apps bundle: the export list was not found")
   bundle = bundle.slice(0, exportAt) + `;const App = ${local};`
-  const maplibre = readFileSync(require.resolve("maplibre-gl/dist/maplibre-gl.js"), "utf8").replace(/\/\/# sourceMappingURL=.*$/m, "")
-  const css = readFileSync(require.resolve("maplibre-gl/dist/maplibre-gl.css"), "utf8").replace(/<\/style/gi, "<\\/style")
   const html = readFileSync(fileURLToPath(new URL("./view.html", import.meta.url)), "utf8")
-  return html.replace("/*__MAPLIBRE_CSS__*/", () => css).replace("/*__MAPLIBRE__*/", () => safe(maplibre)).replace("/*__APP_BUNDLE__*/", () => safe(bundle))
+  return html.replace("/*__APP_BUNDLE__*/", () => safe(bundle))
 }
 const VIEW_HTML = buildViewHtml()
 
@@ -136,29 +131,6 @@ const fail = (e) => ({ isError: true, content: [{ type: "text", text: String(e?.
 const json = (o) => ({ content: [{ type: "text", text: JSON.stringify(o) }], structuredContent: o })
 const READ_ONLY = { readOnlyHint: true }
 
-/** What the in-chat map needs to draw a view itself, or null when it cannot
- *  (a dataset that is not plain tiles). `exact`: the map shows everything
- *  that was asked for, so no picture is needed. */
-function mapSpec(view) {
-  const dem = resolveDem(view.terrainSource)
-  if (!dem || dem.external) return null
-  const modes = view.modes?.length ? view.modes : ["hillshade"]
-  const viewMode = view.viewMode || "2d"
-  const exact = modes.every((m) => m === "hillshade" || m === "basemap") && !view.terrainSourceB && !view.imageryUrl && !view.imagerySource && !view.imagerySourceB
-    && !(view.split && view.split !== "off") && !Object.keys(view.params ?? {}).length
-  return {
-    dem: { tiles: dem.tiles, encoding: dem.encoding, tileSize: dem.tileSize, maxzoom: dem.maxzoom, attribution: dem.id === "mapterhorn" ? "Mapterhorn" : dem.id === "aws" ? "AWS Terrain Tiles" : dem.id },
-    imagery: IMAGERY_TILES,
-    center: [view.lng, view.lat],
-    zoom: viewMode === "3d" ? Math.min(view.zoom ?? 12, 13) : view.zoom ?? 12,
-    pitch: view.pitch ?? (viewMode === "3d" ? 55 : 0),
-    bearing: view.bearing ?? 0,
-    terrain: viewMode === "3d", globe: viewMode === "globe",
-    basemap: modes.includes("basemap"), hillshade: modes.includes("hillshade") || !modes.includes("basemap"),
-    exact,
-  }
-}
-
 // The app's own entry script and stylesheets, read from the deployed page
 // (their names change with each deploy): what the view loads to run the app
 // itself in the conversation, without a frame. Kept five minutes.
@@ -170,8 +142,14 @@ async function appAssets() {
     const html = await (await fetch(BASE_URL, { signal: AbortSignal.timeout(8000) })).text()
     const abs = (p) => new URL(p, BASE_URL).href
     const js = html.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/)?.[1]
-    const css = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="(\.\/assets\/[^"]+)"/g)].map((m) => abs(m[1]))
-    if (js) value = { js: abs(js), css, base: new URL("./", BASE_URL).href }
+    // Every stylesheet of the page, in its order: the app's own, and the
+    // ones it takes from elsewhere (MapLibre, the geocoder, the fonts).
+    // Without those the map controls and the search box lose their layout.
+    const css = [...html.matchAll(/<link\b[^>]*>/g)].map((m) => m[0]).filter((t) => /rel="stylesheet"/.test(t)).map((t) => t.match(/href="([^"]+)"/)?.[1]).filter(Boolean).map(abs)
+    // Hosts those stylesheets come from, and where Google's stylesheet takes the font files.
+    const origins = [...new Set(css.map((u) => new URL(u).origin).filter((o) => o !== BASE_ORIGIN))]
+    if (origins.includes("https://fonts.googleapis.com")) origins.push("https://fonts.gstatic.com")
+    if (js) value = { js: abs(js), css, base: new URL("./", BASE_URL).href, origins }
   } catch { /* the app display is then not offered */ }
   appAssetsCache = { at: Date.now(), value }
   return value
@@ -181,13 +159,10 @@ async function viewResult(view, what) {
   const url = buildViewUrl(view, { baseUrl: BASE_URL })
   const embedUrl = buildViewUrl(view, { baseUrl: BASE_URL, embed: true })
   const label = `${view.place ?? `${view.lat.toFixed(4)}, ${view.lng.toFixed(4)}`} · ${what}`
-  const map = mapSpec(view)
-  // Said in the view's "Why this display?" line.
-  const noMap = map ? null : `the terrain dataset "${view.terrainSource}" is not served as plain tiles (a COG, a WMS or a VRT is read by the app's own code)`
-  // The page will ask for the picture of a view its map cannot draw: start
-  // rendering now, at the size it asks for, so it is ready or nearly so.
-  if (!map?.exact) screenshot(view, { baseUrl: BASE_URL, width: 1100, height: 780 }).catch(() => { })
-  return { content: [{ type: "text", text: `Terrain Viewer link (${label}): ${url}` }], structuredContent: { url, embedUrl, label, origin: BASE_ORIGIN, view, map, noMap, app: await appAssets() } }
+  // The page shows the picture when the app cannot run there, or when asked:
+  // start rendering now, at the size it asks for, so it is ready or nearly so.
+  screenshot(view, { baseUrl: BASE_URL, width: 1100, height: 780 }).catch(() => { })
+  return { content: [{ type: "text", text: `Terrain Viewer link (${label}): ${url}` }], structuredContent: { url, embedUrl, label, origin: BASE_ORIGIN, view, app: await appAssets() } }
 }
 
 function makeServer() {
@@ -223,11 +198,11 @@ function makeServer() {
   })
 
   registerAppResource(server, "Terrain Viewer", VIEW_URI, { description: "Terrain Viewer, in the conversation" }, async () => {
-    // What the page may reach: the tile hosts its own map reads, and the app
+    // What the page may reach: the tile hosts, and the app
     // itself: framed where the host frames websites, or its code loaded into
     // the page (scripts, styles and data from the app's address).
-    const tileOrigins = [...demOrigins(), new URL(IMAGERY_TILES.replace(/[{}]/g, "")).origin]
-    const declared = [...new Set([BASE_ORIGIN, ...tileOrigins, ...APP_EXTRA_ORIGINS, ...(library().origins ?? [])])]
+    const tileOrigins = [...demOrigins(), "https://server.arcgisonline.com"]
+    const declared = [...new Set([BASE_ORIGIN, ...tileOrigins, ...APP_EXTRA_ORIGINS, ...((await appAssets())?.origins ?? []), ...(library().origins ?? [])])]
     return {
       contents: [{
         uri: VIEW_URI,

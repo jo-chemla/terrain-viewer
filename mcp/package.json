@@ -19,7 +19,6 @@
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
     "geotiff": "^3.0.5",
-    "maplibre-gl": "^5.24.1",
     "playwright-core": "^1.65.1",
     "zod": "^4.6.7"
   },

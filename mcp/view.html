@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Terrain Viewer</title>
 <style>
-/*__MAPLIBRE_CSS__*/
   :root { color-scheme: light dark; font-family: var(--font-sans, system-ui, sans-serif); }
   html, body { margin: 0; padding: 0; background: transparent; }
   #wrap { position: relative; width: 100%; height: 520px; border-radius: 10px; overflow: hidden; background: #e5e7eb; }
   @media (prefers-color-scheme: dark) { #wrap { background: #1f2937; } }
-  iframe, #map { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  /* Every rule below names this page's own elements: the app runs in this
+     page too, and a bare `button` rule here would win over its styles. */
+  #wrap > iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #pic { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
   #note { position: absolute; left: 8px; bottom: 8px; z-index: 3; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: rgba(0,0,0,.6); color: #fff; max-width: calc(100% - 120px); }
   #msg { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; font-size: 13px; padding: 16px; text-align: center; background: inherit; }
@@ -20,17 +21,14 @@
   @media (prefers-reduced-motion: reduce) { #spin { animation-duration: 4s } }
   #bar { display: flex; gap: 6px; align-items: center; padding: 6px 2px 0; font-size: 12px; flex-wrap: wrap; }
   #title { flex: 1; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .8; }
-  button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; color: inherit; padding: 3px 8px; }
-  button[aria-pressed="true"] { background: color-mix(in srgb, currentColor 14%, transparent); }
+  #bar button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; color: inherit; padding: 3px 8px; }
+  #bar button[aria-pressed="true"] { background: color-mix(in srgb, currentColor 14%, transparent); }
 </style>
 </head>
 <body>
 <div id="wrap"><div id="msg">Waiting for a view…</div></div>
-<div id="bar"><span id="title"></span><span id="modes"></span><button id="why" hidden title="Why this display, and what this host allows">?</button><button id="open" hidden>Open in the browser</button></div>
+<div id="bar"><span id="title"></span><span id="modes"></span><button id="open" hidden>Open in the browser</button><button id="why" hidden title="Debug: why this display, and what this host allows">?</button></div>
 <div id="whyText" hidden style="font-size:11px;opacity:.8;padding:4px 2px 0;line-height:1.5"></div>
-<script>
-/*__MAPLIBRE__*/
-</script>
 <script type="module">
 /*__APP_BUNDLE__*/
 const wrap = document.getElementById("wrap")
@@ -42,24 +40,20 @@ const whyBtn = document.getElementById("why")
 const whyText = document.getElementById("whyText")
 whyBtn.addEventListener("click", () => { whyText.hidden = !whyText.hidden })
 let current = null
-let forced = null // the display the person picked: "map" | "picture" | "live" | "app"
-let mapFailed = false
-let map = null
+let forced = null // the display the person picked: "interactive" | "picture"
+let appFailed = "" // why the app could not run in this page, when it could not
 let whyLine = ""
 const appReport = []
 const renderWhy = () => { whyText.textContent = whyLine + (appReport.length ? " · App test: " + appReport.join("; ") : "") }
-const MAP_NOTE = "Interactive relief only. The modes asked for are in the picture and in the browser."
 const pictures = new WeakMap() // tool result -> the picture rendered for it
 
-// Three ways to show a view, in this order of preference:
-//   live     the app itself in a frame. Only where the host says the site
-//            may be framed (Claude: never for a server on the computer).
-//   map      a MapLibre map drawn by this page: pan, zoom, tilt. It draws
-//            hillshade, 3D terrain and satellite imagery; the app's computed
-//            modes (slope, local relief, sky-view factor...) are not in it.
-//   picture  the exact view, rendered by the server in a headless browser.
-// A view that the map can draw exactly opens as a map; one that needs the
-// app's modes opens as a picture, with the map one click away.
+// Two displays:
+//   interactive  the app itself. Framed where the host says the site may be
+//                framed (Claude: not for a custom connector today); otherwise
+//                run by this page, its script and styles loaded from the
+//                app's address, which a host allows for declared sites.
+//   picture      the exact view, rendered by the server in a headless
+//                browser. Also what shows when the app cannot run here.
 function frameAllowed(origin) {
   const list = app.getHostCapabilities()?.sandbox?.csp?.frameDomains
   if (!Array.isArray(list)) return null
@@ -70,7 +64,6 @@ const clear = (keep) => {
   if (keep !== "live") wrap.querySelector("iframe")?.remove()
   if (keep !== "picture") document.getElementById("pic")?.remove()
   const root = document.getElementById("root"); if (root) root.style.display = keep === "app" ? "" : "none"
-  if (keep !== "map" && map) { try { map.remove() } catch { } map = null; document.getElementById("map")?.remove() }
   document.getElementById("note")?.remove()
 }
 const note = (text) => { const n = document.createElement("div"); n.id = "note"; n.textContent = text; wrap.appendChild(n) }
@@ -115,7 +108,7 @@ async function showPicture(data) {
     if (r.isError || !img) throw new Error(r.content?.find((c) => c.type === "text")?.text || "no picture")
     const src = "data:" + img.mimeType + ";base64," + img.data
     pictures.set(data, src)
-    if (current === data && mode(data) === "picture") put(src)
+    if (current === data && mode(data).now === "picture") put(src)
   } catch (e) {
     if (current === data) msg.textContent = "The picture could not be rendered (" + (e && e.message ? String(e.message).slice(0, 120) : "error") + "). Use “Open in the browser”."
   } finally { clearInterval(timer) }
@@ -123,7 +116,8 @@ async function showPicture(data) {
 
 // The app itself, run by this page: its script and styles are loaded from
 // the app's address (no frame, so no permission to frame a site is needed).
-// A test: every step says what the host let through, in the "?" line.
+// Every step says what the host let through, in the "?" line. When the
+// script is refused or no map appears, the picture takes over.
 let appStarted = false
 function showApp(data) {
   clear("app")
@@ -198,70 +192,33 @@ function showApp(data) {
   for (const el of [document.getElementById("bar"), whyText]) el.style.cssText += ";position:relative;z-index:2147483647;background:Canvas;color:CanvasText"
   const root = document.createElement("div"); root.id = "root"; root.style.cssText = "position:absolute;inset:0;z-index:1"
   wrap.appendChild(root)
-  import(a.js).then(() => say("script loaded"), (e) => say("script refused: " + String(e && e.message).slice(0, 140)))
-  setTimeout(() => say((root.querySelector("canvas") ? "after 10 s: a map canvas is there" + (window.__tvIdleSeen ? ", maps idle" : ", maps not idle yet") : "after 10 s: no map canvas") + ", " + workers + " workers started"), 10000)
+  const giveUp = (why) => { if (appFailed) return; appFailed = why; say(why); if (current && forced !== "interactive") show(current) }
+  import(a.js).then(() => say("script loaded"), (e) => giveUp("script refused: " + String(e && e.message).slice(0, 140)))
+  setTimeout(() => {
+    const canvas = root.querySelector("canvas")
+    say((canvas ? "after 12 s: a map canvas is there" + (window.__tvIdleSeen ? ", maps idle" : ", maps not idle yet") : "after 12 s: no map canvas") + ", " + workers + " workers started")
+    if (!canvas) giveUp("the app did not start here")
+  }, 12000)
 }
 
-function showMap(data) {
-  clear("map")
-  const m = data.map
-  if (map && map.__data === data) { msg.hidden = true; if (!m.exact) note(MAP_NOTE); return }
-  if (map) { try { map.remove() } catch { } map = null; document.getElementById("map")?.remove() }
-  const el = document.createElement("div"); el.id = "map"; wrap.appendChild(el)
-  const dem = { type: "raster-dem", tiles: [m.dem.tiles], tileSize: m.dem.tileSize, maxzoom: m.dem.maxzoom, encoding: m.dem.encoding, attribution: m.dem.attribution }
-  const layers = [{ id: "bg", type: "background", paint: { "background-color": "#dfe3e8" } }]
-  if (m.basemap) layers.push({ id: "sat", type: "raster", source: "sat" })
-  if (m.hillshade) layers.push({ id: "hills", type: "hillshade", source: "dem", paint: m.basemap ? { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#000", "hillshade-highlight-color": "#fff" } : { "hillshade-exaggeration": 0.6, "hillshade-shadow-color": "#3a3f47", "hillshade-highlight-color": "#ffffff", "hillshade-accent-color": "#5b616b" } })
-  let loaded = false
-  const giveUp = (why) => {
-    if (loaded || mapFailed) return
-    mapFailed = true
-    console.warn("[terrain-viewer] interactive map unavailable:", why)
-    if (current) show(current)
-  }
+// The address the app keeps up to date in this page (place, modes), as a
+// link to the full app: what "Open in the browser" opens after a move.
+function liveUrl(data) {
+  if (!appStarted || !location.search) return data.url
   try {
-    map = new maplibregl.Map({
-      container: el, center: m.center, zoom: m.zoom, pitch: m.pitch, bearing: m.bearing, maxPitch: 80,
-      // In a conversation the page scrolls: the wheel zooms only with Ctrl held.
-      cooperativeGestures: true, attributionControl: { compact: true },
-      style: { version: 8, sources: { dem, demTerrain: dem, sat: { type: "raster", tiles: [m.imagery], tileSize: 256, maxzoom: 19, attribution: "Esri World Imagery" } }, layers, ...(m.globe ? { projection: { type: "globe" } } : {}) },
-    })
-  } catch (e) { map = null; el.remove(); return giveUp(e && e.message) }
-  map.__data = data
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left")
-  map.on("load", () => {
-    loaded = true
-    if (m.terrain) map.setTerrain({ source: "demTerrain", exaggeration: 1 })
-    msg.hidden = true
-  })
-  // "Open in the browser" opens the place the map was moved to.
-  map.on("moveend", () => {
-    if (current !== data) return
-    const c = map.getCenter()
-    for (const key of ["url", "embedUrl"]) {
-      const u = new URL(data[key])
-      u.searchParams.set("lat", c.lat.toFixed(5)); u.searchParams.set("lng", c.lng.toFixed(5)); u.searchParams.set("zoom", map.getZoom().toFixed(2))
-      if (map.getPitch() || u.searchParams.has("pitch")) u.searchParams.set("pitch", map.getPitch().toFixed(1))
-      if (map.getBearing() || u.searchParams.has("bearing")) u.searchParams.set("bearing", map.getBearing().toFixed(1))
-      data[key] = u.toString()
-    }
-  })
-  // No worker, no WebGL or tiles blocked by the host: the picture takes over.
-  setTimeout(() => giveUp("no load after 12 s"), 12000)
-  if (!m.exact) note(MAP_NOTE)
-  msg.hidden = false
-  msg.innerHTML = '<div><div id="spin"></div>Loading the map…</div>'
+    const full = new URL(data.url), embed = new URL(data.embedUrl), here = new URLSearchParams(location.search)
+    for (const k of [...embed.searchParams.keys()]) if (!full.searchParams.has(k)) here.delete(k)
+    full.search = here.toString()
+    return full.toString()
+  } catch { return data.url }
 }
 
 function mode(data) {
   const allowed = frameAllowed(data.origin)
-  const canMap = !!data.map && !mapFailed && typeof maplibregl !== "undefined"
-  const options = [canMap && "map", data.view && "picture", allowed !== false && "live", data.app && "app"].filter(Boolean)
-  if (forced && options.includes(forced)) return forced
-  if (allowed === true) return "live"
-  if (canMap && data.map.exact) return "map"
-  if (data.view) return "picture"
-  return canMap ? "map" : "none"
+  const interactive = allowed === true ? "live" : data.app && !appFailed ? "app" : null
+  const options = [data.view && "picture", (interactive || (data.app && forced === "interactive")) && "interactive"].filter(Boolean)
+  const pick = forced && options.includes(forced) ? forced : interactive ? "interactive" : data.view ? "picture" : "none"
+  return { allowed, options, now: pick === "interactive" ? (allowed === true ? "live" : "app") : pick }
 }
 
 function show(data) {
@@ -270,18 +227,14 @@ function show(data) {
   current = data
   title.textContent = data.label || ""
   openBtn.hidden = false
-  const allowed = frameAllowed(data.origin)
-  const now = mode(data)
-  const canMap = !!data.map && !mapFailed && typeof maplibregl !== "undefined"
+  const { allowed, options, now } = mode(data)
   const buttons = [
-    canMap && ["map", "Interactive map", "Pan, zoom and tilt the relief here"],
-    data.view && ["picture", "Exact picture", "The view with every mode asked for, as a picture"],
-    allowed !== false && ["live", allowed === true ? "Live app" : "Try the live app", "The app itself, framed here. It stays blank where the host does not allow it."],
-    data.app && ["app", "App here (test)", "The app itself, run by this page instead of framed. A test: press ? to see what the host let through."],
-  ].filter(Boolean)
+    ["picture", "Exact picture", "The view as a picture, rendered by the server"],
+    ["interactive", "Interactive map", "The app itself, here: pan, zoom, tilt, every mode"],
+  ].filter(([id]) => options.includes(id))
   modesBar.replaceChildren(...(buttons.length > 1 ? buttons : []).map(([id, text, tip]) => {
     const b = document.createElement("button")
-    b.textContent = text; b.title = tip; b.setAttribute("aria-pressed", String(id === now)); b.style.marginRight = "4px"
+    b.textContent = text; b.title = tip; b.setAttribute("aria-pressed", String(id === (now === "picture" ? "picture" : "interactive"))); b.style.marginRight = "4px"
     b.addEventListener("click", () => { forced = id; show(data) })
     return b
   }))
@@ -289,16 +242,15 @@ function show(data) {
   const reported = app.getHostCapabilities()?.sandbox?.csp?.frameDomains
   const host = app.getHostVersion?.()
   whyLine = [
-    "Showing: " + (now === "app" ? "the app, run by this page (test)" : now === "live" ? "the live app" : now === "map" ? "the interactive map" : now === "picture" ? "a picture of the exact view" : "nothing"),
-    "Live app: " + (allowed === true ? "this host allows framing " + data.origin : allowed === false ? "this host does not allow framing " + data.origin + " (it reports: " + (reported.length ? reported.join(", ") : "no site") + ")" : "this host does not say which sites it allows"),
-    "Interactive map: " + (data.map ? (mapFailed ? "it did not load here (worker, WebGL or tiles blocked)" : data.map.exact ? "draws this view fully" : "draws the relief only, not the modes asked for") : "not available, " + (data.noMap || "no tile dataset")),
+    "Showing: " + (now === "app" ? "the app, run by this page" : now === "live" ? "the app, framed" : now === "picture" ? "a picture of the exact view" : "nothing"),
+    "Framing: " + (allowed === true ? "this host allows framing " + data.origin : allowed === false ? "this host does not allow framing " + data.origin + " (it reports: " + (reported.length ? reported.join(", ") : "no site") + ")" : "this host does not say which sites it allows"),
+    appFailed ? "The app could not run here (" + appFailed + "): the picture is shown instead" : "",
     host ? "Host: " + host.name + " " + (host.version || "") : "",
   ].filter(Boolean).join(" · ")
   renderWhy()
   whyBtn.hidden = false
   if (now === "app") showApp(data)
   else if (now === "live") showLive(data)
-  else if (now === "map") showMap(data)
   else if (now === "picture") showPicture(data)
   else { clear(); msg.hidden = false; msg.textContent = "This view cannot be shown here. Use “Open in the browser”." }
 }
@@ -309,8 +261,9 @@ app.ontoolresult = (result) => { if (connected) show(result.structuredContent); 
 app.onerror = (e) => { msg.hidden = false; msg.textContent = "Terrain Viewer: " + (e && e.message ? e.message : e) }
 openBtn.addEventListener("click", async () => {
   if (!current) return
-  const r = await app.openLink({ url: current.url }).catch(() => ({ isError: true }))
-  if (r && r.isError) { title.textContent = current.url; title.title = "The host did not open the link: copy it." }
+  const url = liveUrl(current)
+  const r = await app.openLink({ url }).catch(() => ({ isError: true }))
+  if (r && r.isError) { title.textContent = url; title.title = "The host did not open the link: copy it." }
 })
 await app.connect()
 connected = true

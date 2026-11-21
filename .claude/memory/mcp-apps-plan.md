@@ -147,3 +147,21 @@ pictures on a volume at `/data/pictures`, owned by `node`). Jonathan: an
 Iconem server through Portainer, which one not chosen yet. On his laptop
 Docker Desktop can sit frozen (CLI hangs, WSL distro stopped): kill its
 processes and start it again.
+
+## App in the view works in Claude (2026-11-21)
+
+Jonathan saw "App here" run in Claude through the tunnel connector (page
+origin `<hash>.claudemcpcontent.com`, style and script loaded). The view now
+has two displays only: the app (button "Interactive map", default; framed
+where the host allows) and the exact picture (fallback when the script is
+refused or no canvas after 12 s). The page's own MapLibre map is gone, with
+the `maplibre-gl` dependency and `map`/`noMap` in the tool result.
+Two causes of the broken look he reported (geocoder layout, button
+backgrounds, minimap): the view's unlayered `button {}` rule beat the app's
+layered Tailwind utilities, and only `./assets/` stylesheets were loaded,
+not the ones `index.html` takes from unpkg (maplibre-gl, the geocoder) and
+Google Fonts. In `host-test.mjs` with wasm allowed the contour worker still
+fails: the blocked thing is `eval` (script-src), so the earlier "contours
+need WebAssembly" was wrong. The page changes its own address (the app's
+URL state): `liveUrl()` turns it into the link "Open in the browser" opens.
+Claude Desktop's local `terrain-viewer` entry was put back on 2026-11-21.

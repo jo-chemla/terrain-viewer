@@ -52,13 +52,19 @@ added as a custom connector.
 
 ## What shows in the conversation
 
-`view.html` has three displays and picks one, with buttons to switch:
+`view.html` has two displays, with a button for each:
 
 | Display | What it is | When it is the default |
 |---|---|---|
-| Interactive map | MapLibre GL JS drawn by the page itself (inlined, worker from a blob): hillshade, 3D terrain, satellite imagery, on tile datasets | The view needs nothing else (`map.exact` in the tool result) |
-| Exact picture | The `screenshot` tool, called by the page: every mode, a few seconds | The view needs the app's computed modes, dated imagery or a split |
-| Live app | The site in a frame, embed layout | Only where the host says the origin may be framed |
+| Interactive map | The app itself, embed layout. Run by the page (the app's script and stylesheets loaded from its address, which the resource declares), or framed where the host says the origin may be framed | Always, when the app can run |
+| Exact picture | The `screenshot` tool, called by the page: a few seconds | The app's script is refused, or no map canvas after 12 s |
+
+The page's own CSS names only its own elements (`#bar button`, `#wrap >
+iframe`): the app runs in the same document, and an unlayered `button` rule
+beats the app's layered Tailwind utilities. `appAssets()` in `server.mjs`
+reads every stylesheet of the deployed `index.html`, the ones from other
+hosts included (MapLibre, the geocoder, Google Fonts): without them the map
+controls and the search box lose their layout.
 
 Claude frames a website only for some connectors: never for a local server,
 for a custom connector only after the user allows the origin and for a
@@ -75,10 +81,8 @@ the app's address and every https host of the app's built-in lists (terrain
 and raster libraries, built-in terrain and basemaps, dated imagery and its
 catalogs), collected by `build.mjs` into `origins` of
 `generated/library.json`, plus `APP_EXTRA_ORIGINS` in `server.mjs` for the
-ones the scan cannot see. The interactive map only needs the tile hosts; the
-rest is for the app running in the view ("App here"). A dataset that is not plain tiles (COG,
-WMS, VRT, mesh) has no interactive map, and `elevation` and
-`export_geotiff` refuse it with the reason.
+ones the scan cannot see. `elevation` and `export_geotiff` read tile
+datasets only and refuse a COG, WMS, VRT or mesh with the reason.
 
 ## Files
 
@@ -88,7 +92,7 @@ WMS, VRT, mesh) has no interactive map, and `elevation` and
 | `tools.mjs` | Geocoder, library, catalogs, headless screenshot. |
 | `data-tools.mjs` | Elevation and profile (tiles decoded in a headless page), GeoTIFF writer, imagery dates, STAC search. |
 | `server.mjs` | The MCP wiring, the instructions given to the model, the `ui://` resource, `/files/` for exported GeoTIFFs over HTTP. |
-| `view.html` | The page the host renders. The MCP Apps client library and MapLibre are inlined at start, since the sandbox blocks network scripts (about 1.6 MB). |
+| `view.html` | The page the host renders. The MCP Apps client library is inlined at start (about 500 KB). |
 | `app-lib.ts`, `build.mjs` | Bundle the app's own catalog, Wayback, Google Earth and STAC code for Node into `generated/` (not tracked), with `import.meta.env` empty so no key from `.env` can get in. |
 | `test.mjs`, `host-test.mjs` | End-to-end test over stdio; a hand-written host for a visual check. |
 | `Dockerfile`, `Dockerfile.dockerignore`, `docker-compose.yml` | For a public host: the image (Chromium included, software GL), what is sent to its build, and a stack for Portainer. Built and run locally on 2026-11-20, not yet on a server. |
@@ -108,6 +112,6 @@ WMS, VRT, mesh) has no interactive map, and `elevation` and
 - The Docker image (2026-11-20, Docker Desktop): `tools/list`, `elevation`
   and `screenshot` over HTTP; a slope view in 3D in 9 s with SwiftShader;
   the picture written to the volume as user `node`.
-- Not tried: the interactive map inside Claude (its CSP may refuse the blob
-  worker or the tile hosts: the page then falls back to the picture after
-  12 s), claude.ai and ChatGPT as a custom connector, the container on a server.
+- Claude with a custom connector (2026-11-21, Jonathan): the app runs in
+  the view. Not tried: the same with the local stdio server, ChatGPT, the
+  container on a server.
