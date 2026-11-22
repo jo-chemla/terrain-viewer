@@ -24,15 +24,13 @@ export async function browser() {
 
 // One browser context for every render: its HTTP cache keeps the app's
 // bundle and the tiles, so a second picture of the same place is quick.
-// Nothing else carries over, the storage is emptied before each page runs.
+// Nothing else carries over, the storage is emptied before each page runs
+// (withSettledPage).
 let contextPromise
 async function context() {
   if (!contextPromise) {
     contextPromise = (async () => {
-      const ctx = await (await browser()).newContext({ deviceScaleFactor: 1 })
-      // The first-visit walkthrough would cover the map.
-      await ctx.addInitScript(() => { try { localStorage.clear(); localStorage.setItem("hasSeenTour", "true"); localStorage.setItem("betaEnabled", JSON.stringify({ tells: true, georef: false })) } catch { } })
-      return ctx
+      return (await browser()).newContext({ deviceScaleFactor: 1 })
     })().catch((e) => { contextPromise = undefined; throw e })
   }
   return contextPromise
@@ -41,10 +39,21 @@ async function context() {
 /** Opens the app at `url` in a page of the given size, waits until its maps
  *  have drawn everything, hides the interface, then hands the page to `use`.
  *  `bare` hides everything but the map itself (for a tile: no scale, no
- *  credits, no pills). */
-export async function withSettledPage(url, { width, height, waitMs = 0, bare = false }, use) {
+ *  credits, no pills). `keys`: { mapboxKey, maptilerKey, cesiumIonKey }. */
+export async function withSettledPage(url, { width, height, waitMs = 0, bare = false, keys = {} }, use) {
   const ctx = await context()
   const page = await ctx.newPage()
+  // A clean storage: no first-visit walkthrough over the map, the mound
+  // detector's beta switched on, and the API keys of the request, if any
+  // (mapboxKey, maptilerKey, cesiumIonKey: the app's settings, never its URL).
+  await page.addInitScript((keys) => {
+    try {
+      localStorage.clear()
+      localStorage.setItem("hasSeenTour", "true")
+      localStorage.setItem("betaEnabled", JSON.stringify({ tells: true, georef: false }))
+      for (const [k, v] of Object.entries(keys)) if (v) localStorage.setItem(k, JSON.stringify(v))
+    } catch { }
+  }, keys)
   await page.setViewportSize({ width, height })
   // Done when tile and data requests have stopped for a moment. Playwright's
   // "networkidle" never comes here (long-lived requests keep it busy), so
@@ -68,7 +77,14 @@ export async function withSettledPage(url, { width, height, waitMs = 0, bare = f
     // In-flight requests older than 6 s do not hold the picture back.
     while (Date.now() - t0 < maxMs) {
       const idle = Date.now() - lastActivity
-      if (inFlight === 0 && idle >= 400 && await settled()) return true
+      if (inFlight === 0 && idle >= 400 && await settled()) {
+        // Twice, 600 ms apart: a layer that adds its source once the map
+        // is ready (the contours, after their worker is set up) starts
+        // loading only after the first idle.
+        await page.waitForTimeout(600)
+        if (inFlight === 0 && Date.now() - lastActivity >= 400 && await settled()) return true
+        continue
+      }
       if ((inFlight === 0 && idle >= idleMs) || idle >= 6000) return false
       await page.waitForTimeout(100)
     }

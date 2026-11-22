@@ -10,6 +10,7 @@ import { VectorTile } from "@mapbox/vector-tile"
 import { PbfReader } from "pbf"
 import sharp from "sharp"
 import { pixelsOf } from "./browser-shim.mjs"
+import { symbolAnchors } from "./symbols.mjs"
 
 const CUSTOM = /^(?!https?:)[a-z][a-z0-9+.-]*:\/\//i
 
@@ -96,55 +97,68 @@ export async function contourSvg(dem, opts, { world, x0, y0, width, height }) {
         const f = layer.feature(i)
         const lines = f.loadGeometry().map((line) => line.map((p) => [ox + p.x * k, oy + p.y * k]))
         const lvl = f.properties.level === 1 ? 1 : 0
-        paths[lvl].push(lines.map((l) => "M" + l.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join("L")).join(""))
-        if (lvl === 1) majors.push({ ele: f.properties.ele, lines, key: `${zv}/${tx}/${ty}/${i}` })
+        for (const l of lines) paths[lvl].push("M" + l.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join("L"))
+        if (lvl === 1) {
+          const r = 8192 / layer.extent
+          majors.push({ ele: f.properties.ele, tx, ty, i, ox, oy, unit: tilePx / 8192, lines: f.loadGeometry().map((line) => line.map((p) => [Math.round(p.x * r), Math.round(p.y * r)])) })
+        }
       }
     }).catch(() => { }))
   }
   await Promise.all(jobs)
   // MapLibre's line defaults: butt caps, miter joins.
-  let svg = `<g fill="none" stroke="${esc(color)}" stroke-miterlimit="2"><path stroke-width="${0.5 * weight}" d="${paths[0].join("")}"/><path stroke-width="${weight}" d="${paths[1].join("")}"/></g>`
-  if (labels) svg += labelSvg(majors, { theme, unit, width, height })
+  // One path per line: MapLibre draws each line on its own, so where
+  // semi-transparent lines cross or crowd their colours add up. One path
+  // for all of them would be painted once, as their union, and dense
+  // contours would turn into a flat grey.
+  const each = (ds, w) => ds.length ? `<g stroke-width="${w}">${ds.map((d) => `<path d="${d}"/>`).join("")}</g>` : ""
+  let svg = `<g fill="none" stroke="${esc(color)}" stroke-miterlimit="2">${each(paths[0], 0.5 * weight)}${each(paths[1], weight)}</g>`
+  if (labels) svg += labelSvg(majors, { theme, unit, width, height, overscaling: 2 ** Math.max(0, Math.floor(mapZoom + 1e-9) - zv) })
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${svg}</svg>`
 }
 
-/** Line labels, as MapLibre places them roughly: every 250 px along each
- *  line from 125 px, where the 10 px glyphs fit on a stretch that turns
- *  less than 45°, upright, and not over an earlier label. */
-function labelSvg(features, { theme, unit, width, height }) {
-  const SPACING = 250, SIZE = 10, CHAR = 6.1, MAX_TURN = Math.PI / 4
-  const boxes = []
+/** Line labels where MapLibre puts them (symbols.mjs): per vector tile, on
+ *  a 250 px spacing, not where the line turns more than 45°; tiles placed
+ *  bottom row first, then right to left, features in tile order, a label
+ *  dropped where it would touch an earlier one (2 px of padding). Drawn
+ *  straight along the chord of the stretch it covers, kept upright. */
+function labelSvg(features, { theme, unit, width, height, overscaling = 1 }) {
+  const SIZE = 10, CHAR = 6.1, PAD = 2
+  const placed = [] // collision circles: { x, y, r }
   const out = []
-  features.sort((a, b) => (a.key < b.key ? -1 : 1))
-  for (const { ele, lines } of features) {
+  features.sort((a, b) => b.ty - a.ty || b.tx - a.tx || a.i - b.i)
+  for (const { ele, lines, ox, oy, unit: u } of features) {
     const text = `${Number(ele).toLocaleString("en-US")}${unit}`
-    const half = (text.length * CHAR) / 2 + 2
-    for (const line of lines) {
-      const cum = [0]
-      for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]))
-      const total = cum[cum.length - 1]
-      if (total < 2 * half) continue
-      const at = (d) => {
-        let i = 1
-        while (i < cum.length - 1 && cum[i] < d) i++
-        const t = (d - cum[i - 1]) / (cum[i] - cum[i - 1] || 1)
-        return { x: line[i - 1][0] + (line[i][0] - line[i - 1][0]) * t, y: line[i - 1][1] + (line[i][1] - line[i - 1][1]) * t, a: Math.atan2(line[i][1] - line[i - 1][1], line[i][0] - line[i - 1][0]) }
+    const textPx = text.length * CHAR, half = textPx / 2
+    for (const anchor of symbolAnchors(lines, { spacingPx: 250, shapedLength: (textPx * 24) / SIZE, boxSize: SIZE, text: true, overscaling })) {
+      // The points half the label's length before and after the anchor.
+      const line = anchor.line, halfUnits = half / u
+      const walk = (dir) => {
+        let p = [anchor.x, anchor.y], left = halfUnits
+        for (let i = dir > 0 ? anchor.segment + 1 : anchor.segment; dir > 0 ? i < line.length : i >= 0; i += dir) {
+          const q = line[i], d = Math.hypot(q[0] - p[0], q[1] - p[1])
+          if (d >= left) return [p[0] + ((q[0] - p[0]) * left) / d, p[1] + ((q[1] - p[1]) * left) / d]
+          left -= d; p = q
+        }
+        return p
       }
-      for (let d = SPACING / 2; d + half <= total; d += SPACING) {
-        if (d - half < 0) continue
-        const s = at(d - half), m = at(d), e = at(d + half)
-        let turn = Math.abs(((e.a - s.a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI)
-        if (turn > MAX_TURN) continue
-        if (m.x < -half || m.y < -half || m.x > width + half || m.y > height + half) continue
-        const a = Math.atan2(e.y - s.y, e.x - s.x)
-        const r = Math.hypot(half, SIZE / 2 + 1)
-        if (boxes.some((b) => Math.hypot(b.x - m.x, b.y - m.y) < b.r + r)) continue
-        boxes.push({ x: m.x, y: m.y, r })
-        let deg = (a * 180) / Math.PI
-        if (deg > 90) deg -= 180
-        else if (deg < -90) deg += 180
-        out.push(`<text transform="translate(${m.x.toFixed(1)},${m.y.toFixed(1)}) rotate(${deg.toFixed(1)})">${esc(text)}</text>`)
+      const s0 = walk(-1), e0 = walk(1)
+      const m = { x: ox + anchor.x * u, y: oy + anchor.y * u }
+      if (m.x < -half || m.y < -half || m.x > width + half || m.y > height + half) continue
+      const a = Math.atan2(e0[1] - s0[1], e0[0] - s0[0])
+      // Circles along the label, as MapLibre's collision circles for line labels.
+      const r = SIZE / 2 + PAD, n = Math.max(1, Math.ceil(textPx / (2 * r)))
+      const circles = []
+      for (let k = 0; k < n; k++) {
+        const t = n === 1 ? 0 : -half + r + ((textPx - 2 * r) * k) / (n - 1)
+        circles.push({ x: m.x + Math.cos(a) * t, y: m.y + Math.sin(a) * t, r })
       }
+      if (circles.some((c) => placed.some((p) => Math.hypot(p.x - c.x, p.y - c.y) < p.r + c.r))) continue
+      placed.push(...circles)
+      let deg = (a * 180) / Math.PI
+      if (deg > 90) deg -= 180
+      else if (deg < -90) deg += 180
+      out.push(`<text transform="translate(${m.x.toFixed(1)},${m.y.toFixed(1)}) rotate(${deg.toFixed(1)})">${esc(text)}</text>`)
     }
   }
   if (!out.length) return ""

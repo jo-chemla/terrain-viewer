@@ -31,7 +31,17 @@ export const BUILTIN_DEMS = [
   { id: "aws", name: "AWS Terrain - Terrarium Mapzen", tiles: AWS_TILES, encoding: "terrarium", tileSize: 256, maxzoom: 15 },
 ]
 const BUILTIN_IDS = ["mapterhorn", "esri", "mapbox", "maptiler", "aws", "cesium"]
-const NEEDS_KEY = { mapbox: "Mapbox", maptiler: "MapTiler", cesium: "Cesium ion" }
+/** The sources read with an API key: the provider and the parameter that
+ *  carries the key (the app's own setting names). */
+const NEEDS_KEY = { mapbox: ["Mapbox", "mapboxKey"], maptiler: ["MapTiler", "maptilerKey"], cesium: ["Cesium ion", "cesiumIonKey"] }
+/** The API key parameters, by the app's setting names. */
+export const KEY_PARAMS = ["mapboxKey", "maptilerKey", "cesiumIonKey"]
+/** The keys of a request, the operator's (TV_MAPBOX_KEY, TV_MAPTILER_KEY,
+ *  TV_CESIUM_ION_KEY) where it gives none. */
+export function keysOf(given = {}) {
+  const env = { mapboxKey: process.env.TV_MAPBOX_KEY, maptilerKey: process.env.TV_MAPTILER_KEY, cesiumIonKey: process.env.TV_CESIUM_ION_KEY }
+  return Object.fromEntries(KEY_PARAMS.map((k) => [k, given[k] || env[k] || undefined]).filter(([, v]) => v))
+}
 /** The default ceiling of a source with no pyramid of its own (a WMS): the
  *  app's fallback range (zoomRangeFromMetadata in lib/cog-metadata.ts). */
 const DEFAULT_MAXZOOM = 20
@@ -44,14 +54,19 @@ const bareUrl = (u) => (u ?? "").replace(/^(pmtiles|epsg3395):\/\//i, "")
 const schemeOk = (u) => isHttps(u) || /^(gem15|openbuildings|metachm):\/\//i.test(u) || !/^[a-z][a-z0-9+.-]*:/i.test(u)
 const hostOf = (u) => { try { const b = bareUrl(u); return new URL(isHttps(b) ? b : `https://${b}`).hostname } catch { return undefined } }
 
+/** `[provider, parameter]` when the source is read with an API key. */
+export function needsKey(entry) {
+  return NEEDS_KEY[entry?.id] ?? (entry?.type === "quantized-mesh" && /^ion\//.test(entry.url ?? "") ? NEEDS_KEY.cesium : null)
+}
+
 /** Why a source, by its entry, cannot be read here; null when it can. Read
  *  from the entry alone (no request), for listings (/sources). */
-export function whyNotDirect(entry) {
+export function whyNotDirect(entry, keys = keysOf()) {
   if (!entry) return "unknown terrain source: see /sources"
-  if (NEEDS_KEY[entry.id]) return `${NEEDS_KEY[entry.id]} needs an API key, which the tile service does not hold`
+  const need = needsKey(entry)
+  if (need && !keys[need[1]]) return `${need[0]} needs an API key: give yours as ${need[1]}`
   if (entry.type === "stac" || entry.type === "mosaicjson") return "STAC and MosaicJSON sources are read by the app alone"
   if (entry.type === "cog-local") return "a local file exists only in the browser that opened it"
-  if (entry.type === "quantized-mesh" && /^ion\//.test(entry.url ?? "")) return "Cesium ion assets need an API key, which the tile service does not hold"
   if (entry.type !== "dem-diff" && entry.url != null && !schemeOk(bareUrl(entry.url))) return "the source's address is not https"
   return null
 }
@@ -81,7 +96,8 @@ function entryOf(source) {
 export async function resolveDemOrWhy(source, settings = {}) {
   const entry = entryOf(source)
   if (!entry) return { why: `unknown terrain source "${String(source).slice(0, 80)}": see /sources` }
-  const why = whyNotDirect(entry)
+  settings = { ...settings, ...keysOf(settings) }
+  const why = whyNotDirect(entry, settings)
   if (why) return { why }
   if (!entry.builtin && !entry.type) return { why: "a source configuration needs a type" }
   const A = await app()
@@ -165,6 +181,12 @@ function resampleTo(src, w, h, side) {
   return out
 }
 
+// Templates whose server said 401 or 403: a key refused, not a place
+// without data.
+const refused = new Map()
+/** The HTTP status of the source's last refusal (401, 403), if any. */
+export const refusalOf = (dem) => refused.get(dem.tiles)
+
 /** One tile as elevations: `{ side, data: Float32Array }`, side being the
  *  source's tile size, or null when the tile does not exist. */
 export function loadTile(dem, z, x, y) {
@@ -179,6 +201,7 @@ export function loadTile(dem, z, x, y) {
     let data, width, height, holeBelow
     if (/^https?:\/\//.test(url)) {
       const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(20000) })
+      if (res.status === 401 || res.status === 403) refused.set(dem.tiles, res.status)
       if (!res.ok) return null
       const r = await sharp(Buffer.from(await res.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
       data = r.data; width = r.info.width; height = r.info.height; holeBelow = 1

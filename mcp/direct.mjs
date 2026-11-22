@@ -28,8 +28,10 @@ import sharp from "sharp"
 import { VectorTile } from "@mapbox/vector-tile"
 import { PbfReader } from "pbf"
 import { latest as styleSpec, normalizePropertyExpression } from "@maplibre/maplibre-gl-style-spec"
-import { contourSvg } from "./contours.mjs"
-import { resolveDemOrWhy, window as demWindow } from "./dem.mjs"
+import { contourSvg, contourVectorTile, contourMaxzoom } from "./contours.mjs"
+import { readLayers, overzoom, writeTile } from "./mvt.mjs"
+import { symbolAnchors } from "./symbols.mjs"
+import { resolveDemOrWhy, refusalOf, window as demWindow } from "./dem.mjs"
 import { buildViewUrl, DEFAULT_BASE_URL } from "./url.mjs"
 import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
 
@@ -131,14 +133,15 @@ const BROWSER_ONLY = [
 const HILLSHADE_METHODS = ["standard", "combined", "igor", "basic", "multidirectional", "multidir-colors", "duotone-nw-ne", "aspect-multidir"]
 
 /** Which engine draws this view: `{ engine: "direct", dem, layers, state }`
- *  or `{ engine: "browser", why }`. `rest` holds the app parameters given. */
-export async function plan(view, rest) {
+ *  or `{ engine: "browser", why }`. `rest` holds the app parameters given,
+ *  `keys` the API keys (dem.mjs keysOf). */
+export async function plan(view, rest, keys = {}) {
   const no = (why) => ({ engine: "browser", why })
   if (view.imageryUrl || view.imagerySource) return no("imagery is drawn by the app")
   if (view.split || view.terrainSourceB) return no("split views are drawn by the app")
   let source = view.terrainSource
   if (source && source.trim().startsWith("{")) { try { source = JSON.parse(source) } catch { return no("terrainSource is not valid JSON") } }
-  const { dem, why } = await resolveDemOrWhy(source)
+  const { dem, why } = await resolveDemOrWhy(source, keys)
   if (!dem) return no(why)
   const { state, given } = await stateFor(view, rest)
   for (const [test, why] of BROWSER_ONLY) if (test(state)) return no(why)
@@ -360,7 +363,11 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
   const live = (l) => (l === "matcap" && s.matcapRenderer !== "raster") || (l === "phong" && s.phongRenderer !== "raster")
   const needElevation = layers.some((l) => l === "colorRelief" || l === "hillshade" || live(l) || (l === "planeSlicer" && s.planeSlicerReferenceMode !== "lrm"))
   const E = needElevation ? await demWindow(dem, zd, side, gx0, gy0, gw, gh) : null
-  if (E && E.every(Number.isNaN)) throw Object.assign(new Error("This source has no data here"), { status: 404 })
+  if (E && E.every(Number.isNaN)) {
+    const refused = refusalOf(dem)
+    if (refused) throw Object.assign(new Error(`The source refused the request (HTTP ${refused}): check the API key or its allowed origins`), { status: 502 })
+    throw Object.assign(new Error("This source has no data here"), { status: 404 })
+  }
   const clampAt = (G, c = 1) => (i, j, q = 0) => G[(Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))) * c + q]
 
   // Output pixel centres on the source grid, with a margin for the contours.
@@ -592,7 +599,9 @@ async function vectorFeatures(A, template, maxzoom, { world, x0, y0, width, heig
         const list = (layers[name] ??= [])
         for (let i = 0; i < layer.length; i++) {
           const f = layer.feature(i)
-          list.push({ type: f.type, properties: f.properties, rings: f.loadGeometry().map((ring) => ring.map((p) => [ox + p.x * k, oy + p.y * k])) })
+          // MapLibre reads a tile's geometry at an extent of 8192, rounded.
+          const r = 8192 / layer.extent
+          list.push({ type: f.type, properties: f.properties, tile: { ox, oy, unit: tilePx / 8192 }, rings: f.loadGeometry().map((ring) => ring.map((p) => [ox + Math.round(p.x * r) * (tilePx / 8192), oy + Math.round(p.y * r) * (tilePx / 8192)])) })
         }
       }
     })().catch((e) => { if (process.env.TV_DEBUG) console.error("vector tile", url.slice(0, 100), e.message) }))
@@ -604,7 +613,10 @@ async function vectorFeatures(A, template, maxzoom, { world, x0, y0, width, heig
 /** The iso-line (IsolineLayers.tsx): at a value, the isoband:// tiles of the
  *  measure (a fill and its boundary, cliff teeth on a slope); every
  *  interval, the contour engine over the measure's own tiles. */
-async function isolineSvg(A, dem, s, rect, baseUrl) {
+/** The iso-line's sources (IsolineLayers.tsx): the measure's tiles, and at
+ *  a value the isoband:// templates of the band and of the cliff edge;
+ *  null when the measure cannot be computed here. */
+function isolineSetup(A, dem, s, baseUrl) {
   const up = { template: dem.tiles, encoding: dem.encoding, tileSize: dem.tileSize, maxzoom: dem.maxzoom }
   const derived = {
     curvatureMode: s.curvatureMode, lrmRadius: s.lrmRadius, svfRadius: s.svfRadius, svfPrecision: s.svfPrecision,
@@ -620,42 +632,49 @@ async function isolineSvg(A, dem, s, rect, baseUrl) {
   }
   const m = A.isolineMeasure(s.isolineMeasure)
   const md = A.isolineMeasureDem(s.isolineMeasure, up, derived, lighting)
-  if (!md) return ""
+  if (!md) return null
   const scale = m.scale(derived)
   const maxzoom = Math.min(md.maxzoom ?? 19, 19)
+  const smooth = Math.max(0, Math.min(16, Math.round(s.isolineSmooth) || 0))
+  return {
+    maxzoom, value: s.isolineMode === "value",
+    measureDem: { tiles: md.template, encoding: md.encoding, tileSize: md.tileSize, maxzoom },
+    step: Math.max(1e-6, s.isolineInterval * scale),
+    band: A.buildIsobandProtocolUrl(md.template, md.encoding, md.tileSize, s.isolineValue * scale, { smooth }),
+    cliff: s.isolineCliff && s.isolineMeasure === "slope"
+      ? A.buildIsobandProtocolUrl(md.template, md.encoding, md.tileSize, s.isolineValue * scale, { smooth: Math.max(4, smooth), minLength: 40 }) : null,
+  }
+}
+
+async function isolineSvg(A, dem, s, rect, baseUrl) {
+  const iso = isolineSetup(A, dem, s, baseUrl)
+  if (!iso) return ""
+  const { maxzoom } = iso
   const color = s.isolineColor || "#ef4444", weight = s.isolineWeight
   const { width, height } = rect
-  if (s.isolineMode !== "value") {
-    const step = Math.max(1e-6, s.isolineInterval * scale)
-    return contourSvg({ tiles: md.template, encoding: md.encoding, tileSize: md.tileSize, maxzoom }, { minor: step, major: step, weight, color, labels: false, theme: s.theme }, rect)
-  }
-  const smooth = Math.max(0, Math.min(16, Math.round(s.isolineSmooth) || 0))
-  const cliff = s.isolineCliff && s.isolineMeasure === "slope"
-  const band = await vectorFeatures(A, A.buildIsobandProtocolUrl(md.template, md.encoding, md.tileSize, s.isolineValue * scale, { smooth }), maxzoom, rect)
+  if (!iso.value) return contourSvg(iso.measureDem, { minor: iso.step, major: iso.step, weight, color, labels: false, theme: s.theme }, rect)
+  const cliff = !!iso.cliff
+  const band = await vectorFeatures(A, iso.band, maxzoom, rect)
   let body = ""
   if (s.isolineFill) body += `<path fill="${attr(color)}" fill-opacity="${s.isolineFillOpacity}" fill-rule="evenodd" d="${(band.layers.isoband ?? []).map((f) => pathOf(f.rings)).join("")}"/>`
   body += `<path fill="none" stroke="${attr(color)}" stroke-opacity="${cliff ? 0.35 : 0.9}" stroke-width="${weight}" stroke-linejoin="round" stroke-linecap="round" d="${(band.layers.isoline ?? []).map((f) => pathOf(f.rings)).join("")}"/>`
   if (cliff) {
     // The simplified edge, a tooth every 28 px hanging 8 px off it on the
     // steep side (the icon's offset [0, 8], rotated with the line).
-    const edge = await vectorFeatures(A, A.buildIsobandProtocolUrl(md.template, md.encoding, md.tileSize, s.isolineValue * scale, { smooth: Math.max(4, smooth), minLength: 40 }), maxzoom, rect)
+    const edge = await vectorFeatures(A, iso.cliff, maxzoom, rect, 20)
     const lines = (edge.layers.isoline ?? []).flatMap((f) => f.rings)
     body += `<path fill="none" stroke="${attr(color)}" stroke-opacity="0.95" stroke-width="${weight + 0.5}" stroke-linejoin="round" stroke-linecap="round" d="${pathOf(lines)}"/>`
+    // Where MapLibre puts them: per tile, along each line clipped to it,
+    // the 18 px icon on a 28 px spacing (symbolAnchors).
+    const overscaling = 2 ** Math.max(0, Math.floor(edge.mapZoom + 1e-9) - edge.zv)
     const teeth = []
-    for (const line of lines) {
-      let next = 14
-      let walked = 0
-      for (let i = 1; i < line.length; i++) {
-        const [ax, ay] = line[i - 1], [bx, by] = line[i], len = Math.hypot(bx - ax, by - ay)
-        if (!len) continue
-        const a = Math.atan2(by - ay, bx - ax), c = Math.cos(a), sn = Math.sin(a)
-        while (next <= walked + len) {
-          const t = (next - walked) / len, x = ax + (bx - ax) * t, y = ay + (by - ay) * t
-          const pt = ([u, v]) => `${(x + u * c - v * sn).toFixed(2)},${(y + u * sn + v * c).toFixed(2)}`
-          teeth.push(`M${pt([-9, 1])}L${pt([9, 1])}L${pt([0, 15])}Z`)
-          next += 28
-        }
-        walked += len
+    for (const f of edge.layers.isoline ?? []) {
+      const { ox, oy, unit } = f.tile
+      const inTile = f.rings.map((ring) => ring.map(([x, y]) => [Math.round((x - ox) / unit), Math.round((y - oy) / unit)]))
+      for (const { x: ux, y: uy, angle } of symbolAnchors(inTile, { spacingPx: 28, shapedLength: 18, overscaling })) {
+        const x = ox + ux * unit, y = oy + uy * unit, c = Math.cos(angle), sn = Math.sin(angle)
+        const pt = ([u, v]) => `${(x + u * c - v * sn).toFixed(2)},${(y + u * sn + v * c).toFixed(2)}`
+        teeth.push(`M${pt([-9, 1])}L${pt([9, 1])}L${pt([0, 15])}Z`)
       }
     }
     body += `<path fill="${attr(color)}" fill-opacity="0.9" d="${teeth.join("")}"/>`
@@ -687,12 +706,18 @@ const latOfView = ({ world, y0, height }) => (Math.atan(Math.sinh(PI * (1 - (2 *
 /** The mound detector's markers (TellsSource, TellsMarkersLayer): the
  *  tells:// vector tiles on the terrain, a circle per candidate with the
  *  app's radius and colours. */
-async function tellsSvg(A, dem, s, rect) {
-  const options = {
+/** The mound detector's tells:// template (TellsSource), its tiles made up
+ *  to TELLS_MAXZOOM and overzoomed past it. */
+const TELLS_MAXZOOM = 15
+function tellsTemplate(A, dem, s) {
+  return A.buildTellsProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, {
     tellSizeMeters: s.tellSize, radiusPx: s.tellRadius, minReliefMeters: s.tellMinRelief, blobnessMin: s.tellBlobnessMin,
     planMin: s.tellPlanMin, detHessianMin: s.tellDetHessianMin, measureScale: s.tellMeasureScale, vetoResolution: s.tellVetoResolution, polarity: s.tellsPolarity,
-  }
-  const { mapZoom, layers } = await vectorFeatures(A, A.buildTellsProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, options), 15, rect, 60)
+  })
+}
+
+async function tellsSvg(A, dem, s, rect) {
+  const { mapZoom, layers } = await vectorFeatures(A, tellsTemplate(A, dem, s), TELLS_MAXZOOM, rect, 60)
   const colorBy = {
     byBlobness: A.computePropertyRampExpression(s.blobnessColorRamp, s.blobnessMin, s.blobnessMax, s.blobnessInvertColorRamp, "blobness"),
     byPlan: A.computePropertyRampExpression(s.curvatureColorRamp, s.curvatureMin, s.curvatureMax, !s.curvatureInvertColorRamp, "plan"),
@@ -719,10 +744,69 @@ async function tellsSvg(A, dem, s, rect) {
       seen.add(key)
       const g = { zoom: mapZoom }, feat = { properties: f.properties }
       // The stroke lies outside the radius: a 2 px ring from r to r + 2.
-      circles.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${(R.evaluate(g, feat) + 1).toFixed(2)}" fill="${outline ? "none" : cssColor(fill.evaluate(g, feat))}" stroke="${outline ? cssColor(stroke.evaluate(g, feat)) : "#000000"}" stroke-width="2"/>`)
+      circles.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${(R.evaluate(g, feat) + 0.5).toFixed(2)}" fill="${outline ? "none" : cssColor(fill.evaluate(g, feat))}" stroke="${outline ? cssColor(stroke.evaluate(g, feat)) : "#000000"}" stroke-width="2"/>`)
     }
   }
   return svgOf(rect.width, rect.height, circles.join(""))
+}
+
+// ── Vector tiles (/vector) ────────────────────────────────────────────────
+
+/** The modes /vector serves as layers: contours (`contours`: ele, level),
+ *  the iso-line (`isoband` polygons and `isoline` lines at a value, with
+ *  `isoline-cliff` for the cliff edge; `isoline` lines every interval),
+ *  the mound detector (`tells` points with their measures) and the
+ *  graticule (`graticule` lines: kind meridian or parallel, deg). */
+export const VECTOR_MODES = ["contours", "isoline", "moundDetector", "graticules"]
+
+/** One vector tile (MVT bytes) of the modes asked for, at z/x/y of 512 px
+ *  tiles as the map loads them: the same features its layers draw. */
+export async function vectorTile({ dem, state: s }, modes, z, x, y, baseUrl = DEFAULT_BASE_URL) {
+  const A = await app()
+  const out = []
+  // A tile of a source, from its deepest zoom past it.
+  const mvt = async (template, maxzoom) => {
+    const dz = Math.max(0, z - maxzoom)
+    const url = template.replace("{z}", z - dz).replace("{x}", x >> dz).replace("{y}", y >> dz)
+    const r = await A.dispatchAppTile(url, undefined, "arrayBuffer")
+    return overzoom(readLayers(r.data), dz, x, y)
+  }
+  const contours = async (src, minor, major) => {
+    const dz = Math.max(0, z - contourMaxzoom(src))
+    return overzoom(readLayers(await contourVectorTile(src, { minor, major }, z - dz, x >> dz, y >> dz)), dz, x, y)
+  }
+  const named = (layers, names) => layers.filter((l) => names[l.name]).map((l) => ({ ...l, name: names[l.name] }))
+  const jobs = []
+  if (modes.includes("contours")) jobs.push(contourSource(dem, s).then((c) => contours(c.dem, c.minor, c.major)).then((l) => named(l, { contours: "contours" })))
+  if (modes.includes("isoline")) {
+    const iso = isolineSetup(A, dem, s, baseUrl)
+    if (iso && !iso.value) jobs.push(contours(iso.measureDem, iso.step, iso.step).then((l) => named(l, { contours: "isoline" })))
+    if (iso?.value) jobs.push(mvt(iso.band, iso.maxzoom).then((l) => named(l, { isoband: "isoband", isoline: "isoline" })))
+    if (iso?.cliff) jobs.push(mvt(iso.cliff, iso.maxzoom).then((l) => named(l, { isoline: "isoline-cliff" })))
+  }
+  if (modes.includes("moundDetector")) jobs.push(mvt(tellsTemplate(A, dem, s), TELLS_MAXZOOM).then((l) => named(l, { tells: "tells" })))
+  if (modes.includes("graticules")) out.push(graticuleLayer(A, s, z, x, y))
+  for (const layers of await Promise.all(jobs)) out.push(...layers)
+  return writeTile(out)
+}
+
+/** The graticule's lines over one tile, as a layer (extent 4096, 64 units
+ *  of buffer). */
+function graticuleLayer(A, s, z, x, y) {
+  const E = 4096, B = 64, world = E * 2 ** z, x0 = x * E, y0 = y * E
+  const step = s.graticuleDensity || A.niceGraticuleDensity(z)
+  const lngOf = (px) => (px / world) * 360 - 180
+  const latOf = (py) => (Math.atan(Math.sinh(PI * (1 - (2 * py) / world))) * 180) / PI
+  const features = []
+  for (let lng = Math.ceil(lngOf(x0 - B) / step) * step; lng <= lngOf(x0 + E + B); lng += step) {
+    const px = ((lng + 180) / 360) * world - x0
+    features.push({ type: 2, properties: { kind: "meridian", deg: +lng.toFixed(10) }, geometry: [[[px, -B], [px, E + B]]] })
+  }
+  for (let lat = Math.ceil(latOf(y0 + E + B) / step) * step; lat <= latOf(y0 - B); lat += step) {
+    const py = ((1 - Math.asinh(Math.tan((lat * PI) / 180)) / PI) / 2) * world - y0
+    features.push({ type: 2, properties: { kind: "parallel", deg: +lat.toFixed(10) }, geometry: [[[-B, py], [E + B, py]]] })
+  }
+  return { name: "graticule", extent: E, features }
 }
 
 /** A flat, unrotated viewport (MapLibre's zoom, 512 px tiles), with the

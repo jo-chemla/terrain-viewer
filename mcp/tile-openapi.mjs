@@ -15,6 +15,9 @@ const VIEW_PARAMS = [
   q("terrainSource", { type: "string", examples: ["mapterhorn", "custom-nl-ahn-dtm", "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"] }, "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."),
   q("engine", { type: "string", enum: ["auto", "direct", "browser"] }, "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."),
   q("modes", { type: "array", items: { type: "string", enum: MODE_NAMES } }, "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.", { style: "form", explode: false }),
+  q("mapboxKey", { type: "string" }, "Your Mapbox access token, for the `mapbox` source. Read by the server's readers and given to the app as a setting, never put in the app's address; a tile drawn with a key is cached apart from one without."),
+  q("maptilerKey", { type: "string" }, "Your MapTiler key, for the `maptiler` source."),
+  q("cesiumIonKey", { type: "string" }, "Your Cesium ion token, for the `cesium` source and other ion assets."),
   q("imageryUrl", { type: "string" }, "Imagery under the terrain: XYZ tiles (`{z}/{x}/{y}`) or a COG. Shown with the mode `basemap`."),
   q("imagerySource", { type: "string", enum: IMAGERY_SOURCES }, "Dated imagery built into the app, with `imageryDate`."),
   q("imageryDate", { type: "string", format: "date" }, "The date of `imagerySource`, YYYY-MM-DD."),
@@ -124,9 +127,30 @@ export function openapi(server = "http://localhost:3400") {
       "/colorramps/{id}": {
         get: { tags: ["Catalogs"], operationId: "colorramp", summary: "One colour ramp", description: "Its stops, as a MapLibre expression over the value.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, example: "slope-plantopo" }], responses: { 200: { description: "The ramp", content: { "application/json": { schema: { type: "object" } } } }, 404: { description: "No such ramp" } } },
       },
+      "/vector/{z}/{x}/{y}.pbf": {
+        get: {
+          tags: ["Tiles"], operationId: "vector", summary: "The overlays as a vector tile",
+          description: "A Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles. Past a layer's last zoom it comes from its deepest tile, scaled up. The plane slicer is a colour layer and is not served here.",
+          parameters: [
+            { name: "z", in: "path", required: true, schema: { type: "integer" }, example: 11 }, { name: "x", in: "path", required: true, schema: { type: "integer" }, example: 1067 }, { name: "y", in: "path", required: true, schema: { type: "integer" }, example: 728 },
+            q("terrainSource", { type: "string" }, "The elevation source: an id from `/sources`, a tile address or a JSON configuration."),
+            q("modes", { type: "array", items: { type: "string", enum: ["contours", "isoline", "moundDetector", "graticules"] } }, "The layers, comma-separated. Unset: contours."),
+            q("appParams", { type: "object", additionalProperties: { type: "string" } }, "The app's parameters of these layers, as for the raster tiles (contourMinor, isolineValue, tellSize, graticuleDensity, ...)."),
+          ],
+          responses: { 200: { description: "The vector tile", content: { "application/vnd.mapbox-vector-tile": { schema: { type: "string", format: "binary" } } } }, 400: { description: "A mode is not served as vector tiles, or the source cannot be read by the direct engine" } },
+        },
+      },
+      "/vector/tilejson.json": {
+        get: {
+          tags: ["Tiles"], operationId: "vectorTilejson", summary: "TileJSON of the vector tiles",
+          description: "For a MapLibre `vector` source: the `/vector` address with the same query, and the layers of the modes asked for.",
+          parameters: [q("modes", { type: "array", items: { type: "string", enum: ["contours", "isoline", "moundDetector", "graticules"] } }, "The layers, comma-separated.")],
+          responses: { 200: { description: "TileJSON 3.0", content: { "application/json": { schema: { type: "object" } } } } },
+        },
+      },
       "/contours/{z}/{x}/{y}.pbf": {
         get: {
-          tags: ["Tiles"], operationId: "contours", summary: "Contour lines as a vector tile",
+          tags: ["Tiles"], operationId: "contours", summary: "Contour lines as a vector tile (the contours of /vector)",
           description: "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Sources the direct engine reads (see `/sources`).",
           parameters: [
             { name: "z", in: "path", required: true, schema: { type: "integer" }, example: 13 }, { name: "x", in: "path", required: true, schema: { type: "integer" }, example: 4250 }, { name: "y", in: "path", required: true, schema: { type: "integer" }, example: 2928 },

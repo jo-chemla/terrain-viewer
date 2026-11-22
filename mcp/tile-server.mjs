@@ -14,6 +14,9 @@
 //   terrainSource   a library id or a tile/COG URL (default: the app's own)
 //   modes           comma-separated names (slope, contours, svf, ...; see MODES)
 //   imageryUrl, imagerySource, imageryDate
+//   mapboxKey, maptilerKey, cesiumIonKey   your API key for the Mapbox,
+//                   MapTiler and Cesium ion sources (never put in the app's
+//                   address: the browser engine gets them as settings)
 //   anything else   passed to the app as a URL parameter, as is
 // /render also takes viewMode, pitch, bearing, split, terrainSourceB.
 //
@@ -25,8 +28,8 @@
 // read (the app's own parameters set the ramps).
 //
 // Two engines draw. `direct` computes the tile in Node from elevation tiles
-// with the app's own code (direct.mjs): every 2D terrain mode on a Terrarium
-// or Terrain-RGB source, in a fraction of a second. `browser` opens the app
+// with the app's own code (direct.mjs): every 2D terrain mode and overlay
+// on every source it can read (dem.mjs), in a fraction of a second. `browser` opens the app
 // in a headless browser: every source, every mode, 3D and split views.
 // A tile takes the direct engine when it can (the answer's `x-tv-engine`
 // header says which, `x-tv-engine-why` why not); `engine=direct` or
@@ -36,7 +39,9 @@
 //   GET /sources, /sources/{id}        the terrain sources, by id
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id
 //   GET /algorithms                    the modes, and which engine draws them
-//   GET /contours/{z}/{x}/{y}.pbf      contour lines as vector tiles (`ele`, `level`)
+//   GET /vector/{z}/{x}/{y}.pbf        contours, iso-line, mound detector and graticule
+//                                      as vector tiles (modes=...; /vector/tilejson.json)
+//   GET /contours/{z}/{x}/{y}.pbf      the contour lines alone (`ele`, `level`)
 //
 // With the browser, a tile is not rendered alone: the app draws the 2048 px block it belongs
 // to in one page, and the block is cut into tiles, all of them cached. The
@@ -45,7 +50,9 @@
 //
 // Environment: PORT (3400), TV_BASE_URL (the app), TILE_CACHE_DIR, CHROME_PATH,
 // TV_SOFTWARE_GL, TV_RENDER_CONCURRENCY (2), TV_ALLOWED_HOSTS (comma-separated
-// host names accepted in the Host header; unset: any).
+// host names accepted in the Host header; unset: any), TV_MAPBOX_KEY,
+// TV_MAPTILER_KEY, TV_CESIUM_ION_KEY (the operator's keys, used when a
+// request gives none: anyone who can reach the service then uses them).
 import http from "node:http"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -55,9 +62,8 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./tile-openapi.mjs"
-import { plan, draw, drawViewport, flatView, DIRECT_MODES, contourSource } from "./direct.mjs"
-import { contourVectorTile } from "./contours.mjs"
-import { library, BUILTIN_DEMS, whyNotDirect } from "./dem.mjs"
+import { plan, draw, drawViewport, flatView, DIRECT_MODES, VECTOR_MODES, vectorTile } from "./direct.mjs"
+import { library, BUILTIN_DEMS, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
@@ -124,6 +130,15 @@ async function slot(work) {
   try { return await work() } finally { running--; waiting.shift()?.() }
 }
 
+/** The API keys of a request (mapboxKey, maptilerKey, cesiumIonKey), taken
+ *  out of its parameters: they go to the direct engine's readers and to
+ *  the app's settings, never into the app's address. The operator's keys
+ *  (TV_MAPBOX_KEY, ...) where the request gives none. */
+const keysFrom = (take) => keysOf(Object.fromEntries(KEY_PARAMS.map((k) => [k, take(k)])))
+/** A cache key's part for the keys: a picture made with a key is not
+ *  served to a request without it. */
+const keyTag = (keys) => (Object.keys(keys).length ? "|k" + createHash("sha1").update(JSON.stringify(keys)).digest("hex").slice(0, 16) : "")
+
 /** The source for the app: an id or an address as it is; a configuration
  *  `{ url, type }` becomes the app's `terrainUrl` and `terrainType`. */
 function appSource(view, rest) {
@@ -141,7 +156,12 @@ function appSource(view, rest) {
  *  `engine`: direct when the server reads the source itself (dem.mjs, with
  *  the app's readers), else browser, with why. */
 export function sources() {
-  const engine = (entry) => { const why = whyNotDirect(entry); return why ? { engine: "browser", why } : { engine: "direct" } }
+  const engine = (entry) => {
+    const key = needsKey(entry)?.[1]
+    if (key) return { engine: "direct", key, why: `read with your API key, given as ${key}` }
+    const why = whyNotDirect(entry)
+    return why ? { engine: "browser", why } : { engine: "direct" }
+  }
   return [
     ...BUILTIN_DEMS.map((d) => ({ id: d.id, name: d.name, type: d.encoding === "mapbox" ? "terrainrgb" : "terrarium", url: d.tiles, maxzoom: d.maxzoom, engine: "direct" })),
     { id: "esri", name: "Esri World Elevation - LERC", type: "lerc", maxzoom: 16, engine: "direct" },
@@ -156,6 +176,7 @@ const blocks = new Map() // block key -> promise, while it renders
 
 async function tile(z, x, y, ext, query, scale = 1) {
   const { view, rest, take } = viewOf(query)
+  const keys = keysFrom(take)
   const asked = take("tilesize") ?? take("size")
   const size = Number(asked || 256) * scale
   if (size !== 256 && size !== 512) throw Object.assign(new Error("A tile is 256 px, or 512 px with @2x or tilesize=512"), { status: 400 })
@@ -166,7 +187,7 @@ async function tile(z, x, y, ext, query, scale = 1) {
   if (!["auto", "direct", "browser"].includes(engine)) throw Object.assign(new Error("engine is auto, direct or browser"), { status: 400 })
   let why
   if (engine !== "browser") {
-    const how = await plan(view, rest)
+    const how = await plan(view, rest, keys)
     if (how.engine === "direct") {
       const key = `direct|${JSON.stringify([how.dem.tiles, how.layers, how.state])}|${size}|${z}/${x}/${y}`
       const have = await cached(key, ext)
@@ -182,12 +203,12 @@ async function tile(z, x, y, ext, query, scale = 1) {
   const b = blockOf(z, x, y, size)
   const params = Object.fromEntries(rest)
   const url = buildViewUrl({ ...view, lat: b.lat, lng: b.lng, zoom: b.zoom, viewMode: "2d", pitch: 0, bearing: 0, params }, { baseUrl: BASE_URL, embed: true })
-  const tileKey = (col, row) => `${url}|${size}|${b.bx * b.per + col}/${b.by * b.per + row}`
+  const tileKey = (col, row) => `${url}${keyTag(keys)}|${size}|${b.bx * b.per + col}/${b.by * b.per + row}`
   const have = await cached(tileKey(b.col, b.row), ext)
   if (have) return { bytes: have, engine: "browser", why }
-  const blockKey = `${url}|${size}|${ext}`
+  const blockKey = `${url}${keyTag(keys)}|${size}|${ext}`
   if (!blocks.has(blockKey)) {
-    const work = slot(() => withSettledPage(url, { width: b.side, height: b.side, bare: true }, async (page) => {
+    const work = slot(() => withSettledPage(url, { width: b.side, height: b.side, bare: true, keys }, async (page) => {
       const out = new Map()
       for (let row = 0; row < b.per; row++) for (let col = 0; col < b.per; col++) {
         const bytes = await page.screenshot({ ...shot(ext), clip: { x: col * size, y: row * size, width: size, height: size } })
@@ -203,6 +224,7 @@ async function tile(z, x, y, ext, query, scale = 1) {
 
 async function picture(ext, query) {
   const { view, rest, take } = viewOf(query)
+  const keys = keysFrom(take)
   const num = (k, d) => { const v = take(k); if (v === undefined) return d; const n = Number(v); if (!Number.isFinite(n)) throw Object.assign(new Error(`${k} is not a number`), { status: 400 }); return n }
   const width = Math.min(4096, Math.max(64, Math.round(num("width", 1024)))), height = Math.min(4096, Math.max(64, Math.round(num("height", 640))))
   let { lat, lng, zoom } = view
@@ -222,7 +244,7 @@ async function picture(ext, query) {
   if (!["auto", "direct", "browser"].includes(engine)) throw Object.assign(new Error("engine is auto, direct or browser"), { status: 400 })
   let why
   if (engine !== "browser") {
-    const how = flatView(view) ? await plan(view, rest) : { engine: "browser", why: "3D, tilted, rotated or split views are drawn by the app" }
+    const how = flatView(view) ? await plan(view, rest, keys) : { engine: "browser", why: "3D, tilted, rotated or split views are drawn by the app" }
     if (how.engine === "direct") return { bytes: await drawViewport(how, { lat, lng, zoom: zoom ?? 12, width, height, format: ext, baseUrl: BASE_URL }), engine: "direct" }
     if (engine === "direct") throw Object.assign(new Error(`The direct engine cannot draw this: ${how.why}`), { status: 400 })
     why = how.why
@@ -230,10 +252,10 @@ async function picture(ext, query) {
   view.terrainSource = appSource(view, rest)
   const full = { ...view, lat, lng, zoom: zoom ?? 12, params: Object.fromEntries(rest) }
   const url = buildViewUrl(full, { baseUrl: BASE_URL, embed: true })
-  const key = `${url}|${width}x${height}`
+  const key = `${url}${keyTag(keys)}|${width}x${height}`
   const have = await cached(key, ext)
   if (have) return { bytes: have, engine: "browser", why }
-  const bytes = await slot(() => withSettledPage(url, { width, height }, (page) => page.screenshot(shot(ext))))
+  const bytes = await slot(() => withSettledPage(url, { width, height, keys }, (page) => page.screenshot(shot(ext))))
   store(key, ext, bytes)
   return { bytes, engine: "browser", why }
 }
@@ -280,19 +302,32 @@ export function start(port = PORT) {
         algorithms: MODE_NAMES.map((id) => ({ id, engine: DIRECT_MODES.includes(id) ? "direct" : "browser" })),
         note: "A tile is computed directly when every mode asked for is `direct` and the source can be read in the server (see /sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, tilted and split views, imagery and basemaps, building shadows, the sky background and the historical mode go to the browser.",
       }))
-      const c = u.pathname.match(/^\/contours\/(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
-      if (c) {
-        const [z, x, y] = c.slice(1, 4).map(Number)
+      // Vector tiles: /vector/{z}/{x}/{y}.pbf?modes=contours,isoline,moundDetector,graticules
+      // (direct.mjs VECTOR_MODES), /contours/{z}/{x}/{y}.pbf the contours alone.
+      const v = u.pathname.match(/^\/(vector|contours)\/(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
+      if (v) {
+        const [z, x, y] = v.slice(2, 5).map(Number)
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
-        const { view, rest } = viewOf(u.search)
-        const how = await plan({ terrainSource: view.terrainSource, modes: ["contours"] }, rest)
-        if (how.engine !== "direct") return send(400, "text/plain", `Contour tiles cannot be made here: ${how.why}`)
-        // contourReferenceMode=lrm: the lines of the local relief model.
-        const src = await contourSource(how.dem, how.state)
-        const key = `contours|${JSON.stringify([src.dem.tiles, src.minor, src.major])}|${z}/${x}/${y}`
+        const { view, rest, take } = viewOf(u.search)
+        const modes = v[1] === "contours" ? ["contours"] : (view.modes?.length ? view.modes : ["contours"])
+        const wrong = modes.filter((m) => !VECTOR_MODES.includes(m))
+        if (wrong.length) return send(400, "text/plain", `Not served as vector tiles: ${wrong.join(", ")} (vector modes: ${VECTOR_MODES.join(", ")})`)
+        const how = await plan({ terrainSource: view.terrainSource, modes }, rest, keysFrom(take))
+        if (how.engine !== "direct") return send(400, "text/plain", `Vector tiles cannot be made here: ${how.why}`)
+        const key = `vector|${JSON.stringify([how.dem.tiles, modes, how.state])}|${z}/${x}/${y}`
         let bytes = await cached(key, "pbf")
-        if (!bytes) { bytes = await contourVectorTile(src.dem, src, z, x, y); store(key, "pbf", bytes) }
+        if (!bytes) { bytes = await vectorTile(how, modes, z, x, y, BASE_URL); store(key, "pbf", bytes) }
         return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
+      }
+      if (u.pathname === "/vector/tilejson.json") {
+        const q = new URLSearchParams(u.search), qs = q.toString()
+        const modes = (q.get("modes") || "contours").split(",").filter(Boolean)
+        const layers = { contours: ["contours"], isoline: ["isoband", "isoline", "isoline-cliff"], moundDetector: ["tells"], graticules: ["graticule"] }
+        return send(200, "application/json", JSON.stringify({
+          tilejson: "3.0.0", name: "Terrain Viewer vector layers", scheme: "xyz", minzoom: 0, maxzoom: MAX_ZOOM, bounds: [-180, -85.0511, 180, 85.0511],
+          tiles: [`${self}/vector/{z}/{x}/{y}.pbf${qs ? "?" + qs : ""}`],
+          vector_layers: modes.flatMap((m) => (layers[m] ?? []).map((id) => ({ id, fields: {} }))),
+        }))
       }
       const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
       if (t) {

@@ -68,6 +68,12 @@ export interface SourceSettings {
   useCogProtocol?: boolean
   highResTerrain?: boolean
   cesiumDetailOffset?: number
+  /** API keys, by the app's setting names: filled into Mapbox's and
+   *  MapTiler's tile addresses, and Cesium ion's token into the
+   *  quantized-mesh address (the `t` parameter, read in Node only). */
+  mapboxKey?: string
+  maptilerKey?: string
+  cesiumIonKey?: string
 }
 
 /** A resolved source: the spec, plus what the map registers on the side. */
@@ -97,6 +103,8 @@ export async function resolveTerrainTiles(
     useCogProtocol: settings.useCogProtocol ?? true,
     highResTerrain: settings.highResTerrain ?? true,
     cesiumDetailOffset: settings.cesiumDetailOffset ?? 1,
+    mapboxKey: settings.mapboxKey,
+    maptilerKey: settings.maptilerKey,
   }
   if (custom?.type === "cog-local") return null
   const inputs = terrainTileInputs(custom, ctx.useCogProtocol)
@@ -137,5 +145,8 @@ export async function resolveTerrainTiles(
 
   const spec = terrainTileSpec(id, custom, { ...ctx, tilejson, cogZoomRange, vrtInfo, diffOperands })
   if (!spec) return null
+  if (settings.cesiumIonKey && spec.template.startsWith("quantized-mesh://ion/")) {
+    spec.template += `${spec.template.includes("?") ? "&" : "?"}t=${encodeURIComponent(settings.cesiumIonKey)}`
+  }
   return { ...spec, ...terrainTileExtras(custom, { tilejson, vrtInfo }) }
 }

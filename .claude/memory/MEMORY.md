@@ -70,3 +70,4 @@
 - [No-op ease pins the centre on resize](no-op-ease-pins-centre-on-resize.md) — never start an ease that changes nothing at mount: the view lands half the canvas size change away
 - [Land cover, canopy height, GlobalBuildingAtlas survey](land-cover-canopy-gba-survey.md) — 2026-11-21: land cover endpoints added and rejected (Copernicus LC100 COG and LCM-10 added, the `categorical` flag, Dynamic World has no public copy), vector forms, metachm:// (titiler only, bucket has no CORS), GBA heights not streamable and polygons as GeoParquet on Source Cooperative, the Library search matcher
 - [Terrain source schema unification](terrain-source-schema-unification.md) — to do: built-ins and library entries in one schema; GEM-15's pinned-row workaround
+- [MapLibre symbol and circle rendering](maplibre-symbol-and-circle-rendering.md) — line symbols placed per tile (clip, offsets, bend check), circle strokes anti-aliased inward; what the tile service's direct engine reproduces

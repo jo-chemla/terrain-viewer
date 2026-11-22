@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Terrain Viewer MCP server, for a public HTTPS host (claude.ai and ChatGPT
 # reach a connector by URL). Built and run on 2026-11-20 with Docker Desktop
 # (linux/amd64, 1.6 GB): the ten tools answer and a slope view in 3D renders
@@ -38,12 +39,19 @@ RUN cd mcp && pnpm install --frozen-lockfile && node build.mjs
 # 2. What both services run on: Node, a Chromium for the renderer, the
 # shared code.
 FROM node:22-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-liberation ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-liberation fontconfig ca-certificates && rm -rf /var/lib/apt/lists/*
+# Noto Sans, the font of the app's map labels (MapLibre's "Noto Sans
+# Bold" glyphs): the direct engine's contour labels are drawn with it.
+# Pinned to a commit of notofonts.github.io, checked by hash.
+ARG NOTO=https://raw.githubusercontent.com/notofonts/notofonts.github.io/c6f674cf56243b4c0b650134a9020e047eab702e/fonts/NotoSans/hinted/ttf
+ADD --checksum=sha256:1df075a380fc7cb898acf64c1f7b3b4dd780de3caa860178bf929de35817a913 ${NOTO}/NotoSans-Bold.ttf /usr/share/fonts/truetype/noto/NotoSans-Bold.ttf
+ADD --checksum=sha256:478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823 ${NOTO}/NotoSans-Regular.ttf /usr/share/fonts/truetype/noto/NotoSans-Regular.ttf
+RUN chmod 644 /usr/share/fonts/truetype/noto/*.ttf && fc-cache -f
 RUN corepack enable
 WORKDIR /app
 COPY mcp/package.json mcp/pnpm-lock.yaml mcp/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
-COPY mcp/server.mjs mcp/tile-server.mjs mcp/tile-openapi.mjs mcp/render.mjs mcp/direct.mjs mcp/dem.mjs mcp/browser-shim.mjs mcp/contours.mjs mcp/tools.mjs mcp/data-tools.mjs mcp/url.mjs mcp/view.html ./
+COPY mcp/server.mjs mcp/tile-server.mjs mcp/tile-openapi.mjs mcp/render.mjs mcp/direct.mjs mcp/dem.mjs mcp/browser-shim.mjs mcp/contours.mjs mcp/symbols.mjs mcp/mvt.mjs mcp/tools.mjs mcp/data-tools.mjs mcp/url.mjs mcp/view.html ./
 COPY --from=bundle /repo/mcp/generated ./generated
 ENV CHROME_PATH=/usr/bin/chromium TV_SOFTWARE_GL=1
 

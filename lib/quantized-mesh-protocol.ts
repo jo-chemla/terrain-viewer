@@ -234,7 +234,11 @@ export async function quantizedMeshProtocol(
 ): Promise<{ data: TileImage }> {
   const [pathPart, queryPart] = params.url.replace(/^quantized-mesh:\/\//, "").split("?")
   const rest = pathPart
-  const urlDetail = new URLSearchParams(queryPart ?? "").get("d")
+  const query = new URLSearchParams(queryPart ?? "")
+  const urlDetail = query.get("d")
+  // The tile service (mcp/app-sources.ts) gives each request's token in
+  // the address; the app never does, it sets the module's.
+  const ionToken = query.get("t") || ionAccountToken
   const m = rest.match(/^(.*)\/(\d+)\/(-?\d+)\/(-?\d+)$/)
   if (!m) throw new Error(`Invalid quantized-mesh URL: ${params.url}`)
   const [, prefix, zS, xS, yS] = m
@@ -243,8 +247,8 @@ export async function quantizedMeshProtocol(
   const ion = prefix.match(/^ion\/([^/]+)$/)
   let base: string, auth: string | null = null
   if (ion) {
-    if (!ionAccountToken) throw new Error("Cesium ion needs an access token - Settings -> API Keys")
-    const ep = await resolveIon(ion[1], ionAccountToken)
+    if (!ionToken) throw new Error("Cesium ion needs an access token - Settings -> API Keys")
+    const ep = await resolveIon(ion[1], ionToken)
     base = ep.base
     auth = ep.token
   } else {
@@ -271,7 +275,7 @@ export async function quantizedMeshProtocol(
     } catch (e) {
       // ion's per-session token is short-lived; re-resolve once and retry.
       if (e instanceof TokenExpired && ion && !retried) {
-        const ep = await resolveIon(ion[1], ionAccountToken, true)
+        const ep = await resolveIon(ion[1], ionToken, true)
         base = ep.base; auth = ep.token
         return loadOne(level, col, row, true)
       }
