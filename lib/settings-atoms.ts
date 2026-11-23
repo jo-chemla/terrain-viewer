@@ -204,6 +204,10 @@ export const orbitRequestAtom = atom(false)
  *  decoded DEM tiles yet) rather than answer immediately. */
 export const hypsoAutoRangeRequestAtom = atom(0)
 export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://titiler.xyz")
+/** A Terrain Viewer tile service (tile-server/, e.g. http://localhost:3400),
+ *  empty for none. When it answers, the Share dialog offers the view as a
+ *  QGIS project (its /qgis.qgz with the view's parameters). */
+export const tileServerUrlAtom = atomWithStorage("tileServerUrl", "")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.
  *  Read by useClientDemUpstream (MapSources.tsx) so EVERY client-computed viz

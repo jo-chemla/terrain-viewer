@@ -176,6 +176,7 @@
                   "phong",
                   "matcap",
                   "shadows",
+                  "buildingShadows",
                   "basemap",
                   "moundDetector",
                   "isoline",
@@ -527,6 +528,7 @@
                   "phong",
                   "matcap",
                   "shadows",
+                  "buildingShadows",
                   "basemap",
                   "moundDetector",
                   "isoline",
@@ -739,6 +741,7 @@
                 "phong",
                 "matcap",
                 "shadows",
+                "buildingShadows",
                 "basemap",
                 "moundDetector",
                 "isoline",
@@ -914,6 +917,7 @@
                   "phong",
                   "matcap",
                   "shadows",
+                  "buildingShadows",
                   "basemap",
                   "moundDetector",
                   "isoline",
@@ -1138,6 +1142,7 @@
                   "phong",
                   "matcap",
                   "shadows",
+                  "buildingShadows",
                   "basemap",
                   "moundDetector",
                   "isoline",
@@ -1496,8 +1501,8 @@
           "Tiles"
         ],
         "operationId": "qgis",
-        "summary": "A QGIS project of the service",
-        "description": "Every mode an XYZ layer (transparent tiles, `background=none`), grouped as the app's panel, unchecked, over a Google hybrid basemap; the vector tiles in a group of their own. The query (terrainSource, the app's parameters) is kept in every layer's address.",
+        "summary": "A QGIS project of a view",
+        "description": "Every layer of the app as an XYZ layer (transparent tiles, `background=none`), stacked as the map stacks them and grouped as its panel where that order allows: the overlays on top (contours, plane slicer, mound candidates, graticule, iso-line, each also as vector tiles), the lighting effects, the hillshade, relief visualization, terrain analysis, the colour relief, then the basemap (as the app draws it, with its overlays; a plain XYZ basemap as such too; Google hybrid). The layers the view switches on start checked, and every layer's address carries the view's settings. The query is the view, in the service's names (terrainSource, modes, imageryUrl...) or the app's own: the query of a share link works as is (terrainSourceA, show* switches, ramps, basemapSource, overlayBasemapIds...). lat, lng and zoom set the project's extent. Without a query: every layer unchecked but the Google hybrid basemap.",
         "parameters": [
           {
             "name": "terrainSource",
@@ -1506,7 +1511,28 @@
             "schema": {
               "type": "string"
             },
-            "description": "The elevation source of every layer."
+            "description": "The elevation source of every layer (or terrainSourceA, the app's name)."
+          },
+          {
+            "name": "modes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The layers to check, comma-separated; or the app's show* parameters."
+          },
+          {
+            "name": "appParams",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": "Any of the app's URL parameters, kept in every layer's address."
           }
         ],
         "responses": {

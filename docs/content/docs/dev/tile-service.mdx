@@ -67,6 +67,7 @@ The tile address with `.pbf` (or `.mvt`), `/tiles/{z}/{x}/{y}.pbf`, answers the 
 | `contours` | `contours` | Lines, `ele` (metres) and `level` (1 for a major line), the app's own contour tiles; on the local relief model with `contourReferenceMode=lrm` |
 | `isoline` | `isoband`, `isoline`, `isoline-cliff` | At a value: the band above it as polygons, its edge as lines, and on slope the simplified cliff edge the teeth hang from. Every interval: `isoline` lines with `ele` |
 | `moundDetector` | `tells` | A point per candidate with its measures (`a`, `blobness`, `plan`, `detHessian`, `pit`, `scaleM`, ...) |
+| `planeSlicer` | `plane-slicer` | The area at or above `planeSlicerValue` (or `planeSlicerValueLrm` on the local relief model) as polygons, with `value` and `side`: the map floods the side `planeSlicerSide` names (below by default) |
 | `graticules` | `graticule` | Meridians and parallels at the app's spacing for the zoom, `kind` and `deg` |
 
 Every mode, raster or vector:
@@ -88,7 +89,23 @@ map.addLayer({ id: "mounds", type: "circle", source: "tv-overlays", "source-laye
 
 ## A QGIS project
 
-`/qgis.qgz` is a QGIS project of the service: every mode an XYZ layer, grouped as the app's panel groups them (Contours + GeoGrid, Mound Detector, Plane Slicer, Lighting Effects, Terrain Analysis with Surface derivatives, Neighborhood statistics and Principal Components, Relief Visualization, Visualization Modes, and the vector tiles), every mode unchecked, over a Google hybrid basemap. Its raster layers ask for `background=none`, so the ones you check stack as in the map. The query is kept in every layer's address: `/qgis.qgz?terrainSource=custom-nl-ahn-dtm&slopeColorRamp=…`. `node tile-server/qgis-project.mjs http://localhost:3400 out.qgz` writes one without the service. Checked in QGIS 4.2.
+`/qgis.qgz?<a view>` is a QGIS project of that view. Every layer of the app is an XYZ layer, stacked as the map stacks them, top of the tree drawn on top, and grouped as the app's panel where that order allows:
+
+| Tree, top to bottom | Layers |
+|---|---|
+| Overlays | Contours, Plane slicer, Mound candidates, Graticule, Iso-line, each as the app draws it and, unchecked under it, as vector tiles |
+| Lighting Effects | Building shadows, Terrain shadows, Phong, Matcap |
+| Hillshade | |
+| Relief Visualization | Local Dominance, Openness, Sky View Factor, Local Relief Model |
+| Terrain Analysis | Principal Components, Neighborhood statistics, Surface derivatives |
+| Elevation Hypso | |
+| Basemap | The view's basemap and overlays as the app draws them (browser engine), the basemap itself when it is a plain XYZ address, Google hybrid |
+
+The layers the view switches on start checked; every layer's address carries the view's settings (terrain source, ramps, opacities, radii) and asks for its own mode only, so checking another one later draws it as the view would have. Raster layers ask for `background=none`, so checked layers stack as in the map. `lat`, `lng` and `zoom` set the project's extent.
+
+The view is a query in the service's names (`terrainSource`, `modes`, `imageryUrl`) or in the app's own: the query of a share link works as is (`terrainSourceA`, the `show*` switches, `basemapSourceA`, `overlayBasemapIds`, and a source given by URL with `terrainType`). That is what the app's **Share** dialog does when a tile service is set in **Settings > Tile Service**: **Export QGIS project** downloads `<service>/qgis.qgz?<the link's query>`. Without a query the project has every layer unchecked but Google hybrid. `node tile-server/qgis-project.mjs http://localhost:3400 out.qgz` writes that one without the service. Checked in QGIS 4.2.
+
+A layer's settings are in its address: QGIS edits an XYZ address in the layer's source settings, and has no controls bound to its parameters. Its vector tile layers take QGIS's default style.
 
 ## Raster tiles in a map
 
@@ -154,7 +171,7 @@ Mapbox, MapTiler and Cesium ion are read with your API key (`mapboxKey`, `maptil
 
 ### What goes to the browser
 
-3D, tilted, rotated and split views (the camera is the app's); imagery and basemaps; building shadows (OpenStreetMap buildings); the sky and fog background; the historical mode; a source the server does not read (see [Sources](#sources)). The answer's `x-tv-engine-why` header names the reason.
+3D, tilted, rotated and split views (the camera is the app's); imagery and basemaps; the sky and fog background; the historical mode; a source the server does not read (see [Sources](#sources)). The answer's `x-tv-engine-why` header names the reason.
 
 ### Compared with the app
 

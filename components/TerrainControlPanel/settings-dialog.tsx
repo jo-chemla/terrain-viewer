@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom, tileServerUrlAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, nativeTerrainDrapeAtom, geHiDpiTilesAtom,
   customThemesAtom,
@@ -424,6 +424,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [cesiumDetailOffset, setCesiumDetailOffset] = useAtom(cesiumDetailOffsetAtom)
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
+  const [tileServerUrl, setTileServerUrl] = useAtom(tileServerUrlAtom)
   const [apiKeysViewMode, setApiKeysViewMode] = useState<"individual" | "batch">("individual")
   const [batchApiKeys, setBatchApiKeys] = useState("")
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
@@ -915,6 +916,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             <div className="flex gap-2">
               <Label className="flex-1 min-w-0" htmlFor="titiler-endpoint">Titiler Endpoint</Label>
               <Input className="flex-2 min-w-0 cursor-text" id="titiler-endpoint" type="text" placeholder="https://titiler.xyz" value={titilerEndpoint} onChange={(e) => setTitilerEndpoint(e.target.value)} />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <div className="flex gap-2">
+                <Label className="flex-1 min-w-0" htmlFor="tile-server-url">Tile Service</Label>
+                <Input className="flex-2 min-w-0 cursor-text" id="tile-server-url" type="text" placeholder="http://localhost:3400" value={tileServerUrl} onChange={(e) => setTileServerUrl(e.target.value.trim())} />
+              </div>
+              <span className="text-xs text-muted-foreground break-words">
+                A Terrain Viewer tile service (see the docs, Tile service). When it answers, Share offers the view as a QGIS project whose layers it serves.
+              </span>
             </div>
 
             <div className="space-y-2 pt-1">

@@ -1,9 +1,9 @@
 import type React from "react"
 import { useState, useCallback, useRef, useMemo, useEffect } from "react"
-import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight, Code, Globe, Info } from "lucide-react"
+import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight, Code, Globe, Info, Layers } from "lucide-react"
 import { track } from "@/lib/analytics"
 import { useAtom, useAtomValue } from "jotai"
-import { customTerrainSourcesAtom, customBasemapSourcesAtom } from "@/lib/settings-atoms"
+import { customTerrainSourcesAtom, customBasemapSourcesAtom, tileServerUrlAtom } from "@/lib/settings-atoms"
 import { makePortableShareUrl, type PortableResult } from "@/lib/portable-share-url"
 // Same import-cycle shape as product-tour.tsx's — established/working here.
 import { sectionOpenAtom, DEFAULT_OPEN_STATE } from "./TerrainControlPanel"
@@ -422,6 +422,50 @@ const ShortenToggle: React.FC<{
 
 // ── ShortUrlDisplay ───────────────────────────────────────────────────────────
 
+// ── QgisProjectButton ─────────────────────────────────────────────────────────
+
+/** The view as a QGIS project, from the tile service set in Settings: its
+ *  /qgis.qgz with the share link's own query (the service reads the app's
+ *  parameters as they are), every layer of the app loaded and grouped, the
+ *  view's ones checked. Shown once the service's /health answers. */
+const QgisProjectButton: React.FC<{ pageUrl: string; open: boolean }> = ({ pageUrl, open }) => {
+  const tileServerUrl = useAtomValue(tileServerUrlAtom)
+  const base = tileServerUrl.trim().replace(/\/+$/, "")
+  const [status, setStatus] = useState<"idle" | "ok" | "down">("idle")
+  useEffect(() => {
+    if (!open || !base) { setStatus("idle"); return }
+    let cancelled = false
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 5000)
+    fetch(`${base}/health`, { signal: controller.signal })
+      .then((r) => { if (!cancelled) setStatus(r.ok ? "ok" : "down") })
+      .catch(() => { if (!cancelled) setStatus("down") })
+      .finally(() => clearTimeout(timer))
+    return () => { cancelled = true; clearTimeout(timer); controller.abort() }
+  }, [open, base])
+  if (!base || status === "idle") return null
+  if (status === "down") {
+    return <p className="text-[10px] text-muted-foreground px-1 break-words">The tile service at {base} does not answer: no QGIS project.</p>
+  }
+  let query = ""
+  try { query = new URL(pageUrl).search } catch { /* not a URL */ }
+  return (
+    <a
+      href={`${base}/qgis.qgz${query}`}
+      download="terrain-viewer.qgz"
+      onClick={() => track("actions-share", { kind: "qgis" })}
+      className="
+        flex items-center justify-center gap-2 w-full min-w-0 rounded-md px-3 py-2
+        border border-border bg-background hover:bg-muted/40
+        text-xs font-medium transition-colors duration-150 cursor-pointer no-underline
+      "
+    >
+      <Layers className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">Export QGIS project</span>
+    </a>
+  )
+}
+
 const ShortUrlDisplay: React.FC<{ shortUrl: string }> = ({ shortUrl }) => {
   const [copied, setCopied] = useState(false)
 
@@ -805,6 +849,7 @@ const ShareModal: React.FC<{
 
           <CopyUrlButton pageUrl={activeUrl} />
           <CopyUrlWithPanelsButton pageUrl={activeUrl} />
+          <QgisProjectButton pageUrl={pageUrl} open={open} />
         </div>
 
         <IframeSnippet pageUrl={activeUrl} />

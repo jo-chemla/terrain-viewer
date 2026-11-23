@@ -77,6 +77,25 @@ import { plan } from "./direct.mjs"
   assert.equal(readFileSync(DOCS_COPY, "utf8").replaceAll(String.fromCharCode(13), ""), docsCopyText(), "docs/public/tile-service-openapi.json is stale: run `node openapi.mjs` in tile-server/")
 }
 
+// Building shadows are drawn here now; the QGIS project of a share link.
+{
+  assert.equal((await plan({ modes: ["buildingShadows"] }, new URLSearchParams())).engine, "direct")
+  const { activeLayers } = await import("./direct.mjs")
+  const { readView, qgisProjectXml } = await import("./qgis-project.mjs")
+  const { view, rest } = viewOf("?terrainSourceA=custom-nl-ahn-dtm&showTerrainAnalysis=true&slopeOpacity=0.4&showContoursAndGraticules=true&showTellsDetector=true&showRasterBasemap=true&basemapSourceA=google&lat=52.2&lng=5.85&zoom=14")
+  const read = await readView(view, rest, activeLayers)
+  assert.deepEqual([...read.active].sort(), ["contours", "hillshade", "moundDetector", "slope"])
+  assert.ok(read.showBasemap && !read.generic && read.basemap.get("basemapSourceA") === "google")
+  assert.equal(read.keep.toString(), "terrainSource=custom-nl-ahn-dtm&slopeOpacity=0.4")
+  const xml = qgisProjectXml("http://t", read)
+  const checked = [...xml.matchAll(/<layer-tree-layer id="[^"]+" name="([^"]+)"[^>]*checked="Qt::Checked"/g)].map((m) => m[1])
+  assert.deepEqual(checked, ["Contours", "Mound candidates", "Hillshade", "Slope", "Basemap and overlays (as in the view)"])
+  assert.ok(xml.indexOf('name="Contours"') < xml.indexOf('name="Hillshade"') && xml.indexOf('name="Hillshade"') < xml.indexOf('name="Elevation Hypso"'), "the map's order")
+  assert.ok(!/showSlope|showTerrainAnalysis/.test(xml), "a layer asks for its own mode only")
+  const generic = qgisProjectXml("http://t", await readView({}, new URLSearchParams(), activeLayers))
+  assert.deepEqual([...generic.matchAll(/<layer-tree-layer id="[^"]+" name="([^"]+)"[^>]*checked="Qt::Checked"/g)].map((m) => m[1]), ["Google Hybrid"])
+}
+
 console.log("ok")
 // The bundled app code (colour ramps) keeps a handle open.
 process.exit(0)

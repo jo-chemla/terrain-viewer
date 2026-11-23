@@ -42,8 +42,9 @@
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id
 //   GET /algorithms                    the modes, and which engine draws them
 //   GET /tilejson.json                 a TileJSON; tile_format=pbf for the vector tiles
-//   GET /qgis.qgz                      a QGIS project: every mode a layer, grouped as the
-//                                      app's panel, over a Google hybrid basemap
+//   GET /qgis.qgz                      a QGIS project of the view: every layer, stacked and
+//                                      grouped as the map, the view's ones checked, its
+//                                      basemap under them (the app's share query works too)
 //
 // With the browser, a tile is not rendered alone: the app draws the 2048 px block it belongs
 // to in one page, and the block is cut into tiles, all of them cached. The
@@ -56,7 +57,7 @@
 // TV_MAPTILER_KEY, TV_CESIUM_ION_KEY (the operator's keys, used when a
 // request gives none: anyone who can reach the service then uses them).
 import http from "node:http"
-import { qgisProject } from "./qgis-project.mjs"
+import { qgisProject, readView } from "./qgis-project.mjs"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -65,7 +66,7 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./openapi.mjs"
-import { plan, draw, drawViewport, flatView, DIRECT_MODES, VECTOR_MODES, vectorTile } from "./direct.mjs"
+import { plan, draw, drawViewport, flatView, DIRECT_MODES, VECTOR_MODES, vectorTile, activeLayers } from "./direct.mjs"
 import { library, BUILTIN_DEMS, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
@@ -82,6 +83,13 @@ export function viewOf(query) {
   const q = new URLSearchParams(query)
   const alias = (from, to) => { const v = q.get(from); q.delete(from); if (v !== null && !q.has(to)) q.set(to, v) }
   alias("url", "terrainSource"); alias("algorithm", "modes")
+  // The app's own names, so the query of a share link can be given as is
+  // (the QGIS project of a view, from the app's Share dialog): view A's
+  // terrain source, and a source given by URL with its type (a portable
+  // link's ?terrainType=) as a configuration.
+  alias("terrainSourceA", "terrainSource"); alias("sourceA", "terrainSource")
+  const type = q.get("terrainType"), src = q.get("terrainSource")
+  if (type && src && /^https?:\/\//i.test(src)) { q.set("terrainSource", JSON.stringify({ url: src, type })); q.delete("terrainType") }
   return queryToView(q)
 }
 
@@ -284,7 +292,10 @@ export function start(port = PORT) {
         modes: MODE_NAMES, app: BASE_URL,
       }, null, 2))
       const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
-      if (u.pathname === "/qgis.qgz") return send(200, "application/zip", qgisProject(self, new URLSearchParams(u.search)), { "content-disposition": 'attachment; filename="terrain-viewer.qgz"' })
+      if (u.pathname === "/qgis.qgz") {
+        const { view, rest } = viewOf(u.search)
+        return send(200, "application/zip", qgisProject(self, await readView(view, rest, activeLayers)), { "content-disposition": 'attachment; filename="terrain-viewer.qgz"' })
+      }
       if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self), null, 2))
       if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
       if (u.pathname === "/sources") return send(200, "application/json", JSON.stringify({ sources: sources(), note: SOURCES_NOTE }))
@@ -305,7 +316,7 @@ export function start(port = PORT) {
       }
       if (u.pathname === "/algorithms") return send(200, "application/json", JSON.stringify({
         algorithms: MODE_NAMES.map((id) => ({ id, engine: DIRECT_MODES.includes(id) ? "direct" : "browser" })),
-        note: "A tile is computed directly when every mode asked for is `direct` and the source can be read in the server (see /sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, tilted and split views, imagery and basemaps, building shadows, the sky background and the historical mode go to the browser.",
+        note: "A tile is computed directly when every mode asked for is `direct` and the source can be read in the server (see /sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, tilted and split views, imagery and basemaps, the sky background and the historical mode go to the browser.",
       }))
       // Vector tiles: the same address, .pbf or .mvt, with modes among
       // direct.mjs VECTOR_MODES (unset: contours).

@@ -111,7 +111,7 @@ function layersOf(s) {
   if (s.showColorRelief) out.push("colorRelief")
   for (const [m, flag, group] of DERIVED) if (s[GROUP[group]] && s[flag]) out.push(m)
   if (s.showHillshade) out.push("hillshade")
-  if (s.showLightingEffects) { if (s.showMatcap) out.push("matcap"); if (s.showPhong) out.push("phong"); if (s.showShadows) out.push("shadows") }
+  if (s.showLightingEffects) { if (s.showMatcap) out.push("matcap"); if (s.showPhong) out.push("phong"); if (s.showShadows) out.push("shadows"); if (s.showBuildingShadows) out.push("buildingShadows") }
   // Above the lighting, in the map's order: the iso-line and the graticule
   // (before slot-contours), the mound markers (slot-tells), the plane
   // slicer (slot-plane-slicer), then the contours, added last on top.
@@ -126,7 +126,6 @@ function layersOf(s) {
 /** What the direct engine does not draw: a state flag and why. */
 const BROWSER_ONLY = [
   [(s) => s.showRasterBasemap, "imagery and basemaps are drawn by the app"],
-  [(s) => s.showLightingEffects && s.showBuildingShadows, "building shadows are drawn by the app"],
   [(s) => s.showBackground, "the sky and fog background is drawn by the app"],
   [(s) => s.appMode === "historical", "the historical mode is drawn by the app"],
   [(s) => (s.viewMode && s.viewMode !== "2d") || s.pitch || s.bearing, "3D, tilted or rotated views are drawn by the app"],
@@ -153,8 +152,17 @@ export async function plan(view, rest, keys = {}) {
   return { engine: "direct", dem, layers, state }
 }
 
+/** The layers a view turns on, by the names of url.mjs (the mound detector
+ *  as moundDetector), bottom to top, with the state they read: what the
+ *  app's URL parameters (or `modes`) switch on, over the app's defaults.
+ *  For the QGIS project: which of its layers start checked. */
+export async function activeLayers(view, rest) {
+  const { state } = await stateFor(view, rest)
+  return { layers: layersOf(state).map((l) => (l === "tells" ? "moundDetector" : l)), state }
+}
+
 /** The modes the direct engine draws, by the names of url.mjs. */
-export const DIRECT_MODES = ["hillshade", "colorRelief", "contours", "slope", "aspect", "tri", "curvature", "tpi", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "svf", "openness", "localDominance", "matcap", "phong", "shadows", "moundDetector", "isoline", "graticules", "planeSlicer"]
+export const DIRECT_MODES = ["hillshade", "colorRelief", "contours", "slope", "aspect", "tri", "curvature", "tpi", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "svf", "openness", "localDominance", "matcap", "phong", "shadows", "buildingShadows", "moundDetector", "isoline", "graticules", "planeSlicer"]
 
 /** The elevation and intervals of the contour lines: the terrain, or with
  *  contourReferenceMode=lrm its local relief model (ContoursLayer.tsx). */
@@ -441,6 +449,8 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
       await overSvg(img, width, height, await isolineSvg(A, dem, s, rect, baseUrl))
     } else if (layer === "graticules") {
       await overSvg(img, width, height, graticuleSvg(A, s, rect))
+    } else if (layer === "buildingShadows") {
+      await overSvg(img, width, height, await buildingShadowSvg(A, s, rect))
     } else if (layer === "tells") {
       await overSvg(img, width, height, await tellsSvg(A, dem, s, rect))
     } else if (layer === "planeSlicer") {
@@ -685,6 +695,65 @@ async function isolineSvg(A, dem, s, rect, baseUrl) {
   return svgOf(width, height, body)
 }
 
+/** The building shadows (BuildingShadowLayer.tsx), the same flat-ground
+ *  sweep as the map's GPU layer: OpenFreeMap's z14 building footprints
+ *  (lib/building-tiles.ts), each wall swept away from the sun by
+ *  min(render_height, 600 m) / tan(altitude), the roof outline at the tip,
+ *  the union of the sweeps in black at the layer's opacity (overlaps never
+ *  darken twice), the footprints cut back out (roofs stay lit). Nothing
+ *  below map zoom 13, as in the map. */
+const BUILDING_OWNER = {}
+async function buildingShadowSvg(A, s, { world, x0, y0, width, height }) {
+  if (Math.log2(world / 512) < 12.5) return ""
+  const Z = A.BUILDING_TILE_ZOOM, n = 2 ** Z, C = 40075016.686
+  const alt = Math.max(1, Number(s.illuminationAlt ?? 45)), az = Number(s.illuminationDir ?? 315)
+  const kTan = 1 / Math.tan((alt * PI) / 180), away = ((az + 180) * PI) / 180
+  // Away from the sun, per unit of sweep (Web Mercator, y down).
+  const dir = [Math.sin(away) * kTan, -Math.cos(away) * kTan]
+  const latC = Math.atan(Math.sinh(PI * (1 - (2 * (y0 + height / 2)) / world)))
+  // The z14 tiles whose buildings can shade the rectangle: widened by the
+  // longest shadow at this sun height (3 km at most, as the map).
+  const reach = Math.min(3000, 600 * kTan) / (C * Math.cos(latC))
+  const clamp = (v) => Math.min(n - 1, Math.max(0, v))
+  const tx0 = clamp(Math.floor((x0 / world - reach) * n)), tx1 = clamp(Math.floor(((x0 + width) / world + reach) * n))
+  const ty0 = clamp(Math.floor((y0 / world - reach) * n)), ty1 = clamp(Math.floor(((y0 + height) / world + reach) * n))
+  if ((tx1 - tx0 + 1) * (ty1 - ty0 + 1) > 64) return ""
+  const jobs = []
+  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) jobs.push(A.requestBuildingTile(tx, ty, BUILDING_OWNER))
+  const tiles = (await Promise.all(jobs)).filter(Boolean)
+  // The tiles' clip lines (a z14 tile edge plus its buffer) are not walls.
+  const onCut = (v) => { const u = v * n, d = Math.abs(u - Math.round(u)); return d < 1e-3 || Math.abs(d - A.BUILDING_TILE_BUFFER) < 1e-3 }
+  const isClipEdge = (ax, ay, bx, by) => (ax === bx && onCut(ax)) || (ay === by && onCut(ay))
+  const px = (x, y, sw = 0) => [(x + sw * dir[0]) * world - x0, (y + sw * dir[1]) * world - y0]
+  const pt = ([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`
+  let walls = "", tips = "", feet = ""
+  const seen = new Set()
+  for (const tile of tiles) for (const { rings, height: h } of tile) {
+    // A building inside two tiles' buffers comes whole from both.
+    const key = `${rings[0][0][0].toFixed(9)},${rings[0][0][1].toFixed(9)},${rings[0].length},${h}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const cosLat = 1 / Math.cosh(PI * (1 - 2 * rings[0][0][1]))
+    const sw = Math.min(600, h) / (C * cosLat)
+    for (const ring of rings) {
+      for (let i = 0; i < ring.length - 1; i++) {
+        const [ax, ay] = ring[i], [bx, by] = ring[i + 1]
+        if ((ax === bx && ay === by) || isClipEdge(ax, ay, bx, by)) continue
+        // One quad per wall, all wound the same way so nonzero filling unions them.
+        let q = [px(ax, ay), px(bx, by), px(bx, by, sw), px(ax, ay, sw)]
+        const area = q.reduce((a, [x, y], j) => { const [x2, y2] = q[(j + 1) % 4]; return a + x * y2 - x2 * y }, 0)
+        if (area < 0) q = q.reverse()
+        walls += `M${q.map(pt).join("L")}Z`
+      }
+    }
+    tips += rings.map((r) => "M" + r.map(([x, y]) => pt(px(x, y, sw))).join("L") + "Z").join("")
+    feet += rings.map((r) => "M" + r.map(([x, y]) => pt(px(x, y))).join("L") + "Z").join("")
+  }
+  if (!walls && !tips) return ""
+  const opacity = (s.lightingEffectsOpacity ?? 1) * (s.buildingShadowOpacity ?? 0.5)
+  return svgOf(width, height, `<defs><mask id="b" maskUnits="userSpaceOnUse" x="0" y="0" width="${width}" height="${height}"><path fill="#fff" fill-rule="nonzero" d="${walls}"/><path fill="#fff" fill-rule="evenodd" d="${tips}"/><path fill="#000" fill-rule="evenodd" d="${feet}"/></mask></defs><rect width="${width}" height="${height}" fill="#000" fill-opacity="${opacity}" mask="url(#b)"/>`)
+}
+
 /** The graticule (GraticuleLayer.tsx, geogrid): meridians and parallels
  *  every `graticuleDensity` degrees, or the app's spacing for the zoom. Its
  *  labels sit on the edges of the screen, so a tile has none. */
@@ -758,9 +827,12 @@ async function tellsSvg(A, dem, s, rect) {
 /** The modes served in .pbf tiles, as layers: contours (`contours`: ele, level),
  *  the iso-line (`isoband` polygons and `isoline` lines at a value, with
  *  `isoline-cliff` for the cliff edge; `isoline` lines every interval),
- *  the mound detector (`tells` points with their measures) and the
- *  graticule (`graticule` lines: kind meridian or parallel, deg). */
-export const VECTOR_MODES = ["contours", "isoline", "moundDetector", "graticules"]
+ *  the mound detector (`tells` points with their measures), the plane
+ *  slicer (`plane-slicer`: the polygons at or above its value, on the
+ *  terrain or its local relief model; the map fills the side
+ *  planeSlicerSide names) and the graticule (`graticule` lines: kind
+ *  meridian or parallel, deg). */
+export const VECTOR_MODES = ["contours", "isoline", "moundDetector", "planeSlicer", "graticules"]
 
 /** One vector tile (MVT bytes) of the modes asked for, at z/x/y of 512 px
  *  tiles as the map loads them: the same features its layers draw. */
@@ -788,6 +860,13 @@ export async function vectorTile({ dem, state: s }, modes, z, x, y, baseUrl = DE
     if (iso?.cliff) jobs.push(mvt(iso.cliff, iso.maxzoom).then((l) => named(l, { isoline: "isoline-cliff" })))
   }
   if (modes.includes("moundDetector")) jobs.push(mvt(tellsTemplate(A, dem, s), TELLS_MAXZOOM).then((l) => named(l, { tells: "tells" })))
+  if (modes.includes("planeSlicer")) {
+    const lrm = s.planeSlicerReferenceMode === "lrm"
+    const t = lrm ? A.buildLrmProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, s.lrmRadius) : dem.tiles
+    const value = lrm ? s.planeSlicerValueLrm : s.planeSlicerValue
+    jobs.push(mvt(A.buildIsobandProtocolUrl(t, lrm ? "terrarium" : dem.encoding, dem.tileSize, value), Math.min(dem.maxzoom ?? 19, 19))
+      .then((l) => named(l, { isoband: "plane-slicer" }).map((layer) => ({ ...layer, features: layer.features.map((f) => ({ ...f, properties: { ...f.properties, value, side: s.planeSlicerSide ?? "below" } })) }))))
+  }
   if (modes.includes("graticules")) out.push(graticuleLayer(A, s, z, x, y))
   for (const layers of await Promise.all(jobs)) out.push(...layers)
   return writeTile(out)

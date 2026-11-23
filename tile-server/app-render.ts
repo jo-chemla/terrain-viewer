@@ -17,6 +17,8 @@ export { buildLocalDominanceProtocolUrl, localDominanceProtocol } from "../lib/l
 export { buildMatcapProtocolUrl, matcapProtocol } from "../lib/matcap-protocol"
 export { buildPhongProtocolUrl, phongProtocol } from "../lib/phong-protocol"
 export { buildShadowProtocolUrl, shadowProtocol } from "../lib/shadow-protocol"
+// The OSM building footprints the building shadows sweep (BuildingShadowLayer.tsx).
+export { requestBuildingTile, BUILDING_TILE_ZOOM, BUILDING_TILE_BUFFER } from "../lib/building-tiles"
 export { computeColorReliefPaint, computeHillshadePaint } from "../lib/layer-paints"
 export { MODE_RELIEF } from "../lib/mode-relief"
 export { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from "../lib/matcap-textures"

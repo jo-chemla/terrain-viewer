@@ -9,9 +9,9 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 | Address | What it answers |
 |---|---|
 | `/tiles/{z}/{x}/{y}.png\|jpg` | One Web Mercator tile, 256 px (`@2x` or `tilesize=512` for 512) |
-| `/tiles/{z}/{x}/{y}.pbf\|mvt` | The overlays as a vector tile: contours, iso-line, mound detector, graticule |
+| `/tiles/{z}/{x}/{y}.pbf\|mvt` | The overlays as a vector tile: contours, iso-line, mound detector, plane slicer, graticule |
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
-| `/qgis.qgz` | A QGIS project with every mode as a layer |
+| `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
 | `/tiles/WebMercatorQuad/...`, `/bbox/...` | titiler's addresses for the same |
 | `/openapi.json`, `/docs`, `/health` | |
 
@@ -50,7 +50,7 @@ and with `TV_RENDER_URL` asks a running tile service for its pictures.
 | `contours.mjs` | Contours by maplibre-contour with the app's options: the vector tiles, and the lines and labels on a picture. |
 | `symbols.mjs` | Where MapLibre puts symbols along a line (clipping, anchor spacing, bend check), ported: contour labels and cliff teeth. |
 | `mvt.mjs` | Vector tiles read and written. |
-| `qgis-project.mjs` | `/qgis.qgz`: every mode a layer, grouped as the app's panel, over a Google hybrid basemap. |
+| `qgis-project.mjs` | `/qgis.qgz`: every layer of the app, stacked as the map and grouped as its panel, the view's layers checked and configured, over its basemap. |
 | `compare-engines.mjs` | The same tiles from both engines, a table of differences and side-by-side pictures. |
 | `app-lib.ts`, `app-render.ts`, `app-sources.ts`, `app-overlays.ts`, `build.mjs` | The app's catalog code, tile protocols, source readers and layer paints bundled for Node into `generated/` (not tracked), with `import.meta.env` empty so no key from `.env` can get in; plus `library.json` (the terrain library and the data hosts) and `url-params.json`. |
 | `browser-shim.mjs`, `maplibre-stub.mjs` | The few browser functions the bundled code calls, done with sharp; a stand-in for maplibre-gl, which the protocols only register with. |

@@ -26,6 +26,7 @@ export const MODES = {
   phong: { showLightingEffects: true, showPhong: true },
   matcap: { showLightingEffects: true, showMatcap: true },
   shadows: { showLightingEffects: true, showShadows: true },
+  buildingShadows: { showLightingEffects: true, showBuildingShadows: true },
   basemap: { showRasterBasemap: true },
   moundDetector: { showTellsDetector: true },
   isoline: { showContoursAndGraticules: true, showIsoline: true },
