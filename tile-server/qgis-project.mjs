@@ -35,6 +35,9 @@ export const QGIS_TREE = [
 ]
 const GOOGLE_HYBRID = "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
 const VECTOR = new Set(["contours", "isoline", "moundDetector", "planeSlicer", "graticules"])
+// The layers drawn as shading over the others (their pixels mostly half
+// transparent): in QGIS, opaque tiles multiplied over the layers under them.
+const SHADING = new Set(["hillshade", "phong", "shadows", "buildingShadows"])
 
 // What switches a layer on, and what shapes the whole view rather than one
 // layer: left out of every layer's address (each layer asks for its own
@@ -60,10 +63,21 @@ export async function readView(view = {}, rest = new URLSearchParams(), activeLa
   const generic = !given.length && !Object.keys(view).length
   const active = new Set()
   let showBasemap = false
-  if (!generic && activeLayers) {
-    const { layers, state } = await activeLayers({ ...view, imageryUrl: undefined, imagerySource: undefined }, rest)
-    for (const l of layers) active.add(l)
-    showBasemap = !!state.showRasterBasemap || !!view.imageryUrl || !!view.imagerySource
+  let state = {}
+  if (activeLayers) {
+    const r = await activeLayers({ ...view, imageryUrl: undefined, imagerySource: undefined }, rest)
+    state = r.state
+    if (!generic) {
+      for (const l of r.layers) active.add(l)
+      showBasemap = !!state.showRasterBasemap || !!view.imageryUrl || !!view.imagerySource
+    }
+  }
+  // Each layer's opacity, the view's or the app's default: set on the QGIS
+  // layer, its tiles asked opaque (see qgisProjectXml).
+  const opacity = {}
+  for (const [mode, sw] of Object.entries(MODES)) {
+    const key = [`${mode}Opacity`, ...Object.keys(sw).filter((k) => k.startsWith("show")).map((k) => `${k[4].toLowerCase()}${k.slice(5)}Opacity`)].find((k) => k in state)
+    if (key) opacity[mode] = { key, value: Math.max(0, Math.min(1, Number(state[key]) || 0)) }
   }
   const keep = new URLSearchParams(), basemap = new URLSearchParams()
   if (view.terrainSource) keep.set("terrainSource", view.terrainSource)
@@ -74,7 +88,7 @@ export async function readView(view = {}, rest = new URLSearchParams(), activeLa
     keep.set(k, v)
   }
   for (const k of ["imageryUrl", "imagerySource", "imageryDate"]) if (view[k]) basemap.set(k, view[k])
-  return { generic, active, showBasemap, keep, basemap, camera: { lat: view.lat, lng: view.lng, zoom: view.zoom } }
+  return { generic, active, showBasemap, keep, basemap, opacity, camera: { lat: view.lat, lng: view.lng, zoom: view.zoom } }
 }
 
 /** The view's basemap as a tile template QGIS can read itself (faster than
@@ -96,18 +110,38 @@ const SRS = `<spatialrefsys nativeFormat="Wkt"><wkt>PROJCRS["WGS 84 / Pseudo-Mer
 /** The project's XML (.qgs). `base`: the service's address; `read`: the
  *  view (readView). */
 export function qgisProjectXml(base, read) {
-  const { generic, active, showBasemap, keep, basemap, camera } = read ?? { generic: true, active: new Set(), showBasemap: false, keep: new URLSearchParams(), basemap: new URLSearchParams(), camera: {} }
-  const kept = keep.toString()
+  const { generic, active, showBasemap, keep, basemap, opacity = {}, camera } = read ?? { generic: true, active: new Set(), showBasemap: false, keep: new URLSearchParams(), basemap: new URLSearchParams(), camera: {} }
   const layers = []
   let n = 0
-  const add = (name, source, provider, type, checked) => {
+  // style: a raster layer's opacity and blend mode, written as QGIS stores
+  // them (the renderer's opacity; QPainter's composition mode, 13 = Multiply).
+  const add = (name, source, provider, type, checked, style) => {
     // QGIS's own form of a layer id: a name and a UUID, here a stable one.
     const h = createHash("sha1").update(`${++n}|${source}`).digest("hex")
     const id = `${name.replace(/\W+/g, "_")}_${h.slice(0, 8)}_${h.slice(8, 12)}_${h.slice(12, 16)}_${h.slice(16, 20)}_${h.slice(20, 32)}`
-    layers.push(`<maplayer type="${type}" autoRefreshTime="0" refreshOnNotifyEnabled="0"><id>${id}</id><datasource>${esc(source)}</datasource><layername>${esc(name)}</layername><srs>${SRS}</srs><provider>${provider}</provider></maplayer>`)
+    const pipe = style ? `<pipe><rasterrenderer type="multibandcolor" opacity="${style.opacity ?? 1}" alphaBand="4" redBand="1" greenBand="2" blueBand="3" nodataColor=""><rasterTransparency/></rasterrenderer></pipe><blendMode>${style.blend ?? 0}</blendMode>` : ""
+    layers.push(`<maplayer type="${type}" autoRefreshTime="0" refreshOnNotifyEnabled="0"><id>${id}</id><datasource>${esc(source)}</datasource><layername>${esc(name)}</layername><srs>${SRS}</srs><provider>${provider}</provider>${pipe}</maplayer>`)
     return `<layer-tree-layer id="${id}" name="${esc(name)}" source="${esc(source)}" providerKey="${provider}" checked="${checked ? "Qt::Checked" : "Qt::Unchecked"}" expanded="0"><customproperties/></layer-tree-layer>`
   }
-  const raster = (mode, name) => add(name, xyz(`${base}/tiles/{z}/{x}/{y}.png?modes=${mode}&background=none${kept ? "&" + kept : ""}`, 22, "&tilePixelRatio=1"), "wms", "raster", active.has(mode))
+  // QGIS draws neighbouring XYZ tiles a pixel over each other, so a tile
+  // with partial transparency shows a line along every tile edge (measured
+  // 2026-11-23: a step of 36 grey levels at the edges against a median of
+  // 10). The tiles are therefore asked opaque: a mode at its full opacity
+  // (opacity=1 in the address, the view's opacity set on the QGIS layer,
+  // where it can be changed); the shading layers, transparent by design
+  // (SHADING), on the map's background and multiplied over what is under
+  // them. The overlays stay transparent: lines on nothing, where an edge
+  // rarely has any.
+  const raster = (mode, name) => {
+    const q = new URLSearchParams(keep)
+    let style
+    if (SHADING.has(mode)) style = { opacity: opacity[mode]?.value ?? 1, blend: 13 }
+    else if (!VECTOR.has(mode) && opacity[mode]) { q.set(opacity[mode].key, "1"); style = { opacity: opacity[mode].value } }
+    const bg = SHADING.has(mode) ? "" : "&background=none"
+    const kept = q.toString()
+    return add(name, xyz(`${base}/tiles/{z}/{x}/{y}.png?modes=${mode}${bg}${kept ? "&" + kept : ""}`, 22, "&tilePixelRatio=1"), "wms", "raster", active.has(mode), style)
+  }
+  const kept = keep.toString()
   const vector = (mode, name, checked) => add(name, xyz(`${base}/tiles/{z}/{x}/{y}.pbf?modes=${mode}${kept ? "&" + kept : ""}`, 15), "xyzvectortiles", "vector-tile", checked)
   const item = ([mode, name, form = "raster"]) => {
     if (form === "vector") return vector(mode, name, active.has(mode))

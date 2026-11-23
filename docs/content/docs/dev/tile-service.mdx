@@ -105,7 +105,7 @@ The layers the view switches on start checked; every layer's address carries the
 
 The view is a query in the service's names (`terrainSource`, `modes`, `imageryUrl`) or in the app's own: the query of a share link works as is (`terrainSourceA`, the `show*` switches, `basemapSourceA`, `overlayBasemapIds`, and a source given by URL with `terrainType`). That is what the app's **Share** dialog does when a tile service is set in **Settings > Tile Service**: **Export QGIS project** downloads `<service>/qgis.qgz?<the link's query>`. Without a query the project has every layer unchecked but Google hybrid. `node tile-server/qgis-project.mjs http://localhost:3400 out.qgz` writes that one without the service. Checked in QGIS 4.2.
 
-A layer's settings are in its address: QGIS edits an XYZ address in the layer's source settings, and has no controls bound to its parameters. Its vector tile layers take QGIS's default style.
+A layer's settings are in its address: QGIS edits an XYZ address in the layer's source settings, and has no controls bound to its parameters. Opacity is the exception: each layer's tiles are asked at full opacity and the view's opacity is set on the QGIS layer (Layer Properties > Transparency), where it can be changed. QGIS draws neighbouring XYZ tiles a pixel over each other, so a half-transparent tile showed a line along every tile edge; the shading layers (hillshade, Phong, terrain and building shadows), transparent by design, are therefore asked on the map's background and multiplied over the layers under them (Layer Properties > Symbology > Blending mode). Its vector tile layers take QGIS's default style.
 
 ## Raster tiles in a map
 
