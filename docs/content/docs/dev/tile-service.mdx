@@ -38,6 +38,7 @@ Both take the view as query parameters, the same words the [MCP server](/feature
 | `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `moundDetector`, `isoline`, `graticules`, `planeSlicer`, `basemap` (also `tri`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`) |
 | `imageryUrl`, `imagerySource`, `imageryDate` | Imagery under the terrain, drawn with the mode `basemap` |
 | `engine` | `auto` (the default: direct when it can), `direct` (an error when it cannot), `browser` |
+| `background` | `none`: no white (or black) map background, a transparent PNG, to stack layers in a GIS. Direct engine only |
 | `mapboxKey`, `maptilerKey`, `cesiumIonKey` | Your own API key, for the Mapbox, MapTiler and Cesium ion sources. The direct engine's readers use it, and the browser engine gives it to the app as a setting, never in the app's address. A tile made with a key is cached apart from one made without |
 | anything else | Passed to the app as a [URL parameter](/dev/url-api): ramps, opacities, light direction, contour interval |
 
@@ -82,6 +83,10 @@ map.addLayer({ id: "contour-lines", type: "line", source: "tv-overlays", "source
 map.addLayer({ id: "contour-labels", type: "symbol", source: "tv-overlays", "source-layer": "contours", filter: ["==", ["get", "level"], 1], layout: { "symbol-placement": "line", "text-field": ["concat", ["get", "ele"], " m"], "text-size": 10 } })
 map.addLayer({ id: "mounds", type: "circle", source: "tv-overlays", "source-layer": "tells", paint: { "circle-radius": 8, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": "#ef4444", "circle-stroke-width": 2 } })
 ```
+
+## A QGIS project
+
+`/qgis.qgz` is a QGIS project of the service: every mode an XYZ layer, grouped as the app's panel groups them (Contours + GeoGrid, Mound Detector, Plane Slicer, Lighting Effects, Terrain Analysis with Surface derivatives, Neighborhood statistics and Principal Components, Relief Visualization, Visualization Modes, and the vector tiles), every mode unchecked, over a Google hybrid basemap. Its raster layers ask for `background=none`, so the ones you check stack as in the map. The query is kept in every layer's address: `/qgis.qgz?terrainSource=custom-nl-ahn-dtm&slopeColorRamp=…`. `node mcp/qgis-project.mjs http://localhost:3400 out.qgz` writes one without the service. Checked in QGIS 4.2.
 
 ## Raster tiles in a map
 
@@ -181,8 +186,8 @@ Run on 2026-11-21, the rows with contours, the iso-line teeth and the mound dete
 | sky-view factor | 0.06 | 0 % | 855 ms | 5691 ms |
 | openness | 0.07 | 0 % | 765 ms | 5597 ms |
 | local dominance | 0.09 | 0 % | 1112 ms | 5703 ms |
-| contours | 2.83 | 1.8 % | 556 ms | 5973 ms |
-| contours 20/100 | 5.34 | 3.15 % | 440 ms | 5829 ms |
+| contours | 2.13 | 0.97 % | 431 ms | 10951 ms |
+| contours 20/100 | 4.5 | 1.87 % | 462 ms | 8984 ms |
 | matcap (live renderer in the app) | 1.82 | 0.26 % | 222 ms | 5165 ms |
 | matcap, raster renderer | 0.64 | 0 % | 286 ms | 5431 ms |
 | phong (live renderer in the app) | 1.72 | 0.15 % | 211 ms | 4952 ms |
@@ -190,11 +195,10 @@ Run on 2026-11-21, the rows with contours, the iso-line teeth and the mound dete
 | cast shadows | 0 | 0 % | 228 ms | 4094 ms |
 | cast shadows, sun at 15 degrees | 0 | 0 % | 217 ms | 4140 ms |
 | phong, rim light 0.6, two lights | 1.36 | 0.14 % | 239 ms | 5138 ms |
-| hillshade + colour relief + contours | 2.03 | 1.07 % | 799 ms | 6742 ms |
+| hillshade + colour relief + contours | 1.19 | 0.14 % | 534 ms | 7096 ms |
 | slope + hillshade | 0.9 | 0 % | 199 ms | 5607 ms |
 | LRM + sky-view factor + hillshade | 1 | 0 % | 977 ms | 5699 ms |
-| contours, no labels | 2.13 | 0.97 % | 70 ms | 4046 ms |
-| contours of the local relief model | 8.46 | 4.66 % | 1796 ms | 5905 ms |
+| contours of the local relief model | 6.4 | 1.84 % | 1421 ms | 9722 ms |
 | iso-line, slope 30 degrees | 1.88 | 2.36 % | 408 ms | 5824 ms |
 | iso-line, slope 30 with fill and cliff teeth | 5.21 | 7.6 % | 1802 ms | 7714 ms |
 | iso-line, slope every 10 degrees | 1.91 | 2.13 % | 355 ms | 4419 ms |
@@ -203,11 +207,11 @@ Run on 2026-11-21, the rows with contours, the iso-line teeth and the mound dete
 | plane slicer at 2800 m | 0.53 | 0 % | 135 ms | 5128 ms |
 | plane slicer, local relief above 0 | 0.78 | 0 % | 184 ms | 5512 ms |
 | mound detector | 2.04 | 1.02 % | 917 ms | 5964 ms |
-| dark theme, hillshade + contours | 2.57 | 1.27 % | 293 ms | 6904 ms |
+| dark theme, hillshade + contours | 1.91 | 0.48 % | 264 ms | 9286 ms |
 
 What the remaining differences are:
 
-- **Contour labels**: the lines are the same, from the same library and options, and the labels are placed as MapLibre places them, but MapLibre decides collisions over the whole 2048 px block in its own order and bends the letters along the line, so a few labels are kept by one engine only. Without labels, 2.1; what is left is the anti-aliasing of thin lines where they crowd, at the local relief model 5.0.
+- **Contour labels are not measured**: every case with contours is compared with `showContourLabels=false`. The labels are placed every 250 px from where a line enters each tile, as MapLibre does, but without its collision over the whole block or its letters bent along the line. What is left is the anti-aliasing of thin lines where they crowd, most at the local relief model.
 - **Shape index**: in Paris, every difference is a pixel at exactly +1 (a dome), drawn transparent by the app and dark red by the direct engine. That is an app bug, fixed in this release (see the changelog): MapLibre rounds a ramp's stops to the elevation's encoding, so the last pair of a discrete ramp became one value and the shader divided 0 by 0. Once the fix is deployed both engines draw it dark red.
 - **Iso-line cliff teeth**: placed as MapLibre places them; a few teeth are kept on one side only near the ends of short lines.
 - **Mound markers**: the same circles; MapLibre's circle shader smooths a ring's edges inside it, which the server's rings now follow (half a pixel inward), from 11 to 2.

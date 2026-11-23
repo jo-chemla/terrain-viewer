@@ -14,6 +14,7 @@ const q = (name, schema, description, extra = {}) => ({ name, in: "query", requi
 const VIEW_PARAMS = [
   q("terrainSource", { type: "string", examples: ["mapterhorn", "custom-nl-ahn-dtm", "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"] }, "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."),
   q("engine", { type: "string", enum: ["auto", "direct", "browser"] }, "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."),
+  q("background", { type: "string", enum: ["map", "none"], default: "map" }, "`none`: no white (or black) map background, a transparent PNG to stack layers in a GIS. Direct engine only; the browser's tiles keep the map's background."),
   q("modes", { type: "array", items: { type: "string", enum: MODE_NAMES } }, "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.", { style: "form", explode: false }),
   q("mapboxKey", { type: "string" }, "Your Mapbox access token, for the `mapbox` source. Read by the server's readers and given to the app as a setting, never put in the app's address; a tile drawn with a key is cached apart from one without."),
   q("maptilerKey", { type: "string" }, "Your MapTiler key, for the `maptiler` source."),
@@ -140,6 +141,9 @@ export function openapi(server = "http://localhost:3400") {
           ],
           responses: { 200: { description: "The vector tile", content: { "application/vnd.mapbox-vector-tile": { schema: { type: "string", format: "binary" } } } }, 400: { description: "A mode is not served as vector tiles, or the source cannot be read by the direct engine" } },
         },
+      },
+      "/qgis.qgz": {
+        get: { tags: ["Tiles"], operationId: "qgis", summary: "A QGIS project of the service", description: "Every mode an XYZ layer (transparent tiles, `background=none`), grouped as the app's panel, unchecked, over a Google hybrid basemap; the vector tiles in a group of their own. The query (terrainSource, the app's parameters) is kept in every layer's address.", parameters: [q("terrainSource", { type: "string" }, "The elevation source of every layer.")], responses: { 200: { description: "The project", content: { "application/zip": { schema: { type: "string", format: "binary" } } } } } },
       },
       "/algorithms": {
         get: { tags: ["Catalogs"], operationId: "algorithms", summary: "The modes, and which engine draws them", description: "Each mode with `direct` or `browser`.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },

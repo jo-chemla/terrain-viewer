@@ -87,6 +87,9 @@ async function stateFor(view, rest) {
   }
   // The theme is its own URL parameter (useTheme), not in the reference.
   state.theme = url.searchParams.get("theme") === "dark" ? "dark" : "light"
+  // The tile service's own: background=none leaves the map's background out,
+  // a transparent PNG to stack in a GIS.
+  state.transparent = url.searchParams.get("background") === "none"
   return { state, given }
 }
 
@@ -389,8 +392,8 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
 
   // Premultiplied RGBA 0..1, the map's background to start with: white, or
   // black in the dark theme (BackgroundLayer).
-  const img = new Float32Array(width * height * 4).fill(1)
-  if (s.theme === "dark") for (let i = 0; i < img.length; i += 4) { img[i] = 0; img[i + 1] = 0; img[i + 2] = 0 }
+  const img = new Float32Array(width * height * 4).fill(s.transparent ? 0 : 1)
+  if (s.theme === "dark" && !s.transparent) for (let i = 0; i < img.length; i += 4) { img[i] = 0; img[i + 1] = 0; img[i + 2] = 0 }
   const rect = { world, x0, y0, width, height }
   const paintValues = (values, paint, encoding) => {
     const ramp = rampOf(paint["color-relief-color"], ch, encoding), op = paint["color-relief-opacity"] ?? 1, c = new Float32Array(4)
@@ -463,8 +466,8 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
 
   const rgba = Buffer.alloc(width * height * 4)
   for (let i = 0; i < width * height; i++) {
-    const a = img[i * 4 + 3] || 1
-    rgba[i * 4] = Math.round(Math.min(1, img[i * 4] / a) * 255); rgba[i * 4 + 1] = Math.round(Math.min(1, img[i * 4 + 1] / a) * 255); rgba[i * 4 + 2] = Math.round(Math.min(1, img[i * 4 + 2] / a) * 255); rgba[i * 4 + 3] = Math.round(Math.min(1, a) * 255)
+    const alpha = img[i * 4 + 3], a = alpha || 1
+    rgba[i * 4] = Math.round(Math.min(1, img[i * 4] / a) * 255); rgba[i * 4 + 1] = Math.round(Math.min(1, img[i * 4 + 1] / a) * 255); rgba[i * 4 + 2] = Math.round(Math.min(1, img[i * 4 + 2] / a) * 255); rgba[i * 4 + 3] = Math.round(Math.min(1, alpha) * 255)
   }
   let out = sharp(rgba, { raw: { width, height, channels: 4 } })
   if (credit) {

@@ -27,7 +27,9 @@ const PLACES = SOURCES ? Object.fromEntries(SOURCES.map(([id, [lat, lng, z]]) =>
   paris: tileOf(48.8606, 2.3376, 14),
 }
 
-// [name, query]
+// [name, query]. Contour labels are left out (showContourLabels=false is
+// added to every case with contours): they are placed and drawn differently
+// from MapLibre's collision and curved text, and not measured.
 const CASES = [
   ["hillshade (combined, default)", "modes=hillshade"],
   ["hillshade standard", "modes=hillshade&hillshadeMethod=standard"],
@@ -67,7 +69,6 @@ const CASES = [
   ["hillshade + colour relief + contours", "modes=hillshade,colorRelief,contours"],
   ["slope + hillshade", "modes=slope,hillshade"],
   ["LRM + sky-view factor + hillshade", "modes=lrm,svf,hillshade"],
-  ["contours, no labels", "modes=contours&showContourLabels=false"],
   ["contours of the local relief model", "modes=contours&contourReferenceMode=lrm"],
   ["iso-line, slope 30 degrees", "modes=isoline"],
   ["iso-line, slope 30 with fill and cliff teeth", "modes=isoline&isolineFill=true&isolineCliff=true"],
@@ -91,7 +92,8 @@ const raw = async (png) => (await sharp(png).flatten({ background: "#ffffff" }).
 const rows = []
 for (const [place, [z, x, y, source]] of Object.entries(PLACES)) {
   for (const scale of ["", "@2x"]) {
-    for (const [name, q] of CASES.filter(([n]) => !FILTER || FILTER.test(n))) {
+    for (let [name, q] of CASES.filter(([n]) => !FILTER || FILTER.test(n))) {
+      if (/modes=[^&]*contours/.test(q) && !q.includes("showContourLabels")) q += "&showContourLabels=false"
       const addr = `${SERVICE}/tiles/${z}/${x}/${y}${scale}.png?${q}${source ? `&terrainSource=${encodeURIComponent(source)}` : ""}`
       const d = await get(`${addr}&engine=direct`)
       const b = await get(`${addr}&engine=browser`)

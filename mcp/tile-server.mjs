@@ -42,6 +42,8 @@
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id
 //   GET /algorithms                    the modes, and which engine draws them
 //   GET /tilejson.json                 a TileJSON; tile_format=pbf for the vector tiles
+//   GET /qgis.qgz                      a QGIS project: every mode a layer, grouped as the
+//                                      app's panel, over a Google hybrid basemap
 //
 // With the browser, a tile is not rendered alone: the app draws the 2048 px block it belongs
 // to in one page, and the block is cut into tiles, all of them cached. The
@@ -54,6 +56,7 @@
 // TV_MAPTILER_KEY, TV_CESIUM_ION_KEY (the operator's keys, used when a
 // request gives none: anyone who can reach the service then uses them).
 import http from "node:http"
+import { qgisProject } from "./qgis-project.mjs"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -281,6 +284,7 @@ export function start(port = PORT) {
         modes: MODE_NAMES, app: BASE_URL,
       }, null, 2))
       const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
+      if (u.pathname === "/qgis.qgz") return send(200, "application/zip", qgisProject(self, new URLSearchParams(u.search)), { "content-disposition": 'attachment; filename="terrain-viewer.qgz"' })
       if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self), null, 2))
       if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
       if (u.pathname === "/sources") return send(200, "application/json", JSON.stringify({ sources: sources(), note: SOURCES_NOTE }))

@@ -24,6 +24,8 @@
 - Tile service: `/tiles/{z}/{x}/{y}.pbf` (the tile address, the extension choosing raster or vector) serves the contours, the iso-line (band, line, cliff edge), the mound candidates and the graticule as vector tiles, with a TileJSON; the raster tiles of these overlays are drawn from the same features.
 - Tile service: the Mapbox, MapTiler and Cesium ion sources are drawn with the caller's own key (`mapboxKey`, `maptilerKey`, `cesiumIonKey`), by both engines; a key the provider refuses gives an error that says so.
 - Tile service: contour labels and cliff teeth are placed as MapLibre places line symbols (per tile, its spacing and offsets, its 45° bend limit, its tile order for collisions), and mound rings are drawn as MapLibre's circle shader draws them; against the app, the mound detector went from 11 to 2, the cliff teeth from 13.6 to 5.2, the local relief contours from 13.1 to 8.5. The image carries Noto Sans, the font of the map's labels.
+- Tile service: `/qgis.qgz`, a QGIS project with every mode as a layer, grouped as the app's panel, unchecked, over a Google hybrid basemap; `background=none` gives transparent tiles to stack (a pixel left empty was written opaque black, now transparent).
+- Tile service: the engine comparison leaves contour labels out.
 - Tile service: the browser engine waits for the map to stay idle twice, so a layer that adds its source after the first idle (the contours) is in the picture.
 
 # Changelog — Faster Terrain Analysis, Native Draping

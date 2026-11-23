@@ -134,6 +134,20 @@
             "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
+            "name": "background",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "map",
+                "none"
+              ],
+              "default": "map"
+            },
+            "description": "`none`: no white (or black) map background, a transparent PNG to stack layers in a GIS. Direct engine only; the browser's tiles keep the map's background."
+          },
+          {
             "name": "modes",
             "in": "query",
             "required": false,
@@ -469,6 +483,20 @@
               ]
             },
             "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+          },
+          {
+            "name": "background",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "map",
+                "none"
+              ],
+              "default": "map"
+            },
+            "description": "`none`: no white (or black) map background, a transparent PNG to stack layers in a GIS. Direct engine only; the browser's tiles keep the map's background."
           },
           {
             "name": "modes",
@@ -844,6 +872,20 @@
             "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
+            "name": "background",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "map",
+                "none"
+              ],
+              "default": "map"
+            },
+            "description": "`none`: no white (or black) map background, a transparent PNG to stack layers in a GIS. Direct engine only; the browser's tiles keep the map's background."
+          },
+          {
             "name": "modes",
             "in": "query",
             "required": false,
@@ -1052,6 +1094,20 @@
               ]
             },
             "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+          },
+          {
+            "name": "background",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "map",
+                "none"
+              ],
+              "default": "map"
+            },
+            "description": "`none`: no white (or black) map background, a transparent PNG to stack layers in a GIS. Direct engine only; the browser's tiles keep the map's background."
           },
           {
             "name": "modes",
@@ -1430,6 +1486,40 @@
           },
           "400": {
             "description": "A mode is not served as vector tiles, or the source cannot be read by the direct engine"
+          }
+        }
+      }
+    },
+    "/qgis.qgz": {
+      "get": {
+        "tags": [
+          "Tiles"
+        ],
+        "operationId": "qgis",
+        "summary": "A QGIS project of the service",
+        "description": "Every mode an XYZ layer (transparent tiles, `background=none`), grouped as the app's panel, unchecked, over a Google hybrid basemap; the vector tiles in a group of their own. The query (terrainSource, the app's parameters) is kept in every layer's address.",
+        "parameters": [
+          {
+            "name": "terrainSource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The elevation source of every layer."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
           }
         }
       }
