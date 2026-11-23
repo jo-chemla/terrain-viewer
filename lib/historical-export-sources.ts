@@ -1,16 +1,11 @@
-// Plain (non-hook) unified dispatcher over the app's 6 historical basemap
-// sources, for lib/export-multi.ts's batch export — every one of these
-// normally resolves through RasterBasemapSource (a mounted React component,
-// see components/LayersAndSources/MapSources.tsx), which isn't usable from a
-// plain async batch loop. Each branch below just calls the same underlying
-// pure per-source functions RasterBasemapSource itself calls.
-import { planetTileBlobFetcher } from "./planet-tiles"
-import { listWaybackTicksInRange, waybackTileUrl } from "./wayback"
-import { syntheticHlsTicks, hlsTileUrl } from "./hls"
-import { listGeHistoricalTicksInRange, geHistoricalTileSource, fetchGeHistoricalTileBlob } from "./ge-historical"
-import { planetMonthlyTicks, planetTileUrl } from "./planet"
-import { eoxS2CloudlessTicks, eoxS2CloudlessTileUrl } from "./eox-s2-cloudless"
-import { fetchBingCaptureDate, toQuadkey } from "./bing"
+// The multi-date export's sources (lib/export-multi.ts), resolved outside a
+// mounted component: the dated imagery through its schema (lib/dated-imagery.ts:
+// each source's catalog of dates at a place and the tiles of a date), the
+// current basemaps through theirs (lib/basemap-sources.ts: one address each).
+// The map's RasterBasemapSource reads the same two registries.
+import { DATED_IMAGERY_SOURCES, findDatedImagery } from "./dated-imagery"
+import { builtinBasemap } from "./basemap-sources"
+import { entryUrl } from "./source-schema"
 import type { FetchRgbTileMosaicOptions } from "./rgb-tile-mosaic"
 
 export const EXPORT_SOURCE_IDS = ["wayback", "hls", "ge-historical", "planet", "eox-s2", "bing", "google", "esri", "mapbox", "maptiler", "here"] as const
@@ -18,16 +13,19 @@ export type ExportSourceId = (typeof EXPORT_SOURCE_IDS)[number]
 /** The non-archival providers: one current mosaic each, no date range. Bing
  *  is the odd one out only in that it can report its capture date. */
 export const CURRENT_BASEMAP_SOURCE_IDS: readonly ExportSourceId[] = ["bing", "google", "esri", "mapbox", "maptiler", "here"]
+/** The export's current basemaps and their built-in entry: "google" exports
+ *  Google's satellite layer (googlesat), not the hybrid with labels. */
+const CURRENT_ENTRY: Record<string, string> = { google: "googlesat", esri: "esri", mapbox: "mapbox", maptiler: "maptiler", here: "here" }
 export const EXPORT_SOURCE_LABELS: Record<ExportSourceId, string> = {
-  wayback: "Esri Wayback", hls: "HLS", "ge-historical": "GE Historical", planet: "Planet", "eox-s2": "EOX Sentinel-2",
-  bing: "Bing (current)", google: "Google (current)", esri: "Esri (current)", mapbox: "Mapbox (current)", maptiler: "MapTiler (current)", here: "HERE (current)",
-}
+  ...Object.fromEntries(DATED_IMAGERY_SOURCES.map((s) => [s.id, s.exportLabel])),
+  google: "Google (current)", esri: "Esri (current)", mapbox: "Mapbox (current)", maptiler: "MapTiler (current)", here: "HERE (current)",
+} as Record<ExportSourceId, string>
 /** Filename stem per source - the provider name rather than the internal id
  *  ("esri-wayback" beats "wayback" when a file turns up out of context). */
 export const EXPORT_SOURCE_FILE_STEMS: Record<ExportSourceId, string> = {
-  wayback: "esri-wayback", hls: "nasa-hls", "ge-historical": "google-earth", planet: "planet", "eox-s2": "eox-sentinel2",
-  bing: "bing", google: "google", esri: "esri", mapbox: "mapbox", maptiler: "maptiler", here: "here",
-}
+  ...Object.fromEntries(DATED_IMAGERY_SOURCES.map((s) => [s.id, s.fileStem])),
+  google: "google", esri: "esri", mapbox: "mapbox", maptiler: "maptiler", here: "here",
+} as Record<ExportSourceId, string>
 /** Keys some current basemaps need; a missing key makes that source list nothing. */
 export interface ExportSourceKeys { mapbox?: string; maptiler?: string; here?: string }
 
@@ -48,99 +46,51 @@ export interface ExportTick {
   }
 }
 
-const BING_URL_BASE = "https://t.ssl.ak.tiles.virtualearth.net/tiles/a"
-const BING_URL_SUFFIX = ".jpeg?g=14603&n=z&prx=1"
-
 /**
  * Every real capture within [startMs, endMs] at (lat, lng, zoom) for one
- * historical source, each already carrying everything fetchRgbTileMosaic
- * needs to fetch it. Bing has no browsable archive (see lib/historical-
- * sources.ts) — it always returns at most ONE tick (its single current
- * mosaic), included regardless of the requested range, labeled with its own
- * reported capture date if available.
+ * source, each already carrying everything fetchRgbTileMosaic needs to fetch
+ * it. A current basemap returns one tick whatever the range, labelled
+ * "latest" (its capture date is unknown, and a date in the filename would
+ * claim a precision the data does not have); Bing's one tick carries its
+ * capture date at the place when Bing reports one.
  */
 export async function listExportTicks(
   sourceId: ExportSourceId, lat: number, lng: number, zoom: number,
   startMs: number, endMs: number, planetKey?: string, keys?: ExportSourceKeys,
 ): Promise<ExportTick[]> {
-  const dateLabel = (dateMs: number) => new Date(dateMs).toISOString().slice(0, 10)
+  const entryId = CURRENT_ENTRY[sourceId]
+  if (entryId) {
+    const entry = builtinBasemap(entryId)
+    if (!entry) return []
+    const sourceKeys = { mapboxKey: keys?.mapbox, maptilerKey: keys?.maptiler, hereKey: keys?.here }
+    if (entry.apiKey && !sourceKeys[entry.apiKey as keyof typeof sourceKeys]) return []
+    // The export reads Esri's tiles without blankTile=false: a placeholder
+    // tile past its imagery is better in a mosaic than a hole.
+    const url = entryUrl(entry, sourceKeys).replace(/\?blankTile=false$/, "")
+    return [{ dateMs: Date.now(), label: "latest", tileSpec: { tileUrlTemplate: url, tileSize: entry.tileSize ?? 256, maxzoom: entry.maxzoom ?? 20 } }]
+  }
 
-  // Current (non-archival) basemaps: exactly one tick, dated today, whatever
-  // the range says — same convention as Bing below. Templates mirror
-  // rasterBasemaps in MapSources.tsx.
-  // Their capture date is unknown, so the tick is labelled "latest" rather
-  // than today's date - a date in the filename would claim a precision the
-  // data does not have.
-  const current = (tileUrlTemplate: string, maxzoom: number): ExportTick[] => {
-    return [{ dateMs: Date.now(), label: "latest", tileSpec: { tileUrlTemplate, tileSize: 256, maxzoom } }]
-  }
-  if (sourceId === "google") return current("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", 21)
-  if (sourceId === "esri") return current("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.jpg", 19)
-  if (sourceId === "mapbox") return keys?.mapbox ? current(`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token=${keys.mapbox}`, 22) : []
-  if (sourceId === "maptiler") return keys?.maptiler ? current(`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${keys.maptiler}`, 20) : []
-  if (sourceId === "here") return keys?.here ? current(`https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?style=satellite.day&apiKey=${keys.here}`, 20) : []
-
-  if (sourceId === "wayback") {
-    const ticks = await listWaybackTicksInRange(lat, lng, zoom, startMs, endMs)
-    return ticks.map((t) => ({
-      dateMs: t.dateMs, label: dateLabel(t.dateMs),
-      tileSpec: { tileUrlTemplate: waybackTileUrl(t.item), tileSize: 256, maxzoom: 19 },
-    }))
-  }
-  if (sourceId === "hls") {
-    return syntheticHlsTicks()
-      .filter((t) => t.dateMs >= startMs && t.dateMs <= endMs)
-      .map((t) => ({
-        dateMs: t.dateMs, label: dateLabel(t.dateMs),
-        tileSpec: { tileUrlTemplate: hlsTileUrl(t.dateMs), tileSize: 256, maxzoom: 16 },
-      }))
-  }
-  if (sourceId === "ge-historical") {
-    const ticks = await listGeHistoricalTicksInRange(lat, lng, zoom, startMs, endMs)
-    return ticks.map((t) => {
-      const spec = geHistoricalTileSource(t.dateMs)
-      return {
-        dateMs: t.dateMs, label: dateLabel(t.dateMs),
-        // tileUrlTemplate is kept for the gdal script's "not fetchable" note;
-        // the mosaic itself goes through fetchTileBlob (gehist:// is not a
-        // scheme the Fetch API accepts).
-        tileSpec: {
-          tileUrlTemplate: spec.tiles[0], tileSize: spec.tileSize, maxzoom: spec.maxzoom,
-          fetchTileBlob: (z, x, y, signal) => fetchGeHistoricalTileBlob(z, x, y, t.dateMs, signal),
-        },
-      }
+  const source = findDatedImagery(sourceId)
+  if (!source) return []
+  const sourceKeys = { planetKey }
+  const ticks = await source.listDates({ lat, lng, zoom }, startMs, endMs, sourceKeys)
+  const out: ExportTick[] = []
+  for (const tick of ticks) {
+    const spec = source.tiles(tick, { keys: sourceKeys })
+    if (!spec) continue
+    out.push({
+      dateMs: tick.dateMs, label: tick.label,
+      tileSpec: {
+        // A template on an app scheme (gehist://, planet://) is kept for the
+        // GDAL script's note; the mosaic itself goes through fetchTileBlob.
+        tileUrlTemplate: spec.buildTileUrl ? undefined : spec.urlTemplate ?? spec.tiles[0],
+        buildTileUrl: spec.buildTileUrl,
+        fetchTileBlob: spec.fetchTileBlob,
+        quadkeyUrlTemplate: spec.quadkeyUrlTemplate,
+        tileSize: spec.tileSize,
+        maxzoom: spec.maxzoom,
+      },
     })
   }
-  if (sourceId === "planet") {
-    if (!planetKey) return []
-    return planetMonthlyTicks()
-      .filter((t) => t.dateMs >= startMs && t.dateMs <= endMs)
-      .map((t) => ({
-        dateMs: t.dateMs, label: dateLabel(t.dateMs),
-        tileSpec: { tileUrlTemplate: planetTileUrl(t.dateMs, planetKey), tileSize: 256, maxzoom: 15, fetchTileBlob: planetTileBlobFetcher(t.dateMs) },
-      }))
-  }
-  if (sourceId === "eox-s2") {
-    return eoxS2CloudlessTicks()
-      .filter((t) => t.dateMs >= startMs && t.dateMs <= endMs)
-      .map((t) => ({
-        dateMs: t.dateMs, label: dateLabel(t.dateMs),
-        tileSpec: { tileUrlTemplate: eoxS2CloudlessTileUrl(new Date(t.dateMs).getUTCFullYear()), tileSize: 256, maxzoom: 14 },
-      }))
-  }
-  // bing
-  const { dateMs } = await fetchBingCaptureDate(lat, lng, zoom)
-  const effectiveDateMs = dateMs ?? Date.now()
-  return [{
-    dateMs: effectiveDateMs,
-    // Bing does report its mosaic's capture date at the location; only when
-    // that lookup fails does the file fall back to "latest".
-    label: dateMs ? dateLabel(dateMs) : "latest",
-    tileSpec: {
-      buildTileUrl: (z, x, y) => `${BING_URL_BASE}${toQuadkey(x, y, z)}${BING_URL_SUFFIX}`,
-      quadkeyUrlTemplate: `${BING_URL_BASE}{quadkey}${BING_URL_SUFFIX}`,
-      tileSize: 256,
-      maxzoom: 21,
-    },
-  }]
+  return out
 }

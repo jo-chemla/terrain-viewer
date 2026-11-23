@@ -240,3 +240,97 @@ export function entryUrl(entry: { url: string; apiKey?: SourceApiKey }, keys: So
 export function hasEntryKey(entry: { apiKey?: SourceApiKey }, keys: SourceKeys = {}): boolean {
   return !entry.apiKey || !!keys[entry.apiKey]?.trim()
 }
+
+// ── Dated imagery ───────────────────────────────────────────────────────────
+// The sources whose tiles depend on a date as well as a place: Esri Wayback,
+// NASA HLS, Google Earth historical, Planet's monthly mosaics, EOX's yearly
+// Sentinel-2 cloudless, and Bing's one current mosaic with its capture date.
+// A RasterSourceEntry has one address; one of these has a catalog of dates
+// at a place and an address per date. The registry is lib/dated-imagery.ts.
+// The national and regional series (lib/national-historical.ts: an agency's
+// flights, Google Earth Timelapse, Planetary Computer's mosaics) are dated
+// sources too, one layer per date, in the "library" section
+// (lib/national-dated.ts).
+
+/** A place the catalog is asked about: the view's centre and its zoom. */
+export interface DatedImageryPlace { lat: number; lng: number; zoom: number }
+
+/** One date of a dated source: a capture, a release, a month or a year. */
+export interface DatedImageryTick {
+  dateMs: number
+  /** yyyy-mm-dd, yyyy-mm or yyyy, as the timeline and filenames show it. */
+  label: string
+  /** The source's own handle for that date when the date alone does not
+   *  name the tiles (a Wayback release). */
+  ref?: unknown
+  /** The source's own name for that date when it says more than the label
+   *  (a national layer: "Orthofoto 1956-57 (B/W)"). */
+  title?: string
+}
+
+/** The tiles of one date. */
+export interface DatedImageryTiles {
+  /** What the map's raster source takes ({z}/{x}/{y}, {quadkey}, or one of
+   *  the app's schemes: gehist://, planet://). */
+  tiles: string[]
+  tileSize: number
+  maxzoom: number
+  /** Shallowest zoom with tiles, when not 0 (Planetary Computer's mosaics). */
+  minzoom?: number
+  /** [west, south, east, north]: where the tiles of that date exist. */
+  bounds?: [west: number, south: number, east: number, north: number]
+  /** A plain https template, when the map's is an app scheme (Planet, for
+   *  the GDAL script of an export). */
+  urlTemplate?: string
+  /** Builds a tile's address where no template fits (Bing's quadkeys). */
+  buildTileUrl?: (z: number, x: number, y: number) => string
+  /** Bing only: the template with a literal {quadkey} (GDAL's VirtualEarth). */
+  quadkeyUrlTemplate?: string
+  /** Fetches a tile where the browser's fetch cannot (an app scheme, a key
+   *  kept out of the address). */
+  fetchTileBlob?: (z: number, x: number, y: number, signal?: AbortSignal) => Promise<Blob>
+}
+
+/** A dated imagery source. */
+export interface DatedImagerySource extends Pick<SourceEntryBase, "id" | "name" | "shortName" | "description" | "infoUrl" | "apiKey"> {
+  kind: "raster"
+  /** "defaults": the timeline's own sources (lib/dated-imagery.ts);
+   *  "library": the national and regional series, a catalog the timeline
+   *  lists per place (lib/national-dated.ts). */
+  section: "defaults" | "library"
+  /** What a date is: a capture dated per tile ("capture"), a monthly,
+   *  quarterly or yearly mosaic, a flight year or period ("year"), or the
+   *  one current mosaic ("current", Bing). */
+  granularity: "capture" | "month" | "quarter" | "year" | "current"
+  /** false when the dates are a placeholder cadence rather than real
+   *  captures (HLS: one tick a month, the mosaic of a 30-day window). */
+  realDates: boolean
+  /** Offered inside the sidebar's single "Historical Imagery" entry (Bing
+   *  is a plain basemap there, but has a pill on the timeline). */
+  historicalEntry: boolean
+  tileSize: number
+  /** Deepest zoom with real tiles: the map overzooms past it, the camera's
+   *  ceiling follows it. */
+  maxzoom: number
+  /** The constant string the map's attribution control shows: react-map-gl
+   *  cannot update a source's attribution after it is mounted, so the real
+   *  per-place credit is shown by the sidebar's Source Info section. */
+  attribution: string
+  /** [west, south, east, north]: where the source has any date (a national
+   *  series); unset: worldwide. */
+  bounds?: [west: number, south: number, east: number, north: number]
+  /** The data's licence, when the source states one. */
+  licence?: string
+  /** Filename stem and label of an export. */
+  fileStem: string
+  exportLabel: string
+  /** The dates known without a request (a fixed cadence or list), for the
+   *  timeline to show at once. Absent: only listDates knows them. */
+  fixedDates?: (keys: SourceKeys) => DatedImageryTick[]
+  /** The catalog: every date at a place within [startMs, endMs], oldest first. */
+  listDates: (place: DatedImageryPlace, startMs: number, endMs: number, keys: SourceKeys) => Promise<DatedImageryTick[]>
+  /** The tiles of a date (a tick, or a date alone with dateMs and no ref);
+   *  null when they cannot be named yet (a Wayback date not resolved to a
+   *  release, a missing key, no date). `hd`: Google Earth's 512 px tiles. */
+  tiles: (tick: Pick<DatedImageryTick, "dateMs" | "ref">, opts?: { keys?: SourceKeys; hd?: boolean }) => DatedImageryTiles | null
+}

@@ -4,6 +4,7 @@ import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
 import { findTerrainSource } from "@/lib/terrain-catalog"
 import { builtinBasemap } from "@/lib/basemap-sources"
+import { findDatedImagery } from "@/lib/dated-imagery"
 import { entryUrl } from "@/lib/source-schema"
 import type { TerrainSource } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, osmBuildings3dAtom, allmapsRemoveColorAtom, geHiDpiTilesAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
@@ -46,12 +47,7 @@ import { buildTellsProtocolUrl, type TellsOptions } from "@/lib/tells-protocol"
 import { buildMatcapProtocolUrl } from "@/lib/matcap-protocol"
 import { buildPhongProtocolUrl } from "@/lib/phong-protocol"
 import { buildShadowProtocolUrl } from "@/lib/shadow-protocol"
-import { useResolvedWaybackRelease, waybackTileUrl } from "@/lib/wayback"
-import { hlsTileUrl } from "@/lib/hls"
-import { geHistoricalTileSource } from "@/lib/ge-historical"
-import { PLANET_TILE_SIZE, PLANET_MAXZOOM } from "@/lib/planet"
-import { planetProtocolUrl } from "@/lib/planet-tiles"
-import { eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "@/lib/eox-s2-cloudless"
+import { useResolvedWaybackRelease } from "@/lib/wayback"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
@@ -83,18 +79,9 @@ function useTilejsonMetadata(tilejsonUrl: string | null): TilejsonMetadata | nul
 // schema (lib/basemap-sources.ts). "osm" is a vector style (VectorBasemapLayer);
 // its ceiling is OpenFreeMap's.
 const OSM_MAXZOOM = 19
-// "wayback" isn't in BUILTIN_BASEMAP_SOURCES — its tile URL is per-release (see
-// lib/wayback.ts), resolved at render time in RasterBasemapSource instead of
-// a static template — but it shares the same maxzoom historical-satellite
-// itself uses for World Imagery Wayback.
-const WAYBACK_TILE_SIZE = 256
-const WAYBACK_MAXZOOM = 19
-
-// "hls" mirrors the wayback pattern above — per-date tile URL built at render
-// time (see lib/hls.ts) rather than a static template. 16 matches HLS's own
-// 30m native resolution reasonably well for the titiler-cmr rasterio backend.
-const HLS_TILE_SIZE = 256
-const HLS_MAXZOOM = 16
+// The dated imagery (Wayback, HLS, Google Earth historical, Planet, EOX) has
+// an address per date: entries of the dated schema (lib/dated-imagery.ts),
+// with their tile size and ceiling.
 
 // -------------------------
 // TerrainSources
@@ -488,50 +475,20 @@ export const RasterBasemapSource = memo(({
         }
 
 
-        if (basemapSource === "wayback") {
-            // Catalog still loading, or no release resolved yet for this date
-            // (see lib/wayback.ts's useResolvedWaybackRelease) — render
-            // nothing rather than a broken/stale tile request.
-            if (!resolvedWaybackItem) return null
-            // A constant pointer string, not the real per-view contributor —
-            // react-map-gl's <Source> reconciler (node_modules/@vis.gl/
-            // react-maplibre/src/components/source.ts's updateSource) has no
-            // live-update path for `attribution` at all (any changed prop it
-            // doesn't recognize just logs "Unable to update <Source> prop"
-            // and is dropped), so a value that changes post-mount could never
-            // reach the map through this prop anyway. The real value lives in
-            // the sidebar's Source Info section instead (SourceInfoSection.tsx,
-            // via useEsriDynamicAttribution) — resolved for the current view
-            // there, not tied to this one Source instance.
-            return { tiles: [waybackTileUrl(resolvedWaybackItem)], tileSize: WAYBACK_TILE_SIZE, maxzoom: WAYBACK_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.wayback }
-        }
-
-        if (basemapSource === "hls") {
-            if (!date) return null
-            return { tiles: [hlsTileUrl(date)], tileSize: HLS_TILE_SIZE, maxzoom: HLS_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.hls }
-        }
-
-        if (basemapSource === "ge-historical") {
-            // No date picked yet (fresh activation, date 0): the newest
-            // capture, i.e. today as the target - the protocol takes the
-            // newest capture on or before it. Returning null here left the
-            // view empty until a date was chosen.
-            const target = date || Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate())
-            // geHistoricalTileSource returns its own constant pointer string
-            // (lib/ge-historical.ts) for the same reason as the wayback
-            // branch above — the real per-tile provider lives in the
-            // sidebar's Source Info section instead (useGeHistoricalDynamicAttribution).
-            return geHistoricalTileSource(target, geHiDpi)
-        }
-
-        if (basemapSource === "planet") {
-            if (!date || !planetKey) return null
-            return { tiles: [planetProtocolUrl(date)], tileSize: PLANET_TILE_SIZE, maxzoom: PLANET_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS.planet }
-        }
-
-        if (basemapSource === "eox-s2") {
-            if (!date) return null
-            return { tiles: [eoxS2CloudlessTileUrl(new Date(date).getUTCFullYear())], tileSize: EOX_S2_TILE_SIZE, maxzoom: EOX_S2_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["eox-s2"] }
+        // The dated imagery (lib/dated-imagery.ts): the tiles of this view's
+        // date. A Wayback date names its tiles through the release serving it
+        // here (useResolvedWaybackRelease); null while that, the date or a
+        // key is missing, which renders nothing rather than a broken request.
+        // The attribution is the source's constant pointer string: react-map-
+        // gl's <Source> reconciler (node_modules/@vis.gl/react-maplibre/src/
+        // components/source.ts's updateSource) has no live-update path for
+        // `attribution`, so the real per-view credit lives in the sidebar's
+        // Source Info section (SourceInfoSection.tsx). Bing, a dated source
+        // too (its one current mosaic), is drawn as a built-in basemap below.
+        const dated = findDatedImagery(basemapSource)
+        if (dated?.historicalEntry) {
+            const spec = dated.tiles({ dateMs: date ?? 0, ref: dated.id === "wayback" ? resolvedWaybackItem ?? undefined : undefined }, { keys: { planetKey }, hd: geHiDpi })
+            return spec ? { tiles: spec.tiles, tileSize: spec.tileSize, maxzoom: spec.maxzoom, attribution: dated.attribution } : null
         }
 
         const basemap = builtinBasemap(basemapSource) ?? builtinBasemap("google")!
@@ -541,11 +498,8 @@ export const RasterBasemapSource = memo(({
 
     const zoomRange = useMemo(() => {
         if (customBasemap) return { minzoom: customBasemap.minzoom ?? 0, maxzoom: customBasemap.maxzoom ?? 22, isCustom: true }
-        if (basemapSource === "wayback") return { minzoom: 0, maxzoom: WAYBACK_MAXZOOM, isCustom: false }
-        if (basemapSource === "hls") return { minzoom: 0, maxzoom: HLS_MAXZOOM, isCustom: false }
-        if (basemapSource === "ge-historical") return { minzoom: 0, maxzoom: 23, isCustom: false }
-        if (basemapSource === "planet") return { minzoom: 0, maxzoom: PLANET_MAXZOOM, isCustom: false }
-        if (basemapSource === "eox-s2") return { minzoom: 0, maxzoom: EOX_S2_MAXZOOM, isCustom: false }
+        const dated = findDatedImagery(basemapSource)
+        if (dated?.historicalEntry) return { minzoom: 0, maxzoom: dated.maxzoom, isCustom: false }
         if (basemapSource === "osm") return { minzoom: 0, maxzoom: OSM_MAXZOOM, isCustom: false }
         return { minzoom: 0, maxzoom: (builtinBasemap(basemapSource) ?? builtinBasemap("google")!).maxzoom ?? 22, isCustom: false }
     }, [customBasemap, basemapSource])

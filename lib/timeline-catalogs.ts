@@ -41,6 +41,7 @@ const ALLMAPS_ANNOTATIONS = "https://annotations.allmaps.org"
 import { gsdFromZoom } from "./gsd"
 import { formatUtcDate, isoFromUtcMs, parseUtcMs } from "./date-input"
 import { NATIONAL_SOURCES, NATIONAL_SOURCE_BY_ID, loadNationalLayers, type NatLayer, type NatSource } from "./national-historical"
+import { nationalLayerBasemapId, nationalLayerTiles } from "./national-dated"
 
 export const CATALOG_BASEMAP_PREFIX = "custom-basemap-cat-"
 
@@ -321,10 +322,12 @@ export async function resolveCatalogSourceId(id: string): Promise<CustomBasemapS
   // link opens on the picture instead of on the basemap under it.
   m = NAT_ID_RE.exec(id)
   if (m && m[1] in NATIONAL_SOURCE_BY_ID) {
-    const src = NATIONAL_SOURCE_BY_ID[m[1]], key = m[2]
-    const l = (await loadNationalLayers(src)).find((l) => l.key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 90) === key)
-    if (l) return {
-      id, name: `${src.label}: ${l.label}`, url: l.url, type: l.type, role: "basemap", bounds: l.bbox ?? src.bbox, maxzoom: l.maxzoom, minzoom: l.minzoom, transient: true,
+    const src = NATIONAL_SOURCE_BY_ID[m[1]]
+    // The layer and its tiles as the dated imagery schema has them (lib/national-dated.ts).
+    const l = (await loadNationalLayers(src)).find((l) => nationalLayerBasemapId(src.id, l.key) === id)
+    const t = l && nationalLayerTiles(src, l)
+    if (l && t) return {
+      id, name: `${src.label}: ${l.label}`, url: t.tiles[0], type: l.type, role: "basemap", bounds: t.bounds, maxzoom: l.maxzoom, minzoom: l.minzoom, transient: true,
       description: `${src.label}, ${l.label}. ${src.licence}.`, infoUrl: src.infoUrl,
     } as CustomBasemapSource
   }
@@ -865,8 +868,9 @@ async function nationalTicks(src: NatSource, bbox: Bbox, signal?: AbortSignal): 
     const dateMs = flown ? Date.parse(flown) : l.dateMs ?? Date.UTC(l.year, 0, 1)
     const when = flown && !flown.endsWith("-01-01") ? flown : l.endYear ? `${l.year}-${l.endYear}` : String(l.year)
     const gsdM = /(\d+(?:[.,]\d+)?)\s*cm/i.exec(l.label) ? Number(/(\d+(?:[.,]\d+)?)\s*cm/i.exec(l.label)![1].replace(",", ".")) / 100 : /(\d+(?:[.,]\d+)?)\s*m\b/i.exec(l.label) ? Number(/(\d+(?:[.,]\d+)?)\s*m\b/i.exec(l.label)![1].replace(",", ".")) : undefined
+    const t = nationalLayerTiles(src, l)
     return register(src.id, l.key, dateMs, `${src.short} · ${l.label} · ${when}`, {
-      name: `${src.label}: ${l.label}`, url: l.url, type: l.type, role: "basemap", bounds: l.bbox ?? src.bbox, maxzoom: l.maxzoom, minzoom: l.minzoom,
+      name: `${src.label}: ${l.label}`, url: t.tiles[0], type: l.type, role: "basemap", bounds: t.bounds, maxzoom: l.maxzoom, minzoom: l.minzoom,
       description: `${src.label}, ${l.label}${flown ? `, flown ${flown}` : ""}. ${src.licence}.`, infoUrl: src.infoUrl,
     } as Omit<CustomBasemapSource, "id">, { licence: src.licence, provider: src.label, gsd: gsdM, date: flown })
   })

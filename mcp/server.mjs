@@ -53,7 +53,7 @@ How to answer a request to see a place:
 
 Numbers rather than pictures: elevation gives the height of points or a profile along a line, on one or several datasets (a surface model against a ground model gives heights of buildings and trees). export_geotiff writes the elevation of an area to a file.
 
-Change through time: imagery_dates lists the dates of the built-in dated imagery (Esri Wayback, Google Earth) at a place; catalog_items and search_stac list dated images from open catalogs. Then open_view or compare_sources with imagerySource and imageryDate, or with an item's imageryUrl.
+Change through time: imagery_dates lists the dates of the built-in dated imagery (Esri Wayback, Google Earth, EOX Sentinel-2, Bing's current mosaic) and of the national historical series (agencies' old orthophotos, Google Earth Timelapse) at a place; catalog_items and search_stac list dated images from open catalogs. Then open_view or compare_sources with imagerySource and imageryDate, or with an item's imageryUrl.
 
 Modes by subject:
 - general relief: hillshade (default)
@@ -112,7 +112,7 @@ const viewShape = {
   terrainSource: z.string().optional().describe(`Terrain source: ${terrainDesc}`),
   terrainSourceB: z.string().optional().describe("A second terrain source to compare with the first"),
   split: z.enum(["off", "side-by-side", "overlay"]).optional().describe("How two sources are compared; side-by-side when terrainSourceB is given"),
-  imageryUrl: z.string().optional().describe("Imagery to show under the terrain: an imageryUrl returned by catalog_items or search_stac, XYZ tiles ({z}/{x}/{y}) or a Cloud-Optimized GeoTIFF"),
+  imageryUrl: z.string().optional().describe("Imagery to show under the terrain: an imageryUrl returned by catalog_items, search_stac or imagery_dates (a national layer), XYZ tiles ({z}/{x}/{y}) or a Cloud-Optimized GeoTIFF"),
   imagerySource: z.enum(IMAGERY_SOURCES).optional().describe(imagerySourceDesc),
   imageryDate: z.string().optional().describe("Date of the imagery, YYYY-MM-DD; the newest when omitted"),
 }
@@ -251,7 +251,7 @@ function makeServer() {
 
   server.registerTool("imagery_dates", {
     title: "Dates of the built-in imagery",
-    description: "The dates on which the app's built-in dated imagery was captured at a place, newest first: Esri World Imagery Wayback and Google Earth historical imagery. Use it to pick a 'before' and an 'after', then show them with open_view or compare_sources (imagerySource, imageryDate). Takes 5 to 40 seconds.",
+    description: "The dates on which the app's built-in dated imagery was captured at a place, newest first: Esri World Imagery Wayback, Google Earth historical imagery, EOX Sentinel-2, Bing, and the national and regional series covering the place (mapping agencies' historical orthophotos, such as Spain's PNOA or the Netherlands' PDOK, and Google Earth Timelapse). Use it to pick a 'before' and an 'after', then show them with open_view or compare_sources (imagerySource, imageryDate). Takes 5 to 40 seconds.",
     inputSchema: z.object({ ...pointShape.shape, from: z.string().optional().describe("Earliest date, YYYY-MM-DD"), to: z.string().optional().describe("Latest date, YYYY-MM-DD") }),
     annotations: { ...READ_ONLY, openWorldHint: true },
   }, async (args) => { try { return json(await imageryDates(args)) } catch (e) { return fail(e) } })
