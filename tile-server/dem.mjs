@@ -23,6 +23,7 @@ export function library() {
 
 let appPromise
 /** The app's readers, registered once (generated/app-render.mjs). */
+export const warmUp = () => app()
 const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs").then((A) => { A.registerSourceProtocols(); return A })))
 
 /** Mapterhorn declares z18 but most places stop at z15-17: the map probes

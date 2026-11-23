@@ -52,7 +52,8 @@
 // then answer from the cache.
 //
 // Environment: PORT (3400), TV_BASE_URL (the app), TILE_CACHE_DIR, CHROME_PATH,
-// TV_SOFTWARE_GL, TV_RENDER_CONCURRENCY (2), TV_DIRECT_CONCURRENCY (4),
+// TV_SOFTWARE_GL, TV_RENDER_CONCURRENCY (2), TV_DIRECT_WORKERS (the cores minus one;
+// 0: in the server's thread, TV_DIRECT_CONCURRENCY (4) at a time),
 // TV_QUEUE_TIMEOUT (30 s), TV_RENDER_TIMEOUT (90 s), TV_ALLOWED_HOSTS (comma-separated
 // host names accepted in the Host header; unset: any), TV_MAPBOX_KEY,
 // TV_MAPTILER_KEY, TV_CESIUM_ION_KEY (the operator's keys, used when a
@@ -68,7 +69,8 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./openapi.mjs"
-import { plan, draw, drawViewport, flatView, DIRECT_MODES, VECTOR_MODES, vectorTile, activeLayers } from "./direct.mjs"
+import { plan, flatView, DIRECT_MODES, VECTOR_MODES, activeLayers } from "./direct.mjs"
+import { runDirect, poolStats, closePool, POOL_SIZE } from "./direct-pool.mjs"
 import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
@@ -140,13 +142,14 @@ async function sweep() {
 // has, until /health itself stopped answering (seen 2026-11-23). Now:
 // - a request whose client has gone is dropped before its work starts;
 // - the browser engine runs TV_RENDER_CONCURRENCY pages at a time (each is
-//   a whole app), the direct engine TV_DIRECT_CONCURRENCY tiles at a time;
+//   a whole app), the direct engine one tile per worker thread
+//   (direct-pool.mjs), whose thread a cancelled or timed-out render ends;
 // - a request that waited TV_QUEUE_TIMEOUT seconds for its turn gets a 503
 //   with Retry-After (QGIS leaves the tile blank and asks again later), one
 //   not answered within TV_RENDER_TIMEOUT seconds a 504.
 // The request's cancel signal and deadline reach the queues through
 // AsyncLocalStorage, so no function in between has to carry them.
-const DIRECT_CONCURRENCY = Math.max(1, Number(process.env.TV_DIRECT_CONCURRENCY || 4))
+const DIRECT_CONCURRENCY = POOL_SIZE || Math.max(1, Number(process.env.TV_DIRECT_CONCURRENCY || 4))
 const QUEUE_TIMEOUT = Math.max(1, Number(process.env.TV_QUEUE_TIMEOUT || 30)) * 1000
 const RENDER_TIMEOUT = Math.max(5, Number(process.env.TV_RENDER_TIMEOUT || 90)) * 1000
 const requestContext = new AsyncLocalStorage()
@@ -185,6 +188,9 @@ function limiter(n) {
 // A few pages at a time: each one is a whole app.
 const slot = limiter(CONCURRENCY)
 const directSlot = limiter(DIRECT_CONCURRENCY)
+/** A direct render in a worker, its turn taken from directSlot; the
+ *  request's cancel (or its timeout) ends the worker. */
+const directRun = (op, input, args) => directSlot(() => runDirect(op, input, args, requestContext.getStore()?.signal))
 
 /** The API keys of a request (mapboxKey, maptilerKey, cesiumIonKey), taken
  *  out of its parameters: they go to the direct engine's readers and to
@@ -247,7 +253,7 @@ async function tile(z, x, y, ext, query, scale = 1) {
       const key = `direct|${JSON.stringify([how.dem.tiles, how.layers, how.state])}|${size}|${z}/${x}/${y}`
       const have = await cached(key, ext)
       if (have) return { bytes: have, engine: "direct" }
-      const bytes = await directSlot(() => draw(how, { world: size * 2 ** z, x0: x * size, y0: y * size, width: size, height: size, format: ext, baseUrl: BASE_URL }))
+      const bytes = await directRun("tile", { view, rest, keys }, { world: size * 2 ** z, x0: x * size, y0: y * size, width: size, height: size, format: ext, baseUrl: BASE_URL })
       store(key, ext, bytes)
       return { bytes, engine: "direct" }
     }
@@ -300,7 +306,7 @@ async function picture(ext, query) {
   let why
   if (engine !== "browser") {
     const how = flatView(view) ? await plan(view, rest, keys) : { engine: "browser", why: "3D, tilted, rotated or split views are drawn by the app" }
-    if (how.engine === "direct") return { bytes: await directSlot(() => drawViewport(how, { lat, lng, zoom: zoom ?? 12, width, height, format: ext, baseUrl: BASE_URL })), engine: "direct" }
+    if (how.engine === "direct") return { bytes: await directRun("viewport", { view, rest, keys }, { lat, lng, zoom: zoom ?? 12, width, height, format: ext, baseUrl: BASE_URL }), engine: "direct" }
     if (engine === "direct") throw Object.assign(new Error(`The direct engine cannot draw this: ${how.why}`), { status: 400 })
     why = how.why
   }
@@ -345,7 +351,10 @@ async function handle(req, res) {
       // its source has it so (projects written before 2026-11-23): read it
       // as the query.
       const u = new URL(!req.url.includes("?") && /%3F/i.test(req.url) ? req.url.replace(/%3F/i, "?") : req.url, "http://x")
-      if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, browser: slot.stats(), direct: directSlot.stats() }))
+      if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, browser: slot.stats(), direct: { ...directSlot.stats(), ...poolStats() } }))
+      // A browser goes to the page to try the service; a client that asks
+      // for JSON gets the index of addresses.
+      if (u.pathname === "/" && !/application\/json/.test(req.headers.accept || "")) return send(302, "text/plain", "See /docs", { location: "/docs" })
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify({
         docs: "/docs", openapi: "/openapi.json", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
         tiles: "/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
@@ -390,11 +399,12 @@ async function handle(req, res) {
         const modes = view.modes?.length ? view.modes : ["contours"]
         const wrong = modes.filter((m) => !VECTOR_MODES.includes(m))
         if (wrong.length) return send(400, "text/plain", `Not served as vector tiles, ask for .png or .jpg: ${wrong.join(", ")} (vector modes: ${VECTOR_MODES.join(", ")})`)
-        const how = await plan({ terrainSource: view.terrainSource, modes }, rest, keysFrom(take))
+        const input = { view: { terrainSource: view.terrainSource, modes }, rest, keys: keysFrom(take) }
+        const how = await plan(input.view, input.rest, input.keys)
         if (how.engine !== "direct") return send(400, "text/plain", `Vector tiles cannot be made here: ${how.why}`)
         const key = `vector|${JSON.stringify([how.dem.tiles, modes, how.state])}|${z}/${x}/${y}`
         let bytes = await cached(key, "pbf")
-        if (!bytes) { bytes = await directSlot(() => vectorTile(how, modes, z, x, y, BASE_URL)); store(key, "pbf", bytes) }
+        if (!bytes) { bytes = await directRun("vector", input, { modes, z, x, y, baseUrl: BASE_URL }); store(key, "pbf", bytes) }
         return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
       }
       const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
@@ -443,6 +453,6 @@ async function handle(req, res) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const server = start()
-  const stop = () => { server.close(); closeBrowser().finally(() => process.exit(0)) }
+  const stop = () => { server.close(); closePool(); closeBrowser().finally(() => process.exit(0)) }
   process.on("SIGTERM", stop); process.on("SIGINT", stop)
 }

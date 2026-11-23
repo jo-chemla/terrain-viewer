@@ -13,7 +13,7 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
 | `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
 | `/tiles/WebMercatorQuad/...`, `/bbox/...` | titiler's addresses for the same |
-| `/openapi.json`, `/docs`, `/health` | |
+| `/openapi.json`, `/docs`, `/health` | `/` redirects to `/docs` (JSON index with `Accept: application/json`); `/health`: queues and workers |
 
 A standalone pnpm root, like `video/` and `mcp/`: it is not part of the root
 install, but its build step bundles the app's code (`lib/`), so the root
@@ -28,7 +28,7 @@ node openapi.mjs         # rewrites docs/public/tile-service-openapi.json
 node compare-engines.mjs http://localhost:3400 out/   # the two engines side by side
 ```
 
-Environment: `PORT` (3400), `TV_RENDER_CONCURRENCY` (2 browser pages), `TV_DIRECT_CONCURRENCY` (4 direct tiles), `TV_QUEUE_TIMEOUT` (30 s, then 503), `TV_RENDER_TIMEOUT` (90 s, then 504), `TILE_CACHE_DIR` (rendered tiles, kept a week),
+Environment: `PORT` (3400), `TV_RENDER_CONCURRENCY` (2 browser pages), `TV_DIRECT_WORKERS` (worker threads of the direct engine, the cores minus one, at most 8; 0: in the server's thread, `TV_DIRECT_CONCURRENCY` (4) at a time), `TV_QUEUE_TIMEOUT` (30 s, then 503), `TV_RENDER_TIMEOUT` (90 s, then 504), `TILE_CACHE_DIR` (rendered tiles, kept a week),
 `TV_BASE_URL` (the app the browser engine opens, default
 `https://terrain-viewer.iconem.com/`), `CHROME_PATH`, `TV_SOFTWARE_GL=1`,
 `TV_ALLOWED_HOSTS`, `TV_MAPBOX_KEY` / `TV_MAPTILER_KEY` / `TV_CESIUM_ION_KEY` (the
@@ -51,6 +51,7 @@ and with `TV_RENDER_URL` asks a running tile service for its pictures.
 | `symbols.mjs` | Where MapLibre puts symbols along a line (clipping, anchor spacing, bend check), ported: contour labels and cliff teeth. |
 | `mvt.mjs` | Vector tiles read and written. |
 | `qgis-project.mjs` | `/qgis.qgz`: every layer of the app, stacked as the map and grouped as its panel, the view's layers checked and configured, over its basemap. |
+| `direct-pool.mjs`, `direct-worker.mjs` | The direct engine in worker threads: one tile per worker, a cancelled or timed-out tile ends its worker. |
 | `compare-engines.mjs` | The same tiles from both engines, a table of differences and side-by-side pictures. |
 | `app-lib.ts`, `app-render.ts`, `app-sources.ts`, `app-overlays.ts`, `build.mjs` | The app's catalog code, tile protocols, source readers and layer paints bundled for Node into `generated/` (not tracked), with `import.meta.env` empty so no key from `.env` can get in; plus `library.json` (the terrain library and the data hosts) and `url-params.json`. |
 | `browser-shim.mjs`, `maplibre-stub.mjs` | The few browser functions the bundled code calls, done with sharp; a stand-in for maplibre-gl, which the protocols only register with. |
