@@ -268,13 +268,13 @@ The browser engine suits a few views, a cache filled in advance, or pictures of 
 | `TV_BASE_URL` | The app to render | `https://terrain-viewer.iconem.com/` |
 | `TILE_CACHE_DIR` | Where tiles and pictures are kept a week | `/data/tiles` in the image |
 | `TV_RENDER_CONCURRENCY` | Pages rendered at the same time; each is a whole app | 2 |
-| `TV_DIRECT_CONCURRENCY` | Tiles the direct engine draws at the same time | 4 |
+| `TV_DIRECT_WORKERS` | Worker threads of the direct engine, one tile each; 0 draws in the server's thread, `TV_DIRECT_CONCURRENCY` (4) tiles at a time | the cores minus one |
 | `TV_QUEUE_TIMEOUT` | Seconds a request may wait for its turn before a `503` with `Retry-After` | 30 |
 | `TV_RENDER_TIMEOUT` | Seconds before a request not yet answered gets a `504` | 90 |
-
-A request whose client has gone (QGIS cancels the tiles it no longer shows while you pan) is dropped before its work starts, so several QGIS windows no longer pile up work nobody waits for. `/health` reports each engine's `running`, `waiting` and `limit`.
 | `TV_ALLOWED_HOSTS` | Host names accepted in the `Host` header, comma-separated | any |
 | `TV_MAPBOX_KEY`, `TV_MAPTILER_KEY`, `TV_CESIUM_ION_KEY` | The operator's keys, used when a request gives none: anyone who can reach the service then uses them | none |
+
+A request whose client has gone (QGIS cancels the tiles it no longer shows while you pan) is dropped before its work starts, so several QGIS windows no longer pile up work nobody waits for. The direct engine draws in worker threads (`tile-server/direct-pool.mjs`): a sky view factor or openness tile keeps a thread busy for seconds, and on the server's own thread it held up every other request, `/health` included. A tile whose request is cancelled or reaches `TV_RENDER_TIMEOUT` has its worker ended, which stops the computation, and a fresh worker takes its place. Each worker keeps its own elevation cache, so memory grows with their number. `/health` reports each engine's `running`, `waiting` and `limit`, and for the direct engine `workers`, `busy` and `replaced` (workers ended since the start). The root address `/` redirects to the Scalar page `/docs`; with `Accept: application/json` it answers the index of addresses.
 
 The browser in the container reads any address given as a source: keep the service away from a private network, or behind a proxy that restricts who can call it. It has no sign-in.
 
