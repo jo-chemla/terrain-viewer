@@ -3,6 +3,10 @@
 // tiles of a date and the ceiling. The map's basemap (RasterBasemapSource),
 // the multi-date export (lib/historical-export-sources.ts), the timeline's
 // fixed date lists and the MCP server's imagery_dates read them from here.
+// The national and regional series (an agency's flights, Google Earth
+// Timelapse, Planetary Computer's mosaics) are dated sources too, in the
+// library section: NATIONAL_DATED_SOURCES (lib/national-dated.ts), found by
+// the same lookup.
 //
 // Not here: the per-place live walks the timeline runs as React hooks
 // (useWaybackItemsWithLocalChanges, useGeHistoricalDates, useBingCaptureDate:
@@ -19,6 +23,7 @@ import { planetMonthlyTicks, planetTileUrl, PLANET_TILE_SIZE, PLANET_MAXZOOM } f
 import { planetProtocolUrl, planetTileBlobFetcher } from "./planet-tiles"
 import { eoxS2CloudlessTicks, eoxS2CloudlessTileUrl, EOX_S2_TILE_SIZE, EOX_S2_MAXZOOM } from "./eox-s2-cloudless"
 import { fetchBingCaptureDate, toQuadkey } from "./bing"
+import { NATIONAL_DATED_SOURCES } from "./national-dated"
 
 const inRange = (startMs: number, endMs: number) => (t: DatedImageryTick) => t.dateMs >= startMs && t.dateMs <= endMs
 const BING_URL_BASE = "https://t.ssl.ak.tiles.virtualearth.net/tiles/a"
@@ -124,9 +129,12 @@ export const DATED_IMAGERY_SOURCES: readonly DatedImagerySource[] = [
   },
 ]
 
-const BY_ID = new Map(DATED_IMAGERY_SOURCES.map((s) => [s.id, s]))
+export { NATIONAL_DATED_SOURCES }
+/** The timeline's own sources, then the national and regional series. */
+export const ALL_DATED_IMAGERY_SOURCES: readonly DatedImagerySource[] = [...DATED_IMAGERY_SOURCES, ...NATIONAL_DATED_SOURCES]
+const BY_ID = new Map(ALL_DATED_IMAGERY_SOURCES.map((s) => [s.id, s]))
 
-/** A dated source by id, or undefined. */
+/** A dated source by id (a built-in or a national series), or undefined. */
 export function findDatedImagery(id: string | null | undefined): DatedImagerySource | undefined {
   return id ? BY_ID.get(id) : undefined
 }

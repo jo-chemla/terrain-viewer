@@ -7,7 +7,8 @@ export { stacCatalogId, isStacCatalogId } from "../lib/timeline-catalogs"
 // The dated imagery (Wayback, Google Earth historical, EOX, Bing, ...): each
 // source's catalog of dates at a place and the tiles of a date
 // (lib/dated-imagery.ts), as the map, the timeline and the export read them.
-export { DATED_IMAGERY_SOURCES, findDatedImagery } from "../lib/dated-imagery"
+export { DATED_IMAGERY_SOURCES, NATIONAL_DATED_SOURCES, ALL_DATED_IMAGERY_SOURCES, findDatedImagery } from "../lib/dated-imagery"
+export { nationalLayerBasemapId } from "../lib/national-dated"
 export { TIMELAPSE_FIRST_YEAR, TIMELAPSE_LAST_YEAR } from "../lib/google-timelapse"
 // The colour ramps and their rescaling, for the tile service's direct engine
 // (direct.mjs), which colours elevation and slope grids without a map.

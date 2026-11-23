@@ -145,8 +145,12 @@ export const EXPORT_DIR_NAME = "terrain-viewer-mcp"
 /** Dates of the dated imagery built into the app, at a place, newest first:
  *  every source of the app's dated imagery schema (lib/dated-imagery.ts)
  *  with real dates and no key (Wayback, Google Earth historical, EOX
- *  Sentinel-2, Bing's current mosaic), through each one's own catalog. HLS
- *  is left out: its dates are a monthly cadence, not captures found here. */
+ *  Sentinel-2, Bing's current mosaic), through each one's own catalog; then
+ *  the national and regional series whose extent holds the place (an
+ *  agency's flight years, Google Earth Timelapse), each date with the
+ *  layer's basemap id, which open_view takes as imageryUrl. HLS and
+ *  Planetary Computer's mosaics are left out: their dates are a cadence,
+ *  not captures found here. */
 export async function imageryDates({ lat, lng, zoom = 16, from, to }) {
   const lib = await appLib()
   const start = from ? Date.parse(from) : 0, end = to ? Date.parse(to) : Date.now()
@@ -156,10 +160,21 @@ export async function imageryDates({ lat, lng, zoom = 16, from, to }) {
   }
   const sources = lib.DATED_IMAGERY_SOURCES.filter((s) => s.realDates && !s.apiKey && IMAGERY_SOURCES.includes(s.id))
   const answers = await Promise.all(sources.map((s) => run(() => s.listDates({ lat, lng, zoom }, start, end, {}))))
+  // The series answer from their layer lists, no request but the first load
+  // of the generated list.
+  const national = {}
+  for (const s of lib.NATIONAL_DATED_SOURCES.filter((s) => s.realDates)) {
+    const ticks = await s.listDates({ lat, lng, zoom }, start, end, {}).catch(() => [])
+    if (!ticks.length) continue
+    national[s.id] = {
+      name: s.name, licence: s.licence, note: s.description,
+      dates: ticks.reverse().map((t) => ({ date: t.label, layer: t.title, imageryUrl: lib.nationalLayerBasemapId(s.id, t.ref.key) })),
+    }
+  }
   return {
     ...Object.fromEntries(sources.map((s, i) => [s.id, { name: s.name, note: s.description, ...answers[i] }])),
-    timelapse: { name: "Google Earth Timelapse", note: `One cloud-free mosaic per year from ${lib.TIMELAPSE_FIRST_YEAR} to ${lib.TIMELAPSE_LAST_YEAR}, about 30 m (Landsat, Sentinel-2): change over decades, not detail.` },
-    howToShow: `open_view or compare_sources with imagerySource (${sources.map((s) => s.id).join(", ")}) and imageryDate (a date from this list).`,
+    national,
+    howToShow: `open_view or compare_sources with imagerySource (${sources.map((s) => s.id).join(", ")}) and imageryDate (a date from this list); for a national or regional layer, imageryUrl set to its imageryUrl (a basemap id the app rebuilds).`,
   }
 }
 

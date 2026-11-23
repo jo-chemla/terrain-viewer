@@ -247,6 +247,10 @@ export function hasEntryKey(entry: { apiKey?: SourceApiKey }, keys: SourceKeys =
 // Sentinel-2 cloudless, and Bing's one current mosaic with its capture date.
 // A RasterSourceEntry has one address; one of these has a catalog of dates
 // at a place and an address per date. The registry is lib/dated-imagery.ts.
+// The national and regional series (lib/national-historical.ts: an agency's
+// flights, Google Earth Timelapse, Planetary Computer's mosaics) are dated
+// sources too, one layer per date, in the "library" section
+// (lib/national-dated.ts).
 
 /** A place the catalog is asked about: the view's centre and its zoom. */
 export interface DatedImageryPlace { lat: number; lng: number; zoom: number }
@@ -259,6 +263,9 @@ export interface DatedImageryTick {
   /** The source's own handle for that date when the date alone does not
    *  name the tiles (a Wayback release). */
   ref?: unknown
+  /** The source's own name for that date when it says more than the label
+   *  (a national layer: "Orthofoto 1956-57 (B/W)"). */
+  title?: string
 }
 
 /** The tiles of one date. */
@@ -268,6 +275,10 @@ export interface DatedImageryTiles {
   tiles: string[]
   tileSize: number
   maxzoom: number
+  /** Shallowest zoom with tiles, when not 0 (Planetary Computer's mosaics). */
+  minzoom?: number
+  /** [west, south, east, north]: where the tiles of that date exist. */
+  bounds?: [west: number, south: number, east: number, north: number]
   /** A plain https template, when the map's is an app scheme (Planet, for
    *  the GDAL script of an export). */
   urlTemplate?: string
@@ -283,10 +294,14 @@ export interface DatedImageryTiles {
 /** A dated imagery source. */
 export interface DatedImagerySource extends Pick<SourceEntryBase, "id" | "name" | "shortName" | "description" | "infoUrl" | "apiKey"> {
   kind: "raster"
-  section: "defaults"
-  /** What a date is: a capture dated per tile ("capture"), a monthly or
-   *  yearly mosaic, or the one current mosaic ("current", Bing). */
-  granularity: "capture" | "month" | "year" | "current"
+  /** "defaults": the timeline's own sources (lib/dated-imagery.ts);
+   *  "library": the national and regional series, a catalog the timeline
+   *  lists per place (lib/national-dated.ts). */
+  section: "defaults" | "library"
+  /** What a date is: a capture dated per tile ("capture"), a monthly,
+   *  quarterly or yearly mosaic, a flight year or period ("year"), or the
+   *  one current mosaic ("current", Bing). */
+  granularity: "capture" | "month" | "quarter" | "year" | "current"
   /** false when the dates are a placeholder cadence rather than real
    *  captures (HLS: one tick a month, the mosaic of a 30-day window). */
   realDates: boolean
@@ -301,6 +316,11 @@ export interface DatedImagerySource extends Pick<SourceEntryBase, "id" | "name" 
    *  cannot update a source's attribution after it is mounted, so the real
    *  per-place credit is shown by the sidebar's Source Info section. */
   attribution: string
+  /** [west, south, east, north]: where the source has any date (a national
+   *  series); unset: worldwide. */
+  bounds?: [west: number, south: number, east: number, north: number]
+  /** The data's licence, when the source states one. */
+  licence?: string
   /** Filename stem and label of an export. */
   fileStem: string
   exportLabel: string

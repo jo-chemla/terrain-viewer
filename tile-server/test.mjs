@@ -84,6 +84,23 @@ import { plan } from "./direct.mjs"
     assert.equal(findDatedImagery("wayback").tiles({ dateMs: d2020 }), null, "a Wayback date names no tiles until resolved to a release")
     assert.equal(findDatedImagery("hls").realDates, false)
     assert.match(findDatedImagery("bing").tiles({ dateMs: 0 }).buildTileUrl(1, 0, 0), /tiles\/a0\.jpeg/)
+    // The national and regional series, dated sources of the same schema
+    // (lib/national-dated.ts): PNOA's years in Spain, PDOK's in the Netherlands.
+    const { NATIONAL_DATED_SOURCES, ALL_DATED_IMAGERY_SOURCES, NATIONAL_SOURCES } = await import("./generated/app-lib.mjs")
+    assert.equal(NATIONAL_DATED_SOURCES.length, NATIONAL_SOURCES.length)
+    assert.equal(ALL_DATED_IMAGERY_SOURCES.length, DATED_IMAGERY_SOURCES.length + NATIONAL_SOURCES.length)
+    assert.equal(new Set(ALL_DATED_IMAGERY_SOURCES.map((s) => s.id)).size, ALL_DATED_IMAGERY_SOURCES.length, "ids are distinct")
+    const madrid = { lat: 40.4168, lng: -3.7038, zoom: 14 }
+    const pnoa = NATIONAL_DATED_SOURCES.find((s) => /PNOA/.test(s.name))
+    const pnoaDates = await pnoa.listDates(madrid, 0, Date.now(), {})
+    assert.ok(pnoaDates.length > 3, `PNOA lists years in Madrid (${pnoaDates.length})`)
+    assert.match(pnoa.tiles(pnoaDates[0]).tiles[0], /\{bbox-epsg-3857\}/, "a WMS layer as a raster source")
+    assert.deepEqual(await pnoa.listDates({ lat: 52.37, lng: 4.9, zoom: 14 }, 0, Date.now(), {}), [], "no PNOA in Amsterdam")
+    const pdok = findDatedImagery("cat-nat-pdok") ?? NATIONAL_DATED_SOURCES.find((s) => /PDOK/.test(s.name))
+    assert.ok((await pdok.listDates({ lat: 52.37, lng: 4.9, zoom: 14 }, 0, Date.now(), {})).length > 3, "PDOK years in Amsterdam")
+    const gtl = findDatedImagery("cat-nat-gtimelapse")
+    assert.equal(gtl.fixedDates({}).length, 39)
+    assert.match(gtl.tiles({ dateMs: Date.UTC(2000, 0, 1) }).tiles[0], /year=2000/)
   }
   // One list of entries: the Worldwide Defaults first (built-ins, then GEM-15
   // from the library), keyed ones read with the caller's key, then the library.

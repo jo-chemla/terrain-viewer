@@ -56,8 +56,10 @@ A dated source maps a date and a place to tiles. `DatedImagerySource` (in `lib/s
 
 | Field | What it is |
 |---|---|
-| `granularity` | What a date is: a capture dated per tile (`capture`), a monthly or yearly mosaic, or the one current mosaic (`current`) |
-| `realDates` | false when the dates are a placeholder cadence (HLS: a tick a month, the mosaic of a 30-day window) |
+| `section` | `defaults` for the timeline's own sources, `library` for the national and regional series |
+| `granularity` | What a date is: a capture dated per tile (`capture`), a monthly, quarterly or yearly mosaic, a flight year or period (`year`), or the one current mosaic (`current`) |
+| `realDates` | false when the dates are a placeholder cadence (HLS: a tick a month, the mosaic of a 30-day window; Planetary Computer's monthly and quarterly mosaics) |
+| `bounds`, `licence` | Where a series has any date, and its licence (the national series) |
 | `historicalEntry` | Offered inside the sidebar's single Historical Imagery entry (Bing is a plain basemap there, with a pill on the timeline) |
 | `tileSize`, `maxzoom` | The tiles' size and the deepest zoom with real tiles: the map overzooms past it, the camera's ceiling follows it |
 | `attribution` | The constant string the map shows; the real per-place credit is in the sidebar's Source Info section, since a mounted source's attribution cannot change |
@@ -67,14 +69,18 @@ A dated source maps a date and a place to tiles. `DatedImagerySource` (in `lib/s
 
 `lib/dated-imagery.ts` holds the six sources: Esri Wayback, NASA HLS, Google Earth historical, Planet monthly mosaics, EOX Sentinel-2 cloudless and Bing (its one current mosaic, dated by its capture date at the place). Their ids are the URL's (`?historicalActiveSourceA=wayback`).
 
+The national and regional series of `lib/national-historical.ts` are dated sources too, in the `library` section: `lib/national-dated.ts` turns each one (an agency's flights such as Spain's PNOA or the Netherlands' PDOK, about seventy in all, Google Earth Timelapse, Landsat WELD, Planetary Computer's Landsat and Sentinel-2 mosaics) into a source whose dates are its layers' years, periods or months and whose tiles for a date are that layer (an XYZ template, a WMS GetMap with `{bbox-epsg-3857}`, or one of the app's schemes). Their `listDates` keeps the layers whose extent holds the place. `ALL_DATED_IMAGERY_SOURCES` lists both, and `findDatedImagery` finds either by id (`cat-nat-pnoa`, `cat-nat-gtimelapse`). A layer's basemap id (`custom-basemap-cat-cat-nat-pnoa--PNOA2004`) is the one the timeline gives it and a shared link rebuilds.
+
 | Reader | What it takes from the schema |
 |---|---|
 | The map's basemap (`RasterBasemapSource`) | `tiles` and `maxzoom`, for the view's date |
 | The multi-date export (`lib/historical-export-sources.ts`) | `listDates`, then `tiles` for each date; the current basemaps come from the built-in basemap entries |
 | The timeline | `fixedDates` for HLS, Planet and EOX |
-| The MCP server's `imagery_dates` | `listDates` of every source with real dates and no key |
+| The MCP server's `imagery_dates` | `listDates` of every source with real dates and no key, the national series included (each date with its layer's basemap id, which `open_view` takes as `imageryUrl`) |
+| The timeline's national catalogs | A layer's tiles (`nationalLayerTiles`); the catalog walk itself also asks the agency's flight index or probes a tile, to drop years flown elsewhere in the extent |
+| The tile service | The registry, bundled in `generated/app-lib.mjs` |
 
-Still outside it: the live per-place walks the timeline runs as React hooks for Wayback, Google Earth and Bing (debounced, cached, filled in progressively; `listDates` is their one-shot equivalent), and the per-place attribution hooks. Google Earth Timelapse, the national historical layers and the timeline's catalogs (OpenAerialMap, Maxar, STAC...) are lists of separate dated layers rather than one source with a date, and stay with the catalogs.
+Still outside it: the live per-place walks the timeline runs as React hooks for Wayback, Google Earth and Bing (debounced, cached, filled in progressively; `listDates` is their one-shot equivalent), and the per-place attribution hooks. The timeline's other catalogs (OpenAerialMap, Maxar, STAC, old maps...) are search results, each item with its own footprint and address rather than one source with a date, and stay with the catalogs.
 
 ## Before the schema
 
