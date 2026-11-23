@@ -218,6 +218,52 @@ export function qgisProjectXml(base, read) {
 `
 }
 
+// Which of the app's URL parameters set a mode, beyond those named after it
+// (slopeColorRamp, svfRadius...): the shared ones its panel shows with it.
+const MODE_PARAMS = {
+  hillshade: /^(hillshade|illumination|shadowColor$|highlightColor$|accentColor$)/,
+  colorRelief: /^(colorRelief|colorRamp$|invertColorRamp$|customHypsoMinMax$|hypso|minElevation$|maxElevation$)/,
+  contours: /^(contour|showContourLabels$)/,
+  graticules: /^(graticule|showGraticuleLabels$)/,
+  moundDetector: /^tells?[A-Z]/,
+  shadows: /^(shadow(?!Color)|light[A-Z])/,
+  buildingShadows: /^(buildingShadow|light[A-Z])/,
+}
+// Left out: the switches (but the label ones), the hand-drawn ramps (stops
+// as JSON), the panel's own state.
+const NOT_A_SETTING = /^show(?!ContourLabels|GraticuleLabels)|CustomStops|^hypsoSlider|^tellsFrozen$|^tellsMarkersVisible$/
+
+/** The modes as the QGIS plugin (qgis-plugin/) builds its panel: the tree of
+ *  QGIS_TREE (the app's panel groups, top drawn on top), each mode with its
+ *  form (raster, vector, both), whether it is shading (opaque tiles,
+ *  multiplied), the parameter that holds its opacity, and its settings with
+ *  their types and defaults, from the app's URL reference (`params`, the
+ *  `params` of generated/url-params.json). Served as /modes. */
+export function modesCatalog(params) {
+  const constant = (d) => typeof d === "string" && /^[A-Z][A-Z0-9_]+$/.test(d)
+  const forMode = (mode) => {
+    const re = MODE_PARAMS[mode] ?? new RegExp(`^${mode}(?=[A-Z])`)
+    return params.filter((p) => re.test(p.key) && !NOT_A_SETTING.test(p.key) && p.type !== "ramp-stops")
+      .map(({ key, type, enum: values, default: d, note }) => ({ key, type, ...(values ? { enum: values } : {}), ...(d !== undefined && d !== null && !constant(d) ? { default: d } : {}), ...(note ? { note } : {}) }))
+  }
+  const item = ([mode, name, form = "raster"]) => {
+    const settings = forMode(mode)
+    // shadowOpacity, buildingShadowOpacity: the singular.
+    const opacity = settings.find((p) => p.key === `${mode}Opacity` || p.key === `${mode.replace(/s$/, "")}Opacity`)?.key
+    return { id: mode, name, form, shading: SHADING.has(mode), vector: VECTOR.has(mode), switches: MODES[mode], ...(opacity ? { opacityKey: opacity } : {}), settings: settings.filter((p) => p.key !== opacity) }
+  }
+  const group = (g) => ({ ...(g.group ? { group: g.group } : {}), ...(g.groups ? { groups: g.groups.map(group) } : {}), ...(g.items ? { items: g.items.map(item) } : {}) })
+  return QGIS_TREE.map(group)
+}
+
+/** A view (a share link's query, read by readView) as the plugin takes it:
+ *  the modes it switches on, each one's opacity, the parameters every layer
+ *  keeps (the terrain source among them) and the camera. */
+export function viewForPlugin(read) {
+  const { active, keep, opacity, camera } = read
+  return { active: [...active], opacity: Object.fromEntries(Object.entries(opacity).map(([m, o]) => [m, o.value])), params: Object.fromEntries(keep), camera }
+}
+
 /** A .qgz: a zip holding the project's .qgs. */
 export function qgisProject(base, read) {
   const name = Buffer.from("terrain-viewer.qgs"), data = Buffer.from(qgisProjectXml(base, read)), packed = deflateRawSync(data)

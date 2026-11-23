@@ -55,6 +55,7 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 | `/sources`, `/sources/{id}` | The 141 terrain sources: built-in and library, with type, tile address, zoom range, extent, and the engine that can draw each |
 | `/colorramps`, `/colorramps/{id}` | The app's 268 colour ramps, to name as `colorRamp` (colour relief) or `slopeColorRamp` (slope); one ramp gives its stops |
 | `/algorithms` | The modes with the engine that draws each |
+| `/modes` | The modes grouped as the app's panel, each with its form, opacity parameter and settings (type, values, default); with a share link's query, what that view switches on. The [QGIS plugin](/dev/qgis-plugin) builds its panel from it |
 
 A source that is not listed can still be given whole, as its address or as a JSON configuration.
 

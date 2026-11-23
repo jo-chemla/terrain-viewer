@@ -1,0 +1,17 @@
+[general]
+name=Terrain Viewer
+qgisMinimumVersion=3.28
+qgisMaximumVersion=4.99
+supportsQt6=True
+description=Terrain Viewer's modes (slope, sky view factor, openness, matcap, contours...) as QGIS layers, set from a panel like the app's sidebar.
+about=A dock panel with the groups of Terrain Viewer's sidebar. Each checked mode becomes an XYZ layer of a Terrain Viewer tile service (a local one: cd tile-server && pnpm start, or a hosted one), with its settings in the layer's address; changing a setting rewrites the address. The overlays (contours, iso-line, mound candidates, plane slicer, graticule) can also be loaded as vector tiles. "Open from link" loads the layers of a share link. The panel is built from what the service answers, so new modes and settings appear without a plugin update. Pure Python, no dependency.
+version=0.1.0
+author=Iconem
+homepage=https://terrain-viewer.iconem.com/docs/dev/qgis-plugin
+tracker=https://github.com/Iconem/terrain-viewer/issues
+repository=https://github.com/Iconem/terrain-viewer
+category=Web
+icon=icon.png
+tags=terrain,dem,elevation,hillshade,slope,lidar,archaeology,xyz,tiles
+experimental=True
+deprecated=False
