@@ -1,8 +1,5 @@
-// "mapzen" (commented out in terrain-sources.ts — the service was discontinued)
-// and "bing" (never had a terrain/elevation entry, unlike the unrelated "bing"
-// raster *basemap* imagery option) were never actually populated in
-// terrainSources below — narrowed to match reality instead of the two ghost
-// members Record<TerrainSource, TerrainSourceConfig> silently never enforced.
+// The ids of the built-in Worldwide Defaults (BUILTIN_TERRAIN_SOURCES in
+// lib/terrain-sources.ts). Any other terrain source id is a string.
 export type TerrainSource = "mapterhorn" | "maptiler" | "aws" | "mapbox" | "esri" | "cesium"
 
 
@@ -26,25 +23,3 @@ type HillshadeMethod = typeof HILLSHADE_METHODS[number]
 import type { colorRampsClassic } from "./color-ramps"
 type ColorReliefRamp = keyof typeof colorRampsClassic
 
-export interface TerrainSourceConfig {
-  name: string
-  link: string
-  description: string
-  /** Vertical datum. Omitted means orthometric (heights above the geoid, i.e.
-   *  "above sea level"), which is what almost every source here is. Marking
-   *  the exceptions matters because an ellipsoidal source reads tens of metres
-   *  high - about +49 m in the Alps - and nothing on screen would otherwise
-   *  say so. See the EGM96 geoid entry in the Library for the field itself. */
-  datum?: "ellipsoidal"
-  encoding: "terrarium" | "terrainrgb" | "3dtiles" | "custom" 
-  sourceConfig: {
-    type: "raster-dem" | "3dtiles"
-    tiles?: string[]
-    url?: string
-    // Not meaningful for a 3dtiles entry (google3dtiles below omits both) — there's
-    // no maplibre raster-dem tile pyramid behind it, just a Cesium 3D Tiles root.
-    tileSize?: number
-    maxzoom?: number
-    encoding: "terrarium" | "mapbox"| "3dtiles" | "custom"
-  }
-}

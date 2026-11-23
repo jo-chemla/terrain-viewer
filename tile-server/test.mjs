@@ -4,7 +4,7 @@
 // OpenAPI description. `pnpm test` (builds generated/ first).
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { blockOf, viewOf } from "./server.mjs"
+import { blockOf, viewOf, sources } from "./server.mjs"
 import { DOCS_COPY, docsCopyText } from "./openapi.mjs"
 import { viewToQuery, queryToView } from "./url.mjs"
 import { plan } from "./direct.mjs"
@@ -69,6 +69,20 @@ import { plan } from "./direct.mjs"
     const { symbolAnchors } = await import("./symbols.mjs")
     // A line from the tile's edge: anchors every 28 px from 14 px in (16 units a px).
     assert.deepEqual(symbolAnchors([[[0, 100], [8192, 100]]], { spacingPx: 28, shapedLength: 18 }).slice(0, 3).map((a) => a.x), [224, 672, 1120])
+  }
+  // One list of entries: the Worldwide Defaults first (built-ins, then GEM-15
+  // from the library), keyed ones read with the caller's key, then the library.
+  {
+    const list = sources()
+    assert.deepEqual(list.filter((s) => s.section === "defaults").map((s) => s.id), ["mapterhorn", "esri", "mapbox", "maptiler", "aws", "cesium", "custom-global-gem15-dtm"])
+    assert.equal(list[0].url, "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp")
+    assert.equal(list.find((s) => s.id === "mapbox").key, "mapboxKey")
+    assert.equal(list.find((s) => s.id === "mapbox").url, undefined, "a keyed template is not listed as a plain pyramid")
+    const gem = await plan({ terrainSource: "custom-global-gem15-dtm", modes: ["hillshade"] }, new URLSearchParams())
+    assert.equal(gem.engine, "direct", gem.why); assert.match(gem.dem.tiles, /^vrt:\/\//)
+    const mt = await plan({ terrainSource: "maptiler" }, new URLSearchParams(), { maptilerKey: "mtk" })
+    assert.ok(mt.dem.tiles.includes("key=mtk") && mt.dem.tileSize === 512, JSON.stringify(mt.dem))
+    assert.equal((await plan({ terrainSource: "mapterhorn" }, new URLSearchParams())).dem.tileSize, 512)
   }
   assert.match((await plan({ terrainSource: "nope" }, new URLSearchParams())).why, /unknown terrain source/)
   assert.match((await plan({ modes: ["hillshade"], viewMode: "3d" }, new URLSearchParams())).why, /3D/)

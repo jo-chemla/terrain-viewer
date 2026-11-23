@@ -40,7 +40,7 @@ const NOW = new Date().toISOString()
 const WORLD = [-180, -85.0511, 180, 85.0511]
 
 const sources = JSON.parse(fs.readFileSync(path.join(ROOT, "lib/custom-sources.json"), "utf8"))
-const { terrainSources } = await import(pathToUrl(path.join(ROOT, "lib/terrain-sources.ts")))
+const { BUILTIN_TERRAIN_SOURCES } = await import(pathToUrl(path.join(ROOT, "lib/terrain-sources.ts")))
 const { NATIONAL_SOURCES } = await import(pathToUrl(path.join(ROOT, "lib/national-historical.ts")))
 const NATIONAL_LAYERS = JSON.parse(fs.readFileSync(path.join(ROOT, "lib/national-historical-layers.json"), "utf8"))
 function pathToUrl(p) { return new URL(`file:///${p.replace(/\\/g, "/")}`).href }
@@ -150,17 +150,19 @@ function collection(id, { title, description, items, keywords = [], links = [], 
 
 // ── Built-in terrain ───────────────────────────────────────────────────────
 {
-  const items = Object.entries(terrainSources).map(([id, t]) => {
-    const cfg = t.sourceConfig ?? {}
-    const encoding = t.encoding ?? cfg.encoding
+  // The built-in Worldwide Defaults (entries of lib/source-schema.ts). The
+  // library's own defaults (GEM-15) are listed with the terrain library.
+  const items = BUILTIN_TERRAIN_SOURCES.map((t) => {
+    const id = t.id
+    const plain = t.type === "terrarium" || t.type === "terrainrgb"
     return item("terrain-builtin", id, {
       title: t.name, description: t.description,
       links: [
-        ...tileLinks(cfg.tiles?.[0], "tms", { title: t.name, "terrain-viewer:encoding": encoding, "terrain-viewer:maxzoom": cfg.maxzoom, "terrain-viewer:tile_size": cfg.tileSize, "terrain-viewer:needs_key": /\{API_KEY\}|access_token=/.test(cfg.tiles?.[0] ?? "") || undefined }),
-        t.link && { rel: "about", type: "text/html", href: t.link, title: "Provider page" },
+        ...(plain ? tileLinks(t.url, "tms", { title: t.name, "terrain-viewer:encoding": t.type, "terrain-viewer:maxzoom": t.maxzoom, "terrain-viewer:tile_size": t.tileSize, "terrain-viewer:needs_key": t.apiKey ? true : undefined }) : []),
+        t.infoUrl && { rel: "about", type: "text/html", href: t.infoUrl, title: "Provider page" },
         { rel: "alternate", type: "text/html", title: "Open in Terrain Viewer with this source", href: `${APP}?sourceA=${id}` },
       ].filter(Boolean),
-      props: { "terrain-viewer:kind": "terrain", "terrain-viewer:source": id },
+      props: { "terrain-viewer:kind": "terrain", "terrain-viewer:source": id, "terrain-viewer:type": t.type },
     })
   })
   collection("terrain-builtin", { title: "Built-in elevation tiles", description: "The global elevation tile services Terrain Viewer ships with. Links carry the tile encoding (terrarium, terrainrgb...) and whether an API key is needed.", items, keywords: ["elevation", "dem", "terrain"] })

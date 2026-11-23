@@ -39,7 +39,8 @@ import { useTheme } from "@/lib/controls-utils"
 import { onEmbedTheme } from "@/lib/embed-bridge"
 import { useBingCaptureDate } from "@/lib/bing"
 import { track } from "@/lib/analytics"
-import { terrainSources } from "@/lib/terrain-sources"
+import { isWorldwideDefault, findTerrainSource, withWorldwideDefaults } from "@/lib/terrain-catalog"
+import { BUILTIN_TERRAIN_SOURCES } from "@/lib/terrain-sources"
 import { BUILTIN_BASEMAP_OPTIONS, BASEMAP_SHORT_LABELS } from "./TerrainControlPanel/raster-basemap-section"
 import { terrainShortLabel } from "@/lib/terrain-sources"
 import { HistoricalTimelinePanel, SOURCE_CONFIG } from "./TerrainControlPanel/historical-timeline-panel"
@@ -51,6 +52,7 @@ import { useDebouncedValue } from "./TerrainControlPanel/use-debounced-state"
 import customSourcesData from "@/lib/custom-sources.json"
 
 const SAMPLE_TERRAIN_SOURCES = customSourcesData["SAMPLE_TERRAIN_SOURCES"] as CustomTerrainSource[]
+const BUILTIN_TERRAIN_IDS = new Set(BUILTIN_TERRAIN_SOURCES.map((s) => s.id))
 const SAMPLE_BASEMAP_SOURCES = customSourcesData["SAMPLE_BASEMAPS_SOURCES"] as CustomBasemapSource[]
 import { MinimapInternal } from "./MapControls/MinimapControl";
 import { LightControlOverlay } from "./MapControls/LightControlOverlay";
@@ -2006,12 +2008,12 @@ export function TerrainViewer() {
     // one keyed off its own id-as-a-string (which isn't a valid URL anyway).
     if (state.terrainUrl) {
       const value = state.terrainUrl
-      const isKnownId = value in ((terrainSources as any) ?? {})
+      const isKnownId = isWorldwideDefault(value)
         || customTerrainSources.some((s) => s.id === value)
         || SAMPLE_TERRAIN_SOURCES.some((s) => s.id === value)
       if (isKnownId) {
         const sample = SAMPLE_TERRAIN_SOURCES.find((s) => s.id === value)
-        if (sample && !customTerrainSources.some((s) => s.id === value)) {
+        if (sample && !isWorldwideDefault(value) && !customTerrainSources.some((s) => s.id === value)) {
           setCustomTerrainSources((prev) => [...prev.filter((s) => s.id !== value), sample])
         }
         if (getUrlParam(searchParams, "sourceA") === null) stateOverrides.sourceA = value
@@ -2084,7 +2086,8 @@ export function TerrainViewer() {
       const missingTerrain: CustomTerrainSource[] = []
       const considerTerrain = (value: string | null) => {
         if (!value || missingTerrainIds.has(value)) return
-        if (value in ((terrainSources as any) ?? {})) return
+        // A Worldwide Default (GEM-15 among them) needs no loading.
+        if (isWorldwideDefault(value)) return
         // A derived (dem-diff) entry needs its operands loaded too - and
         // that holds when the entry itself is already in this browser's
         // list but an operand is not (deleted from BYOD, or added by a
@@ -3082,7 +3085,11 @@ export function TerrainViewer() {
   // Only include a range in the computation if it came from a custom source — checked
   // directly against the id (a builtin source reporting a coincidental maxzoom of 20
   // shouldn't be mistaken for "no custom range" the way a fallback-value heuristic would).
-  const isTerrainCustom = customTerrainSources.some(s => s.id === state.sourceA)
+  // A source the camera follows: any entry but the built-in pyramids, which
+  // are left at z22 (see effectiveMaxZoom). GEM-15, a Worldwide Default
+  // from the library, keeps its range and its extent like any library entry.
+  const followsSourceRange = (id: string | undefined) => !!id && !BUILTIN_TERRAIN_IDS.has(id) && !!findTerrainSource(id, customTerrainSources)
+  const isTerrainCustom = followsSourceRange(state.sourceA)
   // effectiveMinZoom/effectiveMaxZoom below are driven by the primary map only, so the
   // "active basemap" for zoom purposes is always map A's — basemapSourceA in per-view
   // mode, basemapSource otherwise.
@@ -3345,7 +3352,7 @@ export function TerrainViewer() {
   // overzoom allowance. Across the synced views: the smallest of those, so no
   // view is ever asked for a zoom its own MapLibre would clamp.
   const viewZoomCaps = useMemo(() => activeViewIds.map((side) => {
-      const terrainCustom = customTerrainSources.some((s) => s.id === stateAny[sourceFieldName(side)])
+      const terrainCustom = followsSourceRange(stateAny[sourceFieldName(side)])
       const basemapCustom = customBasemapSources.some((s) => s.id === perViewResolved[side].basemapSource)
       const t = terrainCustom ? zoomRanges[side] : undefined
       const b = basemapCustom ? basemapZoomRanges[side] : undefined
@@ -3494,7 +3501,7 @@ export function TerrainViewer() {
       const mode = state.maxBoundsMode
       const terrainRole = !isHistoricalMode && (mode === "terrain" || mode === "union")
       const basemapRole = mode === "raster" || mode === "union"
-      const terrainSides = terrainRole ? activeViewIds.filter((side) => customTerrainSources.some((s) => s.id === stateAny[sourceFieldName(side)])) : []
+      const terrainSides = terrainRole ? activeViewIds.filter((side) => followsSourceRange(stateAny[sourceFieldName(side)])) : []
       const basemapSides = basemapRole ? activeViewIds.filter((side) => customBasemapSources.some((s) => s.id === perViewResolved[side].basemapSource)) : []
       if (!terrainSides.length && !basemapSides.length) return null
       const label = terrainSides.length && basemapSides.length
@@ -3544,7 +3551,7 @@ export function TerrainViewer() {
     // sources (sharedBounds: their overlap, else their union), not from view
     // A alone: a fence B could not honour left it clamped and out of sync.
     const perView = activeViewIds.map((side) => ({
-      terrain: customTerrainSources.find((s) => s.id === stateAny[sourceFieldName(side)]),
+      terrain: followsSourceRange(stateAny[sourceFieldName(side)]) ? findTerrainSource(stateAny[sourceFieldName(side)], customTerrainSources) : undefined,
       basemap: customBasemapSources.find((s) => s.id === perViewResolved[side].basemapSource),
     }))
 
@@ -3598,7 +3605,7 @@ export function TerrainViewer() {
   // active. See lib/titiler-health.ts.
   useEffect(() => {
     const active = [
-      customTerrainSources.find((s) => s.id === state.sourceA),
+      findTerrainSource(state.sourceA, customTerrainSources),
       customBasemapSources.find((s) => s.id === activeBasemapSourceA),
     ]
     if (active.some((s) => needsTitiler(s, useCogProtocolVsTitiler))) {
@@ -4666,7 +4673,7 @@ export function TerrainViewer() {
     // basemap, which is only per-view behind basemapPerView — so this is a
     // plain lookup rather than a viewFieldName() call.
     const terrainId = terrainIdOf(pane.side)
-    const terrainLabel = terrainId && terrainId !== "none" ? terrainShortLabel(terrainId, customTerrainSources) : null
+    const terrainLabel = terrainId && terrainId !== "none" ? terrainShortLabel(terrainId, withWorldwideDefaults(customTerrainSources)) : null
     const resolved = perViewResolved[pane.side]
     if (!isSplit) {
       // Single view: the basemap when drawn, the terrain otherwise.

@@ -16,7 +16,7 @@ import {
   isByodOpenAtom, customTerrainSourcesAtom, customBasemapSourcesAtom,
   titilerEndpointAtom, useCogProtocolVsTitilerAtom, mapboxKeyAtom, maptilerKeyAtom, cesiumIonKeyAtom,
   type CustomTerrainSource, type CustomBasemapSource, type LibraryBrowseEntry, terrainLibraryOpenAtom, customTerrainLastTypeAtom } from "@/lib/settings-atoms"
-import { terrainSources } from "@/lib/terrain-sources"
+import { WORLDWIDE_DEFAULTS, visibleWorldwideDefaults, isWorldwideDefault } from "@/lib/terrain-catalog"
 import { resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { deletePersistedCogFile } from "@/lib/opfs-file-store"
 import { getCogMetadata } from '@geomatico/maplibre-cog-protocol'
@@ -29,6 +29,7 @@ import { staticBoundsFor } from "@/lib/max-bounds"
 import { applyBoundedViewAll, fitPaddingFor } from "@/lib/underzoom"
 import { viewFieldName, sourceFieldName, VIEW_IDS, fanOutWhenSingle, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { SourceDetails } from "./source-details"
+import { SourceGdalAccess } from "./source-info-dialog"
 import { CustomTerrainSourceModal } from "./custom-terrain-source-modal"
 import { CustomSourceDetails } from "./custom-source-details"
 import { SampleSourcesModal } from "./sample-sources-modal"
@@ -41,42 +42,6 @@ import customSources from "@/lib/custom-sources.json"
 import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 const SAMPLE_TERRAIN_SOURCES = customSources['SAMPLE_TERRAIN_SOURCES']
 
-/** Library datasets listed under Worldwide Defaults, in this order, after
- *  the built-in sources. */
-const PINNED_LIBRARY_DEFAULTS = [
-  { id: "custom-global-gem15-dtm", name: "Google GEM-15 DTM - 15 m COG cells" },
-]
-
-/** The row of a pinned library dataset: its name (the description on hover)
- *  and the link to its documentation. */
-const PinnedLibraryDefault: React.FC<{
-  entry: { id: string; name: string; description: string; link: string }
-  linkCallback: (link: string) => () => void
-  onSelect?: (id: string) => void
-}> = ({ entry, linkCallback, onSelect }) => (
-  <>
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Label htmlFor={`pinned-${entry.id}`} onClick={onSelect ? () => onSelect(entry.id) : undefined} className="flex-1 text-sm truncate min-w-0 cursor-pointer">
-            <span className="truncate min-w-0">{entry.name}</span>
-          </Label>
-        }
-      />
-      <TooltipContent className="max-w-sm"><p>{entry.description}</p></TooltipContent>
-    </Tooltip>
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 cursor-pointer" onClick={linkCallback(entry.link)}>
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        }
-      />
-      <TooltipContent><p>Open documentation</p></TooltipContent>
-    </Tooltip>
-  </>
-)
 const SAMPLE_TERRAIN_BROWSE_ONLY = customSources['SAMPLE_TERRAIN_BROWSE_ONLY'] as LibraryBrowseEntry[]
 
 export const TerrainSourceSection: React.FC<{
@@ -117,17 +82,10 @@ export const TerrainSourceSection: React.FC<{
   const [cesiumIonKey] = useAtom(cesiumIonKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
 
-  // Mapbox/MapTiler terrain need a real access token/key (see getTilesUrl's
-  // {API_KEY} substitution in controls-utils.tsx) — without one their tiles
-  // just 401, so they're hidden from the picker until a key is set, same
-  // convention as KEY_GATED_BASEMAPS in raster-basemap-section.tsx.
+  // A keyed default (Mapbox, MapTiler, Cesium ion) is hidden until its key
+  // is set: without one its tiles answer 401 (the entry's `apiKey`).
   const visibleTerrainSources = useMemo(
-    () => Object.entries(terrainSources).filter(([key]) => (
-      (key !== "mapbox" || !!mapboxKey) && (key !== "maptiler" || !!maptilerKey)
-      // Every Cesium ion asset is 401 without a token, so the entry would just
-      // be a broken row until one is set - same gating as the two above.
-      && (key !== "cesium" || !!cesiumIonKey)
-    )),
+    () => visibleWorldwideDefaults({ mapboxKey, maptilerKey, cesiumIonKey }),
     [mapboxKey, maptilerKey, cesiumIonKey],
   )
 
@@ -140,7 +98,7 @@ export const TerrainSourceSection: React.FC<{
   // ids are still real. Built-ins count too - a difference can be taken
   // against Mapterhorn.
   const liveTerrainSourceIds = useMemo(
-    () => new Set([...customTerrainSources.map((s) => s.id), ...Object.keys(terrainSources)]),
+    () => new Set([...customTerrainSources.map((s) => s.id), ...WORLDWIDE_DEFAULTS.map((s) => s.id)]),
     [customTerrainSources],
   )
   // A library nDSM (custom-fr-ign-lidarhd-nhm and friends) holds its two
@@ -174,19 +132,6 @@ export const TerrainSourceSection: React.FC<{
       return add.length ? [...prev, ...add] : prev
     })
   }, [setCustomTerrainSources, addLinkedBasemaps])
-
-  // Library datasets offered among the worldwide defaults, after the
-  // built-in ones. They stay library entries (the cell reader, the zoom
-  // floor and the export all hang on that): picking one loads it into Bring
-  // Your Own Data first, then selects it. GEM-15 is last because its tiles
-  // take a second or two the first time.
-  const pinnedLibraryDefaults = useMemo(
-    () => PINNED_LIBRARY_DEFAULTS.map(({ id, name }) => {
-      const entry = (customSources.SAMPLE_TERRAIN_SOURCES as any[]).find((s) => s.id === id)
-      return entry ? { id, name, description: entry.description as string, link: entry.infoUrl as string } : null
-    }).filter((e): e is { id: string; name: string; description: string; link: string } => !!e),
-    [],
-  )
 
   const [byodQuery, setByodQuery] = useState("")
   const byodQ = byodQuery.trim().toLowerCase()
@@ -415,9 +360,9 @@ export const TerrainSourceSection: React.FC<{
     const n = customTerrainSources.length
     if (prevTerrainCountRef.current !== null && n > prevTerrainCountRef.current) {
       const added = customTerrainSources[n - 1]
-      // Not a pinned worldwide default: it covers the globe, and the forced
-      // fit would pull the view out to its whole extent.
-      if (added && !PINNED_LIBRARY_DEFAULTS.some((d) => d.id === added.id)) void handleFitToBounds(added, true)
+      // Not a worldwide default (GEM-15 added from the Library): it covers
+      // the globe, and the forced fit would pull the view out to its whole extent.
+      if (added && !isWorldwideDefault(added.id)) void handleFitToBounds(added, true)
     }
     prevTerrainCountRef.current = n
   }, [customTerrainSources, handleFitToBounds])
@@ -447,6 +392,8 @@ export const TerrainSourceSection: React.FC<{
   // them into the list was more noise than help.
   const handleLoadSample = useCallback(() => setIsSampleModalOpen(true), [])
 
+  const infoSource = infoId ? customTerrainSources.find((t) => t.id === infoId) ?? null : null
+
   return (
     <>
       <Section id="tour-terrain-section" title="Terrain" isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -458,40 +405,23 @@ export const TerrainSourceSection: React.FC<{
           <CollapsibleContent className="space-y-2 pt-1 pl-2.5">
             {state.splitStyle !== "off" ? (
               <div className="space-y-1.5">
-                {visibleTerrainSources.map(([key, config]) => (
-                  <div key={key} className="flex items-center gap-2 min-w-0">
-                    <SourceGridToggle
-                      disabled={config.encoding === "3dtiles"}
-                      gridLayout={effectiveGridLayout}
-                      isActive={(side) => state[sourceFieldName(side)] === key}
-                      onSelect={(side) => selectTerrainSide(side, key)}
-                    />
-                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} onSelect={selectTerrainAll} />
-                  </div>
-                ))}
-                {pinnedLibraryDefaults.map((d) => (
-                  <div key={d.id} className="flex items-center gap-2 min-w-0">
+                {visibleTerrainSources.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-2 min-w-0">
                     <SourceGridToggle
                       gridLayout={effectiveGridLayout}
-                      isActive={(side) => state[sourceFieldName(side)] === d.id}
-                      onSelect={(side) => { loadLibrarySourcesById([d.id]); selectTerrainSide(side, d.id) }}
+                      isActive={(side) => state[sourceFieldName(side)] === entry.id}
+                      onSelect={(side) => selectTerrainSide(side, entry.id)}
                     />
-                    <PinnedLibraryDefault entry={d} linkCallback={linkCallback} onSelect={(id) => { loadLibrarySourcesById([id]); selectTerrainAll(id) }} />
+                    <SourceDetails entry={entry} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} onSelect={selectTerrainAll} />
                   </div>
                 ))}
               </div>
             ) : (
-              <RadioGroup value={state.sourceA} onValueChange={(id: string) => { if (pinnedLibraryDefaults.some((d) => d.id === id)) loadLibrarySourcesById([id]); selectTerrainA(id) }} className="gap-2 grid-cols-[minmax(0,1fr)]">
-                {visibleTerrainSources.map(([key, config]) => (
-                  <div key={key} className="flex items-center gap-2 min-w-0">
-                    <RadioGroupItem value={key} id={`source-${key}`} className="cursor-pointer shrink-0" disabled={config.encoding === "3dtiles"} />
-                    <SourceDetails sourceKey={key} config={config} getTilesUrl={getTilesUrl} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
-                  </div>
-                ))}
-                {pinnedLibraryDefaults.map((d) => (
-                  <div key={d.id} className="flex items-center gap-2 min-w-0">
-                    <RadioGroupItem value={d.id} id={`pinned-${d.id}`} className="cursor-pointer shrink-0" />
-                    <PinnedLibraryDefault entry={d} linkCallback={linkCallback} />
+              <RadioGroup value={state.sourceA} onValueChange={(id: string) => selectTerrainA(id)} className="gap-2 grid-cols-[minmax(0,1fr)]">
+                {visibleTerrainSources.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-2 min-w-0">
+                    <RadioGroupItem value={entry.id} id={`source-${entry.id}`} className="cursor-pointer shrink-0" />
+                    <SourceDetails entry={entry} linkCallback={linkCallback} getMapBounds={getMapBounds} state={state} />
                   </div>
                 ))}
               </RadioGroup>
@@ -647,7 +577,12 @@ export const TerrainSourceSection: React.FC<{
         }}
         compareToMapterhorn
       />
-      <SourceMetadataDialog source={infoId ? customTerrainSources.find((t) => t.id === infoId) ?? null : null} onClose={closeInfo} onFit={(t) => handleFitToBounds(t, true)} />
+      <SourceMetadataDialog
+        source={infoSource}
+        onClose={closeInfo}
+        onFit={(t) => handleFitToBounds(t, true)}
+        extra={infoSource ? <SourceGdalAccess entry={infoSource} getMapBounds={getMapBounds} state={state} /> : null}
+      />
       <Dialog open={isBatchEditModalOpen} onOpenChange={setIsBatchEditModalOpen}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden" showCloseButton={false}>
           <DialogHeader>

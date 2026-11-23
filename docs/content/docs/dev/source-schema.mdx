@@ -1,0 +1,55 @@
+---
+title: One Source Schema
+description: Built-in terrain sources, library entries and your own sources are one record type, looked up by id in one place and resolved by one function.
+---
+
+A terrain source is the same record wherever it is listed: a Worldwide Default shipped with the app, a Library entry, or a source you added. Only where it surfaces differs. Imagery basemaps with a fixed tile address follow the same schema.
+
+## The record
+
+`lib/source-schema.ts` defines it:
+
+| Type | What it adds |
+|---|---|
+| `SourceEntryBase` | What every source has: `id`, `name`, `url`, zoom range, `tileSize`, `bounds`, documentation, licence, and `apiKey` when the tiles need one |
+| `TerrainSourceEntry` | An elevation transport (`type`: terrarium, terrainrgb, cog, vrt, wms-raw, lerc, quantized-mesh, dem-diff, ...) and its decoding settings (nodata, RGB packing, difference operands) |
+| `RasterSourceEntry` | An imagery transport (`type`: tms, wms, wmts, cog, iiif, ...) and its display settings (role, opacity, scheme) |
+
+`section` says where an entry surfaces: `defaults` (Worldwide Defaults, the built-in basemaps), `library` (the Library dialogs) or `custom` (your own list). The saved lists in your browser and the library file predate the field, so an entry without it is read from the list it sits in.
+
+Ids never change: a shared link names a source by id (`?terrainSourceA=mapterhorn`, `?terrainSourceA=custom-global-gem15-dtm`).
+
+An `apiKey` names the setting whose value fills the `{API_KEY}` placeholder of `url` (`entryUrl`). A keyed source is hidden from the pickers until its key is set (`hasEntryKey`).
+
+## Where the entries are
+
+| File | Entries |
+|---|---|
+| `lib/terrain-sources.ts` | The built-in Worldwide Defaults: Mapterhorn, Esri, Mapbox, MapTiler, AWS, Cesium World Terrain |
+| `lib/custom-sources.json` | The Library. An entry with `"section": "defaults"` is also a Worldwide Default: GEM-15 DTM, last in the list |
+| `lib/basemap-sources.ts` | The built-in basemaps with a fixed address: Google Hybrid and Satellite, Bing, Esri, Mapbox, MapTiler, HERE |
+| Your browser (`customTerrainSources`, `customBasemapSources`) | Your own sources and the Library entries you added |
+
+The dated imagery (Wayback, HLS, Google Earth historical, Planet, EOX) and the OpenStreetMap vector style build their tiles at run time and stay outside the schema.
+
+## One lookup, one resolver
+
+`lib/terrain-catalog.ts` holds the lookup: `findTerrainSource(id, yourSources)` returns your entry of that id, else the Worldwide Default. `WORLDWIDE_DEFAULTS` is the picker's list and `visibleWorldwideDefaults(keys)` the part of it your keys open.
+
+Everything that reads a terrain source goes through that lookup, with no branch for built-ins:
+
+| Reader | Resolver |
+|---|---|
+| The map's terrain and hillshade source (`TerrainSources`) | `buildRasterTileSource` on the entry |
+| The derived modes, the difference source, the elevation picker, the client export | `terrainTileSpec` (`lib/terrain-tile-spec.ts`) |
+| Contours | `buildTileUrl` in `ContoursLayer.tsx`, then `terrainTileSpec` for the app's own schemes |
+| GDAL commands (the info dialogs) and the titiler export | `gdalTileSource` |
+| The tile service and the MCP server | `terrainTileSpec`, on the same entries written to `tile-server/generated/library.json` |
+
+## What GDAL can read
+
+`gdalTileSource` gives GDAL a plain `{z}/{x}/{y}` pyramid when one exists. A Terrarium or Terrain-RGB pyramid is read as is, with its own tile size. A COG, a VRT or a raw WMS is read through titiler as Terrain-RGB tiles. LERC, quantized mesh, a difference, a cell-routed mosaic (GEM-15), STAC, MosaicJSON, TileJSON and local files are decoded by the app alone, so they have no GDAL command; the Download section exports them.
+
+## Before the schema
+
+Until 2026-11-23 the built-ins were a different shape (`{ name, link, encoding, sourceConfig: { tiles, tileSize, maxzoom } }`), and every reader branched on which shape it got. GEM-15 was shown among the defaults by a pinned row that copied the library entry into your own list before selecting it. That copy stays in the lists of those who picked it then; it is the same record, and your copy wins over the default.

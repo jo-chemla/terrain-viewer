@@ -2,7 +2,9 @@ import { memo, useMemo, useState, useEffect, useRef } from "react"
 import { VectorBasemapLayer, OsmBuildingsLayer } from "./VectorBasemapLayer"
 import { Source } from "react-map-gl/maplibre"
 import { useAtom, useAtomValue } from "jotai"
-import { terrainSources } from "@/lib/terrain-sources"
+import { findTerrainSource } from "@/lib/terrain-catalog"
+import { builtinBasemap } from "@/lib/basemap-sources"
+import { entryUrl } from "@/lib/source-schema"
 import type { TerrainSource } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, osmBuildings3dAtom, allmapsRemoveColorAtom, geHiDpiTilesAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
 import { buildUnpaperUrl, sampleTileFor } from "@/lib/unpaper-protocol"
@@ -26,7 +28,7 @@ import { resolveNodata } from "@/lib/nodata"
 import { buildRasterTileSource } from "@/lib/source-builder"
 import { buildSlopeProtocolUrl } from "@/lib/slope-protocol"
 import { isCellRoutedUrl } from "@/lib/vrt-protocol"
-import { terrainTileSpec, terrainTileInputs, builtinTileUrl, makeElevationColorFunction, type TilejsonMetadata } from "@/lib/terrain-tile-spec"
+import { terrainTileSpec, terrainTileInputs, pyramidTileSize, makeElevationColorFunction, type TilejsonMetadata } from "@/lib/terrain-tile-spec"
 import { useVrtInfo } from "@/lib/use-vrt-info"
 import { withQuantizedMeshDetail } from "@/lib/quantized-mesh-protocol"
 import { buildAspectProtocolUrl } from "@/lib/aspect-protocol"
@@ -77,23 +79,11 @@ function useTilejsonMetadata(tilejsonUrl: string | null): TilejsonMetadata | nul
 // Raster basemap tile configs
 // -------------------------
 
-// maxzoom values mirror https://github.com/Iconem/historical-satellite/blob/main/src/utilities.tsx
-const rasterBasemaps: Record<string, { url: string; tileSize: number; maxzoom: number }> = {
-    osm:       { url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", tileSize: 256, maxzoom: 19 },
-    googlesat: { url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 21 },
-    google:    { url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", tileSize: 256, maxzoom: 21 },
-    // blankTile=false: past its imagery, Esri answers a 404 instead of a 200
-    // "Map data not yet available" placeholder JPEG, so MapLibre shows the
-    // parent tile enlarged rather than drawing the placeholder.
-    esri:      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.jpg?blankTile=false", tileSize: 256, maxzoom: 19 },
-    mapbox:    { url: "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token={API_KEY}", tileSize: 256, maxzoom: 22 },
-    maptiler:  { url: "https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key={API_KEY}", tileSize: 256, maxzoom: 20 },
-    // Public quadkey endpoint (no session token to expire), same one historical-satellite uses.
-    bing:      { url: "https://t.ssl.ak.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=14603&n=z&prx=1", tileSize: 256, maxzoom: 21 },
-    here:      { url: "https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?style=satellite.day&apiKey={API_KEY}", tileSize: 256, maxzoom: 20 },
-}
-
-// "wayback" isn't in rasterBasemaps above — its tile URL is per-release (see
+// The built-in basemaps with a fixed tile address are entries of the shared
+// schema (lib/basemap-sources.ts). "osm" is a vector style (VectorBasemapLayer);
+// its ceiling is OpenFreeMap's.
+const OSM_MAXZOOM = 19
+// "wayback" isn't in BUILTIN_BASEMAP_SOURCES — its tile URL is per-release (see
 // lib/wayback.ts), resolved at render time in RasterBasemapSource instead of
 // a static template — but it shares the same maxzoom historical-satellite
 // itself uses for World Imagery Wayback.
@@ -134,7 +124,8 @@ export const TerrainSources = memo(({
     // is (re-)picked (see custom-source-details.tsx's "Re-select file…" flow).
     useAtomValue(localFileVersionAtom)
 
-    const customSource = customTerrainSources.find((s) => s.id === source)
+    // Every source is an entry, a Worldwide Default included (lib/terrain-catalog.ts).
+    const customSource = findTerrainSource(source, customTerrainSources)
     // A local file can only ever stream via the in-browser geomatico protocol —
     // there's no titiler server that could reach the user's disk — so it ignores
     // the useCogProtocolVsTitiler toggle entirely, unlike a remote "cog" source.
@@ -260,8 +251,8 @@ export const TerrainSources = memo(({
             if (isVrtClient && !vrtInfo) return null
 
             const built = buildRasterTileSource({
-                url: isCogLocal ? resolvedCogUrl! : customSource.url,
-                type: isCogLocal ? 'cog' : customSource.type,
+                url: isCogLocal ? resolvedCogUrl! : entryUrl(customSource, { mapboxKey, maptilerKey }),
+                type: isCogLocal ? 'cog' : customSource.type as Parameters<typeof buildRasterTileSource>[0]['type'],
                 useCogProtocol: isCogLocal ? true : useCogProtocolForSource,
                 titilerEndpoint,
                 isDem: true,
@@ -298,7 +289,7 @@ export const TerrainSources = memo(({
                 // wms-raw's URL requests a fixed WIDTH/HEIGHT (e.g. 514 = 512 + 1px buffer per side)
                 // matching a 512px tile — see public/maplibre-raster-dem-wms-float32-generic.html.
                 // TileJSON sources carry their own tileSize in the manifest maplibre fetches.
-                ...(customSource.type === 'tilejson' ? {} : { tileSize: customSource.type === 'wms-raw' ? (customSource.tileSize ?? 512) : 256 }),
+                ...(customSource.type === 'tilejson' ? {} : { tileSize: customSource.type === 'wms-raw' ? (customSource.tileSize ?? 512) : pyramidTileSize(customSource) }),
                 // Omitted rather than undefined: MapLibre 6 validates raster-dem
                 // sources on addSource and rejects a present-but-undefined key
                 // ("minzoom: number expected, undefined found"), which dropped
@@ -318,16 +309,7 @@ export const TerrainSources = memo(({
             }
         }
 
-        // Builtin source
-        const base = (terrainSources as any)[source as TerrainSource]
-        if (!base) return null
-        return {
-            ...base.sourceConfig,
-            // The Cesium built-in is a quantized-mesh template; stamping the
-            // detail offset into it is what makes changing that setting
-            // actually refetch - the URL is maplibre's own dedupe key.
-            tiles: [withQuantizedMeshDetail(builtinTileUrl(source as TerrainSource, mapboxKey, maptilerKey), cesiumDetailOffset)],
-        }
+        return null
     }, [diffUpstream, customSource, source, useCogProtocolForSource, titilerEndpoint, highResTerrain, effectiveMinzoom, maxzoom, isCogProtocol, isCogLocal, resolvedCogUrl, isTilejson, tilejsonMetadata, isVrtClient, vrtInfo, mapboxKey, maptilerKey, metadata, cesiumDetailOffset])
 
     // A source's declared maxzoom (sourceConfig.maxzoom) isn't always backed by
@@ -552,15 +534,9 @@ export const RasterBasemapSource = memo(({
             return { tiles: [eoxS2CloudlessTileUrl(new Date(date).getUTCFullYear())], tileSize: EOX_S2_TILE_SIZE, maxzoom: EOX_S2_MAXZOOM, attribution: STATIC_BASEMAP_ATTRIBUTIONS["eox-s2"] }
         }
 
-        const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
-        const tileUrl = basemapSource === "mapbox"
-            ? basemap.url.replace("{API_KEY}", mapboxKey)
-            : basemapSource === "maptiler"
-            ? basemap.url.replace("{API_KEY}", maptilerKey ?? "")
-            : basemapSource === "here"
-            ? basemap.url.replace("{API_KEY}", hereKey ?? "")
-            : basemap.url
-        return { tiles: [tileUrl], tileSize: basemap.tileSize, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemapSource] }
+        const basemap = builtinBasemap(basemapSource) ?? builtinBasemap("google")!
+        const tileUrl = entryUrl(basemap, { mapboxKey, maptilerKey, hereKey })
+        return { tiles: [tileUrl], tileSize: basemap.tileSize ?? 256, maxzoom: basemap.maxzoom, attribution: STATIC_BASEMAP_ATTRIBUTIONS[basemap.id] }
     }, [customBasemap, basemapSource, resolvedWaybackItem, date, planetKey, useCogProtocol, titilerEndpoint, mapboxKey, maptilerKey, hereKey, isCogLocal, resolvedCogUrl, removeColor, geHiDpi])
 
     const zoomRange = useMemo(() => {
@@ -570,8 +546,8 @@ export const RasterBasemapSource = memo(({
         if (basemapSource === "ge-historical") return { minzoom: 0, maxzoom: 23, isCustom: false }
         if (basemapSource === "planet") return { minzoom: 0, maxzoom: PLANET_MAXZOOM, isCustom: false }
         if (basemapSource === "eox-s2") return { minzoom: 0, maxzoom: EOX_S2_MAXZOOM, isCustom: false }
-        const basemap = rasterBasemaps[basemapSource] ?? rasterBasemaps.google
-        return { minzoom: 0, maxzoom: basemap.maxzoom, isCustom: false }
+        if (basemapSource === "osm") return { minzoom: 0, maxzoom: OSM_MAXZOOM, isCustom: false }
+        return { minzoom: 0, maxzoom: (builtinBasemap(basemapSource) ?? builtinBasemap("google")!).maxzoom ?? 22, isCustom: false }
     }, [customBasemap, basemapSource])
 
     useEffect(() => {
@@ -874,7 +850,7 @@ export const useClientDemUpstreamOne = (
     const lng = lngProp ?? viewportCenter?.lng
     // Unused directly — read so this re-renders when a local COG file is (re-)picked.
     const localFileVersion = useAtomValue(localFileVersionAtom)
-    const customSource = customTerrainSources.find((s) => s.id === terrainSource)
+    const customSource = findTerrainSource(terrainSource, customTerrainSources)
     const isTilejson = customSource?.type === "tilejson"
     const tilejsonMetadata = useTilejsonMetadata(isTilejson ? customSource!.url : null)
 
@@ -969,7 +945,8 @@ export const useClientDemUpstream = (
     // lib/demdiff-protocol.ts): both operands resolve first, with the same
     // leaf hook, and the source's own resolution wraps their templates.
     // Operands that are themselves differences resolve to null.
-    const diffSource = customTerrainSources.find((s) => s.id === terrainSource && s.type === "dem-diff")
+    const found = findTerrainSource(terrainSource, customTerrainSources)
+    const diffSource = found?.type === "dem-diff" ? found : undefined
     const diffA = useClientDemUpstreamOne(diffSource?.diffMinuendId ?? "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, true, null, null)
     const diffB = useClientDemUpstreamOne(diffSource?.diffSubtrahendId ?? "", customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, true, null, null)
     return useClientDemUpstreamOne(terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint, latProp, lngProp, false, diffA, diffB)

@@ -2,13 +2,13 @@
 // profiles read from the tiles themselves, a GeoTIFF of an area, the dates
 // of the app's built-in dated imagery, a search of any STAC catalog.
 import { appLib, catalogItems } from "./tools.mjs"
-import { library, resolveDem, resolveDemOrWhy, loadTile, window as demWindow, probe, BUILTIN_DEMS } from "../tile-server/dem.mjs"
+import { library, resolveDem, resolveDemOrWhy, loadTile, window as demWindow, probe } from "../tile-server/dem.mjs"
 
 export { resolveDem }
 
 /** Hosts of every tile source the in-chat map may read (for the view's CSP). */
 export function demOrigins() {
-  const urls = [...BUILTIN_DEMS.map((d) => d.tiles), ...library().terrain.map((s) => s.tiles).filter(Boolean)]
+  const urls = library().terrain.map((s) => s.tiles).filter(Boolean)
   return [...new Set(urls.map((u) => new URL(u.replace(/[{}]/g, "")).origin))]
 }
 const notTiles = (source, why) => new Error(`"${typeof source === "string" ? source : JSON.stringify(source)}" cannot be read here (${why}): use open_view. Values can be read from "mapterhorn" (default), "aws", "esri", a Terrarium tile URL, a COG or VRT address, or any library dataset (COG, VRT, WMS, LERC, mesh, difference, tile pyramid) except STAC and MosaicJSON.`)

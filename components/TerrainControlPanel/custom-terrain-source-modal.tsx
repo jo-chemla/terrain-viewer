@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Switch } from "@/components/ui/switch"
 import { type CustomTerrainSource, useCogProtocolVsTitilerAtom, customBasemapSourcesAtom, customTerrainSourcesAtom, customTerrainLastTypeAtom, addBasemapRequestAtom } from "@/lib/settings-atoms"
 import { supportsNodataControls } from "@/lib/nodata"
-import { terrainSources } from "@/lib/terrain-sources"
+import { withWorldwideDefaults } from "@/lib/terrain-catalog"
 import customSources from "@/lib/custom-sources.json"
 import { registerLocalFileAtom, makeLocalFileUrl, localFileId, getLocalFileName, validateLocalCogFile, resolveLocalFileUrl } from "@/lib/local-file-store"
 import { copyToClipboard } from "@/lib/controls-utils"
@@ -78,12 +78,12 @@ export const CustomTerrainSourceModal: React.FC<{
   const [diffOffset, setDiffOffset] = useState("")
   const [customTerrainSources, setCustomTerrainSources] = useAtom(customTerrainSourcesAtom)
   const isDemDiff = type === "dem-diff"
-  // Operands: every built-in and custom terrain source except differences
-  // (one level only) and the source being edited.
-  const diffOperands = useMemo(() => [
-    ...Object.entries(terrainSources).filter(([, cfg]) => (cfg as any).encoding !== "3dtiles").map(([id, cfg]) => ({ id, name: (cfg as any).name as string })),
-    ...customTerrainSources.filter((s) => s.type !== "dem-diff" && s.id !== editingSource?.id).map((s) => ({ id: s.id, name: s.name })),
-  ], [customTerrainSources, editingSource?.id])
+  // Operands: every terrain source, the Worldwide Defaults included, except
+  // differences (one level only) and the source being edited.
+  const diffOperands = useMemo(
+    () => withWorldwideDefaults(customTerrainSources).filter((s) => s.type !== "dem-diff" && s.id !== editingSource?.id).map((s) => ({ id: s.id, name: s.name })),
+    [customTerrainSources, editingSource?.id],
+  )
   const diffReady = !!diffMinuendId && !!diffSubtrahendId && diffMinuendId !== diffSubtrahendId
   // A library nDSM names its two operands by id, and loading it does not load
   // them. The select then shows "Choose..." with no hint that the source it

@@ -67,7 +67,7 @@ import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.m
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./openapi.mjs"
 import { plan, draw, drawViewport, flatView, DIRECT_MODES, VECTOR_MODES, vectorTile, activeLayers } from "./direct.mjs"
-import { library, BUILTIN_DEMS, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
+import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
@@ -174,10 +174,9 @@ export function sources() {
     return why ? { engine: "browser", why } : { engine: "direct" }
   }
   return [
-    ...BUILTIN_DEMS.map((d) => ({ id: d.id, name: d.name, type: d.encoding === "mapbox" ? "terrainrgb" : "terrarium", url: d.tiles, maxzoom: d.maxzoom, engine: "direct" })),
-    { id: "esri", name: "Esri World Elevation - LERC", type: "lerc", maxzoom: 16, engine: "direct" },
-    ...["mapbox", "maptiler", "cesium"].map((id) => ({ id, type: id === "cesium" ? "quantized-mesh" : "terrainrgb", ...engine({ id }) })),
-    ...library().terrain.map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.tiles ? { url: s.tiles } : {}), ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.bounds ? { bounds: s.bounds } : {}), ...(s.resolutionM != null ? { resolutionM: s.resolutionM } : {}), ...engine(s) })),
+    // The Worldwide Defaults first (section "defaults"), then the library:
+    // one list of entries (lib/source-schema.ts).
+    ...library().terrain.map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.section ? { section: s.section } : {}), ...(s.tiles ? { url: s.tiles } : {}), ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.bounds ? { bounds: s.bounds } : {}), ...(s.resolutionM != null ? { resolutionM: s.resolutionM } : {}), ...engine(s) })),
   ]
 }
 const SOURCES_NOTE = 'Give an id as terrainSource (or url). A source that is not listed: its tile address (a .tif is read as a COG, a .vrt as a VRT), or a configuration as JSON with the fields of a library entry, {"url": "...", "type": "terrarium" | "terrainrgb" | "cog" | "vrt" | "wms-raw" | "lerc" | "quantized-mesh" | "tilejson", ...}.'

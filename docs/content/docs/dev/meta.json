@@ -8,6 +8,7 @@
     "releases",
     "url-api",
     "tile-service",
+    "source-schema",
     "ux-flows",
     "non-geo-relief-visualization",
     "fumadocs-customization",

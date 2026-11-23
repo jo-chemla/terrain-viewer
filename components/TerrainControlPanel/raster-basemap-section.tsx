@@ -1,4 +1,6 @@
 import type React from "react"
+import { BUILTIN_BASEMAP_SOURCES } from "@/lib/basemap-sources"
+import { hasEntryKey, type SourceApiKey } from "@/lib/source-schema"
 import { useMemo, useCallback, useState } from "react"
 import { useAtom } from "jotai"
 import { osmBuildings3dAtom, osmBuildingsStyleAtom, OSM_BUILDINGS_STYLE_DEFAULT, type OsmBuildingsStyle } from "@/lib/settings-atoms"
@@ -13,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, maptilerKeyAtom, planetKeyAtom } from "@/lib/settings-atoms"
+import { customBasemapSourcesAtom, hereKeyAtom, mapboxKeyAtom, maptilerKeyAtom } from "@/lib/settings-atoms"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section, CycleButtonGroup, SliderControl, SourceGridToggle, GroupHeading } from "./controls-components"
 import { BasemapByodSection } from "./basemap-byod-section"
@@ -29,15 +31,10 @@ import { activeViews, viewFieldName, type ViewId, type GridLayoutId } from "@/li
 // (ESRI Wayback, HLS, Google Earth Historical, Planet Monthly Mosaic) — which
 // one actually renders is picked via the bottom timeline panel's pills/ticks,
 // not the sidebar (see lib/historical-sources.ts's resolveActiveHistoricalSource).
-export const BUILTIN_BASEMAP_OPTIONS = [
+export const BUILTIN_BASEMAP_OPTIONS: { value: string; label: string; shortLabel: string; apiKey?: SourceApiKey }[] = [
   { value: "historical", label: "Historical Imagery", shortLabel: "Historical" },
-  { value: "google", label: "Google Hybrid", shortLabel: "Google" },
-  { value: "bing", label: "Bing Aerial", shortLabel: "Bing" },
-  { value: "esri", label: "ESRI World Imagery", shortLabel: "ESRI" },
-  { value: "mapbox", label: "Mapbox Satellite", shortLabel: "Mapbox" },
-  { value: "maptiler", label: "MapTiler Satellite", shortLabel: "MapTiler" },
-  { value: "here", label: "HERE Satellite", shortLabel: "HERE" },
-  { value: "googlesat", label: "Google Satellite", shortLabel: "Google Sat" },
+  // The fixed-address basemaps: entries of the shared schema (lib/basemap-sources.ts).
+  ...BUILTIN_BASEMAP_SOURCES.map((s) => ({ value: s.id, label: s.name, shortLabel: s.shortName ?? s.name, ...(s.apiKey ? { apiKey: s.apiKey } : {}) })),
   { value: "osm", label: "OpenStreetMap (OpenFreeMap Liberty)", shortLabel: "OSM" },
   // Always offered: no basemap imagery at all, just the terrain viz modes
   // and whatever overlays are stacked on top.
@@ -51,12 +48,11 @@ export const BASEMAP_SHORT_LABELS: Record<string, string> = Object.fromEntries(
   BUILTIN_BASEMAP_OPTIONS.map((o) => [o.value, o.shortLabel]),
 )
 
-// Providers that need an API key to actually load tiles — hidden from the
-// picker until a key is set (Settings > API Keys, or a local VITE_*_API_KEY/
-// VITE_MAPBOX_ACCESS_TOKEN in .env) so users don't select a basemap that just
-// fails to render. Both mapboxKeyAtom and hereKeyAtom default to "" unless
-// that local .env var is present — see settings-atoms.ts.
-const KEY_GATED_BASEMAPS = { here: hereKeyAtom, mapbox: mapboxKeyAtom, maptiler: maptilerKeyAtom, planet: planetKeyAtom } as const
+// A basemap whose tiles need an API key (its entry's `apiKey`) is hidden from
+// the picker until the key is set (Settings > API Keys, or a local
+// VITE_*_API_KEY / VITE_MAPBOX_ACCESS_TOKEN in .env) so users don't select a
+// basemap that just fails to render. Both mapboxKeyAtom and hereKeyAtom
+// default to "" unless that local .env var is present — see settings-atoms.ts.
 
 // The 3D buildings are an overlay of their own, not a property of the OSM row:
 // OpenFreeMap Liberty's extrusion layer over whatever basemap is selected (a
@@ -129,7 +125,6 @@ export const RasterBasemapSection: React.FC<{
   const [hereKey] = useAtom(hereKeyAtom)
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
-  const [planetKey] = useAtom(planetKeyAtom)
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   // Real "as-of" capture date for Bing's single live mosaic (see lib/bing.ts)
   // — read from the current view center's tile, not per-row/per-selection.
@@ -140,11 +135,9 @@ export const RasterBasemapSection: React.FC<{
   // too, not just a static "always current" implication.
   const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
 
-  const gatedKeyValues: Record<string, string> = { here: hereKey, mapbox: mapboxKey, maptiler: maptilerKey, planet: planetKey }
   const visibleBuiltinOptions = useMemo(
-    () => BUILTIN_BASEMAP_OPTIONS
-      .filter((o) => !(o.value in KEY_GATED_BASEMAPS) || !!gatedKeyValues[o.value]),
-    [hereKey, mapboxKey, maptilerKey, planetKey],
+    () => BUILTIN_BASEMAP_OPTIONS.filter((o) => hasEntryKey(o, { hereKey, mapboxKey, maptilerKey })),
+    [hereKey, mapboxKey, maptilerKey],
   )
 
   const basemapSourceOptions = useMemo(() => [

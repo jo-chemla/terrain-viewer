@@ -55,7 +55,9 @@ The preview browser available to agents does NOT fire `requestAnimationFrame` �
 - `lib/grid-layouts.ts` — split/grid layout definitions (`GRID_LAYOUTS`, `rightmostViewsPerRow`, padding logic).
 - `lib/layout-constants.ts` — sidebar/timeline footprint pixels, `getSidebarFootprintPx`, `splitRatioAtom`.
 - `lib/terrain-types.ts` — `TerrainSource` type, hillshade method enums.
-- `lib/terrain-sources.ts` — built-in DEM source configs (Mapterhorn, Mapbox, MapTiler, AWS).
+- `lib/source-schema.ts` — the one source record (terrain and raster) every list uses.
+- `lib/terrain-sources.ts` — the built-in Worldwide Defaults as schema entries; `lib/terrain-catalog.ts` — `findTerrainSource`, the one lookup by id (built-ins, library defaults like GEM-15, user sources).
+- `lib/basemap-sources.ts` — the fixed-address built-in basemaps as schema entries.
 - `lib/*-protocol.ts` — custom MapLibre tile protocols (slope, curvature, SVF, phong, matcap, …).
 
 ## Architecture patterns

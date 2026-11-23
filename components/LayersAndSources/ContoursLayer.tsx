@@ -5,8 +5,9 @@ import { useMap, Layer } from "react-map-gl/maplibre"
 import type { LayerSpecification } from "react-map-gl/maplibre"
 import * as maplibregl from "maplibre-gl"
 import mlcontour from "maplibre-contour"
-import { terrainSources } from "@/lib/terrain-sources"
-import type { TerrainSource } from "@/lib/terrain-types"
+import { findTerrainSource } from "@/lib/terrain-catalog"
+import { entryUrl } from "@/lib/source-schema"
+import { pyramidTileSize } from "@/lib/terrain-tile-spec"
 import type { CustomTerrainSource } from "@/lib/settings-atoms"
 import { resolveLocalFileUrl, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { buildCogContourUrl } from "@/lib/cog-contour-protocol"
@@ -110,7 +111,9 @@ function buildTileUrl(
   // resolved tiles): used for every custom type without a branch below.
   upstream: ClientDemUpstream | null,
 ): { tileUrl: string; encoding: string; maxzoom: number; tileSize: number } | null {
-  const customSource = customTerrainSources.find((s) => s.id === sourceId)
+  // A Worldwide Default is an entry like a library or user source
+  // (lib/terrain-catalog.ts): one path for all of them.
+  const customSource = findTerrainSource(sourceId, customTerrainSources)
 
   if (customSource) {
     if (customSource.type === "cog-local") {
@@ -160,26 +163,13 @@ function buildTileUrl(
       }
     }
     return {
-      tileUrl: customSource.url,
+      tileUrl: entryUrl(customSource, { mapboxKey, maptilerKey }),
       encoding: customSource.type === "terrarium" ? "terrarium" : "mapbox",
-      maxzoom: 14,
-      tileSize: 256,
+      maxzoom: Math.min(customSource.maxzoom ?? 14, 19),
+      tileSize: pyramidTileSize(customSource),
     }
   }
-
-  const source = (terrainSources as any)[sourceId as TerrainSource]
-  if (!source?.sourceConfig?.tiles?.[0]) return null
-
-  let tileUrl: string = source.sourceConfig.tiles[0]
-  if (sourceId === "mapbox") tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
-  else if (sourceId === "maptiler") tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
-
-  return {
-    tileUrl,
-    encoding: source.encoding === "terrainrgb" ? "mapbox" : "terrarium",
-    maxzoom: source.sourceConfig.maxzoom || 14,
-    tileSize: source.sourceConfig.tileSize || 256,
-  }
+  return null
 }
 
 // ─── LRM-mode DEM source (Contours in a Worker off) ──────────────────────
@@ -506,7 +496,7 @@ export function ContoursLayer({
       }
       initAttemptsRef.current += 1
 
-      const customSource = customTerrainSources.find((s) => s.id === sourceId)
+      const customSource = findTerrainSource(sourceId, customTerrainSources)
       // A remote COG read in the browser (the client toggle on, no titiler
       // pin on the source) takes the same worker path as a local file: the
       // worker's COG reader takes any URL.
@@ -664,7 +654,7 @@ export function ContoursLayer({
     removeLayers(map, idPrefix)
 
     if (isCogLocalRef.current) {
-      const customSource = customTerrainSources.find((s) => s.id === sourceId)
+      const customSource = findTerrainSource(sourceId, customTerrainSources)
       const blobUrl = customSource?.type === "cog-local" ? resolveLocalFileUrl(localFileId(customSource.url)) : null
       if (!blobUrl) return
       map.addSource(`${idPrefix}-source`, {
