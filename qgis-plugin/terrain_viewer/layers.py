@@ -7,6 +7,7 @@ from qgis.core import (
     QgsDataSourceUri, QgsProject, QgsRasterLayer, QgsVectorTileLayer, QgsLayerTreeGroup,
     QgsVectorTileBasicRenderer, QgsVectorTileBasicRendererStyle,
     QgsLineSymbol, QgsFillSymbol, QgsMarkerSymbol, QgsDataProvider,
+    QgsSingleBandGrayRenderer, QgsContrastEnhancement,
 )
 
 try:  # QGIS 3.30+
@@ -17,7 +18,7 @@ except (ImportError, AttributeError):  # QGIS 3.28
     POINT, LINE, POLYGON = QgsWkbTypes.PointGeometry, QgsWkbTypes.LineGeometry, QgsWkbTypes.PolygonGeometry
 
 ROOT_NAME = "Terrain Viewer"
-PROP = "terrain_viewer/layer"  # "<mode>" or "<mode>:vector"
+PROP = "terrain_viewer/layer"  # "<mode>", "<mode>:vector" or "<mode>:values"
 MULTIPLY = QPainter.CompositionMode.CompositionMode_Multiply
 NORMAL = QPainter.CompositionMode.CompositionMode_SourceOver
 
@@ -79,6 +80,7 @@ def tree_ranks(tree):
         for item in g.get("items", []):
             ranks[("l", item["id"])] = len(ranks)
             ranks[("l", item["id"] + ":vector")] = len(ranks)
+            ranks[("l", item["id"] + ":values")] = len(ranks)
     for g in tree:
         walk(g, ())
     return ranks
@@ -154,6 +156,29 @@ class LayerStack:
             self._insert(layer, path, key)
         elif layer.source() != uri:
             layer.setDataSource(uri, layer.name(), "wms", QgsDataProvider.ProviderOptions())
+            layer.triggerRepaint()
+        return layer
+
+    def ensure_values(self, key, name, path, url, value_range=None):
+        """A mode's values: a Float32 raster read by GDAL from the service's
+        /gdal.xml (GeoTIFF tiles), created or with its address replaced,
+        drawn as a grey stretch over the mode's typical range (QGIS's own
+        estimate reads the coarsest overview, far too narrow)."""
+        layer = self.find(key)
+        if layer is None:
+            layer = QgsRasterLayer(url, name, "gdal")
+            layer.setCustomProperty(PROP, key)
+            if value_range and layer.isValid():
+                gray = QgsSingleBandGrayRenderer(layer.dataProvider(), 1)
+                ce = QgsContrastEnhancement(layer.dataProvider().dataType(1))
+                ce.setContrastEnhancementAlgorithm(QgsContrastEnhancement.ContrastEnhancementAlgorithm.StretchToMinimumMaximum)
+                ce.setMinimumValue(float(value_range[0]))
+                ce.setMaximumValue(float(value_range[1]))
+                gray.setContrastEnhancement(ce)
+                layer.setRenderer(gray)
+            self._insert(layer, path, key)
+        elif layer.source() != url:
+            layer.setDataSource(url, layer.name(), "gdal", QgsDataProvider.ProviderOptions())
             layer.triggerRepaint()
         return layer
 

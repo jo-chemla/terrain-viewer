@@ -11,7 +11,7 @@
 // Each worker keeps its own elevation cache, so memory grows with the count.
 import os from "node:os"
 import { Worker } from "node:worker_threads"
-import { plan, draw, drawViewport, vectorTile } from "./direct.mjs"
+import { plan, draw, drawViewport, vectorTile, valueTile } from "./direct.mjs"
 
 const asked = process.env.TV_DIRECT_WORKERS ?? process.env.TV_DIRECT_CONCURRENCY
 export const POOL_SIZE = asked !== undefined && asked !== ""
@@ -76,11 +76,12 @@ const inThread = async (op, { view, rest, keys }, args) => {
   const how = await plan(view, rest, keys)
   if (op === "tile") return draw(how, args)
   if (op === "viewport") return drawViewport(how, args)
+  if (op === "values") return valueTile(how, args.mode, args)
   return vectorTile(how, args.modes, args.z, args.x, args.y, args.baseUrl)
 }
 
-/** Draws in a worker: `op` is tile (draw), viewport (drawViewport) or
- *  vector (vectorTile); `view`, `rest` (URLSearchParams) and `keys` as
+/** Draws in a worker: `op` is tile (draw), viewport (drawViewport),
+ *  vector (vectorTile) or values (valueTile: a mode's values, encoded); `view`, `rest` (URLSearchParams) and `keys` as
  *  given to plan(), `args` the drawing's. When `signal` aborts, the worker
  *  is ended and the promise fails with status 499. */
 export async function runDirect(op, input, args, signal) {

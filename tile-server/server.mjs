@@ -60,7 +60,7 @@
 // request gives none: anyone who can reach the service then uses them).
 import http from "node:http"
 import { AsyncLocalStorage } from "node:async_hooks"
-import { qgisProject, readView, modesCatalog, viewForPlugin } from "./qgis-project.mjs"
+import { qgisProject, readView, modesCatalog, viewForPlugin, gdalWmsXml, VALUE_RANGE } from "./qgis-project.mjs"
 import { readFileSync } from "node:fs"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -70,7 +70,7 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./openapi.mjs"
-import { plan, flatView, DIRECT_MODES, VECTOR_MODES, activeLayers } from "./direct.mjs"
+import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers } from "./direct.mjs"
 import { runDirect, poolStats, closePool, POOL_SIZE } from "./direct-pool.mjs"
 import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 
@@ -323,6 +323,88 @@ async function picture(ext, query) {
   return { bytes, engine: "browser", why }
 }
 
+// ── Values: a mode's numbers before the colour ramp ──────────────────────
+
+const VALUE_FORMATS = ["tif", "terrarium", "terrainrgb"]
+/** The view's request for one mode's values: the mode, the view to plan
+ *  (elevation plans as colour relief, its values are the elevation's), the
+ *  scale a PNG packing multiplies them by. */
+function valueRequest(query) {
+  const { view, rest, take } = viewOf(query)
+  const keys = keysFrom(take)
+  const modes = view.modes ?? []
+  if (modes.length !== 1) throw status(400, `Values are for one mode at a time, as modes=slope (modes with values: ${Object.keys(VALUE_MODES).join(", ")})`)
+  const mode = modes[0]
+  if (!VALUE_MODES[mode]) throw status(400, `No values for ${mode}: it is drawn, not computed as numbers. Modes with values: ${Object.keys(VALUE_MODES).join(", ")}`)
+  const raw = take("valueScale")
+  const scale = raw === undefined ? 1 : Number(raw)
+  if (!Number.isFinite(scale) || scale === 0) throw status(400, "valueScale is a number other than 0")
+  for (const k of ["values", "background", "engine"]) take(k)
+  for (const k of ["pitch", "bearing", "viewMode", "split", "terrainSourceB", "place"]) delete view[k]
+  for (const k of ["splitStyle"]) rest.delete(k)
+  return { view: { ...view, modes: [mode === "elevation" ? "colorRelief" : mode] }, rest, take, keys, mode, scale }
+}
+
+/** The deepest zoom of 256 px tiles worth asking of a source: its own
+ *  deepest level, in 256 px tiles. */
+const valueLevel = (dem) => Math.min(MAX_ZOOM, dem.maxzoom + Math.max(0, Math.round(Math.log2(dem.tileSize / 256))))
+
+/** One mode's values over a tile (`at`: { z, x, y, scale }) or a viewport
+ *  (`at`: null; bbox, or lat, lng, zoom, with width and height), encoded as
+ *  `format` (VALUE_FORMATS). */
+async function valuesFor(format, query, at) {
+  const r = valueRequest(query)
+  const { view, rest, take, keys, mode, scale } = r
+  const num = (k, d) => { const v = take(k); if (v === undefined) return d; const n = Number(v); if (!Number.isFinite(n)) throw status(400, `${k} is not a number`); return n }
+  let rect
+  if (at) {
+    const asked = take("tilesize") ?? take("size")
+    const size = Number(asked || 256) * at.scale
+    if (size !== 256 && size !== 512) throw status(400, "A tile is 256 px, or 512 px with @2x or tilesize=512")
+    rect = { world: size * 2 ** at.z, x0: at.x * size, y0: at.y * size, width: size, height: size }
+    for (const k of ["lat", "lng", "zoom"]) delete view[k]
+    take("width"); take("height")
+  } else {
+    const my = (la) => (1 - Math.asinh(Math.tan((la * Math.PI) / 180)) / Math.PI) / 2
+    const bbox = take("bbox")
+    if (bbox) {
+      // The box exactly: `width` pixels across it, the height that keeps
+      // the pixels square in Web Mercator (at most 4096 a side).
+      const [w, s, e, n] = bbox.split(",").map(Number)
+      if (![w, s, e, n].every(Number.isFinite) || e <= w || n <= s) throw status(400, "bbox is west,south,east,north in degrees")
+      let width = Math.round(num("width", 1024))
+      const fx = (e - w) / 360, fy = my(s) - my(n)
+      if (width * (fy / fx) > 4096) width = Math.floor(4096 * (fx / fy))
+      width = Math.min(4096, Math.max(16, width))
+      const world = width / fx
+      take("height")
+      rect = { world, x0: ((w + 180) / 360) * world, y0: my(n) * world, width, height: Math.max(16, Math.round(fy * world)) }
+    } else {
+      const { lat, lng } = view
+      if (lat === undefined || lng === undefined) throw status(400, "lat and lng, or bbox, are required")
+      const width = Math.min(4096, Math.max(16, Math.round(num("width", 1024)))), height = Math.min(4096, Math.max(16, Math.round(num("height", 640))))
+      const world = 512 * 2 ** (view.zoom ?? 12)
+      rect = { world, x0: ((lng + 180) / 360) * world - width / 2, y0: my(lat) * world - height / 2, width, height }
+    }
+    for (const k of ["lat", "lng", "zoom"]) delete view[k]
+  }
+  const how = await plan(view, rest, keys)
+  if (how.engine !== "direct") throw status(400, `The values cannot be computed here: ${how.why}`)
+  const unit = valueUnit(mode, how.state)
+  const key = `values|${JSON.stringify([how.dem.tiles, mode, how.state])}|${format}|${scale}|${JSON.stringify(rect)}`
+  const ext = format === "tif" ? "tif" : "png"
+  let bytes = await cached(key, ext)
+  if (!bytes) {
+    bytes = await directRun("values", { view, rest, keys }, { ...rect, mode, format, scale, baseUrl: BASE_URL })
+    store(key, ext, bytes)
+  }
+  return { bytes, unit, mode, scale, type: format === "tif" ? "image/tiff" : "image/png" }
+}
+const valueHeaders = (made) => ({
+  "cache-control": "public, max-age=86400", "x-tv-engine": "direct", "x-tv-value-mode": made.mode, "x-tv-value-unit": made.unit, "x-tv-value-scale": String(made.scale),
+  "access-control-expose-headers": "x-tv-engine, x-tv-value-mode, x-tv-value-unit, x-tv-value-scale",
+})
+
 const TYPES = { png: "image/png", jpg: "image/jpeg" }
 const allowedHosts = (process.env.TV_ALLOWED_HOSTS || "").split(",").map((s) => s.trim()).filter(Boolean)
 
@@ -366,13 +448,33 @@ async function handle(req, res) {
       }, null, 2))
       const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
       if (u.pathname === "/qgis.qgz") {
-        const { view, rest } = viewOf(u.search)
-        return send(200, "application/zip", qgisProject(self, await readView(view, rest, activeLayers)), { "content-disposition": 'attachment; filename="terrain-viewer.qgz"' })
+        const { view, rest, take } = viewOf(u.search)
+        const read = await readView(view, rest, activeLayers)
+        // The values group's deepest zoom: the view's source's.
+        const how = await plan({ terrainSource: view.terrainSource, modes: ["colorRelief"] }, new URLSearchParams(), keysFrom(take)).catch(() => null)
+        if (how?.engine === "direct") read.valueLevel = valueLevel(how.dem)
+        return send(200, "application/zip", qgisProject(self, read), { "content-disposition": 'attachment; filename="terrain-viewer.qgz"' })
+      }
+      // A mode's values as one GDAL raster: the Float32 GeoTIFF tiles,
+      // described for GDAL's WMS driver (TMS). gdalinfo, gdal_translate,
+      // rasterio and QGIS open it (QGIS: Layer > Add Raster Layer, or this
+      // XML as the source).
+      if (u.pathname === "/gdal.xml") {
+        const r = valueRequest(u.search)
+        const how = await plan(r.view, r.rest, r.keys)
+        if (how.engine !== "direct") return send(400, "text/plain", `The values cannot be computed here: ${how.why}`)
+        const q = new URLSearchParams(u.search)
+        for (const k of ["modes", "algorithm", "values", "background", "engine", "lat", "lng", "zoom", "width", "height", "bbox"]) q.delete(k)
+        return send(200, "application/xml", gdalWmsXml(self, r.mode, q.toString(), valueLevel(how.dem)), { "content-disposition": `inline; filename="terrain-viewer-${r.mode}.xml"` })
       }
       if (u.pathname === "/modes") {
         const { view, rest } = viewOf(u.search)
         URL_PARAMS ??= JSON.parse(readFileSync(new URL("./generated/url-params.json", import.meta.url), "utf8")).params
-        const out = { modes: modesCatalog(URL_PARAMS), note: "The QGIS plugin's panel: the app's panel groups (top drawn on top), each mode's form, opacity parameter and settings (the app's URL parameters, with their defaults). Given a view's query (a share link's), `view` says what it switches on and the parameters its layers keep." }
+        const out = {
+          modes: modesCatalog(URL_PARAMS, VALUE_MODES),
+          values: Object.entries(VALUE_MODES).map(([id, v]) => ({ id, unit: v.unit, description: v.description, ...(VALUE_RANGE[id] ? { range: VALUE_RANGE[id] } : {}) })),
+          note: "The QGIS plugin's panel: the app's panel groups (top drawn on top), each mode's form, opacity parameter and settings (the app's URL parameters, with their defaults), and for a mode with values (`values`, also listed at the top level with elevation) their unit: /tiles/{z}/{x}/{y}.tif?modes=<mode> gives them as Float32 GeoTIFF tiles, /gdal.xml?modes=<mode> as one GDAL raster. Given a view's query (a share link's), `view` says what it switches on and the parameters its layers keep.",
+        }
         if (u.search.length > 1) out.view = viewForPlugin(await readView(view, rest, activeLayers))
         return send(200, "application/json", JSON.stringify(out))
       }
@@ -416,11 +518,20 @@ async function handle(req, res) {
         if (!bytes) { bytes = await directRun("vector", input, { modes, z, x, y, baseUrl: BASE_URL }); store(key, "pbf", bytes) }
         return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
       }
-      const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
+      const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
       if (t) {
         const [z, x, y] = t.slice(1, 4).map(Number)
-        const ext = t[5] === "png" ? "png" : "jpg"
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
+        // A mode's values: a Float32 GeoTIFF (.tif), or packed in a PNG
+        // (.png?values=terrarium|terrainrgb).
+        const packing = new URLSearchParams(u.search).get("values")
+        if (t[5].startsWith("tif") || packing) {
+          const format = t[5].startsWith("tif") ? "tif" : packing
+          if (!VALUE_FORMATS.includes(format) || (format === "tif") !== t[5].startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?values=terrarium or terrainrgb")
+          const made = await valuesFor(format, u.search, { z, x, y, scale: t[4] === "@2x" ? 2 : 1 })
+          return send(200, made.type, made.bytes, valueHeaders(made))
+        }
+        const ext = t[5] === "png" ? "png" : "jpg"
         const made = await tile(z, x, y, ext, u.search, t[4] === "@2x" ? 2 : 1)
         return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
       }
@@ -444,12 +555,19 @@ async function handle(req, res) {
           tiles: [`${self}/tiles/WebMercatorQuad/{z}/{x}/{y}${scale}.${fmt}${qs ? "?" + qs : ""}`],
         }))
       }
-      const bb = u.pathname.match(/^\/bbox\/([-\d.,]+)\/(\d+)x(\d+)\.(png|jpg|jpeg)$/)
-      const r = u.pathname.match(/^\/render\.(png|jpg|jpeg)$/)
+      const bb = u.pathname.match(/^\/bbox\/([-\d.,]+)\/(\d+)x(\d+)\.(png|jpg|jpeg|tif|tiff)$/)
+      const r = u.pathname.match(/^\/render\.(png|jpg|jpeg|tif|tiff)$/)
       if (bb || r) {
         const q = new URLSearchParams(u.search)
         if (bb) { q.set("bbox", bb[1]); q.set("width", bb[2]); q.set("height", bb[3]) }
-        const ext = (bb ? bb[4] : r[1]) === "png" ? "png" : "jpg"
+        const asked = bb ? bb[4] : r[1]
+        if (asked.startsWith("tif") || q.get("values")) {
+          const format = asked.startsWith("tif") ? "tif" : q.get("values")
+          if (!VALUE_FORMATS.includes(format) || (format === "tif") !== asked.startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?values=terrarium or terrainrgb")
+          const made = await valuesFor(format, q, null)
+          return send(200, made.type, made.bytes, valueHeaders(made))
+        }
+        const ext = asked === "png" ? "png" : "jpg"
         const made = await picture(ext, q)
         return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
       }

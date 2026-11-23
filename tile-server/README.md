@@ -11,6 +11,7 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 | `/tiles/{z}/{x}/{y}.png\|jpg` | One Web Mercator tile, 256 px (`@2x` or `tilesize=512` for 512) |
 | `/tiles/{z}/{x}/{y}.pbf\|mvt` | The overlays as a vector tile: contours, iso-line, mound detector, plane slicer, graticule |
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
+| `/tiles/{z}/{x}/{y}.tif`, `/render.tif`, `/gdal.xml` | One mode's values before its ramp, in natural units: Float32 GeoTIFF tiles, an area (like a WCS), one GDAL raster; `.png?values=terrarium\|terrainrgb` packs them in a PNG |
 | `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
 | `/tiles/WebMercatorQuad/...`, `/bbox/...` | titiler's addresses for the same |
 | `/modes` | The modes with their settings, grouped as the app's panel (the QGIS plugin's panel, `../qgis-plugin/`) |

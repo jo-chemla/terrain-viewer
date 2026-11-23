@@ -142,6 +142,54 @@ import { plan } from "./direct.mjs"
   assert.deepEqual([...generic.matchAll(/<layer-tree-layer id="[^"]+" name="([^"]+)"[^>]*checked="Qt::Checked"/g)].map((m) => m[1]), ["Google Hybrid"])
 }
 
+// The values before the colour ramp: Float32 GeoTIFF tiles in EPSG:3857,
+// natural units, the elevation the source's own; a PNG packing; GDAL's
+// description; the QGIS project's values group.
+{
+  const { valueTile, valuesOf, encodeValues } = await import("./direct.mjs")
+  const { loadTile } = await import("./dem.mjs")
+  const { fromArrayBuffer } = await import("geotiff")
+  const { gdalWmsXml, qgisProjectXml, readView } = await import("./qgis-project.mjs")
+  // Around the Matterhorn: a source tile of Mapterhorn (512 px) at zoom 12.
+  const z = 12, tx = 2135, ty = 1455
+  const how = await plan({ modes: ["colorRelief"] }, new URLSearchParams())
+  const rect = { world: 512 * 2 ** z, x0: tx * 512, y0: ty * 512, width: 512, height: 512 }
+  const tif = await fromArrayBuffer((await valueTile(how, "elevation", { ...rect, format: "tif" })).buffer.slice(0))
+  const img = await tif.getImage()
+  assert.equal(img.getGeoKeys().ProjectedCSTypeGeoKey, 3857)
+  assert.deepEqual([img.getWidth(), img.getHeight(), img.getSampleFormat(), img.getBitsPerSample()], [512, 512, 3, 32])
+  const W = 20037508.342789244, px = (2 * W) / (512 * 2 ** z)
+  assert.ok(Math.abs(img.getOrigin()[0] - (-W + tx * 512 * px)) < 1e-3 && Math.abs(img.getOrigin()[1] - (W - ty * 512 * px)) < 1e-3, "the tile's corner")
+  assert.ok(Math.abs(img.getResolution()[0] - px) < 1e-6, "the tile's pixel")
+  const [elev] = await img.readRasters()
+  // On the source's own grid the values are the source's elevations.
+  const src = await loadTile(how.dem, z, tx, ty)
+  let worst = 0
+  for (let i = 0; i < elev.length; i++) worst = Math.max(worst, Math.abs(elev[i] - src.data[i]))
+  assert.ok(worst < 1, `elevation within 1 m of the source's (worst ${worst})`)
+  assert.ok(elev.reduce((a, b) => Math.max(a, b), -Infinity) > 4000, "the Matterhorn's summit in it")
+  // Slope in degrees, svf a share, openness about 90 on flat ground.
+  const slope = await valuesOf(await plan({ modes: ["slope"] }, new URLSearchParams()), "slope", rect)
+  assert.ok(slope.every((v) => v >= 0 && v <= 90) && slope.reduce((a, b) => Math.max(a, b), 0) > 45, "slope in 0..90 degrees")
+  const svf = await valuesOf(await plan({ modes: ["svf"] }, new URLSearchParams()), "svf", { ...rect, width: 64, height: 64 })
+  assert.ok(svf.every((v) => v >= 0 && v <= 1), "svf in 0..1")
+  await assert.rejects(valuesOf(how, "matcap", rect), /No values for matcap/)
+  // A PNG packing reads back as the values.
+  const sharp = (await import("sharp")).default
+  const packed = await encodeValues(slope, { ...rect, format: "terrarium" })
+  const { data } = await sharp(packed).raw().toBuffer({ resolveWithObject: true })
+  assert.ok(Math.abs(data[0] * 256 + data[1] + data[2] / 256 - 32768 - slope[0]) < 0.01, "terrarium packing")
+  const rgb = await sharp(await encodeValues(slope, { ...rect, format: "terrainrgb" })).raw().toBuffer()
+  assert.ok(Math.abs(-10000 + (rgb[0] * 65536 + rgb[1] * 256 + rgb[2]) * 0.1 - slope[0]) < 0.06, "terrain-rgb packing")
+  // GDAL's description and the project's values group.
+  const xml = gdalWmsXml("http://t", "slope", "terrainSource=x&a=1", 17)
+  assert.match(xml, /<ServerUrl>http:\/\/t\/tiles\/\$\{z\}\/\$\{x\}\/\$\{y\}\.tif\?modes=slope&amp;terrainSource=x&amp;a=1<\/ServerUrl>/)
+  assert.match(xml, /<TileLevel>17<\/TileLevel>.*<DataType>Float32<\/DataType>/)
+  const project = qgisProjectXml("http://t", { ...(await readView({}, new URLSearchParams(), null)), valueLevel: 16 })
+  assert.match(project, /<layer-tree-group name="Values \(Float32, for analysis\)" checked="Qt::Unchecked" expanded="0">/)
+  assert.equal([...project.matchAll(/<provider>gdal<\/provider>/g)].length, 15)
+}
+
 console.log("ok")
 // The bundled app code (colour ramps) keeps a handle open.
 process.exit(0)

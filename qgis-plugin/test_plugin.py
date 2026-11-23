@@ -6,7 +6,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qgis.core import QgsApplication, QgsProject, QgsMapSettings, QgsMapRendererParallelJob, QgsRectangle, QgsCoordinateReferenceSystem
+from qgis.core import QgsApplication, QgsProject, QgsMapSettings, QgsMapRendererParallelJob, QgsRectangle, QgsCoordinateReferenceSystem, QgsPointXY, Qgis
 from qgis.PyQt.QtCore import QSize, QEventLoop, QTimer
 from qgis.PyQt.QtGui import QColor
 
@@ -72,6 +72,8 @@ dock.rows["svf"].check.setChecked(True)
 dock.rows["contours"].check.setChecked(True)
 dock.rows["contours"].vector.setChecked(True)
 dock.rows["svf"].settings["svfRadius"].set(20)
+# The slope's values too: a Float32 raster read by GDAL (/gdal.xml).
+dock.rows["slope"].numbers.setChecked(True)
 dock.flush()
 
 for layer in QgsProject.instance().mapLayers().values():
@@ -86,6 +88,11 @@ print("slope url carries slopeMaxDegrees:", "slopeMaxDegrees%3D45" in slope.sour
 print("slope layer opacity (link: 0.8):", round(slope.renderer().opacity(), 2), "- address asks it opaque:", "slopeOpacity%3D1" in slope.source())
 svf = dock.stack.find("svf")
 print("svf url carries svfRadius:", "svfRadius" in svf.source())
+numbers = dock.stack.find("slope:values")
+v, sampled = numbers.dataProvider().sample(QgsPointXY(x, y), 1)
+print("slope values:", numbers.name(), "Float32:", numbers.dataProvider().dataType(1) == Qgis.DataType.Float32, "at the view's centre:", round(v, 2) if sampled else None, "degrees")
+if not (sampled and 0 <= v <= 90):
+    failures.append("slope values")
 
 # The tree, top first.
 def dump(g, d=0):
@@ -105,6 +112,7 @@ print(panel)
 print(render("plugin-all.png", visible_layers(), extent))
 print(render("plugin-svf.png", [svf], extent))
 print(render("plugin-contours-vector.png", [dock.stack.find("contours:vector")], extent))
+print(render("plugin-slope-values.png", [numbers], extent))
 
 # 3. A saved project read back: the checkboxes come back from the layers.
 path = os.path.join(out, "plugin-test.qgz")
@@ -115,6 +123,6 @@ dock2 = TerrainViewerDock(None)
 dock2.url.setText(base)
 dock2.connect_service()
 back = sorted(k for k, r in dock2.rows.items() if r.check.isChecked())
-print("read back checked:", back, "svfRadius:", dock2.rows["svf"].settings["svfRadius"].get())
+print("read back checked:", back, "svfRadius:", dock2.rows["svf"].settings["svfRadius"].get(), "slope values:", dock2.rows["slope"].numbers.isChecked())
 print("FAILURES:", failures or "none")
 app.exitQgis()

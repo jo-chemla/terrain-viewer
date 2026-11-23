@@ -109,6 +109,17 @@ def tile_url(base, mode, values, common, vector=False):
     return f"{base.rstrip('/')}/tiles/{{z}}/{{x}}/{{y}}.{ext}?{urlencode(q, safe=',{}')}"
 
 
+def values_url(base, mode, values, common):
+    """The address of one mode's values as a GDAL raster: the service's
+    /gdal.xml, a GDAL WMS description of its Float32 GeoTIFF tiles, which
+    GDAL (and so QGIS's gdal provider) opens by its URL. No opacity, no
+    background: numbers, not colours."""
+    q = {"modes": mode["id"]}
+    q.update({k: v for k, v in common.items() if v not in (None, "")})
+    q.update(setting_params(mode, values))
+    return f"{base.rstrip('/')}/gdal.xml?{urlencode(q, safe=',')}"
+
+
 def split_link(link):
     """A share link (or a bare query): its query string."""
     link = link.strip()

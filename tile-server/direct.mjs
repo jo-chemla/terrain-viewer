@@ -357,6 +357,119 @@ async function protocolWindow(p, z, side, x0, y0, w, h) {
   return out
 }
 
+// ── Values ────────────────────────────────────────────────────────────────
+
+// The modes with a value per pixel, before any colour ramp, in natural
+// units. The app's protocols carry their values packed into RGB tiles,
+// some of them scaled to fit the packing's precision or the ramp's range;
+// `to` undoes that: natural = wire * a + b. `unit` and `description` are
+// served by /modes and listed in the tile service docs.
+const CURV_SCALE = 1000 // lib/curvature-protocol.ts CURVATURE_ENCODE_SCALE, the wire's factor
+export const VALUE_MODES = {
+  elevation: { unit: "m", description: "Elevation of the terrain source, metres above its datum" },
+  colorRelief: { unit: "m", description: "Elevation (the values colour relief colours), metres" },
+  slope: { unit: "degree", description: "Slope angle, 0 (flat) to 90 (vertical), Horn's kernel as gdaldem" },
+  aspect: { unit: "degree", description: "Direction the slope faces, clockwise from north, 0 to 360 (gdaldem's aspect)" },
+  tri: { unit: "m", description: "Terrain Ruggedness Index: mean absolute elevation difference to the 8 neighbours" },
+  tpi: { unit: "m", description: "Topographic Position Index: elevation minus the mean of the 8 neighbours" },
+  roughness: { unit: "m", description: "Roughness: largest elevation difference in the 3x3 window" },
+  curvature: {
+    unit: "1/m", description: "Curvature, per curvatureMode: combined (Laplacian), profile, plan and casorati in 1/m; det-hessian in 1/m²; shape-index unitless, -1 to 1",
+    to: (s) => {
+      const m = s.curvatureMode ?? "combined"
+      return { a: m === "shape-index" ? 1 / CURV_SCALE : m === "det-hessian" ? 1 / (CURV_SCALE * 10000) : 1 / (CURV_SCALE * 100), b: 0 }
+    },
+    unitOf: (s) => ({ "shape-index": "1", "det-hessian": "1/m^2" })[s.curvatureMode ?? "combined"] ?? "1/m",
+  },
+  shapeIndex: { unit: "1", description: "Shape index (Koenderink and van Doorn): -1 bowl, -0.5 valley, 0 saddle, 0.5 ridge, 1 dome", to: () => ({ a: 1 / CURV_SCALE, b: 0 }) },
+  blobness: { unit: "1", description: "Blobness: det/trace of the gradient structure tensor (a squared slope, unitless); the app's ramp reads it ×100", to: () => ({ a: 1 / 100, b: 0 }) },
+  eigenRatio: { unit: "1", description: "Eigenvalue ratio λmin/λmax of the gradient structure tensor, 0 (linear: slope, ridge, valley) to 1 (isotropic: peak, pit, saddle); the app's ramp reads it as a percentage", to: () => ({ a: 1 / 100, b: 0 }) },
+  orientation: { unit: "degree", description: "Axis of the dominant gradient direction, clockwise from north, 0 to 180" },
+  lrm: { unit: "m", description: "Local Relief Model: elevation minus its low-pass trend (lrmRadius)" },
+  svf: { unit: "1", description: "Sky View Factor, the visible share of the sky, 0 to 1 (1: flat open ground); the app's ramp reads it as a percentage", to: () => ({ a: 1 / 100, b: 0 }) },
+  openness: { unit: "degree", description: "Openness (opennessMode positive or negative): mean zenith angle to the horizon, 90 on flat ground, more on summits (positive) or in valleys (negative); the app's ramp reads it minus 90", to: () => ({ a: 1, b: 90 }) },
+  localDominance: { unit: "degree", description: "Local Dominance: mean angle down from an observer to the surrounding terrain, high on mounds, low in hollows" },
+}
+export const valueUnit = (mode, s = {}) => VALUE_MODES[mode]?.unitOf?.(s) ?? VALUE_MODES[mode]?.unit
+
+/** One mode's values over a rectangle of the Web Mercator world (as draw()):
+ *  a Float32Array, row by row, NaN where there is no data. */
+export async function valuesOf({ dem, state: s }, mode, { world, x0, y0, width, height, baseUrl = DEFAULT_BASE_URL }) {
+  const def = VALUE_MODES[mode]
+  if (!def) throw Object.assign(new Error(`No values for ${mode}: values are served for ${Object.keys(VALUE_MODES).join(", ")}`), { status: 400 })
+  const A = await app()
+  const zd = Math.max(0, Math.min(dem.maxzoom, Math.round(Math.log2(world / dem.tileSize))))
+  const side = dem.tileSize, k = (side * 2 ** zd) / world
+  const gx0 = Math.floor(x0 * k) - 2, gy0 = Math.floor(y0 * k) - 2
+  const gw = Math.ceil((x0 + width) * k) + 2 - gx0, gh = Math.ceil((y0 + height) * k) + 2 - gy0
+  const G = mode === "elevation" || mode === "colorRelief"
+    ? await demWindow(dem, zd, side, gx0, gy0, gw, gh)
+    : await protocolWindow(protocolOf(A, mode, dem, s, baseUrl), zd, side, gx0, gy0, gw, gh)
+  if (G.every(Number.isNaN)) {
+    const refused = refusalOf(dem)
+    if (refused) throw Object.assign(new Error(`The source refused the request (HTTP ${refused}): check the API key or its allowed origins`), { status: 502 })
+    throw Object.assign(new Error("This source has no data here"), { status: 404 })
+  }
+  const at = (i, j) => G[Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))]
+  const { a, b } = def.to?.(s) ?? { a: 1, b: 0 }
+  // Bilinear on the source grid at each output pixel centre, as the map
+  // samples a raster-dem (and draw() samples before the ramp). An angle that
+  // wraps (aspect, orientation) is taken from the nearest source pixel, so
+  // 359° and 1° do not average to 180°.
+  const nearest = mode === "aspect" || mode === "orientation"
+  const out = new Float32Array(width * height)
+  for (let j = 0; j < height; j++) {
+    const fy = (y0 + j + 0.5) * k - 0.5 - gy0
+    for (let i = 0; i < width; i++) {
+      const fx = (x0 + i + 0.5) * k - 0.5 - gx0
+      let v
+      if (nearest) v = at(Math.round(fx), Math.round(fy))
+      else {
+        const ii = Math.floor(fx), jj = Math.floor(fy), tx = fx - ii, ty = fy - jj
+        v = (at(ii, jj) * (1 - tx) + at(ii + 1, jj) * tx) * (1 - ty) + (at(ii, jj + 1) * (1 - tx) + at(ii + 1, jj + 1) * tx) * ty
+      }
+      out[j * width + i] = v * a + b
+    }
+  }
+  return out
+}
+
+/** Values encoded: `tif`, a one-band Float32 GeoTIFF in EPSG:3857 (NaN no
+ *  data); `terrarium` or `terrainrgb`, the values times `scale` packed in a
+ *  PNG as an elevation would be (lib/elevation-encoding.ts), transparent
+ *  where there is no data. */
+export async function encodeValues(values, { world, x0, y0, width, height, format = "tif", scale = 1 }) {
+  if (format === "tif") {
+    const px = EARTH / world
+    const { writeArrayBuffer } = await import("geotiff")
+    const tiff = await writeArrayBuffer(values, {
+      width, height, BitsPerSample: [32], SampleFormat: [3], SamplesPerPixel: 1,
+      ModelPixelScale: [px, px, 0], ModelTiepoint: [0, 0, 0, -EARTH / 2 + x0 * px, EARTH / 2 - y0 * px, 0],
+      GTModelTypeGeoKey: 1, GTRasterTypeGeoKey: 1, ProjectedCSTypeGeoKey: 3857, GDAL_NODATA: "nan",
+    })
+    return Buffer.from(tiff)
+  }
+  const rgba = Buffer.alloc(width * height * 4)
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i] * scale
+    if (!Number.isFinite(v)) continue
+    if (format === "terrarium") {
+      const t = Math.min(65535.996, Math.max(0, v + 32768)), whole = Math.floor(t)
+      rgba[i * 4] = whole >> 8; rgba[i * 4 + 1] = whole & 255; rgba[i * 4 + 2] = Math.floor((t - whole) * 256)
+    } else {
+      const t = Math.min(16777215, Math.max(0, Math.round((v + 10000) / 0.1)))
+      rgba[i * 4] = t >> 16; rgba[i * 4 + 1] = (t >> 8) & 255; rgba[i * 4 + 2] = t & 255
+    }
+    rgba[i * 4 + 3] = 255
+  }
+  return sharp(rgba, { raw: { width, height, channels: 4 } }).png().toBuffer()
+}
+
+/** A rectangle's values, encoded (valuesOf, then encodeValues). */
+export async function valueTile(how, mode, args) {
+  return encodeValues(await valuesOf(how, mode, args), args)
+}
+
 // ── Drawing ───────────────────────────────────────────────────────────────
 
 /**
