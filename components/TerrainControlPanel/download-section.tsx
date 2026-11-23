@@ -20,7 +20,7 @@ import saveAs from "file-saver"
 import { saveFile } from "@/lib/save-file"
 import type { MapRef } from "react-map-gl/maplibre"
 import { Section } from "./controls-components"
-import { type SourceConfig, useSourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA } from "@/lib/controls-utils"
+import { type SourceConfig, captureAndCopyMapToClipboard, captureMapScreenshot, snapshotMatchesViewA } from "@/lib/controls-utils"
 import { pushToast } from "@/components/ui/toast"
 import { Switch } from "@/components/ui/switch"
 import { getClientExportSource, exportElevationClientSide } from "@/lib/client-export"
@@ -109,7 +109,6 @@ export const DownloadSection: React.FC<{
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [activeProjectConfig] = useAtom(activeProjectConfigAtom)
   const hideContoursExport = activeProjectConfig?.hiddenSections?.includes("contour") ?? false
-  const { getTilesUrl } = useSourceConfig()
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
   // The template the viz modes read for this source (vrt://, lerc://,
@@ -271,7 +270,7 @@ export const DownloadSection: React.FC<{
   }, [exportCrs])
 
   const exportDTMClientSide = useCallback(async (signal: AbortSignal, filename?: string) => {
-    const clientSource = getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl, clientUpstream)
+    const clientSource = getClientExportSource(state.sourceA, customTerrainSources, { mapboxKey, maptilerKey }, clientUpstream)
     if (!clientSource) {
       setExportError("This source has no client-side tile path to export from — switch off Client-side mode to export via Titiler instead.")
       return
@@ -312,7 +311,7 @@ export const DownloadSection: React.FC<{
     await saveElevationGeoTiff(result.data, result.width, result.height, {
       west: result.bbox[0], south: result.bbox[1], east: result.bbox[2], north: result.bbox[3],
     }, outputSize ? 3857 : 4326, filename)
-  }, [state.sourceA, customTerrainSources, getTilesUrl, clientUpstream, getMapBounds, maxResolution, saveElevationGeoTiff, mapRef, exportResolutionMode])
+  }, [state.sourceA, customTerrainSources, mapboxKey, maptilerKey, clientUpstream, getMapBounds, maxResolution, saveElevationGeoTiff, mapRef, exportResolutionMode])
 
   const exportDTMViaTitiler = useCallback(async (signal: AbortSignal, filename?: string) => {
     const sourceConfig = getSourceConfig(state.sourceA)
@@ -591,7 +590,7 @@ export const DownloadSection: React.FC<{
         contoursVisible={!hideContoursExport && state.showContoursAndGraticules && state.showContours}
         tellsVisible={state.tellsBeta && state.showTellsDetector}
         upstream={clientUpstream}
-        demSource={useClientExport ? getClientExportSource(state.sourceA, customTerrainSources, getTilesUrl, clientUpstream) : null}
+        demSource={useClientExport ? getClientExportSource(state.sourceA, customTerrainSources, { mapboxKey, maptilerKey }, clientUpstream) : null}
         lighting={{
           params: {
             matcapUrl: (MATCAP_TEXTURES.find((t) => t.id === state.matcapTextureId) ?? MATCAP_TEXTURES.find((t) => t.id === DEFAULT_MATCAP_ID)!).url,

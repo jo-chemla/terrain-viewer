@@ -2,22 +2,21 @@ import { useCallback } from "react"
 import { embedImageMetadata, attributionOnScreen } from "@/lib/image-metadata"
 import { useAtom } from "jotai"
 import { useQueryState, parseAsStringLiteral } from "nuqs"
-import { terrainSources } from "@/lib/terrain-sources"
-import { buildRasterTileSource } from "@/lib/source-builder"
+import { findTerrainSource } from "@/lib/terrain-catalog"
+import { gdalTileSource } from "@/lib/terrain-tile-spec"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
+  mapboxKeyAtom, maptilerKeyAtom, titilerEndpointAtom,
   customTerrainSourcesAtom, customBasemapSourcesAtom
 } from "@/lib/settings-atoms"
-import type { TerrainSource } from "@/lib/terrain-types"
-import type { CustomTerrainSource, CustomBasemapSource } from "@/lib/settings-atoms"
+import type { CustomBasemapSource } from "@/lib/settings-atoms"
 
 export interface SourceConfig {
   encoding: string
   tileUrl: string
   tileSize: number
   /** True when this source type can't produce a {z}/{x}/{y} tile pyramid for
-   *  buildGdalWmsXml to wrap (wms-raw's float32 GetMap URL, tilejson's manifest
-   *  link) — titiler DTM export isn't possible for it. */
+   *  buildGdalWmsXml to wrap (see gdalTileSource in lib/terrain-tile-spec.ts):
+   *  titiler DTM export isn't possible for it. */
   unsupported?: boolean
 }
 
@@ -85,43 +84,16 @@ export const useTheme = () => {
 export const useSourceConfig = () => {
   const [mapboxKey] = useAtom(mapboxKeyAtom)
   const [maptilerKey] = useAtom(maptilerKeyAtom)
-  const [googleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint] = useAtom(titilerEndpointAtom)
   const [customTerrainSources] = useAtom(customTerrainSourcesAtom)
   const [customBasemapSources] = useAtom(customBasemapSourcesAtom)
 
-  // Widened from TerrainSource to string: callers (TerrainSourceSection et al.)
-  // pass arbitrary custom-source ids through here too, and the lookup below is
-  // already defensive against a key that isn't a real builtin (`if (!source)
-  // return ""`) — the narrower annotation didn't reflect that.
-  const getTilesUrl = useCallback((key: string): string => {
-    const source = (terrainSources as any)[key]
-    if (!source) return ""
-    let tileUrl = source.sourceConfig.tiles[0] || ""
-    if (key === "mapbox") tileUrl = tileUrl.replace("{API_KEY}", mapboxKey || "")
-    else if (key === "maptiler") tileUrl = tileUrl.replace("{API_KEY}", maptilerKey || "")
-    else if (key === "google3dtiles") tileUrl = tileUrl.replace("{API_KEY}", googleKey || "")
-    return tileUrl
-  }, [mapboxKey, maptilerKey, googleKey])
-
-  // Titiler DTM export always needs a real {z}/{x}/{y} tile template to wrap in a
-  // GDAL WMS descriptor — never the cog:// pseudo-protocol MapLibre uses for live
-  // rendering — so useCogProtocol is hardcoded false here regardless of the user's
-  // live-map rendering preference (useCogProtocolVsTitilerAtom).
-  const getCustomSourceUrl = useCallback((source: CustomTerrainSource): string => {
-    const built = buildRasterTileSource({
-      url: source.url,
-      // 'stac'/'mosaicjson' aren't real RasterSourceType members (they're not even
-      // selectable in custom-terrain-source-modal.tsx) and callers already route
-      // those, along with wms-raw/tilejson, away from this function — see the
-      // `unsupported` branch in getSourceConfig below.
-      type: source.type as Parameters<typeof buildRasterTileSource>[0]["type"],
-      useCogProtocol: false,
-      titilerEndpoint,
-      isDem: true,
-    })
-    return "tiles" in built ? built.tiles[0] : built.url
-  }, [titilerEndpoint])
+  // Any terrain source, a Worldwide Default included, as the plain tile
+  // pyramid GDAL reads (gdalTileSource): the info dialog's GDAL commands,
+  // the titiler export. "" when only the app's own protocols read it.
+  const getTilesUrl = useCallback((key: string): string => (
+    gdalTileSource(findTerrainSource(key, customTerrainSources), { titilerEndpoint, mapboxKey, maptilerKey })?.tileUrl ?? ""
+  ), [customTerrainSources, titilerEndpoint, mapboxKey, maptilerKey])
 
   const getCustomBasemapUrl = useCallback((source: CustomBasemapSource): string => {
     if (source.type === "cog") {
@@ -144,28 +116,16 @@ export const useSourceConfig = () => {
   }, [customBasemapSources, getCustomBasemapUrl])
 
   const getSourceConfig = useCallback((sourceKey: string): SourceConfig | null => {
-    if ((terrainSources as any)[sourceKey]) {
-      const source = (terrainSources as any)[sourceKey]
-      return { encoding: source.encoding, tileUrl: getTilesUrl(sourceKey as TerrainSource), tileSize: source.sourceConfig.tileSize || 256 }
-    }
-    const customSource = customTerrainSources.find((s) => s.id === sourceKey)
-    if (!customSource) return null
+    const entry = findTerrainSource(sourceKey, customTerrainSources)
+    if (!entry) return null
+    const gdal = gdalTileSource(entry, { titilerEndpoint, mapboxKey, maptilerKey })
+    // LERC, quantized mesh, a difference, a cell-routed mosaic, STAC,
+    // MosaicJSON, TileJSON: no {z}/{x}/{y} pyramid for buildGdalWmsXml to
+    // wrap, so no titiler export (the client export reads them).
+    return gdal ?? { encoding: "terrainrgb", tileUrl: "", tileSize: 256, unsupported: true }
+  }, [customTerrainSources, titilerEndpoint, mapboxKey, maptilerKey])
 
-    if (customSource.type === "wms-raw" || customSource.type === "tilejson" || customSource.type === "stac" || customSource.type === "mosaicjson" || customSource.type === "dem-diff") {
-      // wms-raw's float32 GetMap URL and tilejson's manifest link are not
-      // {z}/{x}/{y} tile pyramids buildGdalWmsXml can wrap; stac/mosaicjson need
-      // server-side GDAL mosaicking this app doesn't build a URL for at all.
-      return { encoding: "terrainrgb", tileUrl: "", tileSize: 256, unsupported: true }
-    }
-    // cog/vrt always come back from titiler already re-encoded as terrainrgb
-    // (source-builder's isDem branch hardcodes algorithm=terrainrgb); terrainrgb/
-    // terrarium/stac/mosaicjson custom sources are used as-is, in their own encoding.
-    const encoding = customSource.type === "cog" || customSource.type === "vrt" ? "terrainrgb" : customSource.type
-    const tileUrl = getCustomSourceUrl(customSource)
-    return { encoding, tileUrl, tileSize: 256 }
-  }, [customTerrainSources, getTilesUrl, getCustomSourceUrl])
-
-  return { getTilesUrl, getSourceConfig, getCustomSourceUrl, getCustomBasemapUrl, getBasemapSourceConfig }
+  return { getTilesUrl, getSourceConfig, getCustomBasemapUrl, getBasemapSourceConfig }
 }
 
 export const getGradientColors = (colors: any[]): string => {

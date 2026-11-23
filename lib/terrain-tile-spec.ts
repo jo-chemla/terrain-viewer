@@ -17,11 +17,13 @@
 // its TileJSON `url`, and wms-raw is the single float32dem:// GetMap template
 // MapLibre fills the bbox of.
 //
-// A first step towards one schema for built-in and library sources
-// (.claude/memory/terrain-source-schema-unification.md).
-import { terrainSources } from "./terrain-sources"
-import type { TerrainSource } from "./terrain-types"
+// A built-in is an entry like any other (lib/terrain-sources.ts, the shared
+// schema of lib/source-schema.ts): an id without an entry is looked up among
+// the Worldwide Defaults (lib/terrain-catalog.ts), so there is no branch for
+// built-ins here.
 import type { CustomTerrainSource } from "./settings-atoms"
+import { entryUrl } from "./source-schema"
+import { findTerrainSource } from "./terrain-catalog"
 import { buildRasterTileSource } from "./source-builder"
 import { buildVrtUrl, isCellRoutedUrl, type VrtInfo } from "./vrt-protocol"
 import { buildDemDiffUrl } from "./demdiff-protocol"
@@ -82,12 +84,11 @@ export interface TerrainTileSpecContext {
   diffOperands?: [TerrainTileSpec, TerrainTileSpec] | null
 }
 
-/** A built-in source's first tile template, keys filled in. */
-export function builtinTileUrl(key: TerrainSource, mapboxKey: string, maptilerKey: string): string {
-  const config = (terrainSources as Record<string, { sourceConfig: { tiles?: string[] } }>)[key]
-  if (!config) return ""
-  return (config.sourceConfig.tiles?.[0] ?? "")
-    .replace("{API_KEY}", key === "mapbox" ? mapboxKey : key === "maptiler" ? maptilerKey : "")
+/** The tile size of a source whose own tile pyramid is read as is (Terrarium,
+ *  Terrain-RGB, LERC, quantized mesh): its `tileSize`, else 256. Every other
+ *  type comes out of titiler or one of the app's protocols in 256 px tiles. */
+export function pyramidTileSize(entry: Pick<CustomTerrainSource, "type" | "tileSize">): number {
+  return entry.type === "terrarium" || entry.type === "terrainrgb" || entry.type === "lerc" || entry.type === "quantized-mesh" ? entry.tileSize ?? 256 : 256
 }
 
 /** Whether a source is read in the browser over its own in-browser reader
@@ -109,19 +110,21 @@ export function terrainTileInputs(source: CustomTerrainSource | undefined, useCo
   }
 }
 
-/** The elevation tiles of a terrain source: a built-in id (lib/terrain-sources.ts)
- *  with `custom` undefined, or a custom / library entry. null when the source
- *  cannot be decoded here (3D tiles, STAC, MosaicJSON) or an input in `ctx`
- *  has not arrived yet. */
+/** The elevation tiles of a terrain source: its entry (a Worldwide Default,
+ *  a library entry, the user's own), or, with `entry` undefined, the
+ *  Worldwide Default of that id. null when the source cannot be decoded here
+ *  (STAC, MosaicJSON, an unknown id) or an input in `ctx` has not arrived yet. */
 export function terrainTileSpec(
-  builtinId: TerrainSource | string,
-  custom: CustomTerrainSource | undefined,
+  id: string,
+  entry: CustomTerrainSource | undefined,
   ctx: TerrainTileSpecContext,
 ): TerrainTileSpec | null {
+  const custom = entry ?? findTerrainSource(id)
+  if (!custom) return null
   const { titilerEndpoint, useCogProtocol, highResTerrain, cesiumDetailOffset } = ctx
   const { useCogProtocolForSource, cogUrl, vrtUrl } = terrainTileInputs(custom, useCogProtocol)
 
-  if (custom?.type === "dem-diff") {
+  if (custom.type === "dem-diff") {
     if (!ctx.diffOperands) return null
     const [a, b] = ctx.diffOperands
     // Zooms in the difference's own 256 px tiles: an operand with
@@ -142,17 +145,6 @@ export function terrainTileSpec(
       ...(maxs.length ? { maxzoom: Math.max(...maxs) } : {}),
     }
   }
-  if (!custom) {
-    const builtin = (terrainSources as Record<string, { encoding: string; sourceConfig: { encoding?: string; tileSize: number; maxzoom?: number } }>)[builtinId]
-    if (!builtin || builtin.encoding === "3dtiles") return null
-    return {
-      template: builtinTileUrl(builtinId as TerrainSource, ctx.mapboxKey ?? "", ctx.maptilerKey ?? ""),
-      encoding: builtin.sourceConfig.encoding === "terrarium" ? "terrarium" : "mapbox",
-      tileSize: builtin.sourceConfig.tileSize,
-      maxzoom: builtin.sourceConfig.maxzoom,
-    }
-  }
-
   if (custom.type === "tilejson") {
     const tj = ctx.tilejson
     if (!tj?.tiles?.length) return null
@@ -224,7 +216,7 @@ export function terrainTileSpec(
   if (cogUrl && !ctx.cogZoomRange) return null
 
   const built = buildRasterTileSource({
-    url: custom.url,
+    url: entryUrl(custom, ctx),
     type: custom.type as Parameters<typeof buildRasterTileSource>[0]["type"],
     useCogProtocol: useCogProtocolForSource,
     titilerEndpoint,
@@ -257,7 +249,7 @@ export function terrainTileSpec(
   // DSM at maxzoom 19); without it the difference source inherited the
   // other operand's ceiling and stopped requesting tiles too early.
   return {
-    template: withQuantizedMeshDetail(built.tiles[0], cesiumDetailOffset), encoding, tileSize: 256,
+    template: withQuantizedMeshDetail(built.tiles[0], cesiumDetailOffset), encoding, tileSize: pyramidTileSize(custom),
     ...(custom.minzoom !== undefined ? { minzoom: custom.minzoom } : {}),
     ...(custom.maxzoom !== undefined ? { maxzoom: custom.maxzoom } : {}),
   }
@@ -308,4 +300,28 @@ export const makeElevationColorFunction = (
   // nodata as 0 m and subtract the other operand from nothing.
   write(color, 0, nodata?.fill ?? 0)
   color[3] = 254
+}
+
+/** A source as a plain {z}/{x}/{y} tile pyramid GDAL can read (its WMS/TMS
+ *  minidriver, buildGdalWmsXml): the info dialog's GDAL commands and the
+ *  titiler GeoTIFF export. A Terrarium / Terrain-RGB pyramid is its own
+ *  address (keys filled in); a COG, a VRT or a raw WMS is titiler's
+ *  Terrain-RGB rendering of it. null for what only the app's own protocols
+ *  read: LERC, quantized mesh, a difference, a cell-routed mosaic (GEM-15),
+ *  STAC, MosaicJSON, TileJSON, a local file, an address on an app scheme. */
+export function gdalTileSource(
+  entry: CustomTerrainSource | undefined,
+  ctx: { titilerEndpoint: string; mapboxKey?: string; maptilerKey?: string },
+): { tileUrl: string; encoding: "terrarium" | "terrainrgb"; tileSize: number } | null {
+  if (!entry) return null
+  if (entry.type === "terrarium" || entry.type === "terrainrgb") {
+    const url = entryUrl(entry, ctx)
+    if (!/^https?:\/\//i.test(url)) return null
+    return { tileUrl: url, encoding: entry.type, tileSize: pyramidTileSize(entry) }
+  }
+  if (entry.type === "cog" || entry.type === "wms-raw" || (entry.type === "vrt" && !isCellRoutedUrl(entry.url))) {
+    const built = buildRasterTileSource({ url: entryUrl(entry, ctx), type: entry.type, useCogProtocol: false, titilerEndpoint: ctx.titilerEndpoint, isDem: true, nodata: entry, titilerNodata: entry.titilerNodata })
+    return "tiles" in built ? { tileUrl: built.tiles[0], encoding: "terrainrgb", tileSize: 256 } : null
+  }
+  return null
 }

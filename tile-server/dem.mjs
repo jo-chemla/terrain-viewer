@@ -10,12 +10,12 @@ import { readFileSync } from "node:fs"
 import sharp from "sharp"
 import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
 
-const AWS_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
-const MAPTERHORN_TILES = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"
 const UA = "terrain-viewer-mcp/0.3 (+https://terrain-viewer.iconem.com)"
 
 let libraryCache
-/** The app's terrain library, as written by build.mjs. */
+/** The app's terrain sources, as written by build.mjs: the Worldwide
+ *  Defaults (built-ins, `section: "defaults"`) and the library, entries of
+ *  the shared schema (lib/source-schema.ts). */
 export function library() {
   if (!libraryCache) libraryCache = JSON.parse(readFileSync(new URL("./generated/library.json", import.meta.url), "utf8"))
   return libraryCache
@@ -23,17 +23,14 @@ export function library() {
 
 let appPromise
 /** The app's readers, registered once (generated/app-render.mjs). */
+export const warmUp = () => app()
 const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs").then((A) => { A.registerSourceProtocols(); return A })))
 
-/** Two plain pyramids, also listed for the in-chat map's CSP (data-tools.mjs). */
-export const BUILTIN_DEMS = [
-  { id: "mapterhorn", name: "Mapterhorn - Terrarium", tiles: MAPTERHORN_TILES, encoding: "terrarium", tileSize: 512, maxzoom: 17 },
-  { id: "aws", name: "AWS Terrain - Terrarium Mapzen", tiles: AWS_TILES, encoding: "terrarium", tileSize: 256, maxzoom: 15 },
-]
-const BUILTIN_IDS = ["mapterhorn", "esri", "mapbox", "maptiler", "aws", "cesium"]
-/** The sources read with an API key: the provider and the parameter that
- *  carries the key (the app's own setting names). */
-const NEEDS_KEY = { mapbox: ["Mapbox", "mapboxKey"], maptiler: ["MapTiler", "maptilerKey"], cesium: ["Cesium ion", "cesiumIonKey"] }
+/** Mapterhorn declares z18 but most places stop at z15-17: the map probes
+ *  each place (lib/tile-max-zoom.ts), the ceiling here stays z17. */
+const CEILING = { mapterhorn: 17 }
+/** The provider named in a refusal, by the entry's `apiKey`. */
+const KEY_PROVIDER = { mapboxKey: "Mapbox", maptilerKey: "MapTiler", cesiumIonKey: "Cesium ion" }
 /** The API key parameters, by the app's setting names. */
 export const KEY_PARAMS = ["mapboxKey", "maptilerKey", "cesiumIonKey"]
 /** The keys of a request, the operator's (TV_MAPBOX_KEY, TV_MAPTILER_KEY,
@@ -56,7 +53,8 @@ const hostOf = (u) => { try { const b = bareUrl(u); return new URL(isHttps(b) ? 
 
 /** `[provider, parameter]` when the source is read with an API key. */
 export function needsKey(entry) {
-  return NEEDS_KEY[entry?.id] ?? (entry?.type === "quantized-mesh" && /^ion\//.test(entry.url ?? "") ? NEEDS_KEY.cesium : null)
+  const key = entry?.apiKey ?? (entry?.type === "quantized-mesh" && /^ion\//.test(entry.url ?? "") ? "cesiumIonKey" : null)
+  return key ? [KEY_PROVIDER[key], key] : null
 }
 
 /** Why a source, by its entry, cannot be read here; null when it can. Read
@@ -71,15 +69,15 @@ export function whyNotDirect(entry, keys = keysOf()) {
   return null
 }
 
-/** The library or built-in entry of an id, or a configuration as an entry. */
+/** The entry of an id (a Worldwide Default or a library entry), or a
+ *  configuration as an entry. */
 function entryOf(source) {
-  if (!source) return { id: "mapterhorn", builtin: true }
+  if (!source) return entryOf("mapterhorn")
   if (typeof source === "object") {
     const url = String(source.url ?? "")
     const type = source.type ?? (/\.tiff?(\?|$)/i.test(url) ? "cog" : /\.vrt(\?|$)/i.test(url) ? "vrt" : /\{z\}/.test(url) ? "terrarium" : null)
     return { ...source, id: source.id ?? url, name: source.name, url, type, external: true }
   }
-  if (BUILTIN_IDS.includes(source)) return { id: source, builtin: true }
   const lib = library().terrain.find((s) => s.id === source)
   if (lib) return lib
   // A tile address: a Terrarium pyramid unless it says otherwise (a COG or a VRT).
@@ -99,12 +97,12 @@ export async function resolveDemOrWhy(source, settings = {}) {
   settings = { ...settings, ...keysOf(settings) }
   const why = whyNotDirect(entry, settings)
   if (why) return { why }
-  if (!entry.builtin && !entry.type) return { why: "a source configuration needs a type" }
+  if (!entry.type) return { why: "a source configuration needs a type" }
   const A = await app()
-  const lookup = (id) => { const e = entryOf(id); return e && !e.builtin ? e : undefined }
+  const lookup = (id) => entryOf(id) ?? undefined
   let spec
   try {
-    spec = await A.resolveTerrainTiles(entry.id, entry.builtin ? undefined : entry, lookup, settings)
+    spec = await A.resolveTerrainTiles(entry.id, entry, lookup, settings)
   } catch (e) {
     return { why: `this source could not be read here: ${e.message}` }
   }
@@ -113,19 +111,16 @@ export async function resolveDemOrWhy(source, settings = {}) {
       : entry.type === "dem-diff" ? "an operand of this difference cannot be read here"
       : "this source could not be read here" }
   }
-  const builtin = BUILTIN_DEMS.find((d) => d.id === entry.id)
   return {
     dem: {
       id: entry.id,
-      name: entry.name ?? builtin?.name ?? A.terrainSources[entry.id]?.name ?? hostOf(entry.url),
+      name: entry.name ?? hostOf(entry.url),
       tiles: spec.template,
       encoding: spec.encoding,
       tileSize: spec.tileSize,
       ...(spec.minzoom != null ? { minzoom: spec.minzoom } : {}),
-      // Mapterhorn declares z18 but most places stop at z15-17: the map
-      // probes each place (lib/tile-max-zoom.ts), the ceiling here stays z17.
       // A tile address given without a maxzoom keeps the z14 it always had here.
-      maxzoom: builtin?.maxzoom ?? spec.maxzoom ?? (entry.external && /\{z\}/.test(spec.template) && isHttps(spec.template) ? 14 : DEFAULT_MAXZOOM),
+      maxzoom: CEILING[entry.id] ?? spec.maxzoom ?? (entry.external && /\{z\}/.test(spec.template) && isHttps(spec.template) ? 14 : DEFAULT_MAXZOOM),
       ...(spec.bounds ? { bounds: spec.bounds } : {}),
       ...(spec.customEncoding ? { customEncoding: spec.customEncoding } : {}),
       ...(entry.external ? { external: true } : {}),

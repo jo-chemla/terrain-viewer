@@ -176,6 +176,9 @@ export async function contourSource(dem, s) {
 
 let chromaPromise
 const chroma = () => (chromaPromise ??= import("./generated/app-lib.mjs").then((m) => m.chroma))
+/** Loads the app's code now rather than on the first tile: a worker that
+ *  starts cold would spend its first tile's time budget on it. */
+export const warmUp = () => Promise.all([app(), chroma(), import("./dem.mjs").then((d) => d.warmUp?.())])
 
 /** Any colour MapLibre takes, as premultiplied RGBA 0..1. */
 function colour(c, ch, opacity = 1) {

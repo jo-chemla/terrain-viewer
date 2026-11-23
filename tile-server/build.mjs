@@ -9,7 +9,7 @@ import { build } from "esbuild"
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { basename } from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url))
 mkdirSync(here("./generated"), { recursive: true })
@@ -36,7 +36,7 @@ const assetUrls = {
     b.onLoad({ filter: /.*/, namespace: "asset-url" }, (args) => {
       if (!args.path.endsWith(".wasm")) return { contents: `export default ${JSON.stringify(`data:application/octet-stream;base64,${readFileSync(args.path).toString("base64")}`)}`, loader: "js" }
       copyFileSync(args.path, here(`./generated/${basename(args.path)}`))
-      return { contents: `import { fileURLToPath } from "node:url"
+      return { contents: `import { fileURLToPath, pathToFileURL } from "node:url"
 export default fileURLToPath(new URL(${JSON.stringify(`./${basename(args.path)}`)}, import.meta.url))`, loader: "js" }
     })
   },
@@ -65,16 +65,22 @@ await build({
 writeFileSync(here("./generated/url-params.json"), readFileSync(here("../docs/src/generated/url-params.json")))
 
 const src = JSON.parse(readFileSync(here("../lib/custom-sources.json"), "utf8"))
-const SPEC_FIELDS = ["url", "minzoom", "tileSize", "encoding", "cogViaTitiler", "titilerNodata", "nodataFloor", "nodataFill", "diffMinuendId", "diffSubtrahendId", "diffOffsetM", "redFactor", "greenFactor", "blueFactor", "baseShift"]
+const SPEC_FIELDS = ["url", "apiKey", "datum", "minzoom", "tileSize", "encoding", "cogViaTitiler", "titilerNodata", "nodataFloor", "nodataFill", "diffMinuendId", "diffSubtrahendId", "diffOffsetM", "redFactor", "greenFactor", "blueFactor", "baseShift"]
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, o[k]]))
-const terrain = src.SAMPLE_TERRAIN_SOURCES
+// The built-in Worldwide Defaults (lib/terrain-sources.ts, read by Node's
+// type stripping) and the library, one list of entries of the shared schema
+// (lib/source-schema.ts): a source is listed, resolved and keyed the same
+// way whichever it is.
+const { BUILTIN_TERRAIN_SOURCES } = await import(pathToFileURL(here("../lib/terrain-sources.ts")).href)
+const libraryEntries = src.SAMPLE_TERRAIN_SOURCES
   // Ids made on one machine (custom-<timestamp>) and project-only entries are not library datasets.
   .filter((s) => /^custom-[a-z]/.test(s.id))
-  // `tiles`: only for plain Terrarium / Terrain-RGB pyramids, which the
-  // in-chat map can draw itself. The fields after `infoUrl` are what the
+const terrain = [...BUILTIN_TERRAIN_SOURCES, ...libraryEntries]
+  // `tiles`: only for plain keyless Terrarium / Terrain-RGB pyramids, which
+  // the in-chat map can draw itself. The fields after `infoUrl` are what the
   // app's tile spec reads (lib/terrain-tile-spec.ts): the tile service and
   // the elevation tools read every type through it (dem.mjs).
-  .map((s) => ({ id: s.id, name: s.name, type: s.type, tiles: (s.type === "terrarium" || s.type === "terrainrgb") && s.redFactor == null && s.baseShift == null && /^https:\/\//.test(s.url) ? s.url : null, maxzoom: s.maxzoom ?? null, bounds: s.bounds ?? null, resolutionM: s.resolutionM ?? null, description: s.description ?? "", infoUrl: s.infoUrl ?? "", ...pick(s, SPEC_FIELDS) }))
+  .map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.section ? { section: s.section } : {}), tiles: (s.type === "terrarium" || s.type === "terrainrgb") && !s.apiKey && s.redFactor == null && s.baseShift == null && /^https:\/\//.test(s.url) ? s.url : null, maxzoom: s.maxzoom ?? null, bounds: s.bounds ?? null, resolutionM: s.resolutionM ?? null, description: s.description ?? "", infoUrl: s.infoUrl ?? "", ...pick(s, SPEC_FIELDS) }))
 
 // `origins`: every https host the app's built-in lists read (the terrain and
 // raster libraries, the built-in terrain and basemaps, the dated imagery and
@@ -101,7 +107,7 @@ const walk = (o) => {
   else if (o && typeof o === "object") for (const [k, v] of Object.entries(o)) if (!/description|infoUrl|license|attribution|thumbnail|note|docs/i.test(k)) walk(v)
 }
 walk(src)
-for (const f of ["../lib/terrain-sources.ts", "../lib/historical-sources.ts", "../lib/historical-export-sources.ts", "../lib/timeline-catalogs.ts", "../lib/national-historical.ts", "../lib/linked-sources.ts", "../lib/wayback.ts", "../lib/ge-historical.ts", "../lib/google-timelapse.ts", "../components/TerrainControlPanel/raster-basemap-section.tsx"]) {
+for (const f of ["../lib/terrain-sources.ts", "../lib/basemap-sources.ts", "../lib/historical-sources.ts", "../lib/historical-export-sources.ts", "../lib/timeline-catalogs.ts", "../lib/national-historical.ts", "../lib/linked-sources.ts", "../lib/wayback.ts", "../lib/ge-historical.ts", "../lib/google-timelapse.ts", "../components/TerrainControlPanel/raster-basemap-section.tsx"]) {
   // Comment lines and information links are documentation, not data.
   addUrls(readFileSync(here(f), "utf8").split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l) && !/infoUrl|docs|href|licen[cs]e/i.test(l)).join("\n"))
 }

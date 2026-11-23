@@ -5,32 +5,53 @@ import { Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { maxResolutionAtom } from "@/lib/settings-atoms"
+import { maxResolutionAtom, titilerEndpointAtom, mapboxKeyAtom, maptilerKeyAtom } from "@/lib/settings-atoms"
+import { gdalTileSource } from "@/lib/terrain-tile-spec"
+import type { TerrainSourceEntry } from "@/lib/source-schema"
 import { buildGdalWmsXml } from "@/lib/build-gdal-xml"
 import { type Bounds } from "@/lib/controls-utils"
 import { GdalTabs } from "./gdal-tabs"
 
-export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTilesUrl: (key: string) => string; getMapBounds: () => Bounds; state?: any }> = ({ sourceKey, config, getTilesUrl, getMapBounds, state }) => {
+/** A terrain source's GDAL access: its tile pyramid as GDAL reads it (the
+ *  source's own Terrarium / Terrain-RGB tiles, or titiler's Terrain-RGB
+ *  rendering of a COG, a VRT or a raw WMS: gdalTileSource), the WMS XML, a
+ *  gdal_translate command for the current view and the gdaldem commands.
+ *  Every source, built-in or not; a note for those only the app reads. */
+export const SourceGdalAccess: React.FC<{ entry: TerrainSourceEntry; getMapBounds: () => Bounds; state?: any }> = ({ entry, getMapBounds, state }) => {
   const [maxResolution] = useAtom(maxResolutionAtom)
+  const [titilerEndpoint] = useAtom(titilerEndpointAtom)
+  const [mapboxKey] = useAtom(mapboxKeyAtom)
+  const [maptilerKey] = useAtom(maptilerKeyAtom)
   const [activeGdalTab, setActiveGdalTab] = useState("url")
 
+  const gdal = gdalTileSource(entry, { titilerEndpoint, mapboxKey, maptilerKey })
+  if (!gdal) {
+    return (
+      <p className="text-muted-foreground">
+        GDAL cannot read this source&apos;s tiles directly: they are decoded by the app itself
+        ({entry.type === "lerc" ? "LERC" : entry.type === "quantized-mesh" ? "quantized mesh" : entry.type === "dem-diff" ? "a difference of two sources" : entry.type === "vrt" ? "a mosaic of cells read one by one" : entry.type}).
+        Export it as a GeoTIFF from the Download section instead.
+      </p>
+    )
+  }
   const bounds = getMapBounds()
-  const tileUrl = getTilesUrl(sourceKey)
-  const wmsXml = buildGdalWmsXml(tileUrl, config.sourceConfig.tileSize || 256)
+  const tileUrl = gdal.tileUrl
+  const encoding = gdal.encoding
+  const wmsXml = buildGdalWmsXml(tileUrl, gdal.tileSize)
 
   const gdalCommand = `gdal_translate -outsize ${maxResolution} 0 -projwin ${bounds.west} ${bounds.north} ${bounds.east} ${bounds.south} -projwin_srs EPSG:4326 "${wmsXml}" output.tif`
 
   // GDAL's WMS/TMS driver has no native decoder for terrarium or Mapbox terrain-rgb — it just
   // reads the tile bytes as plain RGB imagery, so gdal_translate above only exports the raw
   // encoded pixels. gdal_calc.py decodes them into real-world altitude (meters) as a second step.
-  const decodeFormula = config.encoding === "terrarium"
+  const decodeFormula = encoding === "terrarium"
     ? "(A.astype(float)*256+B+C/256.0)-32768"
-    : config.encoding === "terrainrgb"
+    : encoding === "terrainrgb"
       ? "-10000+((A.astype(float)*65536+B*256+C)*0.1)"
       : undefined
 
   const fullGdalCommand = decodeFormula
-    ? `${gdalCommand}\n\n# GDAL has no native ${config.encoding} decoder — decode raw elevation (Float32 meters):\ngdal_calc.py -A output.tif --A_band=1 -B output.tif --B_band=2 -C output.tif --C_band=3 \\\n  --outfile=output_altitude.tif --type=Float32 \\\n  --calc="${decodeFormula}"`
+    ? `${gdalCommand}\n\n# GDAL has no native ${encoding} decoder — decode raw elevation (Float32 meters):\ngdal_calc.py -A output.tif --A_band=1 -B output.tif --B_band=2 -C output.tif --C_band=3 \\\n  --outfile=output_altitude.tif --type=Float32 \\\n  --calc="${decodeFormula}"`
     : gdalCommand
 
   // gdaldem natively covers Hillshade, Slope, Aspect, Elevation Hypso (color-relief),
@@ -73,6 +94,47 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
   // that format, so there's nothing real to point at yet.
   const gdalDemCommand = `# Run against the DEM exported above (${demInputFile}). Covers the Slope-and-More\n# modes gdaldem supports natively — LRM, Blobness, and the Plan/Det-Hessian/Combined\n# curvature variants have no gdaldem equivalent (custom, RVT-inspired implementations).\n${hillshadeLine}\ngdaldem slope ${demInputFile} slope.tif\ngdaldem aspect ${demInputFile} aspect.tif\ngdaldem color-relief ${demInputFile} <color_text_file> color-relief.tif\ngdaldem TRI ${demInputFile} tri.tif\ngdaldem TPI ${demInputFile} tpi.tif\ngdaldem roughness ${demInputFile} roughness.tif`
 
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-semibold">GDAL & TMS Access:</span>
+        </div>
+        {entry.type !== "terrarium" && entry.type !== "terrainrgb" && (
+          <p className="text-xs text-muted-foreground mb-1">Through titiler ({titilerEndpoint}), as Terrain-RGB tiles.</p>
+        )}
+        <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} gdalDemCommand={gdalDemCommand} onTabChange={setActiveGdalTab} />
+        {(activeGdalTab === "cmd" || activeGdalTab === "gdaldem") && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Need GDAL?{" "}
+            <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>
+            {" "}bundles its own GDAL binaries — usually at{" "}
+            <code>C:\Program Files\QGIS {"<version>"}\bin\gdal_translate.exe</code>. Otherwise,
+            install it via{" "}
+            <a href="https://trac.osgeo.org/osgeo4w/" target="_blank" rel="noopener noreferrer" className="underline">OSGeo4W</a>
+            {" "}(run commands from its "OSGeo4W Shell"), or{" "}
+            <code>conda install -c conda-forge gdal</code>.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <h4 className="font-semibold mb-1">High-resolution QGIS DEM export</h4>
+        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+          <li>Copy the DEM source URL</li>
+          <li>In QGIS, go to Layer → Add Layers → TMS/XYZ Layer</li>
+          <li>Paste the templated source URL</li>
+          <li>Use encoding <strong>{encoding}</strong></li>
+          <li>Set tile resolution <strong>{gdal.tileSize}</strong></li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+/** The details dialog of a Worldwide Default. */
+export const SourceInfoDialog: React.FC<{ entry: TerrainSourceEntry; getMapBounds: () => Bounds; state?: any }> = ({ entry, getMapBounds, state }) => {
   return (
     <Dialog>
       <DialogTrigger
@@ -89,8 +151,8 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
       />
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>{config.name}</DialogTitle>
-          <DialogDescription>{config.description}</DialogDescription>
+          <DialogTitle>{entry.name}</DialogTitle>
+          <DialogDescription>{entry.description}</DialogDescription>
         </DialogHeader>
 
         <DialogClose className="absolute top-4 right-4 cursor-pointer rounded-sm opacity-70 transition-opacity hover:opacity-100">
@@ -102,12 +164,12 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
             <span className="font-semibold">Link:</span>
             <div className="flex items-center gap-2 mt-1">
               <a
-                href={config.link.split("#")[0]}
+                href={(entry.infoUrl ?? "").split("#")[0]}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline flex-1 truncate"
               >
-                {config.link.split("#")[0]}
+                {(entry.infoUrl ?? "").split("#")[0]}
               </a>
             </div>
           </div>
@@ -124,14 +186,14 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
           </div>
 
           <div>
-            <span className="font-semibold">Encoding Type:</span> {config.encoding}
+            <span className="font-semibold">Type:</span> {entry.type}
           </div>
 
           {/* Vertical datum, shown only when it is the surprising one. Almost
            *  every source here is orthometric, so saying so on all of them is
            *  noise; an ellipsoidal source reads tens of metres off "sea level"
            *  and that is worth one line. */}
-          {config.datum === "ellipsoidal" && (
+          {entry.datum === "ellipsoidal" && (
             <div>
               <span className="font-semibold">Vertical datum:</span> ellipsoidal — heights are above the
               WGS84 <b>ellipsoid</b>, not the geoid: about <b>+49&nbsp;m</b> in the Alps, and anywhere from
@@ -141,38 +203,10 @@ export const SourceInfoDialog: React.FC<{ sourceKey: string; config: any; getTil
             </div>
           )}
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold">GDAL & TMS Access:</span>
-            </div>
-            <GdalTabs tileUrl={tileUrl} wmsXml={wmsXml} gdalCommand={fullGdalCommand} gdalDemCommand={gdalDemCommand} onTabChange={setActiveGdalTab} />
-            {(activeGdalTab === "cmd" || activeGdalTab === "gdaldem") && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Need GDAL?{" "}
-                <a href="https://qgis.org/" target="_blank" rel="noopener noreferrer" className="underline">QGIS</a>
-                {" "}bundles its own GDAL binaries — usually at{" "}
-                <code>C:\Program Files\QGIS {"<version>"}\bin\gdal_translate.exe</code>. Otherwise,
-                install it via{" "}
-                <a href="https://trac.osgeo.org/osgeo4w/" target="_blank" rel="noopener noreferrer" className="underline">OSGeo4W</a>
-                {" "}(run commands from its "OSGeo4W Shell"), or{" "}
-                <code>conda install -c conda-forge gdal</code>.
-              </p>
-            )}
-          </div>
+          <SourceGdalAccess entry={entry} getMapBounds={getMapBounds} state={state} />
 
           <div>
-            <h4 className="font-semibold mb-1">High-resolution QGIS DEM export</h4>
-            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-              <li>Copy the DEM source URL</li>
-              <li>In QGIS, go to Layer → Add Layers → TMS/XYZ Layer</li>
-              <li>Paste the templated source URL</li>
-              <li>Use encoding <strong>{config.encoding}</strong></li>
-              <li>Set tile resolution <strong>{config.sourceConfig.tileSize || 256}</strong></li>
-            </ul>
-          </div>
-
-          <div>
-            <span className="font-semibold">Max Zoom:</span> {config.sourceConfig.maxzoom}
+            <span className="font-semibold">Max Zoom:</span> {entry.maxzoom ?? "from the source"}
           </div>
         </div>
       </DialogContent>

@@ -1572,6 +1572,42 @@
         }
       }
     },
+    "/modes": {
+      "get": {
+        "tags": [
+          "Catalogs"
+        ],
+        "operationId": "modes",
+        "summary": "The modes with their settings, grouped as the app's panel",
+        "description": "What the QGIS plugin builds its panel from: the app's panel groups, top drawn on top; for each mode its form (`raster`, `vector` or `both`), whether it is shading (opaque tiles, multiplied over the layers under it), the parameter of its opacity and its settings (the app's URL parameters, with type, allowed values and default). Given a view's query (a share link's, as is), `view` lists the modes it switches on, their opacities, the parameters every layer keeps and the camera.",
+        "parameters": [
+          {
+            "name": "appParams",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": "A view: the query of a share link, as is."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The modes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [

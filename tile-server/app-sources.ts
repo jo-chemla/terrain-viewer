@@ -31,11 +31,10 @@ import { loadTileBitmap } from "../lib/normal-derived-protocol"
 import { zoomRangeFromMetadata } from "../lib/cog-metadata"
 import { resolveNodata } from "../lib/nodata"
 import { writeTerrarium, writeTerrainrgb } from "../lib/elevation-encoding"
-import { terrainSources } from "../lib/terrain-sources"
 import type { CustomTerrainSource } from "../lib/settings-atoms"
 import { terrainTileSpec, terrainTileInputs, terrainTileExtras, makeElevationColorFunction, type TerrainTileSpec, type TilejsonMetadata } from "../lib/terrain-tile-spec"
 
-export { terrainTileSpec, terrainTileInputs, terrainTileExtras, dispatchTile, customScheme, loadTileBitmap, terrainSources }
+export { terrainTileSpec, terrainTileInputs, terrainTileExtras, dispatchTile, customScheme, loadTileBitmap }
 export type { TerrainTileSpec }
 
 let registered = false
@@ -85,8 +84,9 @@ const colorFunctionSet = new Set<string>()
 /**
  * The tile spec of a terrain source, fetching first what the map's hooks wait
  * for (a TileJSON manifest, a COG header, a VRT index, the two operands of a
- * difference). `id` is a built-in id when `custom` is undefined. `lookup`
- * finds the entry of a difference's operand (a library or built-in id).
+ * difference). `custom` is the source's entry (a Worldwide Default, a
+ * library entry, a configuration); undefined, `id` is looked up among the
+ * Worldwide Defaults. `lookup` finds the entry of a difference's operand.
  * null when the source cannot be read here: a 3D tiles, STAC or MosaicJSON
  * entry, a local file, a COG the in-browser reader refuses (not Web
  * Mercator), or a manifest that does not answer.

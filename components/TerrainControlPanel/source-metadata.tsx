@@ -136,7 +136,9 @@ export const SourceMetadataDialog: React.FC<{
   source: Record<string, any> | null
   onClose: () => void
   onFit?: (source: any) => void
-}> = ({ source, onClose, onFit }) => {
+  /** Below the rows: a terrain source's GDAL access (SourceGdalAccess). */
+  extra?: React.ReactNode
+}> = ({ source, onClose, onFit, extra }) => {
   const raster = useRasterInfo(source ?? {})
   const unreadable = raster && "error" in raster
   return (
@@ -157,6 +159,7 @@ export const SourceMetadataDialog: React.FC<{
         <DialogDescription>Everything this source carries. Switch the sources' edit mode on to change it.</DialogDescription>
       </DialogHeader>
       {source && <SourceMetadataRows source={source} raster={raster} />}
+      {source && extra && <div className="text-sm min-w-0">{extra}</div>}
       {source && onFit && (source.bounds || ["cog", "cog-local", "vrt", "tilejson"].includes(source.type)) && (
         <Button size="sm" variant="outline" className="cursor-pointer self-start" onClick={() => { onFit(source); onClose() }}><MapPin className="h-3.5 w-3.5 mr-1" />Fit to its extent</Button>
       )}

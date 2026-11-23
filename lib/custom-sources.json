@@ -525,6 +525,8 @@
         },
         {
             "id": "custom-global-gem15-dtm",
+            "section": "defaults",
+            "shortName": "GEM-15 DTM",
             "name": "Global - Google GEM-15 DTM 15m bare earth (2022-2024 stereo satellite) - COG cells",
             "url": "gem15://dtm",
             "type": "vrt",

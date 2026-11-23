@@ -12,8 +12,9 @@
 import { regionReaderFor, fetchTileBitmap } from "./protocol-registry"
 import { terrainrgbToElevation, terrariumToElevation } from "./elevation-encoding"
 import { fetchTileMosaic, pickZoomForResolution, isRetryableTileError } from "./tile-mosaic"
-import { terrainSources } from "./terrain-sources"
-import type { TerrainSource } from "./terrain-types"
+import { findTerrainSource } from "./terrain-catalog"
+import { entryUrl, type SourceKeys } from "./source-schema"
+import { pyramidTileSize } from "./terrain-tile-spec"
 import type { CustomTerrainSource } from "./settings-atoms"
 import { resolveLocalFileUrl, localFileId } from "./local-file-store"
 
@@ -38,20 +39,10 @@ function isClientExportSupported(type: string | undefined): type is ClientExport
 function getClientExportSourceDirect(
   sourceKey: string,
   customTerrainSources: CustomTerrainSource[],
-  getTilesUrl: (key: TerrainSource) => string,
+  keys: SourceKeys,
 ): ClientExportSource | null {
-  const builtin = (terrainSources as any)[sourceKey]
-  if (builtin) {
-    if (!isClientExportSupported(builtin.encoding)) return null
-    return {
-      type: builtin.encoding,
-      url: getTilesUrl(sourceKey as TerrainSource),
-      tileSize: builtin.sourceConfig.tileSize || 256,
-      maxzoom: builtin.sourceConfig.maxzoom || 20,
-    }
-  }
-
-  const custom = customTerrainSources.find((s) => s.id === sourceKey)
+  // A Worldwide Default is an entry like any other (lib/terrain-catalog.ts).
+  const custom = findTerrainSource(sourceKey, customTerrainSources)
   if (!custom || !isClientExportSupported(custom.type)) return null
   if (custom.type === "cog-local") {
     const resolvedUrl = resolveLocalFileUrl(localFileId(custom.url))
@@ -60,8 +51,8 @@ function getClientExportSourceDirect(
   }
   return {
     type: custom.type,
-    url: custom.url,
-    tileSize: 256,
+    url: entryUrl(custom, keys),
+    tileSize: pyramidTileSize(custom),
     maxzoom: custom.maxzoom || (custom.type === "cog" ? 22 : 20),
   }
 }
@@ -84,10 +75,11 @@ export interface ClientDemUpstreamLike {
 export function getClientExportSource(
   sourceKey: string,
   customTerrainSources: CustomTerrainSource[],
-  getTilesUrl: (key: TerrainSource) => string,
+  /** The caller's API keys, filled into a keyed source's address (Mapbox, MapTiler). */
+  keys: SourceKeys,
   upstream?: ClientDemUpstreamLike | null,
 ): ClientExportSource | null {
-  const direct = getClientExportSourceDirect(sourceKey, customTerrainSources, getTilesUrl)
+  const direct = getClientExportSourceDirect(sourceKey, customTerrainSources, keys)
   if (direct) return direct
   if (!upstream) return null
   return {
