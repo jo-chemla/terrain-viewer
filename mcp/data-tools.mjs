@@ -2,6 +2,7 @@
 // profiles read from the tiles themselves, a GeoTIFF of an area, the dates
 // of the app's built-in dated imagery, a search of any STAC catalog.
 import { appLib, catalogItems } from "./tools.mjs"
+import { IMAGERY_SOURCES } from "../tile-server/url.mjs"
 import { library, resolveDem, resolveDemOrWhy, loadTile, window as demWindow, probe } from "../tile-server/dem.mjs"
 
 export { resolveDem }
@@ -141,7 +142,11 @@ export async function exportGeotiff({ bbox, source, maxSide = 1024 }) {
 }
 export const EXPORT_DIR_NAME = "terrain-viewer-mcp"
 
-/** Dates of the dated imagery built into the app, at a place, newest first. */
+/** Dates of the dated imagery built into the app, at a place, newest first:
+ *  every source of the app's dated imagery schema (lib/dated-imagery.ts)
+ *  with real dates and no key (Wayback, Google Earth historical, EOX
+ *  Sentinel-2, Bing's current mosaic), through each one's own catalog. HLS
+ *  is left out: its dates are a monthly cadence, not captures found here. */
 export async function imageryDates({ lat, lng, zoom = 16, from, to }) {
   const lib = await appLib()
   const start = from ? Date.parse(from) : 0, end = to ? Date.parse(to) : Date.now()
@@ -149,12 +154,12 @@ export async function imageryDates({ lat, lng, zoom = 16, from, to }) {
   const run = async (fn) => {
     try { return { dates: (await withTimeout(fn(), 45000)).map((t) => new Date(t.dateMs).toISOString().slice(0, 10)).reverse() } } catch (e) { return { error: String(e?.message ?? e) } }
   }
-  const [wayback, ge] = await Promise.all([run(() => lib.listWaybackTicksInRange(lat, lng, zoom, start, end)), run(() => lib.listGeHistoricalTicksInRange(lat, lng, zoom, start, end))])
+  const sources = lib.DATED_IMAGERY_SOURCES.filter((s) => s.realDates && !s.apiKey && IMAGERY_SOURCES.includes(s.id))
+  const answers = await Promise.all(sources.map((s) => run(() => s.listDates({ lat, lng, zoom }, start, end, {}))))
   return {
-    wayback: { name: "Esri World Imagery Wayback", note: "The dates the imagery at this spot was actually captured, one per distinct capture.", ...wayback },
-    "ge-historical": { name: "Google Earth historical imagery", note: "Every dated capture Google Earth holds here.", ...ge },
+    ...Object.fromEntries(sources.map((s, i) => [s.id, { name: s.name, note: s.description, ...answers[i] }])),
     timelapse: { name: "Google Earth Timelapse", note: `One cloud-free mosaic per year from ${lib.TIMELAPSE_FIRST_YEAR} to ${lib.TIMELAPSE_LAST_YEAR}, about 30 m (Landsat, Sentinel-2): change over decades, not detail.` },
-    howToShow: "open_view or compare_sources with imagerySource (wayback or ge-historical) and imageryDate (a date from this list).",
+    howToShow: `open_view or compare_sources with imagerySource (${sources.map((s) => s.id).join(", ")}) and imageryDate (a date from this list).`,
   }
 }
 

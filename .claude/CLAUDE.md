@@ -58,6 +58,7 @@ The preview browser available to agents does NOT fire `requestAnimationFrame` �
 - `lib/source-schema.ts` — the one source record (terrain and raster) every list uses.
 - `lib/terrain-sources.ts` — the built-in Worldwide Defaults as schema entries; `lib/terrain-catalog.ts` — `findTerrainSource`, the one lookup by id (built-ins, library defaults like GEM-15, user sources).
 - `lib/basemap-sources.ts` — the fixed-address built-in basemaps as schema entries.
+- `lib/dated-imagery.ts` — the dated imagery (Wayback, HLS, Google Earth historical, Planet, EOX, Bing) as entries of the dated schema: dates at a place, tiles of a date, ceiling.
 - `lib/*-protocol.ts` — custom MapLibre tile protocols (slope, curvature, SVF, phong, matcap, …).
 
 ## Architecture patterns

@@ -18,11 +18,12 @@ import { track } from "@/lib/analytics"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { OpenInLinksButton } from "./open-in-links"
 import { useWaybackItemsWithLocalChanges, useWaybackRealCaptureDates, sortByDateAscending, pinWaybackRelease } from "@/lib/wayback"
-import { syntheticHlsTicks } from "@/lib/hls"
 import { useGeHistoricalDates } from "@/lib/ge-historical"
-import { planetMonthlyTicks } from "@/lib/planet"
 import { useBingCaptureDate } from "@/lib/bing"
-import { eoxS2CloudlessTicks } from "@/lib/eox-s2-cloudless"
+// The dates known without a request (HLS's monthly cadence, Planet's months,
+// EOX's years) come from the dated imagery schema; Wayback, Google Earth and
+// Bing are walked live per place by their hooks above and below.
+import { fixedDatedTicks } from "@/lib/dated-imagery"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_STACK_GAP_PX } from "@/lib/layout-constants"
@@ -525,7 +526,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // placeholder monthly points (see lib/hls.ts), not verified real capture
   // dates the way Wayback's are.
   const hlsTicks = useMemo<TimelineTick[]>(
-    () => syntheticHlsTicks().map((t) => ({ source: "hls", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
+    () => fixedDatedTicks("hls", {}).map((t) => ({ source: "hls", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
   const { items: rawGeItems, coarserDates: geCoarserDates, loading: geDatesLoading } = useGeHistoricalDates(state.lat, state.lng, state.zoom)
@@ -576,7 +577,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // API key is set; otherwise this source simply contributes no ticks and
   // its pill is hidden below.
   const planetTicks = useMemo<TimelineTick[]>(
-    () => (hasPlanetKey ? planetMonthlyTicks().map((t) => ({ source: "planet", key: t.dateMs, dateMs: t.dateMs, label: t.label })) : []),
+    () => fixedDatedTicks("planet", { planetKey: hasPlanetKey ? "set" : "" }).map((t) => ({ source: "planet", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [hasPlanetKey],
   )
   // Bing has no browsable historical archive — just its single "current"
@@ -592,7 +593,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // Real yearly mosaics (see lib/eox-s2-cloudless.ts) — a fixed, known list of
   // published years, free/no-key like Wayback/GE Historical/Bing.
   const eoxS2Ticks = useMemo<TimelineTick[]>(
-    () => eoxS2CloudlessTicks().map((t) => ({ source: "eox-s2", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
+    () => fixedDatedTicks("eox-s2", {}).map((t) => ({ source: "eox-s2", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
   // A view pointed at a dated ELI layer (a tick pick, a shared link) needs the

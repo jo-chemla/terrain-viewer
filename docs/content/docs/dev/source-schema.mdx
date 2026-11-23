@@ -30,7 +30,7 @@ An `apiKey` names the setting whose value fills the `{API_KEY}` placeholder of `
 | `lib/basemap-sources.ts` | The built-in basemaps with a fixed address: Google Hybrid and Satellite, Bing, Esri, Mapbox, MapTiler, HERE |
 | Your browser (`customTerrainSources`, `customBasemapSources`) | Your own sources and the Library entries you added |
 
-The dated imagery (Wayback, HLS, Google Earth historical, Planet, EOX) and the OpenStreetMap vector style build their tiles at run time and stay outside the schema.
+The dated imagery has an address per date rather than one address: it has its own schema, below. The OpenStreetMap vector style is not a tile source and stays outside both.
 
 ## One lookup, one resolver
 
@@ -49,6 +49,32 @@ Everything that reads a terrain source goes through that lookup, with no branch 
 ## What GDAL can read
 
 `gdalTileSource` gives GDAL a plain `{z}/{x}/{y}` pyramid when one exists. A Terrarium or Terrain-RGB pyramid is read as is, with its own tile size. A COG, a VRT or a raw WMS is read through titiler as Terrain-RGB tiles. LERC, quantized mesh, a difference, a cell-routed mosaic (GEM-15), STAC, MosaicJSON, TileJSON and local files are decoded by the app alone, so they have no GDAL command; the Download section exports them.
+
+## Dated imagery
+
+A dated source maps a date and a place to tiles. `DatedImagerySource` (in `lib/source-schema.ts`) shares the source record's `id`, `name`, `shortName`, `description`, `infoUrl` and `apiKey`, and adds:
+
+| Field | What it is |
+|---|---|
+| `granularity` | What a date is: a capture dated per tile (`capture`), a monthly or yearly mosaic, or the one current mosaic (`current`) |
+| `realDates` | false when the dates are a placeholder cadence (HLS: a tick a month, the mosaic of a 30-day window) |
+| `historicalEntry` | Offered inside the sidebar's single Historical Imagery entry (Bing is a plain basemap there, with a pill on the timeline) |
+| `tileSize`, `maxzoom` | The tiles' size and the deepest zoom with real tiles: the map overzooms past it, the camera's ceiling follows it |
+| `attribution` | The constant string the map shows; the real per-place credit is in the sidebar's Source Info section, since a mounted source's attribution cannot change |
+| `fixedDates(keys)` | The dates known without a request (HLS's months, Planet's months with a key, EOX's years), for the timeline to show at once |
+| `listDates(place, start, end, keys)` | The catalog: every date at a place in a range |
+| `tiles(tick, { keys, hd })` | The tiles of a date: the map's template, and for an export a plain https template, a tile fetcher or Bing's quadkey builder. null until the date can name them (a Wayback date before it is resolved to a release, a missing key) |
+
+`lib/dated-imagery.ts` holds the six sources: Esri Wayback, NASA HLS, Google Earth historical, Planet monthly mosaics, EOX Sentinel-2 cloudless and Bing (its one current mosaic, dated by its capture date at the place). Their ids are the URL's (`?historicalActiveSourceA=wayback`).
+
+| Reader | What it takes from the schema |
+|---|---|
+| The map's basemap (`RasterBasemapSource`) | `tiles` and `maxzoom`, for the view's date |
+| The multi-date export (`lib/historical-export-sources.ts`) | `listDates`, then `tiles` for each date; the current basemaps come from the built-in basemap entries |
+| The timeline | `fixedDates` for HLS, Planet and EOX |
+| The MCP server's `imagery_dates` | `listDates` of every source with real dates and no key |
+
+Still outside it: the live per-place walks the timeline runs as React hooks for Wayback, Google Earth and Bing (debounced, cached, filled in progressively; `listDates` is their one-shot equivalent), and the per-place attribution hooks. Google Earth Timelapse, the national historical layers and the timeline's catalogs (OpenAerialMap, Maxar, STAC...) are lists of separate dated layers rather than one source with a date, and stay with the catalogs.
 
 ## Before the schema
 

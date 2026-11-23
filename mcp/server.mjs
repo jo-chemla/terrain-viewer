@@ -53,7 +53,7 @@ How to answer a request to see a place:
 
 Numbers rather than pictures: elevation gives the height of points or a profile along a line, on one or several datasets (a surface model against a ground model gives heights of buildings and trees). export_geotiff writes the elevation of an area to a file.
 
-Change through time: imagery_dates lists the dates of the built-in dated imagery (Esri Wayback, Google Earth) at a place; catalog_items and search_stac list dated images from open catalogs. Then open_view or compare_sources with imagerySource and imageryDate, or with an item's imageryUrl.
+Change through time: imagery_dates lists the dates of the built-in dated imagery (Esri Wayback, Google Earth, EOX Sentinel-2, Bing's current mosaic) at a place; catalog_items and search_stac list dated images from open catalogs. Then open_view or compare_sources with imagerySource and imageryDate, or with an item's imageryUrl.
 
 Modes by subject:
 - general relief: hillshade (default)
