@@ -148,6 +148,9 @@ export function openapi(server = "http://localhost:3400") {
       "/algorithms": {
         get: { tags: ["Catalogs"], operationId: "algorithms", summary: "The modes, and which engine draws them", description: "Each mode with `direct` or `browser`.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
       },
+      "/modes": {
+        get: { tags: ["Catalogs"], operationId: "modes", summary: "The modes with their settings, grouped as the app's panel", description: "What the QGIS plugin builds its panel from: the app's panel groups, top drawn on top; for each mode its form (`raster`, `vector` or `both`), whether it is shading (opaque tiles, multiplied over the layers under it), the parameter of its opacity and its settings (the app's URL parameters, with type, allowed values and default). Given a view's query (a share link's, as is), `view` lists the modes it switches on, their opacities, the parameters every layer keeps and the camera.", parameters: [q("appParams", { type: "object", additionalProperties: { type: "string" } }, "A view: the query of a share link, as is.")], responses: { 200: { description: "The modes", content: { "application/json": { schema: { type: "object" } } } } } },
+      },
       "/health": {
         get: { tags: ["Service"], operationId: "health", summary: "Is the service up", responses: { 200: { description: "Up, and the app it renders", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" }, app: { type: "string" } } } } } } } },
       },

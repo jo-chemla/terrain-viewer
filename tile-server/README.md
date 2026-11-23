@@ -13,6 +13,7 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
 | `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
 | `/tiles/WebMercatorQuad/...`, `/bbox/...` | titiler's addresses for the same |
+| `/modes` | The modes with their settings, grouped as the app's panel (the QGIS plugin's panel, `../qgis-plugin/`) |
 | `/openapi.json`, `/docs`, `/health` | |
 
 A standalone pnpm root, like `video/` and `mcp/`: it is not part of the root

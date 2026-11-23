@@ -59,7 +59,8 @@
 // request gives none: anyone who can reach the service then uses them).
 import http from "node:http"
 import { AsyncLocalStorage } from "node:async_hooks"
-import { qgisProject, readView } from "./qgis-project.mjs"
+import { qgisProject, readView, modesCatalog, viewForPlugin } from "./qgis-project.mjs"
+import { readFileSync } from "node:fs"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -77,6 +78,7 @@ const CACHE_DIR = process.env.TILE_CACHE_DIR || path.join(os.tmpdir(), "terrain-
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000
 const CONCURRENCY = Math.max(1, Number(process.env.TV_RENDER_CONCURRENCY || 2))
 const BLOCK_PX = 2048
+let URL_PARAMS = null
 const MAX_ZOOM = 22
 
 /** The view a request describes. titiler's names are read as ours: `url`
@@ -344,7 +346,7 @@ async function handle(req, res) {
       const u = new URL(req.url, "http://x")
       if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, browser: slot.stats(), direct: directSlot.stats() }))
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify({
-        docs: "/docs", openapi: "/openapi.json", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
+        docs: "/docs", openapi: "/openapi.json", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms", modeSettings: "/modes",
         tiles: "/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
         vectorTiles: "/tiles/{z}/{x}/{y}.pbf?modes=contours,moundDetector",
         render: "/render.jpg?lat=45.83&lng=6.86&zoom=11&width=1024&height=640&modes=hillshade,contours",
@@ -354,6 +356,13 @@ async function handle(req, res) {
       if (u.pathname === "/qgis.qgz") {
         const { view, rest } = viewOf(u.search)
         return send(200, "application/zip", qgisProject(self, await readView(view, rest, activeLayers)), { "content-disposition": 'attachment; filename="terrain-viewer.qgz"' })
+      }
+      if (u.pathname === "/modes") {
+        const { view, rest } = viewOf(u.search)
+        URL_PARAMS ??= JSON.parse(readFileSync(new URL("./generated/url-params.json", import.meta.url), "utf8")).params
+        const out = { modes: modesCatalog(URL_PARAMS), note: "The QGIS plugin's panel: the app's panel groups (top drawn on top), each mode's form, opacity parameter and settings (the app's URL parameters, with their defaults). Given a view's query (a share link's), `view` says what it switches on and the parameters its layers keep." }
+        if (u.search.length > 1) out.view = viewForPlugin(await readView(view, rest, activeLayers))
+        return send(200, "application/json", JSON.stringify(out))
       }
       if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self), null, 2))
       if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
