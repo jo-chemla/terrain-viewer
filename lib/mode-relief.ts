@@ -1,6 +1,6 @@
 // How each derived mode (slope, aspect, LRM, sky-view factor...) is coloured:
 // the colour relief settings of its layer, read from the app's state. One
-// table for the map (TerrainViewer.tsx) and the tile service (mcp/direct.mjs).
+// table for the map (TerrainViewer.tsx) and the tile service (tile-server/direct.mjs).
 // The session-only ramp override is added by the map, not here.
 import type { ColorReliefConfig } from "@/lib/layer-paints"
 import type { CustomRampStop } from "@/lib/color-ramps"

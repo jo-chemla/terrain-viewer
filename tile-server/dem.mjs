@@ -1,10 +1,10 @@
 // Elevation tiles read in Node, without a browser, for every terrain source
 // the app reads: the app's own tile spec (lib/terrain-tile-spec.ts) says
 // what a source's tiles are, and the app's own readers fetch them
-// (mcp/app-sources.ts: COG, VRT, WMS / WCS, LERC, quantized mesh, nDSM
+// (app-sources.ts: COG, VRT, WMS / WCS, LERC, quantized mesh, nDSM
 // difference, PMTiles, ...). A plain https pyramid is fetched and decoded by
 // sharp (PNG or WebP, the decoder a browser has built in and Node has not).
-// The base of the MCP server's elevation tools (data-tools.mjs) and of the
+// The base of the MCP server's elevation tools (mcp/data-tools.mjs) and of the
 // tile service's direct engine (direct.mjs).
 import { readFileSync } from "node:fs"
 import sharp from "sharp"

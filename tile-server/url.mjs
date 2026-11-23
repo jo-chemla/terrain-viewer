@@ -128,7 +128,7 @@ export function buildViewUrl(view, opts = {}) {
 }
 
 // A view as query parameters and back: what the tile service takes
-// (tile-server.mjs) and what the MCP server sends it.
+// (server.mjs) and what the MCP server sends it.
 const VIEW_NUMBERS = ["lat", "lng", "zoom", "pitch", "bearing"]
 const VIEW_STRINGS = ["viewMode", "split", "terrainSource", "terrainSourceB", "imageryUrl", "imagerySource", "imageryDate", "imagerySourceB", "imageryDateB", "place"]
 

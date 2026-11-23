@@ -236,7 +236,7 @@ export async function quantizedMeshProtocol(
   const rest = pathPart
   const query = new URLSearchParams(queryPart ?? "")
   const urlDetail = query.get("d")
-  // The tile service (mcp/app-sources.ts) gives each request's token in
+  // The tile service (tile-server/app-sources.ts) gives each request's token in
   // the address; the app never does, it sets the module's.
   const ionToken = query.get("t") || ionAccountToken
   const m = rest.match(/^(.*)\/(\d+)\/(-?\d+)\/(-?\d+)$/)

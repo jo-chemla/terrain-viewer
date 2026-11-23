@@ -2,7 +2,7 @@
 // profiles read from the tiles themselves, a GeoTIFF of an area, the dates
 // of the app's built-in dated imagery, a search of any STAC catalog.
 import { appLib, catalogItems } from "./tools.mjs"
-import { library, resolveDem, resolveDemOrWhy, loadTile, window as demWindow, probe, BUILTIN_DEMS } from "./dem.mjs"
+import { library, resolveDem, resolveDemOrWhy, loadTile, window as demWindow, probe, BUILTIN_DEMS } from "../tile-server/dem.mjs"
 
 export { resolveDem }
 

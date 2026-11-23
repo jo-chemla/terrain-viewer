@@ -8,17 +8,16 @@
 # to the build is listed in mcp/Dockerfile.dockerignore:
 #   docker build -f mcp/Dockerfile -t terrain-viewer-mcp .
 #   docker run -p 3300:3300 -e TV_ALLOWED_HOSTS=mcp.example.com -e TV_PUBLIC_URL=https://mcp.example.com -v tv-pictures:/data/pictures terrain-viewer-mcp
-# or mcp/docker-compose.yml (a Portainer stack). The same file builds the
-# tile service (tile-server.mjs) with `--target tiles`:
-#   docker build -f mcp/Dockerfile --target tiles -t terrain-viewer-tiles .
-#   docker run -p 3400:3400 --shm-size=1g -v tv-tiles:/data/tiles terrain-viewer-tiles
-# Both are published by .github/workflows/docker-publish.yml as
+# or mcp/docker-compose.yml (a Portainer stack, with the tile service). The
+# server renders with the tile service's engine (../tile-server), copied in
+# below; the tile service has its own image (tile-server/Dockerfile). Both
+# are published by .github/workflows/docker-publish.yml as
 # ghcr.io/iconem/terrain-viewer-mcp and ghcr.io/iconem/terrain-viewer-tiles.
 #
 # No .env is copied and import.meta.env is empty in the bundle (build.mjs):
 # no key can reach the image.
 
-# 1. The app's catalog code, bundled for Node. Needs the root dependencies.
+# 1. The app's code bundled for Node (tile-server/generated). Needs the root dependencies.
 FROM node:22-slim AS bundle
 RUN corepack enable
 WORKDIR /repo
@@ -33,12 +32,11 @@ COPY components ./components
 COPY hooks ./hooks
 COPY src ./src
 COPY docs/src/generated/url-params.json docs/src/generated/url-params.json
-COPY mcp ./mcp
-RUN cd mcp && pnpm install --frozen-lockfile && node build.mjs
+COPY tile-server ./tile-server
+RUN cd tile-server && pnpm install --frozen-lockfile && node build.mjs
 
-# 2. What both services run on: Node, a Chromium for the renderer, the
-# shared code.
-FROM node:22-slim AS runtime
+# 2. Node, a Chromium for the renderer, the engine and the server.
+FROM node:22-slim AS mcp
 RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-liberation fontconfig ca-certificates && rm -rf /var/lib/apt/lists/*
 # Noto Sans, the font of the app's map labels (MapLibre's "Noto Sans
 # Bold" glyphs): the direct engine's contour labels are drawn with it.
@@ -48,25 +46,17 @@ ADD --checksum=sha256:1df075a380fc7cb898acf64c1f7b3b4dd780de3caa860178bf929de358
 ADD --checksum=sha256:478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823 ${NOTO}/NotoSans-Regular.ttf /usr/share/fonts/truetype/noto/NotoSans-Regular.ttf
 RUN chmod 644 /usr/share/fonts/truetype/noto/*.ttf && fc-cache -f
 RUN corepack enable
-WORKDIR /app
+WORKDIR /app/tile-server
+COPY tile-server/package.json tile-server/pnpm-lock.yaml tile-server/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+COPY tile-server/*.mjs ./
+COPY --from=bundle /repo/tile-server/generated ./generated
+WORKDIR /app/mcp
 COPY mcp/package.json mcp/pnpm-lock.yaml mcp/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
-COPY mcp/server.mjs mcp/tile-server.mjs mcp/tile-openapi.mjs mcp/render.mjs mcp/direct.mjs mcp/dem.mjs mcp/browser-shim.mjs mcp/contours.mjs mcp/symbols.mjs mcp/mvt.mjs mcp/qgis-project.mjs mcp/tools.mjs mcp/data-tools.mjs mcp/url.mjs mcp/view.html ./
-COPY --from=bundle /repo/mcp/generated ./generated
+COPY mcp/server.mjs mcp/tools.mjs mcp/data-tools.mjs mcp/view.html ./
 ENV CHROME_PATH=/usr/bin/chromium TV_SOFTWARE_GL=1
 
-# 3. The tile service (`--target tiles`): the app's rendering as XYZ tiles
-# and pictures of a viewport. The rendered tiles are kept a week.
-FROM runtime AS tiles
-RUN mkdir -p /data/tiles && chown node:node /data/tiles
-ENV PORT=3400 TILE_CACHE_DIR=/data/tiles
-VOLUME /data/tiles
-EXPOSE 3400
-USER node
-CMD ["node", "tile-server.mjs"]
-
-# 4. The MCP server (the default target).
-FROM runtime AS mcp
 # The rendered pictures, kept a week: on a volume they survive a restart.
 RUN mkdir -p /data/pictures && chown node:node /data/pictures
 ENV PORT=3300 PICTURE_CACHE_DIR=/data/pictures

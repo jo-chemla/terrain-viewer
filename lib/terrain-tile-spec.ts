@@ -10,7 +10,7 @@
 // Used by the live map for every source decoded in the browser (the derived
 // modes, the difference source, exports, the elevation picker: see
 // useClientDemUpstreamOne in components/LayersAndSources/MapSources.tsx) and
-// by the tile service's direct engine in Node (mcp/app-sources.ts). The
+// by the tile service's direct engine in Node (tile-server/app-sources.ts). The
 // raster-dem source handed to MapLibre itself (TerrainSources in the same
 // file) differs on purpose in three places: titiler fills nodata flat there
 // (TITILER_FLAT_NODATA in source-builder.ts), a cog:// source is declared by
@@ -274,7 +274,7 @@ export function terrainTileExtras(custom: CustomTerrainSource | undefined, ctx: 
 }
 
 // Per-pixel COG decode, registered with geomatico's setColorFunction (TerrainSources in
-// components/LayersAndSources/MapSources.tsx, and mcp/app-sources.ts) — this
+// components/LayersAndSources/MapSources.tsx, and tile-server/app-sources.ts) — this
 // runs inside the cog:// protocol, so it IS the elevation path, not just colouring.
 //
 // The sentinel guard is load-bearing: `raw === noData` cannot catch a NaN

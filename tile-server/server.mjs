@@ -64,7 +64,7 @@ import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
-import { openapi, DOCS_HTML } from "./tile-openapi.mjs"
+import { openapi, DOCS_HTML } from "./openapi.mjs"
 import { plan, draw, drawViewport, flatView, DIRECT_MODES, VECTOR_MODES, vectorTile } from "./direct.mjs"
 import { library, BUILTIN_DEMS, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 

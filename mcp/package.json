@@ -1,33 +1,24 @@
 {
   "name": "terrain-viewer-mcp",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
-  "description": "MCP server for Terrain Viewer: tools that compose a view, and an MCP App that shows it in the chat",
+  "description": "MCP server for Terrain Viewer: tools that compose a view, and an MCP App that shows it in the chat. Renders with the tile service's engine (../tile-server), installed separately.",
   "scripts": {
-    "build": "node build.mjs",
-    "prestart": "node build.mjs",
+    "build": "node ../tile-server/build.mjs",
+    "prestart": "node ../tile-server/build.mjs",
     "start": "node server.mjs",
     "stdio": "node server.mjs --stdio",
-    "pretest": "node build.mjs",
+    "pretest": "node ../tile-server/build.mjs",
     "test": "node test.mjs",
     "host": "node host-test.mjs"
   },
   "dependencies": {
-    "@mapbox/vector-tile": "^3.0.0",
-    "@maplibre/maplibre-gl-style-spec": "26.4.4",
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/ext-apps": "^2.0.4",
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
     "geotiff": "^3.0.5",
-    "maplibre-contour": "0.1.1",
-    "pbf": "^5.2.0",
-    "playwright-core": "^1.65.1",
-    "sharp": "^0.35.5",
     "zod": "^4.6.7"
-  },
-  "devDependencies": {
-    "esbuild": "^0.28.2"
   }
 }

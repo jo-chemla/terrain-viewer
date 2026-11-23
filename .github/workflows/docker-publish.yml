@@ -1,8 +1,7 @@
 name: Publish the MCP server and tile service images
-# Builds mcp/Dockerfile twice (targets `mcp` and `tiles`) and pushes both to
-# the GitHub Container Registry:
-#   ghcr.io/iconem/terrain-viewer-mcp     the MCP server (docs: features/mcp-server)
-#   ghcr.io/iconem/terrain-viewer-tiles   the tile service (mcp/tile-server.mjs)
+# Builds two images and pushes both to the GitHub Container Registry:
+#   ghcr.io/iconem/terrain-viewer-mcp     the MCP server (mcp/Dockerfile; docs: features/mcp-server)
+#   ghcr.io/iconem/terrain-viewer-tiles   the tile service (tile-server/Dockerfile; docs: dev/tile-service)
 # Tags: `latest` and the commit's short hash. A package is private when it is
 # first pushed: make it public once, in the package's settings on GitHub.
 on:
@@ -11,6 +10,7 @@ on:
       - main
     paths:
       - "mcp/**"
+      - "tile-server/**"
       - "lib/**"
       - ".github/workflows/docker-publish.yml"
   workflow_dispatch:
@@ -32,9 +32,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: mcp
+          - file: mcp/Dockerfile
             image: terrain-viewer-mcp
-          - target: tiles
+          - file: tile-server/Dockerfile
             image: terrain-viewer-tiles
     steps:
       - name: Checkout
@@ -59,11 +59,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: mcp/Dockerfile
-          target: ${{ matrix.target }}
+          file: ${{ matrix.file }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # the bundle and Chromium layers are the same for both targets
+          # the bundle and Chromium layers are the same in both images
           cache-from: type=gha,scope=terrain-viewer-images
           cache-to: type=gha,scope=terrain-viewer-images,mode=max

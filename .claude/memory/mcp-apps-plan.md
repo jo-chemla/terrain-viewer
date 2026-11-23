@@ -30,8 +30,8 @@ datasets_covering, open_view) and which modes fit which subject.
 - ext-apps 2.0.4 pairs with the v2 split SDK (`@modelcontextprotocol/server`,
   `/node`, `/client`), not `@modelcontextprotocol/sdk`. The sandbox blocks
   network scripts: `server.mjs` inlines `ext-apps/app-with-deps` in the page.
-- `catalog_items` runs the app's own `loadCatalogTicks`: `mcp/build.mjs`
-  bundles `mcp/app-lib.ts` with esbuild into `mcp/generated/` (not tracked),
+- `catalog_items` runs the app's own `loadCatalogTicks`: `tile-server/build.mjs`
+  bundles `tile-server/app-lib.ts` with esbuild into `tile-server/generated/` (not tracked),
   `import.meta.env` defined empty so no key can enter; Planet answers nothing
   there, by design. It needs the root `node_modules`.
 - The app in a frame with no origin (sandbox without allow-same-origin):

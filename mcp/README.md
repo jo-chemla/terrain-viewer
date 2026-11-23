@@ -17,11 +17,14 @@ and the modes, and shows the view in the conversation.
 | `export_geotiff` | The elevation of a box as a Float32 GeoTIFF (EPSG:3857) |
 | `screenshot` | A picture of a view, rendered in a headless Chrome, for the model to look at |
 
-A standalone pnpm root, like `video/`: it is not part of the root install,
-but its build step reads the app's code, so the root install must exist.
+A standalone pnpm root, like `video/`: it is not part of the root install.
+It renders and reads elevation with the tile service's engine
+(`../tile-server/`, its own pnpm root), whose build step reads the app's
+code, so both that install and the root install must exist.
 
 ```bash
 pnpm install             # at the repository root, once
+cd tile-server && pnpm install && cd ..
 cd mcp && pnpm install
 pnpm test                # builds, then runs every tool over stdio (network; NO_SCREENSHOT=1 skips the picture)
 pnpm start               # Streamable HTTP on http://localhost:3300/mcp
@@ -79,8 +82,8 @@ sandbox host and `https://claude.ai`); GitHub Pages sends no
 The page declares the hosts it reads (`connectDomains`, `resourceDomains`):
 the app's address and every https host of the app's built-in lists (terrain
 and raster libraries, built-in terrain and basemaps, dated imagery and its
-catalogs), collected by `build.mjs` into `origins` of
-`generated/library.json`, plus `APP_EXTRA_ORIGINS` in `server.mjs` for the
+catalogs), collected by `tile-server/build.mjs` into `origins` of
+`tile-server/generated/library.json`, plus `APP_EXTRA_ORIGINS` in `server.mjs` for the
 ones the scan cannot see. `elevation` and `export_geotiff` read every
 source type the app reads (`dem.mjs`), and refuse with the reason the few
 they cannot: Mapbox, MapTiler and Cesium ion (a key), STAC and MosaicJSON.
@@ -89,26 +92,17 @@ they cannot: Mapbox, MapTiler and Cesium ion (a key), STAC and MosaicJSON.
 
 | File | Role |
 |---|---|
-| `url.mjs` | `buildViewUrl`: a typed view description to a link. The mode table mirrors `skills/terrain-viewer/SKILL.md`. |
-| `tools.mjs` | Geocoder, library, catalogs, headless screenshot. |
-| `data-tools.mjs` | Elevation and profile (tiles read by `dem.mjs`), GeoTIFF writer, imagery dates, STAC search. |
+| `tools.mjs` | Geocoder, library, catalogs, headless screenshot (the renderer and the direct engine of `../tile-server/`, or the tile service itself with `TV_RENDER_URL`). |
+| `data-tools.mjs` | Elevation and profile (tiles read by `../tile-server/dem.mjs`), GeoTIFF writer, imagery dates, STAC search. |
 | `server.mjs` | The MCP wiring, the instructions given to the model, the `ui://` resource, `/files/` for exported GeoTIFFs over HTTP. |
 | `view.html` | The page the host renders. The MCP Apps client library is inlined at start (about 500 KB). |
-| `app-lib.ts`, `build.mjs` | Bundle the app's own catalog, Wayback, Google Earth and STAC code for Node into `generated/` (not tracked), with `import.meta.env` empty so no key from `.env` can get in. |
 | `test.mjs`, `host-test.mjs` | End-to-end test over stdio; a hand-written host for a visual check. |
-| `render.mjs` | The renderer, the base block: the app in a headless browser, waited on until its maps have drawn (`withSettledPage`). Imported by `tools.mjs` and by `tile-server.mjs`; it knows neither. |
-| `dem.mjs` | Elevation tiles read in Node, for every source type the app reads: the tile spec from the app (`lib/terrain-tile-spec.ts`), plain pyramids fetched and decoded by sharp, the app's schemes (COG, VRT, WMS, LERC, quantized mesh, difference, PMTiles) through its own readers; cached. The `elevation` and `export_geotiff` tools and the tile service's direct engine. No browser. |
-| `app-sources.ts` | The app's source readers for Node, re-exported by `app-render.ts`: `registerSourceProtocols()` registers them through the app's registry, `resolveTerrainTiles()` fetches what a source's spec waits for (COG header, VRT index, TileJSON, the operands of a difference). The LERC wasm is copied into `generated/` by `build.mjs`. |
-| `direct.mjs` | The tile service's direct engine: rebuilds the map's layer stack from the app's URL parameters and draws every 2D terrain mode and the overlays (iso-line, mound detector, plane slicer, graticule, contours and their labels, dark theme) with the app's own code (`generated/app-render.mjs`), vector tiles drawn as SVG in the map's layer order; the hillshade and the live Phong and matcap shaders are ported line by line. `plan()` says when a request goes to the browser instead, and why. |
-| `app-render.ts`, `browser-shim.mjs`, `maplibre-stub.mjs` | The app's tile protocols, layer paints and per-mode colours bundled for Node by `build.mjs`; the few browser functions they call (createImageBitmap, OffscreenCanvas, done with sharp, and an XML DOMParser for the VRT reader); a stand-in for maplibre-gl, which they only register with. |
-| `app-overlays.ts` | The overlay protocols for Node (isoband, tells, the derived modes they read), registered in the app's registry by `registerDerivedProtocols()`, and the iso-line measures, plane slicer paint and graticule spacing. |
-| `contours.mjs` | Contours by maplibre-contour, the app's contour library, with the app's options, over plain tiles or one of the app's schemes (`lrm://`, a measure of the iso-line): the `/contours` vector tiles, and the lines and labels on a direct picture. |
-| `symbols.mjs` | Where MapLibre puts symbols along a line (its clipping, anchor spacing and bend check, ported): the contour labels and cliff teeth of the direct engine. |
-| `mvt.mjs` | Vector tiles read and written: the `.pbf` tiles merge, renames and overzooms the layers of the app's vector protocols and writes the graticule. |
-| `qgis-project.mjs` | The QGIS project of the tile service (`/qgis.qgz`): every mode a layer, grouped as the app's panel, over a Google hybrid basemap. |
-| `compare-engines.mjs` | `node compare-engines.mjs <service> <outDir> [filter]`: the same tiles from both engines, a table of differences and side-by-side pictures. |
-| `tile-server.mjs`, `tile-openapi.mjs` | The tile service: `/tiles/{z}/{x}/{y}.png`, `/render.png`, titiler's addresses for the same, `/openapi.json` and `/docs` (Scalar). 2048 px blocks cut into tiles, cached a week. `node tile-server.mjs`, port 3400. `node tile-openapi.mjs` rewrites the docs site's copy of the description. With `TV_RENDER_URL` set, `tools.mjs` asks this service for the pictures. |
-| `Dockerfile`, `Dockerfile.dockerignore`, `docker-compose.yml` | Two images from one Dockerfile (targets `mcp`, the default, and `tiles`; Chromium included, software GL), what is sent to the build, and a stack for Portainer. Published to `ghcr.io/iconem/terrain-viewer-mcp` and `-tiles` by `.github/workflows/docker-publish.yml`. Built and run locally on 2026-11-20 and 21, not yet on a server. |
+| `Dockerfile`, `Dockerfile.dockerignore` | The MCP image (Chromium included, software GL, the tile service's engine copied in), and what is sent to the build. Published to `ghcr.io/iconem/terrain-viewer-mcp` by `.github/workflows/docker-publish.yml`. |
+| `docker-compose.yml` | The MCP server and the tile service (`../tile-server/Dockerfile`) as one stack for Portainer; the MCP server asks the tile service for its pictures. |
+
+The link builder (`url.mjs`), the renderer (`render.mjs`), the elevation
+reader (`dem.mjs`), the direct engine and the app's code bundled for Node
+(`build.mjs`, `generated/`) are in `../tile-server/`: see its README.
 
 ## Tested, and not
 

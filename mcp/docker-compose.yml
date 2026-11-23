@@ -30,13 +30,12 @@ services:
     shm_size: 1gb
 
   # The app's rendering as XYZ tiles and pictures of a viewport
-  # (mcp/tile-server.mjs), and the MCP server's pictures.
+  # (tile-server/server.mjs), and the MCP server's pictures.
   terrain-viewer-tiles:
     image: ghcr.io/iconem/terrain-viewer-tiles:latest
     build:
       context: ..
-      dockerfile: mcp/Dockerfile
-      target: tiles
+      dockerfile: tile-server/Dockerfile
     restart: unless-stopped
     ports:
       - "${TILES_PORT:-3400}:3400"

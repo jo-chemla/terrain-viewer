@@ -32,7 +32,7 @@ import { createRequire } from "node:module"
 import { z } from "zod"
 import { McpServer, createMcpHandler } from "@modelcontextprotocol/server"
 import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server"
-import { buildViewUrl, MODE_NAMES, IMAGERY_SOURCES, DEFAULT_BASE_URL } from "./url.mjs"
+import { buildViewUrl, MODE_NAMES, IMAGERY_SOURCES, DEFAULT_BASE_URL } from "../tile-server/url.mjs"
 import { geocode, datasetsCovering, catalogItems, screenshot, library } from "./tools.mjs"
 import { elevation, exportGeotiff, imageryDates, searchStac, demOrigins, EXPORT_DIR_NAME } from "./data-tools.mjs"
 
@@ -74,7 +74,7 @@ The default terrain, mapterhorn, is global: about 0.25 to 2 m where a national L
 // address, which the resource declares.
 // Hosts the app itself reads when it runs inside the view. The list is every host of the app's built-in lists (the terrain and
 // raster libraries, the dated imagery and its catalogs: `origins` in
-// generated/library.json, made by build.mjs) plus the ones below, which the
+// tile-server/generated/library.json, made by its build.mjs) plus the ones below, which the
 // scan cannot see (built at run time, or a wildcard). Still not covered: the
 // files a VRT or a STAC item points to, and an address pasted by the user;
 // those stay blank there and still open in the browser.

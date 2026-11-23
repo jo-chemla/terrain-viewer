@@ -1,6 +1,6 @@
 // The tile service described as an OpenAPI 3.1 document, served by the
 // service at /openapi.json and browsed at /docs (Scalar). The docs site
-// shows the same document: `node tile-openapi.mjs` writes
+// shows the same document: `node openapi.mjs` writes
 // docs/public/tile-service-openapi.json, and test.mjs fails when that copy
 // is stale.
 import { writeFileSync } from "node:fs"

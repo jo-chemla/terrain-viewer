@@ -1,6 +1,6 @@
 // The paint of the hillshade, colour relief and plane slicer layers, computed
 // from the app's state. Pure functions with no React or MapLibre import, so the
-// tile service (mcp/direct.mjs) draws with the same rules as the map.
+// tile service (tile-server/direct.mjs) draws with the same rules as the map.
 import { colorRampsFlat, remapColorRampStops, shiftCyclicRampStops, buildCustomRampColors, extractStops, applyBlackWhiteTransparent, DEFAULT_SLOPE_CUSTOM_STOPS, type CustomRampStop, type RampOverride } from "@/lib/color-ramps"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {

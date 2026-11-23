@@ -1,0 +1,28 @@
+{
+  "name": "terrain-viewer-tile-server",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "description": "Terrain Viewer tile service: the app's terrain modes and overlays as XYZ raster and vector tiles, pictures of a viewport, and the rendering engine the MCP server uses",
+  "scripts": {
+    "build": "node build.mjs",
+    "prestart": "node build.mjs",
+    "start": "node server.mjs",
+    "pretest": "node build.mjs",
+    "test": "node test.mjs",
+    "openapi": "node openapi.mjs",
+    "qgis": "node qgis-project.mjs"
+  },
+  "dependencies": {
+    "@mapbox/vector-tile": "^3.0.0",
+    "@maplibre/maplibre-gl-style-spec": "26.4.4",
+    "geotiff": "^3.0.5",
+    "maplibre-contour": "0.1.1",
+    "pbf": "^5.2.0",
+    "playwright-core": "^1.65.1",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

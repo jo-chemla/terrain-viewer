@@ -1,0 +1,20 @@
+# Read by `docker build -f tile-server/Dockerfile .` in place of a root
+# .dockerignore. Everything is left out except what the Dockerfile copies.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.json
+!patches
+!docs/package.json
+!slides/package.json
+!theme-editor/package.json
+!docs/src/generated/url-params.json
+!lib
+!components
+!hooks
+!src
+!tile-server
+tile-server/node_modules
+tile-server/generated
+**/.env*

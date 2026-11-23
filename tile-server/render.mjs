@@ -1,6 +1,6 @@
 // The renderer: the app opened in a headless browser, waited on until its
 // maps have drawn everything. The base block of the MCP server's pictures
-// (tools.mjs) and of the tile service (tile-server.mjs); it knows neither.
+// (mcp/tools.mjs) and of the tile service (server.mjs); it knows neither.
 //
 // Environment: CHROME_PATH (a Chromium binary; unset: the installed Chrome),
 // TV_SOFTWARE_GL=1 (no graphics card: SwiftShader), TV_TIMING (lap times).

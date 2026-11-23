@@ -6,10 +6,10 @@ import os from "node:os"
 import path from "node:path"
 import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
-import { buildViewUrl, viewToQuery } from "./url.mjs"
-import { browser, withSettledPage, closeBrowser as closeRenderer } from "./render.mjs"
-import { library } from "./dem.mjs"
-import { plan, drawViewport, flatView } from "./direct.mjs"
+import { buildViewUrl, viewToQuery } from "../tile-server/url.mjs"
+import { browser, withSettledPage, closeBrowser as closeRenderer } from "../tile-server/render.mjs"
+import { library } from "../tile-server/dem.mjs"
+import { plan, drawViewport, flatView } from "../tile-server/direct.mjs"
 
 export { browser, library }
 
@@ -20,9 +20,9 @@ let appLibPromise
 /** The app's own catalog code (bundled by build.mjs). */
 export function appLib() {
   if (!appLibPromise) {
-    const p = here("./generated/app-lib.mjs")
-    if (!existsSync(p)) throw new Error("generated/app-lib.mjs is missing: run `pnpm build` in mcp/")
-    appLibPromise = import(new URL("./generated/app-lib.mjs", import.meta.url).href)
+    const p = here("../tile-server/generated/app-lib.mjs")
+    if (!existsSync(p)) throw new Error("tile-server/generated/app-lib.mjs is missing: run `pnpm build` in mcp/")
+    appLibPromise = import(new URL("../tile-server/generated/app-lib.mjs", import.meta.url).href)
   }
   return appLibPromise
 }
@@ -146,7 +146,7 @@ export function screenshot(view, { baseUrl, width = 1024, height = 640, waitMs =
   return promise
 }
 
-// TV_RENDER_URL: the address of the tile service (tile-server.mjs). When
+// TV_RENDER_URL: the address of the tile service (tile-server/server.mjs). When
 // set, the pictures are asked from it and this process starts no browser
 // for them.
 const RENDER_URL = (process.env.TV_RENDER_URL || "").replace(/\/$/, "")
