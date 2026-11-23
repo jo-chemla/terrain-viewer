@@ -341,7 +341,10 @@ async function handle(req, res) {
       const host = (req.headers.host || "").replace(/:\d+$/, "")
       if (allowedHosts.length && !["localhost", "127.0.0.1", "[::1]", ...allowedHosts].includes(host)) return send(403, "text/plain", "Host not allowed")
       if (req.method !== "GET" && req.method !== "HEAD") return send(405, "text/plain", "GET only")
-      const u = new URL(req.url, "http://x")
+      // QGIS's vector tile layer sends the query's "?" percent-encoded when
+      // its source has it so (projects written before 2026-11-23): read it
+      // as the query.
+      const u = new URL(!req.url.includes("?") && /%3F/i.test(req.url) ? req.url.replace(/%3F/i, "?") : req.url, "http://x")
       if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, browser: slot.stats(), direct: directSlot.stats() }))
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify({
         docs: "/docs", openapi: "/openapi.json", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
