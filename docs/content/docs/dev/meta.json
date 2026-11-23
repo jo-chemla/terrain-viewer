@@ -9,6 +9,7 @@
     "url-api",
     "tile-service",
     "source-schema",
+    "qgis-plugin",
     "ux-flows",
     "non-geo-relief-visualization",
     "fumadocs-customization",

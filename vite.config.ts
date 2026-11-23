@@ -133,7 +133,9 @@ export default defineConfig({
     // trying to watch that tree wedged the dev server (1.6 GB resident,
     // connections stuck in CLOSE_WAIT, no response at all). Nothing in
     // .cache is ever imported; keep the watcher out of it.
-    watch: { ignored: ["**/.cache/**", "**/dist/**", "**/docs/out/**", "**/docs/.next/**"] },
+    // Agent checkouts (.claude/worktrees/) are whole copies of the repo: an
+    // edit there reloaded the page of the main checkout.
+    watch: { ignored: ["**/.cache/**", "**/.claude/worktrees/**", "**/dist/**", "**/docs/out/**", "**/docs/.next/**"] },
     // /docs is a separate Next.js app (docs/), not part of this Vite app —
     // without this, a request for e.g. /docs/getting-started/ falls through
     // Vite's own SPA history-fallback and silently serves this app's

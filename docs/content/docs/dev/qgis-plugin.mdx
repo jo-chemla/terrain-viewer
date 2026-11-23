@@ -1,0 +1,28 @@
+---
+title: QGIS Plugin (plan)
+description: A QGIS plugin with the app's sidebar, in two steps - a panel that writes tile service layers, then the modes computed in Python with numpy.
+---
+
+Today QGIS gets the app's modes through the [tile service](/dev/tile-service): `/qgis.qgz` is a project with every mode as an XYZ layer, configured as a view was. A layer's settings live in its address, and QGIS has no control bound to an XYZ address's parameters: changing a ramp or a radius means editing the layer's source URL. A plugin is the way to have controls. Two steps, the first cheap.
+
+## Step 1: a panel that writes tile service layers
+
+A dock panel laid out as the app's sidebar: the same groups (Visualization Modes, Relief Visualization, Terrain Analysis, Lighting Effects, Contours and GeoGrid), each mode a checkbox with its settings (ramp, opacity, radius, method), a terrain source picker, and the address of a tile service.
+
+- Each checked mode is a layer of the project: an XYZ layer whose address the panel writes (`/tiles/{z}/{x}/{y}.png?modes=<mode>&<its settings>`), as `/qgis.qgz` does. A changed setting rewrites that layer's address and refreshes it. Opacity and blending stay QGIS layer settings (the tiles are asked opaque, see the QGIS section of the tile service page).
+- The vector overlays (contours, iso-line, mound candidates, plane slicer, graticule) come as vector tile layers (`.pbf`), styled by the plugin.
+- The lists come from the service: `/sources` for the terrain sources, `/colorramps` and `/algorithms` for the ramps and modes, `/openapi.json` for the parameters, their types and defaults. The panel is built from those, so a new mode or parameter in the app reaches the plugin without a plugin release.
+- "Open from link": paste a share link, get its layers (the query a share link carries is what `/qgis.qgz` already reads).
+- Pure Python on QGIS's own API, no dependency. Days of work. It needs a reachable tile service: a local one (`cd tile-server && pnpm start`) or a hosted one.
+
+## Step 2: the modes computed in QGIS
+
+The same panel with no tile service: the modes computed in Python, on the elevation the plugin reads.
+
+- **Reading:** GDAL reads the tiles and nothing else. A Terrarium or Terrain-RGB pyramid through GDAL's WMS/TMS driver (the XML of `gdalTileSource` in `lib/terrain-tile-spec.ts`), a COG or VRT directly, a raw WMS through GDAL's WMS driver. Decoding the RGB packing into metres is numpy (the formulas of `lib/elevation-encoding.ts`). The sources only the app's protocols read (LERC, quantized mesh, GEM-15's cells, a difference) need their own reader or stay on step 1.
+- **Computing:** numpy, not `gdaldem`: the app's modes are its own (LRM, sky view factor, openness, matcap, Phong, the mound detector, the eigen-based ones), and the point is that QGIS shows what the app shows. Each `lib/*-protocol.ts` is a kernel over an elevation grid with a margin, which ports to numpy array code: slope, aspect, curvature, TPI, TRI and roughness in a few lines each; sky view factor and openness as the app's ray sweeps (vectorised per direction); matcap and Phong as the shaders' formulas per pixel; the colour ramps from `lib/color-ramps.ts`.
+- **Delivery:** a QGIS raster layer per mode, computed for the canvas extent at the canvas resolution and recomputed on pan and zoom (debounced, in a background task), or written to a GeoTIFF on request. Optionally a Processing provider, so each mode is also an algorithm for models and batch runs.
+- **Checking:** the port is checked against the app tile by tile, as `tile-server/compare-engines.mjs` checks the direct engine against the browser: same tiles, a table of differences.
+- **Keeping in step:** two implementations of each mode drift. The comparison above runs in CI on a fixed set of tiles, so a change to a protocol that the Python port does not follow fails a check.
+
+Weeks of work, mode by mode; step 1 stays useful as the fallback for any mode not ported yet.
