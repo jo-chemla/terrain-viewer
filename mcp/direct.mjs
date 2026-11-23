@@ -750,9 +750,9 @@ async function tellsSvg(A, dem, s, rect) {
   return svgOf(rect.width, rect.height, circles.join(""))
 }
 
-// ── Vector tiles (/vector) ────────────────────────────────────────────────
+// ── Vector tiles (/tiles/{z}/{x}/{y}.pbf) ────────────────────────────────────────────────
 
-/** The modes /vector serves as layers: contours (`contours`: ele, level),
+/** The modes served in .pbf tiles, as layers: contours (`contours`: ele, level),
  *  the iso-line (`isoband` polygons and `isoline` lines at a value, with
  *  `isoline-cliff` for the cliff edge; `isoline` lines every interval),
  *  the mound detector (`tells` points with their measures) and the

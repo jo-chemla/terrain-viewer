@@ -97,8 +97,8 @@ export function openapi(server = "http://localhost:3400") {
       "/WebMercatorQuad/tilejson.json": {
         get: {
           tags: ["titiler addresses"], operationId: "tilejson", summary: "A TileJSON for a view",
-          description: "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address.",
-          parameters: [q("tile_format", { type: "string", enum: ["png", "jpg"], default: "png" }, "Tile format."), q("tile_scale", { type: "integer", enum: [1, 2], default: 1 }, "2 for 512 px tiles."), ...VIEW_PARAMS],
+          description: "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg; pbf or mvt for the vector tiles, then TileJSON 3.0 with the `vector_layers` of the modes) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address. `/tilejson.json` is the same.",
+          parameters: [q("tile_format", { type: "string", enum: ["png", "jpg", "pbf", "mvt"], default: "png" }, "Tile format."), q("tile_scale", { type: "integer", enum: [1, 2], default: 1 }, "2 for 512 px tiles."), ...VIEW_PARAMS],
           responses: { 200: { description: "TileJSON 2.2.0", content: { "application/json": { schema: { type: "object" } } } } },
         },
       },
@@ -127,38 +127,18 @@ export function openapi(server = "http://localhost:3400") {
       "/colorramps/{id}": {
         get: { tags: ["Catalogs"], operationId: "colorramp", summary: "One colour ramp", description: "Its stops, as a MapLibre expression over the value.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, example: "slope-plantopo" }], responses: { 200: { description: "The ramp", content: { "application/json": { schema: { type: "object" } } } }, 404: { description: "No such ramp" } } },
       },
-      "/vector/{z}/{x}/{y}.pbf": {
+      "/tiles/{z}/{x}/{y}.{vectorFormat}": {
         get: {
-          tags: ["Tiles"], operationId: "vector", summary: "The overlays as a vector tile",
-          description: "A Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles. Past a layer's last zoom it comes from its deepest tile, scaled up. The plane slicer is a colour layer and is not served here.",
+          tags: ["Tiles"], operationId: "vectorTile", summary: "The overlays as a vector tile",
+          description: "The tile address with `.pbf` or `.mvt`: a Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles; `/tiles/WebMercatorQuad/...` is the same. Past a layer's last zoom it comes from its deepest tile, scaled up. A mode drawn only as an image (hillshade, the plane slicer, ...) is refused: ask for `.png` or `.jpg`.",
           parameters: [
             { name: "z", in: "path", required: true, schema: { type: "integer" }, example: 11 }, { name: "x", in: "path", required: true, schema: { type: "integer" }, example: 1067 }, { name: "y", in: "path", required: true, schema: { type: "integer" }, example: 728 },
+            { name: "vectorFormat", in: "path", required: true, schema: { type: "string", enum: ["pbf", "mvt"] }, example: "pbf" },
             q("terrainSource", { type: "string" }, "The elevation source: an id from `/sources`, a tile address or a JSON configuration."),
             q("modes", { type: "array", items: { type: "string", enum: ["contours", "isoline", "moundDetector", "graticules"] } }, "The layers, comma-separated. Unset: contours."),
             q("appParams", { type: "object", additionalProperties: { type: "string" } }, "The app's parameters of these layers, as for the raster tiles (contourMinor, isolineValue, tellSize, graticuleDensity, ...)."),
           ],
           responses: { 200: { description: "The vector tile", content: { "application/vnd.mapbox-vector-tile": { schema: { type: "string", format: "binary" } } } }, 400: { description: "A mode is not served as vector tiles, or the source cannot be read by the direct engine" } },
-        },
-      },
-      "/vector/tilejson.json": {
-        get: {
-          tags: ["Tiles"], operationId: "vectorTilejson", summary: "TileJSON of the vector tiles",
-          description: "For a MapLibre `vector` source: the `/vector` address with the same query, and the layers of the modes asked for.",
-          parameters: [q("modes", { type: "array", items: { type: "string", enum: ["contours", "isoline", "moundDetector", "graticules"] } }, "The layers, comma-separated.")],
-          responses: { 200: { description: "TileJSON 3.0", content: { "application/json": { schema: { type: "object" } } } } },
-        },
-      },
-      "/contours/{z}/{x}/{y}.pbf": {
-        get: {
-          tags: ["Tiles"], operationId: "contours", summary: "Contour lines as a vector tile (the contours of /vector)",
-          description: "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Sources the direct engine reads (see `/sources`).",
-          parameters: [
-            { name: "z", in: "path", required: true, schema: { type: "integer" }, example: 13 }, { name: "x", in: "path", required: true, schema: { type: "integer" }, example: 4250 }, { name: "y", in: "path", required: true, schema: { type: "integer" }, example: 2928 },
-            q("terrainSource", { type: "string" }, "The elevation source: an id from `/sources`, a tile address or a JSON configuration."),
-            q("contourMinor", { type: "number", default: 50 }, "Minor interval in metres (0: major lines only)."),
-            q("contourMajor", { type: "number", default: 200 }, "Major interval in metres."),
-          ],
-          responses: { 200: { description: "The vector tile", content: { "application/vnd.mapbox-vector-tile": { schema: { type: "string", format: "binary" } } } }, 400: { description: "The source cannot be read by the direct engine" } },
         },
       },
       "/algorithms": {

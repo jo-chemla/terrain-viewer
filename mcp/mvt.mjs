@@ -1,5 +1,5 @@
-// Mapbox Vector Tiles, read and written: the tile service's /vector
-// endpoint puts the layers of several sources in one tile (contours,
+// Mapbox Vector Tiles, read and written: a .pbf tile of the tile service
+// puts the layers of several sources in one tile (contours,
 // iso-line, mound detector, graticule), renames the ones that share a name,
 // and serves a layer past its last zoom from its deepest tile, scaled up as
 // MapLibre overzooms it.

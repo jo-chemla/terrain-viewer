@@ -57,7 +57,7 @@ A source that is not listed can still be given whole, as its address or as a JSO
 
 ## Vector tiles
 
-`/vector/{z}/{x}/{y}.pbf` answers the line, area and point overlays as a Mapbox Vector Tile, the features the app's own layers draw, one layer each. `modes` picks them, the app's parameters set them as for the raster tiles, and `/vector/tilejson.json?modes=…` gives a TileJSON for a MapLibre `vector` source. Tiles are 512 px, as the map loads them; past a layer's last zoom (15 for the mound detector, the source's for the others) a tile is cut from its deepest one, scaled up.
+The tile address with `.pbf` (or `.mvt`), `/tiles/{z}/{x}/{y}.pbf`, answers the line, area and point overlays as a Mapbox Vector Tile, the features the app's own layers draw, one layer each. `modes` picks them, the app's parameters set them as for the raster tiles, and `/tilejson.json?tile_format=pbf&modes=…` gives a TileJSON for a MapLibre `vector` source. The extension chooses raster or vector; a mode drawn only as an image is refused as `.pbf`. Tiles are 512 px, as the map loads them; past a layer's last zoom (15 for the mound detector, the source's for the others) a tile is cut from its deepest one, scaled up.
 
 | Mode | Layer | Features |
 |---|---|---|
@@ -66,11 +66,9 @@ A source that is not listed can still be given whole, as its address or as a JSO
 | `moundDetector` | `tells` | A point per candidate with its measures (`a`, `blobness`, `plan`, `detHessian`, `pit`, `scaleM`, ...) |
 | `graticules` | `graticule` | Meridians and parallels at the app's spacing for the zoom, `kind` and `deg` |
 
-`/contours/{z}/{x}/{y}.pbf` is the same tile with the contours alone.
-
 Every mode, raster or vector:
 
-| Mode | Raster tile (`/tiles`) | Vector tile (`/vector`) |
+| Mode | Raster tile (`.png`, `.jpg`) | Vector tile (`.pbf`, `.mvt`) |
 |---|---|---|
 | Hillshade, colour relief, the 14 computed modes, matcap, Phong, cast shadows | Yes | No: they are images |
 | Plane slicer | Yes | No: the app draws it as a colour layer. The same edge as polygons: `isoline` on elevation at the slice's height |
@@ -79,7 +77,7 @@ Every mode, raster or vector:
 The raster tile of these four is made from the vector tiles: their features are read, then drawn with the app's widths, colours and opacities, the contour labels and the cliff teeth placed as MapLibre places line symbols.
 
 ```js
-map.addSource("tv-overlays", { type: "vector", url: "http://localhost:3400/vector/tilejson.json?modes=contours,moundDetector" })
+map.addSource("tv-overlays", { type: "vector", url: "http://localhost:3400/tilejson.json?tile_format=pbf&modes=contours,moundDetector" })
 map.addLayer({ id: "contour-lines", type: "line", source: "tv-overlays", "source-layer": "contours", paint: { "line-width": ["match", ["get", "level"], 1, 1, 0.5] } })
 map.addLayer({ id: "contour-labels", type: "symbol", source: "tv-overlays", "source-layer": "contours", filter: ["==", ["get", "level"], 1], layout: { "symbol-placement": "line", "text-field": ["concat", ["get", "ele"], " m"], "text-size": 10 } })
 map.addLayer({ id: "mounds", type: "circle", source: "tv-overlays", "source-layer": "tells", paint: { "circle-radius": 8, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": "#ef4444", "circle-stroke-width": 2 } })

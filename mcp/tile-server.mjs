@@ -5,6 +5,8 @@
 //
 //   GET /tiles/{z}/{x}/{y}.png|jpg     one Web Mercator tile (XYZ), 256 px;
 //                                      {y}@2x or tilesize=512 for 512 px
+//   GET /tiles/{z}/{x}/{y}.pbf|mvt     the same overlays as a vector tile:
+//                                      contours, isoline, moundDetector, graticules
 //   GET /render.png|jpg                a viewport, like a WMS GetMap: lat, lng,
 //                                      zoom or bbox=w,s,e,n, width, height
 //   GET /openapi.json, /docs           the description, and a page to try it
@@ -39,9 +41,7 @@
 //   GET /sources, /sources/{id}        the terrain sources, by id
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id
 //   GET /algorithms                    the modes, and which engine draws them
-//   GET /vector/{z}/{x}/{y}.pbf        contours, iso-line, mound detector and graticule
-//                                      as vector tiles (modes=...; /vector/tilejson.json)
-//   GET /contours/{z}/{x}/{y}.pbf      the contour lines alone (`ele`, `level`)
+//   GET /tilejson.json                 a TileJSON; tile_format=pbf for the vector tiles
 //
 // With the browser, a tile is not rendered alone: the app draws the 2048 px block it belongs
 // to in one page, and the block is cut into tiles, all of them cached. The
@@ -276,6 +276,7 @@ export function start(port = PORT) {
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify({
         docs: "/docs", openapi: "/openapi.json", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
         tiles: "/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
+        vectorTiles: "/tiles/{z}/{x}/{y}.pbf?modes=contours,moundDetector",
         render: "/render.jpg?lat=45.83&lng=6.86&zoom=11&width=1024&height=640&modes=hillshade,contours",
         modes: MODE_NAMES, app: BASE_URL,
       }, null, 2))
@@ -302,32 +303,22 @@ export function start(port = PORT) {
         algorithms: MODE_NAMES.map((id) => ({ id, engine: DIRECT_MODES.includes(id) ? "direct" : "browser" })),
         note: "A tile is computed directly when every mode asked for is `direct` and the source can be read in the server (see /sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, tilted and split views, imagery and basemaps, building shadows, the sky background and the historical mode go to the browser.",
       }))
-      // Vector tiles: /vector/{z}/{x}/{y}.pbf?modes=contours,isoline,moundDetector,graticules
-      // (direct.mjs VECTOR_MODES), /contours/{z}/{x}/{y}.pbf the contours alone.
-      const v = u.pathname.match(/^\/(vector|contours)\/(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
+      // Vector tiles: the same address, .pbf or .mvt, with modes among
+      // direct.mjs VECTOR_MODES (unset: contours).
+      const v = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
       if (v) {
-        const [z, x, y] = v.slice(2, 5).map(Number)
+        const [z, x, y] = v.slice(1, 4).map(Number)
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
         const { view, rest, take } = viewOf(u.search)
-        const modes = v[1] === "contours" ? ["contours"] : (view.modes?.length ? view.modes : ["contours"])
+        const modes = view.modes?.length ? view.modes : ["contours"]
         const wrong = modes.filter((m) => !VECTOR_MODES.includes(m))
-        if (wrong.length) return send(400, "text/plain", `Not served as vector tiles: ${wrong.join(", ")} (vector modes: ${VECTOR_MODES.join(", ")})`)
+        if (wrong.length) return send(400, "text/plain", `Not served as vector tiles, ask for .png or .jpg: ${wrong.join(", ")} (vector modes: ${VECTOR_MODES.join(", ")})`)
         const how = await plan({ terrainSource: view.terrainSource, modes }, rest, keysFrom(take))
         if (how.engine !== "direct") return send(400, "text/plain", `Vector tiles cannot be made here: ${how.why}`)
         const key = `vector|${JSON.stringify([how.dem.tiles, modes, how.state])}|${z}/${x}/${y}`
         let bytes = await cached(key, "pbf")
         if (!bytes) { bytes = await vectorTile(how, modes, z, x, y, BASE_URL); store(key, "pbf", bytes) }
         return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
-      }
-      if (u.pathname === "/vector/tilejson.json") {
-        const q = new URLSearchParams(u.search), qs = q.toString()
-        const modes = (q.get("modes") || "contours").split(",").filter(Boolean)
-        const layers = { contours: ["contours"], isoline: ["isoband", "isoline", "isoline-cliff"], moundDetector: ["tells"], graticules: ["graticule"] }
-        return send(200, "application/json", JSON.stringify({
-          tilejson: "3.0.0", name: "Terrain Viewer vector layers", scheme: "xyz", minzoom: 0, maxzoom: MAX_ZOOM, bounds: [-180, -85.0511, 180, 85.0511],
-          tiles: [`${self}/vector/{z}/{x}/{y}.pbf${qs ? "?" + qs : ""}`],
-          vector_layers: modes.flatMap((m) => (layers[m] ?? []).map((id) => ({ id, fields: {} }))),
-        }))
       }
       const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
       if (t) {
@@ -339,9 +330,19 @@ export function start(port = PORT) {
       }
       if (u.pathname === "/WebMercatorQuad/tilejson.json" || u.pathname === "/tilejson.json") {
         const q = new URLSearchParams(u.search)
-        const fmt = q.get("tile_format") === "jpg" || q.get("tile_format") === "jpeg" ? "jpg" : "png"; q.delete("tile_format")
+        const asked = q.get("tile_format"); q.delete("tile_format")
         const scale = q.get("tile_scale") === "2" ? "@2x" : ""; q.delete("tile_scale")
         const qs = q.toString()
+        if (asked === "pbf" || asked === "mvt") {
+          const modes = (q.get("modes") || "contours").split(",").filter(Boolean)
+          const layers = { contours: ["contours"], isoline: ["isoband", "isoline", "isoline-cliff"], moundDetector: ["tells"], graticules: ["graticule"] }
+          return send(200, "application/json", JSON.stringify({
+            tilejson: "3.0.0", name: "Terrain Viewer vector layers", scheme: "xyz", minzoom: 0, maxzoom: MAX_ZOOM, bounds: [-180, -85.0511, 180, 85.0511],
+            tiles: [`${self}/tiles/WebMercatorQuad/{z}/{x}/{y}.${asked}${qs ? "?" + qs : ""}`],
+            vector_layers: modes.flatMap((m) => (layers[m] ?? []).map((id) => ({ id, fields: {} }))),
+          }))
+        }
+        const fmt = asked === "jpg" || asked === "jpeg" ? "jpg" : "png"
         return send(200, "application/json", JSON.stringify({
           tilejson: "2.2.0", name: "Terrain Viewer", scheme: "xyz", minzoom: 0, maxzoom: MAX_ZOOM, bounds: [-180, -85.0511, 180, 85.0511],
           tiles: [`${self}/tiles/WebMercatorQuad/{z}/{x}/{y}${scale}.${fmt}${qs ? "?" + qs : ""}`],

@@ -783,7 +783,7 @@
         ],
         "operationId": "tilejson",
         "summary": "A TileJSON for a view",
-        "description": "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address.",
+        "description": "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg; pbf or mvt for the vector tiles, then TileJSON 3.0 with the `vector_layers` of the modes) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address. `/tilejson.json` is the same.",
         "parameters": [
           {
             "name": "tile_format",
@@ -793,7 +793,9 @@
               "type": "string",
               "enum": [
                 "png",
-                "jpg"
+                "jpg",
+                "pbf",
+                "mvt"
               ],
               "default": "png"
             },
@@ -1325,14 +1327,14 @@
         }
       }
     },
-    "/vector/{z}/{x}/{y}.pbf": {
+    "/tiles/{z}/{x}/{y}.{vectorFormat}": {
       "get": {
         "tags": [
           "Tiles"
         ],
-        "operationId": "vector",
+        "operationId": "vectorTile",
         "summary": "The overlays as a vector tile",
-        "description": "A Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles. Past a layer's last zoom it comes from its deepest tile, scaled up. The plane slicer is a colour layer and is not served here.",
+        "description": "The tile address with `.pbf` or `.mvt`: a Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles; `/tiles/WebMercatorQuad/...` is the same. Past a layer's last zoom it comes from its deepest tile, scaled up. A mode drawn only as an image (hillshade, the plane slicer, ...) is refused: ask for `.png` or `.jpg`.",
         "parameters": [
           {
             "name": "z",
@@ -1360,6 +1362,19 @@
               "type": "integer"
             },
             "example": 728
+          },
+          {
+            "name": "vectorFormat",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pbf",
+                "mvt"
+              ]
+            },
+            "example": "pbf"
           },
           {
             "name": "terrainSource",
@@ -1415,132 +1430,6 @@
           },
           "400": {
             "description": "A mode is not served as vector tiles, or the source cannot be read by the direct engine"
-          }
-        }
-      }
-    },
-    "/vector/tilejson.json": {
-      "get": {
-        "tags": [
-          "Tiles"
-        ],
-        "operationId": "vectorTilejson",
-        "summary": "TileJSON of the vector tiles",
-        "description": "For a MapLibre `vector` source: the `/vector` address with the same query, and the layers of the modes asked for.",
-        "parameters": [
-          {
-            "name": "modes",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "contours",
-                  "isoline",
-                  "moundDetector",
-                  "graticules"
-                ]
-              }
-            },
-            "description": "The layers, comma-separated."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "TileJSON 3.0",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/contours/{z}/{x}/{y}.pbf": {
-      "get": {
-        "tags": [
-          "Tiles"
-        ],
-        "operationId": "contours",
-        "summary": "Contour lines as a vector tile (the contours of /vector)",
-        "description": "A Mapbox Vector Tile, layer `contours`, a line per elevation with `ele` (metres) and `level` (1 for a major line). The client places the labels. Sources the direct engine reads (see `/sources`).",
-        "parameters": [
-          {
-            "name": "z",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "example": 13
-          },
-          {
-            "name": "x",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "example": 4250
-          },
-          {
-            "name": "y",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "example": 2928
-          },
-          {
-            "name": "terrainSource",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The elevation source: an id from `/sources`, a tile address or a JSON configuration."
-          },
-          {
-            "name": "contourMinor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "number",
-              "default": 50
-            },
-            "description": "Minor interval in metres (0: major lines only)."
-          },
-          {
-            "name": "contourMajor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "number",
-              "default": 200
-            },
-            "description": "Major interval in metres."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The vector tile",
-            "content": {
-              "application/vnd.mapbox-vector-tile": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The source cannot be read by the direct engine"
           }
         }
       }
