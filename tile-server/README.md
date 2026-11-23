@@ -28,7 +28,7 @@ node openapi.mjs         # rewrites docs/public/tile-service-openapi.json
 node compare-engines.mjs http://localhost:3400 out/   # the two engines side by side
 ```
 
-Environment: `PORT` (3400), `TILE_CACHE_DIR` (rendered tiles, kept a week),
+Environment: `PORT` (3400), `TV_RENDER_CONCURRENCY` (2 browser pages), `TV_DIRECT_CONCURRENCY` (4 direct tiles), `TV_QUEUE_TIMEOUT` (30 s, then 503), `TV_RENDER_TIMEOUT` (90 s, then 504), `TILE_CACHE_DIR` (rendered tiles, kept a week),
 `TV_BASE_URL` (the app the browser engine opens, default
 `https://terrain-viewer.iconem.com/`), `CHROME_PATH`, `TV_SOFTWARE_GL=1`,
 `TV_ALLOWED_HOSTS`, `TV_MAPBOX_KEY` / `TV_MAPTILER_KEY` / `TV_CESIUM_ION_KEY` (the

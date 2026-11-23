@@ -52,11 +52,13 @@
 // then answer from the cache.
 //
 // Environment: PORT (3400), TV_BASE_URL (the app), TILE_CACHE_DIR, CHROME_PATH,
-// TV_SOFTWARE_GL, TV_RENDER_CONCURRENCY (2), TV_ALLOWED_HOSTS (comma-separated
+// TV_SOFTWARE_GL, TV_RENDER_CONCURRENCY (2), TV_DIRECT_CONCURRENCY (4),
+// TV_QUEUE_TIMEOUT (30 s), TV_RENDER_TIMEOUT (90 s), TV_ALLOWED_HOSTS (comma-separated
 // host names accepted in the Host header; unset: any), TV_MAPBOX_KEY,
 // TV_MAPTILER_KEY, TV_CESIUM_ION_KEY (the operator's keys, used when a
 // request gives none: anyone who can reach the service then uses them).
 import http from "node:http"
+import { AsyncLocalStorage } from "node:async_hooks"
 import { qgisProject, readView } from "./qgis-project.mjs"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -132,14 +134,57 @@ async function sweep() {
   } catch { /* no cache yet */ }
 }
 
-// A few pages at a time: each one is a whole app.
-let running = 0
-const waiting = []
-async function slot(work) {
-  if (running >= CONCURRENCY) await new Promise((go) => waiting.push(go))
-  running++
-  try { return await work() } finally { running--; waiting.shift()?.() }
+// Load protection. Several QGIS windows ask for hundreds of tiles at once and
+// cancel most of them while panning; before this every request was worked
+// out in full, the direct engine without any limit on the one thread Node
+// has, until /health itself stopped answering (seen 2026-11-23). Now:
+// - a request whose client has gone is dropped before its work starts;
+// - the browser engine runs TV_RENDER_CONCURRENCY pages at a time (each is
+//   a whole app), the direct engine TV_DIRECT_CONCURRENCY tiles at a time;
+// - a request that waited TV_QUEUE_TIMEOUT seconds for its turn gets a 503
+//   with Retry-After (QGIS leaves the tile blank and asks again later), one
+//   not answered within TV_RENDER_TIMEOUT seconds a 504.
+// The request's cancel signal and deadline reach the queues through
+// AsyncLocalStorage, so no function in between has to carry them.
+const DIRECT_CONCURRENCY = Math.max(1, Number(process.env.TV_DIRECT_CONCURRENCY || 4))
+const QUEUE_TIMEOUT = Math.max(1, Number(process.env.TV_QUEUE_TIMEOUT || 30)) * 1000
+const RENDER_TIMEOUT = Math.max(5, Number(process.env.TV_RENDER_TIMEOUT || 90)) * 1000
+const requestContext = new AsyncLocalStorage()
+const status = (code, message, extra = {}) => Object.assign(new Error(message), { status: code, ...extra })
+
+/** n tasks at a time; waiting ones leave the queue when their request is
+ *  cancelled or has waited QUEUE_TIMEOUT. `shared`: work several requests
+ *  wait on (a browser block), not dropped when the one that started it goes. */
+function limiter(n) {
+  let running = 0
+  const queue = []
+  // The releaser counts the waiter as running before waking it: counted on
+  // wake-up instead, one release could let several waiters through.
+  const next = () => { while (running < n && queue.length) { const w = queue.shift(); if (w.gone) continue; running++; w.go() } }
+  const run = async (work, { shared = false } = {}) => {
+    const ctx = requestContext.getStore()
+    const signal = shared ? undefined : ctx?.signal
+    if (signal?.aborted) throw status(499, "client went away")
+    if (running < n) running++
+    else {
+      await new Promise((go, fail) => {
+        const w = { go: () => { cleanup(); go() }, gone: false }
+        const drop = (e) => { w.gone = true; cleanup(); fail(e) }
+        const timer = setTimeout(() => drop(status(503, `busy: waited ${QUEUE_TIMEOUT / 1000} s for a turn, try again`, { retryAfter: 10 })), QUEUE_TIMEOUT)
+        const onAbort = () => drop(status(499, "client went away"))
+        const cleanup = () => { clearTimeout(timer); signal?.removeEventListener("abort", onAbort) }
+        signal?.addEventListener("abort", onAbort, { once: true })
+        queue.push(w)
+      })
+    }
+    try { return await work() } finally { running--; next() }
+  }
+  run.stats = () => ({ running, waiting: queue.filter((w) => !w.gone).length, limit: n })
+  return run
 }
+// A few pages at a time: each one is a whole app.
+const slot = limiter(CONCURRENCY)
+const directSlot = limiter(DIRECT_CONCURRENCY)
 
 /** The API keys of a request (mapboxKey, maptilerKey, cesiumIonKey), taken
  *  out of its parameters: they go to the direct engine's readers and to
@@ -202,7 +247,7 @@ async function tile(z, x, y, ext, query, scale = 1) {
       const key = `direct|${JSON.stringify([how.dem.tiles, how.layers, how.state])}|${size}|${z}/${x}/${y}`
       const have = await cached(key, ext)
       if (have) return { bytes: have, engine: "direct" }
-      const bytes = await draw(how, { world: size * 2 ** z, x0: x * size, y0: y * size, width: size, height: size, format: ext, baseUrl: BASE_URL })
+      const bytes = await directSlot(() => draw(how, { world: size * 2 ** z, x0: x * size, y0: y * size, width: size, height: size, format: ext, baseUrl: BASE_URL }))
       store(key, ext, bytes)
       return { bytes, engine: "direct" }
     }
@@ -226,7 +271,7 @@ async function tile(z, x, y, ext, query, scale = 1) {
         store(tileKey(col, row), ext, bytes)
       }
       return out
-    })).finally(() => blocks.delete(blockKey))
+    }), { shared: true }).finally(() => blocks.delete(blockKey))
     blocks.set(blockKey, work)
   }
   return { bytes: (await blocks.get(blockKey)).get(`${b.col}/${b.row}`), engine: "browser", why }
@@ -255,7 +300,7 @@ async function picture(ext, query) {
   let why
   if (engine !== "browser") {
     const how = flatView(view) ? await plan(view, rest, keys) : { engine: "browser", why: "3D, tilted, rotated or split views are drawn by the app" }
-    if (how.engine === "direct") return { bytes: await drawViewport(how, { lat, lng, zoom: zoom ?? 12, width, height, format: ext, baseUrl: BASE_URL }), engine: "direct" }
+    if (how.engine === "direct") return { bytes: await directSlot(() => drawViewport(how, { lat, lng, zoom: zoom ?? 12, width, height, format: ext, baseUrl: BASE_URL })), engine: "direct" }
     if (engine === "direct") throw Object.assign(new Error(`The direct engine cannot draw this: ${how.why}`), { status: 400 })
     why = how.why
   }
@@ -275,14 +320,29 @@ const allowedHosts = (process.env.TV_ALLOWED_HOSTS || "").split(",").map((s) => 
 
 export function start(port = PORT) {
   sweep(); setInterval(sweep, 6 * 60 * 60 * 1000).unref()
-  return http.createServer(async (req, res) => {
-    const send = (status, type, body, extra = {}) => { res.writeHead(status, { "content-type": type, "access-control-allow-origin": "*", ...extra }); res.end(body) }
+  return http.createServer((req, res) => {
+    // Cancelled when the client goes before the answer (QGIS cancels the
+    // tiles it no longer shows): queued work for it is dropped.
+    const controller = new AbortController()
+    res.on("close", () => { if (!res.writableFinished) controller.abort() })
+    const timer = setTimeout(() => {
+      if (res.headersSent) return
+      res.writeHead(504, { "content-type": "text/plain", "access-control-allow-origin": "*" }); res.end(`not drawn within ${RENDER_TIMEOUT / 1000} s`)
+      controller.abort()
+    }, RENDER_TIMEOUT)
+    res.on("close", () => clearTimeout(timer))
+    requestContext.run({ signal: controller.signal }, () => handle(req, res))
+  }).listen(port, () => console.error(`terrain-viewer tiles on http://localhost:${port}/ (app: ${BASE_URL})`))
+}
+
+async function handle(req, res) {
+    const send = (status, type, body, extra = {}) => { if (res.headersSent || res.destroyed) return; res.writeHead(status, { "content-type": type, "access-control-allow-origin": "*", ...extra }); res.end(body) }
     try {
       const host = (req.headers.host || "").replace(/:\d+$/, "")
       if (allowedHosts.length && !["localhost", "127.0.0.1", "[::1]", ...allowedHosts].includes(host)) return send(403, "text/plain", "Host not allowed")
       if (req.method !== "GET" && req.method !== "HEAD") return send(405, "text/plain", "GET only")
       const u = new URL(req.url, "http://x")
-      if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL }))
+      if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, browser: slot.stats(), direct: directSlot.stats() }))
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify({
         docs: "/docs", openapi: "/openapi.json", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
         tiles: "/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
@@ -331,7 +391,7 @@ export function start(port = PORT) {
         if (how.engine !== "direct") return send(400, "text/plain", `Vector tiles cannot be made here: ${how.why}`)
         const key = `vector|${JSON.stringify([how.dem.tiles, modes, how.state])}|${z}/${x}/${y}`
         let bytes = await cached(key, "pbf")
-        if (!bytes) { bytes = await vectorTile(how, modes, z, x, y, BASE_URL); store(key, "pbf", bytes) }
+        if (!bytes) { bytes = await directSlot(() => vectorTile(how, modes, z, x, y, BASE_URL)); store(key, "pbf", bytes) }
         return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
       }
       const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
@@ -373,9 +433,9 @@ export function start(port = PORT) {
       }
       send(404, "text/plain", "Not found: see /")
     } catch (e) {
-      send(e?.status || 500, "text/plain", String(e?.message ?? e))
+      if (e?.status === 499) return // the client went away: nobody to answer
+      send(e?.status || 500, "text/plain", String(e?.message ?? e), e?.retryAfter ? { "retry-after": String(e.retryAfter) } : {})
     }
-  }).listen(port, () => console.error(`terrain-viewer tiles on http://localhost:${port}/ (app: ${BASE_URL})`))
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

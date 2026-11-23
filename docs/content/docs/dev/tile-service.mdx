@@ -268,6 +268,11 @@ The browser engine suits a few views, a cache filled in advance, or pictures of 
 | `TV_BASE_URL` | The app to render | `https://terrain-viewer.iconem.com/` |
 | `TILE_CACHE_DIR` | Where tiles and pictures are kept a week | `/data/tiles` in the image |
 | `TV_RENDER_CONCURRENCY` | Pages rendered at the same time; each is a whole app | 2 |
+| `TV_DIRECT_CONCURRENCY` | Tiles the direct engine draws at the same time | 4 |
+| `TV_QUEUE_TIMEOUT` | Seconds a request may wait for its turn before a `503` with `Retry-After` | 30 |
+| `TV_RENDER_TIMEOUT` | Seconds before a request not yet answered gets a `504` | 90 |
+
+A request whose client has gone (QGIS cancels the tiles it no longer shows while you pan) is dropped before its work starts, so several QGIS windows no longer pile up work nobody waits for. `/health` reports each engine's `running`, `waiting` and `limit`.
 | `TV_ALLOWED_HOSTS` | Host names accepted in the `Host` header, comma-separated | any |
 | `TV_MAPBOX_KEY`, `TV_MAPTILER_KEY`, `TV_CESIUM_ION_KEY` | The operator's keys, used when a request gives none: anyone who can reach the service then uses them | none |
 
