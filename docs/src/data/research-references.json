@@ -672,6 +672,33 @@
  },
  {
   "category": "Landscape archaeology",
+  "authors": "Estrada-Belli, F., Canuto, M. A., Šprajc, I., Fernandez-Diaz, J. C.",
+  "year": 2025,
+  "title": "New regional-scale Classic Maya population density estimates and settlement distribution models through airborne lidar scanning",
+  "venue": "Journal of Archaeological Science: Reports 66",
+  "doi": "10.1016/j.jasrep.2025.105288",
+  "url": "https://doi.org/10.1016/j.jasrep.2025.105288",
+  "dataset": "airborne LiDAR (G-LiHT 2013, PACUNAM PLI 2016, Chactún 2016)",
+  "modes": [
+   "hillshade",
+   "LRM",
+   "SVF",
+   "mound detector"
+  ],
+  "study_area": {
+   "name": "Northern Petén, Guatemala",
+   "lat": 17.222,
+   "lng": -89.623,
+   "zoom": 12
+  },
+  "library_id": "custom-mx-gliht-yucatan-west",
+  "one_line": "Structure counts along lidar transects of northern and southern Petén and the Mexican lowlands scaled up to a regional Classic Maya population estimate.",
+  "group": "Settlements under forest",
+  "cites": [],
+  "oa_url": null
+ },
+ {
+  "category": "Landscape archaeology",
   "authors": "Inomata, T., Fernandez-Diaz, J. C., Triadan, D., et al.",
   "year": 2021,
   "title": "Origins and spread of formal ceremonial complexes in the Olmec and Maya regions revealed by airborne lidar",

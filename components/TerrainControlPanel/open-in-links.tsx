@@ -39,9 +39,15 @@ type OpenInDestination = {
   label: string
   buildUrl: (ctx: OpenInContext) => string | null
   /** True only for user-added entries (customOpenInDestinationsAtom) — gates
-   *  the delete icon in the dropdown row; the 5 built-in destinations below
+   *  the delete icon in the dropdown row; the built-in destinations below
    *  aren't removable. */
   isCustom?: boolean
+  /** Where the destination has data. Outside it the row is greyed out
+   *  and, when it is the remembered choice, the main button shows
+   *  `unavailableHint` as its tooltip and does
+   *  nothing, rather than opening a viewer on an empty map. */
+  isAvailable?: (ctx: OpenInContext) => boolean
+  unavailableHint?: string
 }
 
 // Viewport-aware "open the same spot in another historical-imagery viewer"
@@ -133,6 +139,30 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
       const eh = Math.round((156543.034 * Math.cos((lat * Math.PI) / 180) / Math.pow(2, zoom)) * 100)
       return `https://www.bing.com/maps?cp=${lat}~${lng}&lvl=${zoom.toFixed(1)}&style=3d&eh=${eh}&pi=${pitch.toFixed(2)}&dir=${bearing.toFixed(2)}`
     },
+  },
+  {
+    id: "shademap",
+    label: "ShadeMap (sun and shadows)",
+    // shademap.app/@{lat},{lng},{zoom}z,{epoch ms}t,{bearing}b,{pitch}p,{mode}m
+    // - read from its bundle's URL parser (main-*.js, Nov 2026): the path
+    // after "@" split on commas, each field's one-letter suffix sliced off.
+    // Mode 0 is plain shadows (1 is sun exposure over a range). The time is
+    // now, which is what ShadeMap would pick anyway; it is only there because
+    // the bearing and pitch fields come after it.
+    buildUrl: ({ lat, lng, zoom, bearing, pitch }) =>
+      `https://shademap.app/@${lat.toFixed(5)},${lng.toFixed(5)},${zoom.toFixed(2)}z,${Date.now()}t,${bearing.toFixed(1)}b,${pitch.toFixed(1)}p,0m`,
+  },
+  {
+    id: "lidarlens",
+    label: "LiDAR Lens (Britain and Ireland)",
+    // Tim Daw's LiDAR Lens (lidarlens.sarsen.org): open-government lidar DTMs
+    // of England, Wales, Scotland and Ireland under a movable relief lens.
+    // Its hash parser takes the OSM-style #map={z}/{lat}/{lng}; the bounds are
+    // the ones its config declares (48.85-61.6 N, 16 W-9 E, out to sea).
+    buildUrl: ({ lat, lng, zoom }) =>
+      `https://lidarlens.sarsen.org/#map=${Math.round(zoom)}/${lat.toFixed(5)}/${lng.toFixed(5)}`,
+    isAvailable: ({ lat, lng }) => lat >= 48.85 && lat <= 61.6 && lng >= -16 && lng <= 9,
+    unavailableHint: "LiDAR Lens covers Britain and Ireland only",
   },
   // Esri 3D Buildings (Scene Viewer, layer b8fec5af7dfe4866b1b8ac2d2800f282)
   // used to be a destination here and was removed: it is Esri's one global
@@ -317,7 +347,9 @@ export const OpenInLinksButton: React.FC<{
 
   const openDestination = useCallback((id: string) => {
     const dest = allDestinations.find((d) => d.id === id)
-    const url = dest?.buildUrl(buildContext())
+    const ctx = buildContext()
+    if (dest?.isAvailable && !dest.isAvailable(ctx)) return
+    const url = dest?.buildUrl(ctx)
     if (url) {
       track("actions-open-in", { target: id, custom: !!dest?.isCustom })
       window.open(url, "_blank", "noopener,noreferrer")
@@ -346,6 +378,11 @@ export const OpenInLinksButton: React.FC<{
   }, [setCustomDestinations, selectedId, setSelectedId])
 
   const buttonLabel = allDestinations.find((d) => d.id === selectedId)?.label ?? OPEN_IN_DESTINATIONS[0].label
+  // Evaluated at render, from the same state the camera writes, so a
+  // region-limited destination greys out as soon as the view leaves it.
+  const renderCtx = buildContext()
+  const selectedDest = allDestinations.find((d) => d.id === selectedId)
+  const selectedUnavailable = !!selectedDest?.isAvailable && !selectedDest.isAvailable(renderCtx)
 
   return (
     <div className={cn("flex items-stretch rounded-md border border-border/60 overflow-hidden shrink-0", className)}>
@@ -355,14 +392,17 @@ export const OpenInLinksButton: React.FC<{
             <button
               type="button"
               onClick={handleOpen}
-              className="cursor-pointer flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              // aria-disabled rather than disabled: a disabled button gets no
+              // pointer events, so the tooltip saying why would never show.
+              aria-disabled={selectedUnavailable}
+              className="cursor-pointer aria-disabled:cursor-not-allowed aria-disabled:opacity-50 flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
               <SquareArrowOutUpRight className="h-3 w-3 shrink-0" />
               <span>Open in {buttonLabel}</span>
             </button>
           }
         />
-        <TooltipContent><p>Open in {buttonLabel}</p></TooltipContent>
+        <TooltipContent><p>{selectedUnavailable ? selectedDest?.unavailableHint : `Open in ${buttonLabel}`}</p></TooltipContent>
       </Tooltip>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger
@@ -391,7 +431,11 @@ export const OpenInLinksButton: React.FC<{
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuRadioGroup value={selectedId} onValueChange={selectAndOpen}>
             {allDestinations.map((dest) => (
-              <DropdownMenuRadioItem key={dest.id} value={dest.id}>
+              <DropdownMenuRadioItem
+                key={dest.id}
+                value={dest.id}
+                disabled={!!dest.isAvailable && !dest.isAvailable(renderCtx)}
+              >
                 <span className="flex-1 truncate">{dest.label}</span>
                 {dest.isCustom && (
                   <Tooltip>

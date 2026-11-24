@@ -1,0 +1,65 @@
+---
+title: Related Work
+description: Datasets, viewers and papers close to Terrain Viewer (MERRA-2, ShadeMap, Mapricot shadows, LiDAR Lens, CutSheetRX, Aguacero, OpenGlobus), what each is and why it matters here, with a comparison of shadow techniques and the open status of the Petén lidar surveys
+---
+
+Projects seen in the wild that do something close to this app, feed it data, or show where it could go next. Each entry says what it is and why it matters here. The post that brought each one up is linked next to it.
+
+## Data
+
+- **[NASA MERRA-2](https://gmao.gsfc.nasa.gov/gmao-products/merra-2/data-access_merra-2/)** ([post](https://x.com/matthewwmullin/status/2124687112989716826)). NASA GMAO's global atmospheric reanalysis: hundreds of variables (wind, temperature, dust, aerosols, ozone, precipitation, soil water) every hour since 1980, at 0.5 × 0.625 degrees, combining satellite, ground and aircraft observations with a physics model. The raw files need a free Earthdata login. Why it matters: NASA GIBS publishes about thirty MERRA-2 monthly means as keyless, CORS-open Web Mercator tiles at fixed addresses (`MERRA2_*_Monthly`, to zoom 6, with a `default` time that follows the latest month), so they work as raster overlays with no server. The library has five of them as overlays: surface wind speed, 2 m air temperature, surface dust, aerosol optical thickness at 550 nm, and ozone at 50 hPa (search "MERRA-2"). Coarse, for regional context: the dust belt next to a desert site, the aerosol haze that degrades a given month's imagery. A dated version (pick a month) would go through the dated-imagery schema and is not done.
+
+## Sun and shadows
+
+- **[ShadeMap](https://shademap.app/)** ([post](https://x.com/simongerman600/status/2124012473623679463)). Ted Piotrowski's map of terrain, building and tree shadows at any date and hour worldwide, with sun-exposure hours over a date range. Why it matters: the reference for the question our Shadows mode and [Sun Position](/features/sun-position) answer for one moment. It is now an [Open In](/features/advanced/open-in) destination, carrying the position, zoom, bearing and pitch (`shademap.app/@lat,lng,{zoom}z,{time}t,{bearing}b,{pitch}p,0m`).
+- **[Mapricot shadows](https://mapricot.com/gallery/shadows/)** (same post, by Brad Simantel). A MapLibre gallery page with terrain and building shadows and a day and hour slider, hillshade and 3D light tied to the same sun. Why it matters: the closest thing to our shadow modes on the same map library, and a different way to compute them. See the comparison below.
+
+### Shadow techniques compared
+
+How each draws shadows, from reading Mapricot's page script (`/scripts/gallery/shadows.js`, unminified) and ShadeMap's npm bundle (`mapbox-gl-shadow-simulator` 0.68), against `lib/shadow-protocol.ts`, `lib/shadow-kernel.ts` and the building shadow layer here.
+
+| | Terrain Viewer | Mapricot | ShadeMap |
+|---|---|---|---|
+| Terrain shadows | Per tile, on the CPU (or a worker pool): one ray per pixel toward the sun's azimuth, up to the Search Radius in same-zoom pixels, over the tile padded by that radius; a `shadow://` raster tile draped like every other mode | Per view, on the GPU: the visible Terrarium tiles (zoom + 1, up to 48 tiles) stitched into one `R16F` texture, a WebGL2 full-screen shader marching up to 320 steps that grow 2 % each, stopping once the ray clears the highest point; drawn into a canvas source | Per view, on the GPU, as a MapLibre custom layer: fixed-step march with Earth curvature correction, DSM and canopy maps as input |
+| Shadow length | Bounded by the radius (a long low-sun shadow is cut off) | Bounded only by the view and the step budget | Bounded by the view |
+| Buildings | GPU: OSM footprints (OpenFreeMap) swept away from the sun by height / tan(altitude) into a mask, flat ground, from zoom 13 | GPU: each wall extruded as two triangles moved by height / tan(altitude), flat ground, from zoom 14 (Protomaps OSM buildings) | Building heights added to the height map, so they fall on slopes too |
+| Moving the sun | Terrain: re-marches every tile (elevation is cached); buildings: a repaint | A uniform change and one draw: real time, "play the day" animation | Real time |
+| Moving the map | Tiles stream as usual | Recomputed after the map settles (moveend, idle) | Recomputed per view |
+| Any DEM | Yes: every terrain source, DSMs included, at its own resolution | Terrarium only, in the code as published | Pluggable DEM, DSM upload |
+| Licence | This repo | Readable source with no licence (all rights reserved by default) | Closed, API key required, paid above a free tier (`UNLICENSED` on npm) |
+
+**Could it replace or complement ours?** Not replace: our tiles work on any terrain source, export, feed the iso-line engine, and stay correct in split views, none of which a single view canvas does. Complement, yes, and worth doing: a GPU view-wide march would remove the radius cut-off for long evening shadows and make the sun slider live for terrain as it already is for buildings. Two ideas to borrow: the early exit once the ray clears the view's highest point (cheap and exact, and our tile kernel could use it with the tile's padded maximum), and growing steps for distant samples. Mapricot's code has no licence, so any of this would be our own implementation of a published idea, not a port.
+
+## Viewers and tools
+
+- **[LiDAR Lens](https://lidarlens.sarsen.org/)** ([post](https://x.com/Timdaw/status/2117576517459046542)). Tim Daw's phone-friendly viewer of the open-government LiDAR terrain of England, Wales, Scotland and Ireland under a movable relief lens, with scheduled monuments and historic-environment records one tap away. It makes tiles on demand from the Environment Agency's WCS in a service worker, much like our WCS sources. Why it matters: the same "national LiDAR in the browser, no install" idea, tuned for heritage fieldwork. An Open In destination over its area (48.85° to 61.6° N, 16° W to 9° E), greyed out elsewhere (`#map={z}/{lat}/{lng}`).
+- **[CutSheetRX](https://senterfarms.com/programs/csrx/)** by Senter Farms ([post](https://x.com/traviss22/status/2124313915463184621)). A farmer-built Leaflet tool on USGS 3DEP bare earth (and national LiDAR in Canada, France, England, Switzerland and several more European countries): shaded relief, slope, contours, elevation profiles, drainage, cut and fill for land levelling, rice levees and pond dams with a 3D view. Why it matters: shows what earthworks tools on a national DTM look like for a practical audience, a direction for our draw tools (cut and fill volumes over a polygon). Not an Open In destination: it keeps its view in local storage, not in the URL.
+- **[Aguacero WX](https://aguacerowx.com/app/)** ([post](https://x.com/aguacerowx/status/2120555255469351267)). A weather model viewer that renders model fields as 3D volumes and iso-surfaces over the map (the jet stream as a 100 kt surface casting its shadow, polar vortex lobes above the radar). Why it matters: volumetric rendering on a web map, the kind of thing a MERRA-2 3D overlay would need. Not an Open In destination: its URL takes saved map and workflow ids, not a location.
+- **[OpenGlobus Mapterhorn examples](https://sandbox.openglobus.org/examples/mapterhorn)** ([post](https://x.com/openglobus/status/2122626568430248192)). OpenGlobus, an open-source WebGL globe, flying around the Matterhorn on Mapterhorn terrain, with atmosphere and smooth terrain. Why it matters: the same Mapterhorn tiles as our default source, in a globe engine with atmospheric scattering and free navigation, a reference for how our 3D view could look.
+- **Landslide runout in 3D** ([post](https://x.com/tokufxug/status/2122503319763730657)). A research prototype by Hemant Mahatara, not public yet: pick a slope and it computes where debris would flow, how fast and how far, on free 30 m elevation or your own DEM, with Google Open Buildings heights in 3D. Why it matters: a hazard model on the same global DEMs as our library, a step beyond our river REM view.
+
+## Mentions
+
+- **[Cyber Detective's OSINT tool collection](https://github.com/cipher387/osint_stuff_tool_collection/tree/main#satelliteaerial-imagery)** lists [historical-satellite.iconem.com](https://historical-satellite.iconem.com), this repo's historical mode, under Satellite/Aerial Imagery, right after Google Earth.
+
+## Maya lowlands lidar: the Petén paper and its data
+
+Estrada-Belli, F., Canuto, M. A., Šprajc, I., Fernandez-Diaz, J. C. (2025). [New regional-scale Classic Maya population density estimates and settlement distribution models through airborne lidar scanning](https://www.sciencedirect.com/science/article/pii/S2352409X25003219). *Journal of Archaeological Science: Reports* 66, 105288 (CC BY-NC-ND 4.0). Lidar transects across northern and southern Petén and the Mexican lowlands, counted for structures and scaled to a regional population estimate. Also on [Research References](/resources/research-references).
+
+Its Table 1 lists the lidar behind it. Where each one can be read, as of November 2026:
+
+| Dataset | Access | Licence | Format, size | In the app |
+|---|---|---|---|---|
+| G-LiHT 2013 (NASA Goddard, about 500 km², 3.3 pts/m²), reprocessed for archaeology (Britton et al.), western half, UTM 15N | [OpenTopography OT.112026.32615.1](https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.112026.32615.1), `opentopography.s3.sdsc.edu/raster/MX13W_Britton/MX13W_Britton_be.vrt` | CC BY 4.0 | 222 Float32 COGs behind one VRT, 0.5 m bare earth (6.7 GB); 0.33 m (14.8 GB) and 1 m (1.8 GB) DTMs as tiles without a VRT | Yes, remote: "G-LiHT 2013 Yucatan West" in the library |
+| Same, eastern half, UTM 16N | [OT.112026.32616.1](https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.112026.32616.1), `MX13E_Britton_be.vrt` | CC BY 4.0 | 234 COGs, 0.5 m (7.3 GB) | Yes, remote: "G-LiHT 2013 Yucatan East" |
+| G-LiHT 2013, NASA originals (AMIGA-Carb) | [glihtdata.gsfc.nasa.gov](https://glihtdata.gsfc.nasa.gov/) (DTM, CHM per flight as `.tar.gz`, no login, no CORS); LP DAAC `GLDTMT`, `GLCHMT` (GeoTIFF, Earthdata login) | NASA, public domain | 1 m DTM and canopy height GeoTIFFs, about 240 MB per flight | No: tar.gz or login-only, would need converting to COG and rehosting. The 2013 flights are in Mexico; the few that reach the Usumacinta border barely touch Petén |
+| Alianza Eredd 2013 (CartoData) | Nothing published found | Not public | | No |
+| Chactún, CHRP 2016 (NCALM, Optech Titan, 0.5 m), Campeche | Not on OpenTopography. Derived visualisations only: [figshare 10.6084/m9.figshare.22202395](https://doi.org/10.6084/m9.figshare.22202395) (Kokalj et al. 2023, sky-view factor, openness, slope and canopy height as zipped tiles) | CC BY 4.0 (the derivatives) | 1.1 GB and 0.2 GB zips, no elevation values | No (the derivatives could be an overlay, see below) |
+| PACUNAM Lidar Initiative 2016 (NCALM, 2,144 km², Canuto et al. 2018): Tikal, Holmul PLI-15 (2015/16), La Corona and the other blocks | Not public. Only the mapped features (causeways, terraces, field zones) are on [Dryad 10.5061/dryad.k51j708](https://doi.org/10.5061/dryad.k51j708) | | Vectors | No |
+
+None of the surveys over Petén itself is open. The open part of Table 1 is the G-LiHT transects in Mexico, already readable remotely from OpenTopography's CORS-open bucket, and the paper's Petén transects are best seen through the imagery and global models in the app until PACUNAM releases its rasters.
+
+Hosting options, if wanted:
+
+- **Remote, nothing hosted**: OpenTopography's VRT and COGs, as the library entries do. A 1 m VRT over the `DTM_1m/` tiles (a small XML file, which could live on a GitHub release asset of this repo or be built in the browser) would load faster at low zoom than the 0.5 m one, with no data copied.
+- **Rehosted on a release asset** (see [Releases](/dev/releases), `scripts/dataset-assets.mjs`, `datasets.lock.json`): the NASA G-LiHT 2013 canopy height models, public domain, converted from the per-flight tar.gz files to one COG per half. That gives a canopy-height overlay that OpenTopography does not publish as a raster. Several GB, so not done without approval.
