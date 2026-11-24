@@ -129,6 +129,32 @@ function vectorRenderer(mode) {
 }
 
 const esc = (t) => String(t).replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c])
+
+/** The modes with values (direct.mjs VALUE_MODES but colorRelief, the same
+ *  as elevation), in the project's order, with the range their grey ramp
+ *  starts with (natural units; none: QGIS estimates it). */
+export const VALUE_LAYERS = [
+  ["elevation", "Elevation (m)"], ["slope", "Slope (°)", [0, 60]], ["aspect", "Aspect (° from north)", [0, 360]],
+  ["curvature", "Curvature", [-0.01, 0.01]], ["tri", "Terrain Ruggedness (m)", [0, 50]], ["tpi", "Topographic Position (m)", [-20, 20]],
+  ["roughness", "Roughness (m)", [0, 50]], ["shapeIndex", "Shape Index", [-1, 1]], ["blobness", "Blobness", [0, 0.5]],
+  ["eigenRatio", "Eigenvalue Ratio", [0, 1]], ["orientation", "Dominant Orientation (°)", [0, 180]], ["lrm", "Local Relief Model (m)", [-20, 20]],
+  ["svf", "Sky View Factor", [0.6, 1]], ["openness", "Openness (°)", [75, 105]], ["localDominance", "Local Dominance (°)", [-5, 15]],
+]
+/** A mode's typical range of values, for a display stretch (a GIS's own
+ *  estimate, from the coarsest overview, is far too narrow). */
+export const VALUE_RANGE = Object.fromEntries(VALUE_LAYERS.filter((l) => l[2]).map(([m, , r]) => [m, r]))
+
+/** A GDAL WMS description (TMS minidriver) of a mode's values as Float32
+ *  GeoTIFF tiles of the service: GDAL, and so QGIS, rasterio or gdal_translate,
+ *  read it as one Float32 raster of the whole world, `level` its deepest zoom
+ *  (256 px tiles). `query`: the parameters every tile keeps. Served as
+ *  /gdal.xml. */
+export function gdalWmsXml(base, mode, query = "", level = 18) {
+  const url = `${base}/tiles/\${z}/\${x}/\${y}.tif?modes=${encodeURIComponent(mode)}${query ? "&" + query : ""}`
+  const W = 20037508.342789244
+  return `<GDAL_WMS><Service name="TMS"><ServerUrl>${esc(url)}</ServerUrl></Service><DataWindow><UpperLeftX>${-W}</UpperLeftX><UpperLeftY>${W}</UpperLeftY><LowerRightX>${W}</LowerRightX><LowerRightY>${-W}</LowerRightY><TileLevel>${level}</TileLevel><TileCountX>1</TileCountX><TileCountY>1</TileCountY><YOrigin>top</YOrigin></DataWindow><Projection>EPSG:3857</Projection><BlockSizeX>256</BlockSizeX><BlockSizeY>256</BlockSizeY><BandsCount>1</BandsCount><DataType>Float32</DataType><DataValues NoData="nan"/><ZeroBlockHttpCodes>204,404</ZeroBlockHttpCodes><ZeroBlockOnServerException>true</ZeroBlockOnServerException><MaxConnections>4</MaxConnections><Timeout>120</Timeout></GDAL_WMS>`
+}
+
 // QGIS's XYZ data source: key=value pairs, the tile address percent-encoded.
 // The vector tile provider does not decode the "?" (it asked for
 // `.pbf%3Fmodes=...`), so a vector source keeps it as is, as QGIS itself
@@ -151,7 +177,7 @@ export function qgisProjectXml(base, read) {
     // QGIS's own form of a layer id: a name and a UUID, here a stable one.
     const h = createHash("sha1").update(`${++n}|${source}`).digest("hex")
     const id = `${name.replace(/\W+/g, "_")}_${h.slice(0, 8)}_${h.slice(8, 12)}_${h.slice(12, 16)}_${h.slice(16, 20)}_${h.slice(20, 32)}`
-    const pipe = style ? `<pipe><rasterrenderer type="multibandcolor" opacity="${style.opacity ?? 1}" alphaBand="4" redBand="1" greenBand="2" blueBand="3" nodataColor=""><rasterTransparency/></rasterrenderer></pipe><blendMode>${style.blend ?? 0}</blendMode>` : ""
+    const pipe = style?.pipe ? style.pipe : style ?`<pipe><rasterrenderer type="multibandcolor" opacity="${style.opacity ?? 1}" alphaBand="4" redBand="1" greenBand="2" blueBand="3" nodataColor=""><rasterTransparency/></rasterrenderer></pipe><blendMode>${style.blend ?? 0}</blendMode>` : ""
     layers.push(`<maplayer type="${type}" autoRefreshTime="0" refreshOnNotifyEnabled="0"><id>${id}</id><datasource>${esc(source)}</datasource><layername>${esc(name)}</layername><srs>${SRS}</srs><provider>${provider}</provider>${pipe}${renderer}</maplayer>`)
     return `<layer-tree-layer id="${id}" name="${esc(name)}" source="${esc(source)}" providerKey="${provider}" checked="${checked ? "Qt::Checked" : "Qt::Unchecked"}" expanded="0"><customproperties/></layer-tree-layer>`
   }
@@ -185,6 +211,15 @@ export function qgisProjectXml(base, read) {
     return `<layer-tree-group name="${esc(g.group)}" checked="Qt::Checked" expanded="1"><customproperties/>${inner}</layer-tree-group>`
   }
   const tree = QGIS_TREE.map(group)
+  // The values under the colours, for analysis (raster calculator, zonal
+  // statistics, profiles): one Float32 layer per mode, read by GDAL from the
+  // service's GeoTIFF tiles (gdalWmsXml), in a group left unchecked and
+  // closed. Each starts with a grey ramp over a typical range.
+  const values = VALUE_LAYERS.map(([mode, name, range]) => {
+    const pipe = range ? `<pipe><rasterrenderer type="singlebandgray" opacity="1" alphaBand="-1" grayBand="1" gradient="BlackToWhite" nodataColor=""><rasterTransparency/><contrastEnhancement><minValue>${range[0]}</minValue><maxValue>${range[1]}</maxValue><algorithm>StretchToMinimumMaximum</algorithm></contrastEnhancement></rasterrenderer></pipe>` : ""
+    return add(name, gdalWmsXml(base, mode, kept, read?.valueLevel ?? 18), "gdal", "raster", false, pipe ? { pipe } : null)
+  })
+  tree.push(`<layer-tree-group name="Values (Float32, for analysis)" checked="Qt::Unchecked" expanded="0"><customproperties/>${values.join("")}</layer-tree-group>`)
   // The basemap, under everything: as the app draws it (the view's named or
   // dated source and its overlays, by the browser engine), the same as a
   // plain XYZ layer when the view gives one, and Google's hybrid.
@@ -238,8 +273,9 @@ const NOT_A_SETTING = /^show(?!ContourLabels|GraticuleLabels)|CustomStops|^hypso
  *  form (raster, vector, both), whether it is shading (opaque tiles,
  *  multiplied), the parameter that holds its opacity, and its settings with
  *  their types and defaults, from the app's URL reference (`params`, the
- *  `params` of generated/url-params.json). Served as /modes. */
-export function modesCatalog(params) {
+ *  `params` of generated/url-params.json), and for a mode with values
+ *  (`valueModes`, direct.mjs VALUE_MODES) their unit. Served as /modes. */
+export function modesCatalog(params, valueModes = {}) {
   const constant = (d) => typeof d === "string" && /^[A-Z][A-Z0-9_]+$/.test(d)
   const forMode = (mode) => {
     const re = MODE_PARAMS[mode] ?? new RegExp(`^${mode}(?=[A-Z])`)
@@ -250,7 +286,11 @@ export function modesCatalog(params) {
     const settings = forMode(mode)
     // shadowOpacity, buildingShadowOpacity: the singular.
     const opacity = settings.find((p) => p.key === `${mode}Opacity` || p.key === `${mode.replace(/s$/, "")}Opacity`)?.key
-    return { id: mode, name, form, shading: SHADING.has(mode), vector: VECTOR.has(mode), switches: MODES[mode], ...(opacity ? { opacityKey: opacity } : {}), settings: settings.filter((p) => p.key !== opacity) }
+    // values: the mode's values before the ramp, served as Float32 GeoTIFF
+    // tiles (.tif) and /gdal.xml, with their unit.
+    const v = valueModes[mode]
+    const range = VALUE_RANGE[mode]
+    return { id: mode, name, form, shading: SHADING.has(mode), vector: VECTOR.has(mode), switches: MODES[mode], ...(opacity ? { opacityKey: opacity } : {}), ...(v ? { values: { unit: v.unit, description: v.description, ...(range ? { range } : {}) } } : {}), settings: settings.filter((p) => p.key !== opacity) }
   }
   const group = (g) => ({ ...(g.group ? { group: g.group } : {}), ...(g.groups ? { groups: g.groups.map(group) } : {}), ...(g.items ? { items: g.items.map(item) } : {}) })
   return QGIS_TREE.map(group)

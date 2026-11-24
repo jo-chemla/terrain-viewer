@@ -36,6 +36,12 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
 - **Overlays** (contours, iso-line, mound candidates, plane slicer, graticule)
   are raster tiles as the app draws them; "vector" also loads the same features
   as vector tiles, styled in QGIS.
+- **Values**: the modes computed as numbers (elevation, slope, aspect,
+  curvature, TRI, TPI, roughness, LRM, sky view factor, openness, ...) have a
+  "values" box: it adds the mode's values before the colour ramp, in natural
+  units (degrees, metres, ...), as a Float32 raster that GDAL reads from the
+  service's `/gdal.xml`, for the raster calculator, zonal statistics or
+  Identify. It follows the mode's settings like the coloured layer.
 - **Open from link**: paste a share link; its modes are checked, their settings
   and opacities set, the terrain source picked, the canvas moved to its camera.
   The link's other parameters are kept in every layer's address.

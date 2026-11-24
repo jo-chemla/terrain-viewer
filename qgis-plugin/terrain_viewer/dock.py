@@ -22,7 +22,7 @@ try:
 except ImportError:  # pragma: no cover
     QgsOpacityWidget = None
 
-from .service import Catalog, ServiceError, tile_url, split_link, KEY_PARAMS, walk_modes
+from .service import Catalog, ServiceError, tile_url, values_url, split_link, KEY_PARAMS, walk_modes
 from .layers import LayerStack, PROP, tree_ranks
 
 SETTINGS = "terrain_viewer"
@@ -122,6 +122,12 @@ class ModeRow:
             self.vector.setToolTip("Also as vector tiles (the same features, styled in QGIS)")
             self.vector.toggled.connect(self.on_toggle)
             head.addWidget(self.vector)
+        self.numbers = None
+        if mode.get("values"):
+            self.numbers = QCheckBox("values")
+            self.numbers.setToolTip(f"Also the values before the colour ramp, a Float32 raster for analysis ({mode['values'].get('unit')}): {mode['values'].get('description', '')}")
+            self.numbers.toggled.connect(self.on_toggle)
+            head.addWidget(self.numbers)
         self.more = QToolButton()
         self.more.setText("⚙")
         self.more.setCheckable(True)
@@ -189,6 +195,8 @@ class ModeRow:
             out[self.mode["id"]] = (tile_url(base, self.mode, values, common), False)
         if self.mode.get("vector"):
             out[self.mode["id"] + ":vector"] = (tile_url(base, self.mode, values, common, vector=True), True)
+        if self.mode.get("values"):
+            out[self.mode["id"] + ":values"] = (values_url(base, self.mode, values, common), "values")
         return out
 
     def update(self):
@@ -198,6 +206,13 @@ class ModeRow:
             if self.mode.get("form") == "vector" and key.endswith(":vector"):
                 want = self.check.isChecked()
             layer = stack.find(key)
+            if vector == "values":
+                want = bool(self.numbers and self.numbers.isChecked() and self.check.isChecked())
+                if want or layer is not None:
+                    unit = self.mode["values"].get("unit")
+                    layer = stack.ensure_values(key, f"{self.mode['name']} (values{', ' + unit if unit and unit != '1' else ''})", self.path, url, self.mode["values"].get("range"))
+                    stack.set_visible(layer, want)
+                continue
             if not want and layer is None:
                 continue
             if want or layer is not None:
@@ -208,6 +223,8 @@ class ModeRow:
 
     def apply_style(self):
         for key in self.urls():
+            if key.endswith(":values"):
+                continue
             layer = self.dock.stack.find(key)
             self.dock.stack.style(layer, self.opacity_value(), self.mode.get("shading") and not key.endswith(":vector"))
 
@@ -357,17 +374,21 @@ class TerrainViewerDock(QDockWidget):
         """The layers this panel wrote earlier (a saved project): their
         checkboxes and settings read back from their addresses."""
         for key, row in self.rows.items():
-            for k in (key, key + ":vector"):
+            for k in (key, key + ":vector", key + ":values"):
                 layer = self.stack.find(k)
                 if layer is None:
                     continue
-                uri = QgsDataSourceUri()
-                uri.setEncodedUri(layer.source())
-                q = dict(parse_qsl(urlsplit(uri.param("url")).query))
+                if k.endswith(":values"):  # a GDAL source: the address itself
+                    q = dict(parse_qsl(urlsplit(layer.source()).query))
+                else:
+                    uri = QgsDataSourceUri()
+                    uri.setEncodedUri(layer.source())
+                    q = dict(parse_qsl(urlsplit(uri.param("url")).query))
                 row.set_values(q)
                 node = self.stack.node(layer)
                 visible = bool(node and node.itemVisibilityChecked())
-                for w in (row.check,) + ((row.vector,) if k.endswith(":vector") and row.vector else ()):
+                extra = (row.vector,) if k.endswith(":vector") and row.vector else (row.numbers,) if k.endswith(":values") and row.numbers else ()
+                for w in (row.check,) + extra:
                     w.blockSignals(True)
                     w.setChecked(w.isChecked() or visible)
                     w.blockSignals(False)
