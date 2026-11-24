@@ -1,4 +1,19 @@
-# Terrain Viewer QGIS plugin
+# QGIS plugins
+
+Two plugins live here:
+
+- **`terrain_viewer/`**, Terrain Viewer's modes as QGIS layers (below). MIT,
+  as the rest of the repository.
+- **`send2map_app/`**, "Open in": the place shown or clicked in QGIS opened in
+  Terrain Viewer, Google Earth, Bing Maps 3D, ShadeMap and the other
+  destinations of the web app's "Open in" list. It descends from NextGIS's
+  Send2GE (`send2google_earth`) and keeps its licence, GPL v2 or later; see
+  [its README](send2map_app/README.md) for the lineage and the destinations.
+
+Both support QGIS 3 and QGIS 4 (Qt 5 and Qt 6), and are checked headless in
+both (see Files).
+
+## Terrain Viewer
 
 Step 1 of the [plugin plan](../docs/content/docs/dev/qgis-plugin.mdx): a dock
 panel with the groups of the app's sidebar, whose checked modes are XYZ
@@ -8,13 +23,14 @@ API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 ## Install
 
 ```bash
-python make_zip.py          # dist/terrain_viewer-<version>.zip
+python make_zip.py          # dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
 ```
 
 In QGIS: Plugins > Manage and Install Plugins > Install from ZIP. Or, while
 working on it, link the folder into the profile's plugins folder (Windows:
 `%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\terrain_viewer`; QGIS 4
-uses `QGIS4`), then enable it in the plugin manager.
+uses `QGIS4`), then enable it in the plugin manager. `send2map_app` installs
+the same way, and replaces an earlier Send2MapApp in place (same folder name).
 
 It needs a tile service: a local one (`cd tile-server && pnpm start`, then
 `http://localhost:3400`) or a hosted one.
@@ -25,7 +41,7 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
   (the terrain source picker), `/modes` (the groups, each mode's settings with
   their types and defaults) and `/colorramps`. A mode or a setting added to the
   app reaches the panel when the service is updated, with no plugin release.
-- **Check a mode**: a layer is added to the "Terrain Viewer" group, in a
+- **Check a mode**: a layer is added to the "Terrain Viewer (live)" group, in a
   subgroup named as the app's panel group, stacked as the map stacks them.
   The gear button shows its opacity and settings; a changed setting rewrites
   the layer's address (half a second after the last change).
@@ -46,8 +62,12 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
   and opacities set, the terrain source picked, the canvas moved to its camera.
   The link's other parameters are kept in every layer's address.
 - **Freeze** copies the layers drawn now (the checked ones in the "Terrain
-  Viewer" group) into a new group right under it, named with the time and the
-  canvas centre and zoom ("Frozen 14:32 — 44.51, 4.00 z11"). XYZ, vector tile
+  Viewer (live)" group, the one the panel follows) into a new group right
+  under it, named with the date, the time and the canvas centre and zoom
+  ("Frozen 2026-11-24 14:05 — 44.51, 4.00 z11"); the live group stays on top.
+  It is found by a group property (`terrain_viewer/root`), so renaming it is
+  harmless; a project saved before 0.2.1, whose group is "Terrain Viewer", has
+  it renamed on Connect. XYZ, vector tile
   and values layers alike keep their address (every setting in it), opacity,
   blending, style and order. The copies are plain QGIS layers: they carry
   `terrain_viewer/frozen` instead of `terrain_viewer/layer`, so the panel never
@@ -66,7 +86,10 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
 | `terrain_viewer/layers.py` | The layers in the project: the group tree, creation, address rewrite, opacity, blend, vector tile style |
 | `terrain_viewer/dock.py` | The panel |
 | `terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.png` | The QGIS plugin around it |
-| `make_zip.py` | The installable zip |
-| `test_plugin.py` | A headless check against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`) |
+| `send2map_app/` | The "Open in" plugin: `destinations.py` (the URL builders, no QGIS import), `send2map_apptool.py` (the canvas as a camera, the map tool, opening a URL or a KML), `send2map_app.py` (toolbar, Web menu, canvas right-click menu) |
+| `make_zip.py` | The installable zips |
+| `test_plugin.py` | A headless check of `terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
+| `test_send2map.py` | A headless check of `send2map_app`, no network: `QT_QPA_PLATFORM=offscreen python-qgis test_send2map.py` |
+| `test_open_in.py`, `open_in_reference.mjs` | `send2map_app`'s destinations against the web app's (`open-in-links.tsx`, evaluated by Node): `python test_open_in.py`, no QGIS |
 
 Before publishing on plugins.qgis.org, `metadata.txt` needs an `email`.

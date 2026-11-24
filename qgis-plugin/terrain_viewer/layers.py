@@ -1,4 +1,4 @@
-"""The project's side: one QGIS layer per mode, in a "Terrain Viewer" group
+"""The project's side: one QGIS layer per mode, in a "Terrain Viewer (live)" group
 whose subgroups are the app's panel groups, stacked as the map stacks them.
 A layer is found again by its custom property, so a saved project picks up
 where it was."""
@@ -17,7 +17,13 @@ except (ImportError, AttributeError):  # QGIS 3.28
     from qgis.core import QgsWkbTypes
     POINT, LINE, POLYGON = QgsWkbTypes.PointGeometry, QgsWkbTypes.LineGeometry, QgsWkbTypes.PolygonGeometry
 
-ROOT_NAME = "Terrain Viewer"
+# The group the panel follows. Named "(live)" so it reads apart from the
+# frozen copies under it; found by its property, so renaming it is harmless,
+# and a project saved before the rename (a group named "Terrain Viewer") is
+# adopted and renamed.
+ROOT_NAME = "Terrain Viewer (live)"
+LEGACY_ROOT_NAME = "Terrain Viewer"
+ROOT_PROP = "terrain_viewer/root"
 PROP = "terrain_viewer/layer"  # "<mode>", "<mode>:vector" or "<mode>:values"
 # A frozen copy carries this one instead of PROP, so the panel never finds,
 # rewrites or reads it back.
@@ -97,9 +103,19 @@ class LayerStack:
     # -- the tree ---------------------------------------------------------
     def root(self, create=True):
         tree = self.project.layerTreeRoot()
-        g = tree.findGroup(ROOT_NAME)
+        groups = [c for c in tree.children() if isinstance(c, QgsLayerTreeGroup)]
+        g = next((c for c in groups if c.customProperty(ROOT_PROP)), None)
+        if g is None:
+            g = tree.findGroup(ROOT_NAME)
+        if g is None:
+            old = tree.findGroup(LEGACY_ROOT_NAME)
+            if old is not None and any(n.layer() is not None and n.layer().customProperty(PROP) for n in old.findLayers()):
+                old.setName(ROOT_NAME)
+                g = old
         if g is None and create:
             g = tree.insertGroup(0, ROOT_NAME)
+        if g is not None and not g.customProperty(ROOT_PROP):
+            g.setCustomProperty(ROOT_PROP, True)
         return g
 
     def _rank_of(self, node, path):

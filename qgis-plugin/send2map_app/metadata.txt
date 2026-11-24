@@ -1,0 +1,28 @@
+[general]
+name=Send2MapApp
+qgisMinimumVersion=3.22
+qgisMaximumVersion=4.99
+supportsQt6=True
+description=Opens the place shown or clicked in QGIS in Terrain Viewer, Google Earth (web and Pro), Google Maps 3D, Bing Maps 3D, ESRI Wayback, ShadeMap, LiDAR Lens and other viewers.
+about=A toolbar button and a map canvas right-click menu, "Open in": the current view or the point clicked opens in another viewer at the same place and scale. The destinations are the web app Terrain Viewer's "Open in" list (Iconem River-REM, Iconem Search-EO, ESRI Wayback, Google Maps 3D, Google Earth web historical and 3D, Bing Maps 3D, ShadeMap, LiDAR Lens, BBBike MapCompare), plus Terrain Viewer itself, Iconem Historical Satellite, Maxar, and Google Earth Pro on the desktop through a KML file. Derived from NextGIS's Send2GE (send2google_earth) plugin by Maxim Dubinin, GPL v2 or later.
+version=0.4.0
+author=Maxim Dubinin (NextGIS), Jonathan Chemla (Iconem)
+homepage=https://terrain-viewer.iconem.com/docs/dev/qgis-plugin#send2mapapp-open-in
+tracker=https://github.com/Iconem/terrain-viewer/issues
+repository=https://github.com/Iconem/terrain-viewer
+category=Web
+icon=icons/icon-calendar_22.png
+tags=google earth,google maps,bing,wayback,historical imagery,open in,terrain
+changelog=0.4.0
+    * In the Terrain Viewer repository (qgis-plugin/send2map_app)
+    * Every "Open in" destination of the Terrain Viewer web app, plus Terrain Viewer itself
+    * The current view or the point clicked, at the canvas's scale and rotation
+    * Map canvas right-click menu "Open in"
+    * Opens with the system browser on Windows, macOS and Linux; Google Earth Pro through a KML file
+    * QGIS 3.22 to 4.x (Qt 5 and Qt 6)
+  0.3.1
+    * Iconem additions: Iconem Historical, Maxar, ESRI Wayback, Google Earth web
+  0.3
+    * Update to QGIS3 (NextGIS)
+experimental=False
+deprecated=False

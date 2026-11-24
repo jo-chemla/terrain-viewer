@@ -293,8 +293,8 @@ class TerrainViewerDock(QDockWidget):
 
         freeze = QHBoxLayout()
         freeze_btn = QPushButton("Freeze")
-        freeze_btn.setToolTip("Copy the layers drawn now into a new group, every setting kept in their addresses; "
-                              "the panel never changes the copies")
+        freeze_btn.setToolTip("Copy the layers drawn now from the \"Terrain Viewer (live)\" group into a new dated "
+                              "group under it, every setting kept in their addresses; the panel never changes the copies")
         freeze_btn.clicked.connect(self.freeze)
         freeze.addStretch(1)
         freeze.addWidget(freeze_btn)
@@ -497,7 +497,7 @@ class TerrainViewerDock(QDockWidget):
         """The layers drawn now copied into a new group named with the time
         and the place, every setting burnt into their addresses."""
         self.flush()  # a setting changed less than half a second ago
-        name = "Frozen " + time.strftime("%H:%M")
+        name = "Frozen " + time.strftime("%Y-%m-%d %H:%M")
         place = self.place()
         if place:
             name += f" — {place[0]:.2f}, {place[1]:.2f} z{round(place[2])}"

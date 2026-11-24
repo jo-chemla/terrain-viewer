@@ -5,6 +5,7 @@ must not follow a later panel change), renders the canvas
 extent to PNGs and prints each layer's state."""
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qgis.core import QgsApplication, QgsProject, QgsMapSettings, QgsMapRendererParallelJob, QgsRectangle, QgsCoordinateReferenceSystem, QgsPointXY, Qgis
@@ -159,8 +160,19 @@ for k in ("svf", "slope", "slope:values", "contours", "contours:vector"):
 group2 = dock.freeze()
 roots = [c.name() for c in QgsProject.instance().layerTreeRoot().children()]
 print("tree roots after two freezes:", roots)
-if not (group2 and roots[0] == "Terrain Viewer" and roots[1] == group2.name() and group.name() in roots[2:] and group.name() != group2.name()):
+if not (group2 and roots[0] == "Terrain Viewer (live)" and group2.name().startswith("Frozen " + time.strftime("%Y-%m-%d")) and roots[1] == group2.name() and group.name() in roots[2:] and group.name() != group2.name()):
     failures.append("freeze: groups do not stack under the live one")
+
+# 2c. A project saved before the live group was renamed: its "Terrain Viewer"
+# group is adopted and renamed, the frozen groups left alone.
+from terrain_viewer.layers import ROOT_PROP, ROOT_NAME  # noqa: E402
+live_group = dock.stack.root(create=False)
+live_group.setName("Terrain Viewer")
+live_group.removeCustomProperty(ROOT_PROP)
+adopted = dock.stack.root(create=False)
+print("legacy group adopted:", adopted is not None and adopted.name(), adopted is live_group)
+if adopted is not live_group or adopted.name() != ROOT_NAME or not adopted.customProperty(ROOT_PROP):
+    failures.append("legacy live group not adopted")
 
 # 3. A saved project read back: the checkboxes come back from the layers.
 path = os.path.join(out, "plugin-test.qgz")
