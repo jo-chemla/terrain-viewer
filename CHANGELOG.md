@@ -1,3 +1,14 @@
+# Changelog — geotiff.js 3
+
+#### TL;DR
+
+- **geotiff.js 2.1.3 → 3.0.5** in the app, as the tile service, the MCP server and `@geomatico/maplibre-cog-protocol` already had: one copy in the main chunk instead of two. Main chunk 6,467 → 6,428 kB (gzip 1,881 → 1,869 kB); `dist/assets` 192 kB smaller. No change to what the app shows.
+
+#### Details
+
+- 3.0's breaking changes met: IFD tags are read with `getValue()` / `loadValueIndexed()` (the offset and byte-count arrays are lazy), `getGDALMetadata()` is async (the local COG check read `STATISTICS_MINIMUM` from a promise and would have lost it silently), `Pool.decode()` is gone (we only pass the pool to `readRasters`). The decoder worker is still an inline blob, so nothing changes in Vite.
+- `readRastersSparse` (`lib/float32dem-protocol.ts`) stays: 3.0 now synthesises a block whose byte count is 0, but fills it with `GDAL_NODATA || 0`, so a float hole tagged `nan` read as 0 m. It now looks up each block's offset and count lazily.
+- `lib/float-geotiff.test.ts` (offline): a Float32 and an RGBA GeoTIFF from our writer decode with geotiff 3 (values, NaN, bbox, CRS), and a sparse strip reads as NaN. `node scripts/test-lib.mjs lib/float-geotiff.test.ts`.
 # Changelog — Tile Service: STAC Provenance, API Reference Order
 
 #### TL;DR

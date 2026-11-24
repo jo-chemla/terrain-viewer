@@ -172,7 +172,7 @@ export async function validateLocalCogFile(file: File): Promise<LocalCogValidati
     const nodataRaw = image.getGDALNoData()
     const nodata = typeof nodataRaw === "number" && !Number.isNaN(nodataRaw) ? nodataRaw : null
     let minimum: number | null = null
-    try { const m = (image.getGDALMetadata() ?? {}) as Record<string, string>; const v = parseFloat(m.STATISTICS_MINIMUM); if (isFinite(v)) minimum = v } catch { /* no metadata */ }
+    try { const m = ((await image.getGDALMetadata()) ?? {}) as Record<string, string>; const v = parseFloat(m.STATISTICS_MINIMUM); if (isFinite(v)) minimum = v } catch { /* no metadata */ }
     return { isTiled: image.isTiled, hasOverviews: imageCount > 1, epsg, nodata, minimum }
   } catch {
     return null

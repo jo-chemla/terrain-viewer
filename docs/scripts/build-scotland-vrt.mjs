@@ -54,10 +54,9 @@ async function header(key) {
     try {
       const tiff = await fromUrl(url)
       const img = await tiff.getImage(0)
-      const fd = img.fileDirectory
       const [sx, sy] = img.getResolution()
       const [ox, oy] = img.getOrigin()
-      const nd = fd.GDAL_NODATA != null ? Number(String(fd.GDAL_NODATA).replace(/\0/g, "")) : null
+      const nd = img.getGDALNoData() // geotiff 3: IFD tags are read through getValue(), not plain fields
       const levels = await tiff.getImageCount()
       return { key, url, w: img.getWidth(), h: img.getHeight(), sx: Math.abs(sx), sy: Math.abs(sy), ox, oy, nd, levels }
     } catch (e) {

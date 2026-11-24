@@ -19,23 +19,24 @@ import { pixelView, writeTerrariumPx } from "./elevation-encoding"
  * block go straight through untouched.
  */
 export async function readRastersSparse(image: GeoTIFFImage) {
+  // geotiff 3 reads the offset/byte-count arrays lazily (ImageFileDirectory
+  // deferred arrays) and already synthesises blocks whose byte count is 0, but
+  // fills them with GDAL_NODATA || 0: a float hole then reads as 0 m (or as the
+  // sentinel) instead of NaN, and a zero OFFSET with a non-zero count still
+  // throws. So the block lookup is still shadowed, one index at a time.
   const fd = image.fileDirectory
-  const counts: ArrayLike<number> | undefined = fd.TileByteCounts ?? fd.StripByteCounts
-  const offsets: ArrayLike<number> | undefined = fd.TileOffsets ?? fd.StripOffsets
-  let hasEmpty = false
-  if (counts && offsets) {
-    for (let i = 0; i < counts.length; i++) if (counts[i] === 0 || offsets[i] === 0) { hasEmpty = true; break }
-  }
-  if (!hasEmpty || !counts || !offsets) return image.readRasters()
+  const offsetsTag = image.isTiled ? "TileOffsets" : "StripOffsets"
+  const countsTag = image.isTiled ? "TileByteCounts" : "StripByteCounts"
+  if (!fd.hasTag(offsetsTag) || !fd.hasTag(countsTag)) return image.readRasters()
 
   const tileW = image.getTileWidth()
   const tileH = image.getTileHeight()
   const perRow = Math.ceil(image.getWidth() / tileW)
   const perCol = Math.ceil(image.getHeight() / tileH)
   const bytesPerPixel = image.getBytesPerPixel()
-  const bits: number = fd.BitsPerSample[0]
+  const bits: number = (fd.getValue("BitsPerSample") ?? [32])[0]
   const isFloat = image.getSampleFormat() === 3
-  const nodataTag = fd.GDAL_NODATA !== undefined ? parseFloat(String(fd.GDAL_NODATA)) : NaN
+  const nodataTag = image.getGDALNoData() ?? NaN
   const fill = isFloat ? NaN : Number.isFinite(nodataTag) ? nodataTag : 0
   const { littleEndian } = image
   const blank = new ArrayBuffer(tileW * tileH * bytesPerPixel)
@@ -55,8 +56,9 @@ export async function readRastersSparse(image: GeoTIFFImage) {
   // shadowing it on the one image is enough and nothing else is affected.
   ;(image as unknown as { getTileOrStrip: typeof original }).getTileOrStrip = async (x, y, sample, poolOrDecoder, signal) => {
     const index = image.planarConfiguration === 2 ? sample * perRow * perCol + y * perRow + x : y * perRow + x
-    if (counts[index] === 0 || offsets[index] === 0) {
-      return { x, y, sample, data: blank.slice(0) } as unknown as ArrayBuffer
+    const [offset, count] = await Promise.all([fd.loadValueIndexed(offsetsTag, index), fd.loadValueIndexed(countsTag, index)])
+    if (!Number(count) || !Number(offset)) {
+      return { x, y, sample, data: blank.slice(0) } as Awaited<ReturnType<typeof original>>
     }
     return original(x, y, sample, poolOrDecoder, signal)
   }

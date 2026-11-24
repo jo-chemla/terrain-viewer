@@ -76,7 +76,7 @@
     "fflate": "^0.8.3",
     "file-saver": "2.0.5",
     "geogrid-maplibre-gl": "^0.2.4",
-    "geotiff": "^2.x",
+    "geotiff": "^3.0.5",
     "jiti": "2.7.0",
     "jotai": "2.20.2",
     "lerc": "^4.2.0",
