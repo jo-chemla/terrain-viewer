@@ -170,9 +170,6 @@ DESTINATIONS = [
     Destination("bing-maps-3d", "Bing Maps 3D", _bing, icon=THEME_3D),
     Destination("shademap", "ShadeMap (sun and shadows)",
                 lambda c: f"https://shademap.app/@{to_fixed(c.lat, 5)},{to_fixed(c.lng, 5)},{to_fixed(c.zoom, 2)}z,{c.now_ms}t,{to_fixed(c.bearing, 1)}b,{to_fixed(c.pitch, 1)}p,0m"),
-    # No location in its URL: opens at its own first preset (Manhattan).
-    Destination("mapricot-shadows", "Mapricot shadows (opens at its own place)",
-                lambda c: "https://mapricot.com/gallery/shadows/"),
     Destination("bbbike-mapcompare", "BBBike MapCompare",
                 lambda c: f"https://mc.bbbike.org/mc/?lon={js_str(c.lng)}&lat={js_str(c.lat)}&zoom={js_round(c.zoom)}&num=4&mt0=mapnik-german&mt1=cyclemap&mt2=bing-hybrid"),
     Destination("lidarlens", "LiDAR Lens (Britain and Ireland)",

@@ -99,8 +99,8 @@ const endpointOf = (u: string) => {
 const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
   { key: "national", title: "Nation-wide", blurb: "Published by a national mapping agency, covering the whole country." },
   { key: "global", title: "Global", blurb: "Worldwide and polar products from research consortia." },
-  { key: "regional", title: "Sub-national", blurb: "A state, a province, an island or a region - roughly 50 to 300 km across. Left out of Load all." },
-  { key: "city", title: "City and single-survey", blurb: "One city or one flight line, a few kilometres across. The finest data in the library, and useful for almost nowhere else. Left out of Load all." },
+  { key: "regional", title: "Sub-national", blurb: "A state, a province, an island or a region - roughly 50 to 300 km across." },
+  { key: "city", title: "City and single-survey", blurb: "One city or one flight line, a few kilometres across. The finest data in the library, and useful for almost nowhere else." },
 ]
 
 /** Above this width (km) an entry is not a city survey, however it was filed.
@@ -221,7 +221,7 @@ export function LibraryDialogHost() {
  * Picker for the shipped sample library. "Load Sample Sources" used to dump the
  * whole list into the user's BYOD sources in one go; with ~50 national datasets
  * that is more noise than help, so this lists them by scope and lets each be
- * added or removed individually, with Load all / Clear all for the bulk case.
+ * added or removed individually.
  *
  * Membership is by id, so a row shows a minus when the user's list already holds
  * that sample — even a copy edited locally — and a plus otherwise. Adding a row
@@ -427,7 +427,6 @@ export function SampleSourcesModal<T extends SampleLike>({
   const matchCount = useMemo(() => Object.values(grouped).reduce((n, secs) => n + Object.values(secs).reduce((m, rows) => m + rows.length, 0), 0), [grouped])
   const otherCount = useMemo(() => (showTabs && q ? libraryMatchCount(otherKind, q) : 0), [showTabs, q, otherKind])
 
-  const loadAllSet = samples.filter((s) => s.loadWithSamples !== false)
   const loadedCount = samples.filter((s) => presentIds.has(s.id)).length
 
   const Row = ({ s }: { s: T | BrowseRow }) => {
@@ -599,12 +598,12 @@ export function SampleSourcesModal<T extends SampleLike>({
         <div data-slot="dialog-header" className="flex min-w-0 flex-col gap-2 break-words text-center sm:text-left">
           <h2 id="library-dialog-title" data-slot="dialog-title" className="min-w-0 text-lg leading-none font-semibold break-words flex items-center gap-2">{title} <CopyModalLinkButton param="openLibrary" value={stacTarget === "basemap" ? "basemap" : "terrain"} label={`the ${stacTarget === "basemap" ? "Basemap" : "Terrain"} library`} /></h2>
           <p id="library-dialog-description" data-slot="dialog-description" className="text-muted-foreground min-w-0 text-sm break-words">
-            {loadedCount} of {samples.length} in your list. Add or remove one at a time, or take the whole set.
+            {loadedCount} of {samples.length} in your list. Add or remove one at a time.
           </p>
         </div>
         {/* The tabs and the search share a row: the search on the right,
             wrapping under the tabs (full width) when the dialog is narrow.
-            The bulk actions stay on the row below. */}
+            The resolution toggle (terrain) stays on the row below. */}
         <div className="flex flex-wrap items-end gap-x-4 gap-y-2 min-w-0">
           {showTabs && (
             <div role="tablist" aria-label="Library" className="flex items-end gap-1 border-b flex-1 min-w-0 self-stretch">
@@ -616,8 +615,8 @@ export function SampleSourcesModal<T extends SampleLike>({
                   <button key={k} role="tab" aria-selected={active} type="button"
                     onClick={() => switchTab(k)}
                     title={n !== null ? `${n} ${n === 1 ? "match" : "matches"} in the ${t.label} library` : `The ${t.label} library`}
-                    className={`flex items-center gap-2 min-w-0 px-4 py-2 -mb-px border-b-2 text-base cursor-pointer ${active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                    <t.icon className="h-5 w-5 shrink-0" />
+                    className={`flex items-center gap-1.5 min-w-0 px-3.5 py-1.5 -mb-px border-b-2 text-[15px] cursor-pointer ${active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                    <t.icon className="h-[18px] w-[18px] shrink-0" />
                     <span className="truncate">{t.label}</span>
                     {n !== null && <span className="text-xs font-normal text-muted-foreground tabular-nums">{n}</span>}
                   </button>
@@ -630,21 +629,15 @@ export function SampleSourcesModal<T extends SampleLike>({
             <Input autoFocus placeholder="Filter datasets…" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-8 cursor-text h-9" />
           </div>
         </div>
+        {compareToMapterhorn && hasBulk && (
         <div className="flex items-center gap-2 flex-wrap">
-          <Button className="cursor-pointer" onClick={() => add(loadAllSet)}>
-            <Plus className="h-4 w-4" /> Load all
-          </Button>
-          <Button variant="outline" className="cursor-pointer" onClick={() => remove(samples)} disabled={loadedCount === 0}>
-            <Minus className="h-4 w-4" /> Clear all
-          </Button>
-          {compareToMapterhorn && hasBulk && (
             <div className="ml-auto flex items-center gap-1 text-xs" title="Grade by the grid the live API streams (what this viewer renders) or by the finest grid the agency advertises for bulk download (what Mapterhorn would ingest)">
               <span className="text-muted-foreground mr-1">Resolution:</span>
               <Button size="sm" variant={metric === "api" ? "secondary" : "ghost"} className="h-7 cursor-pointer" onClick={() => setMetric("api")}>API-served</Button>
               <Button size="sm" variant={metric === "bulk" ? "secondary" : "ghost"} className="h-7 cursor-pointer" onClick={() => setMetric("bulk")}>Best bulk GSD</Button>
             </div>
-          )}
         </div>
+        )}
         <div className="overflow-y-auto pr-1 -mr-1 space-y-4">
           {showTabs && q && matchCount <= FEW_MATCHES && otherCount > 0 && (
             <div className="flex items-center gap-2 flex-wrap rounded-md border border-dashed px-3 py-2 text-sm min-w-0">

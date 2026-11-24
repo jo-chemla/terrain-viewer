@@ -1,6 +1,6 @@
 ---
 title: Open In
-description: Hand the current viewport off to other web map viewers — River-REM, Search-EO, ESRI Wayback, Google Earth/Maps, Bing Maps 3D, ShadeMap, Mapricot shadows, BBBike, LiDAR Lens, or your own URL template
+description: Hand the current viewport off to other web map viewers — River-REM, Search-EO, ESRI Wayback, Google Earth/Maps, Bing Maps 3D, ShadeMap, BBBike, LiDAR Lens, or your own URL template
 ---
 
 The **Open in …** split button (bottom of the General section; also in the historical timeline footer) opens the current viewport in another web viewer, carrying the camera position over so you land on the same spot. Picking a destination from the dropdown opens it immediately and remembers it as the default for the main button.
@@ -19,7 +19,6 @@ The **Open in …** split button (bottom of the General section; also in the his
 - **Google Earth 3D (web)** — [earth.google.com/web](https://earth.google.com/web/) — oblique 3D framing, no historical layer
 - **Bing Maps 3D** — [bing.com/maps](https://www.bing.com/maps) — Bing's photogrammetry view, with the camera height, heading and tilt carried over
 - **ShadeMap (sun and shadows)** — [shademap.app](https://shademap.app/) — terrain, building and tree shadows at the current time, with the bearing and pitch carried over (`/@lat,lng,{zoom}z,{time}t,{bearing}b,{pitch}p,0m`)
-- **Mapricot shadows (opens at its own place)** — [mapricot.com/gallery/shadows](https://mapricot.com/gallery/shadows/) — terrain shadows by day of the year and time of day. It reads no location from its URL (neither query nor hash), so it opens at its first preset, Manhattan; find the place with its search box
 - **BBBike MapCompare** — [mc.bbbike.org/mc](https://mc.bbbike.org/mc/) — four basemaps of the same viewport side by side
 - **LiDAR Lens (Britain and Ireland)** — [lidarlens.sarsen.org](https://lidarlens.sarsen.org/) — open-government LiDAR terrain models of England, Wales, Scotland and Ireland under a movable relief lens, with historic-environment records (`#map={z}/{lat}/{lng}`). Greyed out when the view is outside its bounds (48.85° to 61.6° N, 16° W to 9° E). Its terrain is fixed when the site is built (one configuration per country, tiles made by its own worker from each agency's service), and nothing in its URL or settings takes another elevation source such as Mapterhorn, so it cannot open elsewhere; it is last in the list for that reason
 

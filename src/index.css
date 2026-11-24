@@ -366,6 +366,19 @@
   color: inherit;
   opacity: 0.85;
 }
+/* Focus on the "i": the vendor draws a blue glow on any :focus of the
+   button (a mouse click included) and the base layer adds an outline, both
+   on the 29px button rather than the box, so a click left a ring that cut
+   across the rounded card. No ring for pointer focus; for keyboard focus
+   the ring goes on the whole box, with the box's own radius. */
+.maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button:focus,
+.maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact:has(.maplibregl-ctrl-attrib-button:focus-visible) {
+  box-shadow: 0 0 0 2px var(--ring);
+}
 
 /* Zoom in/out, compass, and geolocate icons are portaled real lucide-react
    icons now (NavigationControlThemed.tsx / GeolocateControlThemed.tsx),

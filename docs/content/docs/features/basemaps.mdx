@@ -19,7 +19,7 @@ Overlays are listed and drawn in both basemap modes, **Simple** and **Split** (b
 
 ### Transparency
 
-A tiled or WMS overlay has a second button beside its opacity pill, **Transparency**, for what the tiles' own alpha becomes:
+A tiled or WMS source's edit dialog (the pencil on its row, in edit mode) has a **Transparency** field under Opacity, for what the tiles' own alpha becomes (until 2026-11-24 it was a button on the overlay row):
 
 | Mode | What it draws | For |
 |---|---|---|
@@ -28,7 +28,7 @@ A tiled or WMS overlay has a second button beside its opacity pill, **Transparen
 | **Dark over (multiply)** | Black, the dark pixels opaque and the light ones transparent: exactly a multiply blend, the imagery shaded by the render | A sky view factor, a hillshade, a slope over a photo |
 | **Light over (screen)** | White, the light pixels opaque and the dark ones transparent: a screen blend | A local dominance (bright mounds on a dark ground) |
 
-The choice is kept with the overlay, like its opacity. Until you pick one, the Library entry's default applies (marked in the menu): Opaque for the Maya sky view factors, Light over for the Maya local dominance layers (their ground is dark and the mounds bright, so Opaque drew a black sheet with white specks), Opaque for Berlin's and IGN's hillshades.
+The choice is kept with the overlay, like its opacity. Until you pick one, the Library entry's default applies (marked in the list): Opaque for the Maya sky view factors, Light over for the Maya local dominance layers (their ground is dark and the mounds bright, so Opaque drew a black sheet with white specks), Opaque for Berlin's and IGN's hillshades.
 
 An overlay draws over the basemap instead of replacing it. Where the overlays sit in the layer stack is one setting for all of them, **Stack** in the Overlays group (`overlaysStack` in the link): **Under relief** (the default: hillshade and the colour relief draw over them), **Over hypso** (above the colour relief, still shaded by the hillshade) or **On top** (above every terrain layer, only contours and markers over them). Their order among themselves is the list's order (drag the handles in edit mode). The Basemap and Overlays groups fold. In a split or grid with per-view basemaps, each overlay row gets the view grid, so an overlay can be on view B only; clicking the overlay's name adds it to every view, or removes it from all of them when every view already shows it.
 

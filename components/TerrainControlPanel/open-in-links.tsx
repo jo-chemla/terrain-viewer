@@ -152,15 +152,6 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     buildUrl: ({ lat, lng, zoom, bearing, pitch }) =>
       `https://shademap.app/@${lat.toFixed(5)},${lng.toFixed(5)},${zoom.toFixed(2)}z,${Date.now()}t,${bearing.toFixed(1)}b,${pitch.toFixed(1)}p,0m`,
   },
-  {
-    id: "mapricot-shadows",
-    label: "Mapricot shadows (opens at its own place)",
-    // Mapricot's shadow gallery (mapricot.com/gallery/shadows/) reads no
-    // location from its URL (no query or hash parsing; its withParam only
-    // builds the geocoder request), so it opens at its first preset,
-    // Manhattan, and the place is found with its own search box.
-    buildUrl: () => "https://mapricot.com/gallery/shadows/",
-  },
   // Esri 3D Buildings (Scene Viewer, layer b8fec5af7dfe4866b1b8ac2d2800f282)
   // used to be a destination here and was removed: it is Esri's one global
   // I3S layer of MODELLED buildings (TomTom, Vantor, Community Maps,

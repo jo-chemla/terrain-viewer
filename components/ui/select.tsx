@@ -235,6 +235,9 @@ function SelectContent({
   )
 }
 
+// Select.GroupLabel: only valid inside a SelectGroup, like
+// DropdownMenuLabel ("SelectGroupContext is missing", Base UI error #56 in
+// a production build, otherwise).
 function SelectLabel({
   className,
   ...props

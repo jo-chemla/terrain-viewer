@@ -1,3 +1,18 @@
+# Changelog — Transparency in the Edit Dialog, Catalog Search, Library Tidy
+
+#### TL;DR
+
+- **Transparency moves to the edit dialog**: an overlay's alpha mode (as served, opaque, dark over, light over) is now a **Transparency** field under Opacity in the source's edit dialog, instead of a button on every row. The row button crashed the deployed site when clicked ("Base UI error #31": its menu heading was a group label outside a menu group). Stored choices and the Library defaults (light over for the Maya local dominance layers) are unchanged; an untouched source keeps following its Library default.
+- **Search the catalogs**: the historical catalogs list (the timeline's Catalogs picker and the Sources Coverage panel) has a filter box: name, description, provider (the STAC host), group and country, with the Library's typo-tolerant matcher. Groups with a match open, the others hide.
+- **Library**: the Terrain / Basemap tabs a little smaller; **Load all** and **Clear all** removed (per-row and per-section add and remove stay).
+- **Attribution (i)**: no focus ring after a click; with the keyboard the ring goes around the whole box, with its radius.
+- **Open In**: Mapricot shadows removed (it opens at its own place, so it was no hand-off). Same in the QGIS plugin.
+
+#### Details
+
+- `components/TerrainControlPanel/alpha-mode-menu.tsx` deleted; the field is in `custom-basemap-modal.tsx` (written as `alphaMode` only once the user picks one). Checked every `DropdownMenuLabel` / `SelectLabel`: no other one sits outside its group; both primitives now say so in a comment (Select's equivalent is error #56).
+- Attribution: the vendor CSS glows on any `:focus` of the button; `src/index.css` clears it and puts a `--ring` shadow on the box under `:has(:focus-visible)`.
+
 # Changelog — geotiff.js 3
 
 #### TL;DR

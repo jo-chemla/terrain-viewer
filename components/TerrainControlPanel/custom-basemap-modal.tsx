@@ -31,6 +31,8 @@ import { SourceUrlAutoPanel, DetectedNote } from "./source-url-auto"
 import { nameFromUrl, templateWmsGetMap, type DetectedSource } from "@/lib/source-url-detect"
 import { probeWmsZoomRange } from "@/lib/wms-zoom-range"
 import { allmapsAnnotationGsd } from "@/lib/allmaps-gsd"
+import { TILE_ALPHA_MODES, TILE_ALPHA_MODE_INFO, parseAlphaMode, resolveAlphaMode, type TileAlphaMode } from "@/lib/tile-transform-protocol"
+import { LIBRARY_BASEMAPS, sourceAlphaMode, supportsTileTransform } from "@/lib/source-alpha"
 
 // The types a new source opens on: Auto unless a search panel or a local
 // file was the last choice (a URL type found by Auto is not remembered).
@@ -104,6 +106,12 @@ export const CustomBasemapModal: React.FC<{
   // tile server (cached, tilted and 3D views too).
   const [allmapsTiles, setAllmapsTiles] = useState(false)
   const [opacity, setOpacity] = useState(100)
+  // The tiles' transparency (lib/tile-transform-protocol.ts), for tiled and
+  // WMS sources. Written to the record only once the user picks one here, so
+  // an untouched source keeps following its Library entry's default (LD is
+  // "screen", light over).
+  const [alphaMode, setAlphaMode] = useState<TileAlphaMode>("served")
+  const [alphaTouched, setAlphaTouched] = useState(false)
   // Unlike the terrain side, no basemap source type gets an auto-detected zoom
   // range (RasterBasemapSource just reads customBasemap.minzoom/maxzoom with a
   // 0/22 fallback — see MapSources.tsx) — so these are always user-settable
@@ -175,6 +183,8 @@ export const CustomBasemapModal: React.FC<{
       setCogViaTitiler(!!editingSource.cogViaTitiler)
       setAllmapsTiles(!!editingSource.allmapsTiles)
       setOpacity(editingSource.opacity ?? 100)
+      setAlphaMode(sourceAlphaMode(editingSource))
+      setAlphaTouched(false)
       originalOpacityRef.current = editingSource.opacity ?? 100
       setMinzoom(editingSource.minzoom === undefined ? "" : String(editingSource.minzoom))
       setMaxzoom(editingSource.maxzoom === undefined ? "" : String(editingSource.maxzoom))
@@ -204,6 +214,8 @@ export const CustomBasemapModal: React.FC<{
       setAllmapsTiles(false)
       setWmsZoomProbe("idle")
       setOpacity(100)
+      setAlphaMode("served")
+      setAlphaTouched(false)
       setMinzoom("")
       setMaxzoom("")
       setLinkedTerrainId("")
@@ -287,9 +299,10 @@ export const CustomBasemapModal: React.FC<{
       // No field of its own in this form: a library entry's flag is kept.
       categorical: type === "cog" && editingSource?.categorical ? true : undefined,
       ...(resolutionM ? { resolutionM } : {}),
+      ...(alphaTouched && supportsTileTransform({ type, url }) ? { alphaMode } : {}),
     })
     onOpenChange(false)
-  }, [name, url, type, description, role, opacity, stack, minzoom, maxzoom, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, cogViaTitiler, editingSource, onSave, onOpenChange])
+  }, [alphaMode, alphaTouched, name, url, type, description, role, opacity, stack, minzoom, maxzoom, linkedTerrainId, boundsWest, boundsSouth, boundsEast, boundsNorth, cogViaTitiler, editingSource, onSave, onOpenChange])
 
   // Unlike terrain, no basemap source type gets an auto-detected zoom range applied
   // at render time (RasterBasemapSource just reads customBasemap.maxzoom with a 0/22
@@ -605,6 +618,25 @@ export const CustomBasemapModal: React.FC<{
                   onValueChange={(value) => handleOpacityChange(value as number)}
                   className="cursor-pointer"
                 />
+                {supportsTileTransform({ type, url }) && (() => {
+                  const libraryDefault = editingSource && LIBRARY_BASEMAPS.has(editingSource.id) ? resolveAlphaMode(null, LIBRARY_BASEMAPS.get(editingSource.id)) : undefined
+                  const label = (m: TileAlphaMode) => `${TILE_ALPHA_MODE_INFO[m].label}${m === libraryDefault ? " (Library default)" : ""}`
+                  return (
+                    <div className="space-y-1 pt-1 min-w-0">
+                      <Label htmlFor="basemap-alpha-mode" className="text-sm">Transparency</Label>
+                      <Select value={alphaMode} items={Object.fromEntries(TILE_ALPHA_MODES.map((m) => [m, label(m)]))}
+                        onValueChange={(v) => { const m = parseAlphaMode(v); if (m) { setAlphaMode(m); setAlphaTouched(true) } }}>
+                        <SelectTrigger id="basemap-alpha-mode" className="w-full min-w-0 cursor-pointer" title={label(alphaMode)}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {TILE_ALPHA_MODES.map((m) => (
+                            <SelectItem key={m} value={m} className="cursor-pointer">{label(m)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground break-words">{TILE_ALPHA_MODE_INFO[alphaMode].hint}.</p>
+                    </div>
+                  )
+                })()}
               </div>
               <Separator className="my-3" />
               <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>

@@ -46,7 +46,7 @@ export const MAX_UNDERZOOM = 3
 export const TILE_ALPHA_MODES = ["served", "opaque", "multiply", "screen"] as const
 export type TileAlphaMode = (typeof TILE_ALPHA_MODES)[number]
 
-/** Labels and one-line hints, for the overlay row's menu. */
+/** Labels and one-line hints, for the edit-source dialog's Transparency field. */
 export const TILE_ALPHA_MODE_INFO: Record<TileAlphaMode, { label: string; hint: string }> = {
   served: { label: "As served", hint: "The tile's own transparency" },
   opaque: { label: "Opaque", hint: "Any transparency removed; no-data stays transparent" },

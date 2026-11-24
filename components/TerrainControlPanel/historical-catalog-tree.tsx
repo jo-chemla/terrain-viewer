@@ -14,12 +14,18 @@
 // same state in both places); a source whose extent misses the view is
 // dimmed. The last root, My catalogs, holds the STAC catalogs the visitor
 // attached (customTimelineCatalogsAtom) and the shipped ones: an "Add a catalog" row opens
-// add-timeline-catalog-dialog.tsx, and each row has a remove button.
+// add-timeline-catalog-dialog.tsx, and each row has a remove button. A
+// search box above the tree filters it by name, description, provider
+// (the STAC endpoint's host), group and country, with the Library's matcher
+// (lib/library-search.ts: separators ignored, typos tolerated); while it
+// holds text every group with a match is open and the others are hidden.
 import type React from "react"
 import { useMemo, useState } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2, Plus, X, BookmarkPlus } from "lucide-react"
+import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2, Plus, X, BookmarkPlus, Search } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { searchLibrary } from "@/lib/library-search"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -76,6 +82,9 @@ function buildNodes(roots: string[], bare = false, entries: Entry[] = BUILTIN_EN
     return node
   })
 }
+/** What the search box matches a row on. */
+const hostOf = (url?: string) => { try { return url ? new URL(url).host : "" } catch { return "" } }
+const searchText = (c: Entry) => [c.label, c.short, c.note, c.group, rootOf(c), c.continent, c.region, c.iso3, c.iso3 ? ISO3_NAMES[c.iso3] : "", hostOf(c.stac?.endpoint)].filter(Boolean).join(" ")
 const nodeCats = (n: Node): Entry[] => [...n.rows, ...n.children.flatMap(nodeCats)]
 const nodeKeys = (n: Node): string[] => [n.key, ...n.children.flatMap(nodeKeys)]
 /** Every foldable key of the tree, for the picker's expand/fold all; down
@@ -130,9 +139,17 @@ export const HistoricalCatalogTree: React.FC<{
     if (ticks.length) { const next = new Set(selected); for (const id of ticks) on ? next.add(id) : next.delete(id); onChange([...next]) }
     if (covs.length) setCoverage((prev) => { const next = new Set(prev); for (const id of covs) on ? next.add(id) : next.delete(id); return [...next] })
   }
-  const nodes = buildNodes(roots, bare, entries)
+  const [query, setQuery] = useState("")
+  const q = query.trim()
+  const shown = useMemo(() => (q ? searchLibrary(entries, searchText, q) : entries), [entries, q])
+  // While searching: only the groups holding a match, all of them open.
+  const prune = (ns: Node[]): Node[] => ns.flatMap((n) => {
+    const children = prune(n.children)
+    return n.rows.length || children.length ? [{ ...n, children }] : []
+  })
+  const nodes = q ? prune(buildNodes(roots, bare, shown)) : buildNodes(roots, bare, entries)
   const allNodes = (ns: Node[]): Node[] => ns.flatMap((n) => [n, ...allNodes(n.children)])
-  const isOpen = (n: Node) => folds[`cat:${n.key}`] ?? (n.depth === 0 && !compact)
+  const isOpen = (n: Node) => (q ? true : folds[`cat:${n.key}`] ?? (n.depth === 0 && !compact))
   const keys = nodes.flatMap(nodeKeys)
   const allOpen = allNodes(nodes).every(isOpen)
   const foldAll = (fold: boolean) => setFolds((prev) => ({ ...prev, ...Object.fromEntries(keys.map((k) => [`cat:${k}`, !fold])) }))
@@ -202,7 +219,7 @@ export const HistoricalCatalogTree: React.FC<{
         {open && (n.rows.length > 0 || n.key === MY_CATALOGS_ROOT) && (
           <div className={withHeader ? "pl-[42px] space-y-0.5" : "space-y-0.5"}>
             {n.rows.map(row)}
-            {n.key === MY_CATALOGS_ROOT && (n.rows.length ? addRow : <div className="space-y-0.5"><p className="text-[11px] text-muted-foreground">Your own STAC catalogs (an API or a static catalog.json), one tick per item in view.</p>{addRow}</div>)}
+            {n.key === MY_CATALOGS_ROOT && !q && (n.rows.length ? addRow : <div className="space-y-0.5"><p className="text-[11px] text-muted-foreground">Your own STAC catalogs (an API or a static catalog.json), one tick per item in view.</p>{addRow}</div>)}
           </div>
         )}
         {open && n.children.map((c) => renderNode(c, true))}
@@ -221,7 +238,7 @@ export const HistoricalCatalogTree: React.FC<{
           </div>
           <Tooltip>
             <TooltipTrigger render={
-              <button type="button" className="cursor-pointer shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1" onClick={() => foldAll(allOpen)}>
+              <button type="button" className="cursor-pointer shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-default" disabled={!!q} onClick={() => foldAll(allOpen)}>
                 {allOpen ? <ChevronsDownUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3" />}{allOpen ? "Fold all" : "Expand all"}
               </button>
             } />
@@ -229,6 +246,14 @@ export const HistoricalCatalogTree: React.FC<{
           </Tooltip>
         </div>
       )}
+      {!bare && (
+        <div className="relative min-w-0 px-0.5 pb-1">
+          <Search className="absolute left-3 top-[calc(50%-2px)] -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input type="search" placeholder="Filter catalogs…" aria-label="Filter catalogs" value={query} onChange={(e) => setQuery(e.target.value)}
+            className={cn("pl-8 cursor-text", compact ? "h-8 text-xs" : "h-9")} />
+        </div>
+      )}
+      {q && nodes.length === 0 && <p className="px-0.5 text-xs text-muted-foreground break-words">No catalog matches “{q}”.</p>}
       {nodes.map((n, i) => (
         <div key={n.key} className={i && !bare ? (compact ? "pt-1 border-t border-dashed mt-1" : "pt-1.5 border-t mt-1") : undefined}>{renderNode(n, !bare)}</div>
       ))}

@@ -158,6 +158,9 @@ function DropdownMenuRadioItem({
   )
 }
 
+// Menu.GroupLabel: only valid inside a DropdownMenuGroup (Menu.Group).
+// Outside one, Base UI throws "MenuGroupContext is missing" in dev and
+// "Base UI error #31" in a production build, the moment the menu opens.
 function DropdownMenuLabel({
   className,
   inset,
