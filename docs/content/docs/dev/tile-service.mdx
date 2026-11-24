@@ -319,6 +319,20 @@ The code is `tile-server/server.mjs`. The direct engine is `tile-server/direct.m
 
 Not yet run on a server.
 
+## On a public server
+
+The service has no sign-in, and one sky view factor tile keeps a worker busy for seconds: open to the internet, a few clients can saturate it, and anyone can make the container fetch any address (the operator's keys too, if set). Its own protections are per process: the work limits (`TV_RENDER_CONCURRENCY`, `TV_DIRECT_WORKERS`), `TV_QUEUE_TIMEOUT`, `TV_RENDER_TIMEOUT`, cancelled requests dropped, `TV_ALLOWED_HOSTS`. What it needs in front, as a reverse proxy (Traefik middlewares here; nginx or Caddy have the same):
+
+| Need | Traefik middleware |
+|---|---|
+| Requests per client over time | `rateLimit` (`average`, `burst`, `period`; `sourceCriterion.ipStrategy` behind another proxy or a CDN) |
+| Requests running at once per client | `inFlightReq` (`amount`) |
+| Who may call it at all | `ipAllowList` (an office, a VPN), or `basicAuth` / `forwardAuth` (an identity provider, an API key check) |
+| Sizes and slow clients | `buffering` (`maxRequestBodyBytes`), and the entry point's `respondingTimeouts` |
+| Repeats | a cache in front (the tiles are `cache-control: public, max-age=86400`): Traefik has none built in, so a CDN or nginx `proxy_cache` |
+
+QGIS's XYZ layers can send a header (Authentication > API header) or a key in the address, so a `forwardAuth` that checks either one keeps QGIS working. Keep the container off a private network: the sources it reads are any address a request gives.
+
 ## Reference
 
 The document is written by `tile-server/openapi.mjs`. **Test request** below calls `http://localhost:3400`, so it answers when the container runs on your computer.
