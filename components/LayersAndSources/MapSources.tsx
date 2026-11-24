@@ -9,7 +9,8 @@ import { entryUrl } from "@/lib/source-schema"
 import type { TerrainSource } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, osmBuildings3dAtom, allmapsRemoveColorAtom, geHiDpiTilesAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
 import { buildUnpaperUrl, sampleTileFor } from "@/lib/unpaper-protocol"
-import { buildTileTransformUrl, wantsTileTransform } from "@/lib/tile-transform-protocol"
+import { buildTileTransformUrl, resolveAlphaMode, wantsTileTransform } from "@/lib/tile-transform-protocol"
+import { LIBRARY_BASEMAPS } from "@/lib/source-alpha"
 import type { RasterSourceEntry } from "@/lib/source-schema"
 import customSourcesData from "@/lib/custom-sources.json"
 
@@ -22,21 +23,18 @@ function withPaperRemoval(built: { url: string } | { tiles: string[]; scheme?: "
     return { ...built, tiles: [buildUnpaperUrl(built.tiles[0], { color: auto ? "auto" : rc.color, threshold: rc.threshold, hardness: rc.hardness, gain: rc.autoGain ?? 0.5, sample: sampleTileFor(source.bounds, source.minzoom) })] }
 }
 
-// The library's own copy of each basemap, by id: a source added before the
-// library gave it forceOpaque / underzoom still gets them (the user's stored
-// copy is a snapshot of the entry at the time it was added).
-const LIBRARY_BASEMAPS = new Map(((customSourcesData as { SAMPLE_BASEMAPS_SOURCES: RasterSourceEntry[] }).SAMPLE_BASEMAPS_SOURCES).map((s) => [s.id, s]))
-// The same for the terrain library, for the short credit (lib/source-credit.ts).
+// The terrain library by id, for the short credit (lib/source-credit.ts);
+// the basemap library (LIBRARY_BASEMAPS) is in lib/source-alpha.ts.
 const LIBRARY_TERRAIN = new Map(((customSourcesData as unknown as { SAMPLE_TERRAIN_SOURCES: RasterSourceEntry[] }).SAMPLE_TERRAIN_SOURCES).map((s) => [s.id, s]))
 
-/** A tile template through tiletx:// when the source asks for forceOpaque or
- *  underzoom (lib/tile-transform-protocol.ts), with the minzoom MapLibre
+/** A tile template through tiletx:// when the source asks for an alpha mode
+ *  or underzoom (lib/tile-transform-protocol.ts), with the minzoom MapLibre
  *  should then use; anything else unchanged. Plain http(s) {z}/{x}/{y} and
  *  WMS bbox templates only, and not over a paper removal (already wrapped). */
-function withTileTransform<B extends { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" }>(built: B, source: Pick<RasterSourceEntry, "id" | "forceOpaque" | "underzoom" | "minzoom" | "bounds">): B | (B & { tiles: string[]; scheme: "xyz"; minzoom?: number }) {
+function withTileTransform<B extends { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" }>(built: B, source: Pick<RasterSourceEntry, "id" | "alphaMode" | "forceOpaque" | "underzoom" | "minzoom" | "bounds">): B | (B & { tiles: string[]; scheme: "xyz"; minzoom?: number }) {
     if (!("tiles" in built) || built.tiles.length !== 1 || !/^https?:\/\//.test(built.tiles[0])) return built
     const lib = LIBRARY_BASEMAPS.get(source.id)
-    const opts = { forceOpaque: source.forceOpaque ?? lib?.forceOpaque, underzoom: source.underzoom ?? lib?.underzoom, minzoom: source.minzoom, bounds: source.bounds, scheme: built.scheme }
+    const opts = { alphaMode: resolveAlphaMode(source, lib), underzoom: source.underzoom ?? lib?.underzoom, minzoom: source.minzoom, bounds: source.bounds, scheme: built.scheme }
     if (!wantsTileTransform(opts)) return built
     const { url, minzoom } = buildTileTransformUrl(built.tiles[0], opts)
     return { ...built, tiles: [url], scheme: "xyz" as const, ...(minzoom != null ? { minzoom } : {}) }
@@ -466,12 +464,11 @@ export const RasterBasemapSource = memo(({
 
     const basemapSource = useDebouncedValue(rawBasemapSource, RASTER_SOURCE_DEBOUNCE_MS)
     const date = useDebouncedValue(rawDate, rawBasemapSource === "planet" ? PLANET_DATE_DEBOUNCE_MS : RASTER_SOURCE_DEBOUNCE_MS)
-    // Only actually resolves network-side when basemapSource === "wayback" —
-    // see useResolvedWaybackRelease's own hooks, which no-op (return null,
-    // items.length 0) when `date` is falsy regardless of source, so calling
-    // this unconditionally (hooks can't be conditional) costs nothing when
-    // this side isn't on Wayback.
-    const { item: resolvedWaybackItem } = useResolvedWaybackRelease(latitude, longitude, zoom, basemapSource === "wayback" ? date ?? 0 : 0)
+    // Only resolves network-side when this side is on Wayback with a date:
+    // `enabled` false skips the location walk and its metadata lookups (the
+    // walk used to run for every view whatever its basemap, the date alone
+    // did not stop it).
+    const { item: resolvedWaybackItem } = useResolvedWaybackRelease(latitude, longitude, zoom, basemapSource === "wayback" ? date ?? 0 : 0, basemapSource === "wayback" && !!date)
 
     const customBasemap = customBasemapSources.find((s) => s.id === basemapSource)
     // A local file can only ever stream via the in-browser geomatico protocol —
@@ -628,7 +625,7 @@ export const OverlayBasemapSources = memo(({
                 const isCogLocal = source.type === "cog-local"
                 const resolvedCogUrl = isCogLocal ? resolveLocalFileUrl(localFileId(source.url)) : null
                 if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
-                // withTileTransform last: its minzoom (forceOpaque / underzoom
+                // withTileTransform last: its minzoom (alpha mode / underzoom
                 // sources) overrides the minzoom prop below, as it is spread after.
                 const sourceProps = withTileTransform(withPaperRemoval(buildRasterTileSource({
                     url: isCogLocal ? resolvedCogUrl! : source.url,

@@ -435,6 +435,16 @@ export function MinimapInternal({
     return () => clearTimeout(timer)
   }, [minimized]);
 
+  // Minimized, its imagery layer is hidden, so it loads no tiles while the
+  // map moves under a 40 px button (the map and its WebGL context stay
+  // warm; only the tiles of the place it opens at are fetched on expand).
+  const [minimapLoaded, setMinimapLoaded] = useState(false)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !minimapLoaded || !map.getLayer('basemap-layer')) return
+    map.setLayoutProperty('basemap-layer', 'visibility', minimized ? 'none' : 'visible')
+  }, [minimized, minimapLoaded]);
+
   const containerStyle = minimized ? {
     width: '40px',
     height: '40px'
@@ -500,6 +510,7 @@ export function MinimapInternal({
           {...interactionProps}
           onLoad={(e) => {
             mapInstanceRef.current = e.target;
+            setMinimapLoaded(true);
           }}
           onMove={evt => {
             if (mode === 'static' && interactive) {

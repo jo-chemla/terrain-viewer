@@ -153,16 +153,13 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
       `https://shademap.app/@${lat.toFixed(5)},${lng.toFixed(5)},${zoom.toFixed(2)}z,${Date.now()}t,${bearing.toFixed(1)}b,${pitch.toFixed(1)}p,0m`,
   },
   {
-    id: "lidarlens",
-    label: "LiDAR Lens (Britain and Ireland)",
-    // Tim Daw's LiDAR Lens (lidarlens.sarsen.org): open-government lidar DTMs
-    // of England, Wales, Scotland and Ireland under a movable relief lens.
-    // Its hash parser takes the OSM-style #map={z}/{lat}/{lng}; the bounds are
-    // the ones its config declares (48.85-61.6 N, 16 W-9 E, out to sea).
-    buildUrl: ({ lat, lng, zoom }) =>
-      `https://lidarlens.sarsen.org/#map=${Math.round(zoom)}/${lat.toFixed(5)}/${lng.toFixed(5)}`,
-    isAvailable: ({ lat, lng }) => lat >= 48.85 && lat <= 61.6 && lng >= -16 && lng <= 9,
-    unavailableHint: "LiDAR Lens covers Britain and Ireland only",
+    id: "mapricot-shadows",
+    label: "Mapricot shadows (opens at its own place)",
+    // Mapricot's shadow gallery (mapricot.com/gallery/shadows/) reads no
+    // location from its URL (no query or hash parsing; its withParam only
+    // builds the geocoder request), so it opens at its first preset,
+    // Manhattan, and the place is found with its own search box.
+    buildUrl: () => "https://mapricot.com/gallery/shadows/",
   },
   // Esri 3D Buildings (Scene Viewer, layer b8fec5af7dfe4866b1b8ac2d2800f282)
   // used to be a destination here and was removed: it is Esri's one global
@@ -179,6 +176,21 @@ export const OPEN_IN_DESTINATIONS: OpenInDestination[] = [
     label: "BBBike MapCompare",
     buildUrl: ({ lat, lng, zoom }) =>
       `https://mc.bbbike.org/mc/?lon=${lng}&lat=${lat}&zoom=${Math.round(zoom)}&num=4&mt0=mapnik-german&mt1=cyclemap&mt2=bing-hybrid`,
+  },
+  {
+    id: "lidarlens",
+    label: "LiDAR Lens (Britain and Ireland)",
+    // Tim Daw's LiDAR Lens (lidarlens.sarsen.org): open-government lidar DTMs
+    // of England, Wales, Scotland and Ireland under a movable relief lens.
+    // Its hash parser takes the OSM-style #map={z}/{lat}/{lng}; the bounds are
+    // the ones its config declares (48.85-61.6 N, 16 W-9 E, out to sea).
+    // Its terrain is fixed at build time (a terrarium tile route, served by
+    // its own worker, per-country configs): no URL or setting takes another
+    // DEM, so it stays greyed out elsewhere. Listed last for that reason.
+    buildUrl: ({ lat, lng, zoom }) =>
+      `https://lidarlens.sarsen.org/#map=${Math.round(zoom)}/${lat.toFixed(5)}/${lng.toFixed(5)}`,
+    isAvailable: ({ lat, lng }) => lat >= 48.85 && lat <= 61.6 && lng >= -16 && lng <= 9,
+    unavailableHint: "LiDAR Lens covers Britain and Ireland only",
   },
   // Commented out per request — kept for reference, not shown in the list.
   // {

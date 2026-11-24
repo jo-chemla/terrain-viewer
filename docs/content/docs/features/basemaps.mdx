@@ -15,6 +15,21 @@ OpenStreetMap is [OpenFreeMap](https://openfreemap.org/)'s Liberty vector style 
 
 Overlays have an opacity pill each, and the **Overlays** heading one for all of them (`overlaysOpacity`): click a pill and a short vertical slider opens on it, its point for the current value under the pointer, so a drag up or down sets it (bottom 0, top 100).
 
+Overlays are listed and drawn in both basemap modes, **Simple** and **Split** (before 2026-11-24 a checked overlay drew nothing in Simple mode). A hidden basemap or overlay (unchecked, the Basemap section off, opacity 0, or a view of a split that does not draw the basemap) loads no tiles, and unchecking an overlay no longer switches the Basemap section back on.
+
+### Transparency
+
+A tiled or WMS overlay has a second button beside its opacity pill, **Transparency**, for what the tiles' own alpha becomes:
+
+| Mode | What it draws | For |
+|---|---|---|
+| **As served** | The tiles as the service sends them | Most overlays |
+| **Opaque** | Any partial alpha raised to full; no-data stays transparent | ArcGIS Online's 8-bit layers, which bake an alpha of about one half into every pixel |
+| **Dark over (multiply)** | Black, the dark pixels opaque and the light ones transparent: exactly a multiply blend, the imagery shaded by the render | A sky view factor, a hillshade, a slope over a photo |
+| **Light over (screen)** | White, the light pixels opaque and the dark ones transparent: a screen blend | A local dominance (bright mounds on a dark ground) |
+
+The choice is kept with the overlay, like its opacity. Until you pick one, the Library entry's default applies (marked in the menu): Opaque for the Maya sky view factors, Light over for the Maya local dominance layers (their ground is dark and the mounds bright, so Opaque drew a black sheet with white specks), Opaque for Berlin's and IGN's hillshades.
+
 An overlay draws over the basemap instead of replacing it. Where the overlays sit in the layer stack is one setting for all of them, **Stack** in the Overlays group (`overlaysStack` in the link): **Under relief** (the default: hillshade and the colour relief draw over them), **Over hypso** (above the colour relief, still shaded by the hillshade) or **On top** (above every terrain layer, only contours and markers over them). Their order among themselves is the list's order (drag the handles in edit mode). The Basemap and Overlays groups fold. In a split or grid with per-view basemaps, each overlay row gets the view grid, so an overlay can be on view B only; clicking the overlay's name adds it to every view, or removes it from all of them when every view already shows it.
 
 ## Pre-rendered relief
@@ -33,7 +48,7 @@ The basemap Library has a section of its own, **Pre-rendered relief (archaeology
 
 Each entry carries the publisher's credit and licence (the info link opens its page). Most are open (CC BY, CC0, OGL, Etalab, Datenlizenz Deutschland); the Maya renders are not for commercial use, and a few endpoints are viewer back ends with no published terms for outside use (their descriptions say so).
 
-Two source settings fix what some of these services publish. ArcGIS Online serves an 8-bit layer (a sky view factor, a local dominance) with an alpha of about one half baked into every pixel, so at 100 % it still showed half the map through: `forceOpaque` draws every pixel with data fully opaque. A service with no overview tiles (the Maya renders start at zoom 11, 12 or 15) vanished when the view zoomed out: `underzoom` assembles the tiles of up to three zoom levels below its first one from the tiles at that level, fetching only those inside the source's extent. See the [source schema](/dev/source-schema#the-record).
+Two source settings fix what some of these services publish. ArcGIS Online serves an 8-bit layer (a sky view factor, a local dominance) with an alpha of about one half baked into every pixel, so at 100 % it still showed half the map through: the `alphaMode` "opaque" (formerly `forceOpaque`) draws every pixel with data fully opaque, and the overlay's [Transparency](#transparency) menu offers the other modes. A service with no overview tiles (the Maya renders start at zoom 11, 12 or 15) vanished when the view zoomed out: `underzoom` assembles the tiles of up to three zoom levels below its first one from the tiles at that level, fetching only those inside the source's extent. See the [source schema](/dev/source-schema#the-record).
 
 ## A basemap per view
 

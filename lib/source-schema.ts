@@ -207,8 +207,17 @@ export interface RasterSourceEntry extends SourceEntryBase {
   /** Every pixel with any alpha drawn fully opaque, no-data (alpha 0) left
    *  transparent: for services that bake a partial alpha into every tile
    *  (ArcGIS Online's 8-bit layers, ~50 %). Tiled http(s) and WMS templates
-   *  only (lib/tile-transform-protocol.ts). */
+   *  only (lib/tile-transform-protocol.ts). Kept as an alias of alphaMode
+   *  "opaque" for records stored before alphaMode. */
   forceOpaque?: boolean
+  /** What the tiles' alpha becomes (lib/tile-transform-protocol.ts,
+   *  TILE_ALPHA_MODES): "served" (as sent), "opaque" (any alpha to 255, the
+   *  same as forceOpaque), "multiply" (dark opaque, light transparent: a grey
+   *  render shades the imagery) or "screen" (light opaque, dark transparent).
+   *  On a Library entry it is the default; on a user's source, their choice
+   *  from the overlay row (it wins over the Library's). Tiled http(s) and WMS
+   *  templates only. */
+  alphaMode?: "served" | "opaque" | "multiply" | "screen"
   /** 1-3: zoom levels under `minzoom` where a tile is assembled from its
    *  children at `minzoom` (4, 16 or 64 requests, only those inside
    *  `bounds`), so a service with no overview tiles does not vanish when the

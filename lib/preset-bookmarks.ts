@@ -64,6 +64,19 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
     }),
   },
   {
+    // Thumbnail rendered by the tile service's browser engine
+    // (tile-server/, /render.jpg with this query, 1600 x 1137).
+    id: "preset-cevennes-slope",
+    name: "Cévennes, Ardèche–Lozère border — Black-and-White Slope",
+    ts: 0,
+    thumb: "/bookmark-thumbs/cevennes-slope.jpg",
+    search: presetSearch({
+      zoom: 11.32, lat: 44.5061, lng: 4.0005,
+      showHillshade: false, showTerrainAnalysis: true,
+      slopeOpacity: 0.8, slopeMaxDegrees: 45, slopeColorRamp: "black-and-white",
+    }),
+  },
+  {
     id: "preset-paris-historical",
     name: "Paris — Historical Imagery (Google Earth)",
     ts: 0,

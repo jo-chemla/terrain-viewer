@@ -468,14 +468,22 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // whichever side the pill row is currently editing, while every showing
   // view draws its own ticks. An unset list means the defaults, which include
   // wayback.
-  const waybackWanted = useMemo(() => {
+  const timelineWants = useCallback((id: string) => {
+    // The panel shows nothing in terrain mode with the basemap off
+    // (panelVisible below), so nothing there needs dates either.
+    if (state.appMode !== "historical" && !state.showRasterBasemap) return false
     for (const side of VIEW_IDS) {
       if (!activeViews.includes(side) || !isHistoricalFor(side)) continue
       const list = state[viewFieldName(side, "timelineSources", true)] ?? state.timelineSources
-      if (!list?.length || list.includes("wayback")) return true
+      if (!list?.length || list.includes(id)) return true
     }
     return false
   }, [state, activeViews, isHistoricalFor])
+  const waybackWanted = useMemo(() => timelineWants("wayback"), [timelineWants])
+  // Same for Google Earth's dates and Bing's capture date: each costs
+  // requests on every move, and they ran with the panel hidden.
+  const geWanted = useMemo(() => timelineWants("ge-historical"), [timelineWants])
+  const bingWanted = useMemo(() => timelineWants("bing"), [timelineWants])
   const waybackWalk = useWaybackItemsWithLocalChanges(state.lat, state.lng, state.zoom, waybackWanted)
   const rawWaybackItems = waybackWalk.items
   // REAL per-tile imagery capture dates for every release at this location —
@@ -529,7 +537,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
     () => fixedDatedTicks("hls", {}).map((t) => ({ source: "hls", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [],
   )
-  const { items: rawGeItems, coarserDates: geCoarserDates, loading: geDatesLoading } = useGeHistoricalDates(state.lat, state.lng, state.zoom)
+  const { items: rawGeItems, coarserDates: geCoarserDates, loading: geDatesLoading } = useGeHistoricalDates(state.lat, state.lng, state.zoom, geWanted)
   const geTicks = useMemo<TimelineTick[]>(
     () => rawGeItems.map((t) => ({ source: "ge-historical", key: t.dateMs, dateMs: t.dateMs, label: t.label })),
     [rawGeItems],
@@ -585,7 +593,7 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // date for the current view center (see lib/bing.ts), keyed by that same
   // date so dateForSide/findNearestTick below work identically to every other
   // source even though there's nothing to actually scrub through.
-  const { label: bingCaptureLabel, dateMs: bingCaptureDateMs, loading: bingLoading } = useBingCaptureDate(state.lat, state.lng, state.zoom)
+  const { label: bingCaptureLabel, dateMs: bingCaptureDateMs, loading: bingLoading } = useBingCaptureDate(state.lat, state.lng, state.zoom, bingWanted)
   const bingTicks = useMemo<TimelineTick[]>(
     () => (bingCaptureDateMs ? [{ source: "bing", key: bingCaptureDateMs, dateMs: bingCaptureDateMs, label: bingCaptureLabel ?? "" }] : []),
     [bingCaptureDateMs, bingCaptureLabel],

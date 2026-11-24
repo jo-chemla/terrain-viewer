@@ -259,9 +259,19 @@ export function TerrainControlPanel({
   // Choosing imagery and seeing nothing change looked like a silent failure;
   // the add paths already did this, the pickers and sliders did not.
   // Historical mode always shows the basemap, so its section is left alone.
+  // An overlay list counts only when it gains an id: unchecking an overlay
+  // with the section off used to switch the section back on, so every other
+  // overlay and the basemap started loading tiles again.
+  // The state through a ref: the callback stays stable across camera moves.
+  const basemapStateRef = useRef(state)
+  basemapStateRef.current = state
   const setBasemapState = useCallback((updates: Record<string, unknown>, options?: { shallow?: boolean }) => {
+    const addsOverlay = (k: string) => {
+      const next = updates[k], prev = (basemapStateRef.current as Record<string, unknown>)[k]
+      return Array.isArray(next) && next.some((id) => !(Array.isArray(prev) && prev.includes(id)))
+    }
     const touchesBasemap = Object.keys(updates).some((k) =>
-      k.startsWith("basemapSource") || k.startsWith("rasterBasemap") || k === "overlayBasemapIds" || k === "basemapPerView")
+      k.startsWith("basemapSource") || k.startsWith("rasterBasemap") || k === "basemapPerView" || (k.startsWith("overlayBasemapIds") && addsOverlay(k)))
     if (touchesBasemap && !state.showRasterBasemap && !("showRasterBasemap" in updates)) setState({ ...updates, showRasterBasemap: true }, options)
     else setState(updates, options)
   }, [setState, state.showRasterBasemap])

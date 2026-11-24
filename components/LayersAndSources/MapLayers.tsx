@@ -133,6 +133,9 @@ export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSo
       // is created, so a reorder remounts it.
       // A georeferenced IIIF map: Allmaps' warped custom layer, no raster source.
       if (source?.type === "iiif" && source.url) {
+        // At opacity 0 not mounted: its warped custom layer has no
+        // visibility of its own and kept fetching IIIF tiles while invisible.
+        if (opacity * sourceOpacity <= 0) return null
         return <AllmapsOverlayLayer key={`overlay-layer-${id}-${stack}-${pos}`} id={id} annotationUrl={source.url} opacity={opacity * sourceOpacity} beforeId={OVERLAY_STACK_SLOT[stack]} alwaysTiles={!!source.allmapsTiles} bounds={source.bounds} />
       }
       return (

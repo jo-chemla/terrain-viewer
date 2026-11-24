@@ -158,14 +158,15 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
   // still correct for the plain LIVE "esri" basemap, but wrong for a
   // Wayback tick pinned to a past date: it used to resolve to the exact
   // same "today" value regardless of which historical date was picked).
-  const waybackAttributionA = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("A"))
-  const waybackAttributionB = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("B"))
-  const waybackAttributionC = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("C"))
-  const waybackAttributionD = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("D"))
-  const waybackAttributionE = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("E"))
-  const waybackAttributionF = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("F"))
-  const waybackAttributionG = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("G"))
-  const waybackAttributionH = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("H"))
+  // Only for a shown view on Wayback: each walks the releases at the place.
+  const waybackAttributionA = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("A"), activeViews.includes("A") && activeSourceFor("A") === "wayback")
+  const waybackAttributionB = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("B"), activeViews.includes("B") && activeSourceFor("B") === "wayback")
+  const waybackAttributionC = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("C"), activeViews.includes("C") && activeSourceFor("C") === "wayback")
+  const waybackAttributionD = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("D"), activeViews.includes("D") && activeSourceFor("D") === "wayback")
+  const waybackAttributionE = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("E"), activeViews.includes("E") && activeSourceFor("E") === "wayback")
+  const waybackAttributionF = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("F"), activeViews.includes("F") && activeSourceFor("F") === "wayback")
+  const waybackAttributionG = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("G"), activeViews.includes("G") && activeSourceFor("G") === "wayback")
+  const waybackAttributionH = useWaybackDynamicAttribution(state.lat, state.lng, state.zoom, dateFor("H"), activeViews.includes("H") && activeSourceFor("H") === "wayback")
   const waybackAttributionBySide: Record<ViewId, { srcDesc: string; niceDesc: string }> = {
     A: waybackAttributionA, B: waybackAttributionB, C: waybackAttributionC, D: waybackAttributionD,
     E: waybackAttributionE, F: waybackAttributionF, G: waybackAttributionG, H: waybackAttributionH,

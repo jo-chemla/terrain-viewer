@@ -280,6 +280,54 @@ export const NATIONAL_SOURCES: NatSource[] = [
     layers: pcMonths().map((w) => ({ key: `s2-${w.label}`, year: w.year, dateMs: w.fromMs + 5 * 86400000, label: `Sentinel-2 ${w.label}`, url: pcMosaicTileUrl("sentinel-2-l2a", w.fromMs, w.toMs), type: "tms" as const, minzoom: PC_COLLECTIONS["sentinel-2-l2a"].minzoom, maxzoom: PC_COLLECTIONS["sentinel-2-l2a"].maxzoom })),
   },
 ]
+// NASA GIBS's MERRA-2 monthly means (GMAO reanalysis, 0.5 x 0.625 degree),
+// the climate fields the Library also lists as static overlays at GIBS's
+// default (latest) month (nasa-gibs-merra2-* in custom-sources.json). Here
+// each month since January 1980 is a layer: GIBS's WMTS takes the month's
+// first day as its TIME (a mid-month date snaps to the month). The series
+// ends two months before today (GIBS publishes about two months behind;
+// GetCapabilities, 2026-11-24: 1980-01-01/2026-09-01/P1M). Months GIBS lacks
+// for a layer (404, in its capabilities too) are left out.
+export const MERRA2_LAYERS: { id: string; layer: string; label: string; short: string; color: string; note: string; gaps?: string[] }[] = [
+  { id: "cat-nat-merra2-air-temperature", layer: "MERRA2_2m_Air_Temperature_Monthly", label: "2 m air temperature monthly 1980+ (NASA MERRA-2)", short: "MERRA-2 T2m", color: "#fca5a5",
+    note: "Air temperature 2 m above the ground, monthly mean.", gaps: ["2023-12", "2024-01", "2024-05"] },
+  { id: "cat-nat-merra2-wind-speed", layer: "MERRA2_Surface_Wind_Speed_Monthly", label: "Surface wind speed monthly 1980+ (NASA MERRA-2)", short: "MERRA-2 wind", color: "#bae6fd",
+    note: "Surface wind speed (not direction), monthly mean." },
+  { id: "cat-nat-merra2-dust", layer: "MERRA2_Dust_Surface_Mass_Concentration_Monthly", label: "Dust surface concentration monthly 1980+ (NASA MERRA-2)", short: "MERRA-2 dust", color: "#fde68a",
+    note: "Dust mass concentration at the surface: the Saharan, Arabian and Asian dust belts and their plumes, monthly mean." },
+  { id: "cat-nat-merra2-aerosol-optical-thickness", layer: "MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly", label: "Aerosol optical thickness monthly 1980+ (NASA MERRA-2)", short: "MERRA-2 AOT", color: "#d6d3d1",
+    note: "Total aerosol optical thickness at 550 nm (extinction), monthly mean." },
+  { id: "cat-nat-merra2-ozone-50hpa", layer: "MERRA2_Ozone_Mixing_Ratio_50hPa_Monthly", label: "Ozone at 50 hPa monthly 1980+ (NASA MERRA-2)", short: "MERRA-2 O3", color: "#c4b5fd",
+    note: "Ozone mixing ratio at 50 hPa (the lower stratosphere), monthly mean." },
+]
+
+/** The months of the MERRA-2 series, January 1980 to two months before
+ *  `now`, as [year, month 1-12]. */
+export function merra2Months(now = Date.now()): [number, number][] {
+  const d = new Date(now)
+  const last = d.getUTCFullYear() * 12 + d.getUTCMonth() - 2
+  const out: [number, number][] = []
+  for (let m = 1980 * 12; m <= last; m++) out.push([Math.floor(m / 12), (m % 12) + 1])
+  return out
+}
+
+/** A MERRA-2 layer's tile template for one month (GIBS WMTS, {z}/{y}/{x}). */
+export const merra2TileUrl = (layer: string, year: number, month: number) =>
+  `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layer}/default/${year}-${String(month).padStart(2, "0")}-01/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png`
+
+for (const m of MERRA2_LAYERS) {
+  const gaps = new Set(m.gaps ?? [])
+  NATIONAL_SOURCES.push({
+    id: m.id, group: "Historical · Global", label: m.label, short: m.short, color: m.color, bbox: [-180, -85, 180, 85], resClass: "medium", complete: true,
+    note: `${m.note} NASA's MERRA-2 reanalysis (GMAO), one map a month since January 1980, served by NASA GIBS (no key, CORS-open). Coarse by nature (GIBS stops at zoom 6): regional and continental context, a colour field with no legend in the app.`,
+    infoUrl: "https://gmao.gsfc.nasa.gov/gmao-products/merra-2/data-access_merra-2/", licence: "NASA open data (public domain)",
+    layers: merra2Months().filter(([y, mo]) => !gaps.has(`${y}-${String(mo).padStart(2, "0")}`)).map(([y, mo]) => ({
+      key: `${m.id.replace(/^cat-nat-/, "")}-${y}-${String(mo).padStart(2, "0")}`, year: y, dateMs: Date.UTC(y, mo - 1, 1),
+      label: `${m.short} ${y}-${String(mo).padStart(2, "0")}`, url: merra2TileUrl(m.layer, y, mo), type: "tms" as const, maxzoom: 6,
+    })),
+  })
+}
+
 // Generated sources: their layers arrive with loadNationalLayers().
 NATIONAL_SOURCES.push(...(catalogJson as Omit<NatSource, "layers">[]).map((c) => ({ ...c, bbox: c.bbox as Bbox, layers: [], lazy: true })))
 export const NATIONAL_SOURCE_BY_ID = Object.fromEntries(NATIONAL_SOURCES.map((s) => [s.id, s])) as Record<string, NatSource>

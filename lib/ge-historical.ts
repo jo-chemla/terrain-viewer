@@ -87,7 +87,7 @@ export function geKeyholeLevelForZoom(zoom: number, hd: boolean): number {
 /** Real per-location capture dates from Google's own IMAGERY_HISTORY layer
  *  for the Keyhole tile at (latitude, longitude, zoom) — not synthetic,
  *  unlike lib/hls.ts's placeholder ticks. */
-export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { items: { dateMs: number; label: string }[]; coarserDates: Set<number>; loading: boolean } {
+export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, enabled = true): { items: { dateMs: number; label: string }[]; coarserDates: Set<number>; loading: boolean } {
   // Quarter-tile input quantization — same "don't re-query center metadata
   // for a move too small to change it" reasoning as lib/wayback.ts's
   // quantizeLocation (see its comment).
@@ -106,6 +106,8 @@ export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, 
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Disabled (no timeline view lists Google Earth): no database requests.
+    if (!enabled) { setItems([]); setCoarserDates(new Set()); setLoading(false); return }
     let cancelled = false
     setLoading(true)
     const timer = setTimeout(async () => {
@@ -144,7 +146,7 @@ export function useGeHistoricalDates(latitudeRaw: number, longitudeRaw: number, 
       }
     }, LOCAL_DATES_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [latitude, longitude, zoom, hd])
+  }, [latitude, longitude, zoom, hd, enabled])
 
   return { items, coarserDates, loading }
 }

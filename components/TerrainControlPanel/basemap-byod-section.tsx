@@ -5,6 +5,9 @@ import { ChevronDown, Plus, Edit, Library, Crosshair, Braces, GripVertical } fro
 import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
 import { sourcesEditModeAtom } from "@/lib/settings-atoms"
 import { OpacityPill } from "@/components/ui/opacity-pill"
+import { AlphaModeMenu } from "./alpha-mode-menu"
+import { LIBRARY_BASEMAPS, sourceAlphaMode, supportsTileTransform } from "@/lib/source-alpha"
+import { resolveAlphaMode } from "@/lib/tile-transform-protocol"
 import { cn } from "@/lib/utils"
 import { georefImageAtom, georefEditingIdAtom, georefActiveAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { sectionOpenAtom } from "./TerrainControlPanel"
@@ -541,7 +544,9 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
             ))}
             </>
           )}
-          {state.basemapPerView && overlaySources.length > 0 && (
+          {/* In both basemap modes (Simple and Split): overlays stack over
+              whichever basemap is shown. */}
+          {overlaySources.length > 0 && (
             <div className="space-y-2 pt-2 mt-2 border-t">
               {foldHeading("Overlays", overlaysOpen, () => setOverlaysOpen(!overlaysOpen), overlaySources.length)}
               {overlaysOpen && (<>
@@ -596,6 +601,12 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
                   )}
                   {/* The overlay's opacity, right after the view buttons. */}
                   <OpacityPill value={(source.opacity ?? 100) / 100} onChange={(v) => setCustomBasemapSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, opacity: Math.round(v * 100) } : s)))} title="This overlay's opacity" />
+                  {/* Its transparency mode (tiled and WMS sources only): as
+                      served, opaque, dark over (multiply), light over (screen). */}
+                  {supportsTileTransform(source) && (
+                    <AlphaModeMenu value={sourceAlphaMode(source)} libraryDefault={LIBRARY_BASEMAPS.has(source.id) ? resolveAlphaMode(null, LIBRARY_BASEMAPS.get(source.id)) : undefined}
+                      onChange={(mode) => setCustomBasemapSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, alphaMode: mode } : s)))} />
+                  )}
                   <CustomSourceDetails
                     onInfo={openInfo}
                     source={source}

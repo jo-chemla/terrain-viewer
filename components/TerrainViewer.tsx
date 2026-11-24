@@ -388,8 +388,8 @@ export const QUERY_STATE_PARSERS = {
     basemapSourceG: parseAsString.withDefault("esri"),
     basemapSourceH: parseAsString.withDefault("google"),
     // 'overlay'-role custom basemap sources currently stacked on top of the active
-    // basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B,
-    // only meaningful in split-or-radio basemap mode (basemapPerView).
+    // basemap (see basemap-byod-section.tsx's checkbox list), in both basemap
+    // modes; view A's list, and every view's with basemapPerView off.
     overlayBasemapIds: parseAsArrayOf(parseAsString).withDefault([]),
     // Per-view overlay lists for split / grid layouts when basemapPerView is
     // on (view A keeps overlayBasemapIds), picked with the same grid toggle
@@ -1771,7 +1771,7 @@ export function TerrainViewer() {
     registerProtocol('luma', withTileResultCache(lumaProtocol))
     registerProtocol('isoband', withTileResultCache(isobandProtocol))
     registerProtocol('unpaper', withTileResultCache(unpaperProtocol))
-    // tiletx://<template>/{z}/{x}/{y}?o=..&mz=..&uz=.. - a source's forceOpaque
+    // tiletx://<template>/{z}/{x}/{y}?o=..&mz=..&uz=.. - a source's alphaMode
     // and underzoom fixes (lib/tile-transform-protocol.ts).
     registerProtocol('tiletx', withTileResultCache(tileTransformProtocol))
     registerProtocol('epsg3395', withTileResultCache(epsg3395Protocol))
@@ -3083,12 +3083,10 @@ export function TerrainViewer() {
   // (same "not per-side" reasoning as Bing's own capture date, which the
   // historical timeline panel already only ever calls once), applied to
   // any/every view whose resolved basemapSource comes out "esri" below.
-  const { dateMs: esriLiveDateMs } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
   // Bing is one live mosaic: its date is the tile under the view's centre,
   // the same read the timeline's Bing tick and the sidebar make (lib/bing.ts).
   // The per-view stored date was the one picked earlier, at another place
   // or zoom, so the pill said 2011 where the timeline said 2021.
-  const { dateMs: bingLiveDateMs } = useBingCaptureDate(state.lat, state.lng, state.zoom)
   const perViewResolved = {} as Record<ViewId, { basemapSource: string; date: number }>
   for (const side of VIEW_IDS) {
     const rawBasemapSource = stateAny[viewFieldName(side, "basemapSource", state.basemapPerView)]
@@ -3098,6 +3096,13 @@ export function TerrainViewer() {
       date: stateAny[viewFieldName(side, "date", state.basemapPerView)],
     }
   }
+  // Only looked up while a shown view draws that basemap: each lookup costs
+  // requests on every move (Esri: a Wayback walk; Bing: one tile for its
+  // date header), and they ran whatever basemap was picked or hidden.
+  const basemapShown = isHistoricalMode || state.showRasterBasemap
+  const shownSources = basemapShown ? new Set(activeViewIds.map((side) => perViewResolved[side].basemapSource)) : new Set<string>()
+  const { dateMs: esriLiveDateMs } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom, shownSources.has("esri"))
+  const { dateMs: bingLiveDateMs } = useBingCaptureDate(state.lat, state.lng, state.zoom, shownSources.has("bing"))
   const activeBasemapSourceA = perViewResolved.A.basemapSource
   const activeBasemapSourceB = perViewResolved.B.basemapSource
   // Drives the minimap's bottom offset below — the timeline panel docks to
@@ -3946,7 +3951,13 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
             onZoomRangeChange={basemapZoomRangeSetters[side]}
           />
-          {state.basemapPerView && state.showRasterBasemap && (
+          {/* Overlays draw in both basemap modes: "Simple" (basemapPerView
+              off) reads the one overlayBasemapIds list for every view
+              (overlayIdsForView). They used to mount only with basemapPerView
+              on, so in Simple mode a checked overlay drew nothing. */}
+          {/* And only in a view that draws the basemap: a georeferenced image
+              overlay downloads its whole picture once added, layer or not. */}
+          {state.showRasterBasemap && vm("showRasterBasemap") && (
             <OverlayBasemapSources
               overlayIds={overlayIdsForView(side)}
               customBasemapSources={customBasemapSources}
@@ -4225,7 +4236,7 @@ export function TerrainViewer() {
             showRasterBasemap={state.showRasterBasemap && vm("showRasterBasemap")}
             rasterBasemapOpacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.basemapSourceOpacity}
           />
-          {state.basemapPerView && state.showRasterBasemap && vm("showRasterBasemap") && (
+          {state.showRasterBasemap && vm("showRasterBasemap") && (
             <OverlayBasemapLayers overlayIds={overlayIdsForView(side)} stack={state.overlaysStack} opacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.overlaysOpacity} customBasemapSources={customBasemapSources} />
           )}
           <CatalogFootprintsLayer />

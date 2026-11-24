@@ -1,3 +1,20 @@
+# Changelog — Overlay Transparency, Hidden Sources, MERRA-2 by Month
+
+#### TL;DR
+
+- **[Transparency per overlay](/docs/features/basemaps#transparency)**: a button beside each tiled or WMS overlay's opacity sets what its tiles' alpha becomes: as served, opaque, **dark over** (a multiply: a grey relief render shades the imagery) or **light over** (a screen). Kept with the overlay; the Library gives the default. The Maya local dominance layers now default to light over: their ground is dark and the mounds bright, so drawn opaque they were a black sheet with white specks.
+- **Overlays draw in the Simple basemap mode too**: a checked overlay drew nothing unless the basemaps were per view (Split).
+- **Hidden means no requests**: unchecking an overlay with the Basemap section off no longer switches the section back on (which reloaded every other overlay and the basemap); overlays are not mounted in a split view that hides the basemap (an image overlay downloaded its picture there); an Allmaps overlay at opacity 0 is removed (its warped layer kept fetching); the minimized minimap loads no imagery; the Wayback, Esri, Bing and Google Earth date lookups run only where a shown view or the open timeline needs them (they ran on every move whatever basemap was picked).
+- **NASA MERRA-2 month by month on the timeline**: the five MERRA-2 climate fields (2 m air temperature, wind speed, dust, aerosol optical thickness, ozone at 50 hPa) are timeline catalogs, one map a month from January 1980 to two months ago, from NASA GIBS. The Library overlays stay at GIBS's latest month.
+- **Featured bookmark**: the Cévennes on the Ardèche–Lozère border in a black-and-white slope.
+- **Open In**: Mapricot shadows (opens at its own place: its URL takes no location); LiDAR Lens moves to the end of the list (Britain and Ireland only: its terrain is fixed at build time, no URL takes another DEM).
+
+#### Details
+
+- Sources: `alphaMode` (`served`, `opaque`, `multiply`, `screen`) replaces `forceOpaque` in the Library (still read on stored sources, as `opaque`); the order is the user's choice, then the Library entry's, then `forceOpaque` (`resolveAlphaMode`, `lib/source-alpha.ts`). `tiletx://`'s `o=` is the mode's index. Multiply is black with alpha 255 minus the Rec. 709 luminance, screen white with alpha the luminance; alpha 0 stays 0.
+- `useResolvedWaybackRelease`, `useEsriLiveCaptureDate`, `useBingCaptureDate`, `useGeHistoricalDates` and `useWaybackDynamicAttribution` take an `enabled` flag.
+- MERRA-2 series: `MERRA2_LAYERS` in `lib/national-historical.ts` (months GIBS lacks for a layer left out); not in the STAC catalog build.
+- Open In: the QGIS plugin's list follows (`qgis-plugin/send2map_app/destinations.py`).
 # Changelog — One Library Dialog, Short Credits
 
 <!-- released: 2026-11-24 -->

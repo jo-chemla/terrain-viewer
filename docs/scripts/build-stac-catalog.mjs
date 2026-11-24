@@ -275,6 +275,9 @@ if (!OFFLINE) {
 {
   const items = []
   for (const src of NATIONAL_SOURCES) {
+    // MERRA-2's monthly climate fields (about 560 months each) are not
+    // imagery: not listed in the imagery catalog.
+    if (src.id.startsWith("cat-nat-merra2-")) continue
     for (const l of src.lazy ? NATIONAL_LAYERS[src.id] ?? [] : src.layers) {
       const end = l.endYear && l.endYear !== l.year ? `${l.endYear}-12-31T23:59:59Z` : null
       items.push(item("national-historical", `${src.id.replace(/^cat-nat-/, "")}-${l.key}`, {

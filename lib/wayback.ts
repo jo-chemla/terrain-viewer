@@ -547,8 +547,10 @@ export function pinWaybackRelease(dateMs: number, releaseNum: number) {
   pinnedReleases.set(dateMs, releaseNum)
 }
 
-export function useResolvedWaybackRelease(latitude: number, longitude: number, zoom: number, targetDateMs: number): { item: WaybackItem | null; loading: boolean } {
-  const walk = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
+export function useResolvedWaybackRelease(latitude: number, longitude: number, zoom: number, targetDateMs: number, enabled = true): { item: WaybackItem | null; loading: boolean } {
+  // `enabled` false (a view not showing Wayback): no walk, no metadata; the
+  // items come back empty, so the capture-date lookups below stop too.
+  const walk = useWaybackItemsWithLocalChanges(latitude, longitude, zoom, enabled)
   const { items, loading: itemsLoading } = walk
   const { resolved, loading: datesLoading } = useWaybackRealCaptureDates(walk, latitude, longitude, zoom)
 
@@ -654,9 +656,9 @@ export function useResolvedWaybackRelease(latitude: number, longitude: number, z
  * Wayback tick already does, just always pinned to the newest one rather
  * than a user-picked date.
  */
-export function useEsriLiveCaptureDate(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { dateMs: number | null; label: string | null } {
+export function useEsriLiveCaptureDate(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, enabled = true): { dateMs: number | null; label: string | null } {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
-  const { items, loading } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom)
+  const { items, loading } = useWaybackItemsWithLocalChanges(latitude, longitude, zoom, enabled)
   const [result, setResult] = useState<{ dateMs: number | null; label: string | null }>({ dateMs: null, label: null })
 
   useEffect(() => {
@@ -693,9 +695,9 @@ const WAYBACK_ATTRIBUTION_FALLBACK = { srcDesc: "Esri, Maxar, Earthstar Geograph
  * covers the region TODAY (e.g. "Vantor") regardless of which historical
  * date was actually picked.
  */
-export function useWaybackDynamicAttribution(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, targetDateMs: number): { srcDesc: string; niceDesc: string } {
+export function useWaybackDynamicAttribution(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, targetDateMs: number, enabled = true): { srcDesc: string; niceDesc: string } {
   const { latitude, longitude, zoom } = quantizeLocation(latitudeRaw, longitudeRaw, zoomRaw)
-  const { item } = useResolvedWaybackRelease(latitude, longitude, zoom, targetDateMs)
+  const { item } = useResolvedWaybackRelease(latitude, longitude, zoom, targetDateMs, enabled && !!targetDateMs)
   const [attribution, setAttribution] = useState(WAYBACK_ATTRIBUTION_FALLBACK)
 
   useEffect(() => {

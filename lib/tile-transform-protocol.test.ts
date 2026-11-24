@@ -2,7 +2,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { buildTileTransformUrl, childTiles, makeOpaque, tileIntersects, wantsTileTransform, MAX_UNDERZOOM } from "./tile-transform-protocol"
+import { applyAlphaMode, buildTileTransformUrl, childTiles, makeOpaque, parseAlphaMode, resolveAlphaMode, tileIntersects, wantsTileTransform, MAX_UNDERZOOM, TILE_ALPHA_MODES } from "./tile-transform-protocol"
 import { LIBRARY_GROUPS, libraryGroup } from "./library-groups"
 import { searchLibrary } from "./library-search"
 
@@ -14,6 +14,29 @@ test("makeOpaque lifts any alpha to 255 and keeps no-data transparent", () => {
   const d = new Uint8ClampedArray([10, 20, 30, 127, 1, 2, 3, 0, 4, 5, 6, 255, 7, 8, 9, 1])
   makeOpaque(d)
   assert.deepEqual([...d], [10, 20, 30, 255, 1, 2, 3, 0, 4, 5, 6, 255, 7, 8, 9, 255])
+})
+
+test("alpha modes: multiply is black with alpha 255 - L, screen white with alpha L, no-data kept", () => {
+  // grey 0 (alpha 127), grey 255 (alpha 127), grey 100 (no data), grey 51 (alpha 255)
+  const px = () => new Uint8ClampedArray([0, 0, 0, 127, 255, 255, 255, 127, 100, 100, 100, 0, 51, 51, 51, 255])
+  const served = px(); applyAlphaMode(served, "served"); assert.deepEqual([...served], [...px()])
+  const opaque = px(); applyAlphaMode(opaque, "opaque"); assert.deepEqual([...opaque], [0, 0, 0, 255, 255, 255, 255, 255, 100, 100, 100, 0, 51, 51, 51, 255])
+  const mul = px(); applyAlphaMode(mul, "multiply"); assert.deepEqual([...mul], [0, 0, 0, 255, 0, 0, 0, 0, 100, 100, 100, 0, 0, 0, 0, 204])
+  const scr = px(); applyAlphaMode(scr, "screen"); assert.deepEqual([...scr], [255, 255, 255, 0, 255, 255, 255, 255, 100, 100, 100, 0, 255, 255, 255, 51])
+})
+
+test("the alpha mode: the user's choice, then the Library's, then legacy forceOpaque", () => {
+  assert.equal(resolveAlphaMode({}, null), "served")
+  assert.equal(resolveAlphaMode({ forceOpaque: true }, null), "opaque")
+  assert.equal(resolveAlphaMode({ forceOpaque: true }, { alphaMode: "screen" }), "screen", "a changed Library default reaches an old snapshot")
+  assert.equal(resolveAlphaMode({ alphaMode: "served", forceOpaque: true }, { alphaMode: "screen" }), "served", "the user's choice wins")
+  assert.equal(resolveAlphaMode({ alphaMode: "bogus" }, { forceOpaque: true }), "opaque")
+  const t = "https://example.com/tile/{z}/{y}/{x}"
+  TILE_ALPHA_MODES.forEach((m, i) => {
+    assert.equal(wantsTileTransform({ alphaMode: m }), i > 0, m)
+    if (i > 0) assert.match(buildTileTransformUrl(t, { alphaMode: m }).url, new RegExp(`\\?o=${i}&`))
+  })
+  assert.match(buildTileTransformUrl(t, { forceOpaque: true }).url, /\?o=1&/)
 })
 
 test("underzoom lowers the MapLibre minzoom, capped at 3 levels", () => {
@@ -59,13 +82,18 @@ test("every library group key is registered, every relief entry is a raster over
   }
 })
 
-test("forceOpaque / underzoom entries are tiled http(s) templates, underzoom has a minzoom", () => {
+test("alpha mode / underzoom entries are tiled http(s) templates, underzoom has a minzoom", () => {
   for (const s of basemaps) {
-    if (!s.forceOpaque && !s.underzoom) continue
+    assert.equal(s.forceOpaque, undefined, `${s.id}: the Library uses alphaMode, not forceOpaque`)
+    if (s.alphaMode != null) assert.ok(parseAlphaMode(s.alphaMode), `${s.id}: unknown alphaMode ${s.alphaMode}`)
+    if (!s.alphaMode && !s.underzoom) continue
     assert.ok(/^https?:\/\//.test(s.url) && /\{z\}|\{bbox-epsg-3857\}/.test(s.url), `${s.id}: not a tile template`)
     if (s.underzoom) assert.ok(s.minzoom > 0 && s.underzoom <= MAX_UNDERZOOM, `${s.id}: underzoom without minzoom`)
   }
-  for (const id of ["maya-lidar-tikal-svf", "maya-lidar-tikal-ld", "maya-lidar-chactun-svf"]) assert.equal(basemaps.find((s) => s.id === id)?.forceOpaque, true, id)
+  for (const id of ["maya-lidar-tikal-svf", "maya-lidar-chactun-svf"]) assert.equal(basemaps.find((s) => s.id === id)?.alphaMode, "opaque", id)
+  // Local dominance: a dark ground with bright mounds, so the dark is what
+  // goes transparent.
+  for (const id of ["maya-lidar-tikal-ld", "maya-lidar-chactun-ld"]) assert.equal(basemaps.find((s) => s.id === id)?.alphaMode, "screen", id)
   assert.equal(basemaps.find((s) => s.id === "maya-lidar-chactun-svf")?.maxzoom, 20)
 })
 

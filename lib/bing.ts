@@ -57,7 +57,7 @@ export async function fetchBingCaptureDate(latitude: number, longitude: number, 
   }
 }
 
-export function useBingCaptureDate(latitudeRaw: number, longitudeRaw: number, zoomRaw: number): { label: string | null; dateMs: number | null; loading: boolean } {
+export function useBingCaptureDate(latitudeRaw: number, longitudeRaw: number, zoomRaw: number, enabled = true): { label: string | null; dateMs: number | null; loading: boolean } {
   // Quarter-tile input quantization — same "don't re-fetch center metadata
   // for a move too small to change it" reasoning as lib/wayback.ts's
   // quantizeLocation (see its comment).
@@ -67,6 +67,8 @@ export function useBingCaptureDate(latitudeRaw: number, longitudeRaw: number, zo
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Disabled (no view shows Bing): no tile fetched for its date header.
+    if (!enabled) { setLoading(false); return }
     let cancelled = false
     setLoading(true)
     const timer = setTimeout(async () => {
@@ -77,7 +79,7 @@ export function useBingCaptureDate(latitudeRaw: number, longitudeRaw: number, zo
       setLoading(false)
     }, BING_DEBOUNCE_MS)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [latitude, longitude, zoom])
+  }, [latitude, longitude, zoom, enabled])
 
   return { label, dateMs, loading }
 }

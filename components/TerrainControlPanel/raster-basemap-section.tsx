@@ -128,12 +128,12 @@ export const RasterBasemapSection: React.FC<{
   const [isWorldwideOpen, setIsWorldwideOpen] = useState(true)
   // Real "as-of" capture date for Bing's single live mosaic (see lib/bing.ts)
   // — read from the current view center's tile, not per-row/per-selection.
-  const { label: bingCaptureLabel } = useBingCaptureDate(state.lat, state.lng, state.zoom)
+  const { label: bingCaptureLabel } = useBingCaptureDate(state.lat, state.lng, state.zoom, isOpen)
   // Same idea for plain "ESRI World Imagery" — it's always showing whichever
   // Wayback release is currently newest at this location (see
   // useEsriLiveCaptureDate's own doc comment), so it has a real capture date
   // too, not just a static "always current" implication.
-  const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom)
+  const { label: esriCaptureLabel } = useEsriLiveCaptureDate(state.lat, state.lng, state.zoom, isOpen)
 
   const visibleBuiltinOptions = useMemo(
     () => BUILTIN_BASEMAP_OPTIONS.filter((o) => hasEntryKey(o, { hereKey, mapboxKey, maptilerKey })),
