@@ -74,10 +74,17 @@ export async function readView(view = {}, rest = new URLSearchParams(), activeLa
   }
   // Each layer's opacity, the view's or the app's default: set on the QGIS
   // layer, its tiles asked opaque (see qgisProjectXml).
+  // A mode's opacity is its own times its panel group's (slopeOpacity x
+  // terrainAnalysisOpacity, svfOpacity x reliefVisualizationOpacity,
+  // phongOpacity x lightingEffectsOpacity), as the map multiplies them: all
+  // of them go to the QGIS layer and are set to 1 in its address, or the
+  // group's would be baked into the tiles' alpha behind a layer at 100 %.
   const opacity = {}
   for (const [mode, sw] of Object.entries(MODES)) {
-    const key = [`${mode}Opacity`, ...Object.keys(sw).filter((k) => k.startsWith("show")).map((k) => `${k[4].toLowerCase()}${k.slice(5)}Opacity`)].find((k) => k in state)
-    if (key) opacity[mode] = { key, value: Math.max(0, Math.min(1, Number(state[key]) || 0)) }
+    const own = [`${mode}Opacity`, `${mode.replace(/s$/, "")}Opacity`].find((k) => k in state)
+    const groups = Object.keys(sw).filter((k) => k.startsWith("show")).map((k) => `${k[4].toLowerCase()}${k.slice(5)}Opacity`).filter((k) => k in state && k !== own)
+    const keys = [...new Set([own, ...groups].filter(Boolean))]
+    if (keys.length) opacity[mode] = { keys, value: keys.reduce((a, k) => a * Math.max(0, Math.min(1, Number(state[k]) || 0)), 1) }
   }
   const keep = new URLSearchParams(), basemap = new URLSearchParams()
   if (view.terrainSource) keep.set("terrainSource", view.terrainSource)
@@ -88,6 +95,9 @@ export async function readView(view = {}, rest = new URLSearchParams(), activeLa
     keep.set(k, v)
   }
   for (const k of ["imageryUrl", "imagerySource", "imageryDate"]) if (view[k]) basemap.set(k, view[k])
+  // The opacities live on the QGIS layers (above), never in the shared
+  // parameters, or every layer's tiles would carry them too.
+  for (const o of Object.values(opacity)) for (const k of o.keys) keep.delete(k)
   return { generic, active, showBasemap, keep, basemap, opacity, camera: { lat: view.lat, lng: view.lng, zoom: view.zoom } }
 }
 
@@ -193,8 +203,9 @@ export function qgisProjectXml(base, read) {
   const raster = (mode, name) => {
     const q = new URLSearchParams(keep)
     let style
+    if (!VECTOR.has(mode) && opacity[mode]) for (const k of opacity[mode].keys) q.set(k, "1")
     if (SHADING.has(mode)) style = { opacity: opacity[mode]?.value ?? 1, blend: 13 }
-    else if (!VECTOR.has(mode) && opacity[mode]) { q.set(opacity[mode].key, "1"); style = { opacity: opacity[mode].value } }
+    else if (!VECTOR.has(mode) && opacity[mode]) style = { opacity: opacity[mode].value }
     const bg = SHADING.has(mode) ? "" : "&background=none"
     const kept = q.toString()
     return add(name, xyz(`${base}/tiles/{z}/{x}/{y}.png?modes=${mode}${bg}${kept ? "&" + kept : ""}`, 22, "&tilePixelRatio=1"), "wms", "raster", active.has(mode), style)

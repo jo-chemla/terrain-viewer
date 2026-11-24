@@ -700,7 +700,7 @@
                 ]
               }
             },
-            "description": "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
+            "description": "The modes to draw, comma-separated, stacked as the map stacks them. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
             "style": "form",
             "explode": false
           },
@@ -1052,7 +1052,7 @@
                 ]
               }
             },
-            "description": "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
+            "description": "The modes to draw, comma-separated, stacked as the map stacks them. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
             "style": "form",
             "explode": false
           },
@@ -1441,7 +1441,7 @@
                 ]
               }
             },
-            "description": "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
+            "description": "The modes to draw, comma-separated, stacked as the map stacks them. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
             "style": "form",
             "explode": false
           },
@@ -1666,7 +1666,7 @@
                 ]
               }
             },
-            "description": "The modes to draw, comma-separated. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
+            "description": "The modes to draw, comma-separated, stacked as the map stacks them. Unset: hillshade. Given without `hillshade`, the hillshade is off. `algorithm` is read as the same parameter.",
             "style": "form",
             "explode": false
           },
@@ -1977,7 +1977,9 @@
                 ]
               }
             },
-            "description": "The layers, comma-separated. Unset: contours."
+            "description": "The layers, comma-separated. Unset: contours.",
+            "style": "form",
+            "explode": false
           },
           {
             "name": "appParams",
