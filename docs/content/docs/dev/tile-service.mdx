@@ -55,9 +55,9 @@ A mode's opacity is its own parameter (`slopeOpacity`) times its panel group's (
 
 Refused together: `basemap` with `/terrain-tiles`, a terrain mode with `/basemap-tiles`, a mode that is only a picture with `.pbf`, more than one mode or a mode without values with `.tif`, and `engine=direct` with what only the browser draws. Any other set stacks.
 
-### Deprecated addresses
+### Removed addresses
 
-`/tiles/{z}/{x}/{y}` (every extension) and `/modes` still answer as before, for older clients and QGIS plugins, for a while. Each answer carries a `Deprecation` header (RFC 9745, the date: 2026-11-24) and a `Link` to its successor (`rel="successor-version"`): `/terrain-tiles/...`, `/basemap-tiles/...` for a basemap alone, `/processes` for `/modes`. titiler's `/tiles/WebMercatorQuad/...` is titiler's own address and is not deprecated.
+`/tiles/{z}/{x}/{y}` (every extension) and `/modes` were removed on 2026-11-24 and answer 404 with the address to use: `/terrain-tiles/...` for the elevation modes, `/basemap-tiles/...` for the imagery, `/processes` and `/view` for `/modes`. titiler's `/tiles/WebMercatorQuad/...` is a different address and still answers, as `/terrain-tiles`.
 
 ## Names, not addresses
 

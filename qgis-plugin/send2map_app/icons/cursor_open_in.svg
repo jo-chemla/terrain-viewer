@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- The map tool's cursor: QGIS's crosshair (black with a white halo, hotspot at the centre) and an "open elsewhere" arrow. -->
+  <g fill="none" stroke-linecap="butt">
+    <path d="M1 9h5.5M11.5 9H17M9 1v5.5M9 11.5V17" stroke="#fff" stroke-width="3.5"/>
+    <path d="M1 9h5.5M11.5 9H17M9 1v5.5M9 11.5V17" stroke="#000" stroke-width="1.6"/>
+  </g>
+  <rect x="13.5" y="13.5" width="10" height="10" rx="1.8" fill="#f3a93b" stroke="#fff" stroke-width="1"/>
+  <path d="M16.3 20.7l4.4-4.4M17.4 16h3.6v3.6" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

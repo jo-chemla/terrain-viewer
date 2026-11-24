@@ -285,7 +285,7 @@ const NOT_A_SETTING = /^show(?!ContourLabels|GraticuleLabels)|CustomStops|^hypso
  *  multiplied), the parameter that holds its opacity, and its settings with
  *  their types and defaults, from the app's URL reference (`params`, the
  *  `params` of generated/url-params.json), and for a mode with values
- *  (`valueModes`, direct.mjs VALUE_MODES) their unit. Served as /modes. */
+ *  (`valueModes`, direct.mjs VALUE_MODES) their unit. Served as /processes (processes.mjs). */
 export function modesCatalog(params, valueModes = {}) {
   const constant = (d) => typeof d === "string" && /^[A-Z][A-Z0-9_]+$/.test(d)
   const forMode = (mode) => {

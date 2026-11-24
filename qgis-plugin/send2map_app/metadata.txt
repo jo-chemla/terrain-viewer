@@ -5,15 +5,20 @@ qgisMaximumVersion=4.99
 supportsQt6=True
 description=Opens the place shown or clicked in QGIS in Terrain Viewer, Google Earth (web and Pro), Google Maps 3D, Bing Maps 3D, ESRI Wayback, ShadeMap, LiDAR Lens and other viewers.
 about=A toolbar button and a map canvas right-click menu, "Open in": the current view or the point clicked opens in another viewer at the same place and scale. The destinations are the web app Terrain Viewer's "Open in" list (Iconem River-REM, Iconem Search-EO, ESRI Wayback, Google Maps 3D, Google Earth web historical and 3D, Bing Maps 3D, ShadeMap, LiDAR Lens, BBBike MapCompare), plus Terrain Viewer itself, Iconem Historical Satellite, Maxar, and Google Earth Pro on the desktop through a KML file. Derived from NextGIS's Send2GE (send2google_earth) plugin by Maxim Dubinin, GPL v2 or later.
-version=0.4.0
+version=0.5.0
 author=Maxim Dubinin (NextGIS), Jonathan Chemla (Iconem)
+# TODO before publishing on plugins.qgis.org: email=<the maintainer's address> (required there)
 homepage=https://terrain-viewer.iconem.com/docs/dev/qgis-plugin#send2mapapp-open-in
 tracker=https://github.com/Iconem/terrain-viewer/issues
 repository=https://github.com/Iconem/terrain-viewer
 category=Web
-icon=icons/icon-calendar_22.png
-tags=google earth,google maps,bing,wayback,historical imagery,open in,terrain
-changelog=0.4.0
+icon=icons/send2map_app.svg
+tags=web,google earth,google maps,bing,esri wayback,historical imagery,satellite,open in,viewer,3d,terrain
+changelog=0.5.0
+    * The map tool is a QGIS point tool: a crosshair cursor with an "open elsewhere" badge, unchecked when another map tool is picked
+    * The button sits on the Web toolbar; QGIS-style SVG icons for the plugin, Terrain Viewer and the web viewers, QGIS's 3D globe for Google Maps 3D and Bing Maps 3D
+    * The destination is kept in QGIS's settings under plugins/send2map_app (the 0.4.0 key is still read)
+  0.4.0
     * In the Terrain Viewer repository (qgis-plugin/send2map_app)
     * Every "Open in" destination of the Terrain Viewer web app, plus Terrain Viewer itself
     * The current view or the point clicked, at the canvas's scale and rotation
@@ -26,3 +31,5 @@ changelog=0.4.0
     * Update to QGIS3 (NextGIS)
 experimental=False
 deprecated=False
+hasProcessingProvider=no
+server=False

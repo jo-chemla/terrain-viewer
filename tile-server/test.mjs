@@ -214,8 +214,8 @@ import { plan } from "./direct.mjs"
   assert.equal([...project.matchAll(/<provider>gdal<\/provider>/g)].length, 15)
 }
 
-// Over HTTP: /terrain-tiles and /basemap-tiles, the deprecated /tiles and
-// /modes (Deprecation and Link headers), the OGC API landing page,
+// Over HTTP: /terrain-tiles and /basemap-tiles, titiler's address, the old
+// /tiles and /modes gone (404), the OGC API landing page,
 // conformance and process descriptions.
 {
   const { start } = await import("./server.mjs")
@@ -299,33 +299,28 @@ import { plan } from "./direct.mjs"
     assert.equal(exec.status, 501)
     assert.ok((await exec.json()).links.some((l) => l.rel.endsWith("/execute")))
 
-    // /modes, deprecated, the same catalog as before.
-    const modes = await get("/modes")
-    assert.equal(modes.status, 200)
-    assert.match(modes.headers.get("deprecation"), /^@\d+$/)
-    assert.match(modes.headers.get("link"), new RegExp(`<${base}/processes>; rel="successor-version"`))
-    assert.ok((await modes.json()).modes.length > 0)
-    // /view, what /modes?<query> said in `view`.
+    // /modes, removed on 2026-11-24: /processes and /view replace it.
+    assert.equal((await get("/modes")).status, 404)
+    // /view: what a share link switches on.
     const view = await json("/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainAnalysisOpacity=0.4&terrainSourceA=x")
     assert.ok(view.active.includes("slope")); assert.ok(Math.abs(view.opacity.slope - 0.2) < 1e-9); assert.equal(view.params.terrainSource, "x")
 
-    // Tiles: the new address, the deprecated one with its headers, and the
-    // modes refused on each.
+    // Tiles: the address, titiler's, the old /tiles/{z}/{x}/{y} gone, and
+    // the modes refused on each.
     const tilePath = "/2/2/1.png?modes=slope&background=none"
     const fresh = await get(`/terrain-tiles${tilePath}`)
     assert.equal(fresh.status, 200, await fresh.clone().text().catch(() => ""))
     assert.equal(fresh.headers.get("content-type"), "image/png")
     assert.equal(fresh.headers.get("deprecation"), null)
-    const old = await get(`/tiles${tilePath}`)
-    assert.equal(old.status, 200)
-    assert.match(old.headers.get("deprecation"), /^@\d+$/)
-    assert.ok(old.headers.get("link").startsWith(`<${base}/terrain-tiles${tilePath}>; rel="successor-version"`), old.headers.get("link"))
-    assert.deepEqual(Buffer.from(await old.arrayBuffer()), Buffer.from(await fresh.arrayBuffer()), "the alias draws the same tile")
-    const titiler = await get("/tiles/WebMercatorQuad/2/2/1.png?algorithm=slope")
-    assert.equal(titiler.status, 200); assert.equal(titiler.headers.get("deprecation"), null, "titiler's address is not deprecated")
+    assert.equal((await get(`/tiles${tilePath}`)).status, 404, "the old /tiles/{z}/{x}/{y} is removed")
+    const titiler = await get(`/tiles/WebMercatorQuad${tilePath}`)
+    assert.equal(titiler.status, 200); assert.equal(titiler.headers.get("deprecation"), null)
+    assert.deepEqual(Buffer.from(await titiler.arrayBuffer()), Buffer.from(await fresh.arrayBuffer()), "titiler's address draws the same tile")
+    assert.equal((await get("/tiles/WebMercatorQuad/2/2/1.png?algorithm=slope")).status, 200)
+    assert.equal((await get("/tiles/WebMercatorQuad/2/2/1.pbf?modes=contours")).status, 200)
     const vec = await get("/terrain-tiles/2/2/1.pbf?modes=contours")
     assert.equal(vec.status, 200); assert.equal(vec.headers.get("content-type"), "application/vnd.mapbox-vector-tile")
-    assert.match((await get("/tiles/2/2/1.pbf?modes=contours")).headers.get("link"), /\/terrain-tiles\/2\/2\/1\.pbf/)
+    assert.equal((await get("/tiles/2/2/1.pbf?modes=contours")).status, 404)
     const tif = await get("/terrain-tiles/2/2/1.tif?modes=slope")
     assert.equal(tif.status, 200); assert.equal(tif.headers.get("x-tv-value-unit"), "degree")
     assert.equal((await get("/terrain-tiles/2/2/1.png?modes=hillshade,basemap")).status, 400)
@@ -339,7 +334,7 @@ import { plan } from "./direct.mjs"
     const { inflateRawSync } = await import("node:zlib")
     const qgs = inflateRawSync(qgz.subarray(30 + qgz.readUInt16LE(26), 30 + qgz.readUInt16LE(26) + qgz.readUInt32LE(18))).toString()
     assert.ok(qgs.includes("/terrain-tiles/") && qgs.includes("/basemap-tiles/"))
-    assert.ok(!/localhost:\d+\/tiles\//.test(decodeURIComponent(qgs)), "no deprecated address in the project")
+    assert.ok(!/localhost:\d+\/tiles\//.test(decodeURIComponent(qgs)), "no old /tiles address in the project")
   } finally {
     server.close()
   }

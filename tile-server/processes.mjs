@@ -13,8 +13,8 @@
 // group of the app's panel a mode belongs to, how it is drawn (form,
 // shading, stacking rank), its opacity and group opacity parameters, the
 // app's switches, its values' unit and typical range. The QGIS plugin
-// builds its panel from these. Built from modesCatalog (qgis-project.mjs),
-// the same source as the deprecated /modes.
+// builds its panel from these. Built from modesCatalog (qgis-project.mjs):
+// the panel tree the QGIS plugin reads.
 import { modesCatalog } from "./qgis-project.mjs"
 import { MODES, IMAGERY_SOURCES, STACK_ORDER } from "./url.mjs"
 import { DIRECT_MODES } from "./direct.mjs"

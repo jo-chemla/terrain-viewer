@@ -5,3 +5,4 @@ artifacts/
 *.tsbuildinfo
 # generated from ../dist by gen-config.mjs
 electrobun.config.ts
+.dmgvenv/

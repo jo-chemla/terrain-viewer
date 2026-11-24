@@ -52,4 +52,5 @@ On Windows run the build from PowerShell or cmd, not Git Bash: the release step 
 - Web Workers and the custom `views://` scheme: MapLibre and the COG reader run workers, and a custom scheme may not allow them in every system webview. If a build opens on a blank map, that is the first thing to check; the fallback is serving `dist/` from a local HTTP port in the main process instead of `views://`.
 - WebGL 2 is required (MapLibre 6); all three system webviews have it.
 - Linux needs GTK 3, WebKitGTK 4.1, Ayatana AppIndicator and librsvg at runtime.
-- macOS Gatekeeper refuses an unsigned download; right-click, Open, or sign with `mac.codesign: true` and an Apple identity.
+- macOS Gatekeeper refuses an unnotarized download: System Settings > Privacy & Security > Open Anyway (or right-click, Open), or sign and notarize with an Apple Developer ID (secrets and steps: the docs page, "Signing and notarizing later").
+- The `.dmg` is the drag-to-install window (the app, a link to /Applications, an arrow), laid out by `dmg-settings.py` with dmgbuild in a venv (`.dmgvenv/`); without dmgbuild, hdiutil packs the same two items in Finder's default layout.

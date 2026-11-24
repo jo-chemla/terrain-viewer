@@ -24,23 +24,57 @@
 # MA 02110-1335 USA.
 #
 # ******************************************************************************
-"""The map tool (click a point, open it) and the canvas-to-camera reading,
-shared by the toolbar menu and the canvas context menu."""
+"""The map tool (click a point, open it), the icons, and the
+canvas-to-camera reading, shared by the toolbar menu and the canvas context
+menu."""
 import math
 import os
 import platform
 import subprocess
 import tempfile
 
-from qgis.PyQt.QtCore import Qt, QUrl
-from qgis.PyQt.QtGui import QCursor, QDesktopServices, QPixmap
-from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsPointXY, QgsProject
-from qgis.gui import QgsMapTool
+from qgis.PyQt.QtCore import Qt, QSize, QUrl
+from qgis.PyQt.QtGui import QCursor, QDesktopServices, QIcon
+from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsPointXY, QgsProject
+from qgis.gui import QgsMapToolEmitPoint
 
 from .destinations import Context
 
 WORLD = 20037508.342789244  # half the Web Mercator world, metres
 ICONS = os.path.join(os.path.dirname(__file__), "icons")
+PLUGIN_ICON = os.path.join(ICONS, "send2map_app.svg")
+
+
+def plugin_icon():
+    return QIcon(PLUGIN_ICON)
+
+
+def destination_icon(dest):
+    """A destination's icon: a file of icons/, a QGIS theme icon
+    ("theme:/name.svg"), or the generic globe."""
+    name = dest.icon or "icon-web.svg"
+    if name.startswith("theme:"):
+        icon = QgsApplication.getThemeIcon(name[len("theme:"):])
+        if not icon.isNull():
+            return icon
+        name = "icon-web.svg"
+    return QIcon(os.path.join(ICONS, name))
+
+
+def tool_cursor():
+    """The map tool's cursor: QGIS's crosshair with an "open elsewhere"
+    badge (icons/cursor_open_in.svg, hotspot at the crosshair's centre,
+    9/24 of the side), scaled with the screen like QGIS's own cursors; the
+    theme crosshair if the SVG cannot be drawn."""
+    screen = QgsApplication.primaryScreen()
+    scale = max(1.0, (screen.logicalDotsPerInch() / 96.0) if screen else 1.0)
+    side = int(round(24 * scale))
+    pixmap = QIcon(os.path.join(ICONS, "cursor_open_in.svg")).pixmap(QSize(side, side))
+    if pixmap.isNull():
+        cursors = getattr(QgsApplication, "Cursor", QgsApplication)
+        return QgsApplication.getThemeCursor(getattr(cursors, "CrossHair"))
+    hot = int(round(side * 9 / 24))
+    return QCursor(pixmap, hot, hot)
 
 
 def canvas_context(canvas, point=None):
@@ -107,21 +141,17 @@ def open_destination(dest, ctx):
     return None
 
 
-class Send2MapApptool(QgsMapTool):
+class Send2MapApptool(QgsMapToolEmitPoint):
     """Click the map: the point clicked opens in the chosen destination, at
-    the canvas's scale."""
+    the canvas's scale. A QGIS point tool: its cursor while it is on, and
+    its action (setAction) unchecked when another map tool is picked."""
 
     def __init__(self, canvas, on_click):
         super().__init__(canvas)
-        self.canvas = canvas
         self.on_click = on_click  # QgsPointXY (map coordinates) -> None
-        self.cursor = QCursor(QPixmap(os.path.join(ICONS, "cursor.png")), 1, 1)
+        self.setCursor(tool_cursor())
+        self.canvasClicked.connect(self._clicked)
 
-    def activate(self):
-        super().activate()
-        self.canvas.setCursor(self.cursor)
-
-    def canvasReleaseEvent(self, event):
-        if event.button() != Qt.MouseButton.LeftButton:
-            return
-        self.on_click(event.mapPoint())
+    def _clicked(self, point, button):
+        if button == Qt.MouseButton.LeftButton:
+            self.on_click(QgsPointXY(point))

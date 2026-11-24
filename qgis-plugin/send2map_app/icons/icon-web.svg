@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- A web viewer: a globe, QGIS theme palette. -->
+  <circle cx="12" cy="12" r="10" fill="#a5c6e8" stroke="#415a75" stroke-width="1"/>
+  <path d="M2 12h20M12 2v20M3.8 7h16.4M3.8 17h16.4M12 2c-4.6 4-4.6 16 0 20m0-20c4.6 4 4.6 16 0 20" fill="none" stroke="#fff" stroke-width=".9"/>
+</svg>

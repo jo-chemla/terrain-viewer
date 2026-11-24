@@ -1,5 +1,5 @@
 """The panel: the app's sidebar groups, each mode a checkbox with its
-settings, built from what the tile service answers (/sources, /modes,
+settings, built from what the tile service answers (/sources, /processes,
 /colorramps), so a mode or setting added to the app shows up here without a
 plugin release. Each checked mode is a layer of the project whose address
 the panel writes; a changed setting rewrites that address."""
@@ -378,7 +378,7 @@ class TerrainViewerDock(QDockWidget):
                 inner.addWidget(row.box)
 
         # The app's panel reads from the base up (colour relief, analysis,
-        # relief, lighting, overlays); /modes is top of the map first, so
+        # relief, lighting, overlays); /processes is top of the map first, so
         # the panel lists it reversed (the layer tree keeps the map's order).
         for g in reversed(self.catalog.tree):
             add_group(g, self.groups_layout, ())

@@ -22,6 +22,42 @@ from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
 from terrain_viewer.service import tile_url  # noqa: E402
 
 failures = []
+
+# The plugin around the panel: its button on the Web toolbar and in the Web
+# menu, its SVG icon, nothing left after unload.
+import terrain_viewer  # noqa: E402
+from qgis.PyQt.QtWidgets import QMainWindow  # noqa: E402
+
+
+class Iface:
+    def __init__(self):
+        self.window, self.toolbar, self.web = QMainWindow(), [], []
+
+    def mainWindow(self):
+        return self.window
+
+    def addWebToolBarIcon(self, a):
+        self.toolbar.append(a)
+
+    def removeWebToolBarIcon(self, a):
+        self.toolbar.remove(a)
+
+    def addPluginToWebMenu(self, name, a):
+        self.web.append(a)
+
+    def removePluginWebMenu(self, name, a):
+        self.web.remove(a)
+
+
+iface = Iface()
+plugin = terrain_viewer.classFactory(iface)
+plugin.initGui()
+if len(iface.toolbar) != 1 or len(iface.web) != 1 or iface.toolbar[0].icon().pixmap(24, 24).isNull():
+    failures.append("plugin: toolbar button, Web menu entry or icon")
+plugin.unload()
+if iface.toolbar or iface.web:
+    failures.append("plugin: unload")
+
 dock = TerrainViewerDock(None)
 dock.url.setText(base)
 assert dock.connect_service(), dock.status.text()

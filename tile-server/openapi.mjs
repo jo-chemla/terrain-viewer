@@ -15,7 +15,7 @@ export const STACKING = [
   "**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).",
   "**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.",
   "**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).",
-  "**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; the deprecated `/tiles` still draws them in one tile, with the browser engine). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+  "**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
 ].join("\n\n")
 
 const q = (name, schema, description, extra = {}) => ({ name, in: "query", required: false, schema, description, ...extra })
@@ -39,7 +39,6 @@ const IMAGERY_PARAMS = [
 ]
 // A viewport can mix both: the imagery under the terrain modes (`basemap` in `modes`).
 const ALL_PARAMS = [...VIEW_PARAMS, ...IMAGERY_PARAMS]
-const DEPRECATED_NOTE = " **Deprecated** since 2026-11-24: answered with a `Deprecation` header and a `Link` (rel `successor-version`) to the new address; kept for a while for older clients."
 const tileXYZ = (z = 12, x = 2125, y = 1464) => [
   { name: "z", in: "path", required: true, schema: { type: "integer", minimum: 0, maximum: 22 }, example: z },
   { name: "x", in: "path", required: true, schema: { type: "integer", minimum: 0 }, example: x },
@@ -78,12 +77,12 @@ export function openapi(server = "http://localhost:3400") {
     info: {
       title: "Terrain Viewer tile service",
       version: "0.1.0",
-      description: "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles` (the old `/tiles` answers both, deprecated). Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n" + STACKING,
+      description: "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n" + STACKING,
       license: { name: "MIT", url: "https://github.com/Iconem/terrain-viewer" },
     },
     externalDocs: { description: "Documentation", url: "https://terrain-viewer.iconem.com/docs/dev/tile-service" },
     servers: [{ url: server }],
-    tags: [{ name: "Tiles" }, { name: "Viewport" }, { name: "Values", description: "A mode's numbers before the colour ramp, in natural units: Float32 GeoTIFF for analysis (GDAL, QGIS, rasterio, numpy), or packed in a PNG for a web map." }, { name: "titiler addresses", description: "The same answers at the addresses titiler uses." }, { name: "Catalogs", description: "What can be named by id: sources, colour ramps, modes." }, { name: "OGC API", description: "The modes as OGC API - Processes processes (OGC 18-062r2), with OGC API Common's landing page and conformance. A process is run by asking for its tiles: its description links them." }, { name: "Service" }, { name: "Deprecated", description: "Old addresses, kept for a while: each answer carries a `Deprecation` header and a `Link` to its successor." }],
+    tags: [{ name: "Tiles" }, { name: "Viewport" }, { name: "Values", description: "A mode's numbers before the colour ramp, in natural units: Float32 GeoTIFF for analysis (GDAL, QGIS, rasterio, numpy), or packed in a PNG for a web map." }, { name: "titiler addresses", description: "The same answers at the addresses titiler uses." }, { name: "Catalogs", description: "What can be named by id: sources, colour ramps, modes." }, { name: "OGC API", description: "The modes as OGC API - Processes processes (OGC 18-062r2), with OGC API Common's landing page and conformance. A process is run by asking for its tiles: its description links them." }, { name: "Service" }],
     paths: {
       "/terrain-tiles/{z}/{x}/{y}.tif": {
         get: {
@@ -149,14 +148,6 @@ export function openapi(server = "http://localhost:3400") {
           responses: image("The tile"),
         },
       },
-      "/tiles/{z}/{x}/{y}.{format}": {
-        get: {
-          tags: ["Deprecated"], operationId: "tile", deprecated: true, summary: "One XYZ tile (deprecated: /terrain-tiles, /basemap-tiles)",
-          description: "The old address of both `/terrain-tiles` and `/basemap-tiles`: any mix of modes, `basemap` included, in one tile. Also `.tif` and `.pbf`, as `/terrain-tiles`." + DEPRECATED_NOTE,
-          parameters: [...tileXYZ(), { ...FORMAT, schema: { type: "string", enum: ["png", "jpg", "tif", "pbf", "mvt"], default: "png" } }, q("tilesize", { type: "integer", enum: [256, 512], default: 256 }, "The side of the tile in pixels."), ...ALL_PARAMS],
-          responses: image("The tile"),
-        },
-      },
       "/render.{format}": {
         get: {
           tags: ["Viewport"], operationId: "render", summary: "A picture of a viewport",
@@ -182,7 +173,7 @@ export function openapi(server = "http://localhost:3400") {
       "/tiles/WebMercatorQuad/{z}/{x}/{y}.{format}": {
         get: {
           tags: ["titiler addresses"], operationId: "titilerTile", summary: "One tile, at titiler's address",
-          description: "The same as `/terrain-tiles/{z}/{x}/{y}` (titiler's address: not deprecated). `url` is the source and `algorithm` one mode; `@2x` after `{y}` and `tilesize` work the same. titiler's `rescale`, `colormap_name`, `bidx`, `expression` and `nodata` are not read.",
+          description: "The same as `/terrain-tiles/{z}/{x}/{y}` (titiler's address). `url` is the source and `algorithm` one mode; `@2x` after `{y}` and `tilesize` work the same. titiler's `rescale`, `colormap_name`, `bidx`, `expression` and `nodata` are not read.",
           parameters: [
             { name: "z", in: "path", required: true, schema: { type: "integer" } }, { name: "x", in: "path", required: true, schema: { type: "integer" } }, { name: "y", in: "path", required: true, schema: { type: "integer" } }, FORMAT,
             q("url", { type: "string" }, "The elevation source (as `terrainSource`)."),
@@ -228,7 +219,7 @@ export function openapi(server = "http://localhost:3400") {
       "/terrain-tiles/{z}/{x}/{y}.{vectorFormat}": {
         get: {
           tags: ["Tiles"], operationId: "vectorTile", summary: "The overlays as a vector tile",
-          description: "The tile address with `.pbf` or `.mvt`: a Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles; `/tiles/WebMercatorQuad/...` and the deprecated `/tiles/...` are the same. Past a layer's last zoom it comes from its deepest tile, scaled up. A mode drawn only as an image (hillshade, the plane slicer, ...) is refused: ask for `.png` or `.jpg`.",
+          description: "The tile address with `.pbf` or `.mvt`: a Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles; `/tiles/WebMercatorQuad/...` is the same. Past a layer's last zoom it comes from its deepest tile, scaled up. A mode drawn only as an image (hillshade, the plane slicer, ...) is refused: ask for `.png` or `.jpg`.",
           parameters: [
             { name: "z", in: "path", required: true, schema: { type: "integer" }, example: 11 }, { name: "x", in: "path", required: true, schema: { type: "integer" }, example: 1067 }, { name: "y", in: "path", required: true, schema: { type: "integer" }, example: 728 },
             { name: "vectorFormat", in: "path", required: true, schema: { type: "string", enum: ["pbf", "mvt"] }, example: "pbf" },
@@ -264,9 +255,6 @@ export function openapi(server = "http://localhost:3400") {
       },
       "/view": {
         get: { tags: ["Catalogs"], operationId: "view", summary: "What a share link switches on", description: "Given the query of a share link, as is: the modes it switches on (`active`), each one's opacity (its own times its group's), the parameters every layer keeps (`params`, the terrain source among them) and the camera. The QGIS plugin's Open link.", parameters: [q("appParams", { type: "object", additionalProperties: { type: "string" } }, "The query of a share link, as is.", { style: "form", explode: true })], responses: ogcJson("The view") },
-      },
-      "/modes": {
-        get: { tags: ["Deprecated"], operationId: "modes", deprecated: true, summary: "The modes with their settings (deprecated: /processes)", description: "The QGIS plugin's catalog before `/processes`: the app's panel groups, top drawn on top; for each mode its form (`raster`, `vector` or `both`), whether it is shading (opaque tiles, multiplied over the layers under it), the parameter of its opacity, its settings (the app's URL parameters, with type, allowed values and default) and, for a mode with values, their unit, description and typical range (`values`; also listed at the top level, with `elevation`). Given a view's query (a share link's, as is), `view` lists the modes it switches on, their opacities, the parameters every layer keeps and the camera (now `/view`)." + DEPRECATED_NOTE, parameters: [q("appParams", { type: "object", additionalProperties: { type: "string" } }, "A view: the query of a share link, as is.")], responses: { 200: { description: "The modes", content: { "application/json": { schema: { type: "object" } } } } } },
       },
       "/health": {
         get: { tags: ["Service"], operationId: "health", summary: "Is the service up", responses: { 200: { description: "Up, and the app it renders", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" }, app: { type: "string" } } } } } } } },

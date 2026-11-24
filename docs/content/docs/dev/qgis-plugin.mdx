@@ -14,7 +14,7 @@ A dock panel laid out as the app's sidebar: the same groups (Elevation Hypso, Te
 - Each checked mode is a layer of the project: an XYZ layer whose address the panel writes (`/terrain-tiles/{z}/{x}/{y}.png?modes=<mode>&<its settings>`), as `/qgis.qgz` does, in a "Terrain Viewer (live)" group with the app's panel groups, stacked as the map stacks them. A changed setting rewrites that layer's address and refreshes it; only the settings that differ from the app's defaults go into it. Opacity and blending stay QGIS layer settings (the tiles are asked opaque, the shading modes multiplied; see the QGIS section of the tile service page).
 - The overlays (contours, iso-line, mound candidates, plane slicer, graticule) are raster layers as the app draws them, and on demand also vector tile layers (`.pbf`), styled by the plugin in the mode's colour.
 - A mode computed as numbers has a "values" box: its values before the ramp, in natural units, as a Float32 raster GDAL reads from the service's `/gdal.xml` (see [values, not colours](/dev/tile-service#values-not-colours)), for QGIS's own analysis tools.
-- The lists come from the service: `/sources` for the terrain sources, `/colorramps` for the ramps, and `/processes?expand=true`, each mode as an [OGC API - Processes](/dev/tile-service#ogc-api---processes) description: the panel's groups (`x-tv-groups`) and, for each mode, its form, whether it is shading, its opacity parameter (`x-tv-` properties) and its settings as inputs (the app's URL parameters, with type, allowed values and default, from the generated URL reference). A service older than 2026-11-24 has no `/processes`: the plugin then reads `/modes` and asks `/tiles`. So a new mode or parameter in the app reaches the plugin without a plugin release.
+- The lists come from the service: `/sources` for the terrain sources, `/colorramps` for the ramps, and `/processes?expand=true`, each mode as an [OGC API - Processes](/dev/tile-service#ogc-api---processes) description: the panel's groups (`x-tv-groups`) and, for each mode, its form, whether it is shading, its opacity parameter (`x-tv-` properties) and its settings as inputs (the app's URL parameters, with type, allowed values and default, from the generated URL reference). A service older than 2026-11-24 has no `/processes` and is refused with a message to update it (0.2.2 dropped the fallback to the removed `/modes` and `/tiles`). So a new mode or parameter in the app reaches the plugin without a plugin release.
 - "Open from link": paste a share link, get its layers. `/view?<the link's query>` answers what the view switches on, the opacities, the parameters every layer keeps and the camera (the reading `/qgis.qgz` does).
 - **Freeze** copies the layers drawn now (the checked ones) into a new group under the live one, which stays on top, named with the date, the time and the place ("Frozen 2026-11-24 14:05 — 44.51, 4.00 z11"): XYZ, vector tile and values layers alike, every setting in their addresses, with their opacity, blending, style and order. The copies carry no mark the panel looks for, so later changes leave them as they are; several freezes stack as several groups, the newest on top, to compare settings side by side.
 - A saved project reopens as it was: on Connect, the panel reads its layers' addresses back into its checkboxes and settings.
@@ -22,15 +22,20 @@ A dock panel laid out as the app's sidebar: the same groups (Elevation Hypso, Te
 
 ### Install
 
-```bash
-cd qgis-plugin && python make_zip.py   # dist/terrain_viewer-0.2.1.zip and dist/send2map_app-0.4.0.zip
-```
+Both plugins are on the [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24) release: `terrain_viewer-0.2.2.zip` and `send2map_app-0.5.0.zip`, for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28). In QGIS: **Plugins > Manage and Install Plugins > Install from ZIP**, pick the zip, **Install Plugin**. The Terrain Viewer button is on the Web toolbar (or **Web > Terrain Viewer**). Not yet on plugins.qgis.org (its `metadata.txt` needs an `email` first).
 
-In QGIS: Plugins, Manage and Install Plugins, Install from ZIP, then the Terrain Viewer button in the toolbar (or Web, Terrain Viewer). Not yet on plugins.qgis.org.
+From the repository:
+
+```bash
+cd qgis-plugin && python make_zip.py   # dist/terrain_viewer-0.2.2.zip and dist/send2map_app-0.5.0.zip
+```
 
 ## Send2MapApp: "Open in"
 
-A second plugin in the same folder, [`qgis-plugin/send2map_app/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/send2map_app): the place shown or clicked in QGIS opened in another viewer at the same place and scale, from a toolbar dropdown (the current view; the button itself is a map tool for the point clicked), the map canvas's right-click menu ("Open in" at the point clicked) or Web, Send2MapApp. QGIS 3.22 to 4.x.
+A second plugin in the same folder, [`qgis-plugin/send2map_app/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/send2map_app): the place shown or clicked in QGIS opened in another viewer at the same place and scale, from a dropdown on the Web toolbar (the current view, in the destination picked, which is remembered), the button itself (a map tool: the point clicked), the map canvas's right-click menu ("Open in" at the point clicked) or **Web > Send2MapApp**. QGIS 3.22 to 4.x; install it from the [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24) release as above.
+
+- **A QGIS map tool**: the button is checked while the tool is on, with a crosshair cursor carrying an "open elsewhere" badge, and unchecks itself when another map tool (Pan, Identify, ...) is picked, as QGIS's own tools do. The destination picked is kept in QGIS's settings (`plugins/send2map_app/destination`).
+- **Icons**: QGIS-style SVGs for the plugin, Terrain Viewer and the web viewers, QGIS's own 3D globe for Google Maps 3D and Bing Maps 3D, the publishers' logos for Google Earth, Esri, Maxar and Search-EO.
 
 - **Destinations**: every entry of the app's own "Open in" list (Iconem River-REM, Iconem Search-EO, ESRI Wayback, Google Maps 3D, Google Earth historical and 3D on the web, Bing Maps 3D, ShadeMap, LiDAR Lens, BBBike MapCompare), plus Terrain Viewer itself and its historical mode (historical-satellite.iconem.com), Maxar, and Google Earth Pro on the desktop through a KML file. LiDAR Lens is greyed out outside Britain and Ireland, as in the app.
 - **The camera**: the canvas centre or the point clicked, the zoom whose 512 px tiles have the canvas's ground resolution there (the app's zoom, so the other viewer opens at the same scale in any project CRS), the heading from the canvas rotation.

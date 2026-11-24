@@ -22,6 +22,9 @@ API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
+The zips of each version are on a release: [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24)
+(Terrain Viewer 0.2.2, Send2MapApp 0.5.0). To build them:
+
 ```bash
 python make_zip.py          # dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
 ```
@@ -40,7 +43,7 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
 - **Connect** to the service: the panel is built from its answers, `/sources`
   (the terrain source picker), `/processes` (each mode as an OGC API -
   Processes description: its settings with their types and defaults, its
-  panel group; `/modes` from a service older than 2026-11-24) and
+  panel group; a service older than 2026-11-24 has none: update it) and
   `/colorramps`. Layers ask `/terrain-tiles`. A mode or a setting added to the
   app reaches the panel when the service is updated, with no plugin release.
 - **Check a mode**: a layer is added to the "Terrain Viewer (live)" group, in a
@@ -87,7 +90,7 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
 | `terrain_viewer/service.py` | The service's catalogs and the tile addresses (no widget) |
 | `terrain_viewer/layers.py` | The layers in the project: the group tree, creation, address rewrite, opacity, blend, vector tile style |
 | `terrain_viewer/dock.py` | The panel |
-| `terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.png` | The QGIS plugin around it |
+| `terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.svg` | The QGIS plugin around it |
 | `send2map_app/` | The "Open in" plugin: `destinations.py` (the URL builders, no QGIS import), `send2map_apptool.py` (the canvas as a camera, the map tool, opening a URL or a KML), `send2map_app.py` (toolbar, Web menu, canvas right-click menu) |
 | `make_zip.py` | The installable zips |
 | `test_plugin.py` | A headless check of `terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |

@@ -16,7 +16,6 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 | `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
 | `/tiles/WebMercatorQuad/...`, `/bbox/...` | titiler's addresses for the same |
 | `/processes`, `/processes/{id}` | Each mode as an OGC API - Processes description (settings as inputs with JSON Schema, outputs, `x-tv-` panel data), read by the QGIS plugin (`../qgis-plugin/`); `/`, `/conformance` per OGC API Common; `/view?<share query>` |
-| `/tiles/...`, `/modes` | Deprecated aliases (a `Deprecation` header and a `Link` to the successor) |
 | `/openapi.json`, `/docs`, `/health` | `/` redirects to `/docs` (JSON index with `Accept: application/json`); `/health`: queues and workers |
 
 A standalone pnpm root, like `video/` and `mcp/`: it is not part of the root

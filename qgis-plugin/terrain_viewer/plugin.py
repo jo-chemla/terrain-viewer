@@ -14,11 +14,11 @@ class TerrainViewerPlugin:
         self.action = None
 
     def initGui(self):
-        icon = QIcon(os.path.join(os.path.dirname(__file__), "icon.png"))
+        icon = QIcon(os.path.join(os.path.dirname(__file__), "icon.svg"))
         self.action = QAction(icon, "Terrain Viewer", self.iface.mainWindow())
         self.action.setCheckable(True)
         self.action.toggled.connect(self.toggle)
-        self.iface.addToolBarIcon(self.action)
+        self.iface.addWebToolBarIcon(self.action)
         self.iface.addPluginToWebMenu("Terrain Viewer", self.action)
 
     def unload(self):
@@ -28,7 +28,7 @@ class TerrainViewerPlugin:
             self.dock = None
         if self.action:
             self.iface.removePluginWebMenu("Terrain Viewer", self.action)
-            self.iface.removeToolBarIcon(self.action)
+            self.iface.removeWebToolBarIcon(self.action)
             self.action = None
 
     def toggle(self, on):

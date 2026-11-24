@@ -3,7 +3,7 @@
   "info": {
     "title": "Terrain Viewer tile service",
     "version": "0.1.0",
-    "description": "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles` (the old `/tiles` answers both, deprecated). Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; the deprecated `/tiles` still draws them in one tile, with the browser engine). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+    "description": "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/Iconem/terrain-viewer"
@@ -43,10 +43,6 @@
     },
     {
       "name": "Service"
-    },
-    {
-      "name": "Deprecated",
-      "description": "Old addresses, kept for a while: each answer carries a `Deprecation` header and a `Link` to its successor."
     }
   ],
   "paths": {
@@ -708,7 +704,7 @@
                 ]
               }
             },
-            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; the deprecated `/tiles` still draws them in one tile, with the browser engine). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
             "style": "form",
             "explode": false
           },
@@ -937,279 +933,6 @@
             "description": "Any other basemap parameter of the app.",
             "style": "form",
             "explode": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The tile",
-            "content": {
-              "image/png": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "image/jpeg": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "A parameter is wrong; the body says which",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "The app could not be rendered; the body says why",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tiles/{z}/{x}/{y}.{format}": {
-      "get": {
-        "tags": [
-          "Deprecated"
-        ],
-        "operationId": "tile",
-        "deprecated": true,
-        "summary": "One XYZ tile (deprecated: /terrain-tiles, /basemap-tiles)",
-        "description": "The old address of both `/terrain-tiles` and `/basemap-tiles`: any mix of modes, `basemap` included, in one tile. Also `.tif` and `.pbf`, as `/terrain-tiles`. **Deprecated** since 2026-11-24: answered with a `Deprecation` header and a `Link` (rel `successor-version`) to the new address; kept for a while for older clients.",
-        "parameters": [
-          {
-            "name": "z",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 22
-            },
-            "example": 12
-          },
-          {
-            "name": "x",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "example": 2125
-          },
-          {
-            "name": "y",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "example": 1464
-          },
-          {
-            "name": "format",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "png",
-                "jpg",
-                "tif",
-                "pbf",
-                "mvt"
-              ],
-              "default": "png"
-            }
-          },
-          {
-            "name": "tilesize",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "enum": [
-                256,
-                512
-              ],
-              "default": 256
-            },
-            "description": "The side of the tile in pixels."
-          },
-          {
-            "name": "terrainSource",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "examples": [
-                "mapterhorn",
-                "custom-nl-ahn-dtm",
-                "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
-              ]
-            },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
-          },
-          {
-            "name": "engine",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "auto",
-                "direct",
-                "browser"
-              ]
-            },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
-          },
-          {
-            "name": "background",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "map",
-                "none"
-              ],
-              "default": "map"
-            },
-            "description": "`none`: no white (or black) map background, a transparent PNG to stack layers in a GIS. Direct engine only; the browser's tiles keep the map's background."
-          },
-          {
-            "name": "modes",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "hillshade",
-                  "colorRelief",
-                  "contours",
-                  "slope",
-                  "aspect",
-                  "curvature",
-                  "tpi",
-                  "roughness",
-                  "tri",
-                  "shapeIndex",
-                  "blobness",
-                  "eigenRatio",
-                  "orientation",
-                  "lrm",
-                  "svf",
-                  "openness",
-                  "localDominance",
-                  "phong",
-                  "matcap",
-                  "shadows",
-                  "buildingShadows",
-                  "basemap",
-                  "moundDetector",
-                  "isoline",
-                  "graticules",
-                  "planeSlicer"
-                ]
-              }
-            },
-            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; the deprecated `/tiles` still draws them in one tile, with the browser engine). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
-            "style": "form",
-            "explode": false
-          },
-          {
-            "name": "mapboxKey",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Your Mapbox access token, for the `mapbox` source. Read by the server's readers and given to the app as a setting, never put in the app's address; a tile drawn with a key is cached apart from one without."
-          },
-          {
-            "name": "maptilerKey",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Your MapTiler key, for the `maptiler` source."
-          },
-          {
-            "name": "cesiumIonKey",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Your Cesium ion token, for the `cesium` source and other ion assets."
-          },
-          {
-            "name": "appParams",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            "description": "Any other URL parameter of the app, given as it is at the top level of the query (for example `slopeOpacity=0.6`): ramps, opacities, light direction, contour interval. The list is the app's URL reference.",
-            "style": "form",
-            "explode": true
-          },
-          {
-            "name": "imageryUrl",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Imagery: XYZ tiles (`{z}/{x}/{y}`) or a COG."
-          },
-          {
-            "name": "imagerySource",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "wayback",
-                "ge-historical",
-                "bing",
-                "hls",
-                "eox-s2"
-              ]
-            },
-            "description": "Dated imagery built into the app, with `imageryDate`."
-          },
-          {
-            "name": "imageryDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date"
-            },
-            "description": "The date of `imagerySource`, YYYY-MM-DD."
           }
         ],
         "responses": {
@@ -1483,7 +1206,7 @@
                 ]
               }
             },
-            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; the deprecated `/tiles` still draws them in one tile, with the browser engine). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
             "style": "form",
             "explode": false
           },
@@ -1612,7 +1335,7 @@
         ],
         "operationId": "titilerTile",
         "summary": "One tile, at titiler's address",
-        "description": "The same as `/terrain-tiles/{z}/{x}/{y}` (titiler's address: not deprecated). `url` is the source and `algorithm` one mode; `@2x` after `{y}` and `tilesize` work the same. titiler's `rescale`, `colormap_name`, `bidx`, `expression` and `nodata` are not read.",
+        "description": "The same as `/terrain-tiles/{z}/{x}/{y}` (titiler's address). `url` is the source and `algorithm` one mode; `@2x` after `{y}` and `tilesize` work the same. titiler's `rescale`, `colormap_name`, `bidx`, `expression` and `nodata` are not read.",
         "parameters": [
           {
             "name": "z",
@@ -1872,7 +1595,7 @@
                 ]
               }
             },
-            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; the deprecated `/tiles` still draws them in one tile, with the browser engine). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
             "style": "form",
             "explode": false
           },
@@ -2097,7 +1820,7 @@
                 ]
               }
             },
-            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; the deprecated `/tiles` still draws them in one tile, with the browser engine). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
             "style": "form",
             "explode": false
           },
@@ -2341,7 +2064,7 @@
         ],
         "operationId": "vectorTile",
         "summary": "The overlays as a vector tile",
-        "description": "The tile address with `.pbf` or `.mvt`: a Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles; `/tiles/WebMercatorQuad/...` and the deprecated `/tiles/...` are the same. Past a layer's last zoom it comes from its deepest tile, scaled up. A mode drawn only as an image (hillshade, the plane slicer, ...) is refused: ask for `.png` or `.jpg`.",
+        "description": "The tile address with `.pbf` or `.mvt`: a Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles; `/tiles/WebMercatorQuad/...` is the same. Past a layer's last zoom it comes from its deepest tile, scaled up. A mode drawn only as an image (hillshade, the plane slicer, ...) is refused: ask for `.png` or `.jpg`.",
         "parameters": [
           {
             "name": "z",
@@ -2706,43 +2429,6 @@
         "responses": {
           "200": {
             "description": "The view",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/modes": {
-      "get": {
-        "tags": [
-          "Deprecated"
-        ],
-        "operationId": "modes",
-        "deprecated": true,
-        "summary": "The modes with their settings (deprecated: /processes)",
-        "description": "The QGIS plugin's catalog before `/processes`: the app's panel groups, top drawn on top; for each mode its form (`raster`, `vector` or `both`), whether it is shading (opaque tiles, multiplied over the layers under it), the parameter of its opacity, its settings (the app's URL parameters, with type, allowed values and default) and, for a mode with values, their unit, description and typical range (`values`; also listed at the top level, with `elevation`). Given a view's query (a share link's, as is), `view` lists the modes it switches on, their opacities, the parameters every layer keeps and the camera (now `/view`). **Deprecated** since 2026-11-24: answered with a `Deprecation` header and a `Link` (rel `successor-version`) to the new address; kept for a while for older clients.",
-        "parameters": [
-          {
-            "name": "appParams",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            "description": "A view: the query of a share link, as is."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The modes",
             "content": {
               "application/json": {
                 "schema": {

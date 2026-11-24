@@ -19,6 +19,7 @@ of web destinations (Iconem Historical, Maxar, ESRI Wayback, Google Earth web)
 next to Google Earth Pro. In 2026 it moved into the Terrain Viewer repository
 and gained every "Open in" destination of the Terrain Viewer web app, the
 canvas right-click menu, the current view (not only a click) and QGIS 4.
+0.5.0 made it a regular QGIS point tool (cursor, Web toolbar, SVG icons).
 
 It stays under the GNU GPL v2 or later (`LICENSE`), with the original
 copyright lines kept in each source file; the rest of the Terrain Viewer
@@ -27,12 +28,18 @@ part of `terrain_viewer`.
 
 ## Use
 
-- **Toolbar button**: its arrow lists the destinations; picking one opens the
-  current view there and remembers it. The button itself turns on a map tool:
-  a click on the map opens the point clicked in the remembered destination.
+- **Button on the Web toolbar**: its arrow lists the destinations; picking one
+  opens the current view there and remembers it (QGIS settings,
+  `plugins/send2map_app/destination`). The button itself turns on a map tool,
+  with a crosshair cursor: a click on the map opens the point clicked in the
+  remembered destination. Like QGIS's own tools, it stays on until another
+  map tool is picked, and the button unchecks itself then.
 - **Right click on the map**: "Open in", every destination at the point
   clicked.
-- **Web > Send2MapApp**: the same list for the current view.
+- **Web > Send2MapApp**: the same list for the current view, and the map tool.
+
+Install: the zip on the [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24) release, then
+Plugins > Manage and Install Plugins > Install from ZIP.
 
 The camera follows the canvas: the centre (or the point clicked), the zoom
 whose 512 px tiles have the canvas's ground resolution there (the web app's

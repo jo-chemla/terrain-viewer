@@ -33,7 +33,7 @@ def get_json(url, timeout_ms=20000):
 
 
 def walk_modes(groups, path=()):
-    """Every mode of /modes' tree, with the group names above it, top of the
+    """Every mode of the panel tree (tree_of_processes), with the group names above it, top of the
     map first."""
     for g in groups:
         here = path + ((g["group"],) if g.get("group") else ())
@@ -46,7 +46,7 @@ def walk_modes(groups, path=()):
 def mode_of_process(p):
     """An OGC API - Processes description (/processes/{id}) as the panel's
     mode: its form, shading, opacity parameter, values, and its settings
-    (the inputs whose x-tv-role is "setting"), as /modes gave them."""
+    (the inputs whose x-tv-role is "setting")."""
     settings = []
     for key, spec in (p.get("inputs") or {}).items():
         if spec.get("x-tv-role") != "setting":
@@ -84,28 +84,20 @@ def tree_of_processes(groups, modes):
     return out
 
 
-# The tile path of each service: /terrain-tiles, or /tiles for a service
-# from before 2026-11-24 (no /processes).
-_TILE_PATH = {}
-
-
 class Catalog:
     """What the service answers: its sources, its modes and their settings
-    (/processes, OGC API - Processes; /modes from an older service), its
-    colour ramps."""
+    (/processes, OGC API - Processes), its colour ramps. A service from
+    before 2026-11-24 (no /processes) is not read: update it."""
 
     def __init__(self, base):
         self.base = base.rstrip("/")
         self.sources = get_json(f"{self.base}/sources").get("sources", [])
         try:
             listing = get_json(f"{self.base}/processes?expand=true")
-            modes = {p["id"]: mode_of_process(p) for p in listing.get("processes", [])}
-            self.tree = tree_of_processes(listing.get("x-tv-groups", []), modes)
-            self.legacy = False
-        except ServiceError:
-            self.tree = get_json(f"{self.base}/modes").get("modes", [])
-            self.legacy = True
-        _TILE_PATH[self.base] = "tiles" if self.legacy else "terrain-tiles"
+        except ServiceError as e:
+            raise ServiceError(f"{e} (a tile service from before 2026-11-24 has no /processes: update it)")
+        modes = {p["id"]: mode_of_process(p) for p in listing.get("processes", [])}
+        self.tree = tree_of_processes(listing.get("x-tv-groups", []), modes)
         try:
             self.colorramps = [r["id"] for r in get_json(f"{self.base}/colorramps").get("colorramps", [])]
         except ServiceError:
@@ -116,8 +108,6 @@ class Catalog:
     def view(self, query):
         """A share link's view: the modes it switches on, their opacities,
         the parameters its layers keep, the camera."""
-        if self.legacy:
-            return get_json(f"{self.base}/modes?{query}").get("view", {})
         return get_json(f"{self.base}/view?{query}")
 
 
@@ -163,8 +153,7 @@ def tile_url(base, mode, values, common, vector=False):
             q[mode["opacityKey"]] = "1"
     ext = "pbf" if vector else "png"
     # {z}/{x}/{y} stay as they are: QGIS fills them.
-    path = _TILE_PATH.get(base.rstrip("/"), "terrain-tiles")
-    return f"{base.rstrip('/')}/{path}/{{z}}/{{x}}/{{y}}.{ext}?{urlencode(q, safe=',{}')}"
+    return f"{base.rstrip('/')}/terrain-tiles/{{z}}/{{x}}/{{y}}.{ext}?{urlencode(q, safe=',{}')}"
 
 
 def values_url(base, mode, values, common):

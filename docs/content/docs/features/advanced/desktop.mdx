@@ -51,11 +51,27 @@ A copy installed by winget or unzipped from a Portable zip does not update itsel
 
 ## Opening the macOS build
 
-The app is not signed with an Apple certificate, only ad-hoc signed on the build runner, so macOS refuses it on first launch. Either right-click the app and choose Open, then confirm; or, if it is reported as "damaged", clear the download quarantine flag in Terminal and open it normally:
+The `.dmg` opens on the usual drag-to-install window: the app on the left, a shortcut to the Applications folder on the right, an arrow between them. Drag the app onto Applications, eject the disk image, and start it from Applications or Launchpad.
+
+The app is not notarized by Apple: it is only ad-hoc signed on the build runner, with no Apple Developer ID, so macOS blocks it on first launch ("Apple could not verify that Terrain Viewer is free of malware"). Once, for each new version:
+
+1. Open it once (double-click) and dismiss the warning.
+2. Open **System Settings > Privacy & Security**, scroll to Security: "Terrain Viewer was blocked to protect your Mac". Click **Open Anyway**, confirm with your password or Touch ID, then **Open**.
+
+On macOS 14 and earlier, right-click the app in Applications, choose **Open**, then **Open** again in the dialog does the same. If it is reported as "damaged" instead (a copy whose signature was stripped), clear the download quarantine flag in Terminal and open it normally:
 
 ```bash
 xattr -cr "/Applications/Terrain Viewer.app"
 ```
+
+### Signing and notarizing later
+
+With an Apple Developer ID (the Apple Developer Program, 99 USD a year), the warning goes away. What it would take, not wired yet:
+
+- Repository secrets: `APPLE_CERTIFICATE` (the "Developer ID Application" certificate and its key exported as a `.p12`, base64), `APPLE_CERTIFICATE_PASSWORD` (the `.p12`'s password), `APPLE_SIGNING_IDENTITY` (`Developer ID Application: <Name> (<TEAMID>)`), `APPLE_ID` (the Apple account's email), `APPLE_APP_SPECIFIC_PASSWORD` (an app-specific password from account.apple.com) and `APPLE_TEAM_ID`.
+- In the macOS job, before the bundle step: import the `.p12` into a temporary keychain (`security create-keychain`, `security import ... -T /usr/bin/codesign`, `security set-key-partition-list`).
+- In `desktop/ci-bundle.sh`, sign with that identity instead of the ad-hoc `-`: `codesign --force --deep --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$app"` (the hardened runtime is required for notarization; WKWebView needs no extra entitlement), build the dmg, sign it too, then `xcrun notarytool submit TerrainViewer.dmg --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait` and `xcrun stapler staple TerrainViewer.dmg`.
+- Electrobun's own path is `mac: { codesign: true, notarize: true }` in `desktop/gen-config.mjs` with `ELECTROBUN_DEVELOPER_ID`, `ELECTROBUN_APPLEID`, `ELECTROBUN_APPLEIDPASS` and `ELECTROBUN_TEAMID` in the environment (the names of Electrobun's code-signing guide: check them against the pinned version); `ci-bundle.sh` would then skip its ad-hoc signature and keep only the dmg layout step.
 
 Windows shows a SmartScreen warning for the same reason: More info, then Run anyway.
 
@@ -86,7 +102,7 @@ desktop/artifacts/
   terrain-viewer-portable-windows-x64.zip   the application folder, zipped (workflow step)
 ```
 
-macOS gets `TerrainViewer.app` and a `.dmg`, Linux a folder and a self-extracting `.tar.gz`.
+macOS gets `TerrainViewer.app` and a `.dmg` (laid out by `desktop/dmg-settings.py` with [dmgbuild](https://dmgbuild.readthedocs.io): the app, an Applications link and an arrow), Linux a folder and a self-extracting `.tar.gz`.
 
 ## Portable: no installer
 

@@ -51,13 +51,36 @@ if [ "$(uname -s)" = "Darwin" ]; then
   codesign --force --deep --sign - "$app"
   codesign --verify --deep --strict "$app" && echo "ad-hoc signed: $app"
   rm -f artifacts/*.dmg
-  # hdiutil right after Hutch's own dmg step failed once on the runner with
-  # no message (the second variant of the run): give it a few tries.
-  for attempt in 1 2 3 4; do
-    if hdiutil create -volname "Terrain Viewer" -srcfolder "$app" -ov -format UDZO "artifacts/TerrainViewer.dmg"; then break; fi
-    echo "hdiutil failed (attempt $attempt), retrying"; sleep 10
-    [ "$attempt" = 4 ] && exit 1
-  done
+  # The drag-to-install window: the app, a link to /Applications and an
+  # arrow between them, laid out by dmgbuild (dmg-settings.py), which
+  # writes the Finder layout without Finder. In a venv: the runner's
+  # Homebrew Python refuses a global pip install (PEP 668).
+  dmg="artifacts/TerrainViewer.dmg"
+  made=""
+  if [ ! -x .dmgvenv/bin/dmgbuild ]; then
+    python3 -m venv .dmgvenv && .dmgvenv/bin/pip install --quiet --disable-pip-version-check "dmgbuild>=1.6,<2" || echo "dmgbuild could not be installed"
+  fi
+  if [ -x .dmgvenv/bin/dmgbuild ]; then
+    for bg in arrow none; do
+      if .dmgvenv/bin/dmgbuild -s dmg-settings.py -D app="$app" -D background="$bg" "Terrain Viewer" "$dmg"; then made=1; echo "dmg laid out by dmgbuild (background: $bg)"; break; fi
+      echo "dmgbuild failed (background: $bg)"
+    done
+  fi
+  if [ -z "$made" ]; then
+    # Without dmgbuild: the same two items (the app and the Applications
+    # link), in Finder's default layout. hdiutil right after Hutch's own
+    # dmg step failed once on the runner with no message (the second
+    # variant of the run): give it a few tries.
+    stage=$(mktemp -d)
+    cp -R "$app" "$stage/"
+    ln -s /Applications "$stage/Applications"
+    for attempt in 1 2 3 4; do
+      if hdiutil create -volname "Terrain Viewer" -srcfolder "$stage" -ov -format UDZO "$dmg"; then break; fi
+      echo "hdiutil failed (attempt $attempt), retrying"; sleep 10
+      [ "$attempt" = 4 ] && exit 1
+    done
+    rm -rf "$stage"
+  fi
 else
   # A true portable build. What Hutch leaves in build/<channel>/TerrainViewer
   # is NOT the app: its bin/launcher.exe is the self-extracting installer

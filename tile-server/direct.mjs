@@ -375,7 +375,7 @@ async function protocolWindow(p, z, side, x0, y0, w, h) {
 // units. The app's protocols carry their values packed into RGB tiles,
 // some of them scaled to fit the packing's precision or the ramp's range;
 // `to` undoes that: natural = wire * a + b. `unit` and `description` are
-// served by /modes and listed in the tile service docs.
+// served by /processes and listed in the tile service docs.
 const CURV_SCALE = 1000 // lib/curvature-protocol.ts CURVATURE_ENCODE_SCALE, the wire's factor
 export const VALUE_MODES = {
   elevation: { unit: "m", description: "Elevation of the terrain source, metres above its datum" },

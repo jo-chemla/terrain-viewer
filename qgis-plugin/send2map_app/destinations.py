@@ -139,10 +139,14 @@ def google_earth_kml(c):
     )
 
 
+# An icon is a file of icons/ or, after "theme:", a QGIS theme icon
+# (QgsApplication.getThemeIcon); none: icons/icon-web.svg.
+THEME_3D = "theme:/mActionNew3DMapGlobe.svg"
+
 DESTINATIONS = [
     # Plugin only, first: the user's own viewers.
     Destination("terrain-viewer", "Terrain Viewer", _terrain_viewer("terrain-viewer.iconem.com"),
-                icon="icon-calendar_22.png", plugin_only=True),
+                icon="icon-terrain-viewer.svg", plugin_only=True),
     Destination("iconem-historical", "Iconem Historical Satellite", _terrain_viewer("historical-satellite.iconem.com"),
                 icon="icon-calendar_22.png", plugin_only=True),
     # The web app's list (open-in-links.tsx), in its order.
@@ -155,14 +159,15 @@ DESTINATIONS = [
                 lambda c: f"https://livingatlas.arcgis.com/wayback/#mapCenter={js_str(c.lng)}%2C{js_str(c.lat)}%2C{js_round(c.zoom)}&mode=explore",
                 icon="icon-esri_22.png"),
     Destination("google-maps-3d", "Google Maps 3D",
-                lambda c: f"https://www.google.com/maps/@{js_str(c.lat)},{js_str(c.lng)},{js_str(_ge_altitude(c))}a,35y,45t/data=!3m1!1e3?entry=ttu"),
+                lambda c: f"https://www.google.com/maps/@{js_str(c.lat)},{js_str(c.lng)},{js_str(_ge_altitude(c))}a,35y,45t/data=!3m1!1e3?entry=ttu",
+                icon=THEME_3D),
     Destination("google-earth-web", "Google Earth Historical (web)",
                 lambda c: f"https://earth.google.com/web/@{js_str(c.lat)},{js_str(c.lng)},0a,{js_str(_ge_altitude(c))}d,35y,0h,0t,0r/data=CgwqBggBEgAYAUICCAE6AwoBMEICCABKDQj___________8BEAA",
                 icon="icon-Google_Earth_22.png"),
     Destination("google-earth-web-3d", "Google Earth 3D (web)",
                 lambda c: f"https://earth.google.com/web/@{js_str(c.lat)},{js_str(c.lng)},0a,{js_str(_ge_altitude(c))}d,35y,0h,60t,0r/data=CgRCAggBOgMKATBCAggASg0I____________ARAA",
                 icon="icon-Google_Earth_22.png"),
-    Destination("bing-maps-3d", "Bing Maps 3D", _bing),
+    Destination("bing-maps-3d", "Bing Maps 3D", _bing, icon=THEME_3D),
     Destination("shademap", "ShadeMap (sun and shadows)",
                 lambda c: f"https://shademap.app/@{to_fixed(c.lat, 5)},{to_fixed(c.lng, 5)},{to_fixed(c.zoom, 2)}z,{c.now_ms}t,{to_fixed(c.bearing, 1)}b,{to_fixed(c.pitch, 1)}p,0m"),
     Destination("lidarlens", "LiDAR Lens (Britain and Ireland)",

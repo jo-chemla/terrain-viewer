@@ -1,3 +1,18 @@
+# Changelog — QGIS Plugins Release, Drag-to-Install DMG
+
+#### TL;DR
+
+- **[QGIS plugins](/docs/dev/qgis-plugin) on a release**: [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24) holds Terrain Viewer 0.2.2 and Send2MapApp 0.5.0 as zips to install in QGIS 3.22 to 4.x (Plugins > Manage and Install Plugins > Install from ZIP).
+- **Send2MapApp behaves like a QGIS tool**: its button is on the Web toolbar, its map tool has a crosshair cursor with an "open elsewhere" badge and unchecks itself when another map tool is picked, and its icons are QGIS-style SVGs (QGIS's own 3D globe for Google Maps 3D and Bing Maps 3D).
+- **The macOS disk image opens on a drag-to-install window**: the app, a shortcut to Applications and an arrow between them. The [desktop page](/docs/features/advanced/desktop#opening-the-macos-build) explains the first launch of an app that is not notarized (System Settings > Privacy & Security > Open Anyway) and what signing and notarizing would take.
+- **Tile service: `/tiles/{z}/{x}/{y}` and `/modes` are removed**, a few hours after being deprecated: `/terrain-tiles`, `/basemap-tiles`, `/processes` and `/view` replace them, and the old addresses answer 404 naming the new ones. titiler's `/tiles/WebMercatorQuad/...` still answers.
+
+#### Details
+
+- QGIS plugins: both `metadata.txt` carry the homepage, tracker, repository, tags and an SVG icon (Terrain Viewer's is the app's favicon), `hasProcessingProvider=no` and `server=False`; an `email`, required by plugins.qgis.org, is still to be added. Terrain Viewer 0.2.2 drops its fallback to `/modes` and `/tiles` (a service from before 2026-11-24 is refused with a message to update it) and moves its button to the Web toolbar.
+- Send2MapApp 0.5.0: the map tool is a `QgsMapToolEmitPoint`; the destination is kept under `plugins/send2map_app/destination` (0.4.0's `send2map_app/destination` is still read). The headless test checks the cursor, the icons, the tool unchecking on Pan, and a right click opening nothing.
+- Desktop: `desktop/dmg-settings.py` lays out the dmg with dmgbuild (Finder's layout written without Finder, so it works on a CI runner); without dmgbuild, hdiutil packs the app and the Applications link in Finder's default layout.
+
 # Changelog — Pre-rendered Relief Library
 
 #### TL;DR

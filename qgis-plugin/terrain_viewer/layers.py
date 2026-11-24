@@ -75,7 +75,7 @@ def vector_renderer(mode_id, values):
 
 
 def tree_ranks(tree):
-    """A rank for every group and layer of /modes' tree, top of the map
+    """A rank for every group and layer of the panel tree (/processes), top of the map
     first: ("g", path) for a group, ("l", key) for a layer; an overlay's
     vector tiles right under its raster."""
     ranks = {}
