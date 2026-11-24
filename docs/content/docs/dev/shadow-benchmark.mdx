@@ -1,0 +1,90 @@
+---
+title: Shadow Benchmark (vs Mapricot)
+description: How Mapricot's GPU terrain shadows work, how they compare with our shadow:// tile kernel point by point, timings on the same tiles, view and sun, and what to improve, ranked by expected gain
+---
+
+[Mapricot's shadow gallery](https://mapricot.com/gallery/shadows/) draws terrain and building shadows on MapLibre with a day and hour slider. This page reads its page script as a specification, times it against our Hard Shadows (`lib/shadow-protocol.ts`, `lib/shadow-kernel.ts`) on the same work, and lists what to change on our side. The short comparison with ShadeMap is in [Related Work](/resources/related-work#shadow-techniques-compared).
+
+**Licence.** `mapricot.com/scripts/gallery/shadows.js` (505 lines, unminified, read 2026-11-24) carries no licence or copyright line, and the gallery is not on GitHub: the `mapricothq` organisation only holds the API clients (MIT). Mapricot's [Terms](https://mapricot.com/terms/) say Mapricot owns its software and website. So: readable, not reusable. Nothing of it is in this repo; the benchmark downloads the script when it runs and takes the shader from it.
+
+## How Mapricot computes shadows
+
+- **Where:** on the GPU, once per view, into a canvas of its own that a MapLibre `canvas` source drapes over the map (it `play()`s for one frame to copy it).
+- **Elevation:** Terrarium tiles from AWS (hard-coded), decoded with `createImageBitmap` and a 2D canvas, sea floor clamped to 0, stitched into one `R16F` texture with linear filtering.
+- **Which tiles:** the view's tiles at map zoom + 1 (about one tile pixel per screen pixel, at most z15), plus one tile on every side so shadows can come in from off screen; if that is more than 48 tiles it drops a zoom. So far zooms out and wide windows get coarser elevation.
+- **Algorithm:** ray marching on the height map, per pixel, toward the sun. Up to 320 steps; the step grows by `max(1, step * 0.02)`, so the first 50 are one pixel and then they spread out (reach about 10 000 px). The ray stops at the texture's edge or once the line to the sun is above `highest`, the view's highest point. A pixel is in shadow when the ground is more than 1 m above the line. Metres per pixel come from each pixel's own latitude.
+- **Sun:** SunCalc's formulas (declination, right ascension, sidereal time). Altitude and bearing are computed once at the map's centre and used for every pixel; a per-pixel sun height only decides night. The slider's time is solar time at the centre.
+- **When:** after `moveend` then `idle`; a sun change is uniforms and one draw, so "Play the day" animates in real time.
+- **Soft shadows:** none, the output is binary (dark colour or transparent), as ours.
+- **Buildings:** each wall extruded as two triangles moved by height / tan(altitude), on flat ground, from zoom 14.
+
+## Point by point
+
+| | Ours (`shadow://`) | Mapricot |
+|---|---|---|
+| Unit of work | a 256 or 512 px tile, on the CPU (main thread or the raster worker pool, at most 4) | the whole view plus a tile border, one GPU draw |
+| Neighbours | the tile padded by the Search Radius from its eight neighbours | one stitched texture, so no seams; nothing beyond one tile off screen |
+| Ray | fixed one-pixel steps up to the radius (2 to 64 px, default 32), nearest pixel, stops at the first obstruction | growing steps, bilinear samples, stops at the first obstruction, the texture's edge or above the view's top |
+| Shadow length | capped by the radius: 32 px is 210 m at z14 in the Alps | capped by the view (and the 48-tile limit) |
+| Precision | Float32 metres, exact comparison | `R16F`: 2 m steps above 2 048 m, 4 m above 4 096 m; plus a 1 m tolerance that hides low shadows |
+| Sun | the shared light direction and altitude (`illuminationDir`, `illuminationAlt`), one for the map | from the date and hour at the map's centre, one for the map |
+| Zoom | whatever MapLibre asks of the raster source, per tile resolution at the tile's latitude | map zoom + 1, coarser when the view is wide |
+| DEM | any terrain source, DSMs included | Terrarium only |
+| Moving the sun | every tile recomputed and reloaded | one draw |
+| Output | a raster tile: exports, split views, iso-lines | a canvas for the current view only |
+
+## Timings
+
+`node scripts/bench-shadow.mjs` (raw numbers in `.cache/shadow-bench/results.json`). Same Terrarium tiles for both, a 1280 × 800 view (DPR 1, pitch 0), sun at azimuth 135° and altitude 15°. Ours: the kernel in Node 22 on one thread, median of 5 runs per tile, padded grid already built. Mapricot: its own shader, in Chrome 157 headless on the real GPU (ANGLE D3D11, NVIDIA RTX A1000 Laptop), its decode, mosaic and upload code paths reproduced in the page, the draw timed to completion with a 1-pixel `readPixels` (its own round trip subtracted), median of 20. Laptop, 20 threads.
+
+"Shadow" is the share of the view's tiles in shadow, "IoU" the overlap with a reference: our kernel with a 768 px radius, long enough for every shadow in both views.
+
+**Chamonix, map zoom 13** (24 view tiles at z14 for us, 48 tiles at z14 for Mapricot):
+
+| | Per tile (ms) | View (ms) | Shadow | IoU |
+|---|---|---|---|---|
+| Ours, radius 32 (default) | 2.8 | 68 (about 17 on 4 workers) | 43 % | 0.55 |
+| Ours, radius 64 (slider maximum) | 5.2 | 125 | 46 % | 0.58 |
+| Ours, radius 768 (reference) | 33 | 787 | 75 % | 1 |
+| Mapricot, GPU draw | 0.15 | 7.1 | 77 % | 0.94 |
+| Mapricot, decode + mosaic + upload | | 27 + 30 + 12 | | |
+| Sweep (idea 2), halo 64 | 1.0 | 25 | 57 % | 0.69 |
+| Sweep, one pass over the view + 768 | 8.5 | 204 | 80 % | 0.94 |
+
+**Les Andelys (Seine cliffs and chalk plateau), map zoom 15** (8 view tiles at z15, 24 for Mapricot):
+
+| | Per tile (ms) | View (ms) | Shadow | IoU |
+|---|---|---|---|---|
+| Ours, radius 32 | 4.3 | 34 | 7.4 % | 0.94 |
+| Ours, radius 64 | 7.6 | 61 | 8.3 % | 0.99 |
+| Ours, radius 768 | 80 | 642 | 8.6 % | 1 |
+| Ours, radius 768 + early exit (idea 4) | 16 | 127 | 8.6 % | 1 |
+| Mapricot, GPU draw | 0.11 | 2.6 | 5.9 % | 0.69 |
+| Mapricot, decode + mosaic + upload | | 16 + 15 + 7 | | |
+| Sweep, halo 64 | 1.1 | 8.5 | 8.6 % | 1 |
+
+What the numbers say:
+
+- **Per pixel, the GPU wins by about two orders of magnitude.** For shadows of the same reach (our radius 768 vs Mapricot), 787 ms of CPU against 7 ms of GPU in Chamonix, on twice as many pixels for Mapricot. Mapricot's first frame is dominated by its CPU work (decode, mosaic, upload: about 70 ms), not by the shader.
+- **Our default radius cuts off most mountain shadows at a low sun.** At 15° in Chamonix the 32 px radius finds 43 % shadow where the long reference finds 75 % (IoU 0.55); even the slider's maximum, 64, stays at 0.58. On gentle relief (Les Andelys) 32 px is enough.
+- **Mapricot misses low shadows.** Its 1 m tolerance and the bilinear sampling drop the shallow shadows of the plateau edges at z15 (5.9 % vs 8.6 %, IoU 0.69). In the Alps it matches the reference well (0.94).
+- **Early exit on the view's top (Mapricot's trick) only helps on gentle ground.** Exact, 5× faster at radius 768 in Les Andelys, nothing in Chamonix, where Mont Blanc is in every padded grid.
+- **Method limits.** The machine was a busy laptop: an earlier run with other work going gave our timings 1.5 to 2× higher, Mapricot's within 30 %. Our side leaves out the tile fetch, PNG decode, padded-grid assembly and the worker transfer; Mapricot's side leaves out the network and MapLibre's `canvas` source copy. Headless Chrome did use the real GPU (the renderer string above), not SwiftShader. Mapricot's code was run outside its page (same shader, same uniforms, same mosaic rule), so the tiles it would use and the ones we gave it can differ if its page changes.
+
+## What to improve, by expected gain
+
+1. **A GPU shadow pass for the view (about 100× on the march, real-time sun).** We already draw Phong live on the GPU (`lib/phong-live-gl-layer.ts`); a live shadow layer marching a stitched elevation texture would make the sun slider and Sun Position's hour slider live for terrain, as they are for buildings, and remove the radius cap. Keep the `shadow://` tiles for export, split views and iso-lines. Use a float32 texture (or two R16F halves) rather than plain `R16F`, and no tolerance, to keep the low shadows Mapricot loses. Our own implementation: Mapricot's code is not licensed.
+2. **Replace the per-pixel ray by a shadow-height sweep in the tile kernel (3 to 7× at the same halo, any length).** Walk the padded grid from the sun's side, carrying a shadow height that drops by step × tan(altitude); one interpolated look-up per pixel instead of up to `radius` (the classic terrain shadow-map method, sketched as `runSweep` in the benchmark). At halo 64: 1.0 ms/tile against 5.2 (Chamonix) and 1.1 against 7.6 (Les Andelys, identical pixels). It reaches further than the march for the same halo (diagonal steps, slight softening), so its output is not bit-identical to today's: check it visually before switching.
+3. **Raise the radius cap, then the default (correctness more than speed).** With idea 2, a 256 px halo (the full nine-tile fetch) would cost about 4 ms a tile (the sweep scales with the padded area, 768² against 384² at halo 64), close to the 2.8 ms of radius 32 today, for shadows four to eight times longer (not measured at 256). A per-view or metatile pass (one sweep over the view plus a 768 px halo: 204 ms single-threaded, IoU 0.94) is the CPU way to reach Mapricot's quality.
+4. **Early exit with a local maximum (exact, 1.3 to 5× on gentle terrain).** Stop a ray once its line to the sun is above anything ahead. With the padded grid's maximum (what Mapricot does with the view's) it helps only away from high peaks; a coarse max pyramid (per 16 × 16 block) would carry it into mountains. Cheap to add to the current kernel, same pixels.
+5. **Growing steps past 50 px.** Mapricot's 2 % growth only changes anything for rays longer than 50 steps, so not for our current 64 px cap; it matters only if the march (not the sweep) is kept with a larger radius.
+
+## Running it
+
+```bash
+node scripts/bench-shadow.mjs              # ours in Node, Mapricot in headless Chrome
+node scripts/bench-shadow.mjs --no-chrome  # ours only
+node scripts/bench-shadow.mjs --headed     # Chrome in a window
+```
+
+Needs Node 22.18 or later (it imports the `.ts` kernel directly) and Chrome; no `pnpm install`. Tiles are cached in `.cache/shadow-bench/tiles/`. A whole run takes two to three minutes, most of it the 768 px references.
