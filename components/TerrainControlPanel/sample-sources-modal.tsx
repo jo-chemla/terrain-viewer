@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, ArrowRight, Waves, ExternalLink, Search, Library, Layers2, Mountain, Map as MapIcon, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
-import { useAtom, useSetAtom } from "jotai"
-import { disabledStacPresetsAtom, savedStacCatalogsAtom, libraryQueryAtom, terrainLibraryOpenAtom, basemapLibraryOpenAtom, type LibraryStacLink, type LibraryBrowseEntry } from "@/lib/settings-atoms"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { disabledStacPresetsAtom, savedStacCatalogsAtom, libraryQueryAtom, terrainLibraryOpenAtom, basemapLibraryOpenAtom, libraryDialogHostAtom, libraryMountedAtom, type LibraryStacLink, type LibraryBrowseEntry } from "@/lib/settings-atoms"
 import { sectionOpenAtom, macroGroupOpenAtom } from "./TerrainControlPanel"
 import customSources from "@/lib/custom-sources.json"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { CopyModalLinkButton } from "./controls-components"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { searchLibrary } from "@/lib/library-search"
@@ -184,6 +185,39 @@ function kindOf(name: string): { label: string; title: string } | null {
 }
 
 /**
+ * The one Library dialog. Both libraries render into it: each section still
+ * owns its list (its Add dialog, its STAC hand-off, its fallbacks) and
+ * portals it into this box, so switching between the Terrain and Basemap
+ * tabs swaps the content in place instead of closing one dialog and opening
+ * another. Open while either library's atom is; closing clears both.
+ * Mounted once by TerrainControlPanel.
+ */
+export function LibraryDialogHost() {
+  const [terrainOpen, setTerrainOpen] = useAtom(terrainLibraryOpenAtom)
+  const [basemapOpen, setBasemapOpen] = useAtom(basemapLibraryOpenAtom)
+  const setHost = useSetAtom(libraryDialogHostAtom)
+  // The list lives in its section, so opening a library from anywhere
+  // (?openLibrary=, the tour, a tab) unfolds that section to mount it.
+  const setSectionOpen = useSetAtom(sectionOpenAtom)
+  const setMacroGroupOpen = useSetAtom(macroGroupOpenAtom)
+  useEffect(() => {
+    if (!terrainOpen && !basemapOpen) return
+    const key = terrainOpen ? "terrainSource" : "rasterBasemap"
+    setMacroGroupOpen((p) => (p.Sources ? p : { ...p, Sources: true }))
+    setSectionOpen((p) => (p[key] ? p : { ...p, [key]: true }))
+  }, [terrainOpen, basemapOpen, setSectionOpen, setMacroGroupOpen])
+  return (
+    <Dialog open={terrainOpen || basemapOpen} onOpenChange={(o) => { if (!o) { setTerrainOpen(false); setBasemapOpen(false) } }}>
+      <DialogContent id="tour-source-library" aria-labelledby="library-dialog-title" aria-describedby="library-dialog-description" className="sm:max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
+        {/* display: contents, so the portaled header, toolbar and list are
+            the dialog's own flex rows (the list scrolls, the rest stays). */}
+        <div ref={setHost} className="contents" />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
  * Picker for the shipped sample library. "Load Sample Sources" used to dump the
  * whole list into the user's BYOD sources in one go; with ~50 national datasets
  * that is more noise than help, so this lists them by scope and lets each be
@@ -199,11 +233,13 @@ function kindOf(name: string): { label: string; title: string } | null {
  * Nation-wide / Global / Sub-national sections and a per-row verdict.
  */
 export function SampleSourcesModal<T extends SampleLike>({
-  open, onOpenChange, title, samples, current, setCurrent, compareToMapterhorn = false,
+  open, title, samples, current, setCurrent, compareToMapterhorn = false,
   stacTarget, onBrowseStac, onAdded, browseOnly = [], terrainTabAvailable = true,
 }: {
   open: boolean
-  onOpenChange: (open: boolean) => void
+  /** Unused since the two libraries share one dialog (LibraryDialogHost),
+   *  which closes both; kept so a caller may still pass its setter. */
+  onOpenChange?: (open: boolean) => void
   title: string
   samples: readonly T[]
   current: T[]
@@ -228,11 +264,11 @@ export function SampleSourcesModal<T extends SampleLike>({
    *  tabs are then left out, and with them the cross-library hint. */
   terrainTabAvailable?: boolean
 }) {
-  // Two libraries behind two tabs, Terrain and Basemap. Each library is still
-  // owned by its own section (its Add dialog, its STAC hand-off, its list's
-  // fallbacks), so a tab switch closes this dialog and opens the other
-  // section's, carrying the search over (libraryQueryAtom) and unfolding that
-  // section so its dialog is mounted.
+  // Two libraries behind two tabs, Terrain and Basemap, in one dialog
+  // (LibraryDialogHost). Each library is still owned by its own section (its
+  // Add dialog, its STAC hand-off, its list's fallbacks), so a tab switch
+  // flips the two open atoms and unfolds the other section so its list is
+  // mounted; the search carries over (libraryQueryAtom).
   const kind: LibraryKind = stacTarget === "basemap" ? "basemap" : "terrain"
   const otherKind: LibraryKind = kind === "terrain" ? "basemap" : "terrain"
   const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
@@ -247,6 +283,21 @@ export function SampleSourcesModal<T extends SampleLike>({
     setTerrainLibraryOpen(to === "terrain")
     setBasemapLibraryOpen(to === "basemap")
   }
+  // Where this list shows: in the shared dialog, while this library is the
+  // open one, and still after a close (the dialog fades out with its content)
+  // or while the other library's list is not mounted yet (a tab switch to a
+  // folded section shows this list for the frame it takes to unfold).
+  const host = useAtomValue(libraryDialogHostAtom)
+  const [mounted, setMounted] = useAtom(libraryMountedAtom)
+  useEffect(() => {
+    setMounted((p) => ({ ...p, [kind]: true }))
+    return () => setMounted((p) => ({ ...p, [kind]: false }))
+  }, [kind, setMounted])
+  const otherOpen = useAtomValue(kind === "terrain" ? basemapLibraryOpenAtom : terrainLibraryOpenAtom)
+  const shownRef = useRef(false)
+  if (!host) shownRef.current = false
+  if (open) shownRef.current = true
+  else if (otherOpen && mounted[otherKind]) shownRef.current = false
   // Which catalogs the Add dialog's own picker offers. Stored as the
   // exclusions (see disabledStacPresetsAtom) so a catalog added in a later
   // release shows up rather than being silently absent.
@@ -538,39 +589,48 @@ export function SampleSourcesModal<T extends SampleLike>({
       )
     })
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent id="tour-source-library" className="sm:max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">{title} <CopyModalLinkButton param="openLibrary" value={stacTarget === "basemap" ? "basemap" : "terrain"} label={`the ${stacTarget === "basemap" ? "Basemap" : "Terrain"} library`} /></DialogTitle>
-          <DialogDescription>
+  if (!host || !shownRef.current) return null
+  return createPortal(
+      <>
+        {/* Plain elements styled as DialogHeader / Title / Description: a
+            portal keeps the React context of the section it renders from,
+            which has no Dialog, and Base UI's Title needs one. The host
+            points aria-labelledby / -describedby at these ids. */}
+        <div data-slot="dialog-header" className="flex min-w-0 flex-col gap-2 break-words text-center sm:text-left">
+          <h2 id="library-dialog-title" data-slot="dialog-title" className="min-w-0 text-lg leading-none font-semibold break-words flex items-center gap-2">{title} <CopyModalLinkButton param="openLibrary" value={stacTarget === "basemap" ? "basemap" : "terrain"} label={`the ${stacTarget === "basemap" ? "Basemap" : "Terrain"} library`} /></h2>
+          <p id="library-dialog-description" data-slot="dialog-description" className="text-muted-foreground min-w-0 text-sm break-words">
             {loadedCount} of {samples.length} in your list. Add or remove one at a time, or take the whole set.
-          </DialogDescription>
-        </DialogHeader>
-        {showTabs && (
-          <div role="tablist" aria-label="Library" className="flex items-center gap-1 border-b min-w-0">
-            {(["terrain", "basemap"] as const).map((k) => {
-              const t = LIBRARY_TAB[k]
-              const active = k === kind
-              const n = q ? (active ? matchCount : otherCount) : null
-              return (
-                <button key={k} role="tab" aria-selected={active} type="button"
-                  onClick={() => switchTab(k)}
-                  title={n !== null ? `${n} ${n === 1 ? "match" : "matches"} in the ${t.label} library` : `The ${t.label} library`}
-                  className={`flex items-center gap-1.5 min-w-0 px-3 py-1.5 -mb-px border-b-2 text-sm cursor-pointer ${active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                  <t.icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{t.label}</span>
-                  {n !== null && <span className="text-xs font-normal text-muted-foreground tabular-nums">{n}</span>}
-                </button>
-              )
-            })}
-          </div>
-        )}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative w-56">
+          </p>
+        </div>
+        {/* The tabs and the search share a row: the search on the right,
+            wrapping under the tabs (full width) when the dialog is narrow.
+            The bulk actions stay on the row below. */}
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2 min-w-0">
+          {showTabs && (
+            <div role="tablist" aria-label="Library" className="flex items-end gap-1 border-b flex-1 min-w-0 self-stretch">
+              {(["terrain", "basemap"] as const).map((k) => {
+                const t = LIBRARY_TAB[k]
+                const active = k === kind
+                const n = q ? (active ? matchCount : otherCount) : null
+                return (
+                  <button key={k} role="tab" aria-selected={active} type="button"
+                    onClick={() => switchTab(k)}
+                    title={n !== null ? `${n} ${n === 1 ? "match" : "matches"} in the ${t.label} library` : `The ${t.label} library`}
+                    className={`flex items-center gap-2 min-w-0 px-4 py-2 -mb-px border-b-2 text-base cursor-pointer ${active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                    <t.icon className="h-5 w-5 shrink-0" />
+                    <span className="truncate">{t.label}</span>
+                    {n !== null && <span className="text-xs font-normal text-muted-foreground tabular-nums">{n}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <div className={`relative min-w-0 w-full sm:w-64 ${showTabs ? "sm:ml-auto" : ""}`}>
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input autoFocus placeholder="Filter datasets…" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-8 cursor-text h-9" />
           </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
           <Button className="cursor-pointer" onClick={() => add(loadAllSet)}>
             <Plus className="h-4 w-4" /> Load all
           </Button>
@@ -722,7 +782,7 @@ export function SampleSourcesModal<T extends SampleLike>({
             </Collapsible>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </>,
+      host,
   )
 }

@@ -1877,6 +1877,7 @@
             "bounds": [-108.17, 35.93, -107.62, 36.13],
             "description": "RESEARCH DATA, not a mapping agency: 543 km2 of airborne LiDAR over Chaco Canyon, New Mexico (Chaco Culture National Historical Park, UNESCO World Heritage), flown by NCALM in October 2016 for Wetherbee Dorshow and Wirt Wills to reconstruct the 3D landscape and model Chacoan land use; reprocessed by NCALM in 2021. The great houses (Pueblo Bonito, Chetro Ketl), the roads and the field systems of the Ancestral Puebloan world in 0.5 m bare earth. Four Float32 COGs (LZW, 512 px tiles, nodata -999999) behind one OpenTopography VRT in NAD83(2011) / UTM 13N, but the COGs carry no overviews, so this entry is pinned to titiler (the in-browser reader would decode whole 16 km files) and starts at z14. Verified 2026-11-24 on titiler.xyz: Pueblo Bonito 1867.8 m, z14 and z15 terrain-RGB tiles in 3-7 s. Cite Dorshow, W. (2019), doi:10.5069/G9XG9P8D, distributed by OpenTopography (NCALM data, CC BY 4.0). The 2010 Chaco survey (NM10_Dorshow) is an ArcInfo grid there and cannot be read this way.",
             "attribution": "Dorshow 2019, NCALM, distributed by OpenTopography (doi:10.5069/G9XG9P8D). CC BY 4.0",
+            "shortAttribution": "Dorshow 2019, NCALM, OpenTopography, CC BY 4.0",
             "infoUrl": "https://doi.org/10.5069/G9XG9P8D"
         },
         {
@@ -2189,6 +2190,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=de4848a710d74cfdb13f8484c0dbbed6",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2209,6 +2211,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=f1323cdd88c14cfd86583bec32ba7c16",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2229,6 +2232,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=0e176f1b227b4fe98a77899f6782289d",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2248,6 +2252,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=fe0023066f4446d9a2552cc57cedfdc4",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2268,6 +2273,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=96ffde1b876740ec9e7f782c080aa8a6",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Proyecto Arqueologico Holmul, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2288,6 +2294,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=e966169591bd4ee2bd4d6a9f198990f5",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2307,6 +2314,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=847f62f86f1b4e85a8c2b221051914a3",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Proyecto Regional Arqueologico La Corona, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2327,6 +2335,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=bd8e7685121144dda0807881119e95f1",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Proyecto Arqueologico La Corona, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2347,6 +2356,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=afff7d32582a4545a25c31920e879bd8",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Proyecto Regional Arqueologico La Corona, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2366,6 +2376,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=2d54568d6da0429abf9297e1db628592",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023, Ivan Šprajc, Institute of Anthropological and Spatial Studies, ZRC SAZU. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2386,6 +2397,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=e022cac07feb4e1ba6fe1f3eaf4c2e66",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2406,6 +2418,7 @@
             "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=26dba52fc5c84731bcc6659b0983d96c",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023, Ivan Šprajc, Institute of Anthropological and Spatial Studies, ZRC SAZU. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2438,6 +2451,7 @@
             "keywords": "lidar maya archaeology hillshade sky view factor local dominance RVT M-REDD+ Alianza MREDD Puuc Chenes Campeche Yucatán México relieve sombreado",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=15376c061b7d454c8583f10b61b8e496",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, NCALM, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2458,6 +2472,7 @@
             "keywords": "lidar maya archaeology hillshade sky view factor local dominance RVT M-REDD+ Alianza MREDD Puuc Chenes Campeche Yucatán México relieve sombreado",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=fa85f0070e59496cb3685d9952035ace",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, NCALM, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2478,6 +2493,7 @@
             "keywords": "lidar maya archaeology hillshade sky view factor local dominance RVT M-REDD+ Alianza MREDD Puuc Chenes Campeche Yucatán México relieve sombreado",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=34dd70d1b5ac4b1996b35d6c676e159c",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, NCALM, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2498,6 +2514,7 @@
             "keywords": "lidar maya archaeology hillshade sky view factor local dominance RVT M-REDD+ Alianza MREDD Puuc Chenes Campeche Yucatán México relieve sombreado",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=f0d43321d1494b20b263e03eb2391b0d",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, NCALM, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2518,6 +2535,7 @@
             "keywords": "lidar maya archaeology hillshade sky view factor openness slope RVT G-LiHT NASA Campeche Quintana Roo México relieve sombreado",
             "infoUrl": "https://www.arcgis.com/home/item.html?id=939dba03cb374b5199cca8d74d585ebc",
             "attribution": "Middle American Research Institute GIS LAB (MARI-GISLAB) at Tulane University, NCALM, NASA, Estrada-Belli et al. 2023. CC BY-NC-SA 4.0",
+            "shortAttribution": "MARI-GISLAB (Tulane), CC BY-NC-SA",
             "licenseName": "CC BY-NC-SA 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
         },
@@ -2537,6 +2555,7 @@
             "keywords": "lidar hillshade multidirectional 3DEP USGS national map elevation archaeology united states",
             "infoUrl": "https://www.usgs.gov/3d-elevation-program",
             "attribution": "USGS The National Map: 3D Elevation Program",
+            "shortAttribution": "USGS 3DEP",
             "licenseName": "Public domain (US Government)",
             "licenseUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
         },
@@ -2556,6 +2575,7 @@
             "keywords": "lidar slope 3DEP USGS national map elevation archaeology united states",
             "infoUrl": "https://www.usgs.gov/3d-elevation-program",
             "attribution": "USGS The National Map: 3D Elevation Program",
+            "shortAttribution": "USGS 3DEP",
             "licenseName": "Public domain (US Government)",
             "licenseUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
         },
@@ -2575,6 +2595,7 @@
             "keywords": "hillshade hypsometric tint 3DEP USGS elevation united states",
             "infoUrl": "https://www.usgs.gov/3d-elevation-program",
             "attribution": "USGS The National Map: 3D Elevation Program",
+            "shortAttribution": "USGS 3DEP",
             "licenseName": "Public domain (US Government)",
             "licenseUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
         },
@@ -2593,6 +2614,7 @@
             "keywords": "hillshade shaded relief USGS national map 3DEP GMTED basemap",
             "infoUrl": "https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer",
             "attribution": "USGS The National Map: 3D Elevation Program. USGS EROS: GMTED2010",
+            "shortAttribution": "USGS 3DEP, GMTED2010",
             "licenseName": "Public domain (US Government)",
             "licenseUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
         },
@@ -2612,6 +2634,7 @@
             "keywords": "lidar hillshade HRDEM CanElevation NRCan Canada relief ombré MNEHR archaeology",
             "infoUrl": "https://open.canada.ca/data/en/dataset/0fe65119-e96e-4a57-8bfe-9d9245fba06b",
             "attribution": "Contains information licensed under the Open Government Licence - Canada. Natural Resources Canada, HRDEM Mosaic",
+            "shortAttribution": "NRCan HRDEM, OGL Canada",
             "licenseName": "OGL Canada 2.0",
             "licenseUrl": "https://open.canada.ca/en/open-government-licence-canada"
         },
@@ -2631,6 +2654,7 @@
             "keywords": "lidar slope pente HRDEM CanElevation NRCan Canada archaeology",
             "infoUrl": "https://open.canada.ca/data/en/dataset/0fe65119-e96e-4a57-8bfe-9d9245fba06b",
             "attribution": "Contains information licensed under the Open Government Licence - Canada. Natural Resources Canada, HRDEM Mosaic",
+            "shortAttribution": "NRCan HRDEM, OGL Canada",
             "licenseName": "OGL Canada 2.0",
             "licenseUrl": "https://open.canada.ca/en/open-government-licence-canada"
         },
@@ -2669,6 +2693,7 @@
             "keywords": "lidar hillshade multidirectional KyFromAbove Kentucky archaeology mounds",
             "infoUrl": "https://kyfromabove.ky.gov/",
             "attribution": "KyFromAbove, Kentucky Division of Geographic Information",
+            "shortAttribution": "KyFromAbove",
             "licenseName": "Public domain with attribution (per AWS Open Data registry)",
             "licenseUrl": "https://registry.opendata.aws/kyfromabove/"
         },
@@ -2688,6 +2713,7 @@
             "keywords": "lidar hillshade KyFromAbove Kentucky archaeology mounds",
             "infoUrl": "https://kyfromabove.ky.gov/",
             "attribution": "KyFromAbove, Kentucky Division of Geographic Information",
+            "shortAttribution": "KyFromAbove",
             "licenseName": "Public domain with attribution (per AWS Open Data registry)",
             "licenseUrl": "https://registry.opendata.aws/kyfromabove/"
         },
@@ -2725,6 +2751,7 @@
             "keywords": "lidar archaeology hillshade DTM bare earth England Environment Agency Defra National LIDAR Programme composite shaded relief",
             "infoUrl": "https://environment.data.gov.uk/dataset/13787b9a-26a4-4775-8523-806d13af58fc",
             "attribution": "© Environment Agency copyright and/or database right 2022. All rights reserved.",
+            "shortAttribution": "© Environment Agency, OGL v3",
             "licenseName": "Open Government Licence v3.0",
             "licenseUrl": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
         },
@@ -2744,6 +2771,7 @@
             "keywords": "lidar archaeology hillshade multi-directional DTM Ireland Éire Boyne Valley Brú na Bóinne Rathcroghan Discovery Programme Heritage Council GSI",
             "infoUrl": "https://data.gov.ie/dataset/open-topographic-lidar-data",
             "attribution": "Contains Irish Public Sector Data (Geological Survey Ireland, Department of Culture, Heritage and the Gaeltacht, Discovery Programme and the Heritage Council) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence.",
+            "shortAttribution": "GSI, DCHG, Discovery Programme, Heritage Council, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -2763,6 +2791,7 @@
             "keywords": "lidar archaeology hillshade DTM Ireland Éire OPW Office of Public Works flood GSI",
             "infoUrl": "https://data.gov.ie/dataset/open-topographic-lidar-data",
             "attribution": "Contains Irish Public Sector Data (Geological Survey Ireland & the Office of Public Works) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence.",
+            "shortAttribution": "GSI, OPW, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -2782,6 +2811,7 @@
             "keywords": "lidar archaeology hillshade DTM Ireland Éire TII Transport Infrastructure Ireland road scheme GSI",
             "infoUrl": "https://data.gov.ie/dataset/open-topographic-lidar-data",
             "attribution": "Contains Irish Public Sector Data (Geological Survey Ireland & Transport Infrastructure Ireland) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence.",
+            "shortAttribution": "GSI, TII, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -2801,6 +2831,7 @@
             "keywords": "lidar archaeology hillshade schaduwkaart reliëfkaart AHN AHN4 Actueel Hoogtebestand Nederland maaiveld DTM",
             "infoUrl": "https://www.ahn.nl/ahn-viewer",
             "attribution": "AHN (Actueel Hoogtebestand Nederland), service by Esri Nederland",
+            "shortAttribution": "AHN, Esri Nederland",
             "licenseName": "CC0 1.0 (AHN data)",
             "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
         },
@@ -2896,6 +2927,7 @@
             "keywords": "lidar archaeology hillshade estompage relief ombragé MNT modèle numérique de terrain Luxembourg geoportail ACT",
             "infoUrl": "https://data.public.lu/fr/datasets/lidar-2019-modele-numerique-de-terrain-mnt/",
             "attribution": "Administration du cadastre et de la topographie (ACT), Luxembourg",
+            "shortAttribution": "ACT Luxembourg, CC0",
             "licenseName": "CC0 1.0",
             "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
         },
@@ -2915,6 +2947,7 @@
             "keywords": "lidar archaeology hillshade estompage relief ombragé Luxembourg OpenStreetMap ACT 2019",
             "infoUrl": "https://lidar-hillshade-2019.openstreetmap.lu/",
             "attribution": "Hillshade: OpenStreetMap Luxembourg; LiDAR data: Administration du cadastre et de la topographie (ACT)",
+            "shortAttribution": "OpenStreetMap Luxembourg, ACT",
             "licenseName": "CC0 1.0 (source data)",
             "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
         },
@@ -2991,6 +3024,7 @@
             "keywords": "lidar archaeology hillshade rinnevarjoste vinovalovarjoste korkeusmalli laserkeilaus Maanmittauslaitos GTK Finland Suomi",
             "infoUrl": "https://www.maanmittauslaitos.fi/en/opendata-licence-cc40",
             "attribution": "© Maanmittauslaitos (National Land Survey of Finland); service: Geological Survey of Finland (GTK)",
+            "shortAttribution": "© NLS Finland, GTK, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3178,6 +3212,7 @@
             "keywords": "lidar archaeology hillshade Geländerelief Schräglichtschummerung Schummerung DGM Bayern Bavaria LDBV",
             "infoUrl": "https://www.ldbv.bayern.de/produkte/landschaftsinformationen/gelaenderelief.html",
             "attribution": "© Bayerische Vermessungsverwaltung (LDBV), CC BY 4.0",
+            "shortAttribution": "© LDBV Bayern, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3196,6 +3231,7 @@
             "keywords": "lidar archaeology hillshade Geländerelief kombinierte Schummerung Böschungsschummerung DGM Bayern LDBV",
             "infoUrl": "https://www.ldbv.bayern.de/produkte/landschaftsinformationen/gelaenderelief.html",
             "attribution": "© Bayerische Vermessungsverwaltung (LDBV), CC BY 4.0",
+            "shortAttribution": "© LDBV Bayern, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3271,6 +3307,7 @@
             "keywords": "lidar archaeology hillshade Schummerung DGM1 Brandenburg Berlin LGB",
             "infoUrl": "https://geobasis-bb.de/",
             "attribution": "© GeoBasis-DE/LGB, dl-de/by-2-0; © Geoportal Berlin, dl-de/by-2-0",
+            "shortAttribution": "© GeoBasis-DE/LGB, Geoportal Berlin, dl-de/by-2-0",
             "licenseName": "Datenlizenz Deutschland Namensnennung 2.0",
             "licenseUrl": "https://www.govdata.de/dl-de/by-2-0"
         },
@@ -3329,6 +3366,7 @@
             "keywords": "lidar archaeology hillshade Schummerung DGM1 Rheinland-Pfalz LVermGeo",
             "infoUrl": "https://lvermgeo.rlp.de/",
             "attribution": "© GeoBasis-DE / LVermGeoRP (2026), dl-de/by-2-0, http://www.lvermgeo.rlp.de",
+            "shortAttribution": "© GeoBasis-DE / LVermGeoRP, dl-de/by-2-0",
             "licenseName": "Datenlizenz Deutschland Namensnennung 2.0",
             "licenseUrl": "https://www.govdata.de/dl-de/by-2-0"
         },
@@ -3537,6 +3575,7 @@
             "keywords": "sombreado relieve hillshade MDT IGN CNIG IDEE España Spain",
             "infoUrl": "https://www.idee.es/web/idee/segun-tipo-de-servicio",
             "attribution": "CC BY 4.0 scne.es (Instituto Geográfico Nacional)",
+            "shortAttribution": "IGN España, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3556,6 +3595,7 @@
             "keywords": "lidar archaeology hillshade relleu ombrejat ombres ICGC Catalunya Catalonia",
             "infoUrl": "https://icgc.cat/en/Web/Help/Re-use-of-the-information",
             "attribution": "Institut Cartogràfic i Geològic de Catalunya (ICGC), CC BY 4.0",
+            "shortAttribution": "ICGC, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3575,6 +3615,7 @@
             "keywords": "lidar archaeology hillshade sombreado relieve iluminación anisotrópica difusa sky view factor MDT Navarra IDENA",
             "infoUrl": "https://idena.navarra.es/",
             "attribution": "Servicio proporcionado por el Gobierno de Navarra (IDENA), CC BY 4.0",
+            "shortAttribution": "IDENA (Gobierno de Navarra), CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3594,6 +3635,7 @@
             "keywords": "lidar archaeology hillshade sombras itzalak MDT geoEuskadi Euskadi País Vasco Basque",
             "infoUrl": "https://www.geo.euskadi.eus/",
             "attribution": "geoEuskadi - Gobierno Vasco / Eusko Jaurlaritza",
+            "shortAttribution": "geoEuskadi (Gobierno Vasco)",
             "licenseName": "CC BY 4.0 (Open Data Euskadi general terms; not stated in the service)",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3631,6 +3673,7 @@
             "keywords": "lidar archaeology hillshade ombreggiatura Schummerung DTM DGM Alto Adige Südtirol Bolzano",
             "infoUrl": "https://data.civis.bz.it/dataset/ombreggiatura-dtm-05m",
             "attribution": "Provincia autonoma di Bolzano - Alto Adige / Autonome Provinz Bozen - Südtirol",
+            "shortAttribution": "Provincia autonoma di Bolzano, CC0",
             "licenseName": "CC0 1.0",
             "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
         },
@@ -3650,6 +3693,7 @@
             "keywords": "lidar archaeology hillshade ombreggiatura Schummerung DTM DGM Alto Adige Südtirol Bolzano",
             "infoUrl": "https://data.civis.bz.it/dataset/ombreggiatura-dtm-25m",
             "attribution": "Provincia autonoma di Bolzano - Alto Adige / Autonome Provinz Bozen - Südtirol",
+            "shortAttribution": "Provincia autonoma di Bolzano, CC0",
             "licenseName": "CC0 1.0",
             "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
         },
@@ -3669,6 +3713,7 @@
             "keywords": "hillshade 陰影起伏図 地理院タイル 国土地理院 GSI DEM5A lidar archaeology kofun 古墳 Japan",
             "infoUrl": "https://maps.gsi.go.jp/development/ichiran.html",
             "attribution": "出典：国土地理院 (Geospatial Information Authority of Japan)",
+            "shortAttribution": "出典：国土地理院 (GSI Japan)",
             "licenseName": "GSI Content Terms of Use (国土地理院コンテンツ利用規約, CC BY 4.0 compatible)",
             "licenseUrl": "https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html"
         },
@@ -3688,6 +3733,7 @@
             "keywords": "red relief image map RRIM 赤色立体地図 sekishoku アジア航測 国土地理院 GSI archaeology 微地形 Japan",
             "infoUrl": "https://www.gsi.go.jp/bousaichiri/release_thematic_maps_20180606.html",
             "attribution": "出典：国土地理院 (Geospatial Information Authority of Japan); 赤色立体地図はアジア航測株式会社の特許（第3670274号等）を使用して作成",
+            "shortAttribution": "出典：国土地理院 (GSI Japan), アジア航測 (red relief patent)",
             "licenseName": "GSI Content Terms of Use (国土地理院コンテンツ利用規約, CC BY 4.0 compatible)",
             "licenseUrl": "https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html"
         },
@@ -3707,6 +3753,7 @@
             "keywords": "hypsometric tints 色別標高図 段彩陰影図 relief 国土地理院 GSI Japan",
             "infoUrl": "https://maps.gsi.go.jp/development/ichiran.html",
             "attribution": "出典：国土地理院 (Geospatial Information Authority of Japan); 海域部は海上保安庁海洋情報部の資料を使用して作成",
+            "shortAttribution": "出典：国土地理院 (GSI Japan), 海上保安庁",
             "licenseName": "GSI Content Terms of Use (国土地理院コンテンツ利用規約, CC BY 4.0 compatible)",
             "licenseUrl": "https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html"
         },
@@ -3726,6 +3773,7 @@
             "keywords": "slope map 傾斜量図 微地形 国土地理院 GSI archaeology Japan",
             "infoUrl": "https://maps.gsi.go.jp/development/ichiran.html",
             "attribution": "出典：国土地理院 (Geospatial Information Authority of Japan)",
+            "shortAttribution": "出典：国土地理院 (GSI Japan)",
             "licenseName": "GSI Content Terms of Use (国土地理院コンテンツ利用規約, CC BY 4.0 compatible)",
             "licenseUrl": "https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html"
         },
@@ -3745,6 +3793,7 @@
             "keywords": "CS立体図 CS relief map 微地形表現図 lidar 航空レーザ 長野県 Nagano archaeology 遺跡",
             "infoUrl": "https://www.geospatial.jp/ckan/dataset/nagano-csmap",
             "attribution": "長野県林業総合センター（CS立体図）/ Nagano Prefecture Forestry Research Center",
+            "shortAttribution": "長野県林業総合センター (Nagano), CC BY",
             "licenseName": "CC BY",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3783,6 +3832,7 @@
             "keywords": "lidar archaeology hillshade pā pa site LINZ basemaps DEM New Zealand Aotearoa",
             "infoUrl": "https://www.linz.govt.nz/guidance/data-service/linz-basemaps-guide/linz-basemaps-terms-use",
             "attribution": "CC BY 4.0 Toitū Te Whenua Land Information New Zealand",
+            "shortAttribution": "LINZ, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3802,6 +3852,7 @@
             "keywords": "lidar archaeology hillshade igor pā LINZ basemaps DEM New Zealand Aotearoa",
             "infoUrl": "https://www.linz.govt.nz/guidance/data-service/linz-basemaps-guide/linz-basemaps-terms-use",
             "attribution": "CC BY 4.0 Toitū Te Whenua Land Information New Zealand",
+            "shortAttribution": "LINZ, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3821,6 +3872,7 @@
             "keywords": "lidar hillshade DSM surface model LINZ basemaps New Zealand",
             "infoUrl": "https://www.linz.govt.nz/guidance/data-service/linz-basemaps-guide/linz-basemaps-terms-use",
             "attribution": "CC BY 4.0 Toitū Te Whenua Land Information New Zealand",
+            "shortAttribution": "LINZ, CC BY 4.0",
             "licenseName": "CC BY 4.0",
             "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
         },
@@ -3859,6 +3911,7 @@
             "keywords": "lidar archaeology hillshade DEM Queensland QSpatial Australia",
             "infoUrl": "https://www.data.qld.gov.au/dataset/queensland-elevation-dem-public-time-series-service",
             "attribution": "© State of Queensland (Department of Natural Resources and Mines, Manufacturing and Regional and Rural Development)",
+            "shortAttribution": "© State of Queensland, CC BY 3.0 AU",
             "licenseName": "CC BY 3.0 AU (per data.qld.gov.au listing of the Queensland DEM services)",
             "licenseUrl": "https://creativecommons.org/licenses/by/3.0/au/"
         },

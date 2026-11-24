@@ -309,6 +309,64 @@
   background-color: var(--accent);
 }
 
+/* The attribution box (MapControls/AttributionControlCollapsed.tsx, always
+   compact): a 29px "i" button like the zoom group's when folded, a card with
+   the theme's radius and a capped width when the user opens it. The vendor
+   sizes it to its text, so a long credit spanned the whole map; its open
+   padding rules also contradict each other (a later selector meant for the
+   top-left corner applies everywhere), which left the text hard against the
+   left edge. The icon is the vendor's glyph as a mask over currentColor, so
+   it follows the theme in dark mode. */
+.maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact {
+  min-height: 29px;
+  min-width: 29px;
+  max-width: min(32rem, calc(100vw - 2rem));
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0 10px 10px 10px;
+  background-color: var(--card);
+  color: var(--foreground);
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.1);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact.maplibregl-compact-show {
+  padding: 6px 34px 6px 10px;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+  text-align: left;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button {
+  width: 29px;
+  height: 29px;
+  top: auto;
+  bottom: 0;
+  right: 0;
+  left: auto;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--foreground);
+}
+.maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button:hover {
+  background-color: var(--accent);
+}
+.maplibregl-ctrl-attrib.maplibregl-compact a {
+  color: inherit;
+  opacity: 0.85;
+}
+
 /* Zoom in/out, compass, and geolocate icons are portaled real lucide-react
    icons now (NavigationControlThemed.tsx / GeolocateControlThemed.tsx),
    not the vendor's background-image data URIs — `background-image: none`

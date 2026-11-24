@@ -85,6 +85,11 @@ export interface SourceEntryBase {
   infoUrl?: string
   /** Provenance, filled in by the catalog pickers or the library. */
   attribution?: string
+  /** The credit's map line, when `attribution` is long: agency short name
+   *  and licence code ("MARI-GISLAB (Tulane), CC BY-NC-SA"). Entries of one
+   *  publisher share it, so the map's attribution shows it once; the full
+   *  `attribution` stays in Source Info (lib/source-credit.ts). */
+  shortAttribution?: string
   licenseName?: string
   licenseUrl?: string
   /** Native ground resolution in metres (finest, for a mixed product). */

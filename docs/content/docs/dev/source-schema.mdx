@@ -23,6 +23,8 @@ A Library entry can carry a `libraryGroup`, a key of `LIBRARY_GROUPS` (`lib/libr
 
 Two raster fields fix a tile service's own shortcomings, through the `tiletx://` protocol (`lib/tile-transform-protocol.ts`): `forceOpaque` draws every pixel with any alpha fully opaque and leaves no-data (alpha 0) transparent, for ArcGIS Online's 8-bit layers whose PNG tiles carry an alpha of about 127 on every pixel; `underzoom` (1 to 3) assembles a tile from its 4, 16 or 64 children at the source's `minzoom` for that many zoom levels below it, fetching only the children inside `bounds`, so a service with no overview tiles does not vanish when the view zooms out. A source added before the Library gave it either field still gets it: the map reads them from the Library entry with the same id.
 
+The credit has two forms. `attribution` is the full credit, shown in Source Info; `shortAttribution`, set where the full one is long, is the map line: publisher short name and licence code ("MARI-GISLAB (Tulane), CC BY-NC-SA"). `sourceCredit` (`lib/source-credit.ts`) builds the string a MapLibre source carries: the short credit linked to `licenseUrl` (else `infoUrl`), so entries of one publisher give the same string and the attribution control shows it once; else the full credit, else the name, linked to `infoUrl`. A source added before its Library entry had a short credit takes the Library's, unless its `attribution` was edited.
+
 An `apiKey` names the setting whose value fills the `{API_KEY}` placeholder of `url` (`entryUrl`). A keyed source is hidden from the pickers until its key is set (`hasEntryKey`).
 
 ## Where the entries are

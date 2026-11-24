@@ -26,6 +26,8 @@ function withPaperRemoval(built: { url: string } | { tiles: string[]; scheme?: "
 // library gave it forceOpaque / underzoom still gets them (the user's stored
 // copy is a snapshot of the entry at the time it was added).
 const LIBRARY_BASEMAPS = new Map(((customSourcesData as { SAMPLE_BASEMAPS_SOURCES: RasterSourceEntry[] }).SAMPLE_BASEMAPS_SOURCES).map((s) => [s.id, s]))
+// The same for the terrain library, for the short credit (lib/source-credit.ts).
+const LIBRARY_TERRAIN = new Map(((customSourcesData as unknown as { SAMPLE_TERRAIN_SOURCES: RasterSourceEntry[] }).SAMPLE_TERRAIN_SOURCES).map((s) => [s.id, s]))
 
 /** A tile template through tiletx:// when the source asks for forceOpaque or
  *  underzoom (lib/tile-transform-protocol.ts), with the minzoom MapLibre
@@ -371,7 +373,7 @@ export const TerrainSources = memo(({
     // far this pyramid can theoretically go" for the camera zoom UI, a
     // different question from "what does THIS exact viewport have."
     // The terrain's credit in the map's attribution control (lib/source-credit.ts).
-    const terrainCredit = sourceCredit(customSource)
+    const terrainCredit = sourceCredit(customSource, customSource && LIBRARY_TERRAIN.get(customSource.id))
     const effectiveSourceConfig = useMemo(() => {
         if (!sourceConfig) return sourceConfig
         const credited = terrainCredit ? { ...sourceConfig, attribution: terrainCredit } : sourceConfig
@@ -500,7 +502,7 @@ export const RasterBasemapSource = memo(({
                     categorical: customBasemap.categorical,
                 }), customBasemap, removeColor), customBasemap),
                 // Its credit in the map's attribution control (lib/source-credit.ts).
-                attribution: sourceCredit(customBasemap),
+                attribution: sourceCredit(customBasemap, LIBRARY_BASEMAPS.get(customBasemap.id)),
             }
         }
 
@@ -613,7 +615,7 @@ export const OverlayBasemapSources = memo(({
                 // Its credit in the map's attribution control, counted only
                 // while its layer is visible (lib/source-credit.ts). In the
                 // key: <Source> cannot patch `attribution` in place.
-                const credit = sourceCredit(source)
+                const credit = sourceCredit(source, LIBRARY_BASEMAPS.get(source.id))
                 if ((source.type === "image" || source.type === "image-local") && source.coordinates) {
                     const imgUrl = source.type === "image-local" ? resolveLocalFileUrl(localFileId(source.url)) : source.url
                     if (!imgUrl) return null

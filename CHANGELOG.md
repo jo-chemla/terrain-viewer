@@ -1,3 +1,19 @@
+# Changelog — One Library Dialog, Short Credits
+
+<!-- released: 2026-11-24 -->
+
+#### TL;DR
+
+- **[Library](/docs/features/national-datasets) in one dialog**: the Terrain and Basemap tabs now swap the list inside the same dialog, with no fade out and in. The tabs are larger and the filter sits at the right of the tab row (under it on a narrow screen), with Load all and Clear all below.
+- **Attribution stays folded**: the map's credits open only when you click the ⓘ. They used to open by themselves when the sources changed or the layout moved the control, and with the Maya renders on the box spread a paragraph across the whole map. Opened, it is a card with the theme's corners and padding, at most 32 rem wide, scrolling past 40% of the screen.
+- **[Short credits on the map](/docs/features/byod#editing-the-lists)**: a Library entry with a long credit carries a short one for the map line (`shortAttribution`: publisher and licence code, "MARI-GISLAB (Tulane), CC BY-NC-SA"), linked to the licence. Entries of one publisher then give the same line, shown once: seventeen Maya renders read as one credit. The full credit stays in Source Info. Set on 53 entries, the pre-rendered relief overlays with long credits and the Chaco Canyon lidar.
+
+#### Details
+
+- MapLibre's `AttributionControl._updateCompact` opens the box the first time credits arrive, and this app re-creates the control when the bottom-right view changes; the credits were computed while its container was still detached, out of reach of the MutationObserver that folded it. `components/MapControls/AttributionControlCollapsed.tsx` replaces both: it overrides `_updateCompact` (keep compact, close unless the user opened it) and `_updateCompactMinimize` (a drag folds the box and closes the `<details>` too, which the vendor leaves out of step).
+- A source added from the Library before it had a short credit takes the Library's (same id), unless its credit was edited since.
+- Opening a library from a link (`?openLibrary=`) or the tour unfolds its sidebar section, where the list lives.
+
 # Changelog — QGIS Plugins Release, Drag-to-Install DMG
 
 #### TL;DR

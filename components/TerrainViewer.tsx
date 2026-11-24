@@ -9,7 +9,6 @@ import { useQueryStates, parseAsBoolean, parseAsString, parseAsFloat, parseAsInt
 import Map, {
   type MapRef,
   ScaleControl,
-  AttributionControl,
 } from "react-map-gl/maplibre"
 import { TerrainControlPanel, isSidebarOpenAtom } from "./TerrainControlPanel/TerrainControlPanel"
 import { ToastHost, pushToast } from "@/components/ui/toast"
@@ -17,6 +16,7 @@ import { ensureTitilerReachable, needsTitiler, TITILER_CACHE_KEY } from "@/lib/t
 
 import GeocoderControl from "./MapControls/GeocoderControl"
 import NavigationControlThemed from "./MapControls/NavigationControlThemed"
+import AttributionControlCollapsed from "./MapControls/AttributionControlCollapsed"
 import FullscreenControlThemed from "./MapControls/FullscreenControlThemed"
 import GeolocateControlThemed from "./MapControls/GeolocateControlThemed"
 import { GEOREF_TYPE_IDS } from "@/lib/georef"
@@ -1819,44 +1819,6 @@ export function TerrainViewer() {
   useEffect(() => {
     setTileResultCacheEnabled(cacheVizTiles)
   }, [cacheVizTiles])
-
-  // Force the corner AttributionControl (<AttributionControl compact .../>
-  // below) to actually START collapsed. `compact` alone doesn't guarantee
-  // that: confirmed against maplibre-gl-js's own attribution_control.ts —
-  // _updateCompact() force-opens the <details> (sets the `open` attribute
-  // and adds "maplibregl-compact-show") the FIRST time real attribution text
-  // actually resolves while the map's canvas container is <=640px (true for
-  // most of our panes, especially split or with the sidebar open) — a
-  // one-time transition baked into the control itself, not something this
-  // app's own props can turn off. Several of our sources resolve their real
-  // attribution asynchronously well after mount (Esri contributor fetch,
-  // Bing capture-date lookup, GE Historical), so that forced-open moment
-  // reliably happens AFTER the user's first look at the map, reading as "it
-  // just opened itself". A capture-phase click listener distinguishes a
-  // genuine user click on the toggle (left alone) from that automatic one
-  // (immediately re-collapsed) — a plain MutationObserver can't tell the two
-  // apart on its own, since both ultimately just add the same attribute.
-  useEffect(() => {
-    let userToggledAt = 0
-    const onButtonClick = (e: Event) => {
-      if ((e.target as HTMLElement)?.closest?.(".maplibregl-ctrl-attrib-button")) userToggledAt = Date.now()
-    }
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        const el = m.target as HTMLElement
-        if (!el.classList?.contains("maplibregl-ctrl-attrib") || !el.hasAttribute("open")) continue
-        if (Date.now() - userToggledAt < 200) continue // a real click just happened — respect it
-        el.removeAttribute("open")
-        el.classList.remove("maplibregl-compact-show")
-      }
-    })
-    document.addEventListener("click", onButtonClick, true)
-    observer.observe(document.body, { attributes: true, attributeFilter: ["open"], subtree: true })
-    return () => {
-      document.removeEventListener("click", onButtonClick, true)
-      observer.disconnect()
-    }
-  }, [])
 
   const [appModeEnabled, setAppModeEnabled] = useAtom(appModeAtom)
   useEffect(() => {
@@ -4458,7 +4420,8 @@ export function TerrainViewer() {
           {/* Mounted after ScaleControl so it's the later-added of the two —
               stacking order matters for MapLibre's own corner container. */}
           {isBottomRight && (
-            <AttributionControl compact position="bottom-right" />
+            // Never opens by itself (MapControls/AttributionControlCollapsed.tsx).
+            <AttributionControlCollapsed position="bottom-right" />
           )}
         </Map>
       )

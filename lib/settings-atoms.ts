@@ -451,6 +451,12 @@ export const basemapLibraryOpenAtom = atom(false)
 /** The filter typed into either Library dialog. One for both, so the
  *  Terrain / Basemap tabs switch libraries with the same search. */
 export const libraryQueryAtom = atom("")
+/** The box both libraries portal their content into (LibraryDialogHost in
+ *  sample-sources-modal.tsx), null while the dialog is closed. */
+export const libraryDialogHostAtom = atom<HTMLElement | null>(null)
+/** Which libraries' lists are mounted (their section rendered), so a tab
+ *  switch keeps the current list on screen until the other one is there. */
+export const libraryMountedAtom = atom<{ terrain: boolean; basemap: boolean }>({ terrain: false, basemap: false })
 
 export const activeSliderAtom = atom<string | null>(null)
 
