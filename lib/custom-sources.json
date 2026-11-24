@@ -2158,6 +2158,234 @@
             "infoUrl": "https://geoservices.ign.fr/cosia"
         },
         {
+            "id": "maya-lidar-tikal-hs",
+            "name": "GTM/MEX - Tikal Maya LiDAR (multi-direction hillshade, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1603_E_GEG10_MULTI_HS_D16_H35_Ve3_0_RGB_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 12,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.684,
+                17.158,
+                -89.576,
+                17.475
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: a hillshade from 16 directions, coloured by direction (Relief Visualization Toolbox), vertical exaggeration as in the service name, rendered from the PACUNAM Lidar Initiative 2016 (NCALM, Optech Titan, 1 m) bare-earth lidar of the Tikal area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-tikal-svf",
+            "name": "GTM/MEX - Tikal Maya LiDAR (sky view factor, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1603_E_GEG10_SVF_R10_D16_NRlow_8bit_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 12,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.684,
+                17.158,
+                -89.576,
+                17.475
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: the sky view factor (radius 10 px, 16 directions), dark in hollows and around mounds, the standard archaeological reading under forest, rendered from the PACUNAM Lidar Initiative 2016 (NCALM, Optech Titan, 1 m) bare-earth lidar of the Tikal area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-tikal-ld",
+            "name": "GTM/MEX - Tikal Maya LiDAR (local dominance, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1603_E_GEG10_LD_R_M10_20_DI1_A15_OH1_7_Ve3_0_8bit_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 12,
+            "maxzoom": 17,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.684,
+                17.158,
+                -89.576,
+                17.475
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: local dominance (radius 10 to 20 px), bright on mounds and platforms, rendered from the PACUNAM Lidar Initiative 2016 (NCALM, Optech Titan, 1 m) bare-earth lidar of the Tikal area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-holmul-hs",
+            "name": "GTM/MEX - Holmul Maya LiDAR (multi-direction hillshade, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1601_O_GEG10_MULTI_HS_D16_H35_Ve5_0_RGB_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 11,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.402,
+                17.198,
+                -89.181,
+                17.543
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: a hillshade from 16 directions, coloured by direction (Relief Visualization Toolbox), vertical exaggeration as in the service name, rendered from the PACUNAM Lidar Initiative 2016 and Holmul PLI-15 (NCALM, Optech Titan, 1 m) bare-earth lidar of the Holmul area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-holmul-svf",
+            "name": "GTM/MEX - Holmul Maya LiDAR (sky view factor, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1601_O_GEG10_SVF_R10_D16_8bit_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 11,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.402,
+                17.198,
+                -89.181,
+                17.543
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: the sky view factor (radius 10 px, 16 directions), dark in hollows and around mounds, the standard archaeological reading under forest, rendered from the PACUNAM Lidar Initiative 2016 and Holmul PLI-15 (NCALM, Optech Titan, 1 m) bare-earth lidar of the Holmul area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-holmul-ld",
+            "name": "GTM/MEX - Holmul Maya LiDAR (local dominance, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1601_O_GEG10_LD_R_M10_20_DI1_A15_OH1_7_Ve3_0_8bit_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 11,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.402,
+                17.198,
+                -89.181,
+                17.543
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: local dominance (radius 10 to 20 px), bright on mounds and platforms, rendered from the PACUNAM Lidar Initiative 2016 and Holmul PLI-15 (NCALM, Optech Titan, 1 m) bare-earth lidar of the Holmul area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-la-corona-hs",
+            "name": "GTM/MEX - La Corona Maya LiDAR (multi-direction hillshade, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1606_O_GEG10_MULTI_HS_D16_H35_Ve3_0_RGB_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 11,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -90.561,
+                17.442,
+                -90.116,
+                17.612
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: a hillshade from 16 directions, coloured by direction (Relief Visualization Toolbox), vertical exaggeration as in the service name, rendered from the PACUNAM Lidar Initiative 2016 (NCALM, Optech Titan, 1 m) bare-earth lidar of the La Corona area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-la-corona-svf",
+            "name": "GTM/MEX - La Corona Maya LiDAR (sky view factor, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1606_O_GEG10_SVF_R10_D16_NRlow_8bit_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 11,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -90.561,
+                17.442,
+                -90.116,
+                17.612
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: the sky view factor (radius 10 px, 16 directions), dark in hollows and around mounds, the standard archaeological reading under forest, rendered from the PACUNAM Lidar Initiative 2016 (NCALM, Optech Titan, 1 m) bare-earth lidar of the La Corona area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-la-corona-ld",
+            "name": "GTM/MEX - La Corona Maya LiDAR (local dominance, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/1606_O_GEG10_LD_R_M10_20_DI1_A15_OH1_7_Ve3_0_8bit_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 11,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -90.561,
+                17.442,
+                -90.116,
+                17.612
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: local dominance (radius 10 to 20 px), bright on mounds and platforms, rendered from the PACUNAM Lidar Initiative 2016 (NCALM, Optech Titan, 1 m) bare-earth lidar of the La Corona area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-chactun-hs",
+            "name": "GTM/MEX - Chactun Maya LiDAR (multi-direction hillshade, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/Chactun_dem_05m_MULTI_HS_D16_H35_Ve3_0_RGB_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 12,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.611,
+                18.613,
+                -89.474,
+                18.917
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: a hillshade from 16 directions, coloured by direction (Relief Visualization Toolbox), vertical exaggeration as in the service name, rendered from the Chactun Regional Project 2016 (NCALM, Optech Titan, 0.5 m) bare-earth lidar of the Chactun area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-chactun-svf",
+            "name": "GTM/MEX - Chactun Maya LiDAR (sky view factor, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/Chactun_dem_05m_SVF_R10_D16_Ve3_0_8bit_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 15,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.611,
+                18.613,
+                -89.474,
+                18.917
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: the sky view factor (radius 10 px, 16 directions), dark in hollows and around mounds, the standard archaeological reading under forest, rendered from the Chactun Regional Project 2016 (NCALM, Optech Titan, 0.5 m) bare-earth lidar of the Chactun area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
+            "id": "maya-lidar-chactun-ld",
+            "name": "GTM/MEX - Chactun Maya LiDAR (local dominance, MARI lab) - tiles",
+            "url": "https://tiles.arcgis.com/tiles/pD4CmKMkOVdkeAuQ/arcgis/rest/services/Chactun_dem_05m_LD_R_M10_20_DI1_A15_OH1_7_Ve3_0_8bit_tif/MapServer/tile/{z}/{y}/{x}",
+            "type": "tms",
+            "role": "overlay",
+            "minzoom": 12,
+            "maxzoom": 19,
+            "loadWithSamples": false,
+            "bounds": [
+                -89.611,
+                18.613,
+                -89.474,
+                18.917
+            ],
+            "description": "RESEARCH VISUALIZATION, not elevation: local dominance (radius 10 to 20 px), bright on mounds and platforms, rendered from the Chactun Regional Project 2016 (NCALM, Optech Titan, 0.5 m) bare-earth lidar of the Chactun area and published as public ArcGIS tiles by Tulane's Middle American Research Institute (MARI lab, Canuto and Estrada-Belli; web map 'PLI_GLiht_Chactun_MARI_architecture_data_share'). Used in the 2025 Journal of Archaeological Science: Reports study of Maya settlement across the northern and southern lowlands (https://www.sciencedirect.com/science/article/pii/S2352409X25003219, Table 1). Only these renders are shared, not the elevation, so it stacks as an overlay over any terrain; tiles from zoom 11 or 12 down to 19 (17 for Tikal's local dominance, 15 to 20 for Chactun's sky view factor). No licence is stated on the items: cite the MARI lab and the dataset's publication.",
+            "keywords": "lidar maya archaeology hillshade svf local dominance PLI PACUNAM petén guatemala",
+            "infoUrl": "https://www.arcgis.com/apps/mapviewer/index.html?webmap=43f58a2349d9463b816ce96a2c567008"
+        },
+        {
             "id": "custom-basemap-dlr-polardem-ant-hillshade",
             "name": "ATA - DLR TanDEM-X PolarDEM 90m Antarctica (hillshade)",
             "url": "https://geoservice.dlr.de/eoc/elevation/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=TDM_POLARDEM90_ANT_HSM&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true",
