@@ -99,6 +99,7 @@ import { tileTransformProtocol } from '@/lib/tile-transform-protocol'
 import { epsg3395Protocol } from '@/lib/epsg3395-protocol'
 import { googleTimelapseProtocol } from '@/lib/google-timelapse'
 import { pcMosaicProtocol } from '@/lib/pc-mosaic'
+import { glihtProtocol } from '@/lib/gliht-protocol'
 import { captureProtocol } from '@/lib/capture-mosaic'
 import { planetTileProtocol } from '@/lib/planet-tiles'
 import { ISOLINE_MEASURE_IDS } from '@/lib/isoline-measures'
@@ -1777,6 +1778,9 @@ export function TerrainViewer() {
     registerProtocol('epsg3395', withTileResultCache(epsg3395Protocol))
     registerProtocol('gtimelapse', withTileResultCache(googleTimelapseProtocol))
     registerProtocol('pcmosaic', withTileResultCache(pcMosaicProtocol))
+    // NASA G-LiHT DTM KMZs read in place (lib/gliht-protocol.ts): the grey
+    // elevation picture, or heights with a campaign's measured stretch.
+    registerProtocol('gliht', withTileResultCache(glihtProtocol))
     // No result cache: a tile can gain COGs when a later search reports.
     registerProtocol('capture', captureProtocol)
     // Has its own cache, one that outlives the session.

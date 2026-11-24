@@ -9,7 +9,7 @@
     "prestart": "node build.mjs",
     "start": "node server.mjs",
     "pretest": "node build.mjs",
-    "test": "node test.mjs",
+    "test": "node test.mjs && node proxy-test.mjs",
     "openapi": "node openapi.mjs",
     "qgis": "node qgis-project.mjs"
   },

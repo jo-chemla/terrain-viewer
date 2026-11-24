@@ -72,3 +72,4 @@
 - [Terrain source schema unification](terrain-source-schema-unification.md) — done 2026-11-23: one TerrainSourceEntry for built-ins, library and user sources; findTerrainSource is the one lookup; dated imagery in lib/dated-imagery.ts
 - [MapLibre symbol and circle rendering](maplibre-symbol-and-circle-rendering.md) — line symbols placed per tile (clip, offsets, bend check), circle strokes anti-aliased inward; what the tile service's direct engine reproduces
 - [Pre-rendered relief library survey](relief-library-survey.md) — 2026-11-24: the relief Library group, ArcGIS baked half alpha (forceOpaque), underzoom via tiletx://, rejected relief services
+- [G-LiHT KMZs are elevation](gliht-kmz-elevation.md) — KMZ PNGs = stretched DTM, gliht:// reader, CORS/Earthdata proxy

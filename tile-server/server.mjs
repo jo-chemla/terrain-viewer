@@ -82,6 +82,7 @@ import { processCatalog, processList, withLinks, landingPage, BASEMAP_PROCESS, C
 import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers } from "./direct.mjs"
 import { runDirect, poolStats, closePool, POOL_SIZE } from "./direct-pool.mjs"
 import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
+import { handleProxy } from "./proxy.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
@@ -459,6 +460,8 @@ async function handle(req, res) {
     try {
       const host = (req.headers.host || "").replace(/:\d+$/, "")
       if (allowedHosts.length && !["localhost", "127.0.0.1", "[::1]", ...allowedHosts].includes(host)) return send(403, "text/plain", "Host not allowed")
+      // CORS pass-through to NASA G-LiHT and Earthdata, allow-listed (proxy.mjs).
+      if (req.url.startsWith("/proxy/")) return handleProxy(req, res, `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`)
       const exec = req.url.match(/^\/processes\/([^/?]+)\/execution(?:\?|$)/)
       if (exec) {
         // The standard's execution: the modes are run by asking for their

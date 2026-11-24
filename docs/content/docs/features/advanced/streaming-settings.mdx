@@ -20,6 +20,10 @@ Two engines can turn a Cloud-Optimized GeoTIFF into map tiles:
 
 The **Titiler Endpoint** field at the bottom of the panel points both the streaming fallback and the export path at your own instance (default `https://titiler.xyz`); it travels with a [Project export](/features/index) so a shared project keeps working against the same server.
 
+### G-LiHT address
+
+Where NASA G-LiHT's KMZs are read from (the coverage popup's **Use as overlay** and the Kiuic library entries): empty for NASA's host, which sends no CORS header, so only with a CORS-unblocking browser extension; a [tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)'s `<server>/proxy/gliht` (the **use it** link fills it from the Tile Service field); or any CORS proxy written with `{url}` where the address goes. Kept in this browser only. See [NASA G-LiHT](/dev/g-liht).
+
 ### High-Precision Elevation Quantization
 
 Visible only on the MapLibre/COG-protocol path. Elevation tiles are quantized into an RGB packing — [Mapbox Terrain-RGB](https://docs.mapbox.com/data/tilesets/reference/mapbox-terrain-rgb-v1/) steps at **10 cm**, [Terrarium](https://github.com/tilezen/joerd/blob/master/docs/formats.md#terrarium) at **~3.9 mm**. This switch re-encodes streamed COGs as Terrarium instead of Terrain-RGB: slower streaming, but flat or gently-sloped surfaces stop banding in the derivative modes (slope, curvature, hillshade on near-flat terrain make 10 cm steps very visible). The [terrain-analysis pipeline](/dev/terrain-analysis-pipeline) page covers why each visualization mode picks the packing it does.

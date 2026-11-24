@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom, tileServerUrlAtom,
+  mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom, tileServerUrlAtom, glihtBaseUrlAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, nativeTerrainDrapeAtom, geHiDpiTilesAtom,
   customThemesAtom,
@@ -425,6 +425,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [googleKey, setGoogleKey] = useAtom(googleKeyAtom)
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
   const [tileServerUrl, setTileServerUrl] = useAtom(tileServerUrlAtom)
+  const [glihtBaseUrl, setGlihtBaseUrl] = useAtom(glihtBaseUrlAtom)
   const [apiKeysViewMode, setApiKeysViewMode] = useState<"individual" | "batch">("individual")
   const [batchApiKeys, setBatchApiKeys] = useState("")
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
@@ -925,6 +926,20 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </div>
               <span className="text-xs text-muted-foreground break-words">
                 A Terrain Viewer tile service (see the docs, Tile service). When it answers, Share offers the view as a QGIS project whose layers it serves.
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <div className="flex gap-2">
+                <Label className="flex-1 min-w-0" htmlFor="gliht-base-url">G-LiHT address</Label>
+                <Input className="flex-2 min-w-0 cursor-text" id="gliht-base-url" type="text" placeholder="https://glihtdata.gsfc.nasa.gov" value={glihtBaseUrl} onChange={(e) => setGlihtBaseUrl(e.target.value.trim())} />
+              </div>
+              <span className="text-xs text-muted-foreground break-words">
+                Where the NASA G-LiHT KMZs are read from. Empty: NASA's host, which sends no CORS header, so a CORS-unblocking browser extension is needed. Or a tile service's proxy, <code>{(tileServerUrl || "http://localhost:3400").replace(/\/+$/, "")}/proxy/gliht</code>
+                {tileServerUrl && glihtBaseUrl !== `${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht` && (
+                  <> (<button type="button" className="underline cursor-pointer" onClick={() => setGlihtBaseUrl(`${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht`)}>use it</button>)</>
+                )}
+                , or any CORS proxy written with <code>{"{url}"}</code> where the address goes.
               </span>
             </div>
 

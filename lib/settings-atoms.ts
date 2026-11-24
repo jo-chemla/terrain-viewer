@@ -209,6 +209,12 @@ export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://t
  *  empty for none. When it answers, the Share dialog offers the view as a
  *  QGIS project (its /qgis.qgz with the view's parameters). */
 export const tileServerUrlAtom = atomWithStorage("tileServerUrl", "")
+/** Where the gliht:// protocol reads NASA G-LiHT's KMZs (lib/gliht-protocol.ts
+ *  reads this key from storage itself, GLIHT_BASE_URL_KEY): empty for
+ *  glihtdata.gsfc.nasa.gov (no CORS: needs a CORS-unblocking extension), a
+ *  base URL such as the tile service's `<server>/proxy/gliht`, or a CORS
+ *  proxy template with `{url}`. */
+export const glihtBaseUrlAtom = atomWithStorage("glihtBaseUrl", "")
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.
  *  Read by useClientDemUpstream (MapSources.tsx) so EVERY client-computed viz

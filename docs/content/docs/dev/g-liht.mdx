@@ -1,20 +1,19 @@
 ---
 title: NASA G-LiHT
-description: What glihtdata.gsfc.nasa.gov serves, what a browser can read of it (nothing, directly), the 1 521-campaign catalog, and what it would take to stream the elevation and canopy height
+description: What glihtdata.gsfc.nasa.gov and LP DAAC serve, what the KMZ pictures encode (elevation, not hillshade), the gliht:// reader, the CORS proxy, the Earthdata route and the 1 521-campaign catalog
 ---
 
-[G-LiHT](https://gliht.gsfc.nasa.gov/) is NASA Goddard's airborne LiDAR, Hyperspectral and Thermal imager. Its data center, [glihtdata.gsfc.nasa.gov](https://glihtdata.gsfc.nasa.gov/), is a Leaflet webmap over an Apache directory tree (`/files/G-LiHT/<campaign>/`), with no login. The app already streams one part of it: the 2013 Yucatan transects, which OpenTopography re-hosts as COGs (the two **MEX - G-LiHT 2013 Yucatan** library entries, see [Related Work](/resources/related-work#maya-lowlands-lidar-the-petén-paper-and-its-data)). This page is the test of everything else, done on 2026-11-24.
+[G-LiHT](https://gliht.gsfc.nasa.gov/) is NASA Goddard's airborne LiDAR, Hyperspectral and Thermal imager. Its data center, [glihtdata.gsfc.nasa.gov](https://glihtdata.gsfc.nasa.gov/), is a Leaflet webmap over an Apache directory tree (`/files/G-LiHT/<campaign>/`), with no login. Two parts of it are now in the app: the 2013 Yucatan transects OpenTopography re-hosts as COGs (the two **MEX - G-LiHT 2013 Yucatan** library entries, see [Related Work](/resources/related-work#maya-lowlands-lidar-the-petén-paper-and-its-data)), and, since 2026-11-24, any campaign's own DTM KMZ, read in place by the `gliht://` protocol. Tested on 2026-11-24.
 
 <OpenInApp href="/?coverageOverlays=gliht&lat=20.1&lng=-89.55&zoom=10">G-LiHT coverage over Kiuic and the Puuc, Yucatan</OpenInApp>
 
 ## Verdict
 
-- **No direct client-side route.** The host sends no `Access-Control-Allow-Origin` header on anything (KMZ, tar.gz, the index), for a GET with an `Origin` or for an `OPTIONS` preflight. A page on another origin cannot read a byte, so a custom protocol in the browser is out, whatever the format.
-- **The elevation is only in gzip.** Range requests work, but the GeoTIFFs are inside `.tar.gz` (AMIGA-Carb and the newer "KML folder" campaigns) or `.tif.gz` (the rest). Gzip has no index: reaching byte N means inflating everything before it, so neither a browser nor titiler (`/vsigzip/`, `/vsitar/`) can read a window without streaming the archive from the start.
-- **The KMZ files are pictures, not elevation.** Each is a regionated super-overlay of greyscale hillshade PNGs. A protocol could drape them through a CORS proxy, but the app already draws a better hillshade, and every other mode, from real elevation.
-- **NASA's other copy is behind a login.** LP DAAC holds the same products in the cloud (`GLDTMT` DTM, `GLCHMT` CHM, `GLDSMT` DSM, `GLDTMK`/`GLCHMK` KML, 22 093 DTM granules), at `data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/`: an anonymous GET answers 302 to `urs.earthdata.nasa.gov`, and an `OPTIONS` preflight answers 405, so a browser cannot send an Earthdata token either. CMR search itself is CORS-open, the data is not.
-- **What was built**: the whole catalog as a coverage overlay (**Coverage > 3D and LiDAR coverage > NASA G-LiHT airborne LiDAR**), so the app shows where G-LiHT exists, what each campaign holds and whether it can be streamed (only the OpenTopography Yucatan transects can).
-- **Canopy height still needs re-hosting.** G-LiHT's CHM is in the same gzip archives, OpenTopography publishes the Yucatan bare earth only (no `_hh` or DSM VRT under `MX13E_Britton/` or `MX13W_Britton/`), so there is no DSM to derive an nDSM from in the browser. Meta/WRI's 1 m canopy height (in the library) covers the same ground as a modelled substitute, not a LiDAR one.
+- **The KMZ pictures are elevation, not a hillshade.** Each DTM KMZ is a GDAL super-overlay of PNG tiles whose grey is the 1 m bare earth, linearly stretched: black at the raster's minimum, white near its 99.9th percentile. Measured against the Float32 GeoTIFFs of four rasters (below), the grey decodes back to the GeoTIFF to 0.06-0.2 m RMS, the 8-bit step. The stretch is per KMZ and written nowhere in it, so heights need the two numbers measured once against the GeoTIFF; without them the grey is still the relief's shape, up to a scale.
+- **The app reads the KMZs in place** (`gliht://`, `lib/gliht-kmz.ts`): the zip's central directory by HTTP Range, then only the PNG tiles of the level a map tile needs, warped from their lon/lat quads to Web Mercator. Any campaign as a greyscale overlay from the coverage popup (**Use as overlay**), and the three Kiuic blocks as **terrain** (heights decoded with their measured stretch) and overlays in the library.
+- **CORS**: the host still sends none. Either a CORS-unblocking browser extension, or the tile service's allow-listed proxy (`/proxy/gliht`, see [Tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)), set in **Settings > G-LiHT address**.
+- **Raw Float32 through Earthdata**: LP DAAC's cloud copy (`GLDTMT`, 22 093 DTM granules) is the same GeoTIFFs as NASA's gzipped files, uncompressed, so they are range-readable, but only with an Earthdata login and with no CORS. The tile service's `/proxy/earthdata` holds the token (`EARTHDATA_TOKEN`, never in the browser) and writes a VRT over a granule for the app's `vrt://` reader. Not a COG: no overviews, so usable from about z16.
+- **Canopy height** is in the same packaging (KMZ, gzip, `GLCHMT`), not wired: not asked for.
 
 ## The tests
 
@@ -22,20 +21,86 @@ description: What glihtdata.gsfc.nasa.gov serves, what a browser can read of it 
 |---|---|---|
 | CORS on a DTM KMZ, the tiles KMZ, a DTM tar.gz | `GET` with `Origin:` and `Range: bytes=0-99` | `206 Partial Content`, `Accept-Ranges: bytes`, no `Access-Control-*` header |
 | Preflight | `OPTIONS` with `Access-Control-Request-Headers: range` | `200`, `Allow: GET,POST,OPTIONS,HEAD`, no `Access-Control-*` header |
-| LP DAAC cloud GeoTIFF | `GET` (with or without a bearer token), `OPTIONS` | `302` to Earthdata Login; `405` |
+| LP DAAC cloud GeoTIFF, no token or a wrong one | `GET` with `Range` | `302` to `urs.earthdata.nasa.gov/oauth/authorize` (`app_type=401`), never a 401 |
+| LP DAAC preflight | `OPTIONS` with `Origin`, `Access-Control-Request-Headers: authorization,range` | `405`: a browser cannot send a token at all |
+| LP DAAC browse picture (`lp-prod-public`) | `GET` | `303` to a signed CloudFront address, no login |
+| CMR search (`cmr.earthdata.nasa.gov`) | `GET` | open, CORS too |
 | The webmap's NCCS ortho MapServer | `maps.nccs.nasa.gov/image02/rest/services/gliht/...` | the host does not resolve |
 
 ### Inside a DTM KMZ
 
-`AMIGACarb_Yuc_Norte_GLAS_Apr2013_l0s397_DTM.kmz` (2.8 MB, one strip cell): a zip of 719 entries, all deflated. `doc.kml` holds one `NetworkLink` to `0/0/0.kml`; each level's KML holds a `GroundOverlay` (a `gx:LatLonQuad`, the strip being rotated) and four `NetworkLink`s to the next level, gated by `Region`/`Lod` (`minLodPixels` 128). Five levels, 0 to 4 (1, 4, 16, 64, 264 tiles), each tile a 69 × 357 RGBA PNG; at level 4 that is about 1 m per pixel. The pixels are a greyscale hillshade with transparency outside the swath, not encoded heights. The CHM KMZs are the same layout.
+`Kuiic1_Apr2013_DTM.kmz` (19 MB, the whole campaign) is a zip of 10 923 entries, all deflated, written by GDAL's KMLSUPEROVERLAY driver. `doc.kml` holds one `NetworkLink` to `0/0/0.kml`; each `L/x/y.kml` holds a `GroundOverlay` (its `L/x/y.png` placed by a `gx:LatLonQuad`, the raster being UTM and so slightly rotated in lon/lat) and four `NetworkLink`s to the next level, gated by `Region`/`Lod` (`minLodPixels` 128). Seven levels, 0 to 6 (1, 4 … 4 096 tiles), each tile a 78 × 203 RGBA PNG: the tiles are fixed pixel blocks of the UTM raster counted from its south-west corner, and the last level is the 1 m raster itself (5 005 × 13 013 there). A tile's PNG and KML are next to each other in the zip, so one Range request reads both. AMIGA-Carb ships one KMZ per cell (`lidar/kml/dtm/<campaign>_<cell>_DTM.kmz`, `…_l0s397_DTM.kmz` is 2.8 MB, 719 entries, levels 0 to 4, 69 × 357 tiles) and lists the cells in `lidar/kml/tiles/<campaign>_tiles.kmz`.
+
+There is no legend, `ScreenOverlay` or style in any KML. The PNGs are grey (R = G = B), alpha 0 off the swath and 255 on it, values 1 to 255. A level-6 tile of a flat area reads 44 to 59, not the ~180 a hillshade gives flat ground, and the level-3 mosaic shows the Puuc hills as bright blobs: elevation.
+
+### The PNGs against the GeoTIFF
+
+For four rasters the Float32 GeoTIFF was downloaded (Kiuic: the `.tif.gz`; the AMIGA cell: the first 30 MB of the campaign's `.tar.gz`, enough to extract its member) and compared pixel for pixel with the KMZ, each PNG tile against the block of the GeoTIFF it was cut from (block-averaged to its size), in the swath and away from its edge:
+
+| Raster | GeoTIFF range | Grey 0 = | Grey 255 = | GeoTIFF 99.9th pct | r | Decoded − GeoTIFF, RMS |
+|---|---|---|---|---|---|---|
+| Kuiic1_Apr2013 (level 3) | 67.66 – 166.16 m | 67.67 m | 153.37 m | 153.57 m | 0.99992 | 0.21 m |
+| Kuiic2_Apr2013 (level 4, the 1 m level) | 91.62 – 150.11 m | 92.01 m | 146.59 m | 146.67 m | 0.99997 | 0.06 m |
+| Kuiic3_Apr2013 (level 3) | 85.66 – 157.99 m | 85.71 m | 152.76 m | 152.89 m | 0.99988 | 0.17 m |
+| AMIGACarb Yuc_Norte l0s397 (level 1) | 0.57 – 12.53 m | 0.57 m | 4.26 m | 4.24 m | 0.959 | 0.07 m |
+
+So the stretch is linear from the minimum to about the 99.9th percentile (a few centimetres to 0.4 m off it, an approximate histogram), and heights above it are clipped to white. The error is the 8-bit step (0.21 m over 54 m at Kiuic 2, step / √12 = 0.062 m). The coastal AMIGA cell spans 3.7 m in 255 steps, so its correlation is lower but its error is 1.4 cm per level.
+
+**Can a hillshade be inverted?** Not in general: a one-light hillshade keeps only the gradient's component towards the light (the perpendicular one is lost), plus no absolute height and no scale; shape-from-shading gives an approximation, never the DTM. It does not arise here, the pictures are the heights.
+
+The recipe, for another campaign: download its DTM `.tif.gz` (or one member of the `.tar.gz`) and its KMZ, fit grey against the block-averaged GeoTIFF over a coarse level (level 3 or so: at the 1 m level a fraction of a pixel of misregistration biases the slope), and take `lo` = grey 0 and `hi` = grey 255 of the fit. Or, without fitting: `lo` = the GeoTIFF's minimum, `hi` = its 99.9th percentile (`gdalinfo -hist`), good to a few decimetres.
 
 ### The tiles KMZ
 
-`<campaign>_tiles.kmz` (2.7 kB) is one KML of `Placemark`s, one per cell (`l0s397`, `l0s398`…): its centre point and its footprint polygon. A footprint index, not imagery.
+`<campaign>_tiles.kmz` (2.7 kB) is one KML of `Placemark`s, one per cell (`l0s397`, `c0r0`…): its centre point and its footprint polygon. The protocol reads it for the per-cell campaigns, to open only the cell KMZs a tile touches.
 
-### Inside the GeoTIFF tar.gz
+### Inside the GeoTIFF archives
 
-The first 30 MB of `AMIGACarb_Yuc_Norte_GLAS_Apr2013_DTM.tar.gz` (286 MB) were enough to list and extract three members: one GeoTIFF per cell, `…_l0s397_DTM.tif` (25.7 MB), `…_l0s398_DTM.tif` (58.1 MB). `gdalinfo`: Float32 elevation, WGS 84 / UTM 15N, 1 m pixels, 1118 × 5720, uncompressed, stripped (`Block=1118x1`), no overviews: not a COG, and not tiled. Values 0.6 to 12.5 m there (the coast north of Campeche). Campaigns outside AMIGA-Carb without a KML folder ship one `<campaign>_DTM.tif.gz` mosaic instead (Kiuic 1: 102 MB). Next to the DTM, `geotiff/` holds `_CHM`, `_aspect`, `_slope`, `_rugosity`, `metrics/` and `lidar_refl/` in the same packaging, and `las/` one `.las.gz` per cell.
+The first 30 MB of `AMIGACarb_Yuc_Norte_GLAS_Apr2013_DTM.tar.gz` (286 MB) list and extract three members: one GeoTIFF per cell, `…_l0s397_DTM.tif` (25.7 MB), `…_l0s398_DTM.tif` (58.1 MB). `gdalinfo`: Float32 elevation, WGS 84 / UTM 15N, 1 m pixels, 1118 × 5720, uncompressed, stripped (`Block=1118x1`), no overviews, NaN off the swath. Campaigns without a KML folder ship one `<campaign>_DTM.tif.gz` mosaic instead (Kiuic 1: 102 MB, 5005 × 13013, UTM 16N). Gzip has no index: reaching byte N means inflating everything before it, so neither a browser nor titiler (`/vsigzip/`) reads a window of it. Next to the DTM, `geotiff/` holds `_CHM`, `_aspect`, `_slope`, `_rugosity`, `metrics/` and `lidar_refl/` in the same packaging, and `las/` one `.las.gz` per cell.
+
+## The gliht:// protocol
+
+```
+gliht://<campaign>/{z}/{x}/{y}                 the grey picture (raster overlay, type tms)
+gliht://<campaign>/{z}/{x}/{y}?dem=<lo>,<hi>   Terrarium heights (terrain, type terrarium)
+gliht://<campaign>/{z}/{x}/{y}?cells=1         a per-cell campaign (AMIGA-Carb ones are by default)
+```
+
+`lib/gliht-kmz.ts` does the work, with no DOM (fetch and the PNG decoder are passed in), so `lib/gliht-kmz.test.ts` runs it in Node on recorded subsets of real KMZs (`lib/fixtures/gliht/`, 230 kB) and checks ten decoded heights against the Kiuic 2 GeoTIFF (worst 0.14 m). `lib/gliht-protocol.ts` is the MapLibre side.
+
+1. **Directory**: the last 64 kB of the KMZ (`Range: bytes=-65557`) hold the zip's end record; the central directory follows in the same answer when small, else in one more request (640 kB for Kiuic 1's 10 923 entries). Kept per KMZ.
+2. **Root**: `0/0/0.kml` and `0/0/0.png` in one request give the raster's quad and the tile size.
+3. **Level**: the one whose pixel is no larger than the map tile's (the finest, about 1 m, from z17).
+4. **Tiles**: the map tile's corners mapped into the root quad give the columns and rows of that level that can touch it; those present in the directory are read, PNG and KML together, neighbours merged into one Range request.
+5. **Warp**: each output pixel's lon/lat is located in each tile's quad (inverse bilinear) and sampled bilinearly, nearest at the swath edge. Off the data: transparent (overlay), or alpha 254 at height `lo` (terrain, the app's nodata convention).
+
+Measured through the proxy: a first Kiuic 1 tile at z16 takes 9 requests and 0.9 MB (most of it the directory, once), its neighbours one request each; an AMIGA cell tile at z15, 5 requests and 1.2 MB.
+
+**Where it reads from** (**Settings > G-LiHT address**, local, `glihtBaseUrl` in storage): empty for the host itself, which works only with a CORS-unblocking extension; the tile service's `<server>/proxy/gliht` (a link fills it from the Tile Service field); or any CORS proxy written as a template with `{url}` (`https://proxy.example/?url={url}`, the full glihtdata address goes in, encoded).
+
+**In the app**:
+
+- **Coverage > 3D and LiDAR coverage > NASA G-LiHT airborne LiDAR**, click a campaign, **Use as overlay**: the campaign's KMZ as a greyscale overlay (any of the campaigns with a DTM KMZ). Black is its lowest ground, white about its highest.
+- **Library**, terrain: **MEX - G-LiHT 2013 Kiuic 1, 2, 3 … NASA KMZ decoded**: the three wall-to-wall Kiuic blocks (93 km², Puuc) as terrain, with the stretches above, so every relief mode works on them. The surface is terraced at the grey step (0.34, 0.21, 0.26 m), visible as faint contour-like bands in a strong hillshade.
+- **Library**, basemaps (Pre-rendered relief): the same three as greyscale overlays.
+
+## Earthdata Cloud (LP DAAC)
+
+CMR (open, no login) lists the G-LiHT collections in `LPCLOUD`: `GLDTMT` (DTM), `GLDSMT` (DSM), `GLCHMT` (CHM), `GLDTMK` and `GLCHMK` (the KMZs), `GLMETRICS`, `GLORTHO`, `GLLIDARPC` (point clouds), `GLTRAJECTORY` and the hyperspectral ones. `GLDTMT` (`C2763264722-LPCLOUD`) has 22 093 granules: one per campaign for the mosaic campaigns (`GLDTMT_Kuiic1_Apr2013_DTM`, 248.651 MB), one per cell for AMIGA-Carb (`GLDTMT_AMIGACarb_Yuc_Norte_NFI_Apr2013_l3s455_DTM`). Each granule is one file:
+
+```
+https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/GLDTMT.001/<granule>/<granule>.tif
+s3://lp-prod-protected/GLDTMT.001/<granule>/<granule>.tif      (us-west-2, temporary keys from /s3credentials)
+https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-public/GLDTMT.001/<granule>/<granule>.1.png   (browse, public)
+```
+
+Kiuic 1's granule is 248.651 MiB, exactly the 260 729 434 bytes of the GeoTIFF inside NASA's `Kuiic1_Apr2013_DTM.tif.gz`: the same file, uncompressed. So it is range-readable over HTTPS, but not a COG (stripped, one row per strip, no overviews): a window costs its rows' full width, and a low zoom costs the whole file.
+
+Access: Earthdata's download app (TEA) accepts an Earthdata **user token** as `Authorization: Bearer <token>` and answers with a redirect to a signed S3 address, valid an hour, which takes Range requests. Without a token, or with a wrong one, it redirects to the login page (a `302`, not a `401`), and it answers a CORS preflight `405`: a browser can never send the token, and must never hold it anyway. Direct S3 (`s3credentials`) works only from AWS us-west-2.
+
+So the tile service does it (`tile-server/proxy.mjs`): `/proxy/earthdata/<path>` adds the token from its environment, follows the redirect without it, keeps the signed address 30 minutes and streams the bytes with CORS; `/proxy/earthdata/vrt/<path>.tif` reads the GeoTIFF's header through that route and writes a VRT whose sources are 512 px windows of it, which the app's `vrt://` reader opens in the browser (custom terrain source, type VRT). The windows make the reader's minimum zoom about 16, where a tile reads a few megabytes of rows; below that it refuses rather than read 250 MB. Tested without a token: a fake TEA and S3 in `tile-server/proxy-test.mjs` (the token never reaches S3, the login redirect becomes a `401`, the signed address is reused), and against the real host: `401` with what to set, the public browse PNG through.
+
+**Setting it up**: generate a token at [urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov/) (**Generate Token**, valid 60 days), put `EARTHDATA_TOKEN=<token>` in the main checkout's `.env`, start the tile service, and add a custom terrain source of type VRT with the address `http://localhost:3400/proxy/earthdata/vrt/lp-prod-protected/GLDTMT.001/GLDTMT_Kuiic1_Apr2013_DTM/GLDTMT_Kuiic1_Apr2013_DTM.tif`. Step by step, and the check command: [Tile service](/dev/tile-service#getting-the-earthdata-token). For the Kiuic blocks the decoded KMZ is lighter (it has overviews) and within 0.1-0.2 m; the Earthdata route gives the exact Float32 and any of the 22 093 granules.
 
 ## The catalog
 
@@ -44,14 +109,11 @@ The webmap reads one index, `DATA/flightData.js` (23 MB: `var flightData = {…}
 - **1 521 campaigns, 68 850 cells, 2011 to 2026**, about 184 000 km² of cell footprints (overlapping repeat flights counted each time). 142 GB of DTM GeoTIFF, 74 GB of CHM, 36 GB of DTM KMZ.
 - By region: Alaska 470 campaigns (120 000 km²), AMIGA-Carb Mexico 154 (37 600 km²), Florida 164, Puerto Rico 291, Maine 74, then New Mexico, the Mid-Atlantic, Oregon, the Bahamas (Andros), Virginia, Maryland and a long tail.
 - **Strips and blocks.** A cell named `lNsM` is segment M of flight line N, a strip a few hundred metres to a couple of kilometres wide. A cell named `cXrY` is a 1 km tile of a block flown wall to wall. 210 campaigns are blocks (10 100 km²): forest plots, watersheds, Puerto Rico's El Yunque and Rio Abajo, the Jemez and Sandia mountains, Big Pine Key, the Algodones dunes.
-- **Wall-to-wall in the Maya lowlands: Kiuic.** `Kuiic1_Apr2013`, `Kuiic2_Apr2013` and `Kuiic3_Apr2013` (the folder names misspell Kiuic) are 93 km² of 1 km blocks over the Kiuic and Bolonchén district of the Puuc, Yucatan, flown in April 2013 with the AMIGA-Carb transects. They are not in the OpenTopography reprocessing (its VRTs list only the `Yuc_*`, `Campeche`, `Chiaps1` and `Out_Yuc` transects), so their elevation is only in the NASA archives: DTM 102 + 13 + 20 MB, CHM 56 + 8 + 12 MB gzipped. The same holds for `Hildalgo_May2013` (44 km², Hidalgo) and every AMIGA-Carb flight outside the Yucatan (Oaxaca, Chiapas, Guanajuato, Chihuahua, Sonora…).
+- **Wall-to-wall in the Maya lowlands: Kiuic.** `Kuiic1_Apr2013`, `Kuiic2_Apr2013` and `Kuiic3_Apr2013` (the folder names misspell Kiuic) are 93 km² of 1 km blocks over the Kiuic and Bolonchén district of the Puuc, Yucatan, flown in April 2013 with the AMIGA-Carb transects. They are not in the OpenTopography reprocessing (its VRTs list only the `Yuc_*`, `Campeche`, `Chiaps1` and `Out_Yuc` transects); the app reads them from NASA's KMZs (library) or, with a token, from LP DAAC. The same holds for `Hildalgo_May2013` (44 km², Hidalgo) and every AMIGA-Carb flight outside the Yucatan (Oaxaca, Chiapas, Guanajuato, Chihuahua, Sonora…), which the coverage popup can draw as overlays.
 - The 2013 Yucatan transects that OpenTopography does carry are 13 campaigns, about 6 400 km² of cell footprints: 3.6 GB of NASA DTM (superseded there by the 0.5 m reprocessing) and **2.2 GB of CHM** (not on OpenTopography).
 
-## What streaming them would take
+## Still open
 
-The only way in is through a server, once. In order of cost:
-
-1. **Kiuic** (the one wall-to-wall Maya block missing from the app): download `Kuiic{1,2,3}_Apr2013_DTM.tif.gz`, `gdal_translate -of COG` each (deflate, predictor 3, overviews), about 135 MB of gzip in, a few hundred MB of COG out. Host the three COGs on any CORS-open bucket and add a `cog` or `vrt` library entry. Public domain (NASA).
-2. **Yucatan canopy height**: the 13 `_CHM.tar.gz` (2.2 GB), each member converted to COG and indexed by one VRT per UTM zone, as the Scotland VRTs are built (see [Cell-routed sources](/dev/cell-routed-sources)). That is the "several GB" of [Related Work](/resources/related-work#maya-lowlands-lidar-the-petén-paper-and-its-data); the test above confirms no shortcut exists.
-3. **A CORS proxy** in front of glihtdata (a Cloudflare Worker forwarding `Range` and adding `Access-Control-Allow-Origin`, or `scripts/cors-proxy.mjs` locally) would make the KMZs drawable, but they are hillshades, and the GeoTIFFs would still be gzip. Not worth a protocol.
-4. **titiler** does not help: it opens what GDAL can seek, and `/vsigzip/` over HTTP re-inflates from the start for every window.
+1. **A stretch for every campaign**: heights need `lo`/`hi` per KMZ, measured on the GeoTIFF. Doing it for all 1 521 means downloading 142 GB of gzip once (or reading the uncompressed granules through Earthdata); a script could then bake `lo`/`hi` into `gliht.geojson`, and the popup could offer **Use as terrain** too.
+2. **Re-hosting as COGs** (Kiuic: 135 MB of gzip in, a few hundred MB out; the Yucatan CHM: 2.2 GB) still gives the best reading: exact Float32 with overviews, no proxy, no token. Not done without approval.
+3. **titiler** does not help with the archives (`/vsigzip/` re-inflates from the start for every window); with `GDAL_HTTP_HEADERS="Authorization: Bearer …"` a self-hosted titiler could read the LP DAAC granules, which a public titiler cannot (the token would be in every request).

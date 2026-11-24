@@ -225,7 +225,7 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
         { id: "google3d", label: "Google photorealistic 3D", color: OVERLAY_COLORS.google3d, detail: "decoded from Google's layer" },
         { id: "esri3d", label: "Esri Integrated Mesh", color: OVERLAY_COLORS.esri3d, detail: "open I3S, \u2265 5 km\u00b2" },
         { id: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai, detail: "114 open COPC surveys" },
-        { id: "gliht", label: "NASA G-LiHT airborne LiDAR", color: OVERLAY_COLORS.gliht, detail: "1 521 campaigns 2011-2026, download only", url: "https://glihtdata.gsfc.nasa.gov/" },
+        { id: "gliht", label: "NASA G-LiHT airborne LiDAR", color: OVERLAY_COLORS.gliht, detail: "1 521 campaigns 2011-2026; DTM KMZ as an overlay", url: "https://glihtdata.gsfc.nasa.gov/" },
       ] },
     { section: "Terrain", key: "opentopo", parent: "sources3d", label: "OpenTopography", color: OVERLAY_COLORS.otRaster,
       note: "Datasets hosted on OpenTopography (opentopography.org): gridded DEMs, and the LiDAR point clouds many were made from. Global rasters (SRTM, GLO-30, ALOS...) are left out, continental ones drawn hollow. Click a footprint for the dataset page and its DOI.",
@@ -452,9 +452,16 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
       const features: Feature[] = fc.features.map((f) => {
         const p = (f.properties ?? {}) as {
           id?: string; date?: string; cells?: number; km2?: number; layout?: string
-          dtmMB?: number; chmMB?: number; archive?: string; ot?: boolean
+          dtmMB?: number; chmMB?: number; dtmKmzMB?: number; archive?: string; ot?: boolean
         }
         const sizes = [p.dtmMB ? `DTM ${p.dtmMB} MB` : null, p.chmMB ? `CHM ${p.chmMB} MB` : null].filter(Boolean).join(", ")
+        // "Use as overlay" draws the campaign's DTM KMZ through gliht://
+        // (lib/gliht-protocol.ts): its id, layout (one KMZ per cell for the
+        // tar.gz campaigns) and extent ride in the overlay id.
+        let b: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity]
+        const walk = (c: unknown): void => { if (Array.isArray(c) && typeof c[0] === "number") { b = [Math.min(b[0], c[0]), Math.min(b[1], c[1] as number), Math.max(b[2], c[0]), Math.max(b[3], c[1] as number)] } else if (Array.isArray(c)) c.forEach(walk) }
+        walk((f.geometry as { coordinates?: unknown }).coordinates)
+        const useId = p.id && p.dtmKmzMB !== undefined && Number.isFinite(b[0]) ? `gliht:${p.id}:${p.archive === "tar.gz" ? 1 : 0}:${b.map((v) => v.toFixed(3)).join(",")}` : undefined
         const bits = [
           p.date,
           p.layout === "block" ? "wall-to-wall block" : "strips",
@@ -463,9 +470,9 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
           p.ot ? "streamable: OpenTopography re-hosts this DTM at 0.5 m (library: MEX - G-LiHT 2013 Yucatan)" : null,
         ].filter(Boolean).join(" · ")
         return { ...f, properties: { ...f.properties,
-          overlay: id, color: OVERLAY_COLORS.gliht, hollow: false, opacity: p.ot ? 0.35 : 0.2,
+          overlay: useId ?? id, ...(useId ? { role: "overlay" } : {}), color: OVERLAY_COLORS.gliht, hollow: false, opacity: p.ot ? 0.35 : 0.2,
           label: `G-LiHT ${p.id ?? ""}`.trim(),
-          detail: `NASA airborne LiDAR${bits ? ` · ${bits}` : ""} · click to open the campaign's download folder`,
+          detail: `NASA airborne LiDAR${bits ? ` · ${bits}` : ""}${useId ? " · Use as overlay draws its 1 m DTM KMZ (greyscale elevation; needs a CORS extension or the G-LiHT address setting)" : ""} · click to open the campaign's download folder`,
           url: p.id ? `https://glihtdata.gsfc.nasa.gov/files/G-LiHT/${p.id}/` : "https://glihtdata.gsfc.nasa.gov/" } }
       })
       return { type: "FeatureCollection", features }

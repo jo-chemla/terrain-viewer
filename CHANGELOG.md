@@ -1,3 +1,14 @@
+# Changelog — NASA G-LiHT KMZs, CORS Proxy, Earthdata
+
+#### TL;DR
+
+- **NASA G-LiHT in the app**: the coverage popup's **Use as overlay** draws any G-LiHT campaign's 1 m DTM KMZ, read in place by a new `gliht://` protocol (HTTP Range: the zip directory, then only the tiles a map tile needs). The pictures turn out to be the elevation stretched to grey, not a hillshade: measured against the GeoTIFFs, they decode back to 0.06-0.2 m.
+- **Kiuic as terrain**: the three wall-to-wall Kiuic blocks (93 km² of the Puuc, Yucatan, absent from OpenTopography) are in the Library as terrain, decoded from NASA's KMZ with their measured stretch, and as greyscale overlays.
+- **[CORS proxy](/docs/dev/tile-service#cors-proxy-for-nasa-g-liht) in the tile service**: `/proxy/gliht` (glihtdata's KMZs only) and `/proxy/earthdata` (LP DAAC's G-LiHT GeoTIFFs, with an Earthdata token kept on the server, plus a VRT for the in-browser reader). **Settings > G-LiHT address** points the app at it; without it a CORS-unblocking browser extension works.
+
+#### Details
+
+- `lib/gliht-kmz.ts` (reader, tested offline on 230 kB of recorded KMZ subsets against GeoTIFF heights), `lib/gliht-protocol.ts`, `tile-server/proxy.mjs` (allow-list, one Range of at most 16 MiB, whole files under 64 MiB, 16 upstream reads at a time, the token never sent to S3; `proxy-test.mjs`). `EARTHDATA_TOKEN` is read from the environment or the repository's `.env`. Findings and setup: [NASA G-LiHT](/docs/dev/g-liht).
 # Changelog — Overlay Transparency, Hidden Sources, MERRA-2 by Month
 
 #### TL;DR

@@ -3943,6 +3943,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "glihtBaseUrl",
+      "default": "\"\"",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "customBasemapLastType",
       "default": "\"auto\"",
       "note": ""

@@ -360,6 +360,9 @@ The browser engine suits a few views, a cache filled in advance, or pictures of 
 | `TV_RENDER_TIMEOUT` | Seconds before a request not yet answered gets a `504` | 90 |
 | `TV_ALLOWED_HOSTS` | Host names accepted in the `Host` header, comma-separated | any |
 | `TV_MAPBOX_KEY`, `TV_MAPTILER_KEY`, `TV_CESIUM_ION_KEY` | The operator's keys, used when a request gives none: anyone who can reach the service then uses them | none |
+| `EARTHDATA_TOKEN` | An Earthdata user token, for [`/proxy/earthdata`](#cors-proxy-for-nasa-g-liht). Read from the environment, else from the repository's `.env` (that key only) | none |
+| `TV_PROXY_MAX_RANGE`, `TV_PROXY_MAX_FULL` | Largest byte range, and largest whole file, the proxy passes | 16 MiB, 64 MiB |
+| `TV_PROXY_CONCURRENCY`, `TV_PROXY_TIMEOUT` | Upstream reads at a time (eight times as many wait, then `503`), and milliseconds before a `504` | 16, 60000 |
 
 A request whose client has gone (QGIS cancels the tiles it no longer shows while you pan) is dropped before its work starts, so several QGIS windows no longer pile up work nobody waits for. The direct engine draws in worker threads (`tile-server/direct-pool.mjs`): a sky view factor or openness tile keeps a thread busy for seconds, and on the server's own thread it held up every other request, `/health` included. A tile whose request is cancelled or reaches `TV_RENDER_TIMEOUT` has its worker ended, which stops the computation, and a fresh worker takes its place. Each worker keeps its own elevation cache, so memory grows with their number. `/health` reports each engine's `running`, `waiting` and `limit`, and for the direct engine `workers`, `busy` and `replaced` (workers ended since the start). The root address `/` redirects to the Scalar page `/docs`; with `Accept: application/json` it answers the index of addresses.
 
@@ -368,6 +371,29 @@ The browser in the container reads any address given as a source: keep the servi
 The code is `tile-server/server.mjs`. The direct engine is `tile-server/direct.mjs`, on the elevation reader `tile-server/dem.mjs`, which the MCP server's `elevation` and `export_geotiff` tools use too. The browser engine is `tile-server/render.mjs`, shared with the MCP server's pictures. The tile service does not know the MCP server; the MCP server (`mcp/`) imports the link builder, the engines and the elevation reader from `tile-server/`. With `TV_RENDER_URL` set to the tile service's address, the MCP server asks it for its pictures in place of rendering them, which is how [`mcp/docker-compose.yml`](https://github.com/Iconem/terrain-viewer/blob/main/mcp/docker-compose.yml) wires the two. The MCP server's elevation tools need no browser any more, and its pictures of flat views are drawn by the direct engine in the server itself; only 3D, imagery and the other browser layers need a browser, its own or the tile service's.
 
 Not yet run on a server.
+
+## CORS proxy for NASA G-LiHT
+
+Two NASA hosts hold G-LiHT and neither lets a web page read it: [glihtdata.gsfc.nasa.gov](https://glihtdata.gsfc.nasa.gov/) sends no CORS header, and LP DAAC's Earthdata Cloud copy wants an Earthdata login and refuses the preflight. The service passes a short list of their files through (`tile-server/proxy.mjs`, tested by `proxy-test.mjs`), see [NASA G-LiHT](/dev/g-liht) for what they hold:
+
+| Address | Upstream | Allowed |
+|---|---|---|
+| `/proxy/gliht/files/G-LiHT/<campaign>/lidar/kml/…` | `https://glihtdata.gsfc.nasa.gov/files/G-LiHT/…` | `.kmz` under `lidar/kml/` (and `lidar/geotiff/` archives, for scripts): no index, no listing, nothing else of the host |
+| `/proxy/earthdata/lp-prod-protected/GL….001/<granule>/<file>` | `https://data.lpdaac.earthdatacloud.nasa.gov/…` with `Authorization: Bearer $EARTHDATA_TOKEN` | the G-LiHT DTM, DSM and CHM collections (`GLDTMT`, `GLDSMT`, `GLCHMT`, `GLDTMK`, `GLCHMK`): `.tif`, `.kmz`, browse `.png`, `.cmr.xml` |
+| `/proxy/earthdata/vrt/<same path>.tif` | a VRT the service writes over that GeoTIFF | as above |
+
+- **Range passes through**: one range per request, at most `TV_PROXY_MAX_RANGE`; a whole file only under `TV_PROXY_MAX_FULL` (a 286 MB tar.gz answers `413`). Answers carry `Access-Control-Allow-Origin: *` and expose `Content-Range`, `Accept-Ranges`, `ETag`; `OPTIONS` answers the preflight a `Range` header triggers. GLiHT answers are `cache-control: public, max-age=604800` (the files have not changed since 2017), Earthdata ones `private, max-age=3600`.
+- **The token stays on the server**: the browser never sees it. Earthdata answers a token holder with a redirect to a signed S3 address; the service follows it without the token (S3 never receives it), keeps the signed address 30 minutes so the next Range reads skip the login hop, and turns a redirect to the login page into a `401` that says what to fix.
+- **The VRT**: LP DAAC's GeoTIFFs are the files NASA ships gzipped, uncompressed: Float32, one strip per row, no overviews, UTM. The VRT names the file 512 px at a time, so the app's in-browser `vrt://` reader derives a minimum zoom at which a tile reads a few windows (about z16), instead of the whole file at z12. Add it as a custom terrain source, type VRT.
+- In the app: **Settings > G-LiHT address** = `<service>/proxy/gliht` (a link fills it from the Tile Service field).
+
+### Getting the Earthdata token
+
+1. Sign in at [urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov/) (create the free account if needed).
+2. **Generate Token** (top menu), then **Generate Token** again: a token valid 60 days. Copy it.
+3. Once per account, approve LP DAAC's data: download any G-LiHT file once from [Earthdata Search](https://search.earthdata.nasa.gov/search/granules?p=C2763264722-LPCLOUD) while signed in, and accept the prompt if there is one.
+4. Add one line to the main checkout's `.env` (`C:/Dev/Iconem/terrain-viewer/.env`, gitignored), then copy it to a worktree as usual: `EARTHDATA_TOKEN=<the token>`. In Docker, pass it as an environment variable (`-e EARTHDATA_TOKEN=…`), never in the image.
+5. Check: `curl -r 0-7 http://localhost:3400/proxy/earthdata/lp-prod-protected/GLDTMT.001/GLDTMT_Kuiic1_Apr2013_DTM/GLDTMT_Kuiic1_Apr2013_DTM.tif | xxd` shows `II*` (a TIFF). A `401` says the token is missing, expired (60 days) or refused.
 
 ## On a public server
 
@@ -380,6 +406,22 @@ The service has no sign-in, and one sky view factor tile keeps a worker busy for
 | Who may call it at all | `ipAllowList` (an office, a VPN), or `basicAuth` / `forwardAuth` (an identity provider, an API key check) |
 | Sizes and slow clients | `buffering` (`maxRequestBodyBytes`), and the entry point's `respondingTimeouts` |
 | Repeats | a cache in front (the tiles are `cache-control: public, max-age=86400`): Traefik has none built in, so a CDN or nginx `proxy_cache` |
+
+The `/proxy/` routes need the same and one more rule: `/proxy/earthdata` hands out data that Earthdata serves only to a signed-in account, with the operator's token, to anyone who reaches it. Give it a router of its own with `basicAuth` or `ipAllowList`, and a `rateLimit` on `/proxy/gliht` so the service is not a free mirror of NASA's host; `inFlightReq` with `amount: 8` per client is plenty for the app's Range reads. With Docker labels:
+
+```yaml
+- traefik.http.routers.tv-earthdata.rule=Host(`tiles.example.org`) && PathPrefix(`/proxy/earthdata`)
+- traefik.http.routers.tv-earthdata.middlewares=tv-auth,tv-inflight
+- traefik.http.routers.tv-gliht.rule=Host(`tiles.example.org`) && PathPrefix(`/proxy/gliht`)
+- traefik.http.routers.tv-gliht.middlewares=tv-ratelimit,tv-inflight
+- traefik.http.middlewares.tv-auth.basicauth.users=me:$$apr1$$...   # htpasswd -nb me <password>
+- traefik.http.middlewares.tv-ratelimit.ratelimit.average=50
+- traefik.http.middlewares.tv-ratelimit.ratelimit.burst=200
+- traefik.http.middlewares.tv-inflight.inflightreq.amount=8
+```
+
+A browser cannot send basic-auth credentials with the app's Range reads unless they are in the address (`https://me:pw@tiles.example.org/proxy/…`, which Chrome refuses for subresources): for the Earthdata route an `ipAllowList` (your office, a VPN) is the practical choice, or keep the route on `localhost`.
+
 
 QGIS's XYZ layers can send a header (Authentication > API header) or a key in the address, so a `forwardAuth` that checks either one keeps QGIS working. Keep the container off a private network: the sources it reads are any address a request gives.
 

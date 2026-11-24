@@ -6,6 +6,7 @@ import { allmapsMeta, ALLMAPS_API } from "./coverage-overlays"
 import { QMS_API, qmsDetailToBasemap, type QmsDetail } from "./qms"
 import { eliLayerAsBasemap } from "./eli-timeline"
 import { catalogPickRequestAtom, catalogBasemap } from "./timeline-catalogs"
+import { glihtTemplate } from "./gliht-kmz"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom, type CustomTerrainSource, type CustomBasemapSource } from "./settings-atoms"
 
 /**
@@ -21,7 +22,7 @@ export const coverageUseRequestAtom = atom<{ overlay: string; nonce: number; sid
 /** Which side of the app an overlay id selects. */
 export const coverageUseKind = (overlay: string): "terrain" | "basemap" | null =>
   overlay === "mapterhorn" || overlay.startsWith("lib:") || overlay.startsWith("terrain:") ? "terrain"
-  : overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") || overlay.startsWith("catalog:") || overlay.startsWith("catalog-basemap:") || overlay.startsWith("catalog-overlay:") ? "basemap"
+  : overlay.startsWith("gliht:") || overlay.startsWith("blib:") || overlay.startsWith("basemap:") || overlay.startsWith("eli:") || overlay.startsWith("allmaps:") || overlay.startsWith("qms:") || overlay.startsWith("catalog:") || overlay.startsWith("catalog-basemap:") || overlay.startsWith("catalog-overlay:") ? "basemap"
   : null
 
 /** Overlay-role sources stack on the active basemap (overlayBasemapIds)
@@ -44,6 +45,23 @@ export function activateBasemapSource(
     setState({ [viewFieldName(side, "basemapSource", true)]: source.id, basemapPerView: true, showRasterBasemap: true })
   } else {
     setState({ basemapSource: source.id, basemapSourceA: source.id, showRasterBasemap: true })
+  }
+}
+
+/** `<campaign>:<1 per cell | 0 one KMZ>:<w,s,e,n>` (the G-LiHT coverage
+ *  overlay's use id, lib/coverage-overlays.ts) as an overlay source. */
+export function glihtCampaignOverlay(key: string): CustomBasemapSource | null {
+  const [campaign, cells, bbox] = key.split(":")
+  if (!campaign || !/^[A-Za-z0-9_.-]+$/.test(campaign)) return null
+  const b = bbox?.split(",").map(Number)
+  return {
+    id: `gliht-${campaign}`, name: `G-LiHT ${campaign} DTM (greyscale elevation, NASA KMZ)`,
+    url: glihtTemplate(campaign, { cells: cells === "1" }), type: "tms", role: "overlay", stack: "top", opacity: 100,
+    minzoom: 10, maxzoom: 19, ...(b?.length === 4 && b.every(Number.isFinite) ? { bounds: b as [number, number, number, number] } : {}),
+    resolutionM: 1,
+    description: "NASA Goddard G-LiHT airborne LiDAR: the campaign's DTM KMZ read in place (gliht://). The grey is the 1 m bare-earth elevation, stretched from the campaign's minimum (black) to about its 99.9th percentile (white), not a hillshade. glihtdata.gsfc.nasa.gov sends no CORS header: use a CORS-unblocking browser extension, or set Settings > G-LiHT address to the tile service's /proxy/gliht.",
+    infoUrl: `https://glihtdata.gsfc.nasa.gov/files/G-LiHT/${campaign}/`,
+    attribution: "NASA Goddard G-LiHT (Cook et al. 2013)", licenseName: "Public domain (NASA)",
   }
 }
 
@@ -119,6 +137,15 @@ export function useCoverageUseRequest(setState: (updates: Record<string, unknown
       }
       setBasemaps((prev) => (prev.some((x) => x.id === id) ? prev : [...prev, source]))
       activateBasemapSource(setState, source)
+      return
+    }
+    if (kind === "gliht") {
+      // A NASA G-LiHT campaign from its coverage footprint: the DTM KMZ's
+      // greyscale elevation through gliht:// (lib/gliht-protocol.ts).
+      const source = glihtCampaignOverlay(key)
+      if (!source) return
+      setBasemaps((prev) => (prev.some((x) => x.id === source.id) ? prev : [...prev, source]))
+      activateBasemapSource(setState, source, side)
       return
     }
     if (kind === "eli") {
