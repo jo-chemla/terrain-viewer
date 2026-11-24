@@ -61,6 +61,8 @@
 - Tile service: `/qgis.qgz`, a QGIS project with every mode as a layer, grouped as the app's panel, unchecked, over a Google hybrid basemap; `background=none` gives transparent tiles to stack (a pixel left empty was written opaque black, now transparent).
 - Tile service: the engine comparison leaves contour labels out.
 - Tile service: the browser engine waits for the map to stay idle twice, so a layer that adds its source after the first idle (the contours) is in the picture.
+- Coverage: **NASA G-LiHT airborne LiDAR** joins the 3D and LiDAR coverage overlays: the 1 521 campaigns of NASA Goddard's G-LiHT (2011-2026, 68 850 cells, Alaska, Puerto Rico, Florida, the eastern US, Mexico) from the webmap's own index, each with its date, strips or wall-to-wall block, the size of its DTM and canopy height downloads, and whether it can be streamed. [NASA G-LiHT](/docs/dev/g-liht) has the tests: glihtdata.gsfc.nasa.gov sends no CORS header, its GeoTIFFs are stripped Float32 inside gzip, its KMZs are hillshade pictures and LP DAAC's copy needs Earthdata Login, so only the Yucatan transects OpenTopography re-hosts can be drawn; the Kiuic blocks (93 km² wall to wall in the Puuc) and the canopy height models would need re-hosting.
+- Library: **USA - Chaco Canyon NCALM 2016 LiDAR DTM 0.5m** (543 km² over Chaco Culture NHP, OpenTopography, CC BY 4.0), through titiler from z14: its COGs carry no overviews.
 
 # Changelog — Faster Terrain Analysis, Native Draping
 

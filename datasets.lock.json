@@ -23,6 +23,13 @@
       "rolling": true
     },
     {
+      "name": "gliht.geojson",
+      "dir": "public/coverage",
+      "size": 5856628,
+      "sha256": "713c2cb8e9207048f7d5270876e0f86f9c12fe48a9b43d8d7f323a80c5f6c4bb",
+      "rolling": true
+    },
+    {
       "name": "google-3d.geojson",
       "dir": "public/coverage",
       "size": 988934,

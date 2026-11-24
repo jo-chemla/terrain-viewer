@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rebuilds the coverage footprints that need no key (Esri Integrated Mesh,
-# FLAI open LiDAR, OpenTopography, Bing 3D) and replaces them on the
+# FLAI open LiDAR, OpenTopography, Bing 3D, NASA G-LiHT) and replaces them on the
 # dataset-indexes release when they changed. Google 3D is left out: it needs
 # an API key and moves rarely. Each script runs alone with a time limit; a
 # failure, a file that is not GeoJSON, or one that lost more than 40 % of its
@@ -71,6 +71,7 @@ run opentopo-raster node scripts/build-opentopo-coverage.mjs
 # the OpenTopography script writes both files; the second is compared on its own
 run opentopo-pointcloud true
 run bing-3d node docs/scripts/build-bing-3d-coverage.mjs
+run gliht node scripts/build-gliht-coverage.mjs
 [ "$changed" -gt 0 ] && gh release upload "$release" "$history" -R "$repo" --clobber
 echo "CHANGED=$changed" >> "${GITHUB_OUTPUT:-/dev/null}"
 echo "coverage: $changed file(s) replaced on the release"

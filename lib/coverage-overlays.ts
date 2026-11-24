@@ -52,7 +52,7 @@ export function getMapterhornSourceMeta(): Promise<Record<string, MapterhornSour
 export interface CoverageLeaf { id: string; label: string; color: string; detail?: string; /** The dataset's own page (the label links there). */ url?: string; /** [west, south, east, north], for the zoom-to-fit button. */ bounds?: [number, number, number, number] }
 export interface CoverageGroup { key: string; label: string; color: string; leaves: CoverageLeaf[]; note?: string; section: "Terrain" | "Basemaps"; parent?: string }
 
-export const OVERLAY_COLORS = { qms: "#0891b2", allmaps: "#d946ef", mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7", otRaster: "#84cc16", otPointCloud: "#eab308" }
+export const OVERLAY_COLORS = { qms: "#0891b2", allmaps: "#d946ef", mapterhorn: "#8b5cf6", library: "#10b981", basemapLibrary: "#f59e0b", eli: "#0ea5e9", yours: "#ec4899", yourBasemaps: "#ef4444", bing3d: "#6366f1", google3d: "#f43f5e", flai: "#14b8a6", esri3d: "#a855f7", otRaster: "#84cc16", otPointCloud: "#eab308", gliht: "#f97316" }
 
 /** NextGIS QMS: the services whose declared extent intersects the view, from
  *  the list endpoint's `intersects_extent` filter (the view as a WKT
@@ -219,12 +219,13 @@ export function coverageGroups(ctx: { terrains: CustomTerrainSource[]; basemaps:
     // coverage layer decoded, and each FLAI survey's COPC octree - but a user
     // comparing them wants them on one switch, not three.
     { section: "Terrain", key: "sources3d", label: "3D and LiDAR coverage", color: OVERLAY_COLORS.bing3d,
-      note: "Where somebody has photogrammetry, mesh or a point cloud, as opposed to a gridded DEM. Bing and Google are city-scale photorealistic 3D, Esri's are Integrated Mesh scene layers published one service per capture - a city, a district or a single drone flight - and FLAI is open airborne LiDAR. Only Esri publishes a list; the rest are read from the provider's own data.",
+      note: "Where somebody has photogrammetry, mesh or a point cloud, as opposed to a gridded DEM. Bing and Google are city-scale photorealistic 3D, Esri's are Integrated Mesh scene layers published one service per capture - a city, a district or a single drone flight - FLAI is open airborne LiDAR and G-LiHT is NASA Goddard's airborne LiDAR (download only: no CORS, gzip archives). Only Esri publishes a list; the rest are read from the provider's own data.",
       leaves: [
         { id: "bing3d", label: "Bing Maps 3D", color: OVERLAY_COLORS.bing3d, detail: "photogrammetry mesh, ~2.4 km" },
         { id: "google3d", label: "Google photorealistic 3D", color: OVERLAY_COLORS.google3d, detail: "decoded from Google's layer" },
         { id: "esri3d", label: "Esri Integrated Mesh", color: OVERLAY_COLORS.esri3d, detail: "open I3S, \u2265 5 km\u00b2" },
         { id: "flai", label: "FLAI open LiDAR", color: OVERLAY_COLORS.flai, detail: "114 open COPC surveys" },
+        { id: "gliht", label: "NASA G-LiHT airborne LiDAR", color: OVERLAY_COLORS.gliht, detail: "1 521 campaigns 2011-2026, download only", url: "https://glihtdata.gsfc.nasa.gov/" },
       ] },
     { section: "Terrain", key: "opentopo", parent: "sources3d", label: "OpenTopography", color: OVERLAY_COLORS.otRaster,
       note: "Datasets hosted on OpenTopography (opentopography.org): gridded DEMs, and the LiDAR point clouds many were made from. Global rasters (SRTM, GLO-30, ALOS...) are left out, continental ones drawn hollow. Click a footprint for the dataset page and its DOI.",
@@ -270,7 +271,7 @@ const STATIC_GROUP_LEAVES: Record<string, string[]> = {
   // opentopo before sources3d, its parent: serialize folds in this order,
   // so a wholly selected parent wins over the child key inside it.
   opentopo: ["otRaster", "otPointCloud"],
-  sources3d: ["bing3d", "google3d", "esri3d", "flai", "otRaster", "otPointCloud"],
+  sources3d: ["bing3d", "google3d", "esri3d", "flai", "gliht", "otRaster", "otPointCloud"],
 }
 
 /** Coverage overlays in the URL, folded to group keys wherever a group is
@@ -434,6 +435,38 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
           urlTemplate: p.datasetId
             ? `https://hub.flai.ai/dataset/${p.datasetId}?c={mercX},{mercY}&z={zoom}`
             : "https://hub.flai.ai/" } }
+      })
+      return { type: "FeatureCollection", features }
+    } catch { return empty }
+  }
+  // NASA G-LiHT (scripts/build-gliht-coverage.mjs): every campaign's cells
+  // from the G-LiHT webmap's own index. Nothing there can be streamed - the
+  // host sends no CORS header and the elevation is in gzip archives - so the
+  // popup says what exists and opens the campaign's folder; the 2013 Yucatan
+  // transects OpenTopography re-hosts say so and name the library entries.
+  if (kind === "gliht") {
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}coverage/gliht.geojson`, { cache: "no-cache" })
+      if (!res.ok) return empty
+      const fc = (await res.json()) as FeatureCollection
+      const features: Feature[] = fc.features.map((f) => {
+        const p = (f.properties ?? {}) as {
+          id?: string; date?: string; cells?: number; km2?: number; layout?: string
+          dtmMB?: number; chmMB?: number; archive?: string; ot?: boolean
+        }
+        const sizes = [p.dtmMB ? `DTM ${p.dtmMB} MB` : null, p.chmMB ? `CHM ${p.chmMB} MB` : null].filter(Boolean).join(", ")
+        const bits = [
+          p.date,
+          p.layout === "block" ? "wall-to-wall block" : "strips",
+          p.km2 ? `${p.km2.toLocaleString()} km²` : null,
+          sizes ? `1 m GeoTIFF in .${p.archive ?? "tar.gz"} (${sizes})` : null,
+          p.ot ? "streamable: OpenTopography re-hosts this DTM at 0.5 m (library: MEX - G-LiHT 2013 Yucatan)" : null,
+        ].filter(Boolean).join(" · ")
+        return { ...f, properties: { ...f.properties,
+          overlay: id, color: OVERLAY_COLORS.gliht, hollow: false, opacity: p.ot ? 0.35 : 0.2,
+          label: `G-LiHT ${p.id ?? ""}`.trim(),
+          detail: `NASA airborne LiDAR${bits ? ` · ${bits}` : ""} · click to open the campaign's download folder`,
+          url: p.id ? `https://glihtdata.gsfc.nasa.gov/files/G-LiHT/${p.id}/` : "https://glihtdata.gsfc.nasa.gov/" } }
       })
       return { type: "FeatureCollection", features }
     } catch { return empty }

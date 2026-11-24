@@ -81,7 +81,7 @@ export function coverageSourcePrefix(overlay: string | undefined, label: string)
     : overlay.startsWith("lib:") ? "Terrain library" : overlay.startsWith("blib:") ? "Basemap library"
     : overlay.startsWith("terrain:") ? "Your terrain" : overlay.startsWith("basemap:") ? "Your basemaps"
     : overlay.startsWith("eli:") ? "ELI" : overlay.startsWith("qms:") ? "QMS" : overlay.startsWith("allmaps:") ? "Allmaps"
-    : overlay === "flai" ? "FLAI" : overlay === "bing3d" ? "Bing 3D" : overlay === "google3d" ? "Google 3D" : overlay === "esri3d" ? "Esri mesh"
+    : overlay === "flai" ? "FLAI" : overlay === "gliht" ? "G-LiHT" : overlay === "bing3d" ? "Bing 3D" : overlay === "google3d" ? "Google 3D" : overlay === "esri3d" ? "Esri mesh"
     : overlay === "otRaster" || overlay === "otPointCloud" ? "OpenTopography" : ""
   if (!p || label.toLowerCase().startsWith(p.toLowerCase())) return ""
   return `${p} · `
