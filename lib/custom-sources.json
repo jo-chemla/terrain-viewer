@@ -1876,6 +1876,7 @@
             "resolutionM": 0.5,
             "bounds": [-108.17, 35.93, -107.62, 36.13],
             "description": "RESEARCH DATA, not a mapping agency: 543 km2 of airborne LiDAR over Chaco Canyon, New Mexico (Chaco Culture National Historical Park, UNESCO World Heritage), flown by NCALM in October 2016 for Wetherbee Dorshow and Wirt Wills to reconstruct the 3D landscape and model Chacoan land use; reprocessed by NCALM in 2021. The great houses (Pueblo Bonito, Chetro Ketl), the roads and the field systems of the Ancestral Puebloan world in 0.5 m bare earth. Four Float32 COGs (LZW, 512 px tiles, nodata -999999) behind one OpenTopography VRT in NAD83(2011) / UTM 13N, but the COGs carry no overviews, so this entry is pinned to titiler (the in-browser reader would decode whole 16 km files) and starts at z14. Verified 2026-11-24 on titiler.xyz: Pueblo Bonito 1867.8 m, z14 and z15 terrain-RGB tiles in 3-7 s. Cite Dorshow, W. (2019), doi:10.5069/G9XG9P8D, distributed by OpenTopography (NCALM data, CC BY 4.0). The 2010 Chaco survey (NM10_Dorshow) is an ArcInfo grid there and cannot be read this way.",
+            "attribution": "Dorshow 2019, NCALM, distributed by OpenTopography (doi:10.5069/G9XG9P8D). CC BY 4.0",
             "infoUrl": "https://doi.org/10.5069/G9XG9P8D"
         },
         {
