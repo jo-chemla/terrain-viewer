@@ -3,10 +3,16 @@
 // headless browser (the renderer of the MCP server's `screenshot` tool), so
 // every source the app reads and every mode it computes comes out the same.
 //
-//   GET /tiles/{z}/{x}/{y}.png|jpg     one Web Mercator tile (XYZ), 256 px;
-//                                      {y}@2x or tilesize=512 for 512 px
-//   GET /tiles/{z}/{x}/{y}.pbf|mvt     the same overlays as a vector tile:
+//   GET /terrain-tiles/{z}/{x}/{y}.png|jpg   one Web Mercator tile (XYZ) of the
+//                                      elevation modes, 256 px; {y}@2x or
+//                                      tilesize=512 for 512 px
+//   GET /terrain-tiles/{z}/{x}/{y}.pbf|mvt   the overlays as a vector tile:
 //                                      contours, isoline, moundDetector, graticules
+//   GET /terrain-tiles/{z}/{x}/{y}.tif one mode's values, Float32 GeoTIFF
+//   GET /basemap-tiles/{z}/{x}/{y}.jpg|png   the imagery: imagerySource,
+//                                      imageryDate, imageryUrl, basemap parameters
+//   GET /tiles/{z}/{x}/{y}...          deprecated alias of both (Deprecation and
+//                                      Link headers name the new address)
 //   GET /render.png|jpg                a viewport, like a WMS GetMap: lat, lng,
 //                                      zoom or bbox=w,s,e,n, width, height
 //   GET /openapi.json, /docs           the description, and a page to try it
@@ -41,6 +47,11 @@
 //   GET /sources, /sources/{id}        the terrain sources, by id
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id
 //   GET /algorithms                    the modes, and which engine draws them
+//   GET /, /conformance                OGC API Common landing page (JSON) and conformance
+//   GET /processes, /processes/{id}    each mode as an OGC API - Processes description
+//                                      (processes.mjs); run by asking for its tiles
+//   GET /view?<share query>            what a share link switches on, for the QGIS plugin
+//   GET /modes                         deprecated: the plugin's old catalog
 //   GET /tilejson.json                 a TileJSON; tile_format=pbf for the vector tiles
 //   GET /qgis.qgz                      a QGIS project of the view: every layer, stacked and
 //                                      grouped as the map, the view's ones checked, its
@@ -70,6 +81,7 @@ import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./openapi.mjs"
+import { processCatalog, processList, withLinks, landingPage, BASEMAP_PROCESS, CONFORMANCE } from "./processes.mjs"
 import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers } from "./direct.mjs"
 import { runDirect, poolStats, closePool, POOL_SIZE } from "./direct-pool.mjs"
 import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
@@ -410,6 +422,36 @@ const valueHeaders = (made) => ({
 const TYPES = { png: "image/png", jpg: "image/jpeg" }
 const allowedHosts = (process.env.TV_ALLOWED_HOSTS || "").split(",").map((s) => s.trim()).filter(Boolean)
 
+const urlParams = () => (URL_PARAMS ??= JSON.parse(readFileSync(new URL("./generated/url-params.json", import.meta.url), "utf8")).params)
+let CATALOG = null
+const catalog = () => (CATALOG ??= processCatalog(urlParams(), VALUE_MODES))
+const findProcess = (id) => [...catalog().processes, BASEMAP_PROCESS].find((x) => x.id === id)
+const NO_SUCH_PROCESS = JSON.stringify({ type: "http://www.opengis.net/def/exceptions/ogcapi-processes-1/1.0/no-such-process", title: "No such process: see /processes", status: 404 })
+
+// The addresses kept for older clients (2026-11-24): /tiles/{z}/{x}/{y}
+// (now /terrain-tiles and /basemap-tiles) and /modes (now /processes).
+// RFC 9745's Deprecation header (the date it was deprecated) and a Link to
+// the address that replaces it. titiler's /tiles/WebMercatorQuad/... is
+// titiler's own address and is not deprecated.
+const DEPRECATED_SINCE = "@1795478400"
+const DEPRECATION_DOC = "https://terrain-viewer.iconem.com/docs/dev/tile-service#deprecated-addresses"
+export const deprecated = (successor) => ({
+  deprecation: DEPRECATED_SINCE,
+  link: `<${successor}>; rel="successor-version", <${DEPRECATION_DOC}>; rel="deprecation"; type="text/html"`,
+  "access-control-expose-headers": "deprecation, link, x-tv-engine, x-tv-engine-why, x-tv-value-mode, x-tv-value-unit, x-tv-value-scale",
+})
+/** The modes of a tile request (modes, or titiler's algorithm). */
+const modesOf = (search) => { const q = new URLSearchParams(search); return (q.get("modes") ?? q.get("algorithm") ?? "").split(",").map((s) => s.trim()).filter(Boolean) }
+/** A /basemap-tiles query as the tile engine reads it: the basemap mode
+ *  alone; a terrain mode is refused. */
+export function basemapQuery(search) {
+  const q = new URLSearchParams(search)
+  const asked = modesOf(search).filter((m) => m !== "basemap")
+  if (asked.length) throw status(400, `/basemap-tiles draws the imagery only; ask /terrain-tiles for ${asked.join(", ")}`)
+  q.delete("algorithm"); q.set("modes", "basemap")
+  return q
+}
+
 export function start(port = PORT) {
   sweep(); setInterval(sweep, 6 * 60 * 60 * 1000).unref()
   return http.createServer((req, res) => {
@@ -432,6 +474,15 @@ async function handle(req, res) {
     try {
       const host = (req.headers.host || "").replace(/:\d+$/, "")
       if (allowedHosts.length && !["localhost", "127.0.0.1", "[::1]", ...allowedHosts].includes(host)) return send(403, "text/plain", "Host not allowed")
+      const exec = req.url.match(/^\/processes\/([^/?]+)\/execution(?:\?|$)/)
+      if (exec) {
+        // The standard's execution: the modes are run by asking for their
+        // tiles instead (processes.mjs), named in the answer.
+        const p = findProcess(decodeURIComponent(exec[1]))
+        if (!p) return send(404, "application/json", NO_SUCH_PROCESS)
+        const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
+        return send(501, "application/json", JSON.stringify({ type: "about:blank", title: "Not implemented: run a process by asking for its tiles", status: 501, detail: "This service has no jobs and no POST execution. Each process links its tile endpoints (rel http://www.opengis.net/def/rel/ogc/1.0/execute, templated).", links: withLinks(self, p).links }))
+      }
       if (req.method !== "GET" && req.method !== "HEAD") return send(405, "text/plain", "GET only")
       // QGIS's vector tile layer sends the query's "?" percent-encoded when
       // its source has it so (projects written before 2026-11-23): read it
@@ -440,15 +491,31 @@ async function handle(req, res) {
       if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, browser: slot.stats(), direct: { ...directSlot.stats(), ...poolStats() } }))
       // A browser goes to the page to try the service; a client that asks
       // for JSON gets the index of addresses.
-      if (u.pathname === "/" && !/application\/json/.test(req.headers.accept || "")) return send(302, "text/plain", "See /docs", { location: "/docs" })
-      if (u.pathname === "/") return send(200, "application/json", JSON.stringify({
-        docs: "/docs", openapi: "/openapi.json", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms", modeSettings: "/modes",
-        tiles: "/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
-        vectorTiles: "/tiles/{z}/{x}/{y}.pbf?modes=contours,moundDetector",
+      const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
+      // The OGC landing page: JSON to a client that asks for it (Accept or
+      // ?f=json), the docs page to a browser.
+      const wantsJson = u.searchParams.get("f") === "json" || /application\/json/.test(req.headers.accept || "")
+      if (u.pathname === "/" && !wantsJson) return send(302, "text/plain", "See /docs", { location: "/docs" })
+      if (u.pathname === "/") return send(200, "application/json", JSON.stringify(landingPage(self, {
+        docs: "/docs", openapi: "/openapi.json", conformance: "/conformance", processes: "/processes", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
+        terrainTiles: "/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
+        vectorTiles: "/terrain-tiles/{z}/{x}/{y}.pbf?modes=contours,moundDetector",
+        basemapTiles: "/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback&imageryDate=2020-01-01",
         render: "/render.jpg?lat=45.83&lng=6.86&zoom=11&width=1024&height=640&modes=hillshade,contours",
         modes: MODE_NAMES, app: BASE_URL,
-      }, null, 2))
-      const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
+      }), null, 2))
+      if (u.pathname === "/conformance") return send(200, "application/json", JSON.stringify({ conformsTo: CONFORMANCE }, null, 2))
+      if (u.pathname === "/processes") return send(200, "application/json", JSON.stringify(processList(self, catalog(), u.searchParams.get("expand") === "true")))
+      const proc = u.pathname.match(/^\/processes\/([^/]+)$/)
+      if (proc) {
+        const p = findProcess(decodeURIComponent(proc[1]))
+        if (!p) return send(404, "application/json", NO_SUCH_PROCESS)
+        return send(200, "application/json", JSON.stringify(withLinks(self, p), null, 2))
+      }
+      if (u.pathname === "/view") {
+        const { view, rest } = viewOf(u.search)
+        return send(200, "application/json", JSON.stringify(viewForPlugin(await readView(view, rest, activeLayers))))
+      }
       if (u.pathname === "/qgis.qgz") {
         const { view, rest, take } = viewOf(u.search)
         const read = await readView(view, rest, activeLayers)
@@ -471,14 +538,14 @@ async function handle(req, res) {
       }
       if (u.pathname === "/modes") {
         const { view, rest } = viewOf(u.search)
-        URL_PARAMS ??= JSON.parse(readFileSync(new URL("./generated/url-params.json", import.meta.url), "utf8")).params
         const out = {
-          modes: modesCatalog(URL_PARAMS, VALUE_MODES),
+          deprecated: "Replaced by /processes (OGC API - Processes) and /view?<query>; kept for older QGIS plugins.",
+          modes: modesCatalog(urlParams(), VALUE_MODES),
           values: Object.entries(VALUE_MODES).map(([id, v]) => ({ id, unit: v.unit, description: v.description, ...(VALUE_RANGE[id] ? { range: VALUE_RANGE[id] } : {}) })),
-          note: "The QGIS plugin's panel: the app's panel groups (top drawn on top), each mode's form, opacity parameter and settings (the app's URL parameters, with their defaults), and for a mode with values (`values`, also listed at the top level with elevation) their unit: /tiles/{z}/{x}/{y}.tif?modes=<mode> gives them as Float32 GeoTIFF tiles, /gdal.xml?modes=<mode> as one GDAL raster. Given a view's query (a share link's), `view` says what it switches on and the parameters its layers keep.",
+          note: "The QGIS plugin's panel: the app's panel groups (top drawn on top), each mode's form, opacity parameter and settings (the app's URL parameters, with their defaults), and for a mode with values (`values`, also listed at the top level with elevation) their unit: /terrain-tiles/{z}/{x}/{y}.tif?modes=<mode> gives them as Float32 GeoTIFF tiles, /gdal.xml?modes=<mode> as one GDAL raster. Given a view's query (a share link's), `view` says what it switches on and the parameters its layers keep.",
         }
         if (u.search.length > 1) out.view = viewForPlugin(await readView(view, rest, activeLayers))
-        return send(200, "application/json", JSON.stringify(out))
+        return send(200, "application/json", JSON.stringify(out), deprecated(`${self}/processes`))
       }
       if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self), null, 2))
       if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
@@ -504,7 +571,11 @@ async function handle(req, res) {
       }))
       // Vector tiles: the same address, .pbf or .mvt, with modes among
       // direct.mjs VECTOR_MODES (unset: contours).
-      const v = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
+      // /tiles/{z}/{x}/{y} (not titiler's /tiles/WebMercatorQuad/...) is
+      // the deprecated alias of /terrain-tiles and /basemap-tiles.
+      const legacy = /^\/tiles\/\d/.test(u.pathname)
+      const legacyHeaders = (to) => (legacy ? deprecated(`${self}${u.pathname.replace(/^\/tiles\//, `/${to}/`)}${u.search}`) : {})
+      const v = u.pathname.match(/^\/(?:tiles\/(?:WebMercatorQuad\/)?|terrain-tiles\/)(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
       if (v) {
         const [z, x, y] = v.slice(1, 4).map(Number)
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
@@ -518,12 +589,25 @@ async function handle(req, res) {
         const key = `vector|${JSON.stringify([how.dem.tiles, modes, how.state])}|${z}/${x}/${y}`
         let bytes = await cached(key, "pbf")
         if (!bytes) { bytes = await directRun("vector", input, { modes, z, x, y, baseUrl: BASE_URL }); store(key, "pbf", bytes) }
-        return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
+        return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400", ...legacyHeaders("terrain-tiles") })
       }
-      const t = u.pathname.match(/^\/tiles\/(?:WebMercatorQuad\/)?(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
+      const bt = u.pathname.match(/^\/basemap-tiles\/(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
+      if (bt) {
+        const [z, x, y] = bt.slice(1, 4).map(Number)
+        if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
+        const ext = bt[5] === "png" ? "png" : "jpg"
+        const made = await tile(z, x, y, ext, basemapQuery(u.search), bt[4] === "@2x" ? 2 : 1)
+        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
+      }
+      if (/^\/basemap-tiles\//.test(u.pathname)) return send(404, "text/plain", "Basemap tiles are /basemap-tiles/{z}/{x}/{y}.jpg or .png (imagery has neither values nor vector tiles)")
+      const t = u.pathname.match(/^\/(?:tiles\/(?:WebMercatorQuad\/)?|terrain-tiles\/)(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
       if (t) {
         const [z, x, y] = t.slice(1, 4).map(Number)
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
+        const modes = modesOf(u.search)
+        if (u.pathname.startsWith("/terrain-tiles/") && modes.includes("basemap")) return send(400, "text/plain", "/terrain-tiles draws the elevation modes; ask /basemap-tiles for the imagery (imagerySource, imageryDate, imageryUrl) and stack the two in the client")
+        // The deprecated alias: a basemap alone moved to /basemap-tiles.
+        const successor = modes.length && modes.every((m) => m === "basemap") ? "basemap-tiles" : "terrain-tiles"
         // A mode's values: a Float32 GeoTIFF (.tif), or packed in a PNG
         // (.png?encoding=terrarium|terrainrgb).
         const packing = new URLSearchParams(u.search).get("encoding")
@@ -531,11 +615,11 @@ async function handle(req, res) {
           const format = t[5].startsWith("tif") ? "tif" : packing
           if (!VALUE_FORMATS.includes(format) || (format === "tif") !== t[5].startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?encoding=terrarium or terrainrgb")
           const made = await valuesFor(format, u.search, { z, x, y, scale: t[4] === "@2x" ? 2 : 1 })
-          return send(200, made.type, made.bytes, valueHeaders(made))
+          return send(200, made.type, made.bytes, { ...valueHeaders(made), ...legacyHeaders("terrain-tiles") })
         }
         const ext = t[5] === "png" ? "png" : "jpg"
         const made = await tile(z, x, y, ext, u.search, t[4] === "@2x" ? 2 : 1)
-        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
+        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why", ...legacyHeaders(successor) })
       }
       if (u.pathname === "/WebMercatorQuad/tilejson.json" || u.pathname === "/tilejson.json") {
         const q = new URLSearchParams(u.search)
@@ -547,14 +631,16 @@ async function handle(req, res) {
           const layers = { contours: ["contours"], isoline: ["isoband", "isoline", "isoline-cliff"], moundDetector: ["tells"], graticules: ["graticule"] }
           return send(200, "application/json", JSON.stringify({
             tilejson: "3.0.0", name: "Terrain Viewer vector layers", scheme: "xyz", minzoom: 0, maxzoom: MAX_ZOOM, bounds: [-180, -85.0511, 180, 85.0511],
-            tiles: [`${self}/tiles/WebMercatorQuad/{z}/{x}/{y}.${asked}${qs ? "?" + qs : ""}`],
+            tiles: [`${self}/terrain-tiles/{z}/{x}/{y}.${asked}${qs ? "?" + qs : ""}`],
             vector_layers: modes.flatMap((m) => (layers[m] ?? []).map((id) => ({ id, fields: {} }))),
           }))
         }
         const fmt = asked === "jpg" || asked === "jpeg" ? "jpg" : "png"
+        const modes = modesOf(qs)
+        const basemap = modes.length > 0 && modes.every((m) => m === "basemap")
         return send(200, "application/json", JSON.stringify({
           tilejson: "2.2.0", name: "Terrain Viewer", scheme: "xyz", minzoom: 0, maxzoom: MAX_ZOOM, bounds: [-180, -85.0511, 180, 85.0511],
-          tiles: [`${self}/tiles/WebMercatorQuad/{z}/{x}/{y}${scale}.${fmt}${qs ? "?" + qs : ""}`],
+          tiles: [`${self}/${basemap ? "basemap-tiles" : "terrain-tiles"}/{z}/{x}/{y}${scale}.${fmt}${qs ? "?" + qs : ""}`],
         }))
       }
       const bb = u.pathname.match(/^\/bbox\/([-\d.,]+)\/(\d+)x(\d+)\.(png|jpg|jpeg|tif|tiff)$/)

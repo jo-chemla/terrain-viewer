@@ -8,13 +8,15 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 
 | Address | What it answers |
 |---|---|
-| `/tiles/{z}/{x}/{y}.png\|jpg` | One Web Mercator tile, 256 px (`@2x` or `tilesize=512` for 512) |
-| `/tiles/{z}/{x}/{y}.pbf\|mvt` | The overlays as a vector tile: contours, iso-line, mound detector, plane slicer, graticule |
+| `/terrain-tiles/{z}/{x}/{y}.png\|jpg` | One Web Mercator tile of the elevation modes, 256 px (`@2x` or `tilesize=512` for 512) |
+| `/basemap-tiles/{z}/{x}/{y}.jpg\|png` | One tile of the imagery (`imagerySource`, `imageryDate`, `imageryUrl`, the app's basemap parameters) |
+| `/terrain-tiles/{z}/{x}/{y}.pbf\|mvt` | The overlays as a vector tile: contours, iso-line, mound detector, plane slicer, graticule |
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
-| `/tiles/{z}/{x}/{y}.tif`, `/render.tif`, `/gdal.xml` | One mode's values before its ramp, in natural units: Float32 GeoTIFF tiles, an area (like a WCS), one GDAL raster; deflate-compressed (`compression=none` to skip); `.png?encoding=terrarium\|terrainrgb` packs them in a PNG |
+| `/terrain-tiles/{z}/{x}/{y}.tif`, `/render.tif`, `/gdal.xml` | One mode's values before its ramp, in natural units: Float32 GeoTIFF tiles, an area (like a WCS), one GDAL raster; deflate-compressed (`compression=none` to skip); `.png?encoding=terrarium\|terrainrgb` packs them in a PNG |
 | `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
 | `/tiles/WebMercatorQuad/...`, `/bbox/...` | titiler's addresses for the same |
-| `/modes` | The modes with their settings, grouped as the app's panel (the QGIS plugin's panel, `../qgis-plugin/`) |
+| `/processes`, `/processes/{id}` | Each mode as an OGC API - Processes description (settings as inputs with JSON Schema, outputs, `x-tv-` panel data), read by the QGIS plugin (`../qgis-plugin/`); `/`, `/conformance` per OGC API Common; `/view?<share query>` |
+| `/tiles/...`, `/modes` | Deprecated aliases (a `Deprecation` header and a `Link` to the successor) |
 | `/openapi.json`, `/docs`, `/health` | `/` redirects to `/docs` (JSON index with `Accept: application/json`); `/health`: queues and workers |
 
 A standalone pnpm root, like `video/` and `mcp/`: it is not part of the root

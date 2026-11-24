@@ -34,6 +34,10 @@ export const MODES = {
   planeSlicer: { showPlaneSlicer: true },
 }
 export const MODE_NAMES = Object.keys(MODES)
+/** Every mode but the basemap, bottom of the map to top: the order the map
+ *  (and direct.mjs layersOf) draws them in, whatever order `modes` lists
+ *  them. test.mjs checks it against layersOf. */
+export const STACK_ORDER = ["colorRelief", "slope", "aspect", "tri", "curvature", "tpi", "lrm", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "svf", "openness", "localDominance", "hillshade", "matcap", "phong", "shadows", "buildingShadows", "isoline", "graticules", "moundDetector", "planeSlicer", "contours"]
 export const IMAGERY_SOURCES = ["wayback", "ge-historical", "bing", "hls", "eox-s2"]
 
 const round = (n, d) => Number(Number(n).toFixed(d))

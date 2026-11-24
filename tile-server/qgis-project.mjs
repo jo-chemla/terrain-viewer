@@ -160,7 +160,7 @@ export const VALUE_RANGE = Object.fromEntries(VALUE_LAYERS.filter((l) => l[2]).m
  *  (256 px tiles). `query`: the parameters every tile keeps. Served as
  *  /gdal.xml. */
 export function gdalWmsXml(base, mode, query = "", level = 18) {
-  const url = `${base}/tiles/\${z}/\${x}/\${y}.tif?modes=${encodeURIComponent(mode)}${query ? "&" + query : ""}`
+  const url = `${base}/terrain-tiles/\${z}/\${x}/\${y}.tif?modes=${encodeURIComponent(mode)}${query ? "&" + query : ""}`
   const W = 20037508.342789244
   return `<GDAL_WMS><Service name="TMS"><ServerUrl>${esc(url)}</ServerUrl></Service><DataWindow><UpperLeftX>${-W}</UpperLeftX><UpperLeftY>${W}</UpperLeftY><LowerRightX>${W}</LowerRightX><LowerRightY>${-W}</LowerRightY><TileLevel>${level}</TileLevel><TileCountX>1</TileCountX><TileCountY>1</TileCountY><YOrigin>top</YOrigin></DataWindow><Projection>EPSG:3857</Projection><BlockSizeX>256</BlockSizeX><BlockSizeY>256</BlockSizeY><BandsCount>1</BandsCount><DataType>Float32</DataType><DataValues NoData="nan"/><ZeroBlockHttpCodes>204,404</ZeroBlockHttpCodes><ZeroBlockOnServerException>true</ZeroBlockOnServerException><MaxConnections>4</MaxConnections><Timeout>120</Timeout></GDAL_WMS>`
 }
@@ -208,10 +208,10 @@ export function qgisProjectXml(base, read) {
     else if (!VECTOR.has(mode) && opacity[mode]) style = { opacity: opacity[mode].value }
     const bg = SHADING.has(mode) ? "" : "&background=none"
     const kept = q.toString()
-    return add(name, xyz(`${base}/tiles/{z}/{x}/{y}.png?modes=${mode}${bg}${kept ? "&" + kept : ""}`, 22, "&tilePixelRatio=1"), "wms", "raster", active.has(mode), style)
+    return add(name, xyz(`${base}/terrain-tiles/{z}/{x}/{y}.png?modes=${mode}${bg}${kept ? "&" + kept : ""}`, 22, "&tilePixelRatio=1"), "wms", "raster", active.has(mode), style)
   }
   const kept = keep.toString()
-  const vector = (mode, name, checked) => add(name, xyz(`${base}/tiles/{z}/{x}/{y}.pbf?modes=${mode}${kept ? "&" + kept : ""}`, 15, "", true), "xyzvectortiles", "vector-tile", checked, null, vectorRenderer(mode))
+  const vector = (mode, name, checked) => add(name, xyz(`${base}/terrain-tiles/{z}/{x}/{y}.pbf?modes=${mode}${kept ? "&" + kept : ""}`, 15, "", true), "xyzvectortiles", "vector-tile", checked, null, vectorRenderer(mode))
   const item = ([mode, name, form = "raster"]) => {
     if (form === "vector") return vector(mode, name, active.has(mode))
     return form === "both" && VECTOR.has(mode) ? raster(mode, name) + vector(mode, `${name} (vector tiles)`, false) : raster(mode, name)
@@ -238,7 +238,7 @@ export function qgisProjectXml(base, read) {
   const asDrawn = new URLSearchParams(basemap)
   asDrawn.set("showRasterBasemap", "true")
   const bm = [
-    add("Basemap and overlays (as in the view)", xyz(`${base}/tiles/{z}/{x}/{y}.jpg?modes=basemap&${asDrawn.toString()}`, 20, "&tilePixelRatio=1"), "wms", "raster", showBasemap && !direct),
+    add("Basemap and overlays (as in the view)", xyz(`${base}/basemap-tiles/{z}/{x}/{y}.jpg?${asDrawn.toString()}`, 20, "&tilePixelRatio=1"), "wms", "raster", showBasemap && !direct),
     ...(direct ? [add("Basemap (XYZ)", xyz(direct, 20), "wms", "raster", showBasemap)] : []),
     add("Google Hybrid", xyz(GOOGLE_HYBRID, 20), "wms", "raster", generic),
   ]

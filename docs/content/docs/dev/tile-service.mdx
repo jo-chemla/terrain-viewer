@@ -23,14 +23,15 @@ Or from a clone, without Docker: `cd tile-server && pnpm install && pnpm start` 
 
 Then `http://localhost:3400/docs` is the reference below with a working **Test request** button, and `http://localhost:3400/openapi.json` its OpenAPI document.
 
-## The two answers
+## The answers
 
 | Address | Answers | Like |
 |---|---|---|
-| `/tiles/{z}/{x}/{y}.png` or `.jpg` | One Web Mercator tile by its index. 256 px; `{y}@2x` or `tilesize=512` for 512 px | An XYZ tile layer, titiler's `/tiles` |
-| `/render.png` or `.jpg` | A picture of a viewport: `lat`, `lng`, `zoom`, or `bbox=west,south,east,north`, with `width` and `height`. Can be tilted (`viewMode=3d`, `pitch`, `bearing`) or split | A WMS GetMap |
+| `/terrain-tiles/{z}/{x}/{y}.png` or `.jpg` | One Web Mercator tile of the modes computed from the elevation, by its index. 256 px; `{y}@2x` or `tilesize=512` for 512 px | An XYZ tile layer, titiler's `/tiles` |
+| `/basemap-tiles/{z}/{x}/{y}.jpg` or `.png` | One tile of the imagery: `imagerySource` and `imageryDate`, `imageryUrl`, or the app's basemap parameters (`basemapSource`, `overlayBasemapIds`) | An XYZ basemap |
+| `/render.png` or `.jpg` | A picture of a viewport: `lat`, `lng`, `zoom`, or `bbox=west,south,east,north`, with `width` and `height`. Can be tilted (`viewMode=3d`, `pitch`, `bearing`) or split, and can mix imagery and terrain modes | A WMS GetMap |
 
-A tile is the map alone. A viewport keeps the scale bar and the credits.
+A tile is the map alone. A viewport keeps the scale bar and the credits. The terrain tiles refuse `basemap` and the basemap tiles refuse terrain modes: ask both and stack them in the client.
 
 Both take the view as query parameters, the same words the [MCP server](/features/mcp-server) uses:
 
@@ -38,13 +39,25 @@ Both take the view as query parameters, the same words the [MCP server](/feature
 |---|---|
 | `terrainSource` | An id from `/sources` (the built-in sources and the [library](/features/terrain-sources#the-library)), the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry: `{"url": "…/{z}/{x}/{y}.png", "type": "terrainrgb", "maxzoom": 15}` (types `terrarium`, `terrainrgb`, `cog`, `vrt`, `wms-raw`, `lerc`, `quantized-mesh`, `tilejson`) |
 | `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `moundDetector`, `isoline`, `graticules`, `planeSlicer`, `basemap` (also `tri`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`) |
-| `imageryUrl`, `imagerySource`, `imageryDate` | Imagery under the terrain, drawn with the mode `basemap` |
+| `imageryUrl`, `imagerySource`, `imageryDate` | The imagery of `/basemap-tiles` (and of a viewport, under the terrain, with the mode `basemap`) |
 | `engine` | `auto` (the default: direct when it can), `direct` (an error when it cannot), `browser` |
 | `background` | `none`: no white (or black) map background, a transparent PNG, to stack layers in a GIS. Direct engine only |
 | `mapboxKey`, `maptilerKey`, `cesiumIonKey` | Your own API key, for the Mapbox, MapTiler and Cesium ion sources. The direct engine's readers use it, and the browser engine gives it to the app as a setting, never in the app's address. A tile made with a key is cached apart from one made without |
 | anything else | Passed to the app as a [URL parameter](/dev/url-api): ramps, opacities, light direction, contour interval |
 
 Every answer says which engine drew it in its `x-tv-engine` header, and `x-tv-engine-why` says why not the direct one.
+
+### How several modes stack
+
+`modes=a,b,c` draws them in one tile in the map's order, never in the order written. Bottom to top: `colorRelief`, the terrain analysis and relief visualization modes (`slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`), `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, then the overlays `isoline`, `graticules`, `moundDetector`, `planeSlicer` and `contours` on top. `/processes/{id}` gives each mode's place as `x-tv-stack-rank`.
+
+A mode's opacity is its own parameter (`slopeOpacity`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`): `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. Each layer is drawn source-over with that opacity, over the map's background (white, black with `theme=dark`, none with `background=none`). The shading layers differ: the hillshade is a half-transparent dark and light layer, Phong and matcap multiply the colours under them and add their highlight, the shadows darken. In a GIS, give them a multiply blend, as the QGIS project does.
+
+Refused together: `basemap` with `/terrain-tiles`, a terrain mode with `/basemap-tiles`, a mode that is only a picture with `.pbf`, more than one mode or a mode without values with `.tif`, and `engine=direct` with what only the browser draws. Any other set stacks.
+
+### Deprecated addresses
+
+`/tiles/{z}/{x}/{y}` (every extension) and `/modes` still answer as before, for older clients and QGIS plugins, for a while. Each answer carries a `Deprecation` header (RFC 9745, the date: 2026-11-24) and a `Link` to its successor (`rel="successor-version"`): `/terrain-tiles/...`, `/basemap-tiles/...` for a basemap alone, `/processes` for `/modes`. titiler's `/tiles/WebMercatorQuad/...` is titiler's own address and is not deprecated.
 
 ## Names, not addresses
 
@@ -55,13 +68,14 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 | `/sources`, `/sources/{id}` | The 141 terrain sources: built-in and library, with type, tile address, zoom range, extent, and the engine that can draw each |
 | `/colorramps`, `/colorramps/{id}` | The app's 268 colour ramps, to name as `colorRamp` (colour relief) or `slopeColorRamp` (slope); one ramp gives its stops |
 | `/algorithms` | The modes with the engine that draws each |
-| `/modes` | The modes grouped as the app's panel, each with its form, opacity parameter and settings (type, values, default), and the unit and typical range of its values when it has some; with a share link's query, what that view switches on. The [QGIS plugin](/dev/qgis-plugin) builds its panel from it |
+| `/processes`, `/processes/{id}` | Each mode as an [OGC API - Processes](#ogc-api---processes) description: its settings as inputs with their JSON Schema (type, range, values, default), its outputs, its panel group, form, opacity parameters, and the unit and typical range of its values. The [QGIS plugin](/dev/qgis-plugin) builds its panel from it |
+| `/view?<a share link's query>` | What that view switches on, each mode's opacity, the parameters its layers keep, the camera |
 
 A source that is not listed can still be given whole, as its address or as a JSON configuration.
 
 ## Vector tiles
 
-The tile address with `.pbf` (or `.mvt`), `/tiles/{z}/{x}/{y}.pbf`, answers the line, area and point overlays as a Mapbox Vector Tile, the features the app's own layers draw, one layer each. `modes` picks them, the app's parameters set them as for the raster tiles, and `/tilejson.json?tile_format=pbf&modes=…` gives a TileJSON for a MapLibre `vector` source. The extension chooses raster or vector; a mode drawn only as an image is refused as `.pbf`. Tiles are 512 px, as the map loads them; past a layer's last zoom (15 for the mound detector, the source's for the others) a tile is cut from its deepest one, scaled up.
+The tile address with `.pbf` (or `.mvt`), `/terrain-tiles/{z}/{x}/{y}.pbf`, answers the line, area and point overlays as a Mapbox Vector Tile, the features the app's own layers draw, one layer each. `modes` picks them, the app's parameters set them as for the raster tiles, and `/tilejson.json?tile_format=pbf&modes=…` gives a TileJSON for a MapLibre `vector` source. The extension chooses raster or vector; a mode drawn only as an image is refused as `.pbf`. Tiles are 512 px, as the map loads them; past a layer's last zoom (15 for the mound detector, the source's for the others) a tile is cut from its deepest one, scaled up.
 
 | Mode | Layer | Features |
 |---|---|---|
@@ -94,14 +108,14 @@ A colour is for the eye; an analysis wants the number under it. One mode's value
 
 | Address | Answers |
 |---|---|
-| `/tiles/{z}/{x}/{y}.tif?modes=slope` | A Float32 GeoTIFF tile: one band, EPSG:3857, georeferenced, NaN where there is no data, deflate-compressed with the floating-point predictor (lossless; `compression=none` for a plain file). 256 px, `@2x` or `tilesize=512` for 512 |
+| `/terrain-tiles/{z}/{x}/{y}.tif?modes=slope` | A Float32 GeoTIFF tile: one band, EPSG:3857, georeferenced, NaN where there is no data, deflate-compressed with the floating-point predictor (lossless; `compression=none` for a plain file). 256 px, `@2x` or `tilesize=512` for 512 |
 | `/render.tif?modes=slope&bbox=w,s,e,n&width=1024` | The values over a box, like a WCS GetCoverage: exactly the box, `width` pixels across, the height that keeps the pixels square in Web Mercator (at most 4096 a side); or `lat`, `lng`, `zoom`, `width`, `height`. `/bbox/{w},{s},{e},{n}/{width}x{height}.tif` is the same |
-| `/tiles/{z}/{x}/{y}.png?modes=slope&encoding=terrarium` | The same values packed in a PNG as an elevation would be (`terrarium` or `terrainrgb`), for MapLibre's `raster-dem` or a few lines of numpy; `valueScale` multiplies them first, so small values (curvature) stay above the packing's step (1/256 for Terrarium, 0.1 for Terrain-RGB) |
+| `/terrain-tiles/{z}/{x}/{y}.png?modes=slope&encoding=terrarium` | The same values packed in a PNG as an elevation would be (`terrarium` or `terrainrgb`), for MapLibre's `raster-dem` or a few lines of numpy; `valueScale` multiplies them first, so small values (curvature) stay above the packing's step (1/256 for Terrarium, 0.1 for Terrain-RGB) |
 | `/gdal.xml?modes=slope` | The GeoTIFF tiles described for GDAL's WMS driver: one Float32 raster of the whole world down to the source's deepest zoom, with overviews. GDAL opens its address as is: `gdalinfo`, `gdal_translate -projwin`, `rasterio.open`, QGIS's Add Raster Layer |
 
 The compression costs 2 to 6 ms a 256 px tile, small beside its computation (40 to 80 ms for slope or curvature, about 0.6 s for the sky view factor), and divides the size by about 4 for elevation, 2 for slope, 1.4 for curvature or the sky view factor (their low bits are noise). Browsers do not display TIFF: the API reference's test request answers "Preview unavailable" for these and offers the file to download.
 
-One mode at a time; its own parameters count (`curvatureMode`, `lrmRadius`, `svfRadius`, `opennessMode`...), its ramp, range and opacity do not. The direct engine computes them, so a source it cannot read, or a mode that is a picture (hillshade, matcap, Phong, shadows, the overlays), is refused with a 400. Each answer gives its unit in `x-tv-value-unit`, and `/modes` lists them with each mode (`values`).
+One mode at a time; its own parameters count (`curvatureMode`, `lrmRadius`, `svfRadius`, `opennessMode`...), its ramp, range and opacity do not. The direct engine computes them, so a source it cannot read, or a mode that is a picture (hillshade, matcap, Phong, shadows, the overlays), is refused with a 400. Each answer gives its unit in `x-tv-value-unit`, and `/processes/{id}` gives it with each mode (`x-tv-values`).
 
 | Mode | Unit | Value |
 |---|---|---|
@@ -147,13 +161,49 @@ A layer's settings are in its address: QGIS edits an XYZ address in the layer's 
 ## Raster tiles in a map
 
 ```text
-/tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=custom-nl-ahn-dtm
+/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=custom-nl-ahn-dtm
+/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback&imageryDate=2020-01-01
 /render.jpg?bbox=6.7,45.75,7.0,45.95&width=800&height=600&modes=hillshade,contours
 ```
 
 ```js
-map.addSource("tv-slope", { type: "raster", tileSize: 256, tiles: ["http://localhost:3400/tiles/{z}/{x}/{y}.png?modes=slope"] })
+map.addSource("tv-slope", { type: "raster", tileSize: 256, tiles: ["http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=slope"] })
 ```
+
+## OGC API - Processes
+
+Each mode is described as a process of [OGC API - Processes, Part 1: Core](https://docs.ogc.org/is/18-062r2/18-062r2.html) (OGC 18-062r2), with the landing page and conformance of OGC API Common:
+
+| Address | Answers |
+|---|---|
+| `/` (with `Accept: application/json`, or `?f=json`) | The landing page: links to the API definition, the docs, `/conformance`, `/processes`. A browser is sent to `/docs` |
+| `/conformance` | OGC API Common core, landing page and JSON; Processes' process description and JSON classes |
+| `/processes` | Every mode, top of the map first, then `basemap`; `x-tv-groups` is the app's panel tree by id; `?expand=true` gives every description in full |
+| `/processes/{id}` | One mode: `inputs` (each setting with a JSON Schema and its URL parameter), `outputs` (`image` as PNG or JPEG, `values` as Float32 GeoTIFF for a mode with values, `vectorTile` for an overlay), links |
+
+An excerpt of `/processes/slope`:
+
+```json
+{
+  "id": "slope", "version": "1.0.0", "title": "Slope",
+  "inputs": {
+    "slopeOpacity": { "minOccurs": 0, "maxOccurs": 1, "schema": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 }, "x-tv-url-param": "slopeOpacity", "x-tv-role": "opacity" },
+    "slopeSourceMode": { "minOccurs": 0, "maxOccurs": 1, "schema": { "type": "string", "enum": ["plantopo", "client"], "default": "client" }, "x-tv-role": "setting" }
+  },
+  "outputs": {
+    "image": { "schema": { "oneOf": [{ "type": "string", "contentEncoding": "binary", "contentMediaType": "image/png" }, { "contentMediaType": "image/jpeg" }] } },
+    "values": { "schema": { "oneOf": [{ "contentMediaType": "image/tiff; application=geotiff" }, { "contentMediaType": "image/png" }] }, "x-tv-unit": "degree" }
+  },
+  "x-tv-group": ["Terrain Analysis", "Surface derivatives"],
+  "x-tv-opacity-key": "slopeOpacity", "x-tv-group-opacity-keys": ["terrainAnalysisOpacity"],
+  "x-tv-stack-rank": 1, "x-tv-values": { "unit": "degree", "range": [0, 60] },
+  "links": [{ "rel": "http://www.opengis.net/def/rel/ogc/1.0/execute", "href": "…/terrain-tiles/{z}/{x}/{y}.png?modes=slope", "type": "image/png", "templated": true }]
+}
+```
+
+What the standard has no slot for is an `x-tv-` property: the panel group (`x-tv-group`), the form and shading, the stacking rank, the opacity and group opacity parameters, the app's switches, whether the mode has values, their unit and the typical range the QGIS plugin's grey ramp starts with.
+
+**Execution.** A mode is run by asking for its tiles, not by the standard's `POST /processes/{id}/execution` and its jobs: a tile is a few milliseconds of work that a map asks hundreds of times, which a job queue would only slow down, and every GIS already reads XYZ tiles. So each description links its tile endpoints with rel `http://www.opengis.net/def/rel/ogc/1.0/execute`, templated, the inputs going into the query; the execution path answers 501 with the same links; and `/conformance` claims the process description class, not the Processes core class.
 
 ## titiler's addresses
 
@@ -161,7 +211,7 @@ A client written for [titiler](https://developmentseed.org/titiler/) needs few c
 
 | titiler | Here |
 |---|---|
-| `/tiles/WebMercatorQuad/{z}/{x}/{y}@2x.png` | The same tile as `/tiles/{z}/{x}/{y}@2x.png` |
+| `/tiles/WebMercatorQuad/{z}/{x}/{y}@2x.png` | The same tile as `/terrain-tiles/{z}/{x}/{y}@2x.png` |
 | `/WebMercatorQuad/tilejson.json` | A TileJSON whose tile address keeps the parameters given; `tile_format`, `tile_scale` |
 | `/bbox/{w},{s},{e},{n}/{width}x{height}.png` | `/render` with `bbox`, `width`, `height` |
 | `url` | Read as `terrainSource` |

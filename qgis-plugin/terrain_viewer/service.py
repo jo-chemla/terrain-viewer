@@ -1,4 +1,4 @@
-"""The tile service, as the panel reads it: its catalogs (/sources, /modes,
+"""The tile service, as the panel reads it: its catalogs (/sources, /processes,
 /colorramps) and the addresses of a mode's tiles. No QGIS widget here, so
 the address building can be tested on its own."""
 import json
@@ -43,14 +43,69 @@ def walk_modes(groups, path=()):
             yield here, item
 
 
+def mode_of_process(p):
+    """An OGC API - Processes description (/processes/{id}) as the panel's
+    mode: its form, shading, opacity parameter, values, and its settings
+    (the inputs whose x-tv-role is "setting"), as /modes gave them."""
+    settings = []
+    for key, spec in (p.get("inputs") or {}).items():
+        if spec.get("x-tv-role") != "setting":
+            continue
+        schema = spec.get("schema") or {}
+        s = {"key": spec.get("x-tv-url-param", key), "type": spec.get("x-tv-type") or schema.get("type", "string")}
+        if schema.get("enum"):
+            s["enum"] = schema["enum"]
+        if "default" in schema:
+            s["default"] = schema["default"]
+        if spec.get("description"):
+            s["note"] = spec["description"]
+        settings.append(s)
+    mode = {"id": p["id"], "name": p.get("title", p["id"]), "form": p.get("x-tv-form", "raster"),
+            "shading": p.get("x-tv-shading", False), "vector": p.get("x-tv-vector", False),
+            "switches": p.get("x-tv-switches", {}), "settings": settings}
+    if p.get("x-tv-opacity-key"):
+        mode["opacityKey"] = p["x-tv-opacity-key"]
+    if p.get("x-tv-values"):
+        mode["values"] = p["x-tv-values"]
+    return mode
+
+
+def tree_of_processes(groups, modes):
+    """/processes' x-tv-groups (the panel tree by process id) with the
+    modes in place of the ids."""
+    out = []
+    for g in groups:
+        node = {k: g[k] for k in ("group",) if g.get(k)}
+        if g.get("groups"):
+            node["groups"] = tree_of_processes(g["groups"], modes)
+        if g.get("items"):
+            node["items"] = [modes[i] for i in g["items"] if i in modes]
+        out.append(node)
+    return out
+
+
+# The tile path of each service: /terrain-tiles, or /tiles for a service
+# from before 2026-11-24 (no /processes).
+_TILE_PATH = {}
+
+
 class Catalog:
-    """What the service answers: its sources, its modes and their settings,
-    its colour ramps."""
+    """What the service answers: its sources, its modes and their settings
+    (/processes, OGC API - Processes; /modes from an older service), its
+    colour ramps."""
 
     def __init__(self, base):
         self.base = base.rstrip("/")
         self.sources = get_json(f"{self.base}/sources").get("sources", [])
-        self.tree = get_json(f"{self.base}/modes").get("modes", [])
+        try:
+            listing = get_json(f"{self.base}/processes?expand=true")
+            modes = {p["id"]: mode_of_process(p) for p in listing.get("processes", [])}
+            self.tree = tree_of_processes(listing.get("x-tv-groups", []), modes)
+            self.legacy = False
+        except ServiceError:
+            self.tree = get_json(f"{self.base}/modes").get("modes", [])
+            self.legacy = True
+        _TILE_PATH[self.base] = "tiles" if self.legacy else "terrain-tiles"
         try:
             self.colorramps = [r["id"] for r in get_json(f"{self.base}/colorramps").get("colorramps", [])]
         except ServiceError:
@@ -61,7 +116,9 @@ class Catalog:
     def view(self, query):
         """A share link's view: the modes it switches on, their opacities,
         the parameters its layers keep, the camera."""
-        return get_json(f"{self.base}/modes?{query}").get("view", {})
+        if self.legacy:
+            return get_json(f"{self.base}/modes?{query}").get("view", {})
+        return get_json(f"{self.base}/view?{query}")
 
 
 def format_value(value):
@@ -106,7 +163,8 @@ def tile_url(base, mode, values, common, vector=False):
             q[mode["opacityKey"]] = "1"
     ext = "pbf" if vector else "png"
     # {z}/{x}/{y} stay as they are: QGIS fills them.
-    return f"{base.rstrip('/')}/tiles/{{z}}/{{x}}/{{y}}.{ext}?{urlencode(q, safe=',{}')}"
+    path = _TILE_PATH.get(base.rstrip("/"), "terrain-tiles")
+    return f"{base.rstrip('/')}/{path}/{{z}}/{{x}}/{{y}}.{ext}?{urlencode(q, safe=',{}')}"
 
 
 def values_url(base, mode, values, common):

@@ -207,11 +207,142 @@ import { plan } from "./direct.mjs"
   assert.ok(Math.abs(-10000 + (rgb[0] * 65536 + rgb[1] * 256 + rgb[2]) * 0.1 - slope[0]) < 0.06, "terrain-rgb packing")
   // GDAL's description and the project's values group.
   const xml = gdalWmsXml("http://t", "slope", "terrainSource=x&a=1", 17)
-  assert.match(xml, /<ServerUrl>http:\/\/t\/tiles\/\$\{z\}\/\$\{x\}\/\$\{y\}\.tif\?modes=slope&amp;terrainSource=x&amp;a=1<\/ServerUrl>/)
+  assert.match(xml, /<ServerUrl>http:\/\/t\/terrain-tiles\/\$\{z\}\/\$\{x\}\/\$\{y\}\.tif\?modes=slope&amp;terrainSource=x&amp;a=1<\/ServerUrl>/)
   assert.match(xml, /<TileLevel>17<\/TileLevel>.*<DataType>Float32<\/DataType>/)
   const project = qgisProjectXml("http://t", { ...(await readView({}, new URLSearchParams(), null)), valueLevel: 16 })
   assert.match(project, /<layer-tree-group name="Values \(Float32, for analysis\)" checked="Qt::Unchecked" expanded="0">/)
   assert.equal([...project.matchAll(/<provider>gdal<\/provider>/g)].length, 15)
+}
+
+// Over HTTP: /terrain-tiles and /basemap-tiles, the deprecated /tiles and
+// /modes (Deprecation and Link headers), the OGC API landing page,
+// conformance and process descriptions.
+{
+  const { start } = await import("./server.mjs")
+  const { activeLayers } = await import("./direct.mjs")
+  const { MODE_NAMES, STACK_ORDER } = await import("./url.mjs")
+  // The map's order, as /processes and the docs state it: every mode on.
+  const all = await activeLayers({ modes: MODE_NAMES.filter((m) => m !== "basemap") }, new URLSearchParams("tellsMarkersVisible=true"))
+  assert.deepEqual(all.layers, STACK_ORDER, "STACK_ORDER is the order layersOf draws")
+  const server = start(0)
+  await new Promise((ok) => server.once("listening", ok))
+  const base = `http://localhost:${server.address().port}`
+  const get = (path, init) => fetch(base + path, init)
+  const json = async (path) => { const r = await get(path, { headers: { accept: "application/json" } }); assert.equal(r.status, 200, path); return r.json() }
+  try {
+    // Landing page and conformance (OGC API Common).
+    const landing = await json("/")
+    for (const rel of ["self", "service-desc", "service-doc", "conformance", "http://www.opengis.net/def/rel/ogc/1.0/processes"]) assert.ok(landing.links.some((l) => l.rel === rel && l.href), rel)
+    assert.equal((await get("/", { redirect: "manual" })).status, 302, "a browser goes to /docs")
+    assert.equal((await get("/?f=json")).status, 200)
+    const { conformsTo } = await json("/conformance")
+    assert.ok(conformsTo.includes("http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/ogc-process-description"))
+    assert.ok(!conformsTo.includes("http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/core"), "no POST execution, so not the core class")
+
+    // The process list: every mode, light summaries, the panel tree by id.
+    const list = await json("/processes")
+    assert.deepEqual(list.processes.map((p) => p.id).sort(), [...MODE_NAMES].sort())
+    assert.ok(list.processes.every((p) => typeof p.id === "string" && typeof p.version === "string" && !p.inputs && p.links.some((l) => l.rel === "self")))
+    const ids = (g) => [...(g.groups ?? []).flatMap(ids), ...(g.items ?? [])]
+    assert.deepEqual(list["x-tv-groups"].flatMap(ids).sort(), MODE_NAMES.filter((m) => m !== "basemap").sort())
+    const full = await json("/processes?expand=true")
+    assert.ok(full.processes.every((p) => p.inputs && p.outputs))
+
+    // A process description, checked against OGC 18-062r2's process.yaml:
+    // id and version strings; inputs and outputs maps whose entries each
+    // carry a JSON Schema; links with href and rel.
+    const isProcess = (p) => {
+      assert.equal(typeof p.id, "string"); assert.equal(typeof p.version, "string")
+      for (const k of ["title", "description"]) if (p[k] !== undefined) assert.equal(typeof p[k], "string", k)
+      if (p.keywords) assert.ok(p.keywords.every((k) => typeof k === "string"))
+      if (p.jobControlOptions) assert.ok(p.jobControlOptions.every((o) => ["sync-execute", "async-execute", "dismiss"].includes(o)))
+      if (p.outputTransmission) assert.ok(p.outputTransmission.every((o) => ["value", "reference"].includes(o)))
+      for (const [id, d] of Object.entries(p.inputs)) {
+        assert.equal(typeof d.schema, "object", `input ${id} has a schema`)
+        assert.ok(d.schema.type || d.schema.oneOf || d.schema.enum, `input ${id}: a type`)
+        if (d.minOccurs !== undefined) assert.ok(Number.isInteger(d.minOccurs) && d.minOccurs >= 0)
+        if (d.maxOccurs !== undefined) assert.ok(d.maxOccurs === "unbounded" || Number.isInteger(d.maxOccurs))
+        if (d.schema.default !== undefined && d.schema.enum) assert.ok(d.schema.enum.includes(d.schema.default), `input ${id}: default in enum`)
+      }
+      for (const [id, d] of Object.entries(p.outputs)) assert.equal(typeof d.schema, "object", `output ${id} has a schema`)
+      assert.ok(p.links.every((l) => typeof l.href === "string" && typeof l.rel === "string"))
+      for (const k of Object.keys(p)) assert.ok(["id", "version", "title", "description", "keywords", "metadata", "additionalParameters", "jobControlOptions", "outputTransmission", "inputs", "outputs", "links"].includes(k) || k.startsWith("x-tv-"), `${p.id}: ${k} is OGC's or x-tv-`)
+    }
+    const slope = await json("/processes/slope")
+    isProcess(slope)
+    assert.deepEqual(slope["x-tv-group"], ["Terrain Analysis", "Surface derivatives"])
+    assert.equal(slope["x-tv-opacity-key"], "slopeOpacity")
+    assert.deepEqual(slope["x-tv-group-opacity-keys"], ["terrainAnalysisOpacity"])
+    assert.equal(slope["x-tv-values"].unit, "degree")
+    assert.deepEqual(slope["x-tv-values"].range, [0, 60])
+    assert.deepEqual(slope.inputs.slopeOpacity.schema, { type: "number", minimum: 0, maximum: 1, default: 1 })
+    assert.equal(slope.inputs.slopeOpacity["x-tv-role"], "opacity")
+    assert.deepEqual(slope.inputs.slopeSourceMode.schema, { type: "string", enum: ["plantopo", "client"], default: "client" })
+    assert.equal(slope.inputs.slopeMaxDegrees["x-tv-url-param"], "slopeMaxDegrees")
+    assert.deepEqual(slope.outputs.image.schema.oneOf.map((o) => o.contentMediaType), ["image/png", "image/jpeg"])
+    assert.match(slope.outputs.values.schema.oneOf[0].contentMediaType, /^image\/tiff/)
+    const run = slope.links.filter((l) => l.rel === "http://www.opengis.net/def/rel/ogc/1.0/execute")
+    assert.ok(run.some((l) => l.templated && l.href === `${base}/terrain-tiles/{z}/{x}/{y}.png?modes=slope`))
+    assert.ok(run.some((l) => /\/terrain-tiles\/\{z\}\/\{x\}\/\{y\}\.tif\?modes=slope$/.test(l.href)))
+    const contours = await json("/processes/contours")
+    isProcess(contours)
+    assert.equal(contours.outputs.vectorTile.schema.contentMediaType, "application/vnd.mapbox-vector-tile")
+    assert.ok(!contours["x-tv-has-values"] && !contours.outputs.values)
+    const hillshade = await json("/processes/hillshade")
+    isProcess(hillshade)
+    assert.ok(hillshade["x-tv-shading"] && hillshade["x-tv-stack-rank"] > slope["x-tv-stack-rank"] && contours["x-tv-stack-rank"] > hillshade["x-tv-stack-rank"])
+    const basemap = await json("/processes/basemap")
+    isProcess(basemap)
+    assert.ok(basemap.links.some((l) => l.href.includes("/basemap-tiles/{z}/{x}/{y}.jpg")))
+    assert.equal((await get("/processes/nope")).status, 404)
+    const exec = await get("/processes/slope/execution", { method: "POST", body: "{}" })
+    assert.equal(exec.status, 501)
+    assert.ok((await exec.json()).links.some((l) => l.rel.endsWith("/execute")))
+
+    // /modes, deprecated, the same catalog as before.
+    const modes = await get("/modes")
+    assert.equal(modes.status, 200)
+    assert.match(modes.headers.get("deprecation"), /^@\d+$/)
+    assert.match(modes.headers.get("link"), new RegExp(`<${base}/processes>; rel="successor-version"`))
+    assert.ok((await modes.json()).modes.length > 0)
+    // /view, what /modes?<query> said in `view`.
+    const view = await json("/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainAnalysisOpacity=0.4&terrainSourceA=x")
+    assert.ok(view.active.includes("slope")); assert.ok(Math.abs(view.opacity.slope - 0.2) < 1e-9); assert.equal(view.params.terrainSource, "x")
+
+    // Tiles: the new address, the deprecated one with its headers, and the
+    // modes refused on each.
+    const tilePath = "/2/2/1.png?modes=slope&background=none"
+    const fresh = await get(`/terrain-tiles${tilePath}`)
+    assert.equal(fresh.status, 200, await fresh.clone().text().catch(() => ""))
+    assert.equal(fresh.headers.get("content-type"), "image/png")
+    assert.equal(fresh.headers.get("deprecation"), null)
+    const old = await get(`/tiles${tilePath}`)
+    assert.equal(old.status, 200)
+    assert.match(old.headers.get("deprecation"), /^@\d+$/)
+    assert.ok(old.headers.get("link").startsWith(`<${base}/terrain-tiles${tilePath}>; rel="successor-version"`), old.headers.get("link"))
+    assert.deepEqual(Buffer.from(await old.arrayBuffer()), Buffer.from(await fresh.arrayBuffer()), "the alias draws the same tile")
+    const titiler = await get("/tiles/WebMercatorQuad/2/2/1.png?algorithm=slope")
+    assert.equal(titiler.status, 200); assert.equal(titiler.headers.get("deprecation"), null, "titiler's address is not deprecated")
+    const vec = await get("/terrain-tiles/2/2/1.pbf?modes=contours")
+    assert.equal(vec.status, 200); assert.equal(vec.headers.get("content-type"), "application/vnd.mapbox-vector-tile")
+    assert.match((await get("/tiles/2/2/1.pbf?modes=contours")).headers.get("link"), /\/terrain-tiles\/2\/2\/1\.pbf/)
+    const tif = await get("/terrain-tiles/2/2/1.tif?modes=slope")
+    assert.equal(tif.status, 200); assert.equal(tif.headers.get("x-tv-value-unit"), "degree")
+    assert.equal((await get("/terrain-tiles/2/2/1.png?modes=hillshade,basemap")).status, 400)
+    assert.equal((await get("/basemap-tiles/2/2/1.jpg?modes=slope&imagerySource=wayback")).status, 400)
+    assert.equal((await get("/basemap-tiles/2/2/1.tif")).status, 404)
+    const tj = await json("/tilejson.json?modes=slope")
+    assert.ok(tj.tiles[0].startsWith(`${base}/terrain-tiles/{z}/{x}/{y}.png?`))
+    assert.ok((await json("/tilejson.json?modes=basemap&imagerySource=wayback")).tiles[0].startsWith(`${base}/basemap-tiles/`))
+    // The QGIS project asks the new addresses only.
+    const qgz = Buffer.from(await (await get("/qgis.qgz?showRasterBasemap=true&imagerySource=wayback")).arrayBuffer())
+    const { inflateRawSync } = await import("node:zlib")
+    const qgs = inflateRawSync(qgz.subarray(30 + qgz.readUInt16LE(26), 30 + qgz.readUInt16LE(26) + qgz.readUInt32LE(18))).toString()
+    assert.ok(qgs.includes("/terrain-tiles/") && qgs.includes("/basemap-tiles/"))
+    assert.ok(!/localhost:\d+\/tiles\//.test(decodeURIComponent(qgs)), "no deprecated address in the project")
+  } finally {
+    server.close()
+  }
 }
 
 console.log("ok")

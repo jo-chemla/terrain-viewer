@@ -38,8 +38,10 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
 ## Use
 
 - **Connect** to the service: the panel is built from its answers, `/sources`
-  (the terrain source picker), `/modes` (the groups, each mode's settings with
-  their types and defaults) and `/colorramps`. A mode or a setting added to the
+  (the terrain source picker), `/processes` (each mode as an OGC API -
+  Processes description: its settings with their types and defaults, its
+  panel group; `/modes` from a service older than 2026-11-24) and
+  `/colorramps`. Layers ask `/terrain-tiles`. A mode or a setting added to the
   app reaches the panel when the service is updated, with no plugin release.
 - **Check a mode**: a layer is added to the "Terrain Viewer (live)" group, in a
   subgroup named as the app's panel group, stacked as the map stacks them.
