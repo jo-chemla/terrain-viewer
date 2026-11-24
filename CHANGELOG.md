@@ -1,3 +1,17 @@
+# Changelog — Pre-rendered Relief Library
+
+#### TL;DR
+
+- **[Pre-rendered relief](/docs/features/basemaps#pre-rendered-relief) in the basemap Library**: a section of its own, folded at first, for shaded and enhanced relief already rendered by a publisher, with archaeology in mind: 76 new overlays from about 30 countries and regions, among them the national and regional lidar hillshades of England, Ireland, the Netherlands, Flanders (with a 25 cm sky view factor), Wallonia, Luxembourg, Norway, Sweden, Finland, Germany (basemap.de and nine Länder), Austria, Switzerland, Czechia, Slovakia, Poland, France (IGN LiDAR HD), Spain, Portugal, South Tyrol, the US (3DEP), Canada, Mexico, Japan (GSI's red relief map and hypsometric tints, CS立体図), New Zealand and Australia. Each carries its publisher's credit and licence. The twelve Maya lidar renders and the Antarctic hillshade moved into it.
+- **More Maya lidar**: the Alianza M-REDD+ blocks and transects (Campeche and Yucatán, 2014) and the NASA G-LiHT strips across Campeche and Quintana Roo, from Tulane's MARI-GISLAB (CC BY-NC-SA 4.0, non-commercial); `?project=maya-lidar-campeche` opens them with Chactun.
+- **The Maya sky view factor and local dominance layers are opaque**: their tiles carry an alpha of about one half on every pixel, so even at 100 % they showed half the map through. They are drawn opaque now, no-data left transparent.
+- **The Maya layers no longer vanish when zooming out**: the services have no tiles under zoom 11 or 12 (15 for Chactun's sky view factor); the three levels below are assembled from those tiles.
+
+#### Details
+
+- Library: a source's `libraryGroup` (a key of `lib/library-groups.ts`) lists it in a thematic section after the scope sections; the search reads the group's title and keywords with each row. Adding a group is one record.
+- Sources: `forceOpaque` and `underzoom` (1 to 3 levels; only the tiles inside `bounds` are fetched, at most 64 per tile) are read through a new `tiletx://` protocol (`lib/tile-transform-protocol.ts`), for any tiled or WMS raster source. A source added before the Library gave it either field gets it from the Library entry with the same id. Chactun's sky view factor goes to zoom 20, as its service does.
+
 # Changelog — Library Tabs, Credits on the Map
 
 <!-- released: 2026-11-24 -->

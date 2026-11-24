@@ -148,7 +148,7 @@
   "maya-lidar": {
     "id": "maya-lidar",
     "name": "Maya Lowlands Lidar",
-    "description": "Tikal, Holmul, La Corona (PACUNAM Lidar Initiative, 1 m) and Chactun (0.5 m): the sky view factor, local dominance and 16-direction hillshade renders of each, all twelve loaded at once as overlays (sky view factor on top; reorder or hide them in the Overlays list). Opens over Tikal at zoom 14; the renders show from zoom 11 or 12 (Chactun's sky view factor from 15). Renders by the Middle American Research Institute GIS Lab (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023, CC BY-NC-SA 4.0; see Estrada-Belli, Canuto, Šprajc and Fernandez-Diaz (2025), Journal of Archaeological Science: Reports, doi:10.1016/j.jasrep.2025.105288.",
+    "description": "Tikal, Holmul, La Corona (PACUNAM Lidar Initiative, 1 m) and Chactun (0.5 m): the sky view factor, local dominance and 16-direction hillshade renders of each, all twelve loaded at once as overlays (sky view factor on top; reorder or hide them in the Overlays list). Opens over Tikal at zoom 14; the renders show from zoom 8 or 9 (Chactun's sky view factor from 12): the services only have tiles from zoom 11 or 12 (15), and the app assembles the three levels under that from them. A sibling preset, maya-lidar-campeche, opens the M-REDD+ and G-LiHT renders further north. Renders by the Middle American Research Institute GIS Lab (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023, CC BY-NC-SA 4.0; see Estrada-Belli, Canuto, Šprajc and Fernandez-Diaz (2025), Journal of Archaeological Science: Reports, doi:10.1016/j.jasrep.2025.105288.",
     "initialState": {
       "overlayBasemapIds": [
         "maya-lidar-tikal-svf",
@@ -173,6 +173,35 @@
       "lat": 17.2222,
       "lng": -89.6237,
       "zoom": 14
+    },
+    "initialSections": {
+      "rasterBasemap": true
+    }
+  },
+  "maya-lidar-campeche": {
+    "id": "maya-lidar-campeche",
+    "name": "Maya Lidar, Campeche and Quintana Roo",
+    "description": "The northern renders of Tulane's MARI-GISLAB: the three Alianza M-REDD+ lidar blocks and ten transects flown in 2014 (1 m), the NASA G-LiHT strips across Campeche and Quintana Roo, and Chactun (0.5 m) with its sky view factor, local dominance and hillshade. The M-REDD+ and G-LiHT services each publish one image blending a hillshade, the sky view factor and local dominance (G-LiHT adds openness and slope). Opens over Chactun and the first M-REDD+ block at zoom 10; the renders show from zoom 10 to 13 and the transects and strips are narrow, so zoom in on them. Renders by the Middle American Research Institute GIS Lab (MARI-GISLAB) at Tulane University, with NCALM and NASA, Estrada-Belli et al. 2023, CC BY-NC-SA 4.0 (non-commercial).",
+    "initialState": {
+      "overlayBasemapIds": [
+        "maya-lidar-chactun-svf",
+        "maya-lidar-chactun-ld",
+        "maya-lidar-chactun-hs",
+        "maya-lidar-mredd-tile-1-blend",
+        "maya-lidar-mredd-tile-2-blend",
+        "maya-lidar-mredd-tile-3-blend",
+        "maya-lidar-mredd-transects-blend",
+        "maya-lidar-gliht-campeche-qroo-blend"
+      ],
+      "overlaysStack": "top",
+      "showRasterBasemap": true,
+      "showHillshade": false,
+      "showColorRelief": false,
+      "viewMode": "2d",
+      "pitch": 0,
+      "lat": 18.62,
+      "lng": -89.4,
+      "zoom": 10
     },
     "initialSections": {
       "rasterBasemap": true

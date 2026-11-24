@@ -9,6 +9,9 @@ import { entryUrl } from "@/lib/source-schema"
 import type { TerrainSource } from "@/lib/terrain-types"
 import { useCogProtocolVsTitilerAtom, highResTerrainAtom, viewportCenterAtom, cesiumDetailOffsetAtom, osmBuildings3dAtom, allmapsRemoveColorAtom, geHiDpiTilesAtom, type CustomTerrainSource, type AllmapsRemoveColor } from "@/lib/settings-atoms"
 import { buildUnpaperUrl, sampleTileFor } from "@/lib/unpaper-protocol"
+import { buildTileTransformUrl, wantsTileTransform } from "@/lib/tile-transform-protocol"
+import type { RasterSourceEntry } from "@/lib/source-schema"
+import customSourcesData from "@/lib/custom-sources.json"
 
 /** A scanned map's tile template through unpaper:// when the paper removal
  *  is on (Allmaps' option, applied to tiled old maps too); anything else
@@ -17,6 +20,24 @@ function withPaperRemoval(built: { url: string } | { tiles: string[]; scheme?: "
     if (!rc.enabled || !source.oldMap || !("tiles" in built) || built.tiles.length !== 1 || /^[a-z0-9-]+:\/\//.test(built.tiles[0]) && !/^https?:/.test(built.tiles[0])) return built
     const auto = rc.auto ?? true
     return { ...built, tiles: [buildUnpaperUrl(built.tiles[0], { color: auto ? "auto" : rc.color, threshold: rc.threshold, hardness: rc.hardness, gain: rc.autoGain ?? 0.5, sample: sampleTileFor(source.bounds, source.minzoom) })] }
+}
+
+// The library's own copy of each basemap, by id: a source added before the
+// library gave it forceOpaque / underzoom still gets them (the user's stored
+// copy is a snapshot of the entry at the time it was added).
+const LIBRARY_BASEMAPS = new Map(((customSourcesData as { SAMPLE_BASEMAPS_SOURCES: RasterSourceEntry[] }).SAMPLE_BASEMAPS_SOURCES).map((s) => [s.id, s]))
+
+/** A tile template through tiletx:// when the source asks for forceOpaque or
+ *  underzoom (lib/tile-transform-protocol.ts), with the minzoom MapLibre
+ *  should then use; anything else unchanged. Plain http(s) {z}/{x}/{y} and
+ *  WMS bbox templates only, and not over a paper removal (already wrapped). */
+function withTileTransform<B extends { url: string } | { tiles: string[]; scheme?: "xyz" | "tms" }>(built: B, source: Pick<RasterSourceEntry, "id" | "forceOpaque" | "underzoom" | "minzoom" | "bounds">): B | (B & { tiles: string[]; scheme: "xyz"; minzoom?: number }) {
+    if (!("tiles" in built) || built.tiles.length !== 1 || !/^https?:\/\//.test(built.tiles[0])) return built
+    const lib = LIBRARY_BASEMAPS.get(source.id)
+    const opts = { forceOpaque: source.forceOpaque ?? lib?.forceOpaque, underzoom: source.underzoom ?? lib?.underzoom, minzoom: source.minzoom, bounds: source.bounds, scheme: built.scheme }
+    if (!wantsTileTransform(opts)) return built
+    const { url, minzoom } = buildTileTransformUrl(built.tiles[0], opts)
+    return { ...built, tiles: [url], scheme: "xyz" as const, ...(minzoom != null ? { minzoom } : {}) }
 }
 import { localFileVersionAtom, resolveLocalFileUrl, localFileId } from "@/lib/local-file-store"
 import { isTitilerTemplate, probeMaxZoomAt, probeWorthwhile } from "@/lib/tile-max-zoom"
@@ -470,14 +491,14 @@ export const RasterBasemapSource = memo(({
         if (customBasemap) {
             if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
             return {
-                ...withPaperRemoval(buildRasterTileSource({
+                ...withTileTransform(withPaperRemoval(buildRasterTileSource({
                     url: isCogLocal ? resolvedCogUrl! : customBasemap.url,
                     type: isCogLocal ? "cog" : customBasemap.type,
                     useCogProtocol: isCogLocal ? true : useCogProtocol && !customBasemap.cogViaTitiler,
                     titilerEndpoint,
                     scheme: customBasemap.scheme,
                     categorical: customBasemap.categorical,
-                }), customBasemap, removeColor),
+                }), customBasemap, removeColor), customBasemap),
                 // Its credit in the map's attribution control (lib/source-credit.ts).
                 attribution: sourceCredit(customBasemap),
             }
@@ -605,7 +626,9 @@ export const OverlayBasemapSources = memo(({
                 const isCogLocal = source.type === "cog-local"
                 const resolvedCogUrl = isCogLocal ? resolveLocalFileUrl(localFileId(source.url)) : null
                 if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
-                const sourceProps = withPaperRemoval(buildRasterTileSource({
+                // withTileTransform last: its minzoom (forceOpaque / underzoom
+                // sources) overrides the minzoom prop below, as it is spread after.
+                const sourceProps = withTileTransform(withPaperRemoval(buildRasterTileSource({
                     url: isCogLocal ? resolvedCogUrl! : source.url,
                     type: isCogLocal ? "cog" : source.type,
                     // Same per-source titiler pin as the main basemap path -
@@ -614,7 +637,7 @@ export const OverlayBasemapSources = memo(({
                     titilerEndpoint,
                     scheme: source.scheme,
                     categorical: source.categorical,
-                }), source, removeColor)
+                }), source, removeColor), source)
                 return (
                     <Source
                         // resolvedCogUrl in the key: see the matching comment on

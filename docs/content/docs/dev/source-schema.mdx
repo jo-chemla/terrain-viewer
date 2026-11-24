@@ -19,6 +19,10 @@ A terrain source is the same record wherever it is listed: a Worldwide Default s
 
 Ids never change: a shared link names a source by id (`?terrainSourceA=mapterhorn`, `?terrainSourceA=custom-global-gem15-dtm`).
 
+A Library entry can carry a `libraryGroup`, a key of `LIBRARY_GROUPS` (`lib/library-groups.ts`): the Library dialog then lists it in that thematic section, after the scope sections (Nation-wide, Global, Sub-national, City), folded unless the group says otherwise, and the search reads the group's title and keywords with each of its rows. The one group so far is `relief`, the pre-rendered relief products (hillshades, sky view factor, local dominance, red relief maps) published as imagery; adding a group is one record in that file, and a key it does not know still gets a section named after the key.
+
+Two raster fields fix a tile service's own shortcomings, through the `tiletx://` protocol (`lib/tile-transform-protocol.ts`): `forceOpaque` draws every pixel with any alpha fully opaque and leaves no-data (alpha 0) transparent, for ArcGIS Online's 8-bit layers whose PNG tiles carry an alpha of about 127 on every pixel; `underzoom` (1 to 3) assembles a tile from its 4, 16 or 64 children at the source's `minzoom` for that many zoom levels below it, fetching only the children inside `bounds`, so a service with no overview tiles does not vanish when the view zooms out. A source added before the Library gave it either field still gets it: the map reads them from the Library entry with the same id.
+
 An `apiKey` names the setting whose value fills the `{API_KEY}` placeholder of `url` (`entryUrl`). A keyed source is hidden from the pickers until its key is set (`hasEntryKey`).
 
 ## Where the entries are

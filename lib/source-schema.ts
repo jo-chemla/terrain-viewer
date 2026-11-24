@@ -101,6 +101,11 @@ export interface SourceEntryBase {
   /** Library entries only: a catalog search for the same data, offered by a
    *  Browse button beside Add. */
   stac?: LibraryStacLink
+  /** Library entries only: a thematic group (a key of LIBRARY_GROUPS in
+   *  lib/library-groups.ts, e.g. "relief") that lists the entry in its own
+   *  section of the Library dialog instead of the scope sections. A key the
+   *  registry does not know still gets a section, titled by the key. */
+  libraryGroup?: string
 }
 
 /** How an elevation source's tiles are read (lib/terrain-tile-spec.ts). */
@@ -194,6 +199,16 @@ export interface RasterSourceEntry extends SourceEntryBase {
   /** type "iiif": drawn from Allmaps' tile server instead of warped in the
    *  browser (shows in tilted and 3D views). */
   allmapsTiles?: boolean
+  /** Every pixel with any alpha drawn fully opaque, no-data (alpha 0) left
+   *  transparent: for services that bake a partial alpha into every tile
+   *  (ArcGIS Online's 8-bit layers, ~50 %). Tiled http(s) and WMS templates
+   *  only (lib/tile-transform-protocol.ts). */
+  forceOpaque?: boolean
+  /** 1-3: zoom levels under `minzoom` where a tile is assembled from its
+   *  children at `minzoom` (4, 16 or 64 requests, only those inside
+   *  `bounds`), so a service with no overview tiles does not vanish when the
+   *  view zooms out. Needs `minzoom`; best with `bounds`. */
+  underzoom?: number
 }
 
 /** Any source. */
@@ -204,7 +219,7 @@ export type SourceEntry = TerrainSourceEntry | RasterSourceEntry
  *  place of Add. Kept in custom-sources.json's own SAMPLE_*_BROWSE_ONLY
  *  lists, away from SAMPLE_TERRAIN_SOURCES, because everything else that
  *  reads the library expects an entry to have a URL to load. */
-export interface LibraryBrowseEntry extends Pick<SourceEntryBase, "id" | "name" | "description" | "infoUrl" | "resolutionM" | "bounds" | "loadWithSamples" | "kind"> {
+export interface LibraryBrowseEntry extends Pick<SourceEntryBase, "id" | "name" | "description" | "infoUrl" | "resolutionM" | "bounds" | "loadWithSamples" | "kind" | "libraryGroup"> {
   stac: LibraryStacLink
 }
 

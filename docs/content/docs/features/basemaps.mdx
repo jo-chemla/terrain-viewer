@@ -17,6 +17,24 @@ Overlays have an opacity pill each, and the **Overlays** heading one for all of 
 
 An overlay draws over the basemap instead of replacing it. Where the overlays sit in the layer stack is one setting for all of them, **Stack** in the Overlays group (`overlaysStack` in the link): **Under relief** (the default: hillshade and the colour relief draw over them), **Over hypso** (above the colour relief, still shaded by the hillshade) or **On top** (above every terrain layer, only contours and markers over them). Their order among themselves is the list's order (drag the handles in edit mode). The Basemap and Overlays groups fold. In a split or grid with per-view basemaps, each overlay row gets the view grid, so an overlay can be on view B only; clicking the overlay's name adds it to every view, or removes it from all of them when every view already shows it.
 
+## Pre-rendered relief
+
+The basemap Library has a section of its own, **Pre-rendered relief (archaeology)**, folded at first: shaded and enhanced relief that a publisher has already rendered from lidar or a national elevation model, served as imagery. Each one stacks as an overlay over any terrain; the app's own visualization modes do not apply to it, since there is no elevation behind it. A search for "archaeology", "relief" or "sky view factor" finds the whole section, and it opens on its own while a search is typed.
+
+| Area | What is in it |
+|---|---|
+| Maya lowlands | Tikal, Holmul, La Corona, Chactun (hillshade, sky view factor, local dominance), the Alianza M-REDD+ blocks and transects and NASA G-LiHT strips (blended renders), by Tulane's MARI-GISLAB, **CC BY-NC-SA 4.0, non-commercial** |
+| Americas | USGS 3DEP (multi-directional hillshade, slope, tinted hillshade, the shaded relief basemap), Canada HRDEM lidar (hillshade, slope), Mexico INEGI hillshade, Kentucky and Pennsylvania lidar hillshades |
+| British Isles and the North | England EA 1 m DTM hillshade, Ireland GSI lidar hillshades (heritage surveys, OPW, TII), Norway, Sweden (hillshade, slope), Finland |
+| Benelux | AHN4 multi-directional hillshade, Flanders 25 cm hillshade and **sky view factor**, Wallonia hillshade and slope, Luxembourg lidar 2019 |
+| Central Europe | basemap.de, Bavaria, NRW, Saxony, Brandenburg, Berlin, Mecklenburg-Vorpommern, Rhineland-Palatinate, Thuringia; basemap.at terrain and surface, Styria, Upper Austria; swissALTI3D and swissSURFACE3D; Czech DMR 5G and DMP 1G; Slovakia; Poland |
+| Southern Europe | IGN LiDAR HD and RGE ALTI hillshades, slope and hypsometric tints; IGN Spain, Catalonia, Navarra, Basque Country; Portugal's coastal lidar; South Tyrol |
+| Asia-Pacific | GSI hillshade, **red relief map** (赤色立体地図), hypsometric tints and slope; CS立体図 for Nagano and Hyogo; LINZ hillshades; Tasmania, Queensland |
+
+Each entry carries the publisher's credit and licence (the info link opens its page). Most are open (CC BY, CC0, OGL, Etalab, Datenlizenz Deutschland); the Maya renders are not for commercial use, and a few endpoints are viewer back ends with no published terms for outside use (their descriptions say so).
+
+Two source settings fix what some of these services publish. ArcGIS Online serves an 8-bit layer (a sky view factor, a local dominance) with an alpha of about one half baked into every pixel, so at 100 % it still showed half the map through: `forceOpaque` draws every pixel with data fully opaque. A service with no overview tiles (the Maya renders start at zoom 11, 12 or 15) vanished when the view zoomed out: `underzoom` assembles the tiles of up to three zoom levels below its first one from the tiles at that level, fetching only those inside the source's extent. See the [source schema](/dev/source-schema#the-record).
+
 ## A basemap per view
 
 In **split view** (grid layouts up to 4×2 / 8 views, labeled A–H), each basemap row shows an A–H button grid so a different source can be assigned per view. Clicking a row's **label** (not just its A–H buttons) sets *every* active view in the current grid layout to that source in one click — handy for putting a whole 4×2 comparison grid onto Historical Imagery without clicking each pane individually.

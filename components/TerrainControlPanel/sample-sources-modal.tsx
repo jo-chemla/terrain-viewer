@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { CopyModalLinkButton } from "./controls-components"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { searchLibrary } from "@/lib/library-search"
+import { libraryGroup, usedLibraryGroups } from "@/lib/library-groups"
 import { compareWithMapterhorn, resolutionOf, formatRes, type MapterhornComparison, type MapterhornVerdict, type ResolutionMetric } from "@/lib/mapterhorn-compare"
 
 /** The fields every sample entry (terrain or basemap) is guaranteed to have. */
@@ -31,6 +32,9 @@ export interface SampleLike {
   keywords?: string
   /** A catalog search for the same data: adds a Browse button beside Add. */
   stac?: LibraryStacLink
+  /** A thematic section of its own (lib/library-groups.ts), listed after the
+   *  scope sections instead of in them. */
+  libraryGroup?: string
 }
 
 /** A Browse-only row (LibraryBrowseEntry), marked so it is never added. */
@@ -49,7 +53,11 @@ function browseTitle(stac: LibraryStacLink): string {
 }
 
 /** What the search reads of a row (see lib/library-search.ts). */
-const rowText = (s: SampleLike | BrowseRow) => `${s.name} ${s.id} ${s.type ?? ""} ${(s as SampleLike).keywords ?? ""}${isBrowseRow(s) ? " stac browse" : ""}`
+const rowText = (s: SampleLike | BrowseRow) => {
+  // A thematic group's title and keywords count as the row's own words.
+  const g = s.libraryGroup ? libraryGroup(s.libraryGroup) : null
+  return `${s.name} ${s.id} ${s.type ?? ""} ${(s as SampleLike).keywords ?? ""}${isBrowseRow(s) ? " stac browse" : ""}${g ? ` ${g.title} ${g.keywords ?? ""}` : ""}`
+}
 
 export type LibraryKind = "terrain" | "basemap"
 
@@ -278,7 +286,8 @@ export function SampleSourcesModal<T extends SampleLike>({
     .flatMap((s) => [(s as any).diffMinuendId, (s as any).diffSubtrahendId])
     .filter((id): id is string => typeof id === "string" && samples.some((x) => x.id === id && x.loadWithSamples === false))), [samples])
   // tier -> section -> rows. Without comparison everything sits in one tier.
-  const grouped = useMemo(() => {
+  // A row with a libraryGroup goes to that group instead (`groups`).
+  const { grouped, groups } = useMemo(() => {
     const out: Record<TierKey, Record<SectionKey, Array<T | BrowseRow>>> = {
       better: { national: [], global: [], regional: [], city: [] },
       derived: { national: [], global: [], regional: [], city: [] },
@@ -289,7 +298,12 @@ export function SampleSourcesModal<T extends SampleLike>({
     // order, so only their name ("Global - "), bounds and loadWithSamples
     // place them, and they sort after the mosaics of their section.
     const all = [...samples.map((s, i) => [s, i] as const), ...browseRows.map((s) => [s, -1] as const)]
+    const groups = new Map<string, Array<T | BrowseRow>>()
     searchLibrary(all, ([s]) => rowText(s), q).forEach(([s, i]) => {
+      if (s.libraryGroup) {
+        groups.set(s.libraryGroup, [...(groups.get(s.libraryGroup) ?? []), s])
+        return
+      }
       const c = comparisons.get(s.id)
       const tier: TierKey = !compareToMapterhorn ? "better"
         : kindOf(s.name)?.label === "Bathy" ? "bathy"
@@ -297,7 +311,7 @@ export function SampleSourcesModal<T extends SampleLike>({
         : c?.verdict === "new" || c?.verdict === "finer" || c?.verdict === "bareearth" ? "better" : "notBetter"
       out[tier][sectionOf(s, i, lastGlobal)].push(s)
     })
-    return out
+    return { grouped: out, groups }
   }, [samples, browseRows, comparisons, compareToMapterhorn, lastGlobal, q, eventOperands])
   /** The rows that can be added: every one but the Browse-only. */
   const addable = (rows: readonly (T | BrowseRow)[]): T[] => rows.filter((s): s is T => !isBrowseRow(s))
@@ -310,7 +324,9 @@ export function SampleSourcesModal<T extends SampleLike>({
   // reaches into it.
   // ...and a live filter opens everything, or typing a name that only exists
   // in the collapsed tier would show nothing at all.
-  const isOpen = (k: string) => (q ? true : openSections[k] ?? k !== "notBetter")
+  // A thematic group (`group:<key>`) is folded unless its registry entry
+  // says otherwise (lib/library-groups.ts).
+  const isOpen = (k: string) => (q ? true : openSections[k] ?? (k.startsWith("group:") ? !!libraryGroup(k.slice(6)).defaultOpen : k !== "notBetter"))
 
   const add = (entries: readonly T[]) => {
     // A "dem-diff" entry is nothing without its two operands: add those from
@@ -596,6 +612,17 @@ export function SampleSourcesModal<T extends SampleLike>({
                 )
               })
             : renderSections("better", "")}
+
+          {usedLibraryGroups(groups.keys()).map((g) => {
+            const rows = groups.get(g.key)!
+            const id = `group:${g.key}`
+            return (
+              <div key={id} className="space-y-3">
+                <Section id={id} title={g.title} icon={Mountain} blurb={g.blurb} rows={rows} level={1} />
+                {isOpen(id) && <div className="pl-2 divide-y divide-border/50">{rows.map((s) => <Row key={s.id} s={s} />)}</div>}
+              </div>
+            )
+          })}
 
           {catalogs.length > 0 && (
             <Collapsible open={isOpen("catalogs")} onOpenChange={(o) => setOpenSections((p) => ({ ...p, catalogs: o }))}>

@@ -95,6 +95,7 @@ import { lrmProtocol } from '@/lib/lrm-protocol'
 import { thresholdProtocol, lumaProtocol } from '@/lib/threshold-protocol'
 import { isobandProtocol } from '@/lib/isoband-protocol'
 import { unpaperProtocol } from '@/lib/unpaper-protocol'
+import { tileTransformProtocol } from '@/lib/tile-transform-protocol'
 import { epsg3395Protocol } from '@/lib/epsg3395-protocol'
 import { googleTimelapseProtocol } from '@/lib/google-timelapse'
 import { pcMosaicProtocol } from '@/lib/pc-mosaic'
@@ -1770,6 +1771,9 @@ export function TerrainViewer() {
     registerProtocol('luma', withTileResultCache(lumaProtocol))
     registerProtocol('isoband', withTileResultCache(isobandProtocol))
     registerProtocol('unpaper', withTileResultCache(unpaperProtocol))
+    // tiletx://<template>/{z}/{x}/{y}?o=..&mz=..&uz=.. - a source's forceOpaque
+    // and underzoom fixes (lib/tile-transform-protocol.ts).
+    registerProtocol('tiletx', withTileResultCache(tileTransformProtocol))
     registerProtocol('epsg3395', withTileResultCache(epsg3395Protocol))
     registerProtocol('gtimelapse', withTileResultCache(googleTimelapseProtocol))
     registerProtocol('pcmosaic', withTileResultCache(pcMosaicProtocol))
