@@ -144,5 +144,38 @@
         "description": ""
       }
     ]
+  },
+  "maya-lidar": {
+    "id": "maya-lidar",
+    "name": "Maya Lowlands Lidar",
+    "description": "Tikal, Holmul, La Corona (PACUNAM Lidar Initiative, 1 m) and Chactun (0.5 m): the sky view factor, local dominance and 16-direction hillshade renders of each, all twelve loaded at once as overlays (sky view factor on top; reorder or hide them in the Overlays list). Opens over Tikal at zoom 14; the renders show from zoom 11 or 12 (Chactun's sky view factor from 15). Renders by the Middle American Research Institute GIS Lab (MARI-GISLAB) at Tulane University, Estrada-Belli et al. 2023, CC BY-NC-SA 4.0; see Estrada-Belli, Canuto, Šprajc and Fernandez-Diaz (2025), Journal of Archaeological Science: Reports, doi:10.1016/j.jasrep.2025.105288.",
+    "initialState": {
+      "overlayBasemapIds": [
+        "maya-lidar-tikal-svf",
+        "maya-lidar-tikal-ld",
+        "maya-lidar-tikal-hs",
+        "maya-lidar-holmul-svf",
+        "maya-lidar-holmul-ld",
+        "maya-lidar-holmul-hs",
+        "maya-lidar-la-corona-svf",
+        "maya-lidar-la-corona-ld",
+        "maya-lidar-la-corona-hs",
+        "maya-lidar-chactun-svf",
+        "maya-lidar-chactun-ld",
+        "maya-lidar-chactun-hs"
+      ],
+      "overlaysStack": "top",
+      "showRasterBasemap": true,
+      "showHillshade": false,
+      "showColorRelief": false,
+      "viewMode": "2d",
+      "pitch": 0,
+      "lat": 17.2222,
+      "lng": -89.6237,
+      "zoom": 14
+    },
+    "initialSections": {
+      "rasterBasemap": true
+    }
   }
 }

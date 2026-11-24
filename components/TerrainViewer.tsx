@@ -2116,6 +2116,15 @@ export function TerrainViewer() {
       }
       for (const field of ["basemapSource", ...VIEW_IDS.map((side) => `basemapSource${side}`)]) considerBasemap(searchParams.get(field))
       for (const id of addSourceIds) considerBasemap(id)
+      // Overlays a link or a project switches on (overlayBasemapIds,
+      // overlayBasemapIdsB...): drawn only when they are in this browser's
+      // list, and stacked in its order (first on top), so seeded in the
+      // order given.
+      for (const field of ["overlayBasemapIds", ...VIEW_IDS.filter((side) => side !== "A").map((side) => `overlayBasemapIds${side}`)]) {
+        const fromProject = projectConfig?.initialState?.[field]
+        const ids = searchParams.has(field) ? (searchParams.get(field) ?? "").split(",") : Array.isArray(fromProject) ? fromProject.map(String) : []
+        for (const id of ids) considerBasemap(id.trim())
+      }
       if (missingBasemap.length) {
         setCustomBasemapSources((prev) => [...prev.filter((s) => !missingBasemapIds.has(s.id)), ...missingBasemap])
       }
