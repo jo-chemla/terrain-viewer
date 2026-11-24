@@ -1,6 +1,7 @@
 import { atomWithStorage } from "jotai/utils"
 import type { TerrainSourceEntry, RasterSourceEntry } from "./source-schema"
 import { atom } from "jotai"
+import { GLIHT_DEFAULT_BASE } from "./gliht-kmz"
 import type { ViewId } from "./grid-layouts"
 import type { ProjectConfig } from "./project-config"
 
@@ -210,11 +211,12 @@ export const titilerEndpointAtom = atomWithStorage("titilerEndpoint", "https://t
  *  QGIS project (its /qgis.qgz with the view's parameters). */
 export const tileServerUrlAtom = atomWithStorage("tileServerUrl", "")
 /** Where the gliht:// protocol reads NASA G-LiHT's KMZs (lib/gliht-protocol.ts
- *  reads this key from storage itself, GLIHT_BASE_URL_KEY): empty for
- *  glihtdata.gsfc.nasa.gov (no CORS: needs a CORS-unblocking extension), a
- *  base URL such as the tile service's `<server>/proxy/gliht`, or a CORS
+ *  reads this key from storage itself, GLIHT_BASE_URL_KEY): by default the
+ *  local tile service's proxy, http://localhost:3400/proxy/gliht; empty for
+ *  glihtdata.gsfc.nasa.gov (no CORS: needs a CORS-unblocking extension); any
+ *  base URL such as another tile service's `<server>/proxy/gliht`, or a CORS
  *  proxy template with `{url}`. */
-export const glihtBaseUrlAtom = atomWithStorage("glihtBaseUrl", "")
+export const glihtBaseUrlAtom = atomWithStorage("glihtBaseUrl", GLIHT_DEFAULT_BASE)
 
 /** Primary viewport centre, mirrored from the URL camera state by TerrainViewer.
  *  Read by useClientDemUpstream (MapSources.tsx) so EVERY client-computed viz

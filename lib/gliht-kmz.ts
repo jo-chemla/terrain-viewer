@@ -32,8 +32,13 @@
 //                          their footprints in lidar/kml/tiles/<c>_tiles.kmz
 
 export const GLIHT_ORIGIN = "https://glihtdata.gsfc.nasa.gov"
+/** The G-LiHT address setting's default: the local tile service's CORS proxy
+ *  (tile-server/proxy.mjs). Chrome and Firefox let an https page fetch
+ *  http://localhost (a potentially trustworthy origin, not mixed content);
+ *  Chrome 142+ asks the user once for local network access. */
+export const GLIHT_DEFAULT_BASE = "http://localhost:3400/proxy/gliht"
 
-export type Fetcher = (url: string, init: { headers: Record<string, string>; signal?: AbortSignal }) => Promise<Response>
+export type Fetcher = (url: string, init: { method?: "GET" | "HEAD"; headers: Record<string, string>; signal?: AbortSignal }) => Promise<Response>
 export type DecodedImage = { width: number; height: number; data: Uint8Array | Uint8ClampedArray }
 export type PngDecoder = (bytes: Uint8Array) => Promise<DecodedImage>
 export type Env = { fetch: Fetcher; decodePng: PngDecoder; signal?: AbortSignal }
@@ -65,26 +70,52 @@ export type Zip = { url: string; size: number; entries: Map<string, Entry> }
 const u16 = (b: Uint8Array, o: number) => b[o] | (b[o + 1] << 8)
 const u32 = (b: Uint8Array, o: number) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0
 
-async function rangeGet(env: Env, url: string, range: string): Promise<{ bytes: Uint8Array; total: number; whole: boolean }> {
+// Nothing here reads Content-Range: it is not a CORS-safelisted response
+// header, so behind a CORS-unblocking extension (Access-Control-Allow-Origin
+// added, no Access-Control-Expose-Headers) the browser hides it. Where a
+// range starts is known from the request, and where the zip's tail starts
+// from its own end record.
+async function rangeGet(env: Env, url: string, range: string): Promise<{ bytes: Uint8Array; whole: boolean }> {
   const res = await env.fetch(url, { headers: { Range: `bytes=${range}` }, signal: env.signal })
   if (!res.ok) throw new Error(`G-LiHT ${url}: HTTP ${res.status}`)
   const bytes = new Uint8Array(await res.arrayBuffer())
-  if (res.status === 206) {
-    const m = /\/(\d+)\s*$/.exec(res.headers.get("content-range") ?? "")
-    return { bytes, total: m ? Number(m[1]) : NaN, whole: false }
+  // A server (or proxy) that ignores Range sends the whole file (200): still
+  // usable, the offsets then count from 0.
+  return { bytes, whole: res.status !== 206 }
+}
+
+/** The file's length from a HEAD: Content-Length IS a CORS-safelisted
+ *  response header, readable with Access-Control-Allow-Origin alone. An HTTP
+ *  error is thrown as such (a cell listed without a KMZ is a 404); NaN when
+ *  the HEAD itself is refused or says nothing. */
+async function headSize(env: Env, url: string): Promise<number> {
+  let res: Response
+  try {
+    res = await env.fetch(url, { method: "HEAD", headers: {}, signal: env.signal })
+  } catch (e) {
+    if (env.signal?.aborted) throw e
+    return NaN
   }
-  // A server (or proxy) that ignores Range sends the whole file: still usable.
-  return { bytes, total: bytes.length, whole: true }
+  if (!res.ok) throw new Error(`G-LiHT ${url}: HTTP ${res.status}`)
+  const n = Number(res.headers.get("content-length"))
+  return n > 0 ? n : NaN
 }
 
 /** The end-of-central-directory record is in the last 22 + 65535 bytes. */
 const TAIL = 65557
 
+/** Opens a zip by Range. On NASA's host itself (read through a
+ *  CORS-unblocking extension) the tail is asked as an explicit
+ *  `bytes=start-end`, after a HEAD for the length: a suffix range
+ *  (`bytes=-N`) is not a CORS-safelisted Range, so the browser sends a
+ *  preflight, which the extensions answer without
+ *  Access-Control-Allow-Headers: range, and the real GET is never sent.
+ *  `bytes=start-end` goes without a preflight (g-liht.mdx, CORS). Through a
+ *  proxy, which allows Range, one suffix request. */
 export async function openZip(env: Env, url: string): Promise<Zip> {
-  const tail = await rangeGet(env, url, `-${TAIL}`)
-  const size = tail.whole ? tail.bytes.length : tail.total
+  const head = url.startsWith(GLIHT_ORIGIN + "/") ? await headSize(env, url) : NaN
+  const tail = await rangeGet(env, url, Number.isFinite(head) ? `${Math.max(0, head - TAIL)}-${head - 1}` : `-${TAIL}`)
   const t = tail.bytes
-  const tailStart = size - t.length
   let eocd = -1
   for (let i = t.length - 22; i >= 0; i--) if (u32(t, i) === 0x06054b50) { eocd = i; break }
   if (eocd < 0) throw new Error(`G-LiHT ${url}: not a zip (no end record)`)
@@ -92,6 +123,10 @@ export async function openZip(env: Env, url: string): Promise<Zip> {
   const cdSize = u32(t, eocd + 12)
   const cdOffset = u32(t, eocd + 16)
   if (cdOffset === 0xffffffff || count === 0xffff) throw new Error(`G-LiHT ${url}: zip64 is not supported`)
+  // The end record follows the directory (no zip64 locator, refused above):
+  // its offset in the file is cdOffset + cdSize, which places the tail.
+  const tailStart = tail.whole ? 0 : cdOffset + cdSize - eocd
+  const size = tailStart + t.length
   let cd: Uint8Array
   if (tail.whole) cd = t.subarray(cdOffset, cdOffset + cdSize)
   else if (cdOffset >= tailStart) cd = t.subarray(cdOffset - tailStart, cdOffset - tailStart + cdSize)

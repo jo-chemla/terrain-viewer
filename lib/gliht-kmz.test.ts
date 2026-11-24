@@ -23,18 +23,31 @@ const files: Record<string, Uint8Array> = {
   [GLIHT_ORIGIN + cellKmzPath("AMIGACarb_Yuc_Norte_GLAS_Apr2013", "l0s397")]: readFileSync(FIX + "AMIGACarb_Yuc_Norte_GLAS_Apr2013_l0s397_DTM.subset.kmz"),
 }
 
-/** An Apache-like host: Range (start-end and suffix) answered 206, else 404. */
+const PROXY = "http://proxy.test/proxy/gliht"
+
+/** An Apache-like host: Range answered 206, else 404. NASA's host is seen
+ *  as a browser with a CORS-unblocking extension sees it (checked in Chrome
+ *  158 against a server answering like the extensions, g-liht.mdx): a suffix
+ *  range needs a preflight the extension does not approve, so the fetch
+ *  fails with a TypeError and the server never sees the GET; Content-Range
+ *  is hidden (not CORS-safelisted, not exposed); Content-Length is readable.
+ *  Any other address is a proxy, answering everything, Content-Range
+ *  included; the files are there behind PROXY. */
 function host() {
   const log: string[] = []
   const fetch: Env["fetch"] = async (url, init) => {
-    const body = files[url]
-    log.push(`${url.split("/").pop()} ${init.headers.Range ?? ""}`)
+    const viaProxy = !url.startsWith(GLIHT_ORIGIN + "/")
+    const body = files[url.startsWith(PROXY + "/") ? GLIHT_ORIGIN + url.slice(PROXY.length) : url]
+    const range = init.headers.Range ?? ""
+    if (!viaProxy && /^bytes=-/.test(range)) throw new TypeError("Failed to fetch (preflight: range not allowed)")
+    log.push(`${url.split("/").pop()} ${init.method ?? "GET"} ${range}`)
     if (!body) return new Response("not found", { status: 404 })
-    const r = /^bytes=(\d*)-(\d*)$/.exec(init.headers.Range ?? "")
+    if (init.method === "HEAD") return new Response(null, { status: 200, headers: { "content-length": String(body.length) } })
+    const r = /^bytes=(\d*)-(\d*)$/.exec(range)
     if (!r) return new Response(body as Uint8Array<ArrayBuffer>, { status: 200 })
     const start = r[1] === "" ? Math.max(0, body.length - Number(r[2])) : Number(r[1])
     const end = r[1] === "" || r[2] === "" ? body.length - 1 : Math.min(body.length - 1, Number(r[2]))
-    return new Response(body.slice(start, end + 1) as Uint8Array<ArrayBuffer>, { status: 206, headers: { "content-range": `bytes ${start}-${end}/${body.length}` } })
+    return new Response(body.slice(start, end + 1) as Uint8Array<ArrayBuffer>, { status: 206, headers: viaProxy ? { "content-range": `bytes ${start}-${end}/${body.length}` } : {} })
   }
   return { fetch, log }
 }
@@ -97,7 +110,14 @@ test("zip directory and pyramid of a campaign KMZ", async () => {
   const url = GLIHT_ORIGIN + campaignKmzPath("Kuiic2_Apr2013")
   const zip = await openZip(env, url)
   assert.equal(zip.entries.size, 29)
-  assert.equal(log.length, 1, "a small directory comes with the end record")
+  assert.equal(log.length, 2, "NASA's host: a HEAD, then the end record with the small directory, as bytes=start-end")
+  assert.match(log[0], / HEAD $/)
+  assert.match(log[1], / GET bytes=\d+-\d+$/)
+  const viaProxy = await openZip(env, PROXY + campaignKmzPath("Kuiic2_Apr2013"))
+  assert.equal(viaProxy.entries.size, 29)
+  assert.match(log[2], / GET bytes=-65557$/, "a proxy: one suffix request")
+  assert.equal(log.length, 3)
+  log.length = 0
   const p = await openPyramid(env, url)
   assert.deepEqual([p.maxLevel, p.tileW, p.tileH], [4, 125, 375])
   assert.deepEqual(p.root, [[-89.531919, 20.032479], [-89.512814, 20.032751], [-89.513677, 20.086918], [-89.532788, 20.086645]])

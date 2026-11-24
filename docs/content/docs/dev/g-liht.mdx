@@ -9,9 +9,9 @@ description: What glihtdata.gsfc.nasa.gov and LP DAAC serve, what the KMZ pictur
 
 ## Verdict
 
-- **The KMZ pictures are elevation, not a hillshade.** Each DTM KMZ is a GDAL super-overlay of PNG tiles whose grey is the 1 m bare earth, linearly stretched: black at the raster's minimum, white near its 99.9th percentile. Measured against the Float32 GeoTIFFs of four rasters (below), the grey decodes back to the GeoTIFF to 0.06-0.2 m RMS, the 8-bit step. The stretch is per KMZ and written nowhere in it, so heights need the two numbers measured once against the GeoTIFF; without them the grey is still the relief's shape, up to a scale.
+- **The KMZ pictures are elevation, not a hillshade.** Each DTM KMZ is a GDAL super-overlay of PNG tiles whose grey is the 1 m bare earth, linearly stretched: black at (or just above) the raster's minimum, white at its 99.9th percentile. Measured on 2026-11-25 against the Float32 GeoTIFFs of eight campaigns (below), the grey decodes back to the GeoTIFF at the 8-bit step: 0.01 to 0.2 m RMS, 0.9 m on a 750 m mountain. The stretch is per KMZ (every tile of a KMZ gives the same fit) and written nowhere in it, and its low end is not a fixed percentile, so heights need the two numbers measured once against the GeoTIFF; without them the grey is still the relief's shape, up to a scale.
 - **The app reads the KMZs in place** (`gliht://`, `lib/gliht-kmz.ts`): the zip's central directory by HTTP Range, then only the PNG tiles of the level a map tile needs, warped from their lon/lat quads to Web Mercator. Any campaign as a greyscale overlay from the coverage popup (**Use as overlay**), and the three Kiuic blocks as **terrain** (heights decoded with their measured stretch) and overlays in the library.
-- **CORS**: the host still sends none. Either a CORS-unblocking browser extension, or the tile service's allow-listed proxy (`/proxy/gliht`, see [Tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)), set in **Settings > G-LiHT address**.
+- **CORS**: the host still sends none. By default (since 2026-11-25) the app reads through the tile service's allow-listed proxy on the same computer, `http://localhost:3400/proxy/gliht` (**Settings > G-LiHT address**, see [Tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)); when it does not answer, a message says so and NASA's host is read directly, which works with a CORS-unblocking browser extension. Until 2026-11-25 the extension route showed nothing: the reader's first request was a suffix Range, which needs a preflight the extensions do not approve ([below](#cors-why-an-unblocking-extension-showed-nothing)).
 - **Raw Float32 through Earthdata**: LP DAAC's cloud copy (`GLDTMT`, 22 093 DTM granules) is the same GeoTIFFs as NASA's gzipped files, uncompressed, so they are range-readable, but only with an Earthdata login and with no CORS. The tile service's `/proxy/earthdata` holds the token (`EARTHDATA_TOKEN`, never in the browser) and writes a VRT over a granule for the app's `vrt://` reader. Not a COG: no overviews, so usable from about z16.
 - **Canopy height** is in the same packaging (KMZ, gzip, `GLCHMT`), not wired: not asked for.
 
@@ -21,6 +21,9 @@ description: What glihtdata.gsfc.nasa.gov and LP DAAC serve, what the KMZ pictur
 |---|---|---|
 | CORS on a DTM KMZ, the tiles KMZ, a DTM tar.gz | `GET` with `Origin:` and `Range: bytes=0-99` | `206 Partial Content`, `Accept-Ranges: bytes`, no `Access-Control-*` header |
 | Preflight | `OPTIONS` with `Access-Control-Request-Headers: range` | `200`, `Allow: GET,POST,OPTIONS,HEAD`, no `Access-Control-*` header |
+| The zip's tail | `GET` with `Range: bytes=-65557` on `Kuiic2_Apr2013_DTM.kmz` | `206`, `Content-Range: bytes 2442967-2508523/2508524`, no redirect |
+| Length | `HEAD` | `200`, `Content-Length: 2508524` |
+| `http://` | any | `301` to the same path on `https://` (same host) |
 | LP DAAC cloud GeoTIFF, no token or a wrong one | `GET` with `Range` | `302` to `urs.earthdata.nasa.gov/oauth/authorize` (`app_type=401`), never a 401 |
 | LP DAAC preflight | `OPTIONS` with `Origin`, `Access-Control-Request-Headers: authorization,range` | `405`: a browser cannot send a token at all |
 | LP DAAC browse picture (`lp-prod-public`) | `GET` | `303` to a signed CloudFront address, no login |
@@ -31,24 +34,54 @@ description: What glihtdata.gsfc.nasa.gov and LP DAAC serve, what the KMZ pictur
 
 `Kuiic1_Apr2013_DTM.kmz` (19 MB, the whole campaign) is a zip of 10 923 entries, all deflated, written by GDAL's KMLSUPEROVERLAY driver. `doc.kml` holds one `NetworkLink` to `0/0/0.kml`; each `L/x/y.kml` holds a `GroundOverlay` (its `L/x/y.png` placed by a `gx:LatLonQuad`, the raster being UTM and so slightly rotated in lon/lat) and four `NetworkLink`s to the next level, gated by `Region`/`Lod` (`minLodPixels` 128). Seven levels, 0 to 6 (1, 4 … 4 096 tiles), each tile a 78 × 203 RGBA PNG: the tiles are fixed pixel blocks of the UTM raster counted from its south-west corner, and the last level is the 1 m raster itself (5 005 × 13 013 there). A tile's PNG and KML are next to each other in the zip, so one Range request reads both. AMIGA-Carb ships one KMZ per cell (`lidar/kml/dtm/<campaign>_<cell>_DTM.kmz`, `…_l0s397_DTM.kmz` is 2.8 MB, 719 entries, levels 0 to 4, 69 × 357 tiles) and lists the cells in `lidar/kml/tiles/<campaign>_tiles.kmz`.
 
-There is no legend, `ScreenOverlay` or style in any KML. The PNGs are grey (R = G = B), alpha 0 off the swath and 255 on it, values 1 to 255. A level-6 tile of a flat area reads 44 to 59, not the ~180 a hillshade gives flat ground, and the level-3 mosaic shows the Puuc hills as bright blobs: elevation.
+There is no legend, `ScreenOverlay`, `ExtendedData` or description in any KML (GDAL writes an empty `<description>` and a `checkHideChildren` list style, nothing else). The PNGs are grey (R = G = B), alpha 0 off the swath and 255 on it, values 1 to 255. A level-6 tile of a flat area reads 44 to 59, not the ~180 a hillshade gives flat ground, and the level-3 mosaic shows the Puuc hills as bright blobs: elevation.
 
 ### The PNGs against the GeoTIFF
 
-For four rasters the Float32 GeoTIFF was downloaded (Kiuic: the `.tif.gz`; the AMIGA cell: the first 30 MB of the campaign's `.tar.gz`, enough to extract its member) and compared pixel for pixel with the KMZ, each PNG tile against the block of the GeoTIFF it was cut from (block-averaged to its size), in the swath and away from its edge:
+Measured on 2026-11-25 with `scripts/gliht-stretch.py` on eight campaigns: the three Kiuic blocks and five others picked for their relief (an Alaskan valley, Puerto Rico's El Yunque, the Algodones dunes, the Shenandoah valley, Long Island's dunes). For each, the whole `<campaign>_DTM.tif.gz` and the KMZ were downloaded (to a scratch folder, never the repository), and every PNG tile of the 1 m level (2 000 pixels a tile) was compared with the GeoTIFF box-averaged over each grey pixel's footprint, placed by the tile's quad, in the swath and away from its edge. Fitted: metres = `lo` + grey / 255 × (`hi` − `lo`), on the pixels below 255.
 
-| Raster | GeoTIFF range | Grey 0 = | Grey 255 = | GeoTIFF 99.9th pct | r | Decoded − GeoTIFF, RMS |
-|---|---|---|---|---|---|---|
-| Kuiic1_Apr2013 (level 3) | 67.66 – 166.16 m | 67.67 m | 153.37 m | 153.57 m | 0.99992 | 0.21 m |
-| Kuiic2_Apr2013 (level 4, the 1 m level) | 91.62 – 150.11 m | 92.01 m | 146.59 m | 146.67 m | 0.99997 | 0.06 m |
-| Kuiic3_Apr2013 (level 3) | 85.66 – 157.99 m | 85.71 m | 152.76 m | 152.89 m | 0.99988 | 0.17 m |
-| AMIGACarb Yuc_Norte l0s397 (level 1) | 0.57 – 12.53 m | 0.57 m | 4.26 m | 4.24 m | 0.959 | 0.07 m |
+| Campaign | GeoTIFF min – max | 99.9th pct | `lo` (grey 0) | `hi` (grey 255) | Step | RMSE, decoded − GeoTIFF | Per-tile fits, sd of `lo` / `hi` | GeoTIFF below `lo` / above `hi` | RMSE of the rule min / p99.9 |
+|---|---|---|---|---|---|---|---|---|---|
+| Kuiic1_Apr2013 | 67.67 – 166.16 m | 153.57 | **67.66** | **153.42** | 0.336 m | 0.10 m | 0.04 / 0.08 m (1 554 tiles) | 0 % / 0.10 % | 0.12 m |
+| Kuiic2_Apr2013 | 91.62 – 150.11 m | 146.67 | **92.01** | **146.59** | 0.214 m | 0.08 m | 0.03 / 0.08 m (100) | 0.04 % / 0.10 % | 0.26 m |
+| Kuiic3_Apr2013 | 85.66 – 157.99 m | 152.89 | **85.71** | **152.74** | 0.263 m | 0.08 m | 0.03 / 0.05 m (314) | 0.00 % / 0.11 % | 0.09 m |
+| AK_20180713_Healy_0 | 557.04 – 682.33 m | 681.25 | 560.67 | 681.00 | 0.472 m | 0.22 m | 0.11 / 0.06 m (29) | 0.08 % / 0.13 % | 1.55 m |
+| PR_17March2017_EV2 | 71.17 – 822.35 m | 808.56 | 74.11 | 807.12 | 2.875 m | 0.91 m | 0.54 / 0.33 m (38) | 0.05 % / 0.12 % | 1.73 m |
+| Algodones_T_11Mar2015 | 60.02 – 110.23 m | 108.24 | 61.57 | 108.18 | 0.183 m | 0.08 m | 0.02 / 0.04 m (16) | 0.07 % / 0.10 % | 0.85 m |
+| VA_20171128_Harrisonburg | 396.77 – 472.95 m | 452.91 | 397.70 | 452.95 | 0.217 m | 0.21 m | 0.06 / 0.30 m (74) | 0.06 % / 0.10 % | 0.58 m |
+| Long_Island_Dunes_Jun2015 | −1.63 – 12.02 m | 8.92 | −1.65 | 8.98 | 0.042 m | 0.012 m | 0.002 / 0.008 m (51) | 0 % / 0.09 % | 0.016 m |
+| AMIGACarb Yuc_Norte l0s397 (2026-11-24, level 1) | 0.57 – 12.53 m | 4.24 | 0.57 | 4.26 | 0.015 m | 0.07 m | | | |
 
-So the stretch is linear from the minimum to about the 99.9th percentile (a few centimetres to 0.4 m off it, an approximate histogram), and heights above it are clipped to white. The error is the 8-bit step (0.21 m over 54 m at Kiuic 2, step / √12 = 0.062 m). The coastal AMIGA cell spans 3.7 m in 255 steps, so its correlation is lower but its error is 1.4 cm per level.
+- **Linear.** A quadratic fit gives the same RMSE to the millimetre on all eight, and the mean residual per band of 51 grey levels is within ±2 cm (±5 cm at El Yunque, whose step is 2.9 m).
+- **At the 8-bit step.** The RMSE is the quantization's, step / √12 (0.097 m at Kiuic 1, 0.012 m at Long Island), a little above it on steep 1 m relief (Healy, Harrisonburg), where the grey pixel and the GeoTIFF cell are not the same grid. A coarse level (8 m pixels) gives the same `lo` and `hi` within a few centimetres and a higher RMSE (0.2 m at Kiuic), the averaging inside each pixel: the earlier advice to fit on a coarse level is withdrawn.
+- **Per KMZ, not per tile.** Fitted tile by tile, `lo` and `hi` stay within a fraction of the step of the whole-KMZ fit; the tiles share one stretch.
+- **White is the 99.9th percentile**, every time (0.09 % to 0.13 % of the GeoTIFF above `hi`; `hi` within 0.25 m of the percentile, 1.4 m at El Yunque whose step is 2.9 m). **Black is not a fixed rule**: the raster's minimum on four (Kiuic 1 and 3, Long Island, the AMIGA cell), between the 0.05th and 0.08th percentile on the others (3.6 m above the minimum at Healy, 2.9 m at El Yunque). Probably percentiles of an approximate (sampled) histogram, where a thin low tail is sometimes kept and sometimes cut. So `lo` = min, `hi` = p99.9 decodes the Kiuic blocks to 0.1-0.3 m but others to 0.6-1.7 m: an offset of the whole surface and a slight scale error.
+- **Nothing to derive it from**: no metadata in any KML, nothing in the names, the PNG greys run 1 to 255 in all eight. The webmap's `flightData.js` lists sizes and footprints, no statistics. A stretch for a campaign comes only from its GeoTIFF (or the Earthdata granule).
+
+The Kiuic library entries use the 1 m fits above (Kiuic 1 moved from 67.67 / 153.37 to 67.66 / 153.42, Kiuic 3 from 85.71 / 152.76 to 85.71 / 152.74, Kiuic 2 unchanged): a few centimetres.
 
 **Can a hillshade be inverted?** Not in general: a one-light hillshade keeps only the gradient's component towards the light (the perpendicular one is lost), plus no absolute height and no scale; shape-from-shading gives an approximation, never the DTM. It does not arise here, the pictures are the heights.
 
-The recipe, for another campaign: download its DTM `.tif.gz` (or one member of the `.tar.gz`) and its KMZ, fit grey against the block-averaged GeoTIFF over a coarse level (level 3 or so: at the 1 m level a fraction of a pixel of misregistration biases the slope), and take `lo` = grey 0 and `hi` = grey 255 of the fit. Or, without fitting: `lo` = the GeoTIFF's minimum, `hi` = its 99.9th percentile (`gdalinfo -hist`), good to a few decimetres.
+The recipe, for another campaign: download its DTM `.tif.gz` (gunzip it; or one member of the `.tar.gz`) and its KMZ, run `python scripts/gliht-stretch.py <c>_DTM.tif <c>_DTM.kmz` (numpy, rasterio, Pillow; seconds to a minute), and take `fit.lo` and `fit.hi`. Without the fit: `hi` = the GeoTIFF's 99.9th percentile, `lo` = its minimum, good to a few decimetres on some campaigns and to a couple of metres on others (table).
+
+### CORS: why an unblocking extension showed nothing
+
+Reported on 2026-11-24: on the deployed site, with an "allow CORS" extension, the Kiuic sources drew nothing, DevTools showing the `OPTIONS` preflight succeed and the real requests fail; through the local proxy they drew. The host is not the cause: `https` with no redirect (no hop to another host that would lose the extension's headers), `206` with `Content-Range` and `Accept-Ranges`. The reader's first request was:
+
+- **A suffix Range**, `bytes=-65557`, for the zip's end record. The Fetch standard lets `Range` through without a preflight only as a simple range, `bytes=N-` or `bytes=N-M`; a suffix range triggers one. The extensions add `Access-Control-Allow-Origin` (and allow-methods) to every answer, but no `Access-Control-Allow-Headers: range` (by default; an MV3 extension cannot echo the request's headers), so the preflight's CORS check fails. DevTools shows the `OPTIONS` row as `200` (its HTTP status, not the check) and the `GET` as a CORS error: it is never sent. Every KMZ's first read died there, so nothing else was asked.
+- **Reading `Content-Range`** for the file's length: not a CORS-safelisted response header, so hidden unless exposed (`Access-Control-Expose-Headers`, which the extensions do not send by default). It returned null, which only cost an extra request, but it was the next thing to fail.
+
+Checked in Chrome 158 (headless) against a local server answering like the extensions (`Access-Control-Allow-Origin: *` on everything, no allow-headers, no expose-headers):
+
+| Request | Preflight | Result |
+|---|---|---|
+| `Range: bytes=-65557` | yes, refused | `TypeError: Failed to fetch`, the server sees only the `OPTIONS` |
+| `Range: bytes=100-199` | none | `206`, 100 bytes, `Content-Range` null, `Content-Length` 100 |
+| `Range: bytes=100-` | none | `206` |
+| `HEAD` | none | `200`, `Content-Length` readable |
+| `bytes=-65557`, preflight answered `Access-Control-Allow-Headers: *` | yes, passes | `206`, `Content-Range` still null |
+
+So since 2026-11-25, on NASA's host itself, `openZip` asks a `HEAD` (`Content-Length` is a safelisted response header) and then the tail as `bytes=<length − 65557>-<length − 1>`; every later read was already `bytes=start-end`; and nothing reads `Content-Range` any more (where the tail sits in the file follows from the end record: it starts at the directory's offset plus its size, minus the record's place in the tail). With only `Access-Control-Allow-Origin` added, every request is now a simple one. Through a proxy (which allows `Range`) the single suffix request stays. Tested against the real host with the browser's rules applied to the answers (no suffix range, no `Content-Range`): a Kiuic 1 tile at z14 over 20.09, -89.56 in 5 requests, 39 197 pixels, 82.8 to 153.4 m; `lib/gliht-kmz.test.ts` replays the same rules offline. Not tried with the extension itself in a real browser.
 
 ### The tiles KMZ
 
@@ -76,7 +109,12 @@ gliht://<campaign>/{z}/{x}/{y}?cells=1         a per-cell campaign (AMIGA-Carb o
 
 Measured through the proxy: a first Kiuic 1 tile at z16 takes 9 requests and 0.9 MB (most of it the directory, once), its neighbours one request each; an AMIGA cell tile at z15, 5 requests and 1.2 MB.
 
-**Where it reads from** (**Settings > G-LiHT address**, local, `glihtBaseUrl` in storage): empty for the host itself, which works only with a CORS-unblocking extension; the tile service's `<server>/proxy/gliht` (a link fills it from the Tile Service field); or any CORS proxy written as a template with `{url}` (`https://proxy.example/?url={url}`, the full glihtdata address goes in, encoded).
+**Where it reads from** (**Settings > G-LiHT address**, local, `glihtBaseUrl` in storage):
+
+- **By default, `http://localhost:3400/proxy/gliht`**, the tile service on the same computer (`cd tile-server && pnpm start`). The deployed app is `https`, but `http://localhost` is a potentially trustworthy origin (Secure Contexts), so Chrome, Edge and Firefox do not block it as mixed content. Chrome 142+ asks once for **local network access** (a public site reaching the computer itself); refused, the requests fail like a stopped service. The proxy's preflight answer also carries `Access-Control-Allow-Private-Network: true`, for browsers still on Private Network Access. Safari was not checked. This follows the standards; it was not tried on the deployed site from here (the agent browser draws no map).
+- **When the proxy does not answer** (not started, access refused): a message says so once, and the tiles are read from NASA's host directly, the proxy being tried again 30 s later. With a CORS-unblocking extension the map then fills; without one a second message says to start the service or turn on an extension. No silent empty tiles.
+- **Empty** (the field cleared, or its **clear** link): NASA's host only, which needs a CORS-unblocking extension.
+- Another tile service's `<server>/proxy/gliht` (a link fills it from the Tile Service field), or any CORS proxy written as a template with `{url}` (`https://proxy.example/?url={url}`, the full glihtdata address goes in, encoded).
 
 **In the app**:
 
@@ -114,6 +152,6 @@ The webmap reads one index, `DATA/flightData.js` (23 MB: `var flightData = {…}
 
 ## Still open
 
-1. **A stretch for every campaign**: heights need `lo`/`hi` per KMZ, measured on the GeoTIFF. Doing it for all 1 521 means downloading 142 GB of gzip once (or reading the uncompressed granules through Earthdata); a script could then bake `lo`/`hi` into `gliht.geojson`, and the popup could offer **Use as terrain** too.
+1. **A stretch for every campaign**: heights need `lo`/`hi` per KMZ, measured on the GeoTIFF (`scripts/gliht-stretch.py`); no rule replaces it (black is not a fixed percentile). Doing it for all 1 521 means downloading 142 GB of gzip once (or reading the uncompressed granules through Earthdata); a script could then bake `lo`/`hi` into `gliht.geojson`, and the popup could offer **Use as terrain** too.
 2. **Re-hosting as COGs** (Kiuic: 135 MB of gzip in, a few hundred MB out; the Yucatan CHM: 2.2 GB) still gives the best reading: exact Float32 with overviews, no proxy, no token. Not done without approval.
 3. **titiler** does not help with the archives (`/vsigzip/` re-inflates from the start for every window); with `GDAL_HTTP_HEADERS="Authorization: Bearer …"` a self-hosted titiler could read the LP DAAC granules, which a public titiler cannot (the token would be in every request).

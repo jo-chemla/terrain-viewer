@@ -11,22 +11,34 @@
 //
 // glihtdata.gsfc.nasa.gov sends no CORS header, so where the KMZs are read
 // from is a local setting (Settings > Sources: "G-LiHT address",
-// glihtBaseUrlAtom): empty for the host itself (a CORS-unblocking browser
-// extension needed), the tile service's `<server>/proxy/gliht`, or any CORS
+// glihtBaseUrlAtom): by default the local tile service's proxy
+// (GLIHT_DEFAULT_BASE, http://localhost:3400/proxy/gliht; an https page may
+// fetch http://localhost, a potentially trustworthy origin), empty for the
+// host itself (a CORS-unblocking browser extension needed), or any CORS
 // proxy as a `{url}` template. It is read from storage on every tile, so a
 // change applies to the next tiles without a reload.
-import { GLIHT_ORIGIN, parseGlihtUrl, readGreyTile, greyToMetres, type Env } from "./gliht-kmz"
+//
+// When the proxy does not answer (tile service not started, local network
+// access refused), a toast says so once and the tiles are read from NASA's
+// host directly for 30 s before the proxy is tried again: with a
+// CORS-unblocking extension the map still fills; without one a second toast
+// says what to do. Never silent empty tiles.
+import { pushToast } from "@/components/ui/toast"
+import { GLIHT_ORIGIN, GLIHT_DEFAULT_BASE, parseGlihtUrl, readGreyTile, greyToMetres, type Env } from "./gliht-kmz"
 import { toTileImage, type TileImage } from "./tile-image"
 import { pixelView, writeTerrariumPx } from "./elevation-encoding"
 
 export const GLIHT_BASE_URL_KEY = "glihtBaseUrl"
 
+/** The setting as stored; never set: the default proxy. An empty string
+ *  stored (the field cleared) means NASA's host itself. */
 export function glihtBaseUrl(): string {
   try {
     const raw = localStorage.getItem(GLIHT_BASE_URL_KEY)
-    const v = raw ? JSON.parse(raw) : ""
-    return typeof v === "string" ? v : ""
-  } catch { return "" }
+    if (raw === null) return GLIHT_DEFAULT_BASE
+    const v = JSON.parse(raw)
+    return typeof v === "string" ? v : GLIHT_DEFAULT_BASE
+  } catch { return GLIHT_DEFAULT_BASE }
 }
 
 async function decodePng(bytes: Uint8Array) {
@@ -39,23 +51,48 @@ async function decodePng(bytes: Uint8Array) {
 }
 
 const SIZE = 256
-let warned = false
+/** A proxy that refused a connection, and until when NASA's host is read
+ *  instead. */
+let down: { base: string; until: number } | null = null
+const PROXY_RETRY_MS = 30_000
+const toasted = new Set<string>()
+
+function toastOnce(key: string, title: string, body: string) {
+  console.warn(`[gliht] ${title}: ${body}`)
+  if (toasted.has(key)) return
+  toasted.add(key)
+  try { pushToast({ key, tone: "warn", title, body, duration: 15000 }) } catch { /* no UI (tests) */ }
+}
+
+// A network refusal (connection refused, CORS, local network access denied)
+// is a TypeError with no status; an aborted tile is an AbortError.
+const refused = (e: unknown, signal: AbortSignal) => e instanceof TypeError && !signal.aborted
 
 export async function glihtProtocol(params: { url: string }, abortController: AbortController): Promise<{ data: TileImage }> {
   const t = parseGlihtUrl(params.url)
   if (!t) throw new Error(`gliht: cannot read ${params.url}`)
-  const base = glihtBaseUrl()
-  const env: Env = { fetch: (u, init) => fetch(u, init), decodePng, signal: abortController.signal }
-  let grey: Float32Array | null
-  try {
-    grey = await readGreyTile(env, t.campaign, base, t.z, t.x, t.y, SIZE)
-  } catch (e) {
-    // A refused cross-origin read is a TypeError with no status: say what to do once.
-    if (!warned && e instanceof TypeError && !base) {
-      warned = true
-      console.warn(`[gliht] ${GLIHT_ORIGIN} sends no CORS header: turn on a CORS-unblocking browser extension, or set Settings > G-LiHT address to a proxy (the tile service's <server>/proxy/gliht).`)
+  const signal = abortController.signal
+  const env: Env = { fetch: (u, init) => fetch(u, init), decodePng, signal }
+  const setting = glihtBaseUrl()
+  const proxyDown = !!setting && down?.base === setting && Date.now() < down.until
+  const read = (base: string) => readGreyTile(env, t.campaign, base, t.z, t.x, t.y, SIZE)
+  const direct = async () => {
+    try { return await read("") } catch (e) {
+      if (refused(e, signal)) toastOnce("gliht-cors", "NASA G-LiHT blocked by CORS", `${GLIHT_ORIGIN} sends no CORS header. Start the tile service (cd tile-server && pnpm start, it proxies the KMZs at http://localhost:3400/proxy/gliht), or turn on a CORS-unblocking browser extension with Settings > G-LiHT address left empty.`)
+      throw e
     }
-    throw e
+  }
+  let grey: Float32Array | null
+  if (!setting || proxyDown) grey = await direct()
+  else {
+    try {
+      grey = await read(setting)
+    } catch (e) {
+      if (!refused(e, signal)) throw e
+      down = { base: setting, until: Date.now() + PROXY_RETRY_MS }
+      toastOnce(`gliht-proxy:${setting}`, "G-LiHT proxy not answering", `${setting} does not answer: the tile service is not running on this computer, or the browser refused local network access. Reading NASA's host directly meanwhile, which works only with a CORS-unblocking extension. Start it with cd tile-server && pnpm start, or change Settings > G-LiHT address.`)
+      grey = await direct()
+    }
   }
   const px = new Uint8ClampedArray(SIZE * SIZE * 4)
   if (t.dem) {

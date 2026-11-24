@@ -148,7 +148,11 @@ const CORS = {
 export async function handleProxy(req, res, self) {
   const fail = (status, text, extra = {}) => { if (res.headersSent) return res.destroy(); res.writeHead(status, { "content-type": "text/plain", ...CORS, ...extra }); res.end(text) }
   if (req.method === "OPTIONS") {
-    res.writeHead(204, { ...CORS, "access-control-allow-methods": "GET, HEAD, OPTIONS", "access-control-allow-headers": "range, if-none-match, if-modified-since", "access-control-max-age": "86400" })
+    // allow-private-network: an https page (the deployed app) reaching this
+    // service on localhost, the app's default G-LiHT address. Chrome's
+    // Private Network Access preflights asked for it; its successor (Local
+    // Network Access, a permission prompt) ignores it.
+    res.writeHead(204, { ...CORS, "access-control-allow-methods": "GET, HEAD, OPTIONS", "access-control-allow-headers": "range, if-none-match, if-modified-since", "access-control-allow-private-network": "true", "access-control-max-age": "86400" })
     return res.end()
   }
   if (req.method !== "GET" && req.method !== "HEAD") return fail(405, "GET, HEAD or OPTIONS")

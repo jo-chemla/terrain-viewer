@@ -1,3 +1,15 @@
+# Changelog — G-LiHT Through the Local Proxy by Default, CORS Extensions Fixed, Stretch Measured on Eight Campaigns
+
+#### TL;DR
+
+- **G-LiHT reads through the local tile service by default**: **Settings > G-LiHT address** starts at `http://localhost:3400/proxy/gliht` (an https page may reach `http://localhost`; Chrome asks once for local network access). When the service does not answer, a message says so and the KMZs are read from NASA's host directly; the field can still be cleared for NASA's host only, or set to any proxy.
+- **CORS-unblocking extensions work now**: the map stayed empty with one because the reader's first request was a suffix `Range` (`bytes=-65557`), which needs a preflight the extensions do not approve, so the real request was never sent. On NASA's host the reader now asks a `HEAD` for the length, then `bytes=start-end` only, and never reads `Content-Range` (hidden behind an extension). Details: [NASA G-LiHT, CORS](/docs/dev/g-liht#cors-why-an-unblocking-extension-showed-nothing).
+- **The KMZ grey-to-metres stretch, measured on eight campaigns** against their Float32 GeoTIFFs: linear, one stretch per KMZ, decoded at the 8-bit step (0.01-0.2 m RMS, 0.9 m at El Yunque). White is the 99.9th percentile; black is the minimum on some campaigns and a little above it on others, and nothing in the KMZ gives it: [table](/docs/dev/g-liht#the-pngs-against-the-geotiff). The Kiuic 1 and 3 library entries take the refined values (a few centimetres).
+
+#### Details
+
+- `lib/gliht-kmz.ts`: `openZip` places the tail from the end record (directory offset + size), `headSize`, `GLIHT_DEFAULT_BASE`; `lib/gliht-protocol.ts`: the proxy-down fallback (retried every 30 s) and two one-time toasts; `tile-server/proxy.mjs`: `Access-Control-Allow-Private-Network: true` on preflights. `lib/gliht-kmz.test.ts` now replays a browser behind an extension (suffix range refused, no `Content-Range`).
+- `scripts/gliht-stretch.py <c>_DTM.tif <c>_DTM.kmz`: fits `lo`/`hi`, RMSE, per-tile spread and linearity (numpy, rasterio, Pillow; data downloaded outside the repository).
 # Changelog — Transparency in the Edit Dialog, Catalog Search, Library Tidy
 
 #### TL;DR

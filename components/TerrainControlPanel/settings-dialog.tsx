@@ -49,6 +49,7 @@ import resourcesMaplibreRaw from "@/docs/content/docs/resources/maplibre.mdx?raw
 import resourcesGeomorphometryRaw from "@/docs/content/docs/resources/geomorphometry.mdx?raw"
 import creditsRaw from "@/docs/content/docs/resources/credits.mdx?raw"
 import { fallbackToOnline } from "@/lib/online-asset-fallback"
+import { GLIHT_DEFAULT_BASE } from "@/lib/gliht-kmz"
 import vizModesDescriptionRaw from "@/docs/content/docs/features/visualization-modes-description.mdx?raw"
 
 // Single source of truth for these 4 sections lives in docs/content/docs/
@@ -932,14 +933,22 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
             <div className="flex flex-col gap-1">
               <div className="flex gap-2">
                 <Label className="flex-1 min-w-0" htmlFor="gliht-base-url">G-LiHT address</Label>
-                <Input className="flex-2 min-w-0 cursor-text" id="gliht-base-url" type="text" placeholder="https://glihtdata.gsfc.nasa.gov" value={glihtBaseUrl} onChange={(e) => setGlihtBaseUrl(e.target.value.trim())} />
+                <Input className="flex-2 min-w-0 cursor-text" id="gliht-base-url" type="text" placeholder="empty: https://glihtdata.gsfc.nasa.gov directly" value={glihtBaseUrl} onChange={(e) => setGlihtBaseUrl(e.target.value.trim())} />
               </div>
               <span className="text-xs text-muted-foreground break-words">
-                Where the NASA G-LiHT KMZs are read from. Empty: NASA's host, which sends no CORS header, so a CORS-unblocking browser extension is needed. Or a tile service's proxy, <code>{(tileServerUrl || "http://localhost:3400").replace(/\/+$/, "")}/proxy/gliht</code>
-                {tileServerUrl && glihtBaseUrl !== `${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht` && (
-                  <> (<button type="button" className="underline cursor-pointer" onClick={() => setGlihtBaseUrl(`${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht`)}>use it</button>)</>
+                Where the NASA G-LiHT KMZs are read from. Default: the tile service on this computer, <code>{GLIHT_DEFAULT_BASE}</code>
+                {glihtBaseUrl !== GLIHT_DEFAULT_BASE && (
+                  <> (<button type="button" className="underline cursor-pointer" onClick={() => setGlihtBaseUrl(GLIHT_DEFAULT_BASE)}>use it</button>)</>
                 )}
-                , or any CORS proxy written with <code>{"{url}"}</code> where the address goes.
+                ; when it does not answer, NASA's host is tried directly and a message says so. Empty
+                {glihtBaseUrl !== "" && (
+                  <> (<button type="button" className="underline cursor-pointer" onClick={() => setGlihtBaseUrl("")}>clear</button>)</>
+                )}
+                : NASA's host only, which sends no CORS header, so a CORS-unblocking browser extension is needed.
+                {tileServerUrl && ![GLIHT_DEFAULT_BASE, `${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht`].includes(glihtBaseUrl) && (
+                  <> Or the tile service set above, <code>{tileServerUrl.replace(/\/+$/, "")}/proxy/gliht</code> (<button type="button" className="underline cursor-pointer" onClick={() => setGlihtBaseUrl(`${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht`)}>use it</button>)</>
+                )}
+                {" "}Or any CORS proxy written with <code>{"{url}"}</code> where the address goes.
               </span>
             </div>
 
