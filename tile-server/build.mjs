@@ -107,7 +107,7 @@ const walk = (o) => {
   else if (o && typeof o === "object") for (const [k, v] of Object.entries(o)) if (!/description|infoUrl|license|attribution|thumbnail|note|docs/i.test(k)) walk(v)
 }
 walk(src)
-for (const f of ["../lib/terrain-sources.ts", "../lib/basemap-sources.ts", "../lib/historical-sources.ts", "../lib/historical-export-sources.ts", "../lib/timeline-catalogs.ts", "../lib/national-historical.ts", "../lib/linked-sources.ts", "../lib/wayback.ts", "../lib/ge-historical.ts", "../lib/google-timelapse.ts", "../components/TerrainControlPanel/raster-basemap-section.tsx"]) {
+for (const f of ["../lib/terrain-sources.ts", "../lib/basemap-sources.ts", "../lib/historical-sources.ts", "../lib/historical-export-sources.ts", "../lib/timeline-catalogs.ts", "../lib/stac-dated.ts", "../lib/national-historical.ts", "../lib/linked-sources.ts", "../lib/wayback.ts", "../lib/ge-historical.ts", "../lib/google-timelapse.ts", "../components/TerrainControlPanel/raster-basemap-section.tsx"]) {
   // Comment lines and information links are documentation, not data.
   addUrls(readFileSync(here(f), "utf8").split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l) && !/infoUrl|docs|href|licen[cs]e/i.test(l)).join("\n"))
 }

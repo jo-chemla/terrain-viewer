@@ -59,6 +59,7 @@ The preview browser available to agents does NOT fire `requestAnimationFrame` �
 - `lib/terrain-sources.ts` — the built-in Worldwide Defaults as schema entries; `lib/terrain-catalog.ts` — `findTerrainSource`, the one lookup by id (built-ins, library defaults like GEM-15, user sources).
 - `lib/basemap-sources.ts` — the fixed-address built-in basemaps as schema entries.
 - `lib/dated-imagery.ts` — the dated imagery (Wayback, HLS, Google Earth historical, Planet, EOX, Bing) as entries of the dated schema: dates at a place, tiles of a date, ceiling.
+- `lib/stac-dated.ts` — STAC catalogs as dated sources: one adapter configured per catalog (OAM, Maxar, Vantor, NOAA via HOT; Planetary Computer S2, signed); items grouped by day, mosaicked, ceiling from GSD. Test: `node scripts/test-lib.mjs lib/stac-dated.test.ts` (offline, recorded fixture).
 - `lib/*-protocol.ts` — custom MapLibre tile protocols (slope, curvature, SVF, phong, matcap, …).
 
 ## Architecture patterns

@@ -56,7 +56,7 @@ A dated source maps a date and a place to tiles. `DatedImagerySource` (in `lib/s
 
 | Field | What it is |
 |---|---|
-| `section` | `defaults` for the timeline's own sources, `library` for the national and regional series |
+| `section` | `defaults` for the timeline's own sources, `library` for the national and regional series, `catalog` for the STAC catalogs |
 | `granularity` | What a date is: a capture dated per tile (`capture`), a monthly, quarterly or yearly mosaic, a flight year or period (`year`), or the one current mosaic (`current`) |
 | `realDates` | false when the dates are a placeholder cadence (HLS: a tick a month, the mosaic of a 30-day window; Planetary Computer's monthly and quarterly mosaics) |
 | `bounds`, `licence` | Where a series has any date, and its licence (the national series) |
@@ -69,18 +69,42 @@ A dated source maps a date and a place to tiles. `DatedImagerySource` (in `lib/s
 
 `lib/dated-imagery.ts` holds the six sources: Esri Wayback, NASA HLS, Google Earth historical, Planet monthly mosaics, EOX Sentinel-2 cloudless and Bing (its one current mosaic, dated by its capture date at the place). Their ids are the URL's (`?historicalActiveSourceA=wayback`).
 
-The national and regional series of `lib/national-historical.ts` are dated sources too, in the `library` section: `lib/national-dated.ts` turns each one (an agency's flights such as Spain's PNOA or the Netherlands' PDOK, about seventy in all, Google Earth Timelapse, Landsat WELD, Planetary Computer's Landsat and Sentinel-2 mosaics) into a source whose dates are its layers' years, periods or months and whose tiles for a date are that layer (an XYZ template, a WMS GetMap with `{bbox-epsg-3857}`, or one of the app's schemes). Their `listDates` keeps the layers whose extent holds the place. `ALL_DATED_IMAGERY_SOURCES` lists both, and `findDatedImagery` finds either by id (`cat-nat-pnoa`, `cat-nat-gtimelapse`). A layer's basemap id (`custom-basemap-cat-cat-nat-pnoa--PNOA2004`) is the one the timeline gives it and a shared link rebuilds.
+The national and regional series of `lib/national-historical.ts` are dated sources too, in the `library` section: `lib/national-dated.ts` turns each one (an agency's flights such as Spain's PNOA or the Netherlands' PDOK, about seventy in all, Google Earth Timelapse, Landsat WELD, Planetary Computer's Landsat and Sentinel-2 mosaics) into a source whose dates are its layers' years, periods or months and whose tiles for a date are that layer (an XYZ template, a WMS GetMap with `{bbox-epsg-3857}`, or one of the app's schemes). Their `listDates` keeps the layers whose extent holds the place. `ALL_DATED_IMAGERY_SOURCES` lists them with the STAC catalogs below, and `findDatedImagery` finds any by id (`cat-nat-pnoa`, `cat-nat-gtimelapse`, `stac-oam`). A layer's basemap id (`custom-basemap-cat-cat-nat-pnoa--PNOA2004`) is the one the timeline gives it and a shared link rebuilds.
+
+### STAC catalogs
+
+A STAC catalog is a dated source through one adapter, `lib/stac-dated.ts`, configured per catalog (`StacCatalogConfig`) rather than one class per catalog:
+
+| Field | What it is |
+|---|---|
+| `endpoint`, `kind` | A STAC API root (one `/search` per place) or a static `catalog.json` (crawled, `lib/stac-crawl.ts`) |
+| `collections` | The collections searched (an API), or the child catalog to crawl from (static) |
+| `assetKeys` | The asset to drape, before the defaults (`visual`, `cog`, `image`, the visual role, the first GeoTIFF) |
+| `signing` | `planetary-computer`: Azure Blob hrefs get a SAS token from Planetary Computer's token endpoint, per collection, refreshed when it has under five minutes left; `tiles` is null until one is held |
+| `query` | The STAC query extension (cloud cover), sent as a POST |
+| `maxzoom`, `maxItems` | The ceiling when items state no GSD; the items read per place (300 by default) |
+| `presetId`, `timelineCatalog` | The STAC search panel's catalog and the timeline catalog that read the same items |
+
+- **Dates at a place**: an item search over a box about two tiles of the zoom across, around the point; `next` pages are followed (a POST `next` with its body) up to `maxItems`. The items are grouped by UTC day of acquisition (`datetime`, else the start of `start_datetime`/`end_datetime`): one tick a day, its `ref` the day's items with their footprints and GSD.
+- **Tiles of a date**: one COG through titiler; several (a satellite pass cut into 5 km COGs, two drone flights the same day) mosaicked by `lib/capture-mosaic.ts` (`capture://`, with a `fetchTileBlob` for exports). The `bounds` are the union of the footprints: unlike a global source, a date covers only part of the area. The COGs go through titiler rather than the in-browser `cog://` protocol because most are in UTM.
+- **Ceiling**: the first zoom whose pixel is no larger than the day's finest item GSD at its latitude, capped at 22.
+
+The presets: OpenAerialMap (`stac-oam`), Maxar Open Data (`stac-maxar`), Vantor (`stac-vantor`) and NOAA emergency response (`stac-noaa`), all from HOT's STAC API, and Sentinel-2 L2A scenes under 20 % cloud from Planetary Computer (`stac-pc-s2`, signed). The timeline's HOT catalogs (`cat-oam`, `cat-maxar`...) take their endpoint and collection from these presets and search through the adapter's `searchStacItems`; they still list one tick per acquisition, with a card, rather than one per day. The STAC search panel stays the manual search, a page at a time.
+
+`node scripts/test-lib.mjs lib/stac-dated.test.ts` checks the adapter offline against a recorded HOT search over Antakya (`lib/fixtures/hot-stac-antakya.json`).
+
+### Readers
 
 | Reader | What it takes from the schema |
 |---|---|
 | The map's basemap (`RasterBasemapSource`) | `tiles` and `maxzoom`, for the view's date |
 | The multi-date export (`lib/historical-export-sources.ts`) | `listDates`, then `tiles` for each date; the current basemaps come from the built-in basemap entries |
 | The timeline | `fixedDates` for HLS, Planet and EOX |
-| The MCP server's `imagery_dates` | `listDates` of every source with real dates and no key, the national series included (each date with its layer's basemap id, which `open_view` takes as `imageryUrl`) |
+| The MCP server's `imagery_dates` | `listDates` of every source with real dates and no key, the national series included (each date with its layer's basemap id, which `open_view` takes as `imageryUrl`), and the STAC catalogs (each day with its items' count, GSD, footprint and the COG under the place as `imageryUrl`) |
 | The timeline's national catalogs | A layer's tiles (`nationalLayerTiles`); the catalog walk itself also asks the agency's flight index or probes a tile, to drop years flown elsewhere in the extent |
 | The tile service | The registry, bundled in `generated/app-lib.mjs` |
 
-Still outside it: the live per-place walks the timeline runs as React hooks for Wayback, Google Earth and Bing (debounced, cached, filled in progressively; `listDates` is their one-shot equivalent), and the per-place attribution hooks. The timeline's other catalogs (OpenAerialMap, Maxar, STAC, old maps...) are search results, each item with its own footprint and address rather than one source with a date, and stay with the catalogs.
+Still outside it: the live per-place walks the timeline runs as React hooks for Wayback, Google Earth and Bing (debounced, cached, filled in progressively; `listDates` is their one-shot equivalent), and the per-place attribution hooks. The timeline's other catalogs (old maps, ArcGIS Online, Map Warper, the STAC catalogs you attach...) are search results, each item with its own footprint and address rather than one source with a date, and stay with the catalogs.
 
 ## Before the schema
 

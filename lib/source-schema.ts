@@ -250,7 +250,9 @@ export function hasEntryKey(entry: { apiKey?: SourceApiKey }, keys: SourceKeys =
 // The national and regional series (lib/national-historical.ts: an agency's
 // flights, Google Earth Timelapse, Planetary Computer's mosaics) are dated
 // sources too, one layer per date, in the "library" section
-// (lib/national-dated.ts).
+// (lib/national-dated.ts). So are STAC catalogs (OpenAerialMap, Maxar Open
+// Data...), their items grouped by day of acquisition, in the "catalog"
+// section (lib/stac-dated.ts).
 
 /** A place the catalog is asked about: the view's centre and its zoom. */
 export interface DatedImageryPlace { lat: number; lng: number; zoom: number }
@@ -296,8 +298,9 @@ export interface DatedImagerySource extends Pick<SourceEntryBase, "id" | "name" 
   kind: "raster"
   /** "defaults": the timeline's own sources (lib/dated-imagery.ts);
    *  "library": the national and regional series, a catalog the timeline
-   *  lists per place (lib/national-dated.ts). */
-  section: "defaults" | "library"
+   *  lists per place (lib/national-dated.ts); "catalog": a STAC catalog,
+   *  its items grouped by day (lib/stac-dated.ts). */
+  section: "defaults" | "library" | "catalog"
   /** What a date is: a capture dated per tile ("capture"), a monthly,
    *  quarterly or yearly mosaic, a flight year or period ("year"), or the
    *  one current mosaic ("current", Bing). */

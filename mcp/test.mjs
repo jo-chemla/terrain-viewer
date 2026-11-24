@@ -83,7 +83,9 @@ console.log(`search_stac: ${stac.count} Sentinel-2 items, newest ${stac.items[0]
 
 const dates = (await call("imagery_dates", { lat: 36.2, lng: 36.16 })).structuredContent
 assert.ok(dates["ge-historical"].dates?.length > 5, JSON.stringify(dates["ge-historical"]).slice(0, 200))
-console.log(`imagery_dates Antakya: Google Earth ${dates["ge-historical"].dates.length} dates (newest ${dates["ge-historical"].dates[0]}), Wayback ${dates.wayback.dates?.length ?? dates.wayback.error}`)
+console.log(`imagery_dates Antakya: Google Earth ${dates["ge-historical"].dates.length} dates (newest ${dates["ge-historical"].dates[0]}), Wayback ${dates.wayback.dates?.length ?? dates.wayback.error}, OAM ${dates.catalogs["stac-oam"].dates?.length ?? dates.catalogs["stac-oam"].error}, Maxar ${dates.catalogs["stac-maxar"].dates?.length ?? dates.catalogs["stac-maxar"].error}`)
+// The STAC catalogs of the schema: Maxar's Kahramanmaraş passes, each day with its COG under the place.
+assert.ok(dates.catalogs["stac-maxar"].dates?.some((d) => d.date === "2023-02-11" && d.items > 1 && /^https:\/\//.test(d.imageryUrl)), JSON.stringify(dates.catalogs["stac-maxar"]).slice(0, 300))
 
 const cmp = (await call("compare_sources", { lat: 36.2, lng: 36.16, zoom: 16, place: "Antakya", a: { imagerySource: "wayback", imageryDate: "2022-12-08" }, b: { imagerySource: "wayback", imageryDate: "2023-04-26" } })).structuredContent
 assert.ok(cmp.url.includes("historicalActiveSourceB=wayback") && cmp.url.includes("dateA=") && cmp.url.includes("splitStyle=side-by-side"), cmp.url)

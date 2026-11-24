@@ -88,7 +88,12 @@ import { plan } from "./direct.mjs"
     // (lib/national-dated.ts): PNOA's years in Spain, PDOK's in the Netherlands.
     const { NATIONAL_DATED_SOURCES, ALL_DATED_IMAGERY_SOURCES, NATIONAL_SOURCES } = await import("./generated/app-lib.mjs")
     assert.equal(NATIONAL_DATED_SOURCES.length, NATIONAL_SOURCES.length)
-    assert.equal(ALL_DATED_IMAGERY_SOURCES.length, DATED_IMAGERY_SOURCES.length + NATIONAL_SOURCES.length)
+    const { STAC_DATED_SOURCES } = await import("./generated/app-lib.mjs")
+    assert.equal(ALL_DATED_IMAGERY_SOURCES.length, DATED_IMAGERY_SOURCES.length + NATIONAL_SOURCES.length + STAC_DATED_SOURCES.length)
+    // STAC catalogs (lib/stac-dated.ts): one adapter, OpenAerialMap and Maxar among its presets.
+    assert.equal(findDatedImagery("stac-oam").section, "catalog")
+    assert.equal(findDatedImagery("stac-maxar").granularity, "capture")
+    assert.equal(findDatedImagery("stac-oam").tiles({ dateMs: Date.UTC(2023, 1, 9) }), null, "no listing yet, no tiles")
     assert.equal(new Set(ALL_DATED_IMAGERY_SOURCES.map((s) => s.id)).size, ALL_DATED_IMAGERY_SOURCES.length, "ids are distinct")
     const madrid = { lat: 40.4168, lng: -3.7038, zoom: 14 }
     const pnoa = NATIONAL_DATED_SOURCES.find((s) => /PNOA/.test(s.name))

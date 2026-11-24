@@ -53,7 +53,7 @@ How to answer a request to see a place:
 
 Numbers rather than pictures: elevation gives the height of points or a profile along a line, on one or several datasets (a surface model against a ground model gives heights of buildings and trees). export_geotiff writes the elevation of an area to a file.
 
-Change through time: imagery_dates lists the dates of the built-in dated imagery (Esri Wayback, Google Earth, EOX Sentinel-2, Bing's current mosaic) and of the national historical series (agencies' old orthophotos, Google Earth Timelapse) at a place; catalog_items and search_stac list dated images from open catalogs. Then open_view or compare_sources with imagerySource and imageryDate, or with an item's imageryUrl.
+Change through time: imagery_dates lists the dates of the built-in dated imagery (Esri Wayback, Google Earth, EOX Sentinel-2, Bing's current mosaic) of the national historical series (agencies' old orthophotos, Google Earth Timelapse) and of the dated STAC catalogs (OpenAerialMap, Maxar, Sentinel-2 scenes) at a place; catalog_items and search_stac list dated images from open catalogs. Then open_view or compare_sources with imagerySource and imageryDate, or with an item's imageryUrl.
 
 Modes by subject:
 - general relief: hillshade (default)
@@ -251,7 +251,7 @@ function makeServer() {
 
   server.registerTool("imagery_dates", {
     title: "Dates of the built-in imagery",
-    description: "The dates on which the app's built-in dated imagery was captured at a place, newest first: Esri World Imagery Wayback, Google Earth historical imagery, EOX Sentinel-2, Bing, and the national and regional series covering the place (mapping agencies' historical orthophotos, such as Spain's PNOA or the Netherlands' PDOK, and Google Earth Timelapse). Use it to pick a 'before' and an 'after', then show them with open_view or compare_sources (imagerySource, imageryDate). Takes 5 to 40 seconds.",
+    description: "The dates on which the app's built-in dated imagery was captured at a place, newest first: Esri World Imagery Wayback, Google Earth historical imagery, EOX Sentinel-2, Bing, and the national and regional series covering the place (mapping agencies' historical orthophotos, such as Spain's PNOA or the Netherlands' PDOK, and Google Earth Timelapse), and the dated STAC catalogs (OpenAerialMap, Maxar, Vantor and NOAA open data, Sentinel-2 scenes from Planetary Computer: one date per day of acquisition, with the items' footprint, ground resolution and an imageryUrl). Use it to pick a 'before' and an 'after', then show them with open_view or compare_sources (imagerySource, imageryDate). Takes 5 to 40 seconds.",
     inputSchema: z.object({ ...pointShape.shape, from: z.string().optional().describe("Earliest date, YYYY-MM-DD"), to: z.string().optional().describe("Latest date, YYYY-MM-DD") }),
     annotations: { ...READ_ONLY, openWorldHint: true },
   }, async (args) => { try { return json(await imageryDates(args)) } catch (e) { return fail(e) } })
