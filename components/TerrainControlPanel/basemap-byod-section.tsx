@@ -621,6 +621,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
         open={isSampleModalOpen}
         onOpenChange={setIsSampleModalOpen}
         title="Basemap library"
+        terrainTabAvailable={state.appMode !== "historical"}
         stacTarget="basemap"
         onBrowseStac={(presetId, request) => {
         // The Add dialog reads its own type back from the "last type" atom

@@ -50,6 +50,7 @@ import { buildShadowProtocolUrl } from "@/lib/shadow-protocol"
 import { useResolvedWaybackRelease } from "@/lib/wayback"
 import { HISTORICAL_BASEMAP_IDS } from "@/lib/historical-sources"
 import { STATIC_BASEMAP_ATTRIBUTIONS } from "@/lib/basemap-attribution"
+import { sourceCredit } from "@/lib/source-credit"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 
 // -------------------------
@@ -348,12 +349,16 @@ export const TerrainSources = memo(({
     // deliberately still uses the unclamped, configured maxzoom — that's "how
     // far this pyramid can theoretically go" for the camera zoom UI, a
     // different question from "what does THIS exact viewport have."
+    // The terrain's credit in the map's attribution control (lib/source-credit.ts).
+    const terrainCredit = sourceCredit(customSource)
     const effectiveSourceConfig = useMemo(() => {
-        if (!sourceConfig || probedMaxzoom == null || sourceConfig.maxzoom == null || probedMaxzoom >= sourceConfig.maxzoom) return sourceConfig
+        if (!sourceConfig) return sourceConfig
+        const credited = terrainCredit ? { ...sourceConfig, attribution: terrainCredit } : sourceConfig
+        if (probedMaxzoom == null || sourceConfig.maxzoom == null || probedMaxzoom >= sourceConfig.maxzoom) return credited
         // Never below the source's own minzoom: a maxzoom under minzoom makes
         // maplibre request no tile at any zoom, so the source draws nothing.
-        return { ...sourceConfig, maxzoom: Math.max(probedMaxzoom, sourceConfig.minzoom ?? 0) }
-    }, [sourceConfig, probedMaxzoom])
+        return { ...credited, maxzoom: Math.max(probedMaxzoom, sourceConfig.minzoom ?? 0) }
+    }, [sourceConfig, probedMaxzoom, terrainCredit])
 
     if (!effectiveSourceConfig) return null
 
@@ -464,14 +469,18 @@ export const RasterBasemapSource = memo(({
         if (basemapSource === "none") return null
         if (customBasemap) {
             if (isCogLocal && !resolvedCogUrl) return null // not (re-)picked yet this session
-            return withPaperRemoval(buildRasterTileSource({
-                url: isCogLocal ? resolvedCogUrl! : customBasemap.url,
-                type: isCogLocal ? "cog" : customBasemap.type,
-                useCogProtocol: isCogLocal ? true : useCogProtocol && !customBasemap.cogViaTitiler,
-                titilerEndpoint,
-                scheme: customBasemap.scheme,
-                categorical: customBasemap.categorical,
-            }), customBasemap, removeColor)
+            return {
+                ...withPaperRemoval(buildRasterTileSource({
+                    url: isCogLocal ? resolvedCogUrl! : customBasemap.url,
+                    type: isCogLocal ? "cog" : customBasemap.type,
+                    useCogProtocol: isCogLocal ? true : useCogProtocol && !customBasemap.cogViaTitiler,
+                    titilerEndpoint,
+                    scheme: customBasemap.scheme,
+                    categorical: customBasemap.categorical,
+                }), customBasemap, removeColor),
+                // Its credit in the map's attribution control (lib/source-credit.ts).
+                attribution: sourceCredit(customBasemap),
+            }
         }
 
 
@@ -524,7 +533,9 @@ export const RasterBasemapSource = memo(({
             // "cog-local" source (id unchanged) must remount the Source rather than
             // have maplibre patch tiles in place against a stale pyramid/cache keyed
             // by the old blob: URL.
-            key={`raster-${basemapSource}-${resolvedCogUrl}`}
+            // The credit too: <Source> cannot patch `attribution` in place, so
+            // an edited custom source's new credit needs a fresh source.
+            key={`raster-${basemapSource}-${resolvedCogUrl}-${(sourceProps as { attribution?: string }).attribution ?? ""}`}
             type="raster"
             tileSize={256}
             // zoomRange.maxzoom (not a hardcoded 19) — buildRasterTileSource's
@@ -578,10 +589,16 @@ export const OverlayBasemapSources = memo(({
                 // A georeferenced IIIF map draws from its own custom layer
                 // (MapLayers.tsx, AllmapsOverlayLayer): no MapLibre source.
                 if (source.type === "iiif") return null
+                // Its credit in the map's attribution control, counted only
+                // while its layer is visible (lib/source-credit.ts). In the
+                // key: <Source> cannot patch `attribution` in place.
+                const credit = sourceCredit(source)
                 if ((source.type === "image" || source.type === "image-local") && source.coordinates) {
                     const imgUrl = source.type === "image-local" ? resolveLocalFileUrl(localFileId(source.url)) : source.url
                     if (!imgUrl) return null
                     return (
+                        // No credit: MapLibre's image source takes no attribution,
+                        // and a georeferenced picture is the user's own.
                         <Source key={`overlay-${id}-${imgUrl}`} id={`overlay-basemap-source-${id}`} type="image" url={imgUrl} coordinates={source.coordinates} />
                     )
                 }
@@ -602,7 +619,7 @@ export const OverlayBasemapSources = memo(({
                     <Source
                         // resolvedCogUrl in the key: see the matching comment on
                         // RasterBasemapSource above.
-                        key={`overlay-${id}-${resolvedCogUrl}`}
+                        key={`overlay-${id}-${resolvedCogUrl}-${credit ?? ""}`}
                         id={`overlay-basemap-source-${id}`}
                         type="raster"
                         tileSize={256}
@@ -615,6 +632,7 @@ export const OverlayBasemapSources = memo(({
                         // TileJSON unless the user set one (see RasterBasemapSource).
                         {...(source.maxzoom == null && (isCogLocal || (source.type === "cog" && useCogProtocol && !source.cogViaTitiler)) ? {} : { maxzoom: source.maxzoom ?? 19 })}
                         {...sourceProps}
+                        attribution={credit}
                     />
                 )
             })}

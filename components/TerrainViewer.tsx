@@ -3964,7 +3964,9 @@ export function TerrainViewer() {
           />
           <RasterBasemapSource
             basemapSource={perViewResolved[side].basemapSource}
-            vectorVisible={isHistoricalMode || state.showRasterBasemap}
+            // Hidden (no tile requests) where this view does not draw the
+            // basemap, and at opacity 0, as RasterLayer does for raster tiles.
+            vectorVisible={(isHistoricalMode || (state.showRasterBasemap && vm("showRasterBasemap"))) && (isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.basemapSourceOpacity > 0}
             vectorOpacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.basemapSourceOpacity}
             mapboxKey={mapboxKey}
             hereKey={hereKey}

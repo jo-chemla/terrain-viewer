@@ -1,3 +1,18 @@
+# Changelog — Library Tabs, Credits on the Map
+
+<!-- released: 2026-11-24 -->
+
+#### TL;DR
+
+- **[Library](/docs/features/national-datasets) tabs**: the Library has a Terrain and a Basemap tab. The filter carries over, each tab shows its matches while you type, and a search that finds little in one tab offers the other ("4 matches in Basemaps"). It opens on the tab of the section it was opened from, and an entry goes to that tab's list.
+- **[Credits on the map](/docs/features/byod#editing-the-lists)**: overlays, your own and Library basemaps and the terrain source now put their credit in the map's attribution (their `attribution`, else their name, linked to their page), only while drawn, each line once.
+- **Hidden basemaps stop loading tiles**: a raster basemap or an overlay at opacity 0 was still downloading every tile in view; it is now hidden, so it loads nothing until shown again, from its kept cache. The OpenStreetMap vector basemap likewise stops where a split view does not draw the basemap.
+
+#### Details
+
+- Tile loading: MapLibre requests tiles for every source a visible layer uses, whatever the layer's opacity (`StyleLayer.isHidden` reads only zoom range and visibility; `TileManager.update` asks for no tile when the source is unused). Switched off, unchecked, and views outside the layout were already free: a switched-off basemap's layer is `visibility: none`, an unchecked overlay and the overlays of a switched-off basemap are unmounted, and only the views of the current layout are mounted.
+- Open In: Aguacero WX, Senter Farms' CutSheetRX and Mapricot shadows read no location from their URL (saved-item ids, local storage, a preset place), so none can be a destination; [Related Work](/docs/resources/related-work) says so for each.
+
 # Changelog — Tile Service, Terrain Viewer in Claude, Land Cover
 
 <!-- released: 2026-11-21 -->

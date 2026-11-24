@@ -448,6 +448,9 @@ export const terrainLibraryOpenAtom = atom(false)
  *  section so `?openDialog=addTerrain` can open it on arrival. */
 export const addTerrainSourceOpenAtom = atom(false)
 export const basemapLibraryOpenAtom = atom(false)
+/** The filter typed into either Library dialog. One for both, so the
+ *  Terrain / Basemap tabs switch libraries with the same search. */
+export const libraryQueryAtom = atom("")
 
 export const activeSliderAtom = atom<string | null>(null)
 

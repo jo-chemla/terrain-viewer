@@ -88,8 +88,13 @@ export const RasterLayer = memo(
           "raster-opacity": rasterBasemapOpacity,
           "raster-resampling": 'linear' 
         }}
+        // Hidden, not just transparent, at opacity 0: MapLibre loads tiles
+        // for every source a VISIBLE layer uses, whatever its opacity, and
+        // skips a source whose layers are all `visibility: none` (TileManager
+        // update with `used` false). The source stays mounted, so its tile
+        // cache is still there when the slider comes back up.
         layout={{
-          visibility: showRasterBasemap ? "visible" : "none",
+          visibility: showRasterBasemap && rasterBasemapOpacity > 0 ? "visible" : "none",
         }}
       />
     )
@@ -138,6 +143,10 @@ export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSo
           type="raster"
           source={`overlay-basemap-source-${id}`}
           paint={{ "raster-opacity": opacity * sourceOpacity, "raster-resampling": "linear" }}
+          // At opacity 0 (its own Style opacity, the Overlays slider or the
+          // basemap's) hidden rather than transparent, so it stops loading
+          // tiles; see RasterLayer.
+          layout={{ visibility: opacity * sourceOpacity > 0 ? "visible" : "none" }}
         />
       )
     })}

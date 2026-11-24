@@ -79,6 +79,8 @@ The object path is URL-encoded as one segment, slashes included: `gem-15/p40_p0/
 
 ## Editing the lists
 
+**Credits on the map.** A source you added, a Library entry, an overlay and the terrain source each put their credit in the map's own attribution (the ⓘ corner, compact as before): the entry's `attribution` when it has one, else its name, linked to its page (`infoUrl`). Only what is drawn counts: a hidden overlay, an overlay at opacity 0 or a basemap switched off drops out, and a line shared by two sources shows once. The full credit of every view stays in **Sources → Source Info**.
+
 The source lists open in a reading mode: each row offers its info (every field the source carries, its ground resolution declared or estimated from the max zoom, a fit-to-extent button) and, for an overlay, its opacity pill right after the view buttons. Hovering a name tells what the source is before clicking: its type, where it comes from (QMS, the Editor Layer Index, Allmaps), its ground resolution, attribution and description; the resolution also sits after the name. The pencil button switches the **edit mode** on for both lists: rows then show edit and delete, and the braces button left of the pencil opens every source as JSON (**Batch edit**, Ctrl+Enter saves).
 
 ## Non-geo relief visualization

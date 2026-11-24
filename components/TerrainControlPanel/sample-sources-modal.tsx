@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react"
-import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, Waves, ExternalLink, Search, Library, Layers2, type LucideIcon } from "lucide-react"
+import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, ArrowRight, Waves, ExternalLink, Search, Library, Layers2, Mountain, Map as MapIcon, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
-import { useAtom } from "jotai"
-import { disabledStacPresetsAtom, savedStacCatalogsAtom, type LibraryStacLink, type LibraryBrowseEntry } from "@/lib/settings-atoms"
+import { useAtom, useSetAtom } from "jotai"
+import { disabledStacPresetsAtom, savedStacCatalogsAtom, libraryQueryAtom, terrainLibraryOpenAtom, basemapLibraryOpenAtom, type LibraryStacLink, type LibraryBrowseEntry } from "@/lib/settings-atoms"
+import { sectionOpenAtom, macroGroupOpenAtom } from "./TerrainControlPanel"
+import customSources from "@/lib/custom-sources.json"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -44,6 +46,37 @@ function browseTitle(stac: LibraryStacLink): string {
   const preset = STAC_PRESETS.find((p) => p.id === stac.preset)
   const col = stac.collection ? stac.collection.replace(/\/collection\.json$/, "").split("/").filter(Boolean).slice(-3).join("/") : ""
   return `Search ${col ? `${col} in ` : ""}${preset?.name ?? stac.preset} over the current view`
+}
+
+/** What the search reads of a row (see lib/library-search.ts). */
+const rowText = (s: SampleLike | BrowseRow) => `${s.name} ${s.id} ${s.type ?? ""} ${(s as SampleLike).keywords ?? ""}${isBrowseRow(s) ? " stac browse" : ""}`
+
+export type LibraryKind = "terrain" | "basemap"
+
+/** Every row a library lists, Browse-only ones included, for the count the
+ *  other tab shows. Read straight from the library file: the other library's
+ *  section may not be mounted (a folded Raster Basemap section unmounts its
+ *  content), and its count must not depend on that. */
+const LIBRARY_ROWS: Record<LibraryKind, readonly (SampleLike | BrowseRow)[]> = {
+  terrain: [
+    ...(customSources.SAMPLE_TERRAIN_SOURCES as SampleLike[]),
+    ...(((customSources as any).SAMPLE_TERRAIN_BROWSE_ONLY ?? []) as LibraryBrowseEntry[]).map((s) => ({ ...s, browseOnly: true as const })),
+  ],
+  basemap: customSources.SAMPLE_BASEMAPS_SOURCES as SampleLike[],
+}
+
+/** How many rows of a library a filter keeps: the same search as the list. */
+export function libraryMatchCount(kind: LibraryKind, query: string): number {
+  return searchLibrary(LIBRARY_ROWS[kind], rowText, query.trim().toLowerCase()).length
+}
+
+/** At or under this many matches in the open tab, a search that finds some
+ *  in the other library says so with a button, not only a count on the tab. */
+const FEW_MATCHES = 3
+
+const LIBRARY_TAB: Record<LibraryKind, { label: string; plural: string; button: string; icon: LucideIcon }> = {
+  terrain: { label: "Terrain", plural: "terrain datasets", button: "Terrain", icon: Mountain },
+  basemap: { label: "Basemap", plural: "basemaps or overlays", button: "Basemaps", icon: MapIcon },
 }
 
 type SectionKey = "national" | "global" | "regional" | "city"
@@ -159,7 +192,7 @@ function kindOf(name: string): { label: string; title: string } | null {
  */
 export function SampleSourcesModal<T extends SampleLike>({
   open, onOpenChange, title, samples, current, setCurrent, compareToMapterhorn = false,
-  stacTarget, onBrowseStac, onAdded, browseOnly = [],
+  stacTarget, onBrowseStac, onAdded, browseOnly = [], terrainTabAvailable = true,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -183,7 +216,29 @@ export function SampleSourcesModal<T extends SampleLike>({
   /** The entries just added (the rows clicked, not the operands a difference
    *  pulls in), for the caller to select one. */
   onAdded?: (added: readonly T[]) => void
+  /** False where the sidebar has no Terrain section (historical mode): the
+   *  tabs are then left out, and with them the cross-library hint. */
+  terrainTabAvailable?: boolean
 }) {
+  // Two libraries behind two tabs, Terrain and Basemap. Each library is still
+  // owned by its own section (its Add dialog, its STAC hand-off, its list's
+  // fallbacks), so a tab switch closes this dialog and opens the other
+  // section's, carrying the search over (libraryQueryAtom) and unfolding that
+  // section so its dialog is mounted.
+  const kind: LibraryKind = stacTarget === "basemap" ? "basemap" : "terrain"
+  const otherKind: LibraryKind = kind === "terrain" ? "basemap" : "terrain"
+  const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
+  const setBasemapLibraryOpen = useSetAtom(basemapLibraryOpenAtom)
+  const setSectionOpen = useSetAtom(sectionOpenAtom)
+  const setMacroGroupOpen = useSetAtom(macroGroupOpenAtom)
+  const showTabs = !!stacTarget && terrainTabAvailable
+  const switchTab = (to: LibraryKind) => {
+    if (to === kind) return
+    setMacroGroupOpen((p) => ({ ...p, Sources: true }))
+    setSectionOpen((p) => ({ ...p, [to === "terrain" ? "terrainSource" : "rasterBasemap"]: true }))
+    setTerrainLibraryOpen(to === "terrain")
+    setBasemapLibraryOpen(to === "basemap")
+  }
   // Which catalogs the Add dialog's own picker offers. Stored as the
   // exclusions (see disabledStacPresetsAtom) so a catalog added in a later
   // release shows up rather than being silently absent.
@@ -205,10 +260,9 @@ export function SampleSourcesModal<T extends SampleLike>({
   // "bulk": the finest grid the agency advertises for download, i.e. what
   // Mapterhorn would ingest. Switching regroups the tiers live.
   const [metric, setMetric] = useState<ResolutionMetric>("api")
-  const [query, setQuery] = useState("")
+  // Shared by both libraries, so switching tab keeps the filter.
+  const [query, setQuery] = useAtom(libraryQueryAtom)
   const q = query.trim().toLowerCase()
-  /** What the search reads of a row (see lib/library-search.ts). */
-  const rowText = (s: SampleLike | BrowseRow) => `${s.name} ${s.id} ${s.type ?? ""} ${(s as SampleLike).keywords ?? ""}${isBrowseRow(s) ? " stac browse" : ""}`
   const hasBulk = useMemo(() => samples.some((s) => s.bulkResolutionM !== undefined), [samples])
   const browseRows = useMemo<BrowseRow[]>(() => browseOnly.map((s) => ({ ...s, browseOnly: true as const })), [browseOnly])
   const comparisons = useMemo(() => {
@@ -302,6 +356,9 @@ export function SampleSourcesModal<T extends SampleLike>({
     ].filter((p) => p.target === "both" || p.target === stacTarget), (p) => `${p.name} ${p.group} ${p.note ?? ""}`, q)),
     [stacTarget, q, savedCatalogs],
   )
+
+  const matchCount = useMemo(() => Object.values(grouped).reduce((n, secs) => n + Object.values(secs).reduce((m, rows) => m + rows.length, 0), 0), [grouped])
+  const otherCount = useMemo(() => (showTabs && q ? libraryMatchCount(otherKind, q) : 0), [showTabs, q, otherKind])
 
   const loadAllSet = samples.filter((s) => s.loadWithSamples !== false)
   const loadedCount = samples.filter((s) => presentIds.has(s.id)).length
@@ -474,6 +531,25 @@ export function SampleSourcesModal<T extends SampleLike>({
             {loadedCount} of {samples.length} in your list. Add or remove one at a time, or take the whole set.
           </DialogDescription>
         </DialogHeader>
+        {showTabs && (
+          <div role="tablist" aria-label="Library" className="flex items-center gap-1 border-b min-w-0">
+            {(["terrain", "basemap"] as const).map((k) => {
+              const t = LIBRARY_TAB[k]
+              const active = k === kind
+              const n = q ? (active ? matchCount : otherCount) : null
+              return (
+                <button key={k} role="tab" aria-selected={active} type="button"
+                  onClick={() => switchTab(k)}
+                  title={n !== null ? `${n} ${n === 1 ? "match" : "matches"} in the ${t.label} library` : `The ${t.label} library`}
+                  className={`flex items-center gap-1.5 min-w-0 px-3 py-1.5 -mb-px border-b-2 text-sm cursor-pointer ${active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                  <t.icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{t.label}</span>
+                  {n !== null && <span className="text-xs font-normal text-muted-foreground tabular-nums">{n}</span>}
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative w-56">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -494,6 +570,16 @@ export function SampleSourcesModal<T extends SampleLike>({
           )}
         </div>
         <div className="overflow-y-auto pr-1 -mr-1 space-y-4">
+          {showTabs && q && matchCount <= FEW_MATCHES && otherCount > 0 && (
+            <div className="flex items-center gap-2 flex-wrap rounded-md border border-dashed px-3 py-2 text-sm min-w-0">
+              <span className="min-w-0 break-words text-muted-foreground">
+                {matchCount === 0 ? `No ${LIBRARY_TAB[kind].plural} match “${query.trim()}”.` : `Only ${matchCount} here.`}
+              </span>
+              <Button size="sm" variant="secondary" className="cursor-pointer h-8 ml-auto" onClick={() => switchTab(otherKind)}>
+                {otherCount} {otherCount === 1 ? "match" : "matches"} in {LIBRARY_TAB[otherKind].button} <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
           {compareToMapterhorn
             ? TIERS.map((tier) => {
                 const rows = Object.values(grouped[tier.key]).flat()

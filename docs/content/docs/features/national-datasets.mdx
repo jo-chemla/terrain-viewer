@@ -12,6 +12,8 @@ The built-in sources on [Terrain and Basemap Sources](/features/terrain-sources)
 
 Load them from **Sources → Terrain → Library**, which opens a picker where each dataset is added or removed with one click (or all at once), graded against Mapterhorn and filterable by name, or open any of them directly with a `?terrainSourceA=<id>` link. To see where each one has data before loading it, turn on its footprint in [Coverage overlays](/features/coverage-overlays).
 
+The Library has two tabs, **Terrain** and **Basemap**: it opens on Terrain from the Terrain section and on Basemap from the Basemap section, and an entry added from either tab goes to that tab's list. The filter is shared: while you type, each tab shows its number of matches, and when the open tab has three matches or fewer but the other has some, a button says so ("4 matches in Basemaps") and switches tab with the same filter. A land cover map searched under Terrain, or a lidar render searched under Basemap, is found that way.
+
 ![The terrain dataset library, tiered against Mapterhorn with DTM/DSM pills and the API-served vs best-bulk resolution toggle](/screenshots/terrain-library.jpg)
 
 <NationalCoverageMap />
