@@ -1,11 +1,10 @@
 // Run with: node --test --experimental-strip-types lib/library-search.test.ts
 import test from "node:test"
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
 import { searchLibrary, matchesLibraryQuery } from "./library-search.ts"
+import lib from "./custom-sources.json" with { type: "json" }
 
 interface Row { id: string; name: string; type?: string; keywords?: string }
-const lib = JSON.parse(readFileSync(new URL("./custom-sources.json", import.meta.url), "utf8"))
 const basemaps: Row[] = lib.SAMPLE_BASEMAPS_SOURCES
 // What the Library dialog reads of a row (sample-sources-modal.tsx).
 const textOf = (s: Row) => `${s.name} ${s.id} ${s.type ?? ""} ${s.keywords ?? ""}`
