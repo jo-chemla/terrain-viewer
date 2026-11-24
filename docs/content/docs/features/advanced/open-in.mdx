@@ -1,6 +1,6 @@
 ---
 title: Open In
-description: Hand the current viewport off to other web map viewers — River-REM, Search-EO, ESRI Wayback, Google Earth/Maps, BBBike, or your own URL template
+description: Hand the current viewport off to other web map viewers — River-REM, Search-EO, ESRI Wayback, Google Earth/Maps, Bing Maps 3D, BBBike, ShadeMap, LiDAR Lens, or your own URL template
 ---
 
 The **Open in …** split button (bottom of the General section; also in the historical timeline footer) opens the current viewport in another web viewer, carrying the camera position over so you land on the same spot. Picking a destination from the dropdown opens it immediately and remembers it as the default for the main button.
@@ -17,9 +17,12 @@ The **Open in …** split button (bottom of the General section; also in the his
 - **Google Maps 3D** — [google.com/maps](https://www.google.com/maps) — Maps' photorealistic 3D globe layer, tilted view
 - **Google Earth Historical (web)** — [earth.google.com/web](https://earth.google.com/web/) — top-down with the historical-imagery layer enabled
 - **Google Earth 3D (web)** — [earth.google.com/web](https://earth.google.com/web/) — oblique 3D framing, no historical layer
+- **Bing Maps 3D** — [bing.com/maps](https://www.bing.com/maps) — Bing's photogrammetry view, with the camera height, heading and tilt carried over
 - **BBBike MapCompare** — [mc.bbbike.org/mc](https://mc.bbbike.org/mc/) — four basemaps of the same viewport side by side
+- **ShadeMap (sun and shadows)** — [shademap.app](https://shademap.app/) — terrain, building and tree shadows at the current time, with the bearing and pitch carried over (`/@lat,lng,{zoom}z,{time}t,{bearing}b,{pitch}p,0m`)
+- **LiDAR Lens (Britain and Ireland)** — [lidarlens.sarsen.org](https://lidarlens.sarsen.org/) — open-government LiDAR terrain models of England, Wales, Scotland and Ireland under a movable relief lens, with historic-environment records (`#map={z}/{lat}/{lng}`). Greyed out when the view is outside its bounds (48.85° to 61.6° N, 16° W to 9° E)
 
-The zoom-to-camera translation is destination-specific — e.g. the Google Earth/Maps links convert the map zoom into a viewing altitude, and ESRI Wayback gets the latest release id resolved live for the current location.
+The zoom-to-camera translation is destination-specific — e.g. the Google Earth/Maps links convert the map zoom into a viewing altitude, and ESRI Wayback opens on its own latest release.
 
 ## Custom destinations
 
@@ -29,3 +32,5 @@ The zoom-to-camera translation is destination-specific — e.g. the Google Earth
 - slippy-tile `{z}` / `{x}` / `{y}` — e.g. `https://example.com/#{z}/{x}/{y}`
 
 Custom entries appear in the same dropdown and can be removed from it at any time.
+
+Other viewers worth knowing that take no location in their URL, so cannot be a destination here, are on [Related Work](/resources/related-work).

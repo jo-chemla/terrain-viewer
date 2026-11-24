@@ -2177,6 +2177,54 @@
             "description": "Global surface wind speed (not direction), monthly-averaged from NASA's MERRA-2 reanalysis, served as standard WMTS-as-XYZ tiles by NASA GIBS — no API key. The 'default/default' time segment always resolves to GIBS's current default month, so this never goes stale like a fixed-timestamp overlay. Coarse (max zoom 6, ~a few hundred km/px) since it's a monthly global composite, not a live forecast — no open, no-key GFS-derived live wind-direction raster tile service was found (Windy/OpenWeatherMap's wind layers require a paid key; MapTiler's is a proprietary particle-field renderer, not tiles)."
         },
         {
+            "id": "nasa-gibs-merra2-air-temperature",
+            "name": "Global - NASA GIBS 2 m Air Temperature (MERRA-2, monthly)",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MERRA2_2m_Air_Temperature_Monthly/default/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png",
+            "type": "tms",
+            "maxzoom": 6,
+            "role": "overlay",
+            "loadWithSamples": false,
+            "description": "Air temperature 2 m above the ground. Monthly mean from NASA's MERRA-2 reanalysis (GMAO, 0.5 x 0.625 degree, 1980 onwards), served as WMTS-as-XYZ tiles by NASA GIBS: no key, CORS-open. The 'default' time segment resolves to the month GIBS holds as current, so the overlay does not go stale. Coarse by nature (GIBS stops at zoom 6), for regional and continental context. Public domain (NASA).",
+            "keywords": "temperature climate reanalysis",
+            "infoUrl": "https://gmao.gsfc.nasa.gov/gmao-products/merra-2/data-access_merra-2/"
+        },
+        {
+            "id": "nasa-gibs-merra2-dust",
+            "name": "Global - NASA GIBS Dust Surface Concentration (MERRA-2, monthly)",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MERRA2_Dust_Surface_Mass_Concentration_Monthly/default/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png",
+            "type": "tms",
+            "maxzoom": 6,
+            "role": "overlay",
+            "loadWithSamples": false,
+            "description": "Dust mass concentration at the surface: Saharan, Arabian and Asian dust belts and their plumes. Monthly mean from NASA's MERRA-2 reanalysis (GMAO, 0.5 x 0.625 degree, 1980 onwards), served as WMTS-as-XYZ tiles by NASA GIBS: no key, CORS-open. The 'default' time segment resolves to the month GIBS holds as current, so the overlay does not go stale. Coarse by nature (GIBS stops at zoom 6), for regional and continental context. Public domain (NASA).",
+            "keywords": "dust aerosol air quality reanalysis",
+            "infoUrl": "https://gmao.gsfc.nasa.gov/gmao-products/merra-2/data-access_merra-2/"
+        },
+        {
+            "id": "nasa-gibs-merra2-aerosol-optical-thickness",
+            "name": "Global - NASA GIBS Aerosol Optical Thickness 550 nm (MERRA-2, monthly)",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly/default/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png",
+            "type": "tms",
+            "maxzoom": 6,
+            "role": "overlay",
+            "loadWithSamples": false,
+            "description": "Total aerosol optical thickness (extinction) at 550 nm: dust, smoke, sulphate and sea salt together, what hazes satellite imagery. Monthly mean from NASA's MERRA-2 reanalysis (GMAO, 0.5 x 0.625 degree, 1980 onwards), served as WMTS-as-XYZ tiles by NASA GIBS: no key, CORS-open. The 'default' time segment resolves to the month GIBS holds as current, so the overlay does not go stale. Coarse by nature (GIBS stops at zoom 6), for regional and continental context. Public domain (NASA).",
+            "keywords": "aerosol AOD AOT haze smoke air quality reanalysis",
+            "infoUrl": "https://gmao.gsfc.nasa.gov/gmao-products/merra-2/data-access_merra-2/"
+        },
+        {
+            "id": "nasa-gibs-merra2-ozone-50hpa",
+            "name": "Global - NASA GIBS Ozone Mixing Ratio at 50 hPa (MERRA-2, monthly)",
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MERRA2_Ozone_Mixing_Ratio_50hPa_Monthly/default/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png",
+            "type": "tms",
+            "maxzoom": 6,
+            "role": "overlay",
+            "loadWithSamples": false,
+            "description": "Ozone mixing ratio in the lower stratosphere (50 hPa, about 20 km): the ozone layer, including the austral spring hole. Monthly mean from NASA's MERRA-2 reanalysis (GMAO, 0.5 x 0.625 degree, 1980 onwards), served as WMTS-as-XYZ tiles by NASA GIBS: no key, CORS-open. The 'default' time segment resolves to the month GIBS holds as current, so the overlay does not go stale. Coarse by nature (GIBS stops at zoom 6), for regional and continental context. Public domain (NASA).",
+            "keywords": "ozone stratosphere atmosphere reanalysis",
+            "infoUrl": "https://gmao.gsfc.nasa.gov/gmao-products/merra-2/data-access_merra-2/"
+        },
+        {
             "id": "copernicus-marine-sst",
             "name": "Global - Copernicus Marine Sea Surface Temperature (OSTIA, daily)",
             "url": "https://wmts.marine.copernicus.eu/teroWmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&FORMAT=image/png&TILEMATRIXSET=EPSG:3857&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&LAYER=SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001/METOFFICE-GLO-SST-L4-NRT-OBS-SST-V2/analysed_sst&STYLE=cmap:thermal",
