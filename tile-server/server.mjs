@@ -13,6 +13,8 @@
 //                                      imageryDate, imageryUrl, basemap parameters
 //   GET /render.png|jpg                a viewport, like a WMS GetMap: lat, lng,
 //                                      zoom or bbox=w,s,e,n, width, height
+//   GET <any of these>.stac.json       the export's STAC Item (Processing extension,
+//                                      stac.mjs), also named by its Link header
 //   GET /openapi.json, /docs           the description, and a page to try it
 //   GET /health
 //
@@ -83,6 +85,7 @@ import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, act
 import { runDirect, poolStats, closePool, POOL_SIZE } from "./direct-pool.mjs"
 import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 import { handleProxy } from "./proxy.mjs"
+import { stacItem, STAC_SUFFIX } from "./stac.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
@@ -414,8 +417,18 @@ async function valuesFor(format, query, at) {
 }
 const valueHeaders = (made) => ({
   "cache-control": "public, max-age=86400", "x-tv-engine": "direct", "x-tv-value-mode": made.mode, "x-tv-value-unit": made.unit, "x-tv-value-scale": String(made.scale),
-  "access-control-expose-headers": "x-tv-engine, x-tv-value-mode, x-tv-value-unit, x-tv-value-scale",
+  "access-control-expose-headers": "x-tv-engine, x-tv-value-mode, x-tv-value-unit, x-tv-value-scale, link",
 })
+
+/** The export's STAC Item (stac.mjs), named in its answer: its address
+ *  plus `.stac.json`, the caller's API keys left out. */
+const describedBy = (self, u) => {
+  const q = new URLSearchParams(u.search)
+  for (const k of KEY_PARAMS) q.delete(k)
+  const qs = q.toString()
+  return { link: `<${self}${u.pathname}${STAC_SUFFIX}${qs ? "?" + qs : ""}>; rel="describedby"; type="application/geo+json"` }
+}
+const EXPOSED = "x-tv-engine, x-tv-engine-why, link"
 
 const TYPES = { png: "image/png", jpg: "image/jpeg" }
 const allowedHosts = (process.env.TV_ALLOWED_HOSTS || "").split(",").map((s) => s.trim()).filter(Boolean)
@@ -483,6 +496,13 @@ async function handle(req, res) {
       // The OGC landing page: JSON to a client that asks for it (Accept or
       // ?f=json), the docs page to a browser.
       const wantsJson = u.searchParams.get("f") === "json" || /application\/json/.test(req.headers.accept || "")
+      // An export's STAC Item (Processing extension): its address plus
+      // .stac.json, the same query. Computed from the address, nothing drawn.
+      if (u.pathname.endsWith(STAC_SUFFIX)) {
+        const item = stacItem(self, u.pathname.slice(0, -STAC_SUFFIX.length), u.search, { sources })
+        if (!item) return send(404, "text/plain", "A STAC Item describes a raster export: /terrain-tiles/{z}/{x}/{y}.png|jpg|tif, /basemap-tiles/..., /render.*, /bbox/..., plus .stac.json")
+        return send(200, "application/geo+json", JSON.stringify(item, null, 2), { "cache-control": "no-store" })
+      }
       if (u.pathname === "/" && !wantsJson) return send(302, "text/plain", "See /docs", { location: "/docs" })
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify(landingPage(self, {
         docs: "/docs", openapi: "/openapi.json", conformance: "/conformance", processes: "/processes", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
@@ -571,7 +591,7 @@ async function handle(req, res) {
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
         const ext = bt[5] === "png" ? "png" : "jpg"
         const made = await tile(z, x, y, ext, basemapQuery(u.search), bt[4] === "@2x" ? 2 : 1)
-        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
+        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": EXPOSED, ...describedBy(self, u) })
       }
       if (/^\/basemap-tiles\//.test(u.pathname)) return send(404, "text/plain", "Basemap tiles are /basemap-tiles/{z}/{x}/{y}.jpg or .png (imagery has neither values nor vector tiles)")
       const t = u.pathname.match(/^\/(?:tiles\/WebMercatorQuad\/|terrain-tiles\/)(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
@@ -587,11 +607,11 @@ async function handle(req, res) {
           const format = t[5].startsWith("tif") ? "tif" : packing
           if (!VALUE_FORMATS.includes(format) || (format === "tif") !== t[5].startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?encoding=terrarium or terrainrgb")
           const made = await valuesFor(format, u.search, { z, x, y, scale: t[4] === "@2x" ? 2 : 1 })
-          return send(200, made.type, made.bytes, { ...valueHeaders(made) })
+          return send(200, made.type, made.bytes, { ...valueHeaders(made), ...describedBy(self, u) })
         }
         const ext = t[5] === "png" ? "png" : "jpg"
         const made = await tile(z, x, y, ext, u.search, t[4] === "@2x" ? 2 : 1)
-        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
+        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": EXPOSED, ...describedBy(self, u) })
       }
       if (u.pathname === "/WebMercatorQuad/tilejson.json" || u.pathname === "/tilejson.json") {
         const q = new URLSearchParams(u.search)
@@ -625,11 +645,11 @@ async function handle(req, res) {
           const format = asked.startsWith("tif") ? "tif" : q.get("encoding")
           if (!VALUE_FORMATS.includes(format) || (format === "tif") !== asked.startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?encoding=terrarium or terrainrgb")
           const made = await valuesFor(format, q, null)
-          return send(200, made.type, made.bytes, valueHeaders(made))
+          return send(200, made.type, made.bytes, { ...valueHeaders(made), ...describedBy(self, u) })
         }
         const ext = asked === "png" ? "png" : "jpg"
         const made = await picture(ext, q)
-        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": "x-tv-engine, x-tv-engine-why" })
+        return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": EXPOSED, ...describedBy(self, u) })
       }
       // Removed on 2026-11-24 (deprecated the same day): say where they went.
       if (/^\/tiles\/\d/.test(u.pathname)) return send(404, "text/plain", "/tiles/{z}/{x}/{y} is removed: ask /terrain-tiles/{z}/{x}/{y} for the elevation modes and /basemap-tiles/{z}/{x}/{y} for the imagery")

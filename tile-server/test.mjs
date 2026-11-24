@@ -8,6 +8,103 @@ import { blockOf, viewOf, sources } from "./server.mjs"
 import { DOCS_COPY, docsCopyText } from "./openapi.mjs"
 import { viewToQuery, queryToView } from "./url.mjs"
 import { plan } from "./direct.mjs"
+import { stacItem, PROCESSING_EXT, VERSION } from "./stac.mjs"
+
+// A JSON Schema check, the subset the vendored STAC Processing extension
+// schema (schemas/stac-processing-v1.2.0.json, draft-07) uses: offline.
+function schemaErrors(schema, value, root = schema, at = "$") {
+  if (schema === true || schema === undefined) return []
+  if (schema === false) return [`${at}: not allowed`]
+  const errs = []
+  if (schema.$ref) {
+    const target = schema.$ref.replace(/^#\//, "").split("/").reduce((o, k) => o[k], root)
+    errs.push(...schemaErrors(target, value, root, at))
+  }
+  const kind = (v) => (Array.isArray(v) ? "array" : v === null ? "null" : Number.isInteger(v) ? "integer" : typeof v)
+  if (schema.type && !(kind(value) === schema.type || (schema.type === "number" && kind(value) === "integer"))) return [`${at}: ${kind(value)}, not ${schema.type}`]
+  if ("const" in schema && JSON.stringify(value) !== JSON.stringify(schema.const)) errs.push(`${at}: not ${JSON.stringify(schema.const)}`)
+  if (schema.enum && !schema.enum.some((e) => JSON.stringify(e) === JSON.stringify(value))) errs.push(`${at}: not in enum`)
+  if (schema.pattern && typeof value === "string" && !new RegExp(schema.pattern).test(value)) errs.push(`${at}: does not match ${schema.pattern}`)
+  if (schema.format === "date-time" && typeof value === "string" && !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$/.test(value)) errs.push(`${at}: not a date-time`)
+  if (schema.required && kind(value) === "object") for (const k of schema.required) if (!(k in value)) errs.push(`${at}: ${k} is required`)
+  if (kind(value) === "object") {
+    for (const [k, v] of Object.entries(value)) {
+      let matched = false
+      if (schema.properties && k in schema.properties) { matched = true; errs.push(...schemaErrors(schema.properties[k], v, root, `${at}.${k}`)) }
+      for (const [re, sub] of Object.entries(schema.patternProperties ?? {})) if (new RegExp(re).test(k)) { matched = true; errs.push(...schemaErrors(sub, v, root, `${at}.${k}`)) }
+      if (!matched && "additionalProperties" in schema) errs.push(...schemaErrors(schema.additionalProperties, v, root, `${at}.${k}`))
+    }
+  }
+  if (schema.contains && kind(value) === "array" && !value.some((v) => !schemaErrors(schema.contains, v, root).length)) errs.push(`${at}: contains none`)
+  if (schema.allOf) for (const sub of schema.allOf) errs.push(...schemaErrors(sub, value, root, at))
+  if (schema.anyOf && !schema.anyOf.some((sub) => !schemaErrors(sub, value, root, at).length)) errs.push(`${at}: matches none of anyOf`)
+  if (schema.not && !schemaErrors(schema.not, value, root, at).length) errs.push(`${at}: matches not`)
+  return errs
+}
+const PROCESSING_SCHEMA = JSON.parse(readFileSync(new URL("./schemas/stac-processing-v1.2.0.json", import.meta.url), "utf8"))
+/** A STAC 1.1.0 Item with the Processing extension: the core fields by
+ *  hand, the extension by its schema. */
+function assertStacItem(item) {
+  assert.equal(item.type, "Feature"); assert.equal(item.stac_version, "1.1.0")
+  assert.equal(typeof item.id, "string"); assert.ok(item.id.length)
+  assert.ok(Array.isArray(item.bbox) && item.bbox.length === 4 && item.bbox.every(Number.isFinite) && item.bbox[0] < item.bbox[2] && item.bbox[1] < item.bbox[3])
+  assert.equal(item.geometry.type, "Polygon"); assert.equal(item.geometry.coordinates[0].length, 5)
+  assert.ok(!Number.isNaN(Date.parse(item.properties.datetime)))
+  assert.ok(item.links.every((l) => typeof l.href === "string" && typeof l.rel === "string"))
+  assert.ok(item.links.some((l) => l.rel === "derived_from"))
+  assert.ok(Object.values(item.assets).every((a) => typeof a.href === "string"))
+  assert.deepEqual(schemaErrors(PROCESSING_SCHEMA, item), [])
+}
+
+// The validator rejects what the schema rejects.
+{
+  const item = (properties, ext = [PROCESSING_EXT]) => ({ type: "Feature", stac_extensions: ext, properties, assets: {} })
+  assert.ok(schemaErrors(PROCESSING_SCHEMA, item({ datetime: "x" })).length, "no processing field")
+  assert.ok(schemaErrors(PROCESSING_SCHEMA, item({ "processing:datetime": "2026-01-01T00:00:00+02:00" })).length, "not UTC")
+  assert.ok(schemaErrors(PROCESSING_SCHEMA, item({ "processing:expression": { format: "x" } })).length, "expression without expression")
+  assert.ok(schemaErrors(PROCESSING_SCHEMA, item({ "processing:lineage": "x" }, [])).length, "extension not declared")
+  assert.ok(schemaErrors(PROCESSING_SCHEMA, item({ "processing:typo": "x", "processing:lineage": "x" })).length, "unknown processing: field")
+}
+
+// STAC Items of exports, offline: footprint, lineage, expression, keys left out.
+{
+  const now = new Date("2026-11-24T10:00:00Z")
+  const tile = stacItem("http://h", "/terrain-tiles/13/4270/2911.tif", "?modes=slope&slopeMaxDegrees=45&mapboxKey=secret", { now, sources: () => [{ id: "mapterhorn", url: "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp" }] })
+  assertStacItem(tile)
+  assert.ok(!JSON.stringify(tile).includes("secret"), "the caller's key is left out")
+  assert.ok(Math.abs(tile.bbox[0] - (4270 / 8192 * 360 - 180)) < 1e-6 && Math.abs(tile.bbox[2] - (4271 / 8192 * 360 - 180)) < 1e-6)
+  assert.equal(tile.properties["processing:datetime"], "2026-11-24T10:00:00Z")
+  assert.deepEqual(tile.properties["processing:software"], { "terrain-viewer tile-server": VERSION })
+  assert.equal(tile.properties["processing:level"], "L3")
+  assert.deepEqual(tile.properties["processing:expression"], { format: "x-tv-process", expression: { process: "slope", processes: ["slope"], endpoint: "terrain-tiles", inputs: { terrainSource: "mapterhorn", slopeMaxDegrees: "45" } } })
+  assert.match(tile.properties["processing:lineage"], /mode slope .*mapterhorn.*slopeMaxDegrees=45/)
+  assert.ok(tile.links.some((l) => l.rel === "derived_from" && l.href === "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"))
+  assert.equal(tile.assets.data.type, "image/tiff; application=geotiff")
+  assert.deepEqual(tile.assets.data.roles, ["data"])
+  const box = stacItem("http://h", "/bbox/7.6,45.95,7.7,46/800x600.tif", "?modes=svf&terrainSource=https://example.com/{z}/{x}/{y}.png", { now })
+  assertStacItem(box); assert.deepEqual(box.bbox, [7.6, 45.95, 7.7, 46])
+  assert.ok(box.links.some((l) => l.rel === "derived_from" && l.href === "https://example.com/{z}/{x}/{y}.png"))
+  // A picture of a box shows more than the box when the shapes differ.
+  const pic = stacItem("http://h", "/render.png", "?modes=hillshade,contours&bbox=7.6,45.95,7.7,46&width=1000&height=1000", { now })
+  assertStacItem(pic); assert.ok(pic.bbox[1] < 45.95 && pic.bbox[3] > 46 && Math.abs(pic.bbox[0] - 7.6) < 1e-6)
+  assert.deepEqual(pic.properties["processing:expression"].expression.processes, ["hillshade", "contours"])
+  assert.deepEqual(pic.assets.data.roles, ["visual"])
+  const centre = stacItem("http://h", "/render.jpg", "?lat=45.83&lng=6.86&zoom=11&width=1024&height=640", { now })
+  assertStacItem(centre); assert.ok(centre.bbox[0] < 6.86 && centre.bbox[2] > 6.86)
+  const imagery = stacItem("http://h", "/basemap-tiles/14/8492/5792.jpg", "?imagerySource=wayback&imageryDate=2020-01-01", { now })
+  assertStacItem(imagery); assert.equal(imagery.properties["processing:level"], undefined)
+  assert.equal(stacItem("http://h", "/terrain-tiles/2/2/1.pbf", ""), null, "a vector tile has none")
+}
+
+// The API reference lists the processes first, then the tiles; no titiler group.
+{
+  const { openapi } = await import("./openapi.mjs")
+  const doc = openapi()
+  assert.deepEqual(doc.tags.map((t) => t.name), ["OGC API - Processes", "Terrain tiles", "Basemap tiles", "Catalogs", "Viewport", "Values", "Service"])
+  const used = new Set(Object.values(doc.paths).flatMap((p) => Object.values(p).flatMap((op) => op.tags)))
+  assert.deepEqual([...used].sort(), doc.tags.map((t) => t.name).sort(), "every tag used, every used tag listed")
+  assert.ok(!Object.keys(doc.paths).some((p) => p.startsWith("/tiles/")), "no /tiles path documented")
+}
 
 // The tile service: a 256 px tile is drawn one MapLibre zoom lower, in a block of 8 x 8.
 {
@@ -326,6 +423,18 @@ import { plan } from "./direct.mjs"
     assert.equal((await get("/terrain-tiles/2/2/1.png?modes=hillshade,basemap")).status, 400)
     assert.equal((await get("/basemap-tiles/2/2/1.jpg?modes=slope&imagerySource=wayback")).status, 400)
     assert.equal((await get("/basemap-tiles/2/2/1.tif")).status, 404)
+    // Every raster answer names its STAC Item; the item validates.
+    const link = tif.headers.get("link")
+    assert.match(link, /^<.+\/terrain-tiles\/2\/2\/1\.tif\.stac\.json\?modes=slope>; rel="describedby"/)
+    assert.match(fresh.headers.get("link"), /\/terrain-tiles\/2\/2\/1\.png\.stac\.json\?modes=slope&background=none>/)
+    assert.match(tif.headers.get("access-control-expose-headers"), /\blink\b/)
+    const itemRes = await get(link.match(/^<([^>]+)>/)[1].replace(/^https?:\/\/[^/]+/, ""))
+    assert.equal(itemRes.status, 200); assert.equal(itemRes.headers.get("content-type"), "application/geo+json")
+    const item = await itemRes.json()
+    assertStacItem(item)
+    assert.equal(item.assets.data.href, `${base}/terrain-tiles/2/2/1.tif?modes=slope`)
+    assertStacItem(await (await get("/render.tif.stac.json?modes=slope&bbox=7.6,45.95,7.7,46")).json())
+    assert.equal((await get("/terrain-tiles/2/2/1.pbf.stac.json")).status, 404)
     const tj = await json("/tilejson.json?modes=slope")
     assert.ok(tj.tiles[0].startsWith(`${base}/terrain-tiles/{z}/{x}/{y}.png?`))
     assert.ok((await json("/tilejson.json?modes=basemap&imagerySource=wayback")).tiles[0].startsWith(`${base}/basemap-tiles/`))

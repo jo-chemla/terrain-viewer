@@ -14,7 +14,8 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
 | `/terrain-tiles/{z}/{x}/{y}.tif`, `/render.tif`, `/gdal.xml` | One mode's values before its ramp, in natural units: Float32 GeoTIFF tiles, an area (like a WCS), one GDAL raster; deflate-compressed (`compression=none` to skip); `.png?encoding=terrarium\|terrainrgb` packs them in a PNG |
 | `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
-| `/tiles/WebMercatorQuad/...`, `/bbox/...` | titiler's addresses for the same |
+| `/tiles/WebMercatorQuad/...`, `/bbox/...` | titiler's addresses for the same (aliases; the API reference names them under `/terrain-tiles` and `/render`) |
+| `<raster export>.stac.json` | The export's STAC Item (Processing extension, `stac.mjs`), also named by the answer's `Link: <…>; rel="describedby"` header |
 | `/processes`, `/processes/{id}` | Each mode as an OGC API - Processes description (settings as inputs with JSON Schema, outputs, `x-tv-` panel data), read by the QGIS plugin (`../qgis-plugin/`); `/`, `/conformance` per OGC API Common; `/view?<share query>` |
 | `/openapi.json`, `/docs`, `/health` | `/` redirects to `/docs` (JSON index with `Accept: application/json`); `/health`: queues and workers |
 

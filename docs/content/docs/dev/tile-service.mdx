@@ -219,6 +219,46 @@ A client written for [titiler](https://developmentseed.org/titiler/) needs few c
 | `tilesize` | 256 or 512 |
 | `rescale`, `colormap_name`, `bidx`, `expression`, `nodata`, other tile matrix sets | Not read. The app's own parameters set the ramps |
 
+These are aliases kept for titiler clients. The API reference (`/docs`) does not list them as a group of their own: it names them in the description of `/terrain-tiles`, `/tilejson.json` and `/render`, the addresses to use.
+
+## Provenance: a STAC Item for each export
+
+Each raster the service answers has a [STAC](https://stacspec.org) Item: the export's address plus `.stac.json`, with the same query. The answer names it in a `Link` header, `Link: <…/terrain-tiles/13/4270/2911.tif.stac.json?modes=slope>; rel="describedby"; type="application/geo+json"`. That covers the value TIFFs and PNGs (`/terrain-tiles/{z}/{x}/{y}.tif`, `/render.tif`, `/bbox/…/{w}x{h}.tif`) and the rendered pictures (`/terrain-tiles/….png|jpg`, `/basemap-tiles/…`, `/render.png|jpg`, `/bbox/….png`). Vector tiles have none. The item is worked out from the address alone, so asking for it draws nothing, and the caller's API keys are left out of it.
+
+The item is STAC 1.1.0 with the [Processing extension](https://github.com/stac-extensions/processing) v1.2.0:
+
+| Field | Value |
+|---|---|
+| `bbox`, `geometry` | The export's footprint: the tile; the box asked for values; for a picture of a box, the whole picture (the box, plus more on two sides when the shapes differ); for a centred viewport, its box without pitch or bearing |
+| `datetime`, `processing:datetime` | When the item was answered (UTC) |
+| `processing:lineage` | One sentence: the mode or modes, the terrain source (or the imagery), the parameters |
+| `processing:software` | `{"terrain-viewer tile-server": "<version of tile-server/package.json>"}` |
+| `processing:level` | `L3` for a map derived from the elevation; left out for the imagery |
+| `processing:expression` | `{"format": "x-tv-process", "expression": {"process", "processes", "endpoint", "inputs"}}`: the process ids (as in `/processes`) and their inputs as executed |
+| `links` | `derived_from` the source (its `/sources/{id}` entry and its tile template, or its address; for the imagery, its address or `/processes/basemap`), `related` to each `/processes/{id}` |
+| `assets.data` | The export itself, role `data` (values) or `visual` (a picture) |
+
+```json
+{
+  "type": "Feature", "stac_version": "1.1.0",
+  "stac_extensions": ["https://stac-extensions.github.io/processing/v1.2.0/schema.json"],
+  "id": "tv-terrain-tiles-slope-13-4270-2911",
+  "bbox": [7.6464844, 46.0732306, 7.6904297, 46.1037088],
+  "properties": {
+    "datetime": "2026-11-25T09:00:00Z",
+    "processing:lineage": "The values of mode slope (before its colour ramp) computed from terrain source mapterhorn by the Terrain Viewer tile service (terrain-tiles, tif), in EPSG:3857, with slopeMaxDegrees=45.",
+    "processing:software": { "terrain-viewer tile-server": "0.3.0" },
+    "processing:level": "L3",
+    "processing:datetime": "2026-11-25T09:00:00Z",
+    "processing:expression": { "format": "x-tv-process", "expression": { "process": "slope", "processes": ["slope"], "endpoint": "terrain-tiles", "inputs": { "terrainSource": "mapterhorn", "slopeMaxDegrees": "45" } } }
+  },
+  "links": [{ "rel": "derived_from", "href": "http://localhost:3400/sources/mapterhorn" }, { "rel": "related", "href": "http://localhost:3400/processes/slope" }],
+  "assets": { "data": { "href": "http://localhost:3400/terrain-tiles/13/4270/2911.tif?modes=slope&slopeMaxDegrees=45", "type": "image/tiff; application=geotiff", "roles": ["data"] } }
+}
+```
+
+(The geometry and the self link are left out above.) The tests check every item against the extension's schema, a copy of which is kept in `tile-server/schemas/`. This is a proof of concept: there is no STAC catalog or collection over the items, and none is written to disk.
+
 ## What the direct engine draws
 
 The direct engine computes the tile in the server, with no browser. It opens nothing: it rebuilds the map's layer stack from the same URL parameters the app would read, and computes every layer with the app's own code, bundled for Node.

@@ -46,8 +46,11 @@ const tileXYZ = (z = 12, x = 2125, y = 1464) => [
 ]
 const ogcJson = (description) => ({ 200: { description, content: { "application/json": { schema: { type: "object" } } } } })
 
+// Every raster answer names its STAC Item (stac.mjs) in a Link header.
+const LINK_HEADER = { link: { schema: { type: "string" }, description: "`<{this address}.stac.json?{query}>; rel=\"describedby\"; type=\"application/geo+json\"`: the answer's STAC Item (Processing extension)." } }
+const STAC_NOTE = " **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header."
 const image = (description) => ({
-  200: { description, content: { "image/png": { schema: { type: "string", format: "binary" } }, "image/jpeg": { schema: { type: "string", format: "binary" } } } },
+  200: { description, headers: LINK_HEADER, content: { "image/png": { schema: { type: "string", format: "binary" } }, "image/jpeg": { schema: { type: "string", format: "binary" } } } },
   400: { description: "A parameter is wrong; the body says which", content: { "text/plain": { schema: { type: "string" } } } },
   500: { description: "The app could not be rendered; the body says why", content: { "text/plain": { schema: { type: "string" } } } },
 })
@@ -67,7 +70,7 @@ const VALUE_HEADERS = { "x-tv-value-unit": { schema: { type: "string" }, descrip
 const COMPRESSION = q("compression", { type: "string", enum: ["deflate", "none"], default: "deflate" }, "Deflate with the floating-point predictor (GDAL's PREDICTOR=3), lossless: about a quarter of the size for elevation, half for slope, two thirds for curvature or svf, for 2 to 6 ms a tile. `none` for a reader without deflate.")
 const TIFF_NOTE = " Browsers do not display TIFF: Scalar's test request answers \"Preview unavailable\" and offers the file to download."
 const tiff = (description) => ({
-  200: { description, headers: VALUE_HEADERS, content: { "image/tiff": { schema: { type: "string", format: "binary" } } } },
+  200: { description, headers: { ...VALUE_HEADERS, ...LINK_HEADER }, content: { "image/tiff": { schema: { type: "string", format: "binary" } } } },
   400: { description: "More than one mode, a mode without values, or a source the direct engine cannot read", content: { "text/plain": { schema: { type: "string" } } } },
 })
 
@@ -82,12 +85,22 @@ export function openapi(server = "http://localhost:3400") {
     },
     externalDocs: { description: "Documentation", url: "https://terrain-viewer.iconem.com/docs/dev/tile-service" },
     servers: [{ url: server }],
-    tags: [{ name: "Tiles" }, { name: "Viewport" }, { name: "Values", description: "A mode's numbers before the colour ramp, in natural units: Float32 GeoTIFF for analysis (GDAL, QGIS, rasterio, numpy), or packed in a PNG for a web map." }, { name: "titiler addresses", description: "The same answers at the addresses titiler uses." }, { name: "Catalogs", description: "What can be named by id: sources, colour ramps, modes." }, { name: "OGC API", description: "The modes as OGC API - Processes processes (OGC 18-062r2), with OGC API Common's landing page and conformance. A process is run by asking for its tiles: its description links them." }, { name: "Service" }],
+    // Scalar lists the groups in this order: the processes first (they list
+    // the modes), then the tiles they run as, then the rest.
+    tags: [
+      { name: "OGC API - Processes", description: "The modes as OGC API - Processes processes (OGC 18-062r2), with OGC API Common's landing page and conformance. `/processes` lists every mode with its settings; a process is run by asking for its tiles: its description links them." },
+      { name: "Terrain tiles", description: "`/terrain-tiles`: the elevation modes as XYZ raster tiles, the overlays as vector tiles, a TileJSON and a QGIS project of them." },
+      { name: "Basemap tiles", description: "`/basemap-tiles`: the imagery as XYZ tiles." },
+      { name: "Catalogs", description: "What can be named by id: sources, colour ramps, modes, and what a share link switches on." },
+      { name: "Viewport", description: "A picture of a viewport or a box, like a WMS GetMap." },
+      { name: "Values", description: "A mode's numbers before the colour ramp, in natural units: Float32 GeoTIFF for analysis (GDAL, QGIS, rasterio, numpy), or packed in a PNG for a web map." },
+      { name: "Service" },
+    ],
     paths: {
       "/terrain-tiles/{z}/{x}/{y}.tif": {
         get: {
           tags: ["Values"], operationId: "valueTile", summary: "A mode's values as a Float32 GeoTIFF tile",
-          description: "One band of 32-bit floats, EPSG:3857, georeferenced, NaN where there is no data: the values the app colours, before its ramp, in natural units (the unit in the `x-tv-value-unit` header and in `/processes/{id}`). 256 px; `{y}@2x` or `tilesize=512` for 512. The same tile as a PNG for a web map: `.png?modes=slope&encoding=terrarium` (or `terrainrgb`), the values multiplied by `valueScale` (default 1) and packed as an elevation, so MapLibre's raster-dem or a few lines of numpy read them back; `valueScale` keeps small values (curvature) above the packing's step (Terrarium 1/256, Terrain-RGB 0.1). Computed by the direct engine only." + TIFF_NOTE,
+          description: "One band of 32-bit floats, EPSG:3857, georeferenced, NaN where there is no data: the values the app colours, before its ramp, in natural units (the unit in the `x-tv-value-unit` header and in `/processes/{id}`). 256 px; `{y}@2x` or `tilesize=512` for 512. The same tile as a PNG for a web map: `.png?modes=slope&encoding=terrarium` (or `terrainrgb`), the values multiplied by `valueScale` (default 1) and packed as an elevation, so MapLibre's raster-dem or a few lines of numpy read them back; `valueScale` keeps small values (curvature) above the packing's step (Terrarium 1/256, Terrain-RGB 0.1). Computed by the direct engine only." + TIFF_NOTE + STAC_NOTE,
           parameters: [
             { name: "z", in: "path", required: true, schema: { type: "integer", minimum: 0, maximum: 22 }, example: 13 },
             { name: "x", in: "path", required: true, schema: { type: "integer", minimum: 0 }, example: 4270 },
@@ -104,7 +117,7 @@ export function openapi(server = "http://localhost:3400") {
       "/render.tif": {
         get: {
           tags: ["Values"], operationId: "valueRender", summary: "A mode's values over an area, as a Float32 GeoTIFF",
-          description: "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `/bbox/{bbox}/{width}x{height}.tif` is the same with a box. `.png` with `encoding` packs them as for the tiles." + TIFF_NOTE,
+          description: "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `/bbox/{bbox}/{width}x{height}.tif` is the same with a box. `.png` with `encoding` packs them as for the tiles." + TIFF_NOTE + STAC_NOTE,
           parameters: [
             q("bbox", { type: "string" }, "west,south,east,north in degrees.", { example: "7.6,45.95,7.7,46.0" }),
             q("width", { type: "integer", minimum: 16, maximum: 4096, default: 1024 }, "Width in pixels."),
@@ -126,16 +139,16 @@ export function openapi(server = "http://localhost:3400") {
       },
       "/terrain-tiles/{z}/{x}/{y}.{format}": {
         get: {
-          tags: ["Tiles"], operationId: "terrainTile", summary: "One XYZ tile of the elevation modes",
-          description: "A 256 px Web Mercator tile of the modes computed from the elevation (every mode but `basemap`), stacked as described under `modes`. For 512 px write `{y}@2x` in the address or add `tilesize=512`. The camera is the tile's: `lat`, `lng`, `zoom`, `pitch` and `bearing` are not read. The imagery is at `/basemap-tiles`.",
+          tags: ["Terrain tiles"], operationId: "terrainTile", summary: "One XYZ tile of the elevation modes",
+          description: "A 256 px Web Mercator tile of the modes computed from the elevation (every mode but `basemap`), stacked as described under `modes`. For 512 px write `{y}@2x` in the address or add `tilesize=512`. The camera is the tile's: `lat`, `lng`, `zoom`, `pitch` and `bearing` are not read. The imagery is at `/basemap-tiles`. titiler's `/tiles/WebMercatorQuad/{z}/{x}/{y}.{format}` (with `url` for the source and `algorithm` for one mode) answers the same tile." + STAC_NOTE,
           parameters: [...tileXYZ(), FORMAT, q("tilesize", { type: "integer", enum: [256, 512], default: 256 }, "The side of the tile in pixels."), ...VIEW_PARAMS],
           responses: image("The tile"),
         },
       },
       "/basemap-tiles/{z}/{x}/{y}.{format}": {
         get: {
-          tags: ["Tiles"], operationId: "basemapTile", summary: "One XYZ tile of the imagery",
-          description: "The basemap as the app draws it: dated imagery (`imagerySource`, `imageryDate`), an XYZ or COG address (`imageryUrl`), or the app's named basemap and its overlays (`basemapSource`, `overlayBasemapIds` and the other basemap parameters of the app, at the top level of the query). Drawn by the browser engine. A terrain mode in `modes` is refused: ask `/terrain-tiles` and stack the two. `{y}@2x` or `tilesize=512` for 512 px.",
+          tags: ["Basemap tiles"], operationId: "basemapTile", summary: "One XYZ tile of the imagery",
+          description: "The basemap as the app draws it: dated imagery (`imagerySource`, `imageryDate`), an XYZ or COG address (`imageryUrl`), or the app's named basemap and its overlays (`basemapSource`, `overlayBasemapIds` and the other basemap parameters of the app, at the top level of the query). Drawn by the browser engine. A terrain mode in `modes` is refused: ask `/terrain-tiles` and stack the two. `{y}@2x` or `tilesize=512` for 512 px." + STAC_NOTE,
           parameters: [
             ...tileXYZ(14, 8492, 5792), { ...FORMAT, schema: { type: "string", enum: ["jpg", "png"], default: "jpg" } },
             q("tilesize", { type: "integer", enum: [256, 512], default: 256 }, "The side of the tile in pixels."),
@@ -148,10 +161,18 @@ export function openapi(server = "http://localhost:3400") {
           responses: image("The tile"),
         },
       },
+      "/terrain-tiles/{z}/{x}/{y}.{format}.stac.json": {
+        get: {
+          tags: ["Terrain tiles"], operationId: "stacItem", summary: "The STAC Item of an export",
+          description: "Any raster export's address plus `.stac.json`, with the same query: `/terrain-tiles/{z}/{x}/{y}.png|jpg|tif.stac.json`, `/basemap-tiles/{z}/{x}/{y}.jpg.stac.json`, `/render.png|tif.stac.json`, `/bbox/{w},{s},{e},{n}/{width}x{height}.tif.stac.json`. A STAC 1.1.0 Item with the Processing extension (v1.2.0): `bbox` and `geometry` of the export, `datetime` and `processing:datetime` the time of the answer, `processing:lineage` (a sentence: the source, the modes, their parameters), `processing:software` (`terrain-viewer tile-server` and its version), `processing:level` (`L3` for a map derived from the elevation), `processing:expression` (`format: x-tv-process`, the process ids and their inputs as executed), links `derived_from` the terrain source (its `/sources/{id}` entry and its tile template, or its address) or the imagery, `related` to each `/processes/{id}`, and the export as asset `data`. Computed from the address: nothing is drawn, and the caller's API keys are left out.",
+          parameters: [...tileXYZ(13, 4270, 2911), { ...FORMAT, schema: { type: "string", enum: ["png", "jpg", "tif"], default: "tif" } }, ...VIEW_PARAMS],
+          responses: { 200: { description: "The STAC Item", content: { "application/geo+json": { schema: { type: "object" } } } }, 404: { description: "Not the address of a raster export" } },
+        },
+      },
       "/render.{format}": {
         get: {
           tags: ["Viewport"], operationId: "render", summary: "A picture of a viewport",
-          description: "Like a WMS GetMap: a picture of a given size, placed by its centre and zoom or by a bounding box. Unlike a tile it keeps the scale bar and the credits, and it can be tilted or split.",
+          description: "Like a WMS GetMap: a picture of a given size, placed by its centre and zoom or by a bounding box. Unlike a tile it keeps the scale bar and the credits, and it can be tilted or split. titiler's `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` is the same with a box." + STAC_NOTE,
           parameters: [
             FORMAT,
             q("lat", { type: "number", minimum: -85, maximum: 85 }, "Latitude of the centre. Required unless `bbox` is given.", { example: 45.83 }),
@@ -170,38 +191,12 @@ export function openapi(server = "http://localhost:3400") {
           responses: image("The picture"),
         },
       },
-      "/tiles/WebMercatorQuad/{z}/{x}/{y}.{format}": {
+      "/tilejson.json": {
         get: {
-          tags: ["titiler addresses"], operationId: "titilerTile", summary: "One tile, at titiler's address",
-          description: "The same as `/terrain-tiles/{z}/{x}/{y}` (titiler's address). `url` is the source and `algorithm` one mode; `@2x` after `{y}` and `tilesize` work the same. titiler's `rescale`, `colormap_name`, `bidx`, `expression` and `nodata` are not read.",
-          parameters: [
-            { name: "z", in: "path", required: true, schema: { type: "integer" } }, { name: "x", in: "path", required: true, schema: { type: "integer" } }, { name: "y", in: "path", required: true, schema: { type: "integer" } }, FORMAT,
-            q("url", { type: "string" }, "The elevation source (as `terrainSource`)."),
-            q("algorithm", { type: "string", enum: MODE_NAMES }, "One mode (as `modes`)."),
-            q("tilesize", { type: "integer", enum: [256, 512], default: 256 }, "The side of the tile in pixels."),
-          ],
-          responses: image("The tile"),
-        },
-      },
-      "/WebMercatorQuad/tilejson.json": {
-        get: {
-          tags: ["titiler addresses"], operationId: "tilejson", summary: "A TileJSON for a view",
-          description: "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg; pbf or mvt for the vector tiles, then TileJSON 3.0 with the `vector_layers` of the modes) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address, `/terrain-tiles` (`/basemap-tiles` for `modes=basemap`). `/tilejson.json` is the same.",
+          tags: ["Terrain tiles"], operationId: "tilejson", summary: "A TileJSON for a view",
+          description: "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg; pbf or mvt for the vector tiles, then TileJSON 3.0 with the `vector_layers` of the modes) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address, `/terrain-tiles` (`/basemap-tiles` for `modes=basemap`). `/WebMercatorQuad/tilejson.json` (titiler's address) is the same.",
           parameters: [q("tile_format", { type: "string", enum: ["png", "jpg", "pbf", "mvt"], default: "png" }, "Tile format."), q("tile_scale", { type: "integer", enum: [1, 2], default: 1 }, "2 for 512 px tiles."), ...ALL_PARAMS],
           responses: { 200: { description: "TileJSON 2.2.0", content: { "application/json": { schema: { type: "object" } } } } },
-        },
-      },
-      "/bbox/{bbox}/{width}x{height}.{format}": {
-        get: {
-          tags: ["titiler addresses"], operationId: "bbox", summary: "A picture of a bounding box, at titiler's address",
-          description: "The same as `/render` with `bbox`, `width` and `height`.",
-          parameters: [
-            { name: "bbox", in: "path", required: true, schema: { type: "string" }, description: "west,south,east,north in degrees", example: "6.7,45.75,7.0,45.95" },
-            { name: "width", in: "path", required: true, schema: { type: "integer" }, example: 800 },
-            { name: "height", in: "path", required: true, schema: { type: "integer" }, example: 600 },
-            FORMAT, ...ALL_PARAMS,
-          ],
-          responses: image("The picture"),
         },
       },
       "/sources": {
@@ -218,8 +213,8 @@ export function openapi(server = "http://localhost:3400") {
       },
       "/terrain-tiles/{z}/{x}/{y}.{vectorFormat}": {
         get: {
-          tags: ["Tiles"], operationId: "vectorTile", summary: "The overlays as a vector tile",
-          description: "The tile address with `.pbf` or `.mvt`: a Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles; `/tiles/WebMercatorQuad/...` is the same. Past a layer's last zoom it comes from its deepest tile, scaled up. A mode drawn only as an image (hillshade, the plane slicer, ...) is refused: ask for `.png` or `.jpg`.",
+          tags: ["Terrain tiles"], operationId: "vectorTile", summary: "The overlays as a vector tile",
+          description: "The tile address with `.pbf` or `.mvt`: a Mapbox Vector Tile (512 px tiles, as the map loads them) with the features the app's overlays draw, one layer each: `contours` (lines with `ele` and `level`), the iso-line (`isoband` polygons and `isoline` lines at a value, `isoline-cliff` the cliff edge on a slope; `isoline` lines every interval), the mound detector (`tells` points with their measures) and the graticule (`graticule` lines, `kind` meridian or parallel, `deg`). Same parameters as the raster tiles; titiler's `/tiles/WebMercatorQuad/{z}/{x}/{y}.pbf` is the same. Past a layer's last zoom it comes from its deepest tile, scaled up. A mode drawn only as an image (hillshade, the plane slicer, ...) is refused: ask for `.png` or `.jpg`.",
           parameters: [
             { name: "z", in: "path", required: true, schema: { type: "integer" }, example: 11 }, { name: "x", in: "path", required: true, schema: { type: "integer" }, example: 1067 }, { name: "y", in: "path", required: true, schema: { type: "integer" }, example: 728 },
             { name: "vectorFormat", in: "path", required: true, schema: { type: "string", enum: ["pbf", "mvt"] }, example: "pbf" },
@@ -231,23 +226,23 @@ export function openapi(server = "http://localhost:3400") {
         },
       },
       "/qgis.qgz": {
-        get: { tags: ["Tiles"], operationId: "qgis", summary: "A QGIS project of a view", description: "Every layer of the app as an XYZ layer of `/terrain-tiles` (transparent tiles, `background=none`), stacked as the map stacks them and grouped as its panel where that order allows: the overlays on top (contours, plane slicer, mound candidates, graticule, iso-line, each also as vector tiles), the lighting effects, the hillshade, relief visualization, terrain analysis, the colour relief, then the basemap (as the app draws it, with its overlays, from `/basemap-tiles`; a plain XYZ basemap as such too; Google hybrid), and a closed, unchecked group of each mode's values as a Float32 raster read by GDAL (`/gdal.xml`), for analysis. The layers the view switches on start checked, and every layer's address carries the view's settings. The query is the view, in the service's names (terrainSource, modes, imageryUrl...) or the app's own: the query of a share link works as is (terrainSourceA, show* switches, ramps, basemapSource, overlayBasemapIds...). lat, lng and zoom set the project's extent. Without a query: every layer unchecked but the Google hybrid basemap.", parameters: [q("terrainSource", { type: "string" }, "The elevation source of every layer (or terrainSourceA, the app's name)."), q("modes", { type: "string" }, "The layers to check, comma-separated; or the app's show* parameters."), q("appParams", { type: "object", additionalProperties: { type: "string" } }, "Any of the app's URL parameters, kept in every layer's address.")], responses: { 200: { description: "The project", content: { "application/zip": { schema: { type: "string", format: "binary" } } } } } },
+        get: { tags: ["Terrain tiles"], operationId: "qgis", summary: "A QGIS project of a view", description: "Every layer of the app as an XYZ layer of `/terrain-tiles` (transparent tiles, `background=none`), stacked as the map stacks them and grouped as its panel where that order allows: the overlays on top (contours, plane slicer, mound candidates, graticule, iso-line, each also as vector tiles), the lighting effects, the hillshade, relief visualization, terrain analysis, the colour relief, then the basemap (as the app draws it, with its overlays, from `/basemap-tiles`; a plain XYZ basemap as such too; Google hybrid), and a closed, unchecked group of each mode's values as a Float32 raster read by GDAL (`/gdal.xml`), for analysis. The layers the view switches on start checked, and every layer's address carries the view's settings. The query is the view, in the service's names (terrainSource, modes, imageryUrl...) or the app's own: the query of a share link works as is (terrainSourceA, show* switches, ramps, basemapSource, overlayBasemapIds...). lat, lng and zoom set the project's extent. Without a query: every layer unchecked but the Google hybrid basemap.", parameters: [q("terrainSource", { type: "string" }, "The elevation source of every layer (or terrainSourceA, the app's name)."), q("modes", { type: "string" }, "The layers to check, comma-separated; or the app's show* parameters."), q("appParams", { type: "object", additionalProperties: { type: "string" } }, "Any of the app's URL parameters, kept in every layer's address.")], responses: { 200: { description: "The project", content: { "application/zip": { schema: { type: "string", format: "binary" } } } } } },
       },
       "/algorithms": {
         get: { tags: ["Catalogs"], operationId: "algorithms", summary: "The modes, and which engine draws them", description: "Each mode with `direct` or `browser`.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
       },
       "/": {
-        get: { tags: ["OGC API"], operationId: "landingPage", summary: "Landing page", description: "OGC API Common's landing page: links to the API definition (`service-desc`), this page (`service-doc`), `/conformance` and `/processes`, plus the service's index of addresses. JSON when asked (`Accept: application/json` or `?f=json`); a browser is sent to `/docs`.", parameters: [q("f", { type: "string", enum: ["json"] }, "`json` for the JSON document.")], responses: { ...ogcJson("The landing page"), 302: { description: "To /docs, for a browser" } } },
+        get: { tags: ["OGC API - Processes"], operationId: "landingPage", summary: "Landing page", description: "OGC API Common's landing page: links to the API definition (`service-desc`), this page (`service-doc`), `/conformance` and `/processes`, plus the service's index of addresses. JSON when asked (`Accept: application/json` or `?f=json`); a browser is sent to `/docs`.", parameters: [q("f", { type: "string", enum: ["json"] }, "`json` for the JSON document.")], responses: { ...ogcJson("The landing page"), 302: { description: "To /docs, for a browser" } } },
       },
       "/conformance": {
-        get: { tags: ["OGC API"], operationId: "conformance", summary: "Conformance classes", description: "OGC API Common core, landing page and JSON; OGC API - Processes' process description and JSON classes. Not the Processes core class: a process is run by asking for its tiles, not by POST to `/processes/{processId}/execution`.", responses: ogcJson("`conformsTo`") },
+        get: { tags: ["OGC API - Processes"], operationId: "conformance", summary: "Conformance classes", description: "OGC API Common core, landing page and JSON; OGC API - Processes' process description and JSON classes. Not the Processes core class: a process is run by asking for its tiles, not by POST to `/processes/{processId}/execution`.", responses: ogcJson("`conformsTo`") },
       },
       "/processes": {
-        get: { tags: ["OGC API"], operationId: "processes", summary: "The modes, as OGC API - Processes processes", description: "One process per mode of the app (OGC API - Processes Part 1, OGC 18-062r2), top of the map first, then `basemap`. Each summary carries the `x-tv-` properties of its description (group, form, shading, stacking rank, values) and a link to it. `x-tv-groups` is the app's panel tree by process id. `?expand=true` gives every description in full (inputs and outputs), in one request; the QGIS plugin reads that.", parameters: [q("expand", { type: "boolean", default: false }, "Every process description in full.")], responses: ogcJson("The process list") },
+        get: { tags: ["OGC API - Processes"], operationId: "processes", summary: "The modes, as OGC API - Processes processes", description: "One process per mode of the app (OGC API - Processes Part 1, OGC 18-062r2), top of the map first, then `basemap`. Each summary carries the `x-tv-` properties of its description (group, form, shading, stacking rank, values) and a link to it. `x-tv-groups` is the app's panel tree by process id. `?expand=true` gives every description in full (inputs and outputs), in one request; the QGIS plugin reads that.", parameters: [q("expand", { type: "boolean", default: false }, "Every process description in full.")], responses: ogcJson("The process list") },
       },
       "/processes/{processId}": {
         get: {
-          tags: ["OGC API"], operationId: "process", summary: "One mode, as a process description",
+          tags: ["OGC API - Processes"], operationId: "process", summary: "One mode, as a process description",
           description: "The mode's settings as `inputs`, each with a JSON Schema (`type`, `enum`, `default`, `minimum`/`maximum` for opacities) and the app's URL parameter (`x-tv-url-param`, `x-tv-type`, `x-tv-role`: setting, opacity, group-opacity or common). `outputs`: `image` (image/png, image/jpeg), `values` for a mode with values (Float32 GeoTIFF, `x-tv-unit`, `x-tv-display-range`), `vectorTile` for an overlay. What OGC has no slot for: `x-tv-group` (its panel groups), `x-tv-form`, `x-tv-shading`, `x-tv-stack-rank`, `x-tv-opacity-key`, `x-tv-group-opacity-keys`, `x-tv-switches` (the app's show* parameters), `x-tv-has-values`, `x-tv-values` (unit, description, the typical range the QGIS plugin's grey ramp starts with).\n\n**Execution.** No jobs and no POST execution: the links with rel `http://www.opengis.net/def/rel/ogc/1.0/execute` are the mode's tile endpoints, templated (`{z}`, `{x}`, `{y}`), with the inputs as query parameters. `POST /processes/{processId}/execution` answers 501 with those links.",
           parameters: [{ name: "processId", in: "path", required: true, schema: { type: "string", enum: [...MODE_NAMES] }, example: "slope" }],
           responses: { ...ogcJson("The process description"), 404: { description: "No such process" } },

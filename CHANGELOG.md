@@ -1,3 +1,13 @@
+# Changelog — Tile Service: STAC Provenance, API Reference Order
+
+#### TL;DR
+
+- **[A STAC Item for each export](/docs/dev/tile-service#provenance-a-stac-item-for-each-export)** (proof of concept): every raster the tile service answers (value TIFFs and PNGs, rendered tiles and pictures, basemap tiles) has a STAC 1.1.0 Item with the Processing extension at its address plus `.stac.json`, named by a `Link: <…>; rel="describedby"` header on the answer: footprint, the terrain source it was derived from, the process and parameters as executed (`processing:expression`), a lineage sentence, the software version. Worked out from the address, nothing drawn, API keys left out.
+- **API reference order**: `/docs` lists OGC API - Processes first (it lists the modes), then Terrain tiles and Basemap tiles, Catalogs, Viewport, Values, Service. The "titiler addresses" group is gone: its tile and bbox operations duplicated `/terrain-tiles` and `/render` (still answered, named in their descriptions) and the TileJSON is listed as `/tilejson.json` under Terrain tiles.
+
+#### Details
+
+- `tile-server/stac.mjs`; the tests check every item against a vendored copy of the extension's schema (`tile-server/schemas/stac-processing-v1.2.0.json`) with a small offline validator, and the tag order.
 # Changelog — NASA G-LiHT KMZs, CORS Proxy, Earthdata
 
 #### TL;DR
