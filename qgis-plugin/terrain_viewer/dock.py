@@ -4,6 +4,7 @@ settings, built from what the tile service answers (/sources, /modes,
 plugin release. Each checked mode is a layer of the project whose address
 the panel writes; a changed setting rewrites that address."""
 import math
+import time
 from urllib.parse import urlsplit, parse_qsl
 
 from qgis.PyQt.QtCore import Qt, QTimer
@@ -11,7 +12,9 @@ from qgis.PyQt.QtWidgets import (
     QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox, QScrollArea, QToolButton, QFrame, QGroupBox, QSizePolicy,
 )
-from qgis.core import QgsSettings, QgsCoordinateReferenceSystem, QgsRectangle, QgsDataSourceUri
+from qgis.core import (
+    QgsSettings, QgsCoordinateReferenceSystem, QgsRectangle, QgsDataSourceUri, QgsCoordinateTransform, QgsProject,
+)
 
 try:
     from qgis.gui import QgsCollapsibleGroupBox as GroupBox
@@ -238,6 +241,7 @@ class TerrainViewerDock(QDockWidget):
         self.rows = {}
         self.stack = LayerStack()
         self.extra = {}  # a share link's other parameters, kept in every address
+        self.camera = None  # the last share link's (lat, lng, zoom), when there is no canvas
         self.pending = set()
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
@@ -286,6 +290,16 @@ class TerrainViewerDock(QDockWidget):
         link.addWidget(self.link, 1)
         link.addWidget(open_btn)
         outer.addLayout(link)
+
+        freeze = QHBoxLayout()
+        freeze_btn = QPushButton("Freeze")
+        freeze_btn.setToolTip("Copy the layers drawn now into a new group, every setting kept in their addresses; "
+                              "the panel never changes the copies")
+        freeze_btn.clicked.connect(self.freeze)
+        freeze.addStretch(1)
+        freeze.addWidget(freeze_btn)
+        outer.addLayout(freeze)
+        self.freeze_btn = freeze_btn
 
         self.groups_host = QWidget()
         self.groups_layout = QVBoxLayout(self.groups_host)
@@ -454,8 +468,45 @@ class TerrainViewerDock(QDockWidget):
             row.update()
         cam = view.get("camera") or {}
         if cam.get("lat") is not None and cam.get("lng") is not None:
+            self.camera = (float(cam["lat"]), float(cam["lng"]), float(cam.get("zoom") or 12))
             self.zoom_to(float(cam["lat"]), float(cam["lng"]), float(cam.get("zoom") or 12))
         self.status.setText(f"Opened: {len(active)} modes on" + (f", {len(self.extra)} other parameters kept" if self.extra else ""))
+
+    # -- freeze ---------------------------------------------------------------
+    def place(self):
+        """(lat, lng, zoom) of the canvas centre, in the app's zoom (512 px
+        tiles), or the last link's camera when there is no canvas."""
+        if self.canvas is None:
+            return self.camera
+        ms = self.canvas.mapSettings()
+        try:
+            to_merc = QgsCoordinateTransform(ms.destinationCrs(), QgsCoordinateReferenceSystem("EPSG:3857"), QgsProject.instance())
+            c = to_merc.transform(self.canvas.extent().center())
+            ext = to_merc.transformBoundingBox(self.canvas.extent())
+        except Exception:  # noqa: BLE001 - an extent outside Web Mercator
+            return self.camera
+        width = max(self.canvas.width(), 1)
+        if ext.width() <= 0:
+            return self.camera
+        zoom = math.log2(2 * WORLD * width / (512 * ext.width()))
+        lng = c.x() * 180 / WORLD
+        lat = math.degrees(2 * math.atan(math.exp(c.y() * math.pi / WORLD)) - math.pi / 2)
+        return (lat, lng, zoom)
+
+    def freeze(self, *_):
+        """The layers drawn now copied into a new group named with the time
+        and the place, every setting burnt into their addresses."""
+        self.flush()  # a setting changed less than half a second ago
+        name = "Frozen " + time.strftime("%H:%M")
+        place = self.place()
+        if place:
+            name += f" — {place[0]:.2f}, {place[1]:.2f} z{round(place[2])}"
+        group = self.stack.freeze(name)
+        if group is None:
+            self.status.setText("Nothing to freeze: no Terrain Viewer layer is checked")
+            return None
+        self.status.setText(f"{group.name()}: {len(group.findLayers())} layers")
+        return group
 
     def zoom_to(self, lat, lng, zoom):
         """The app's camera as the canvas extent (512 px tiles: zoom z is a
@@ -468,7 +519,6 @@ class TerrainViewerDock(QDockWidget):
         w, h = max(self.canvas.width(), 400), max(self.canvas.height(), 300)
         crs = QgsCoordinateReferenceSystem("EPSG:3857")
         if self.canvas.mapSettings().destinationCrs() != crs:
-            from qgis.core import QgsProject
             QgsProject.instance().setCrs(crs)
         self.canvas.setExtent(QgsRectangle(x - w / 2 * per_px, y - h / 2 * per_px, x + w / 2 * per_px, y + h / 2 * per_px))
         self.canvas.refresh()

@@ -45,6 +45,13 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
 - **Open from link**: paste a share link; its modes are checked, their settings
   and opacities set, the terrain source picked, the canvas moved to its camera.
   The link's other parameters are kept in every layer's address.
+- **Freeze** copies the layers drawn now (the checked ones in the "Terrain
+  Viewer" group) into a new group right under it, named with the time and the
+  canvas centre and zoom ("Frozen 14:32 — 44.51, 4.00 z11"). XYZ, vector tile
+  and values layers alike keep their address (every setting in it), opacity,
+  blending, style and order. The copies are plain QGIS layers: they carry
+  `terrain_viewer/frozen` instead of `terrain_viewer/layer`, so the panel never
+  rewrites them nor reads them back. Several freezes stack, the newest on top.
 - A saved project reopens with its layers; on Connect the panel reads their
   addresses back into its checkboxes and settings.
 - Keys (`mapboxKey`, `maptilerKey`, `cesiumIonKey`) are stored in QGIS's

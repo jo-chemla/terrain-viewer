@@ -16,13 +16,14 @@ A dock panel laid out as the app's sidebar: the same groups (Elevation Hypso, Te
 - A mode computed as numbers has a "values" box: its values before the ramp, in natural units, as a Float32 raster GDAL reads from the service's `/gdal.xml` (see [values, not colours](/dev/tile-service#values-not-colours)), for QGIS's own analysis tools.
 - The lists come from the service: `/sources` for the terrain sources, `/colorramps` for the ramps, and `/modes`, added for the plugin: the panel's groups and, for each mode, its form, whether it is shading, its opacity parameter and its settings (the app's URL parameters, with type, allowed values and default, from the generated URL reference). So a new mode or parameter in the app reaches the plugin without a plugin release.
 - "Open from link": paste a share link, get its layers. `/modes?<the link's query>` answers what the view switches on, the opacities, the parameters every layer keeps and the camera (the reading `/qgis.qgz` does).
+- **Freeze** copies the layers drawn now (the checked ones) into a new group under the live one, named with the time and the place ("Frozen 14:32 — 44.51, 4.00 z11"): XYZ, vector tile and values layers alike, every setting in their addresses, with their opacity, blending, style and order. The copies carry no mark the panel looks for, so later changes leave them as they are; several freezes stack as several groups, the newest on top, to compare settings side by side.
 - A saved project reopens as it was: on Connect, the panel reads its layers' addresses back into its checkboxes and settings.
 - Pure Python on QGIS's own API, no dependency. It needs a reachable tile service: a local one (`cd tile-server && pnpm start`) or a hosted one.
 
 ### Install
 
 ```bash
-cd qgis-plugin && python make_zip.py   # dist/terrain_viewer-0.1.0.zip
+cd qgis-plugin && python make_zip.py   # dist/terrain_viewer-0.2.0.zip
 ```
 
 In QGIS: Plugins, Manage and Install Plugins, Install from ZIP, then the Terrain Viewer button in the toolbar (or Web, Terrain Viewer). Not yet on plugins.qgis.org.

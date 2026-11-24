@@ -1,6 +1,7 @@
 """Headless check of the plugin against a running tile service:
   QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out-dir
-Builds the panel, opens a share link, checks modes, renders the canvas
+Builds the panel, opens a share link, checks modes, freezes them (the copies
+must not follow a later panel change), renders the canvas
 extent to PNGs and prints each layer's state."""
 import os
 import sys
@@ -114,6 +115,53 @@ print(render("plugin-svf.png", [svf], extent))
 print(render("plugin-contours-vector.png", [dock.stack.find("contours:vector")], extent))
 print(render("plugin-slope-values.png", [numbers], extent))
 
+# 2b. Freeze: the checked layers copied into a group, then a panel change
+# rewrites the live layers and leaves the copies alone.
+from terrain_viewer.layers import PROP, FROZEN_PROP  # noqa: E402
+live_before = {l.customProperty(PROP): l.source() for l in dock.stack.live_checked()}
+group = dock.freeze()
+frozen = [n.layer() for n in group.findLayers()] if group else []
+print("freeze:", group.name() if group else None, len(frozen), "layers")
+if not frozen or len(frozen) != len(live_before):
+    failures.append("freeze: layer count")
+frozen_src = {l.customProperty(FROZEN_PROP): l.source() for l in frozen}
+if frozen_src != live_before:
+    failures.append("freeze: sources differ from the live layers")
+if any(l.customProperty(PROP) for l in frozen) or any(dock.stack.find(k) in frozen for k in live_before):
+    failures.append("freeze: a copy is still tracked by the panel")
+if [l.customProperty(FROZEN_PROP) for l in frozen] != [l.customProperty(PROP) for l in dock.stack.live_checked()]:
+    failures.append("freeze: order")
+for l in frozen:
+    live = dock.stack.find(l.customProperty(FROZEN_PROP))
+    if type(l) is not type(live) or not l.isValid() or l.blendMode() != live.blendMode():
+        failures.append(f"freeze: {l.name()} type, validity or blending")
+    if hasattr(l, "renderer") and l.renderer() and live.renderer():
+        if hasattr(l.renderer(), "opacity") and round(l.renderer().opacity(), 3) != round(live.renderer().opacity(), 3):
+            failures.append(f"freeze: {l.name()} opacity")
+        if l.renderer().type() != live.renderer().type() if hasattr(l.renderer(), "type") else False:
+            failures.append(f"freeze: {l.name()} renderer")
+    print(f"  frozen {l.name():32} {type(l).__name__} valid={l.isValid()}")
+kinds = {type(l).__name__ for l in frozen}
+print("frozen kinds:", sorted(kinds))
+if not {"QgsRasterLayer", "QgsVectorTileLayer"} <= kinds or not any(l.providerType() == "gdal" for l in frozen):
+    failures.append("freeze: XYZ, vector tile and values layers expected")
+dock.rows["svf"].settings["svfRadius"].set(35)
+dock.rows["slope"].settings["slopeMaxDegrees"].set(60)
+dock.rows["contours"].settings["contourMinor"].set(7)
+dock.flush()
+after = {l.customProperty(FROZEN_PROP): l.source() for l in frozen}
+print("frozen unchanged after a panel change:", after == frozen_src)
+if after != frozen_src:
+    failures.append("freeze: a frozen source changed")
+for k in ("svf", "slope", "slope:values", "contours", "contours:vector"):
+    if dock.stack.find(k).source() == frozen_src.get(k):
+        failures.append(f"freeze: live {k} did not change")
+group2 = dock.freeze()
+roots = [c.name() for c in QgsProject.instance().layerTreeRoot().children()]
+print("tree roots after two freezes:", roots)
+if not (group2 and roots[0] == "Terrain Viewer" and roots[1] == group2.name() and group.name() in roots[2:] and group.name() != group2.name()):
+    failures.append("freeze: groups do not stack under the live one")
+
 # 3. A saved project read back: the checkboxes come back from the layers.
 path = os.path.join(out, "plugin-test.qgz")
 QgsProject.instance().write(path)
@@ -123,6 +171,8 @@ dock2 = TerrainViewerDock(None)
 dock2.url.setText(base)
 dock2.connect_service()
 back = sorted(k for k, r in dock2.rows.items() if r.check.isChecked())
+if len(QgsProject.instance().mapLayers()) != len([l for l in QgsProject.instance().mapLayers().values() if l.customProperty(PROP) or l.customProperty(FROZEN_PROP)]):
+    failures.append("read back: a layer lost its property")
 print("read back checked:", back, "svfRadius:", dock2.rows["svf"].settings["svfRadius"].get(), "slope values:", dock2.rows["slope"].numbers.isChecked())
 print("FAILURES:", failures or "none")
 app.exitQgis()

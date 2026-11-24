@@ -19,6 +19,9 @@ except (ImportError, AttributeError):  # QGIS 3.28
 
 ROOT_NAME = "Terrain Viewer"
 PROP = "terrain_viewer/layer"  # "<mode>", "<mode>:vector" or "<mode>:values"
+# A frozen copy carries this one instead of PROP, so the panel never finds,
+# rewrites or reads it back.
+FROZEN_PROP = "terrain_viewer/frozen"
 MULTIPLY = QPainter.CompositionMode.CompositionMode_Multiply
 NORMAL = QPainter.CompositionMode.CompositionMode_SourceOver
 
@@ -202,3 +205,48 @@ class LayerStack:
                 while p is not None and hasattr(p, "setItemVisibilityChecked"):
                     p.setItemVisibilityChecked(True)
                     p = p.parent()
+
+    # -- freeze -------------------------------------------------------------
+    def live_checked(self):
+        """The panel's layers drawn now (checked, and every group above them
+        checked), top of the map first."""
+        root = self.root(create=False)
+        if root is None or not root.isVisible():
+            return []
+        out = []
+
+        def walk(g):
+            for c in g.children():
+                if isinstance(c, QgsLayerTreeGroup):
+                    if c.itemVisibilityChecked():
+                        walk(c)
+                elif c.itemVisibilityChecked() and c.layer() is not None and c.layer().customProperty(PROP):
+                    out.append(c.layer())
+        walk(root)
+        return out
+
+    def freeze(self, name):
+        """A plain copy of every live layer drawn now, in a new group right
+        under the live one (the newest freeze on top): the same address, with
+        every setting in it, the same renderer, opacity and blending, the
+        same order. Nothing of the panel points at them afterwards."""
+        layers = self.live_checked()
+        if not layers:
+            return None
+        tree = self.project.layerTreeRoot()
+        live = self.root(create=False)
+        at = tree.children().index(live) + 1 if live in tree.children() else 0
+        taken = {c.name() for c in tree.children() if isinstance(c, QgsLayerTreeGroup)}
+        unique, n = name, 2
+        while unique in taken:  # two freezes in the same minute
+            unique, n = f"{name} ({n})", n + 1
+        group = tree.insertGroup(at, unique)
+        for layer in layers:
+            copy = layer.clone()
+            key = layer.customProperty(PROP)
+            copy.removeCustomProperty(PROP)
+            copy.setCustomProperty(FROZEN_PROP, key)
+            copy.setName(layer.name())
+            self.project.addMapLayer(copy, False)
+            group.addLayer(copy)
+        return group
