@@ -1,0 +1,467 @@
+{
+ "recorded": "2026-11-24, POST https://api.imagery.hotosm.org/stac/search over Antakya (Hatay), trimmed to the fields the adapter reads",
+ "oam": [
+  {
+   "type": "FeatureCollection",
+   "links": [
+    {
+     "rel": "next",
+     "type": "application/geo+json",
+     "method": "POST",
+     "href": "https://api.imagery.hotosm.org/stac/search",
+     "body": {
+      "bbox": [
+       36.15,
+       36.19,
+       36.17,
+       36.21
+      ],
+      "collections": [
+       "openaerialmap"
+      ],
+      "limit": 4,
+      "token": "next:openaerialmap:63eb829fca43600005f4d927"
+     }
+    }
+   ],
+   "features": [
+    {
+     "type": "Feature",
+     "id": "6436ef1d8cae390005a1450c",
+     "collection": "openaerialmap",
+     "bbox": [
+      36.15876,
+      36.064733,
+      36.50324,
+      36.300206
+     ],
+     "properties": {
+      "start_datetime": "2023-03-05T08:00:00Z",
+      "end_datetime": "2023-03-05T09:00:00Z",
+      "gsd": 0.30517578125,
+      "title": "Maxar 10300100E32F7A00 Hatay",
+      "license": "CC-BY-NC-4.0"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/6436e1ee8cae390005a144d1/0/6436e1ee8cae390005a144d2.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "data"
+       ]
+      },
+      "thumbnail": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/6436e1ee8cae390005a144d1/0/6436e1ee8cae390005a144d2.png",
+       "type": "image/png",
+       "roles": [
+        "thumbnail"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "6436f47c8cae390005a14513",
+     "collection": "openaerialmap",
+     "bbox": [
+      36.160392,
+      36.064733,
+      36.50324,
+      36.255171
+     ],
+     "properties": {
+      "start_datetime": "2023-02-22T08:00:00Z",
+      "end_datetime": "2023-02-22T09:00:00Z",
+      "gsd": 0.30517578125,
+      "title": "Maxar 10300100E3D52E00 Hatay",
+      "license": "CC-BY-NC-4.0"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/6436e9c68cae390005a144fc/0/6436e9c68cae390005a144fd.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "data"
+       ]
+      },
+      "thumbnail": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/6436e9c68cae390005a144fc/0/6436e9c68cae390005a144fd.png",
+       "type": "image/png",
+       "roles": [
+        "thumbnail"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "63ee3632525f0700077ed477",
+     "collection": "openaerialmap",
+     "bbox": [
+      35.988466,
+      36.021006,
+      36.338348,
+      36.382788
+     ],
+     "properties": {
+      "start_datetime": "2023-02-11T11:00:00Z",
+      "end_datetime": "2023-02-11T12:00:00Z",
+      "gsd": 0.378398966777,
+      "title": "Maxar 10300100E18CB600",
+      "license": "CC-BY-NC-4.0"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/63ee278c525f0700077ed470/0/63ee278c525f0700077ed471.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "data"
+       ]
+      },
+      "thumbnail": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/63ee278c525f0700077ed470/0/63ee278c525f0700077ed471.png",
+       "type": "image/png",
+       "roles": [
+        "thumbnail"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "63eb829fca43600005f4d927",
+     "collection": "openaerialmap",
+     "bbox": [
+      36.142957,
+      36.192684,
+      36.15092,
+      36.19543
+     ],
+     "properties": {
+      "start_datetime": "2023-02-09T16:00:00Z",
+      "end_datetime": "2023-02-09T17:00:00Z",
+      "gsd": 0.0386369801218,
+      "title": "Hatay - Turinclu - Akdeniz Mah - Armutlu Mah.",
+      "license": "CC-BY-4.0"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/63eb8222ca43600005f4d925/0/63eb8222ca43600005f4d926.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "data"
+       ]
+      },
+      "thumbnail": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/63eb8222ca43600005f4d925/0/63eb8222ca43600005f4d926.png",
+       "type": "image/png",
+       "roles": [
+        "thumbnail"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "type": "FeatureCollection",
+   "links": [],
+   "features": [
+    {
+     "type": "Feature",
+     "id": "63eb78a0ca43600005f4d920",
+     "collection": "openaerialmap",
+     "bbox": [
+      36.146753,
+      36.195466,
+      36.15189,
+      36.199922
+     ],
+     "properties": {
+      "start_datetime": "2023-02-09T16:00:00Z",
+      "end_datetime": "2023-02-09T17:00:00Z",
+      "gsd": 0.0340991006575,
+      "title": "Hatay - Defne - Elektrik Mah. ",
+      "license": "CC-BY-4.0"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/63eb7815ca43600005f4d91e/0/63eb7815ca43600005f4d91f.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "data"
+       ]
+      },
+      "thumbnail": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/63eb7815ca43600005f4d91e/0/63eb7815ca43600005f4d91f.png",
+       "type": "image/png",
+       "roles": [
+        "thumbnail"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "63ecac68ca43600005f4d96c",
+     "collection": "openaerialmap",
+     "bbox": [
+      35.940451,
+      36.059282,
+      36.390809,
+      36.342852
+     ],
+     "properties": {
+      "start_datetime": "2023-02-08T11:00:00Z",
+      "end_datetime": "2023-02-08T12:00:00Z",
+      "gsd": 0.37838128735,
+      "title": "Maxar 10300500D9F8D500",
+      "license": "CC-BY-NC-4.0"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/63ec9ccaca43600005f4d968/0/63ec9ccaca43600005f4d969.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "data"
+       ]
+      },
+      "thumbnail": {
+       "href": "https://oin-hotosm-prod.s3.amazonaws.com/63ec9ccaca43600005f4d968/0/63ec9ccaca43600005f4d969.png",
+       "type": "image/png",
+       "roles": [
+        "thumbnail"
+       ]
+      }
+     }
+    }
+   ]
+  }
+ ],
+ "maxar": [
+  {
+   "type": "FeatureCollection",
+   "links": [
+    {
+     "rel": "next",
+     "type": "application/geo+json",
+     "method": "POST",
+     "href": "https://api.imagery.hotosm.org/stac/search",
+     "body": {
+      "bbox": [
+       36.155,
+       36.195,
+       36.165,
+       36.205
+      ],
+      "collections": [
+       "maxar-opendata"
+      ],
+      "limit": 6,
+      "token": "next:maxar-opendata:37-031133023320-10300500D9F8D500"
+     }
+    }
+   ],
+   "features": [
+    {
+     "type": "Feature",
+     "id": "37-031133023321-10300100E18CB600",
+     "collection": "maxar-opendata",
+     "bbox": [
+      36.162020609212085,
+      36.15478065636627,
+      36.222736044913674,
+      36.204003676370796
+     ],
+     "properties": {
+      "datetime": "2023-02-11T08:51:47Z",
+      "gsd": 0.67,
+      "title": "Turkey and Syria Earthquake 2023 - MXRA-Z37-031133023321",
+      "catalog_id": "10300100E18CB600"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023321/2023-02-11/10300100E18CB600-visual.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "visual"
+       ]
+      },
+      "data-mask": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023321/2023-02-11/10300100E18CB600-data-mask.gpkg",
+       "type": "application/geopackage+sqlite3",
+       "roles": [
+        "data-mask"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "37-031133023320-10300100E18CB600",
+     "collection": "maxar-opendata",
+     "bbox": [
+      36.106471323485174,
+      36.153451840463674,
+      36.16721660928781,
+      36.20269989512839
+     ],
+     "properties": {
+      "datetime": "2023-02-11T08:51:47Z",
+      "gsd": 0.67,
+      "title": "Turkey and Syria Earthquake 2023 - MXRA-Z37-031133023320",
+      "catalog_id": "10300100E18CB600"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023320/2023-02-11/10300100E18CB600-visual.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "visual"
+       ]
+      },
+      "data-mask": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023320/2023-02-11/10300100E18CB600-data-mask.gpkg",
+       "type": "application/geopackage+sqlite3",
+       "roles": [
+        "data-mask"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "37-031133023303-10300100E18CB600",
+     "collection": "maxar-opendata",
+     "bbox": [
+      36.160392272000934,
+      36.199803631447026,
+      36.22114522183734,
+      36.249028496405586
+     ],
+     "properties": {
+      "datetime": "2023-02-11T08:51:47Z",
+      "gsd": 0.67,
+      "title": "Turkey and Syria Earthquake 2023 - MXRA-Z37-031133023303",
+      "catalog_id": "10300100E18CB600"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023303/2023-02-11/10300100E18CB600-visual.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "visual"
+       ]
+      },
+      "data-mask": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023303/2023-02-11/10300100E18CB600-data-mask.gpkg",
+       "type": "application/geopackage+sqlite3",
+       "roles": [
+        "data-mask"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "37-031133023302-10300100E18CB600",
+     "collection": "maxar-opendata",
+     "bbox": [
+      36.10481122146274,
+      36.19847263567629,
+      36.16559408733691,
+      36.24772257745561
+     ],
+     "properties": {
+      "datetime": "2023-02-11T08:51:47Z",
+      "gsd": 0.67,
+      "title": "Turkey and Syria Earthquake 2023 - MXRA-Z37-031133023302",
+      "catalog_id": "10300100E18CB600"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023302/2023-02-11/10300100E18CB600-visual.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "visual"
+       ]
+      },
+      "data-mask": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023302/2023-02-11/10300100E18CB600-data-mask.gpkg",
+       "type": "application/geopackage+sqlite3",
+       "roles": [
+        "data-mask"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "37-031133023321-10300500D9F8D500",
+     "collection": "maxar-opendata",
+     "bbox": [
+      36.162020609212085,
+      36.15478065636627,
+      36.222736044913674,
+      36.204003676370796
+     ],
+     "properties": {
+      "datetime": "2023-02-08T09:02:34Z",
+      "gsd": 0.79,
+      "title": "Turkey and Syria Earthquake 2023 - MXRA-Z37-031133023321",
+      "catalog_id": "10300500D9F8D500"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023321/2023-02-08/10300500D9F8D500-visual.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "visual"
+       ]
+      },
+      "data-mask": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023321/2023-02-08/10300500D9F8D500-data-mask.gpkg",
+       "type": "application/geopackage+sqlite3",
+       "roles": [
+        "data-mask"
+       ]
+      }
+     }
+    },
+    {
+     "type": "Feature",
+     "id": "37-031133023320-10300500D9F8D500",
+     "collection": "maxar-opendata",
+     "bbox": [
+      36.106471323485174,
+      36.153451840463674,
+      36.16721660928781,
+      36.20269989512839
+     ],
+     "properties": {
+      "datetime": "2023-02-08T09:02:34Z",
+      "gsd": 0.78,
+      "title": "Turkey and Syria Earthquake 2023 - MXRA-Z37-031133023320",
+      "catalog_id": "10300500D9F8D500"
+     },
+     "assets": {
+      "visual": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023320/2023-02-08/10300500D9F8D500-visual.tif",
+       "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+       "roles": [
+        "visual"
+       ]
+      },
+      "data-mask": {
+       "href": "https://maxar-opendata.s3.amazonaws.com/events/Kahramanmaras-turkey-earthquake-23/ard/37/031133023320/2023-02-08/10300500D9F8D500-data-mask.gpkg",
+       "type": "application/geopackage+sqlite3",
+       "roles": [
+        "data-mask"
+       ]
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

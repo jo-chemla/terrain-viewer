@@ -90,3 +90,16 @@ export async function captureProtocol(params: { url: string }, abortController: 
   // to decode it again cost more than drawing it.
   return { data: canvas.transferToImageBitmap() }
 }
+
+/** One tile of a capture as a PNG, where a plain fetch cannot read capture://
+ *  (a multi-date export of a dated STAC source, lib/stac-dated.ts). */
+export async function fetchCaptureTileBlob(id: string, z: number, x: number, y: number, signal?: AbortSignal): Promise<Blob> {
+  const controller = new AbortController()
+  signal?.addEventListener("abort", () => controller.abort())
+  const { data } = await captureProtocol({ url: `capture://${encodeURIComponent(id)}/${z}/${x}/${y}` }, controller)
+  if (data instanceof ArrayBuffer) return new Blob([data], { type: "image/png" })
+  const canvas = new OffscreenCanvas(data.width, data.height)
+  canvas.getContext("2d")!.drawImage(data, 0, 0)
+  data.close()
+  return canvas.convertToBlob({ type: "image/png" })
+}

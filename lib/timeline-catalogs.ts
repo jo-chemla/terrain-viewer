@@ -33,7 +33,8 @@ import type { ViewId } from "./grid-layouts"
 import { atom, getDefaultStore } from "jotai"
 import type { FeatureCollection } from "geojson"
 import { customTimelineCatalogsAtom, type CustomBasemapSource, type CustomTimelineCatalog } from "./settings-atoms"
-import { crawlStaticItems, fetchJson as stacFetchJson, authHeaders, trimSlash, type StacItem } from "./stac-crawl"
+import { trimSlash, type StacItem } from "./stac-crawl"
+import { STAC_DATED_CATALOGS, searchStacItems, stacAssetHref } from "./stac-dated"
 import { datedEliLayersInView, eliLayersToTicks } from "./eli-timeline"
 import { loadAllmapsCoverage, allmapsMeta } from "./coverage-overlays"
 
@@ -362,32 +363,16 @@ function cogAssetHref(assets: Record<string, any> | undefined, prefer: string[])
 }
 
 // ── STAC: HOT's API and the catalogs the visitor attached ─────────────────
-const HOT_STAC = "https://api.imagery.hotosm.org/stac"
-const HOT_SPECS: Record<string, StacSpec> = {
-  "cat-oam": { endpoint: HOT_STAC, kind: "api", collection: "openaerialmap", licence: "CC BY 4.0 (per upload)" },
-  "cat-maxar": { endpoint: HOT_STAC, kind: "api", collection: "maxar-opendata", licence: "CC BY-NC 4.0" },
-  "cat-vantor": { endpoint: HOT_STAC, kind: "api", collection: "vantor-opendata", licence: "CC BY-NC 4.0" },
-  "cat-noaa": { endpoint: HOT_STAC, kind: "api", collection: "noaa-emergency-response", licence: "Public domain (NOAA)" },
-}
+// HOT's collections are the dated STAC presets' (lib/stac-dated.ts): the same
+// endpoint, collection and licence, read here one tick per acquisition.
+const HOT_SPECS: Record<string, StacSpec> = Object.fromEntries(STAC_DATED_CATALOGS.filter((c) => c.timelineCatalog).map((c) =>
+  [c.timelineCatalog!, { endpoint: c.endpoint, kind: c.kind, collection: c.collections?.[0], assetKeys: c.assetKeys, licence: c.licence }]))
 const stacSpecOf = (catalog: string): StacSpec | undefined => HOT_SPECS[catalog] ?? TIMELINE_CATALOG_BY_ID[catalog]?.stac
 /** Whether a catalog's ticks come from STAC items (HOT, the attached and
  *  shipped STAC catalogs): their gsd is the item's own, so the timeline's
  *  VHR / medium pills can judge each tick by it. The other catalogs' gsd is
  *  derived from a tile zoom (register), which says nothing about the scan. */
 export const isStacBackedCatalog = (catalog: string): boolean => !!stacSpecOf(catalog)
-
-/** The item's asset to drape: the catalog's keys, then visual / cog / image,
- *  then an asset with the visual role, then the first GeoTIFF that is not a
- *  mask or metadata. */
-function stacAssetHref(assets: Record<string, any> | undefined, prefer: string[] | undefined): string | null {
-  if (!assets) return null
-  for (const k of prefer ?? []) if (assets[k]?.href) return assets[k].href
-  for (const k of ["visual", "ortho_visual", "cog", "image"]) if (assets[k]?.href) return assets[k].href
-  const visual = Object.values(assets).find((a: any) => a?.href && (a.roles ?? []).includes("visual"))
-  if (visual) return (visual as any).href
-  const tiff = Object.values(assets).find((a: any) => a?.href && /cloud-optimized|image\/tiff/.test(String(a?.type ?? "")) && !(a.roles ?? []).some((r: string) => /mask|metadata|thumbnail|overview/.test(r)))
-  return (tiff as any)?.href ?? null
-}
 
 /** Ticks from a STAC catalog over the view: an API is asked for the bbox
  *  (and the timeline's window, when on); a static tree is crawled with its
@@ -397,25 +382,9 @@ function stacAssetHref(assets: Record<string, any> | undefined, prefer: string[]
 async function stacTicks(catalog: string, spec: StacSpec, bbox: Bbox, signal?: AbortSignal, range?: [number, number]): Promise<CatalogTick[]> {
   const def = TIMELINE_CATALOG_BY_ID[catalog]
   const base = trimSlash(spec.endpoint)
-  const datetime = range ? `${new Date(range[0]).toISOString()}/${new Date(range[1]).toISOString()}` : undefined
-  let features: StacItem[]
-  if (spec.kind === "api") {
-    const q = new URLSearchParams({ bbox: bbox.map((v) => v.toFixed(5)).join(","), limit: "200" })
-    if (spec.collection) q.set("collections", spec.collection)
-    if (datetime) q.set("datetime", datetime)
-    const res = await fetch(`${base}/search?${q}`, { signal, headers: authHeaders(base) })
-    let d: { features?: StacItem[] }
-    if (res.ok) d = await res.json()
-    // A server that refuses GET (405, or a 400 on the query form) takes the
-    // same search as a POST body.
-    else if (res.status === 405 || res.status === 400) {
-      d = await stacFetchJson(`${base}/search`, { method: "POST", signal, headers: { "content-type": "application/json" },
-        body: JSON.stringify({ bbox, limit: 200, ...(spec.collection ? { collections: [spec.collection] } : {}), ...(datetime ? { datetime } : {}) }) })
-    } else throw new Error(`STAC ${res.status}`)
-    features = d.features ?? []
-  } else {
-    features = await crawlStaticItems(spec.collection ?? spec.endpoint, bbox, 400, undefined, signal, range ? { from: range[0], to: range[1] } : undefined)
-  }
+  // The adapter's search (lib/stac-dated.ts): GET, POST where refused, next
+  // pages up to 200 items; a static tree crawled.
+  const features = await searchStacItems({ endpoint: spec.endpoint, kind: spec.kind, collections: spec.collection ? [spec.collection] : undefined }, bbox, { range, signal, maxItems: spec.kind === "api" ? 200 : 400, pageSize: 200 })
   const cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2
   const groups = new Map<string, StacItem[]>()
   for (const f of features) {

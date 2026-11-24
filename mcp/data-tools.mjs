@@ -148,9 +148,12 @@ export const EXPORT_DIR_NAME = "terrain-viewer-mcp"
  *  Sentinel-2, Bing's current mosaic), through each one's own catalog; then
  *  the national and regional series whose extent holds the place (an
  *  agency's flight years, Google Earth Timelapse), each date with the
- *  layer's basemap id, which open_view takes as imageryUrl. HLS and
- *  Planetary Computer's mosaics are left out: their dates are a cadence,
- *  not captures found here. */
+ *  layer's basemap id, which open_view takes as imageryUrl; then the STAC
+ *  catalogs of the schema (lib/stac-dated.ts: OpenAerialMap, Maxar, Vantor,
+ *  NOAA, Planetary Computer's Sentinel-2 scenes), one date per day of
+ *  acquisition with its items' count, GSD, footprint and a COG under the
+ *  place as imageryUrl. HLS and Planetary Computer's mosaics are left out:
+ *  their dates are a cadence, not captures found here. */
 export async function imageryDates({ lat, lng, zoom = 16, from, to }) {
   const lib = await appLib()
   const start = from ? Date.parse(from) : 0, end = to ? Date.parse(to) : Date.now()
@@ -171,10 +174,30 @@ export async function imageryDates({ lat, lng, zoom = 16, from, to }) {
       dates: ticks.reverse().map((t) => ({ date: t.label, layer: t.title, imageryUrl: lib.nationalLayerBasemapId(s.id, t.ref.key) })),
     }
   }
+  // The STAC catalogs: items over the place grouped by day. A day is often
+  // several COGs (a satellite pass cut into tiles): imageryUrl is the one
+  // under the place, the others are listed by count. Planetary Computer's
+  // hrefs carry a SAS token valid about 45 minutes.
+  const stacSources = lib.STAC_DATED_SOURCES.filter((s) => s.realDates && !s.apiKey)
+  const stacAnswers = await Promise.all(stacSources.map(async (s) => {
+    try {
+      const ticks = await withTimeout(s.listDates({ lat, lng, zoom }, start, end, {}), 45000)
+      return {
+        name: s.name, licence: s.licence, note: s.description,
+        dates: ticks.reverse().map((t) => {
+          const day = t.ref
+          const under = day.items.find((x) => lng >= x.bbox[0] && lng <= x.bbox[2] && lat >= x.bbox[1] && lat <= x.bbox[3]) ?? day.items[0]
+          const cfg = lib.STAC_DATED_CATALOGS.find((c) => c.id === s.id)
+          return { date: t.label, items: day.items.length, gsdM: day.gsd ?? null, maxzoom: s.tiles(t)?.maxzoom ?? s.maxzoom, footprint: day.bounds, title: under.title ?? null, imageryUrl: lib.stacItemHref(cfg, under) }
+        }),
+      }
+    } catch (e) { return { name: s.name, error: String(e?.message ?? e) } }
+  }))
   return {
     ...Object.fromEntries(sources.map((s, i) => [s.id, { name: s.name, note: s.description, ...answers[i] }])),
     national,
-    howToShow: `open_view or compare_sources with imagerySource (${sources.map((s) => s.id).join(", ")}) and imageryDate (a date from this list); for a national or regional layer, imageryUrl set to its imageryUrl (a basemap id the app rebuilds).`,
+    catalogs: Object.fromEntries(stacSources.map((s, i) => [s.id, stacAnswers[i]])),
+    howToShow: `open_view or compare_sources with imagerySource (${sources.map((s) => s.id).join(", ")}) and imageryDate (a date from this list); for a national or regional layer, or a catalog date, imageryUrl set to its imageryUrl (a basemap id the app rebuilds, or a COG).`,
   }
 }
 
