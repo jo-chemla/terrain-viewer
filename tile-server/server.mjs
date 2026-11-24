@@ -339,10 +339,12 @@ function valueRequest(query) {
   const raw = take("valueScale")
   const scale = raw === undefined ? 1 : Number(raw)
   if (!Number.isFinite(scale) || scale === 0) throw status(400, "valueScale is a number other than 0")
-  for (const k of ["values", "background", "engine"]) take(k)
+  const compression = take("compression") ?? "deflate"
+  if (compression !== "deflate" && compression !== "none") throw status(400, "compression is deflate (the default) or none")
+  for (const k of ["encoding", "background", "engine"]) take(k)
   for (const k of ["pitch", "bearing", "viewMode", "split", "terrainSourceB", "place"]) delete view[k]
   for (const k of ["splitStyle"]) rest.delete(k)
-  return { view: { ...view, modes: [mode === "elevation" ? "colorRelief" : mode] }, rest, take, keys, mode, scale }
+  return { view: { ...view, modes: [mode === "elevation" ? "colorRelief" : mode] }, rest, take, keys, mode, scale, compress: compression === "deflate" }
 }
 
 /** The deepest zoom of 256 px tiles worth asking of a source: its own
@@ -354,7 +356,7 @@ const valueLevel = (dem) => Math.min(MAX_ZOOM, dem.maxzoom + Math.max(0, Math.ro
  *  `format` (VALUE_FORMATS). */
 async function valuesFor(format, query, at) {
   const r = valueRequest(query)
-  const { view, rest, take, keys, mode, scale } = r
+  const { view, rest, take, keys, mode, scale, compress } = r
   const num = (k, d) => { const v = take(k); if (v === undefined) return d; const n = Number(v); if (!Number.isFinite(n)) throw status(400, `${k} is not a number`); return n }
   let rect
   if (at) {
@@ -391,11 +393,11 @@ async function valuesFor(format, query, at) {
   const how = await plan(view, rest, keys)
   if (how.engine !== "direct") throw status(400, `The values cannot be computed here: ${how.why}`)
   const unit = valueUnit(mode, how.state)
-  const key = `values|${JSON.stringify([how.dem.tiles, mode, how.state])}|${format}|${scale}|${JSON.stringify(rect)}`
+  const key = `values|${JSON.stringify([how.dem.tiles, mode, how.state])}|${format}${format === "tif" && !compress ? "-raw" : ""}|${scale}|${JSON.stringify(rect)}`
   const ext = format === "tif" ? "tif" : "png"
   let bytes = await cached(key, ext)
   if (!bytes) {
-    bytes = await directRun("values", { view, rest, keys }, { ...rect, mode, format, scale, baseUrl: BASE_URL })
+    bytes = await directRun("values", { view, rest, keys }, { ...rect, mode, format, scale, compress, baseUrl: BASE_URL })
     store(key, ext, bytes)
   }
   return { bytes, unit, mode, scale, type: format === "tif" ? "image/tiff" : "image/png" }
@@ -464,7 +466,7 @@ async function handle(req, res) {
         const how = await plan(r.view, r.rest, r.keys)
         if (how.engine !== "direct") return send(400, "text/plain", `The values cannot be computed here: ${how.why}`)
         const q = new URLSearchParams(u.search)
-        for (const k of ["modes", "algorithm", "values", "background", "engine", "lat", "lng", "zoom", "width", "height", "bbox"]) q.delete(k)
+        for (const k of ["modes", "algorithm", "encoding", "compression", "background", "engine", "lat", "lng", "zoom", "width", "height", "bbox"]) q.delete(k)
         return send(200, "application/xml", gdalWmsXml(self, r.mode, q.toString(), valueLevel(how.dem)), { "content-disposition": `inline; filename="terrain-viewer-${r.mode}.xml"` })
       }
       if (u.pathname === "/modes") {
@@ -523,11 +525,11 @@ async function handle(req, res) {
         const [z, x, y] = t.slice(1, 4).map(Number)
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
         // A mode's values: a Float32 GeoTIFF (.tif), or packed in a PNG
-        // (.png?values=terrarium|terrainrgb).
-        const packing = new URLSearchParams(u.search).get("values")
+        // (.png?encoding=terrarium|terrainrgb).
+        const packing = new URLSearchParams(u.search).get("encoding")
         if (t[5].startsWith("tif") || packing) {
           const format = t[5].startsWith("tif") ? "tif" : packing
-          if (!VALUE_FORMATS.includes(format) || (format === "tif") !== t[5].startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?values=terrarium or terrainrgb")
+          if (!VALUE_FORMATS.includes(format) || (format === "tif") !== t[5].startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?encoding=terrarium or terrainrgb")
           const made = await valuesFor(format, u.search, { z, x, y, scale: t[4] === "@2x" ? 2 : 1 })
           return send(200, made.type, made.bytes, valueHeaders(made))
         }
@@ -561,9 +563,9 @@ async function handle(req, res) {
         const q = new URLSearchParams(u.search)
         if (bb) { q.set("bbox", bb[1]); q.set("width", bb[2]); q.set("height", bb[3]) }
         const asked = bb ? bb[4] : r[1]
-        if (asked.startsWith("tif") || q.get("values")) {
-          const format = asked.startsWith("tif") ? "tif" : q.get("values")
-          if (!VALUE_FORMATS.includes(format) || (format === "tif") !== asked.startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?values=terrarium or terrainrgb")
+        if (asked.startsWith("tif") || q.get("encoding")) {
+          const format = asked.startsWith("tif") ? "tif" : q.get("encoding")
+          if (!VALUE_FORMATS.includes(format) || (format === "tif") !== asked.startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?encoding=terrarium or terrainrgb")
           const made = await valuesFor(format, q, null)
           return send(200, made.type, made.bytes, valueHeaders(made))
         }

@@ -49,7 +49,7 @@
         ],
         "operationId": "valueTile",
         "summary": "A mode's values as a Float32 GeoTIFF tile",
-        "description": "One band of 32-bit floats, EPSG:3857, georeferenced, NaN where there is no data: the values the app colours, before its ramp, in natural units (the unit in the `x-tv-value-unit` header and in `/modes`). 256 px; `{y}@2x` or `tilesize=512` for 512. The same tile as a PNG for a web map: `.png?modes=slope&values=terrarium` (or `terrainrgb`), the values multiplied by `valueScale` (default 1) and packed as an elevation, so MapLibre's raster-dem or a few lines of numpy read them back; `valueScale` keeps small values (curvature) above the packing's step (Terrarium 1/256, Terrain-RGB 0.1). Computed by the direct engine only.",
+        "description": "One band of 32-bit floats, EPSG:3857, georeferenced, NaN where there is no data: the values the app colours, before its ramp, in natural units (the unit in the `x-tv-value-unit` header and in `/modes`). 256 px; `{y}@2x` or `tilesize=512` for 512. The same tile as a PNG for a web map: `.png?modes=slope&encoding=terrarium` (or `terrainrgb`), the values multiplied by `valueScale` (default 1) and packed as an elevation, so MapLibre's raster-dem or a few lines of numpy read them back; `valueScale` keeps small values (curvature) above the packing's step (Terrarium 1/256, Terrain-RGB 0.1). Computed by the direct engine only. Browsers do not display TIFF: Scalar's test request answers \"Preview unavailable\" and offers the file to download.",
         "parameters": [
           {
             "name": "z",
@@ -97,7 +97,7 @@
             "description": "The side of the tile in pixels."
           },
           {
-            "name": "values",
+            "name": "encoding",
             "in": "query",
             "required": false,
             "schema": {
@@ -107,7 +107,7 @@
                 "terrainrgb"
               ]
             },
-            "description": "With `.png` in place of `.tif`: the values packed in a PNG."
+            "description": "With `.png` in place of `.tif`: the values packed in a PNG as an elevation would be."
           },
           {
             "name": "valueScale",
@@ -117,7 +117,21 @@
               "type": "number",
               "default": 1
             },
-            "description": "With `values`: the factor the values are multiplied by before packing."
+            "description": "With `encoding`: the factor the values are multiplied by before packing."
+          },
+          {
+            "name": "compression",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "deflate",
+                "none"
+              ],
+              "default": "deflate"
+            },
+            "description": "Deflate with the floating-point predictor (GDAL's PREDICTOR=3), lossless: about a quarter of the size for elevation, half for slope, two thirds for curvature or svf, for 2 to 6 ms a tile. `none` for a reader without deflate."
           },
           {
             "name": "terrainSource",
@@ -242,7 +256,7 @@
         ],
         "operationId": "valueRender",
         "summary": "A mode's values over an area, as a Float32 GeoTIFF",
-        "description": "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `/bbox/{bbox}/{width}x{height}.tif` is the same with a box. `.png` with `values` packs them as for the tiles.",
+        "description": "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `/bbox/{bbox}/{width}x{height}.tif` is the same with a box. `.png` with `encoding` packs them as for the tiles. Browsers do not display TIFF: Scalar's test request answers \"Preview unavailable\" and offers the file to download.",
         "parameters": [
           {
             "name": "bbox",
@@ -305,6 +319,20 @@
               "default": 12
             },
             "description": "MapLibre zoom (512 px tiles), without `bbox`."
+          },
+          {
+            "name": "compression",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "deflate",
+                "none"
+              ],
+              "default": "deflate"
+            },
+            "description": "Deflate with the floating-point predictor (GDAL's PREDICTOR=3), lossless: about a quarter of the size for elevation, half for slope, two thirds for curvature or svf, for 2 to 6 ms a tile. `none` for a reader without deflate."
           },
           {
             "name": "terrainSource",

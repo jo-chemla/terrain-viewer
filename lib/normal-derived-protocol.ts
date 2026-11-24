@@ -578,7 +578,7 @@ export interface RunNormalDerivedProtocolParams {
  *  and calls `computeValue` once per output pixel. */
 export async function runNormalDerivedProtocol(
   params: RunNormalDerivedProtocolParams,
-): Promise<{ data: TileImage }> {
+): Promise<{ data: TileImage; values: Float64Array }> {
   const { url, urlRegex, abortController, cache, computeValue } = params
   const match = url.match(urlRegex)
   if (!match) throw new Error(`Invalid normal-derived protocol URL: ${url}`)
@@ -625,7 +625,10 @@ export async function runNormalDerivedProtocol(
     }
   }
 
-  return { data: await toTileImage(terrariumTile(values), n, n) }
+  // `values` rides along unencoded: the map reads only `data`, while the tile
+  // service's values endpoints (tile-server/direct.mjs) read these, so they
+  // are neither clamped to Terrarium's ±32768 nor rounded to its 1/256 step.
+  return { data: await toTileImage(terrariumTile(values), n, n), values }
 }
 
 // Hands control back to the browser's main-thread event loop (a macrotask, not

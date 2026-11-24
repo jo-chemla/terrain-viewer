@@ -33,6 +33,7 @@ import { readLayers, overzoom, writeTile } from "./mvt.mjs"
 import { symbolAnchors } from "./symbols.mjs"
 import { resolveDemOrWhy, refusalOf, window as demWindow } from "./dem.mjs"
 import { buildViewUrl, DEFAULT_BASE_URL } from "./url.mjs"
+import { float32GeoTiff } from "./tiff.mjs"
 import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
 
 let appPromise
@@ -342,8 +343,19 @@ async function protocolWindow(p, z, side, x0, y0, w, h) {
     if (ty < 0 || ty >= n) continue
     const wx = ((tx % n) + n) % n
     jobs.push((async () => {
-      let px
-      try { px = await pixelsOf(await p.run({ url: p.url.replace("{z}", z).replace("{x}", wx).replace("{y}", ty) }, new AbortController())) } catch { return }
+      let r, px
+      try {
+        r = await p.run({ url: p.url.replace("{z}", z).replace("{x}", wx).replace("{y}", ty) }, new AbortController())
+        // The protocols built on runNormalDerivedProtocol hand back their
+        // values unencoded beside the tile: read those, not the Terrarium
+        // packing, which clamps at ±32768 and steps by 1/256.
+        if (!p.rgba && r?.values?.length === side * side) {
+          const v = r.values
+          for (let j = Math.max(y0, ty * side); j < Math.min(y0 + h, (ty + 1) * side); j++) for (let i = Math.max(x0, tx * side); i < Math.min(x0 + w, (tx + 1) * side); i++) out[(j - y0) * w + (i - x0)] = v[(j - ty * side) * side + (i - tx * side)]
+          return
+        }
+        px = await pixelsOf(r)
+      } catch { return }
       if (px.width !== side) return
       const d = px.data, mapbox = p.enc === "mapbox"
       for (let j = Math.max(y0, ty * side); j < Math.min(y0 + h, (ty + 1) * side); j++) for (let i = Math.max(x0, tx * side); i < Math.min(x0 + w, (tx + 1) * side); i++) {
@@ -435,19 +447,16 @@ export async function valuesOf({ dem, state: s }, mode, { world, x0, y0, width, 
 }
 
 /** Values encoded: `tif`, a one-band Float32 GeoTIFF in EPSG:3857 (NaN no
- *  data); `terrarium` or `terrainrgb`, the values times `scale` packed in a
+ *  data), deflate with the floating-point predictor unless `compress` is
+ *  false (tiff.mjs); `terrarium` or `terrainrgb`, the values times `scale` packed in a
  *  PNG as an elevation would be (lib/elevation-encoding.ts), transparent
  *  where there is no data. */
-export async function encodeValues(values, { world, x0, y0, width, height, format = "tif", scale = 1 }) {
+export async function encodeValues(values, { world, x0, y0, width, height, format = "tif", scale = 1, compress = true }) {
   if (format === "tif") {
     const px = EARTH / world
-    const { writeArrayBuffer } = await import("geotiff")
-    const tiff = await writeArrayBuffer(values, {
-      width, height, BitsPerSample: [32], SampleFormat: [3], SamplesPerPixel: 1,
-      ModelPixelScale: [px, px, 0], ModelTiepoint: [0, 0, 0, -EARTH / 2 + x0 * px, EARTH / 2 - y0 * px, 0],
-      GTModelTypeGeoKey: 1, GTRasterTypeGeoKey: 1, ProjectedCSTypeGeoKey: 3857, GDAL_NODATA: "nan",
-    })
-    return Buffer.from(tiff)
+    // Level 1: within about 10% of level 6's size at half its time (2 to 6 ms
+    // a 256 px tile), small beside the tile's own computation.
+    return float32GeoTiff(values, { width, height, pixelSize: px, west: -EARTH / 2 + x0 * px, north: EARTH / 2 - y0 * px, compress, level: 1 })
   }
   const rgba = Buffer.alloc(width * height * 4)
   for (let i = 0; i < values.length; i++) {

@@ -94,10 +94,12 @@ A colour is for the eye; an analysis wants the number under it. One mode's value
 
 | Address | Answers |
 |---|---|
-| `/tiles/{z}/{x}/{y}.tif?modes=slope` | A Float32 GeoTIFF tile: one band, EPSG:3857, georeferenced, NaN where there is no data. 256 px, `@2x` or `tilesize=512` for 512 |
+| `/tiles/{z}/{x}/{y}.tif?modes=slope` | A Float32 GeoTIFF tile: one band, EPSG:3857, georeferenced, NaN where there is no data, deflate-compressed with the floating-point predictor (lossless; `compression=none` for a plain file). 256 px, `@2x` or `tilesize=512` for 512 |
 | `/render.tif?modes=slope&bbox=w,s,e,n&width=1024` | The values over a box, like a WCS GetCoverage: exactly the box, `width` pixels across, the height that keeps the pixels square in Web Mercator (at most 4096 a side); or `lat`, `lng`, `zoom`, `width`, `height`. `/bbox/{w},{s},{e},{n}/{width}x{height}.tif` is the same |
-| `/tiles/{z}/{x}/{y}.png?modes=slope&values=terrarium` | The same values packed in a PNG as an elevation would be (`terrarium` or `terrainrgb`), for MapLibre's `raster-dem` or a few lines of numpy; `valueScale` multiplies them first, so small values (curvature) stay above the packing's step (1/256 for Terrarium, 0.1 for Terrain-RGB) |
+| `/tiles/{z}/{x}/{y}.png?modes=slope&encoding=terrarium` | The same values packed in a PNG as an elevation would be (`terrarium` or `terrainrgb`), for MapLibre's `raster-dem` or a few lines of numpy; `valueScale` multiplies them first, so small values (curvature) stay above the packing's step (1/256 for Terrarium, 0.1 for Terrain-RGB) |
 | `/gdal.xml?modes=slope` | The GeoTIFF tiles described for GDAL's WMS driver: one Float32 raster of the whole world down to the source's deepest zoom, with overviews. GDAL opens its address as is: `gdalinfo`, `gdal_translate -projwin`, `rasterio.open`, QGIS's Add Raster Layer |
+
+The compression costs 2 to 6 ms a 256 px tile, small beside its computation (40 to 80 ms for slope or curvature, about 0.6 s for the sky view factor), and divides the size by about 4 for elevation, 2 for slope, 1.4 for curvature or the sky view factor (their low bits are noise). Browsers do not display TIFF: the API reference's test request answers "Preview unavailable" for these and offers the file to download.
 
 One mode at a time; its own parameters count (`curvatureMode`, `lrmRadius`, `svfRadius`, `opennessMode`...), its ramp, range and opacity do not. The direct engine computes them, so a source it cannot read, or a mode that is a picture (hillshade, matcap, Phong, shadows, the overlays), is refused with a 400. Each answer gives its unit in `x-tv-value-unit`, and `/modes` lists them with each mode (`values`).
 
@@ -119,7 +121,7 @@ One mode at a time; its own parameters count (`curvatureMode`, `lrmRadius`, `svf
 | `openness` | degree | Mean zenith angle to the horizon, 90 on flat ground |
 | `localDominance` | degree | Mean angle down to the surrounding terrain, high on mounds |
 
-Some of the app's sliders read these in other units, where its protocols scale a value to fit their RGB packing or their ramp: the sky view factor and the eigenvalue ratio as percentages (×100), openness re-centred on flat ground (minus 90), blobness ×100, curvature ×100 (det-hessian ×10 000). The values here undo those factors. Curvature is clamped where the app's packing clamps it, at ±0.33 1/m (a radius of 3 m), which steep ground reaches at coarse zooms.
+Some of the app's sliders read these in other units, where its protocols scale a value to fit their RGB packing or their ramp: the sky view factor and the eigenvalue ratio as percentages (×100), openness re-centred on flat ground (minus 90), blobness ×100, curvature ×100 (det-hessian ×10 000). The values here undo those factors. The values are read before that packing, so they are neither clamped (the app's curvature stops at ±0.33 1/m, which steep ground at high zoom exceeds on most pixels) nor rounded to its step.
 
 ## A QGIS project
 

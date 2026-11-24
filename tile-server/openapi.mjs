@@ -43,6 +43,8 @@ const VALUE_PARAMS = [
   q("cesiumIonKey", { type: "string" }, "Your Cesium ion token, for the `cesium` source."),
 ]
 const VALUE_HEADERS = { "x-tv-value-unit": { schema: { type: "string" }, description: "The unit of the values (m, degree, 1/m, 1/m^2, 1; ASCII)" }, "x-tv-value-scale": { schema: { type: "number" }, description: "The factor a PNG packing multiplied them by" } }
+const COMPRESSION = q("compression", { type: "string", enum: ["deflate", "none"], default: "deflate" }, "Deflate with the floating-point predictor (GDAL's PREDICTOR=3), lossless: about a quarter of the size for elevation, half for slope, two thirds for curvature or svf, for 2 to 6 ms a tile. `none` for a reader without deflate.")
+const TIFF_NOTE = " Browsers do not display TIFF: Scalar's test request answers \"Preview unavailable\" and offers the file to download."
 const tiff = (description) => ({
   200: { description, headers: VALUE_HEADERS, content: { "image/tiff": { schema: { type: "string", format: "binary" } } } },
   400: { description: "More than one mode, a mode without values, or a source the direct engine cannot read", content: { "text/plain": { schema: { type: "string" } } } },
@@ -64,14 +66,15 @@ export function openapi(server = "http://localhost:3400") {
       "/tiles/{z}/{x}/{y}.tif": {
         get: {
           tags: ["Values"], operationId: "valueTile", summary: "A mode's values as a Float32 GeoTIFF tile",
-          description: "One band of 32-bit floats, EPSG:3857, georeferenced, NaN where there is no data: the values the app colours, before its ramp, in natural units (the unit in the `x-tv-value-unit` header and in `/modes`). 256 px; `{y}@2x` or `tilesize=512` for 512. The same tile as a PNG for a web map: `.png?modes=slope&values=terrarium` (or `terrainrgb`), the values multiplied by `valueScale` (default 1) and packed as an elevation, so MapLibre's raster-dem or a few lines of numpy read them back; `valueScale` keeps small values (curvature) above the packing's step (Terrarium 1/256, Terrain-RGB 0.1). Computed by the direct engine only.",
+          description: "One band of 32-bit floats, EPSG:3857, georeferenced, NaN where there is no data: the values the app colours, before its ramp, in natural units (the unit in the `x-tv-value-unit` header and in `/modes`). 256 px; `{y}@2x` or `tilesize=512` for 512. The same tile as a PNG for a web map: `.png?modes=slope&encoding=terrarium` (or `terrainrgb`), the values multiplied by `valueScale` (default 1) and packed as an elevation, so MapLibre's raster-dem or a few lines of numpy read them back; `valueScale` keeps small values (curvature) above the packing's step (Terrarium 1/256, Terrain-RGB 0.1). Computed by the direct engine only." + TIFF_NOTE,
           parameters: [
             { name: "z", in: "path", required: true, schema: { type: "integer", minimum: 0, maximum: 22 }, example: 13 },
             { name: "x", in: "path", required: true, schema: { type: "integer", minimum: 0 }, example: 4270 },
             { name: "y", in: "path", required: true, schema: { type: "integer", minimum: 0 }, example: 2911 },
             q("tilesize", { type: "integer", enum: [256, 512], default: 256 }, "The side of the tile in pixels."),
-            q("values", { type: "string", enum: ["terrarium", "terrainrgb"] }, "With `.png` in place of `.tif`: the values packed in a PNG."),
-            q("valueScale", { type: "number", default: 1 }, "With `values`: the factor the values are multiplied by before packing."),
+            q("encoding", { type: "string", enum: ["terrarium", "terrainrgb"] }, "With `.png` in place of `.tif`: the values packed in a PNG as an elevation would be."),
+            q("valueScale", { type: "number", default: 1 }, "With `encoding`: the factor the values are multiplied by before packing."),
+            COMPRESSION,
             ...VALUE_PARAMS,
           ],
           responses: tiff("The tile"),
@@ -80,12 +83,13 @@ export function openapi(server = "http://localhost:3400") {
       "/render.tif": {
         get: {
           tags: ["Values"], operationId: "valueRender", summary: "A mode's values over an area, as a Float32 GeoTIFF",
-          description: "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `/bbox/{bbox}/{width}x{height}.tif` is the same with a box. `.png` with `values` packs them as for the tiles.",
+          description: "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `/bbox/{bbox}/{width}x{height}.tif` is the same with a box. `.png` with `encoding` packs them as for the tiles." + TIFF_NOTE,
           parameters: [
             q("bbox", { type: "string" }, "west,south,east,north in degrees.", { example: "7.6,45.95,7.7,46.0" }),
             q("width", { type: "integer", minimum: 16, maximum: 4096, default: 1024 }, "Width in pixels."),
             q("height", { type: "integer", minimum: 16, maximum: 4096, default: 640 }, "Height in pixels, without `bbox`."),
             q("lat", { type: "number" }, "Latitude of the centre, without `bbox`."), q("lng", { type: "number" }, "Longitude of the centre, without `bbox`."), q("zoom", { type: "number", default: 12 }, "MapLibre zoom (512 px tiles), without `bbox`."),
+            COMPRESSION,
             ...VALUE_PARAMS,
           ],
           responses: tiff("The values"),
@@ -222,8 +226,9 @@ export const DOCS_HTML = `<!doctype html>
 <title>Terrain Viewer tile service</title>
 </head>
 <body>
-<script id="api-reference" data-url="./openapi.json"></script>
-<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.25.130"></script>
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.77.0"></script>
+<script>Scalar.createApiReference("#app", { url: "./openapi.json" })</script>
 </body>
 </html>
 `

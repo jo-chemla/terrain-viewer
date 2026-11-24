@@ -174,6 +174,19 @@ import { plan } from "./direct.mjs"
   const svf = await valuesOf(await plan({ modes: ["svf"] }, new URLSearchParams()), "svf", { ...rect, width: 64, height: 64 })
   assert.ok(svf.every((v) => v >= 0 && v <= 1), "svf in 0..1")
   await assert.rejects(valuesOf(how, "matcap", rect), /No values for matcap/)
+  // Deflate with the floating-point predictor by default, lossless: the
+  // same floats as the uncompressed file, in fewer bytes.
+  const zipped = await encodeValues(slope, { ...rect, format: "tif" }), flat = await encodeValues(slope, { ...rect, format: "tif", compress: false })
+  assert.ok(zipped.length < flat.length * 0.8, `compressed (${zipped.length} of ${flat.length} bytes)`)
+  const zimg = await (await fromArrayBuffer(zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.length))).getImage()
+  assert.deepEqual(["Compression", "Predictor"].map((k) => zimg.getFileDirectory().getValue(k)), [8, 3])
+  const [back] = await zimg.readRasters()
+  assert.ok(back.every((v, i) => v === slope[i]), "compression is lossless")
+  // Curvature read unencoded: not rounded to the Terrarium wire's step
+  // (1/256 of 1e-5 1/m) nor clamped at its ±0.33 1/m.
+  const curv = await valuesOf(await plan({ modes: ["curvature"] }, new URLSearchParams()), "curvature", { ...rect, width: 64, height: 64 })
+  const offStep = curv.filter((v) => Number.isFinite(v) && Math.abs(v * 1e5 * 256 - Math.round(v * 1e5 * 256)) > 0.01).length
+  assert.ok(offStep > curv.length / 2, `curvature not quantized (${offStep} of ${curv.length} off the wire's step)`)
   // A PNG packing reads back as the values.
   const sharp = (await import("sharp")).default
   const packed = await encodeValues(slope, { ...rect, format: "terrarium" })
