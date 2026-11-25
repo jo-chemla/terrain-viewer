@@ -765,6 +765,128 @@ function assertStacItem(item) {
   }
 }
 
+// Local files (files.mjs): a GeoTIFF in UTM 32N registered, read by the
+// app's VRT reader over loopback, the refusals, the roots. Offline: the
+// file is a plane written here (z = 1000 + 0.05 E + 0.02 N, metres), its
+// slope 3.08 degrees everywhere.
+{
+  const os = await import("node:os")
+  const path = await import("node:path")
+  const fs = await import("node:fs")
+  const { writeArrayBuffer } = await import("geotiff")
+  const { start } = await import("./server.mjs")
+  const files = await import("./files.mjs")
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tv-files-"))
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tv-files-out-"))
+  const W = 200, H = 200, PX = 30, E0 = 340000, N0 = 5080000
+  const plane = new Float32Array(W * H).map((_, i) => 1000 + 0.05 * (i % W) * PX + 0.02 * (H - 1 - Math.floor(i / W)) * PX)
+  for (let j = 90; j < 110; j++) for (let i = 90; i < 110; i++) plane[j * W + i] = -9999 // a hole
+  const tiff = (values) => Buffer.from(writeArrayBuffer(values, {
+    width: W, height: H, BitsPerSample: [32], SampleFormat: [3], SamplesPerPixel: 1,
+    ModelPixelScale: [PX, PX, 0], ModelTiepoint: [0, 0, 0, E0, N0, 0],
+    GTModelTypeGeoKey: 1, GTRasterTypeGeoKey: 1, ProjectedCSTypeGeoKey: 32632, GDAL_NODATA: "-9999",
+  }))
+  const tif = path.join(dir, "plane.tif")
+  fs.writeFileSync(tif, tiff(plane))
+  fs.writeFileSync(path.join(dir, "notes.txt"), "not a raster")
+  fs.writeFileSync(path.join(dir, "fake.tif"), "not a TIFF at all")
+  fs.writeFileSync(path.join(outside, "far.tif"), tiff(plane))
+  const vrtOf = (src, rel) => `<VRTDataset rasterXSize="${W}" rasterYSize="${H}"><SRS>EPSG:32632</SRS><GeoTransform>${E0}, ${PX}, 0, ${N0}, 0, -${PX}</GeoTransform>` +
+    `<VRTRasterBand dataType="Float32" band="1"><NoDataValue>-9999</NoDataValue><SimpleSource><SourceFilename relativeToVRT="${rel ? 1 : 0}">${src}</SourceFilename>` +
+    `<SourceBand>1</SourceBand><SrcRect xOff="0" yOff="0" xSize="${W}" ySize="${H}"/><DstRect xOff="0" yOff="0" xSize="${W}" ySize="${H}"/></SimpleSource></VRTRasterBand></VRTDataset>`
+  fs.writeFileSync(path.join(dir, "plane.vrt"), vrtOf("plane.tif", true))
+  fs.writeFileSync(path.join(dir, "escape.vrt"), vrtOf(path.join(outside, "far.tif"), false))
+  fs.writeFileSync(path.join(dir, "climb.vrt"), vrtOf(`../${path.basename(outside)}/far.tif`, true))
+
+  const server = start(0)
+  await new Promise((ok) => server.once("listening", ok))
+  const base = `http://127.0.0.1:${server.address().port}`
+  const post = (body, headers = {}) => fetch(`${base}/files`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) })
+  const tifValues = async (q, z, x, y) => {
+    const r = await fetch(`${base}/terrain-tiles/${z}/${x}/${y}.tif?compression=none&${q}`)
+    assert.equal(r.status, 200, `${q} ${z}/${x}/${y}: ${r.status} ${r.status !== 200 ? await r.text() : ""}`)
+    const { fromArrayBuffer } = await import("geotiff")
+    return (await (await (await fromArrayBuffer(await r.arrayBuffer())).getImage()).readRasters())[0]
+  }
+  try {
+    // Refused: a relative path, nothing there, not a raster by name or by
+    // content, from a web page, not JSON.
+    for (const [body, status] of [[{ path: "plane.tif" }, 400], [{ path: path.join(dir, "none.tif") }, 404], [{ path: path.join(dir, "notes.txt") }, 400],
+      [{ path: path.join(dir, "fake.tif") }, 400], [{}, 400], [{ path: dir }, 400]]) {
+      const r = await post(body)
+      assert.equal(r.status, status, `${JSON.stringify(body)}: ${await r.text()}`)
+    }
+    assert.equal((await post({ path: tif }, { origin: "https://example.com" })).status, 403, "a web page's request")
+    assert.equal((await fetch(`${base}/files`, { method: "POST", headers: { "content-type": "text/plain" }, body: tif })).status, 415, "not JSON")
+    assert.equal((await fetch(`${base}/files`)).status, 405)
+    // Registered: an id, stable while the file is unchanged.
+    const reg = await (await post({ path: tif })).json()
+    assert.match(reg.source, /^file:[0-9a-f]{32}$/)
+    assert.equal((await (await post({ path: tif })).json()).id, reg.id, "the same file, the same id")
+    // Nothing of a file is served over HTTP, under any address.
+    for (const p of [`/files/${reg.id}`, `/files/${reg.id}/source.vrt`, `/files/${reg.id}/0.tif`, `/files/${reg.id}/..%2F..%2Fplane.tif`,
+      `/files/${reg.id}/../../etc/passwd`, `/files/${"0".repeat(32)}/0.tif`, "/files/x/0.tif"]) {
+      const r = await fetch(base + p)
+      assert.ok(r.status === 404 || r.status === 405, `${p}: ${r.status}`)
+      assert.ok(!/^(II|MM)/.test(await r.text()), p)
+    }
+    // The reader's side, in this process: its VRT and its bytes by range,
+    // only the entry's own names.
+    const vrt = await (await fetch(`tvfile://${reg.id}/source.vrt`)).text()
+    assert.match(vrt, /<SRS>EPSG:32632<\/SRS>/)
+    assert.ok(vrt.includes(`tvfile://${reg.id}/0.tif`))
+    assert.ok(!vrt.includes(dir), "no path of this machine in the VRT")
+    const part = await fetch(`tvfile://${reg.id}/0.tif`, { headers: { range: "bytes=0-7" } })
+    assert.equal(part.status, 206); assert.ok(["II", "MM"].includes(Buffer.from(await part.arrayBuffer()).subarray(0, 2).toString()), "a TIFF header")
+    for (const u of [`tvfile://${reg.id}/1.tif`, `tvfile://${reg.id}/../plane.tif`, `tvfile://${"0".repeat(32)}/0.tif`]) {
+      assert.equal((await fetch(u)).status, 404, u)
+    }
+    // Read as a terrain source: the plane's elevation and slope, the hole
+    // and the outside of the raster no data.
+    const elev = await tifValues(`modes=elevation&terrainSource=${reg.source}`, 14, 8509, 5839)
+    const finite = Array.from(elev).filter(Number.isFinite)
+    assert.ok(finite.length > 0.9 * elev.length, `${finite.length} of ${elev.length} pixels with data`)
+    assert.ok(finite.every((v) => v > 1000 && v < 1420), "the plane's range")
+    const slope = Array.from(await tifValues(`modes=slope&terrainSource=${reg.source}`, 14, 8509, 5839)).filter(Number.isFinite).sort((a, b) => a - b)
+    const median = slope[slope.length >> 1]
+    // Slope is packed in 0.1 degree steps, floored: 3.08 reads 3.0.
+    assert.ok(Math.abs(median - 3.082) < 0.15, `the plane's slope: ${median}`)
+    const edge = await tifValues(`modes=elevation&terrainSource=${reg.source}`, 13, 4253, 2919)
+    assert.ok(Array.from(edge).some(Number.isNaN) && Array.from(edge).some(Number.isFinite), "the raster's edge: data and no data")
+    // A VRT with a relative source: the same elevation.
+    const regVrt = await (await post({ path: path.join(dir, "plane.vrt") })).json()
+    assert.equal(regVrt.type, "vrt")
+    const elev2 = await tifValues(`modes=elevation&terrainSource=${regVrt.source}`, 14, 8509, 5839)
+    assert.ok(elev.every((v, i) => (Number.isNaN(v) && Number.isNaN(elev2[i])) || Math.abs(v - elev2[i]) < 1e-3), "the VRT reads as the GeoTIFF")
+    // Roots: outside them, refused, and so is a VRT whose source escapes them.
+    process.env.TV_FILE_ROOTS = dir
+    try {
+      assert.equal((await post({ path: path.join(outside, "far.tif") })).status, 403, "outside the roots")
+      assert.equal((await post({ path: path.join(dir, "escape.vrt") })).status, 403, "a VRT's absolute source outside the roots")
+      assert.equal((await post({ path: path.join(dir, "climb.vrt") })).status, 403, "a VRT's ../ source outside the roots")
+      assert.equal((await post({ path: tif })).status, 200, "inside the roots")
+    } finally {
+      delete process.env.TV_FILE_ROOTS
+    }
+    process.env.TV_LOCAL_FILES = "off"
+    assert.equal((await post({ path: tif })).status, 403, "turned off")
+    delete process.env.TV_LOCAL_FILES
+    // Changed on disk: its id answers no more until registered again.
+    fs.appendFileSync(tif, Buffer.alloc(16))
+    assert.equal((await fetch(`tvfile://${reg.id}/0.tif`)).status, 404, "a changed file is not read")
+    assert.equal((await fetch(`${base}/terrain-tiles/14/8509/5839.tif?modes=elevation&terrainSource=${reg.source}`)).status, 400, "nor drawn")
+    assert.notEqual((await (await post({ path: tif })).json()).id, reg.id, "a changed file, a new id")
+    assert.equal((await fetch(`${base}/files/${reg.id}`, { method: "DELETE" })).status, 204, "forgotten")
+    assert.equal((await fetch(`${base}/files/${reg.id}`, { method: "DELETE" })).status, 404, "forgotten already")
+    console.log(`local files: registered, read as a source (slope ${median.toFixed(3)} degrees on the plane), refusals ok`)
+  } finally {
+    server.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+    fs.rmSync(outside, { recursive: true, force: true })
+    fs.rmSync(files.registryPath(), { force: true })
+  }
+}
+
 // The relief modes' cost (network: Mapterhorn). A 256 px tile at z12 reads
 // one quarter of a 512 px source tile: its protocol (the sky view factor's
 // kernel) runs once for that source tile, not for the four the bilinear
