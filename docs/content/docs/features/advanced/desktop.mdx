@@ -81,18 +81,31 @@ A copy installed by winget or unzipped from a Portable zip does not update itsel
 
 ## Opening the macOS build
 
-The `.dmg` opens on the usual drag-to-install window: the app on the left, a shortcut to the Applications folder on the right, an arrow between them. Drag the app onto Applications, eject the disk image, and start it from Applications or Launchpad.
+The app is not notarized by Apple: it is only ad-hoc signed on the build runner, with no Apple Developer ID. Two files install it, the `.pkg` first.
 
-The app is not notarized by Apple: it is only ad-hoc signed on the build runner, with no Apple Developer ID, so macOS blocks it on first launch ("Apple could not verify that Terrain Viewer is free of malware"). Once, for each new version:
+### The installer package (`.pkg`, recommended)
 
-1. Open it once (double-click) and dismiss the warning.
-2. Open **System Settings > Privacy & Security**, scroll to Security: "Terrain Viewer was blocked to protect your Mac". Click **Open Anyway**, confirm with your password or Touch ID, then **Open**.
+`TerrainViewer-with-offline-docs-v<date>-Installer-macos-arm64.pkg` (or `TerrainViewer-light-online-docs-...` for the light build) installs the app into the Applications folder.
 
-On macOS 14 and earlier, right-click the app in Applications, choose **Open**, then **Open** again in the dialog does the same. If it is reported as "damaged" instead (a copy whose signature was stripped), clear the download quarantine flag in Terminal and open it normally:
+1. Double-click the `.pkg`. macOS blocks it once ("Apple could not verify ... is free of malware"): click **Done**.
+2. Open **System Settings > Privacy & Security**, scroll to Security, and click **Open Anyway** next to the package's name; confirm with your password or Touch ID, then **Open**.
+3. Follow the installer. The app lands in Applications and opens normally from there or from Launchpad, with no further warning: what the installer writes carries no download quarantine.
+
+Do this once per new version you download; the app's own updates (see [Updates](#updates)) need nothing.
+
+### The disk image (`.dmg`)
+
+The `.dmg` opens on the usual drag-to-install window: the app on the left, a shortcut to the Applications folder on the right, an arrow between them. Drag the app onto Applications and eject the disk image. A dragged app keeps the download quarantine flag, and macOS refuses an ad-hoc signed app that carries it, so clear the flag once in Terminal before opening it:
 
 ```bash
 xattr -cr "/Applications/Terrain Viewer.app"
 ```
+
+(`"/Applications/Terrain Viewer Light.app"` for the light build.) Then start it from Applications or Launchpad.
+
+### How the build makes them
+
+Electrobun leaves the `.app` with a broken signature (its binaries are only linker-signed), which macOS reports as "damaged". `desktop/ci-bundle.sh` signs it ad hoc (`codesign --force --deep --sign -`, then `codesign --verify --deep --strict`), remakes the `.dmg` around the signed app, and builds the `.pkg` with `pkgbuild`, marked not relocatable (`BundleIsRelocatable` set to `NO` in the component plist: otherwise Installer updates a copy of the app it finds elsewhere, in Downloads or on a mounted disk image, instead of writing to Applications). The workflow then installs each `.pkg` from a copy carrying the quarantine flag, as a browser download would, and fails if the installed app carries `com.apple.quarantine`. The updater feed is untouched by the signature: the `.app` is Electrobun's self-extractor, which unpacks its payload (the same `.tar.zst` as the feed) on first launch, and the hash the updater compares is the payload's, written at build time.
 
 ### Signing and notarizing later
 
@@ -133,7 +146,7 @@ desktop/artifacts/
   terrain-viewer-portable-windows-x64.zip   the application folder, zipped (workflow step)
 ```
 
-macOS gets `TerrainViewer.app` and a `.dmg` (laid out by `desktop/dmg-settings.py` with [dmgbuild](https://dmgbuild.readthedocs.io): the app, an Applications link and an arrow), Linux a folder and a self-extracting `.tar.gz`.
+macOS gets `TerrainViewer.app`, an Installer `.pkg` and a `.dmg` (laid out by `desktop/dmg-settings.py` with [dmgbuild](https://dmgbuild.readthedocs.io): the app, an Applications link and an arrow), Linux a folder and a self-extracting `.tar.gz`.
 
 ## Portable: no installer
 
