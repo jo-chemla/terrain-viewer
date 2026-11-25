@@ -131,7 +131,7 @@ def is_matcap_key(key):
     return key == "matcapTextureId"
 
 
-def is_colour_key(key, spec_type=None):
+def is_color_key(key, spec_type=None):
     return spec_type == "color" or (key.endswith("Color") and not key.endswith("ColorRamp"))
 
 

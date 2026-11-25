@@ -388,6 +388,8 @@ def style_vector(layer, mode, opts=None):
     or a fill in the mode's colour setting."""
     from qgis.core import QgsFillSymbol, QgsLineSymbol, QgsSingleSymbolRenderer
     from . import contours
+    from ..labels import label_memory_layer
+    label_memory_layer(layer, mode)  # the values as QGIS labels on the lines
     if mode == "contours":
         contours.style(layer)
         return

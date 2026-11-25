@@ -1,13 +1,13 @@
 """The panel's small widgets: a slider with its number box, the light
 direction pad, selects with ramp and matcap previews, a foldable section and
-a segmented button group. Qt 5 and Qt 6 alike (qgis.PyQt, scoped enums)."""
+radio buttons in a row. Qt 5 and Qt 6 alike (qgis.PyQt, scoped enums)."""
 import math
 
-from qgis.PyQt.QtCore import Qt, QPointF, QRectF, QSize, pyqtSignal
+from qgis.PyQt.QtCore import Qt, QPointF, QRectF, QSize, QObject, QEvent, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QPainter, QPen, QBrush, QPalette
 from qgis.PyQt.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QSlider, QDoubleSpinBox, QSpinBox, QComboBox, QToolButton, QButtonGroup,
-    QSizePolicy, QFrame,
+    QSizePolicy, QFrame, QRadioButton,
 )
 
 
@@ -219,6 +219,7 @@ class FoldSection(QWidget):
         self.button.setAutoRaise(True)
         self.button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        hand(self.button)
         self.icon = icon
         lay.addWidget(self.button)
         self.body = QFrame()
@@ -242,8 +243,44 @@ class FoldSection(QWidget):
         return self.button.isChecked()
 
 
-class Segmented(QWidget):
-    """Exclusive buttons side by side; `changed(id)` when another is picked."""
+def hand(*widgets):
+    """A pointing hand over what takes a click (a row, a box, a button)."""
+    for w in widgets:
+        if w is not None:
+            w.setCursor(Qt.CursorShape.PointingHandCursor)
+    return widgets[0] if len(widgets) == 1 else widgets
+
+
+class _TitleHand(QObject):
+    """A group box's title (which folds it) under a pointing hand, the rest of
+    the box under the usual arrow."""
+
+    def eventFilter(self, obj, e):
+        t = e.type()
+        if t in (QEvent.Type.HoverMove, QEvent.Type.HoverEnter, QEvent.Type.MouseMove):
+            pos = e.position() if hasattr(e, "position") else e.pos()
+            if pos.y() <= obj.fontMetrics().height() + 6:
+                obj.setCursor(Qt.CursorShape.PointingHandCursor)
+            else:
+                obj.unsetCursor()
+        elif t in (QEvent.Type.HoverLeave, QEvent.Type.Leave):
+            obj.unsetCursor()
+        return False
+
+
+def hand_title(box):
+    """A pointing hand over a (collapsible) group box's title and fold button."""
+    box.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+    box._title_hand = _TitleHand(box)
+    box.installEventFilter(box._title_hand)
+    button = box.collapseButton() if hasattr(box, "collapseButton") else None
+    hand(button)
+    return box
+
+
+class RadioRow(QWidget):
+    """Exclusive radio buttons side by side, the QGIS way; `changed(id)` when
+    another is picked."""
 
     changed = pyqtSignal(str)
 
@@ -251,21 +288,19 @@ class Segmented(QWidget):
         super().__init__(parent)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(0)
+        lay.setSpacing(10)
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self.buttons = {}
         for item_id, label, tip in items:
-            b = QToolButton()
-            b.setText(label)
+            b = QRadioButton(label)
             b.setToolTip(tip)
-            b.setCheckable(True)
-            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            b.setMinimumWidth(40)
+            hand(b)
             self.group.addButton(b)
-            lay.addWidget(b, 1)
+            lay.addWidget(b)
             self.buttons[item_id] = b
             b.toggled.connect(lambda on, i=item_id: on and self.changed.emit(i))
+        lay.addStretch(1)
         if current in self.buttons:
             self.set(current, emit=False)
 

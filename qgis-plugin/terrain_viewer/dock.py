@@ -14,13 +14,13 @@ import math
 import time
 from urllib.parse import urlsplit, parse_qsl
 
-from qgis.PyQt.QtCore import Qt, QTimer, QUrl, QSize
+from qgis.PyQt.QtCore import Qt, QTimer, QUrl, QSize, QDateTime, QDate, QTime
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
 from qgis.PyQt.QtWidgets import (
     QApplication, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox, QScrollArea, QToolButton, QFrame, QGroupBox, QSizePolicy,
-    QStackedWidget,
+    QStackedWidget, QDateTimeEdit,
 )
 from qgis.core import (
     Qgis, QgsApplication, QgsNetworkAccessManager, QgsSettings, QgsCoordinateReferenceSystem, QgsRectangle,
@@ -48,10 +48,11 @@ from .layers import LayerStack, PROP, BACKEND_PROP, tree_ranks
 from . import local_server, assets
 from . import python_backend as pyb
 from .settings_ui import (
-    LIGHT_KEYS, LIGHT_DEFAULT, LIGHT_MODES, slider_range, symmetric_pairs, is_ramp_key, is_matcap_key, is_colour_key,
+    LIGHT_KEYS, LIGHT_DEFAULT, LIGHT_MODES, slider_range, symmetric_pairs, is_ramp_key, is_matcap_key, is_color_key,
     clean_enum,
 )
-from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, Segmented
+from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, RadioRow, hand, hand_title
+from . import solar
 
 SETTINGS = "terrain_viewer"
 DEFAULT_SERVICE = "http://localhost:3400"
@@ -60,19 +61,19 @@ WORLD = 20037508.342789244
 # background), so a service that went away (the desktop app closed) is
 # reported instead of leaving empty layers.
 HEALTH_EVERY_MS = 15000
-# The deepest zoom of the Python backend's colour tiles (Mapterhorn's 512 px
+# The deepest zoom of the Python backend's color tiles (Mapterhorn's 512 px
 # tiles go to z17, so 256 px tiles to z18).
 PY_XYZ_ZMAX = 18
 BACKENDS = (
-    ("local", "Local service",
-     "The tile service packaged for QGIS (Node and the service, about 50 MB): installed from the panel the first time, "
-     "started on this machine (127.0.0.1) when you connect, stopped when QGIS quits. Every mode and source."),
-    ("remote", "Remote service",
+    ("local", "Packaged tile server",
+     "The Terrain Viewer tile service packaged for QGIS (Node and the service, about 50 MB): installed from the panel "
+     "the first time, started on this machine (127.0.0.1) when you connect, stopped when QGIS quits. Every mode and source."),
+    ("remote", "Remote tile server",
      "A tile service at an address: the Terrain Viewer desktop app's (http://localhost:3400), one you run yourself "
      "(cd tile-server && pnpm start), or a hosted one. Every mode and source."),
-    ("python", "Python",
-     "Experimental: the modes computed in QGIS's own Python with numpy, no tile service at all. Fast, but not every "
-     "mode, setting or source (Terrarium and Terrain-RGB tiles only)."),
+    ("python", "Python backend",
+     "Experimental: the modes computed in QGIS's own Python with numpy, no tile service at all; it starts when picked. "
+     "Fast, but not every mode, setting or source (Terrarium and Terrain-RGB tiles only)."),
 )
 
 
@@ -105,7 +106,7 @@ def _theme_icon(*names):
 
 class SettingWidget:
     """One setting: a widget chosen by its type and name (a slider with its
-    number box, a ramp or matcap select with previews, a colour button),
+    number box, a ramp or matcap select with previews, a color button),
     read and written as the URL value."""
 
     def __init__(self, spec, dock, on_change):
@@ -159,11 +160,11 @@ class SettingWidget:
                 w.setKeyboardTracking(False)
                 self.get = w.value
                 self.set = lambda v: w.setValue(int(float(v)) if integer else float(v))
-        elif is_colour_key(key, t) and QgsColorButton is not None:
+        elif is_color_key(key, t) and QgsColorButton is not None:
             w = QgsColorButton()
             w.setColor(QColor(str(d or "#000000")))
             w.colorChanged.connect(on_change)
-            # The default as written (#FFFFFF), so an unchanged colour stays
+            # The default as written (#FFFFFF), so an unchanged color stays
             # out of the address.
             self.get = lambda: str(d) if d and QColor(str(d)) == w.color() else w.color().name()
             self.set = lambda v: w.setColor(QColor(str(v)))
@@ -185,7 +186,9 @@ class SettingWidget:
         self.widget.setToolTip(self.tooltip if ok else why)
 
 
-FORM_LABELS = {"colour": "Colour", "values": "Values", "vector": "Vector"}
+# The forms by their ids. "colour" stays the id of the drawn raster form (the
+# Python backend's form names, python_backend.py, use it); the panel says Color.
+FORM_LABELS = {"colour": "Color", "values": "Values", "vector": "Vector"}
 DRAWN_FORMS = ("colour", "vector")  # the forms whose look the settings change
 
 
@@ -198,11 +201,19 @@ def _retain_hidden(w):
 
 class _RowHeader(QWidget):
     """A mode's line: a click anywhere on it (not on one of its boxes or
-    buttons, which take their own clicks) toggles the mode."""
+    buttons, which take their own clicks) toggles the mode. A pointing hand
+    and a light background under the mouse say so."""
 
     def __init__(self, on_click):
         super().__init__()
         self.on_click = on_click
+        self.setObjectName("tvRowHeader")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        # A grey of low alpha reads on light and dark themes alike.
+        self.setStyleSheet("#tvRowHeader { border-radius: 3px; }"
+                           "#tvRowHeader:hover { background-color: rgba(128, 128, 128, 40); }")
+        hand(self)
 
     def mouseReleaseEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton and self.isEnabled():
@@ -212,13 +223,13 @@ class _RowHeader(QWidget):
 
 class FormsRow:
     """A mode's row: its checkbox on the left, its forms on the right
-    (Colour: the coloured layer; Values: the numbers, a Float32 raster;
+    (Color: the colored layer; Values: the numbers, a Float32 raster;
     Vector: the overlay's features), each a layer of the project, and a
-    settings cog shown while a drawn form (Colour, Vector) is on; the
+    settings cog shown while a drawn form (Color, Vector) is on; the
     settings fold under the row.
 
     Checking the mode turns on the forms it had (the default form the first
-    time: Vector for the overlays that have one, else Colour); unchecking it
+    time: Vector for the overlays that have one, else Color); unchecking it
     turns them all off (each layer removed) and remembers them. Checking a
     form checks the mode; unchecking the last one unchecks it. A backend
     that lacks a form hides its box (set_available). `on_change()` is called
@@ -242,7 +253,7 @@ class FormsRow:
         head.addWidget(self.check, 1)
         self.forms = {}
         # Two columns, so the boxes line up from row to row (an empty slot
-        # keeps its width): Vector then Raster for the overlays, Colour then
+        # keeps its width): Vector then Raster for the overlays, Color then
         # Values for the others. The cog keeps its place when hidden.
         slots = [f for f in (("vector", "colour") if "vector" in forms else ("colour", "values")) if f in forms]
         while len(slots) < 2:
@@ -260,6 +271,7 @@ class FormsRow:
             if tooltips and tooltips.get(f):
                 cb.setToolTip(tooltips[f])
             cb.toggled.connect(lambda on, f=f: self._form_toggled(f, on))
+            hand(cb)
             head.addWidget(cb)
             self.forms[f] = cb
         self.more = QToolButton()
@@ -267,6 +279,7 @@ class FormsRow:
         self.more.setCheckable(True)
         self.more.setAutoRaise(True)
         self.more.setToolTip("Settings")
+        hand(self.more)
         _retain_hidden(self.more)
         head.addWidget(self.more)
         lay.addWidget(self.header)
@@ -341,6 +354,8 @@ class FormsRow:
 
     def set_enabled(self, ok, why=""):
         self.header.setEnabled(ok)
+        for w in [self.header, self.more] + list(self.forms.values()):
+            w.setCursor(Qt.CursorShape.PointingHandCursor if ok else Qt.CursorShape.ArrowCursor)
         self.check.setToolTip("" if ok else why)
         self.header.setToolTip("" if ok else why)
         if not ok:
@@ -367,7 +382,7 @@ class ModeRow:
             tips["colour"] = "The mode as the app draws it: an XYZ layer of raster tiles"
         if mode.get("values"):
             forms.append("values")
-            tips["values"] = (f"The values before the colour ramp, a Float32 raster read by GDAL, for analysis "
+            tips["values"] = (f"The values before the color ramp, a Float32 raster read by GDAL, for analysis "
                               f"({mode['values'].get('unit')}): {mode['values'].get('description', '')}")
         if mode.get("vector"):
             forms.append("vector")
@@ -375,10 +390,11 @@ class ModeRow:
         self.all_forms = set(forms)
         self.row = FormsRow(mode["name"], forms, self.update, tips)
         self.box, self.check, self.more = self.row.box, self.row.check, self.row.more
-        # The boxes by their 0.5.0 names (tests, scripts).
-        self.numbers = self.row.forms.get("values")
+        # The boxes by name (tests, scripts; `colour` and `numbers` are the
+        # 0.5.0 names).
+        self.values_box = self.numbers = self.row.forms.get("values")
         self.vector = self.row.forms.get("vector")
-        self.colour = self.row.forms.get("colour")
+        self.color = self.colour = self.row.forms.get("colour")
         form = self.row.form_layout
         self.opacity = None
         if mode.get("opacityKey") or mode.get("form") != "vector":
@@ -458,8 +474,8 @@ class ModeRow:
         reg = pyb.registry()
         py = pyb.py_mode(self.mode["id"], None, reg) if reg else None
         if py is None:
-            self.row.set_enabled(False, "Not computed by the Python backend (yet): pick Local or Remote service at the "
-                                        "top of the panel for this mode")
+            self.row.set_enabled(False, "Not computed by the Python backend (yet): pick the packaged or remote tile server "
+                                        "at the top of the panel for this mode")
             return
         self.row.set_enabled(True)
         self.row.set_available(pyb.py_forms(self.mode["id"], self.all_forms, reg))
@@ -586,7 +602,7 @@ class ModeRow:
                     stack.add_layer(layer, key, self.path, "python")
                 elif not new:
                     from .live.layers import style_vector
-                    style_vector(layer, py, opts)  # a colour or width setting changed
+                    style_vector(layer, py, opts)  # a color or width setting changed
                 LocalLayers(stack.project).refresh_vector(layer, opts, ext, width, source=sid, mode=py)
             if new and layer is not None:
                 stack.set_visible(layer, True)
@@ -603,7 +619,7 @@ class ModeRow:
 
 
 class TerrainViewerDock(QDockWidget):
-    def __init__(self, canvas=None, parent=None, message_bar=None):
+    def __init__(self, canvas=None, parent=None, message_bar=None, bridge=None):
         super().__init__("Terrain Viewer", parent)
         self.setObjectName("TerrainViewerDock")
         self.canvas = canvas
@@ -615,6 +631,11 @@ class TerrainViewerDock(QDockWidget):
         self.base = None  # the service connected to
         self.rows = {}
         self.stack = LayerStack()
+        # QGIS's layer tree to canvas bridge (iface.layerTreeCanvasBridge()):
+        # it zooms to the first layer added to a project with none, the whole
+        # world for tiles; keep_extent stops it for the panel's layers.
+        self.bridge = bridge
+        self.stack.before_insert = self.keep_extent
         self.extra = {}  # a share link's other parameters, kept in every address
         self.camera = None  # the last share link's (lat, lng, zoom), when there is no canvas
         self.pending = set()
@@ -661,11 +682,11 @@ class TerrainViewerDock(QDockWidget):
         outer = QVBoxLayout(body)
 
         # -- the backend, and its options -----------------------------------
-        self.backend_picker = Segmented([(i, label, tip) for i, label, tip in BACKENDS], backend)
+        self.backend_picker = RadioRow(BACKENDS, backend)
         outer.addWidget(self.backend_picker)
         self.pages = QStackedWidget()
         self.pages.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
-        # Local service
+        # Packaged tile server
         local = QWidget()
         ll = QVBoxLayout(local)
         ll.setContentsMargins(0, 0, 0, 0)
@@ -683,7 +704,7 @@ class TerrainViewerDock(QDockWidget):
         row.addWidget(self.local_connect)
         ll.addLayout(row)
         self.pages.addWidget(local)
-        # Remote service
+        # Remote tile server
         remote = QWidget()
         rl = QHBoxLayout(remote)
         rl.setContentsMargins(0, 0, 0, 0)
@@ -697,7 +718,8 @@ class TerrainViewerDock(QDockWidget):
         rl.addWidget(self.url, 1)
         rl.addWidget(go)
         self.pages.addWidget(remote)
-        # Python
+        # Python: no Connect, it starts when picked (a server thread of QGIS
+        # on 127.0.0.1, nothing to install or wait for).
         python = QWidget()
         pl = QHBoxLayout(python)
         pl.setContentsMargins(0, 0, 0, 0)
@@ -705,11 +727,8 @@ class TerrainViewerDock(QDockWidget):
                                   "not compute are greyed out.")
         self.python_info.setWordWrap(True)
         pl.addWidget(self.python_info, 1)
-        py_go = QPushButton("Connect")
-        py_go.setToolTip("Start the Python backend (a server thread of QGIS on 127.0.0.1)")
-        py_go.clicked.connect(lambda _checked=False: self.connect_service())
-        pl.addWidget(py_go)
         self.pages.addWidget(python)
+        hand(self.install_btn, self.local_connect, go)
         outer.addWidget(self.pages)
         self.backend_picker.changed.connect(self.set_backend)
 
@@ -736,6 +755,7 @@ class TerrainViewerDock(QDockWidget):
             self.zoom_btn.setText("Zoom")
         self.zoom_btn.setToolTip("Zoom the map to the source's extent")
         self.zoom_btn.clicked.connect(lambda _checked=False: self.zoom_to_source())
+        hand(self.zoom_btn)
         src.addWidget(self.zoom_btn)
         outer.addLayout(src)
 
@@ -767,6 +787,7 @@ class TerrainViewerDock(QDockWidget):
         self.link.returnPressed.connect(lambda: self.open_link())
         open_btn = QPushButton("Open link")
         open_btn.clicked.connect(lambda _checked=False: self.open_link())
+        hand(open_btn)
         link.addWidget(self.link, 1)
         link.addWidget(open_btn)
         outer.addLayout(link)
@@ -776,6 +797,7 @@ class TerrainViewerDock(QDockWidget):
         freeze_btn.setToolTip("Copy the layers drawn now from the \"Terrain Viewer (live)\" group into a new dated "
                               "group under it, every setting kept in their addresses; the panel never changes the copies")
         freeze_btn.clicked.connect(lambda _checked=False: self.freeze())
+        hand(freeze_btn)
         freeze.addStretch(1)
         freeze.addWidget(freeze_btn)
         outer.addLayout(freeze)
@@ -783,6 +805,14 @@ class TerrainViewerDock(QDockWidget):
 
         # -- the light, shared by the shaded modes ----------------------------
         self.light_section = FoldSection("Light (hillshade, Phong, shadows)", None, open_=False)
+        # Free (the pad and its sliders) or the sun at a date and time over
+        # the canvas centre, which sets them (the pad shows where it is).
+        self.light_mode = RadioRow((("free", "Free", "Drag the light on the pad or set its azimuth and elevation"),
+                                    ("sun", "Sun at a date and time",
+                                     "The sun's direction over the map's centre at the date and time set (UTC), as the "
+                                     "app's date and time light: it sets the azimuth and elevation")), "free")
+        self.light_mode.changed.connect(self._light_mode_changed)
+        self.light_section.body_layout.addWidget(self.light_mode)
         lrow = QHBoxLayout()
         self.light_pad = LightPad(*LIGHT_DEFAULT)
         lrow.addWidget(self.light_pad)
@@ -796,6 +826,35 @@ class TerrainViewerDock(QDockWidget):
         self.light_pad.changed.connect(self._light_from_pad)
         self.light_az.valueChanged.connect(self._light_from_sliders)
         self.light_el.valueChanged.connect(self._light_from_sliders)
+        self.sun_box = QWidget()
+        sform = QFormLayout(self.sun_box)
+        sform.setContentsMargins(0, 0, 0, 0)
+        self.sun_when = QDateTimeEdit(QDateTime.currentDateTimeUtc())
+        self.sun_when.setTimeSpec(Qt.TimeSpec.UTC)
+        self.sun_when.setDisplayFormat("yyyy-MM-dd HH:mm")
+        self.sun_when.setCalendarPopup(True)
+        self.sun_when.setToolTip("The date and the time, in UTC: the sun's place follows the map's longitude")
+        self.sun_day = SliderSpin(1, 365, 1, 172, integer=True, hard=(1, 365))
+        self.sun_day.setToolTip("The day of the year (1 is 1 January, 172 the June solstice); the year is kept")
+        self.sun_hour = SliderSpin(0, 24, 0.25, 12, hard=(0, 24))
+        self.sun_hour.setToolTip("The time of day in UTC, in hours (15.5 is 15:30)")
+        sform.addRow("Date, time (UTC)", self.sun_when)
+        sform.addRow("Day of year", self.sun_day)
+        sform.addRow("Hour (UTC)", self.sun_hour)
+        self.sun_info = QLabel()
+        self.sun_info.setWordWrap(True)
+        sform.addRow(self.sun_info)
+        self.light_section.body_layout.addWidget(self.sun_box)
+        self._sun_sync = False
+        self._sun_from_when()  # the day and hour boxes from the date picked
+        self.sun_when.dateTimeChanged.connect(lambda _dt: self._sun_from_when())
+        self.sun_day.valueChanged.connect(lambda _v: self._sun_from_parts())
+        self.sun_hour.valueChanged.connect(lambda _v: self._sun_from_parts())
+        self.sun_box.setVisible(False)
+        self.sun_timer = QTimer(self)  # the canvas moved: the sun over its new centre
+        self.sun_timer.setSingleShot(True)
+        self.sun_timer.setInterval(400)
+        self.sun_timer.timeout.connect(self.apply_sun)
         outer.addWidget(self.light_section)
 
         # -- the modes ----------------------------------------------------------
@@ -844,7 +903,7 @@ class TerrainViewerDock(QDockWidget):
         if connect:
             if backend == "local" and not local_server.bundled():
                 # A 50 MB download waits for Connect, not for a click on the backend.
-                self.status.setText("Local tile service not installed yet: Connect downloads it, checks it and starts it")
+                self.status.setText("Packaged tile server not installed yet: Connect downloads it, checks it and starts it")
                 return
             self.connect_service()
 
@@ -863,7 +922,7 @@ class TerrainViewerDock(QDockWidget):
             return
         if not local_server.installable():
             self.local_info.setText(f"No tile service is packaged for this platform ({local_server.platform_label() or '?'}): "
-                                    "use Remote service")
+                                    "use the remote tile server")
             return
         try:
             from .service_install import asset
@@ -874,7 +933,7 @@ class TerrainViewerDock(QDockWidget):
         self.local_info.setText("Not installed yet: Connect downloads it" + (f" ({size / 1e6:.0f} MB)" if size else "")
                                 + ", checks it and starts it.")
         self.install_btn.setText("Install" + (f" ({size / 1e6:.0f} MB)" if size else ""))
-        self.install_btn.setToolTip(f"Install the local tile service: download it for {local_server.platform_label()} "
+        self.install_btn.setToolTip(f"Install the packaged tile server: download it for {local_server.platform_label()} "
                                     f"(Node, the service, its image libraries) from the GitHub release "
                                     f"{p.get('release', '?')}, check its sha256, unpack it into {local_server.installed_dir()}")
 
@@ -886,7 +945,7 @@ class TerrainViewerDock(QDockWidget):
                 self.connected = None
             local_server.stop_instance()
             uninstall()
-            self.status.setText("Local tile service removed")
+            self.status.setText("Packaged tile server removed")
             self.refresh_service_row()
         else:
             self.install_service()
@@ -898,7 +957,7 @@ class TerrainViewerDock(QDockWidget):
         from .service_install import InstallError, install
         self.install_btn.setEnabled(False)
         self.local_connect.setEnabled(False)
-        self.status.setText("Downloading the local tile service...")
+        self.status.setText("Downloading the packaged tile server...")
 
         def done(error, where=None):
             self.install_btn.setEnabled(True)
@@ -906,9 +965,9 @@ class TerrainViewerDock(QDockWidget):
             self.install_task = None
             self.refresh_service_row()
             if error:
-                self.warn(f"The local tile service was not installed: {error}")
+                self.warn(f"The packaged tile server was not installed: {error}")
                 return
-            self.status.setText(f"Local tile service installed in {where}")
+            self.status.setText(f"Packaged tile server installed in {where}")
             if then is not None:
                 then()
 
@@ -931,7 +990,7 @@ class TerrainViewerDock(QDockWidget):
         def finished(exception, result=None):
             done(exception, result)
         self.install_task = QgsTask.fromFunction("Installing the Terrain Viewer tile service", run, on_finished=finished)
-        self.install_task.progressChanged.connect(lambda v: self.status.setText(f"Downloading the local tile service... {v:.0f} %"))
+        self.install_task.progressChanged.connect(lambda v: self.status.setText(f"Downloading the packaged tile server... {v:.0f} %"))
         QgsApplication.taskManager().addTask(self.install_task)
         return True
 
@@ -940,12 +999,12 @@ class TerrainViewerDock(QDockWidget):
         reason in the status line) when it does not start."""
         server = local_server.instance()
         if not server.running():
-            self.status.setText("Starting the local tile service...")
+            self.status.setText("Starting the packaged tile server...")
             QApplication.processEvents()
         try:
             return server.start()
         except RuntimeError as e:
-            self.status.setText(f"The local tile service did not start: {e} (log: {server.log_path})")
+            self.status.setText(f"The packaged tile server did not start: {e} (log: {server.log_path})")
             return None
 
     # -- messages -----------------------------------------------------------
@@ -976,22 +1035,21 @@ class TerrainViewerDock(QDockWidget):
         self.health_timer.stop()
         backend = self.backend
         if backend == "python":
-            if not start_bundled:
-                self.status.setText("Python backend: press Connect to start it")
-                return False
+            # No Connect for it: a thread of QGIS, started when picked and
+            # when the panel opens with it picked.
             return self.connect_python()
         if backend == "local":
             if not local_server.bundled():
                 if not start_bundled:
-                    self.status.setText("Local tile service not installed: Connect installs and starts it")
+                    self.status.setText("Packaged tile server not installed: Connect installs and starts it")
                     return False
                 if not local_server.installable():
-                    self.warn(f"No local tile service for this platform ({local_server.platform_label()}): pick Remote service")
+                    self.warn(f"No packaged tile server for this platform ({local_server.platform_label()}): pick the remote tile server")
                     return False
                 self.install_service(then=lambda: self.connect_service())
                 return False
             if not local_server.instance().running() and not start_bundled:
-                self.status.setText("Local tile service: press Connect to start it")
+                self.status.setText("Packaged tile server: press Connect to start it")
                 return False
             base = self.start_bundled()
             if base is None:
@@ -1035,7 +1093,7 @@ class TerrainViewerDock(QDockWidget):
 
     def connect_python(self):
         if pyb.numpy_missing():
-            self.warn("The Python backend needs numpy, which this QGIS's Python lacks: pick Local or Remote service")
+            self.warn("The Python backend needs numpy, which this QGIS's Python lacks: pick the packaged or remote tile server")
             return False
         try:
             self.live_server()
@@ -1153,6 +1211,7 @@ class TerrainViewerDock(QDockWidget):
             here = path + ((g["group"],) if g.get("group") else ())
             if g.get("group"):
                 box = GroupBox(g["group"])
+                hand_title(box)
                 inner = QVBoxLayout(box)
                 parent_layout.addWidget(box)
             else:
@@ -1164,7 +1223,7 @@ class TerrainViewerDock(QDockWidget):
                 self.rows[item["id"]] = row
                 inner.addWidget(row.box)
 
-        # The app's panel reads from the base up (colour relief, analysis,
+        # The app's panel reads from the base up (color relief, analysis,
         # relief, lighting, overlays); /processes is top of the map first, so
         # the panel lists it reversed (the layer tree keeps the map's order).
         for g in reversed(self.catalog.tree):
@@ -1211,6 +1270,7 @@ class TerrainViewerDock(QDockWidget):
             if present:
                 row.row.set_forms(present)
         if light is not None:
+            self._to_free()
             self.set_light(*light, schedule=False)
         self.adopted = True
 
@@ -1302,11 +1362,93 @@ class TerrainViewerDock(QDockWidget):
             self.light_changed()
 
     def _light_from_pad(self, az, el):
+        self._to_free()
         self.set_light(az, el)
 
     def _light_from_sliders(self, _v):
+        self._to_free()
         self.light_pad.setValue(*self.light_value())
         self.light_changed()
+
+    # -- the sun at a date and time -------------------------------------------
+    def sun_mode(self):
+        return self.light_mode.current() == "sun"
+
+    def _to_free(self):
+        """The light moved by hand: back to Free (the date stays set)."""
+        if self.sun_mode():
+            self.light_mode.set("free", emit=False)
+            self.sun_box.setVisible(False)
+            self.sun_timer.stop()
+
+    def _light_mode_changed(self, mode):
+        self.sun_box.setVisible(mode == "sun")
+        if mode == "sun":
+            self.apply_sun()
+
+    def set_light_mode(self, mode):
+        """"free" or "sun" (the sun applied at once)."""
+        self.light_mode.set(mode)
+
+    def _sun_from_when(self):
+        """The date picker changed: the day and hour boxes follow."""
+        if self._sun_sync:
+            return
+        dt = self.sun_when.dateTime().toUTC()
+        d, t = dt.date(), dt.time()
+        self._sun_sync = True
+        self.sun_day.setValue(solar.day_of_year(d.month(), d.day()))
+        self.sun_hour.setValue(t.hour() + t.minute() / 60)
+        self._sun_sync = False
+        self._sun_changed()
+
+    def _sun_from_parts(self):
+        """The day or the hour changed: the date picker follows (its year kept)."""
+        if self._sun_sync:
+            return
+        year = self.sun_when.dateTime().toUTC().date().year()
+        month, day = solar.date_of_day(self.sun_day.value(), year)
+        minutes = int(round(float(self.sun_hour.value()) * 60))
+        if minutes >= 24 * 60:
+            minutes = 24 * 60 - 1
+        self._sun_sync = True
+        self.sun_when.setDateTime(QDateTime(QDate(year, month, day), QTime(minutes // 60, minutes % 60), Qt.TimeSpec.UTC))
+        self._sun_sync = False
+        self._sun_changed()
+
+    def _sun_changed(self):
+        if self.sun_mode():
+            self.apply_sun()
+
+    def sun_place(self):
+        """(lat, lng) of the canvas centre (the last link's camera without a
+        canvas), or None."""
+        p = self.place()
+        return (p[0], p[1]) if p else None
+
+    def apply_sun(self):
+        """The light set to the sun over the canvas centre at the date and time
+        set (rounded to the degree, so a small pan rewrites nothing). Returns
+        (azimuth, altitude) before rounding, or None without a place."""
+        if not self.sun_mode():
+            return None
+        where = self.sun_place()
+        if where is None:
+            self.sun_info.setText("No map centre to place the sun over")
+            return None
+        lat, lng = where
+        dt = self.sun_when.dateTime().toUTC()
+        d, t = dt.date(), dt.time()
+        az, alt, solar_hour = solar.sun_at(lat, lng, d.month(), d.day(), t.hour() + t.minute() / 60)
+        up = alt > 0
+        self.sun_info.setText(
+            f"Sun over {abs(lat):.2f}° {'N' if lat >= 0 else 'S'}, {abs(lng):.2f}° {'E' if lng >= 0 else 'W'} at "
+            f"{solar.format_hour(solar_hour)} solar time: azimuth {az:.0f}°, "
+            + (f"elevation {alt:.0f}°" if up else f"{-alt:.0f}° below the horizon (lit from the horizon)"))
+        new = (float(round(az) % 360), float(round(min(max(alt, 0.0), 90.0))))
+        if new != self.light_value():
+            self.set_light(*new)
+        return az, alt
 
     def light_changed(self):
         for mid in LIGHT_MODES:
@@ -1369,6 +1511,27 @@ class TerrainViewerDock(QDockWidget):
                 pass
         self.health_timer.stop()
 
+    def keep_extent(self):
+        """A layer is about to join the project. In a project with no spatial
+        layer left (every mode unchecked, no other layer), QGIS's bridge would
+        zoom the canvas to it, the whole world for tiles, and take its CRS:
+        that setup is off until the bridge has seen the new layer."""
+        b = self.bridge
+        if b is None or not b.autoSetupOnFirstLayer():
+            return
+        if any(lyr.isSpatial() for lyr in QgsProject.instance().mapLayers().values()):
+            return
+        b.setAutoSetupOnFirstLayer(False)
+
+        def restore(*_):
+            try:
+                b.canvasLayersChanged.disconnect(restore)
+            except (TypeError, RuntimeError):
+                return  # already restored
+            b.setAutoSetupOnFirstLayer(True)
+        b.canvasLayersChanged.connect(restore)
+        QTimer.singleShot(3000, restore)  # should the bridge not update
+
     # -- the Python backend's view-dependent work -------------------------------
     def canvas_extent(self):
         c = self.canvas
@@ -1382,6 +1545,8 @@ class TerrainViewerDock(QDockWidget):
             return None, 0
 
     def extent_changed(self):
+        if self.sun_mode():
+            self.sun_timer.start()
         if self.connected == "python":
             self.prefetch_timer.start()
             if any(r.row.on("vector") for r in self.rows.values()):
@@ -1464,6 +1629,7 @@ class TerrainViewerDock(QDockWidget):
             self.set_source(src, quiet=True)
             self._py_sources.clear()
         if any(k in params for k in LIGHT_KEYS):
+            self._to_free()
             self.set_light(float(params.get("illuminationDir", LIGHT_DEFAULT[0])),
                            float(params.get("illuminationAlt", LIGHT_DEFAULT[1])), schedule=False)
         # The opacities go to the QGIS layers (view["opacity"]), not into

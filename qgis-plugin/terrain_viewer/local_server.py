@@ -158,12 +158,12 @@ class LocalServer:
 
     def status(self):
         if self.running():
-            return f"Local tile service running on {self.url} (process {self.proc.pid})"
+            return f"Packaged tile server running on {self.url} (process {self.proc.pid})"
         if self.error:
-            return f"Local tile service stopped: {self.error}"
+            return f"Packaged tile server stopped: {self.error}"
         if self.proc is not None:  # started, then gone without stop()
-            return f"Local tile service stopped (exit code {self.proc.returncode}, log: {self.log_path})"
-        return "Local tile service not started"
+            return f"Packaged tile server stopped (exit code {self.proc.returncode}, log: {self.log_path})"
+        return "Packaged tile server not started"
 
     def start(self, timeout=60):
         """Start the service if it is not running, wait until it answers
@@ -173,7 +173,7 @@ class LocalServer:
             return self.url
         server_dir = self.server_dir or current_dir()
         if not bundled(server_dir):
-            raise RuntimeError("no local tile service installed (Install local tile service, in the panel)")
+            raise RuntimeError("no packaged tile server installed (Install, under Packaged tile server in the panel)")
         node = node_path(server_dir)
         if sys.platform != "win32":
             # QGIS's zip installer drops the executable bits.
