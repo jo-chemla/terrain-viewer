@@ -1,0 +1,86 @@
+{
+"size": 48,
+"default": "clay_studio",
+"items": [
+{
+"id": "normal_sphere",
+"name": "Normal Sphere"
+},
+{
+"id": "duotone_sphere",
+"name": "Duotone NW/NE Sphere"
+},
+{
+"id": "basic_1",
+"name": "Basic 1"
+},
+{
+"id": "basic_2",
+"name": "Basic 2"
+},
+{
+"id": "basic_dark",
+"name": "Basic Dark"
+},
+{
+"id": "basic_side",
+"name": "Basic Side-Lit"
+},
+{
+"id": "ceramic_dark",
+"name": "Ceramic Dark"
+},
+{
+"id": "ceramic_lightbulb",
+"name": "Ceramic Lightbulb"
+},
+{
+"id": "clay_brown",
+"name": "Clay Brown"
+},
+{
+"id": "clay_muddy",
+"name": "Clay Muddy"
+},
+{
+"id": "clay_studio",
+"name": "Clay Studio"
+},
+{
+"id": "jade",
+"name": "Jade"
+},
+{
+"id": "metal_anisotropic",
+"name": "Metal Anisotropic"
+},
+{
+"id": "metal_carpaint",
+"name": "Metal Carpaint"
+},
+{
+"id": "metal_lead",
+"name": "Metal Lead"
+},
+{
+"id": "metal_shiny",
+"name": "Metal Shiny"
+},
+{
+"id": "pearl",
+"name": "Pearl"
+},
+{
+"id": "resin",
+"name": "Resin"
+},
+{
+"id": "skin",
+"name": "Skin"
+},
+{
+"id": "toon",
+"name": "Toon"
+}
+]
+}

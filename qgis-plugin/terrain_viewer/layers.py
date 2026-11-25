@@ -28,6 +28,9 @@ PROP = "terrain_viewer/layer"  # "<mode>", "<mode>:vector" or "<mode>:values"
 # A frozen copy carries this one instead of PROP, so the panel never finds,
 # rewrites or reads it back.
 FROZEN_PROP = "terrain_viewer/frozen"
+# Which backend drew the layer: "service" (a tile service, local or remote)
+# or "python" (live/, on this machine).
+BACKEND_PROP = "terrain_viewer/backend"
 MULTIPLY = QPainter.CompositionMode.CompositionMode_Multiply
 NORMAL = QPainter.CompositionMode.CompositionMode_SourceOver
 
@@ -184,15 +187,32 @@ class LayerStack:
         g = self.group(path)
         return g.insertLayer(self._index(g, tuple(path), self.ranks.get(("l", key), 10 ** 6)), layer)
 
+    def find_all(self, key):
+        return [layer for layer in self.project.mapLayers().values() if layer.customProperty(PROP) == key]
+
     # -- one mode ---------------------------------------------------------
-    def ensure(self, key, name, path, url, vector, mode_id=None, values=None):
-        """The layer of `key`, created or with its address replaced."""
+    def _own(self, key, backend, kind):
+        """The layer of `key` if it is of the kind wanted (a vector tile
+        layer, a memory layer, a raster); one of another kind (the contour
+        lines of the other backend) is removed first."""
         layer = self.find(key)
+        if layer is not None and kind is not None and not kind(layer):
+            self.remove(key, prune=False)
+            layer = None
+        if layer is not None and backend:
+            layer.setCustomProperty(BACKEND_PROP, backend)
+        return layer
+
+    def ensure(self, key, name, path, url, vector, mode_id=None, values=None, zmax=None, backend=None):
+        """The layer of `key`, created or with its address replaced."""
+        layer = self._own(key, backend, (lambda lyr: isinstance(lyr, QgsVectorTileLayer)) if vector
+                          else (lambda lyr: isinstance(lyr, QgsRasterLayer)))
         if vector:
             uri = xyz_uri(url, 15)
             if layer is None:
                 layer = QgsVectorTileLayer(uri, name)
                 layer.setCustomProperty(PROP, key)
+                layer.setCustomProperty(BACKEND_PROP, backend or "service")
                 layer.setRenderer(vector_renderer(mode_id, values or {}))
                 self._insert(layer, path, key)
             elif layer.source() != uri:
@@ -200,26 +220,28 @@ class LayerStack:
                 layer.setRenderer(vector_renderer(mode_id, values or {}))
                 layer.triggerRepaint()
             return layer
-        uri = xyz_uri(url, 22)
+        uri = xyz_uri(url, zmax or 22)
         if layer is None:
             layer = QgsRasterLayer(uri, name, "wms")
             layer.setCustomProperty(PROP, key)
+            layer.setCustomProperty(BACKEND_PROP, backend or "service")
             self._insert(layer, path, key)
         elif layer.source() != uri:
             layer.setDataSource(uri, layer.name(), "wms", QgsDataProvider.ProviderOptions())
             layer.triggerRepaint()
         return layer
 
-    def ensure_values(self, key, name, path, url, value_range=None):
+    def ensure_values(self, key, name, path, url, value_range=None, backend=None):
         """A mode's values: a Float32 raster read by GDAL from the service's
         /gdal.xml (GeoTIFF tiles), created or with its address replaced,
         drawn as a grey stretch over the mode's typical range (QGIS's own
         estimate reads the coarsest overview, far too narrow), resampled
         early (values_resampling)."""
-        layer = self.find(key)
+        layer = self._own(key, backend, lambda lyr: isinstance(lyr, QgsRasterLayer))
         if layer is None:
             layer = QgsRasterLayer(url, name, "gdal")
             layer.setCustomProperty(PROP, key)
+            layer.setCustomProperty(BACKEND_PROP, backend or "service")
             values_resampling(layer)
             if value_range and layer.isValid():
                 gray = QgsSingleBandGrayRenderer(layer.dataProvider(), 1)
@@ -235,11 +257,43 @@ class LayerStack:
             layer.triggerRepaint()
         return layer
 
-    def remove(self, key):
-        """Removes the layer of `key` from the project, if there."""
-        layer = self.find(key)
-        if layer is not None:
-            self.project.removeMapLayer(layer.id())
+    def add_layer(self, layer, key, path, backend):
+        """A layer made elsewhere (the Python backend's contour lines, a memory
+        layer) put in its place in the tree, marked as the panel's."""
+        layer.setCustomProperty(PROP, key)
+        layer.setCustomProperty(BACKEND_PROP, backend)
+        self._insert(layer, path, key)
+        return layer
+
+    def remove(self, key, prune=True):
+        """Removes every layer of `key` from the project (a copy made with
+        QGIS's Duplicate Layer carries the key too: left behind, it kept the
+        mode drawn after its box was unchecked), then the groups left empty.
+        Returns the ids removed."""
+        ids = [layer.id() for layer in self.find_all(key)]
+        if ids:
+            self.project.removeMapLayers(ids)
+        if prune:
+            self.prune()
+        return ids
+
+    def prune(self):
+        """The live group's empty subgroups removed, deepest first, and the
+        live group itself when nothing is left in it (a project with every
+        mode unchecked has no empty "Terrain Viewer (live)" group)."""
+        root = self.root(create=False)
+        if root is None:
+            return
+
+        def walk(g):
+            for c in list(g.children()):
+                if isinstance(c, QgsLayerTreeGroup):
+                    walk(c)
+                    if not c.children():
+                        g.removeChildNode(c)
+        walk(root)
+        if not root.children() and root.parent() is not None:
+            root.parent().removeChildNode(root)
 
     def style(self, layer, opacity, shading):
         if layer is None:

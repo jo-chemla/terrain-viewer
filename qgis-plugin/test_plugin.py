@@ -59,6 +59,10 @@ if iface.toolbar or iface.web:
     failures.append("plugin: unload")
 
 dock = TerrainViewerDock(None)
+print("tree before any service (the packaged snapshot):", len(dock.rows), "rows")
+if len(dock.rows) < 20:
+    failures.append("no modes tree before connecting (assets/catalog.json)")
+dock.set_backend("remote", connect=False)
 dock.url.setText(base)
 assert dock.connect_service(), dock.status.text()
 print("status:", dock.status.text())
@@ -108,7 +112,9 @@ extent = QgsRectangle(x - half, y - half * 0.625, x + half, y + half * 0.625)
 # vector tiles), change a setting.
 dock.rows["svf"].check.setChecked(True)
 dock.rows["contours"].check.setChecked(True)
-dock.rows["contours"].vector.setChecked(True)
+if not dock.rows["contours"].vector.isChecked() or dock.rows["contours"].colour.isChecked():
+    failures.append("overlays: vector tiles are not the default form")
+dock.rows["contours"].colour.setChecked(True)
 dock.rows["svf"].settings["svfRadius"].set(20)
 # The slope's values too: a Float32 raster read by GDAL (/gdal.xml).
 dock.rows["slope"].numbers.setChecked(True)
@@ -238,12 +244,94 @@ QgsProject.instance().removeMapLayer(dock.stack.find("curvature").id())
 if row.check.isChecked() or row.colour.isChecked():
     failures.append("forms: a layer removed by hand left its form checked")
 
+# 2e. 0.7.0: layer cleanup, both shadows, the light, a whole-row click,
+# symmetric ramps, a share link with app-only parameters.
+from qgis.core import QgsLayerTreeGroup  # noqa: E402
+
+
+def group_names():
+    out = []
+
+    def walk(g):
+        for c in g.children():
+            if isinstance(c, QgsLayerTreeGroup):
+                out.append(c.name())
+                walk(c)
+    root = dock.stack.root(create=False)
+    if root is not None:
+        walk(root)
+    return out
+
+
+iso = dock.rows["isoline"]
+iso.check.setChecked(True)
+had = "Overlays" in group_names()
+iso.check.setChecked(False)
+contours_on = dock.rows["contours"].check.isChecked()
+print("isoline group made:", had, "groups after:", group_names())
+for mid in ("shadows", "buildingShadows"):
+    dock.rows[mid].check.setChecked(True)
+both = [dock.stack.find(k) is not None for k in ("shadows", "buildingShadows")]
+print("terrain and building shadows both drawn:", both)
+if not all(both):
+    failures.append(f"shadows: both modes should have their layer: {both}")
+dock.set_light(120, 30)
+dock.flush()
+light_src = dock.stack.find("shadows").source()
+print("light in the shadows address:", "illuminationDir%3D120" in light_src and "illuminationAlt%3D30" in light_src)
+if "illuminationDir%3D120" not in light_src:
+    failures.append("light: not in the shadows layer's address")
+if (dock.light_pad.azimuth, dock.light_pad.elevation) != (120, 30):
+    failures.append("light: the pad does not follow the sliders")
+dock.set_light(315, 45)
+for mid in ("shadows", "buildingShadows"):
+    dock.rows[mid].check.setChecked(False)
+if "Lighting Effects" in group_names():
+    failures.append("cleanup: the empty Lighting Effects group stayed")
+# A copy made with Duplicate Layer carries the key: unchecking removes both.
+tri = dock.rows["tri"]
+tri.row._clicked()
+if not tri.check.isChecked() or dock.stack.find("tri") is None:
+    failures.append("row click: the mode did not turn on")
+dup = dock.stack.find("tri").clone()
+QgsProject.instance().addMapLayer(dup)
+tri.row._clicked()
+if dock.stack.find_all("tri"):
+    failures.append("cleanup: a duplicated layer of an unchecked mode stayed")
+lrm = dock.rows["lrm"]
+lrm.settings["lrmSymmetric"].widget.setChecked(True)
+lrm.settings["lrmMax"].widget.setValue(33, emit=True)
+print("symmetric LRM: min", lrm.settings["lrmMin"].get(), "read only", lrm.settings["lrmMin"].widget.spin.isReadOnly())
+if lrm.settings["lrmMin"].get() != -33 or not lrm.settings["lrmMin"].widget.spin.isReadOnly():
+    failures.append("symmetric: the minimum does not mirror the maximum")
+lrm.settings["lrmSymmetric"].widget.setChecked(False)
+lrm.settings["lrmMax"].widget.setValue(20, emit=True)
+lrm.settings["lrmMin"].widget.setValue(-20, emit=True)
+ramp = dock.rows["slope"].settings["slopeColorRamp"].widget
+print("ramp select:", ramp.count(), "ramps,", sum(1 for i in range(ramp.count()) if not ramp.itemIcon(i).isNull()), "with a preview")
+if ramp.count() < 100 or ramp.itemIcon(0).isNull():
+    failures.append("ramps: no previews")
+matcap = dock.rows["matcap"].settings["matcapTextureId"].widget
+print("matcap select:", matcap.count(), "textures, current", matcap.get())
+if matcap.count() < 20 or matcap.itemIcon(0).isNull():
+    failures.append("matcaps: no previews")
+zermatt = ("https://terrain-viewer.iconem.com/?zoom=12.34&lat=45.8719&lng=7.8561&terrainSourceA=esri&showColorRelief=true"
+           "&splitRatio=0.489&showTerrainAnalysis=true&slopeMaxDegrees=67&hillshadeOpacity=0.5")
+dock.open_link(zermatt)
+zs = dock.stack.find("slope").source()
+print("Zermatt link: source", dock.current_source(), "| extra", dock.extra, "| splitRatio in tiles:", "splitRatio" in zs)
+if dock.current_source() != "esri" or "terrainSource%3Desri" not in zs or "splitRatio" in zs:
+    failures.append("link: source not esri, or app-only parameters in the tiles")
+dock.open_link(link)  # back to the first link's view
+dock.flush()
+
 # 3. A saved project read back: the checkboxes come back from the layers.
 path = os.path.join(out, "plugin-test.qgz")
 QgsProject.instance().write(path)
 QgsProject.instance().clear()
 QgsProject.instance().read(path)
 dock2 = TerrainViewerDock(None)
+dock2.set_backend("remote", connect=False)
 dock2.url.setText(base)
 dock2.connect_service()
 back = sorted(k for k, r in dock2.rows.items() if r.check.isChecked())

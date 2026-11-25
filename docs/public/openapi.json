@@ -416,7 +416,7 @@
                 "auto",
                 "off",
                 "date",
-                "source-date\" as const"
+                "source-date"
               ],
               "default": "auto"
             }
@@ -431,7 +431,7 @@
               "enum": [
                 "auto",
                 "always",
-                "never\" as const"
+                "never"
               ],
               "default": "auto"
             }
@@ -446,7 +446,7 @@
               "enum": [
                 "auto",
                 "always",
-                "never\" as const"
+                "never"
               ],
               "default": "auto"
             }
@@ -461,7 +461,7 @@
               "enum": [
                 "auto",
                 "always",
-                "never\" as const"
+                "never"
               ],
               "default": "auto"
             }
@@ -1339,7 +1339,7 @@
               "type": "string",
               "enum": [
                 "raster",
-                "live\" as const"
+                "live"
               ],
               "default": "live"
             }
@@ -1516,7 +1516,7 @@
               "type": "string",
               "enum": [
                 "raster",
-                "live\" as const"
+                "live"
               ],
               "default": "live"
             }
@@ -1560,7 +1560,7 @@
               "type": "string",
               "enum": [
                 "raster",
-                "live\" as const"
+                "live"
               ],
               "default": "live"
             }
@@ -1634,7 +1634,7 @@
               "type": "string",
               "enum": [
                 "local",
-                "utc\" as const"
+                "utc"
               ],
               "default": "local"
             }
@@ -3546,7 +3546,7 @@
               "enum": [
                 "under",
                 "relief",
-                "top\" as const"
+                "top"
               ],
               "default": "under"
             }
@@ -3702,7 +3702,7 @@
               "type": "string",
               "enum": [
                 "absolute",
-                "lrm\" as const"
+                "lrm"
               ],
               "default": "absolute"
             }
@@ -3736,7 +3736,7 @@
               "type": "string",
               "enum": [
                 "value",
-                "interval\" as const"
+                "interval"
               ],
               "default": "value"
             }
