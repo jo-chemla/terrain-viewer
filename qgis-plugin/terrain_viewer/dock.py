@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover
 
 from .service import (
     Catalog, ServiceError, tile_url, values_url, split_link, query_dict, KEY_PARAMS, ALL_KEYS, unresponsive_message,
-    health, link_params,
+    health, health_request, link_params,
 )
 from .layers import LayerStack, PROP, BACKEND_PROP, tree_ranks
 from . import local_server, assets
@@ -841,6 +841,10 @@ class TerrainViewerDock(QDockWidget):
             self.status.setText("Not connected")
         self.show_backend(backend)
         if connect:
+            if backend == "local" and not local_server.bundled():
+                # A 50 MB download waits for Connect, not for a click on the backend.
+                self.status.setText("Local tile service not installed yet: Connect downloads it, checks it and starts it")
+                return
             self.connect_service()
 
     def refresh_service_row(self):
@@ -1098,9 +1102,7 @@ class TerrainViewerDock(QDockWidget):
         if self.health_reply is not None or self.connected not in ("local", "remote"):
             return
         base = self.service_url()
-        request = QNetworkRequest(QUrl(f"{base}/health"))
-        request.setTransferTimeout(5000)
-        reply = QgsNetworkAccessManager.instance().get(request)
+        reply = QgsNetworkAccessManager.instance().get(health_request(base, 5000))
         self.health_reply = reply
 
         def done():

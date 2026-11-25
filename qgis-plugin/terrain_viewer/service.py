@@ -27,14 +27,22 @@ class ServiceError(Exception):
     pass
 
 
+def health_request(base, timeout_ms):
+    """A /health request that never comes from QGIS's network cache: a cached
+    answer said a service that had just been killed was still there."""
+    request = QNetworkRequest(QUrl(f"{base.rstrip('/')}/health"))
+    request.setTransferTimeout(timeout_ms)
+    request.setAttribute(QNetworkRequest.Attribute.CacheLoadControlAttribute, QNetworkRequest.CacheLoadControl.AlwaysNetwork)
+    request.setAttribute(QNetworkRequest.Attribute.CacheSaveControlAttribute, False)
+    return request
+
+
 def health(base, timeout_ms=3000):
     """(True, "") when the service at `base` answers /health within the
     timeout, else (False, the error): asked before anything else, so a
     service that is not there costs one short wait and one message, not a
     timeout per tile."""
-    request = QNetworkRequest(QUrl(f"{base.rstrip('/')}/health"))
-    request.setTransferTimeout(timeout_ms)
-    reply = QgsNetworkAccessManager.instance().blockingGet(request)
+    reply = QgsNetworkAccessManager.instance().blockingGet(health_request(base, timeout_ms))
     if reply.error() != QNetworkReply.NetworkError.NoError:
         return False, reply.errorString() or "no answer"
     return True, ""
