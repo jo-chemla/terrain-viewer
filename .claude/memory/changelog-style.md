@@ -51,3 +51,5 @@ entry; the others report a one-line summary instead of editing CHANGELOG.md.
 **Why:** "when multiple features are the same day, merge them and be concise,
 and always include the TL;DRs for the changelog surfaced to our clients through
 the app" (user, 2026-11-25).
+
+QGIS plugin changes (2026-11-25, user ask): within the day's entry, every QGIS bullet goes in one "##### QGIS Plugins" group under Details, newest version first, never scattered across other groups; the TL;DR keeps one QGIS bullet.
