@@ -1,5 +1,28 @@
 # Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
 
+<!-- released: 2026-11-26T02:30 -->
+
+#### TL;DR
+
+- **[QGIS plugin 0.9.1](/docs/dev/qgis-plugin)**: updates itself (from its own plugin repository, or a button in the panel); the Python backend comes first and reads any elevation GDAL opens, including WMS and COG Library sources such as France's IGN LiDAR HD or Canada's MRDEM; sources grouped, opacity in each row, modes reordered.
+- **Blobness orientation** now gives the direction a feature runs (a north-south ridge reads 0°), with a color ramp that wraps around.
+- **New in the Library**: the Holmul lidar DEM (Guatemala), Pennsylvania's PAMAP hillshade, Sardinia's 1 m and 10 m hillshades.
+
+#### Details
+
+##### QGIS Plugins
+
+- **0.9.1** (`cbfcdaf`, release [`qgis-plugins-2026-11-26b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26b)): blobness orientation as in the web app, bundles rebuilt.
+- **0.9.0** (`9f5f902`, `2176473`, release [`qgis-plugins-2026-11-26`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26)): updates through a QGIS plugin repository (`plugins.xml` at `https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml`, add it once in Plugin Manager › Settings) and an "Update to x.y.z" button in the panel (daily check, sha256, reload); the first mode in a fresh project sets EPSG:3857 and the whole world, later ones keep the canvas; opacity slider in each mode row; Hillshade above Elevation Hypso, overlays ordered Contours, Iso-line, Plane slicer, Graticule, Mound candidates; backends ordered Python (default for new users), Packaged, Remote; the light pad redraws as fast as the canvas does; COG, VRT, raw Float32 WMS, WCS and ArcGIS image Library sources read by the Python backend (IGN LiDAR HD, NRCan MRDEM, AHN, 3DEP tested), and a source it can't read draws nothing instead of Mapterhorn; sources grouped (QGIS elevation layers, Worldwide defaults, Terrain library) with a button adding the raw input to a "Raw elevation inputs" group; only contours labelled, at half the size; the Python server binds its port exclusively.
+
+##### Tile Service, Library, Docs
+
+- `/sources` removed (`/terrain-sources` only); `/terrain-sources` lists an `address` for COG, VRT and raw WMS/WCS entries.
+- `epsg4326://` (`a22cf0a`): plate carrée tiles resampled to Web Mercator, used by the Holmul DEM (Tulane, a grey picture of the 1 m DEM; about h ≈ 0.75 × grey + 120 m, not a terrain); PAMAP and Sardinia hillshades (licences not stated); El Pilar's bare-earth hillshade checked.
+- Blobness orientation `180 − θ` mod 180 in `lib/blobness-protocol.ts` and the Python port, cyclic ramp (`bbf787e`); the tile service and QGIS agree on 99.999 % of pixels.
+- The G-LiHT slide and page show a real Kiuic render (`48c9f1f`); `qgis-plugin/out/` is no longer tracked (a 985 KB test picture failed the deploy's media check).
+
+
 <!-- released: 2026-11-25T23:55 -->
 
 #### TL;DR

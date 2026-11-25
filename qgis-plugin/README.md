@@ -27,8 +27,8 @@ dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-26`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26)
-(Terrain Viewer 0.9.0, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
+The zips of each version are on a release: [`qgis-plugins-2026-11-26b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26b)
+(Terrain Viewer 0.9.1, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this

@@ -33,6 +33,14 @@
     "ai-assistants",
     "mcp-server",
     "keyboard-shortcuts",
+    "---Tools & Integrations---",
+    "../integrations/index",
+    "advanced/desktop",
+    "river-rem",
+    "../dev/qgis-plugin",
+    "../dev/qgis-live-compute",
+    "../dev/tile-service",
+    "[Table2][Tile service API (Scalar)](/api/tile-service/)",
     "---Other---",
     "advanced"
   ]
