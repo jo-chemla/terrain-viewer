@@ -1,5 +1,5 @@
 # Changelog — QGIS Plugin Experiment: Terrain Modes Computed in QGIS, No Tile Service
-<!-- released: 2026-11-25 -->
+<!-- released: 2026-11-25T11:11 -->
 
 #### TL;DR
 
