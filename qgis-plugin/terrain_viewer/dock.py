@@ -1579,7 +1579,11 @@ class TerrainViewerDock(QDockWidget):
     def flush(self):
         rows, self.pending = self.pending, set()
         for row in rows:
-            row.update()
+            # A row of the tree before a rebuild (another backend connected
+            # since it was scheduled) is unchecked: its update removed the
+            # layers of the new row with the same key.
+            if self.rows.get(row.mode["id"]) is row:
+                row.update()
 
     # -- a share link -----------------------------------------------------
     def local_view(self, query):

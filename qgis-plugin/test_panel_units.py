@@ -268,6 +268,18 @@ dock.remove_layers("hillshade")
 spin()
 check(abs(canvas.extent().width() - kept.width()) < 1, "every mode unchecked: the canvas stays")
 
+# A row scheduled before a rebuild (another backend connected meanwhile) is
+# not updated: unchecked, it removed the new row's layers of the same key.
+old = dock.rows["contours"]
+calls = []
+old.update = lambda: calls.append("old")
+dock.schedule(old)
+dock.build()
+dock.rows["contours"].update = lambda: calls.append("new")
+dock.schedule(dock.rows["contours"])
+dock.flush()
+check(calls == ["new"], f"a row of the tree before a rebuild is not updated ({calls})")
+
 # Labels: QGIS labelling on the overlays' lines, no label points.
 r = vector_renderer("isoline", {})
 check(not [st for st in r.styles() if st.styleName() == "points"], "iso-line tiles: no points drawn")
