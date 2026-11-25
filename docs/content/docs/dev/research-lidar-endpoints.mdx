@@ -37,7 +37,7 @@ The archaeology renders the docs cite were already present before this sweep: th
 | Project | What exists | Status |
 |---|---|---|
 | Chactún, CHRP 2016 (Šprajc, ZRC SAZU; Kokalj et al. 2023) | [figshare 10.6084/m9.figshare.22202395](https://doi.org/10.6084/m9.figshare.22202395): SVF, openness, slope, canopy height | Zipped tiles, CC BY 4.0, no elevation. The MARI Chactún renders are the tiled route |
-| PACUNAM Lidar Initiative (Canuto et al. 2018) | Mapped features on [Dryad](https://doi.org/10.5061/dryad.k51j708) | Rasters not public; MARI's renders are the only tiles |
+| PACUNAM Lidar Initiative (Canuto et al. 2018) | Mapped features on [Dryad](https://doi.org/10.5061/dryad.k51j708) | Rasters not public; MARI's renders are the only tiles ([below](#pacunam-is-the-dtm-anywhere)) |
 | Angkor, Khmer Archaeology LiDAR Consortium and CALI (Evans et al. 2013, 2016) | Data delivered to consortium members; [Archaeoscape](https://arxiv.org/abs/2412.05203) (2024) packages Khmer lidar for machine learning | No public endpoint. Archaeoscape is access on request for academic use |
 | Llanos de Mojos, Casarabe culture (Prümers et al. 2022) | Figures and supplementary material | No public raster or tile endpoint found |
 | Upano valley (Rostain et al. 2024) | Figures | No public raster or tile endpoint found |
@@ -46,15 +46,25 @@ The archaeology renders the docs cite were already present before this sweep: th
 
 When one of these projects releases rasters, OpenTopography's COG hosting (as for G-LiHT and Aguada Fénix) or a release asset ([Releases](/dev/releases)) are the two routes.
 
+### PACUNAM: is the DTM anywhere?
+
+No, as far as a search on 2026-11-25 finds. The 2016 survey (2 144 km² of the Maya Biosphere Reserve, Petén, Teledyne Optech Titan; Canuto et al. 2018, [Science 10.1126/science.aau0137](https://doi.org/10.1126/science.aau0137)) was organised and funded by Fundación PACUNAM, which holds the point clouds, DTM and DSM; later papers use them through the consortium.
+
+- **Dryad** ([10.5061/dryad.k51j708](https://doi.org/10.5061/dryad.k51j708), 25 MB): only the features mapped on the lidar, as shapefiles (structures as points, causeways, defensive works, field zones in uplands and wetlands, reservoirs as a spreadsheet, the survey polygons) and three point-density layers on a 1 km² grid. No elevation raster, no point cloud.
+- **OpenTopography**: nothing for the reserve. The catalog over northern Petén (-91.5 to -89° E, 16.8 to 17.9° N, point clouds and rasters, federated included) lists only global DEMs, the G-LiHT 2013 Yucatan transects and the Middle Usumacinta survey (Inomata, Mexico).
+- **tDAR**: a collection, "LiDAR in the Maya Heartland: results of the 2016 LiDAR survey in Guatemala's Maya Biosphere Reserve" (collection 65082), holds conference papers and reports about the survey; its pages refuse automated reads, and nothing found says rasters are in it.
+
+So the only tiled views of the PACUNAM lidar remain MARI-GISLAB's renders (Tikal, Holmul, La Corona, hillshade, SVF and local dominance, CC BY-NC-SA, in the Library). The DTM itself would have to be asked of Fundación PACUNAM or the PLI investigators (Tulane's MARI, Estrada-Belli, Canuto).
+
 ## Moon and Mars
 
-Not built. What answers, as of 2026-11-25:
+Not built. What answers, as of 2026-11-25 (how it could stream, the scale factor, the poles and a later mosaic: [Moon and Mars notes](/dev/planetary-terrain)):
 
 | Source | Endpoint | Encoding | Grid | CORS |
 |---|---|---|---|---|
 | NASA Moon Trek | `trek.nasa.gov/tiles/Moon/EQ/<layer>/1.0.0/default/default028mm/{z}/{row}/{col}.{jpg,png}`, e.g. `LRO_WAC_Mosaic_Global_303ppd_v02`, `LRO_LOLA_Shade_Global_128ppd_v04`, `LRO_LOLA_ClrShade_Global_128ppd_v04` | Imagery: mosaic, grey and colour shaded relief. No height tiles | Equirectangular lunar geographic (`EPSG:104903`, GCS Moon 2000), 2x1 tiles at zoom 0 | `*`, keyless |
 | NASA Mars Trek | `trek.nasa.gov/tiles/Mars/EQ/Mars_MGS_MOLA_ClrShade_merge_global_463m/...` | Colour shaded relief | Same | `*` |
-| USGS Astrogeology STAC | `stac.astrogeology.usgs.gov/api`, assets on `astrogeo-ard.s3-us-west-2.amazonaws.com` | **Raw Float32 COG DTMs** (nodata -32767) with hillshade COGs beside them: Kaguya TC v2 (118 379 Moon items, about 10-14 m), HiRISE (1 m) and CTX DTMs on Mars | Per-strip equirectangular on the Moon 2015 sphere (R 1 737 400 m) or the Mars sphere | `*`, Range |
+| USGS Astrogeology STAC | `stac.astrogeology.usgs.gov/api`, assets on `astrogeo-ard.s3-us-west-2.amazonaws.com` | **Raw Float32 COG DTMs** (nodata -32767) with hillshade COGs beside them: Kaguya TC v2 (118 379 Moon items, about 10-14 m), HiRISE (1-2 m) and CTX (20 m) DTMs on Mars; notes in [Moon and Mars](/dev/planetary-terrain) | Per-strip equirectangular on the Moon 2015 sphere (R 1 737 400 m) or the Mars sphere | `*`, Range |
 | USGS global mosaics | `planetarymaps.usgs.gov/mosaic/Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif`, `Mars_MGS_MOLA_DEM_mosaic_global_463m.tif` | Int16, LOLA scale 0.5 m | Stripped (one row per block), no overviews: not range-readable usefully | |
 | OpenPlanetaryMap (Mars) | Carto basemap `opm-mars-basemap-v0-2`, hillshade on the `opmmarstiles` bucket | Imagery | Web Mercator XYZ on Mars lat/lon | Basemap `*`; the hillshade bucket sends none |
 | Cesium Moon Terrain (ion) | ion asset, quantized mesh | Heights | Geographic | Needs an ion token; not tested here |
