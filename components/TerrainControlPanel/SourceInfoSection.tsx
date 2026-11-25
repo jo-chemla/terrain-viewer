@@ -358,8 +358,9 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKey])
   const isOpenKey = (key: string, fallback = false) => folds[key] ?? fallback
-  // ELI leaves follow the view (the package is lazy: 14 MB of index chunks
-  // only load once the group is opened).
+  // ELI leaves follow the view (the package is lazy: its locator, names and
+  // boxes without polygons, 580 kB raw and 78 kB gzip, loads once the group
+  // is opened; each footprint then fetches its own polygon, lib/eli-geometry.ts).
   // Also wanted when the group's own box is ticked while folded (eliArmed:
   // the leaves load, then all get selected), and when stored overlays
   // already name ELI layers (their footprints need the index).

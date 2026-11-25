@@ -21,3 +21,19 @@ app's What's New and the docs changelog page show.
 **How to apply:** when adding to the current entry, re-read its TL;DR first
 and fold; when a sixth bullet would be needed, start a new entry or move
 items to Details.
+
+## The released marker, and TL;DRs for end users
+
+Every entry carries `<!-- released: YYYY-MM-DDTHH:MM -->` right under its
+heading (the commit's date and time; the time keeps same-day entries distinct
+and ordered). Settings > What's new keys entries on it: without it an entry
+never shows as new, and two alike collide. Eleven agent entries of
+2026-11-24/25 went out without one; `lib/changelog.test.ts` (run by the deploy
+workflow: `node scripts/test-lib.mjs lib/changelog.test.ts`) now fails on a
+missing or duplicate marker, or an entry out of newest-first order.
+
+The TL;DR is read by end users in the app: short, plain words, no file names,
+URL parameters, internal ids, endpoints or measurements; that prose goes under
+Details, which the app never shows. An entry with nothing for end users (a
+dependency bump, a tile-service API change) has no TL;DR at all and stays out
+of What's new.

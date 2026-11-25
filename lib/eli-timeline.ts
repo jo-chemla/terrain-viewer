@@ -6,6 +6,7 @@
 // basemap" does), under an id with a fixed prefix so the timeline still
 // knows the view is on a dated ELI layer and keeps its handle.
 import type { CustomBasemapSource } from "./settings-atoms"
+import { loadEliCoverageFeatures } from "./eli-geometry"
 
 export const ELI_BASEMAP_PREFIX = "custom-basemap-eli-"
 export const isEliBasemapId = (id: string | undefined | null): boolean => !!id && id.startsWith(ELI_BASEMAP_PREFIX)
@@ -57,7 +58,7 @@ export async function datedEliLayersInView(bbox: [number, number, number, number
   const eli = await import("@osm-editor-kit/maplibre-editor-layer-index")
   const layers = (await eli.loadLayersInViewport(bbox, { includeWorldwide: false })).filter((l) => !!l.startDate)
   if (!layers.length) return []
-  const [{ booleanIntersects, bboxPolygon }, fc] = await Promise.all([import("@turf/turf"), eli.loadCoverageFeatures(layers)])
+  const [{ booleanIntersects, bboxPolygon }, fc] = await Promise.all([import("@turf/turf"), loadEliCoverageFeatures(layers)])
   const view = bboxPolygon(bbox)
   const touching = new Set<string>()
   for (const f of fc.features) {
@@ -92,7 +93,7 @@ export async function eliLayerAsBasemap(layerId: string): Promise<CustomBasemapS
   // Its coverage polygon's box, for the coverage tree's zoom-to-fit.
   let bounds: [number, number, number, number] | undefined
   try {
-    const fc = await eli.loadCoverageFeatures([layer])
+    const fc = await loadEliCoverageFeatures([layer])
     const pts: [number, number][] = []
     const walk = (c: any) => { if (typeof c[0] === "number") pts.push(c as [number, number]); else c.forEach(walk) }
     for (const f of fc.features) if (f.geometry) walk((f.geometry as any).coordinates)

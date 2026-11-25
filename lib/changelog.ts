@@ -57,7 +57,7 @@ function normalizeTldr(tldr: string): string {
   return tldr.startsWith("- ") ? tldr : `- ${tldr}`
 }
 
-function parseChangelog(text: string): ChangelogEntry[] {
+export function parseChangelog(text: string): ChangelogEntry[] {
   const headingMatches = [...text.matchAll(HEADING_RE)]
   return headingMatches.map((match, i) => {
     const start = match.index ?? 0

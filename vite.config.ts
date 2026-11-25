@@ -3,7 +3,8 @@ import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import { devtools } from '@tanstack/devtools-vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import { fileURLToPath, URL } from "url"
+import { fileURLToPath, pathToFileURL, URL } from "url"
+import { createRequire } from "module"
 import { execSync } from "child_process"
 import fs from "fs"
 import path from "path"
@@ -15,6 +16,17 @@ import net from "net"
 // git is not there.
 const buildCommit = (() => { try { return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim() } catch { return "dev" } })()
 const buildDate = new Date().toISOString().slice(0, 10)
+
+// Every ELI polygon by geometry id, from the installed package (see the
+// eli-geometries plugin below).
+let eliGeometriesPromise: Promise<Record<string, unknown>> | undefined
+const eliGeometries = () => (eliGeometriesPromise ??= (async () => {
+  const entry = createRequire(import.meta.url).resolve("@osm-editor-kit/maplibre-editor-layer-index")
+  const eli = await import(pathToFileURL(entry).href)
+  const all = await eli.loadGeometries()
+  const ids = new Set<string>(eli.getLayers().map((l: { geometryId: string }) => l.geometryId))
+  return Object.fromEntries(Object.entries(all).filter(([id]) => ids.has(id)))
+})())
 
 export default defineConfig({
   define: {
@@ -32,6 +44,30 @@ export default defineConfig({
       // Runs before Vite reads .env, and a process variable wins over the file.
       // The Copernicus Sentinel Hub instance id is a credential too.
       config() { process.env.VITE_PLANET_API_KEY = ""; process.env.VITE_SENTINEL_HUB_INSTANCE_ID = "" },
+    },
+    // The ELI coverage polygons, one file each (lib/eli-geometry.ts): the
+    // package ships them as one shard per continent (Europe's is 1.6 MB), so
+    // one footprint loaded a continent. Written from the installed package at
+    // build time and served from it in dev: nothing in git, always in step
+    // with the package's locator.
+    {
+      name: "eli-geometries",
+      async configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          const m = /\/eli-geometries\/([^/?]+)\.json(?:\?|$)/.exec(req.url ?? "")
+          if (!m) return next()
+          const g = (await eliGeometries())[decodeURIComponent(m[1])]
+          if (!g) { res.statusCode = 404; return res.end() }
+          res.setHeader("Content-Type", "application/json")
+          res.end(JSON.stringify(g))
+        })
+      },
+      async generateBundle() {
+        if (this.environment && this.environment.name !== "client") return
+        for (const [id, g] of Object.entries(await eliGeometries())) {
+          this.emitFile({ type: "asset", fileName: `eli-geometries/${id}.json`, source: JSON.stringify(g) })
+        }
+      },
     },
     devtools({
       // Fixed port, so two dev servers started from this repo at once (a git

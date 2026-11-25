@@ -34,7 +34,7 @@
 - [MapLibre 6.13 draping](maplibre-613-drape.md) — renderToTerrainTile etc.: planned route for Allmaps on 3D terrain, live Phong/Matcap, building shadows
 - [Fast Refresh and self-calling hooks](react-refresh-recursive-hook.md) — a hook calling itself overflows @react-refresh computeFullKey; split into leaf + wrapper; scripts to find the culprit
 - [MCP Apps plan](mcp-apps-plan.md) — MCP server in mcp/ (five tools, in-chat view with picture fallback); Claude blocks framed sites for local servers; tested in Claude Desktop; public host still to do
-- [Changelog style](changelog-style.md) — TL;DR of 3 to 5 bullets at most, repeats folded, details under a second heading, link and one picture per feature page
+- [Changelog style](changelog-style.md) — TL;DR of 3 to 5 plain bullets for end users, a released marker under every heading (tested), developer prose under Details
 - [deck.gl-raster custom projections](deckgl-raster-custom-projections.md) — PR 694: COGs in polar stereographic and other planar projections on deck.gl v10, a route for polar DEM views; issue 322 on browser EPSG resolution (devseed epsg, clj-proj)
 - [Custom STAC catalogs on the timeline](custom-stac-timeline-catalogs.md) — My catalogs group (built 2026-10-08): lib/stac-crawl.ts shared loader, cat-stac- self-describing ids, the Proxy on TIMELINE_CATALOG_BY_ID and SOURCE_CONFIG, the dialog, what is unverified
 - [UI overflow rules](ui-overflow-rules.md) — why selects and dialogs kept overflowing (flex min-width auto, grid min-content tracks), the contract in components/ui, no fixed SelectTrigger widths, min-w-0 on every flex/grid parent

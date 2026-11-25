@@ -4,6 +4,7 @@ import { createParser } from "nuqs"
 import type { FeatureCollection, Feature, Polygon } from "geojson"
 import customSources from "./custom-sources.json"
 import type { CustomTerrainSource, CustomBasemapSource } from "./settings-atoms"
+import { loadEliCoverageFeatures } from "./eli-geometry"
 import { QMS_API, QMS_SUPPORTED_TYPES, parseQmsExtent, type QmsSearchResult } from "./qms"
 
 /**
@@ -358,7 +359,7 @@ async function eliFeatures(id: string, layerId: string, label: string, url: stri
     const eli = await import("@osm-editor-kit/maplibre-editor-layer-index")
     const layer = eli.getLayer(layerId)
     if (!layer) return null
-    const fc = await eli.loadCoverageFeatures([layer])
+    const fc = await loadEliCoverageFeatures([layer])
     const features: Feature[] = fc.features.map((f) => ({ ...f, properties: { ...f.properties,
       overlay: id, color: OVERLAY_COLORS.eli, hollow: false, opacity: 0.07, label, detail: "OSM Editor Layer Index footprint", url,
       maxzoom: layer.maxzoom, tileSize: layer.tileSize || 256,

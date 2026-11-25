@@ -21,7 +21,8 @@
 // holds text every group with a match is open and the others are hidden.
 // In the coverage section the box is not here: that section's own search
 // (one box over terrain, static basemaps and these catalogs) passes the
-// matching ids down as `filter`.
+// matching ids down as `filter` while it holds text (`compact` hides the box
+// when it is empty).
 import type React from "react"
 import { useMemo, useState } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -115,8 +116,8 @@ export const HistoricalCatalogTree: React.FC<{
   onChange: (ids: string[]) => void
   /** The view centre [lng, lat], to tell which regional sources cover it. */
   center?: [number, number]
-  /** In the coverage section: no explanation and no switches (they sit
-   *  above the whole tree there). */
+  /** In the coverage section: no explanation, no switches and no search box
+   *  (they sit above the whole section there). */
   compact?: boolean
   /** Which root groups to show (all by default). */
   roots?: string[]
@@ -260,7 +261,7 @@ export const HistoricalCatalogTree: React.FC<{
           </Tooltip>
         </div>
       )}
-      {!bare && !filter && (
+      {!bare && !compact && !filter && (
         // The size of the dialog's own text (text-xs, 28px high), not the
         // Input's default 14px/36px; md:text-xs too, or the Input's
         // md:text-sm wins on a wide screen.
