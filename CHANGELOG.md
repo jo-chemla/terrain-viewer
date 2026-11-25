@@ -1,16 +1,23 @@
 # Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
 
-<!-- released: 2026-11-25T11:11 -->
+<!-- released: 2026-11-25T13:30 -->
 
 #### TL;DR
 
 - **[Live GPU terrain shadows](/docs/dev/lighting-effects)**: shadows follow the sun in real time, come from relief tens of kilometres away with the Earth's curvature, and have soft edges.
 - **Search catalogs and coverage**: one forgiving search across Sources Coverage (terrain, basemaps, historical catalogs: "lidr" finds LiDAR), and one in the timeline's Catalogs picker.
-- **[Terrain as quantized mesh](/docs/dev/tile-service#quantized-mesh)**: the tile service streams any terrain source as Cesium terrain, for CesiumJS or Blender.
-- **[Tile service in the desktop app](/docs/features/advanced/desktop#local-tile-service)**: one switch in Settings runs it on your computer, for QGIS, Blender or Cesium.
-- **[QGIS plugin](/docs/dev/qgis-plugin), packaged and computing in QGIS**: a build with the tile service inside, and an experimental mode computing hillshade, sky view factor and shadows in QGIS itself.
+- **[Terrain as quantized mesh](/docs/dev/tile-service#quantized-mesh)**: the tile service streams any terrain source as Cesium terrain, for CesiumJS or Blender, and its relief tiles are 3 to 80 times faster.
+- **[Tile service in the desktop app](/docs/features/advanced/desktop#local-tile-service)**: one switch in Settings runs it on your computer, with addresses to copy for QGIS, Blender or Cesium. A missed app update can now be installed from About.
+- **[QGIS plugin](/docs/dev/qgis-plugin)**: installs the local tile service in one click, and can compute 14 terrain modes in QGIS itself (experimental), coloured with QGIS's own ramps.
 
 #### Details
+
+##### Later on 2026-11-25
+
+- **Tile service** (`e3afb0d`, `b7c3996`): the API page opens on a quick start of addresses to copy, every group open; Blender and CesiumJS how-tos and martini vs delatin in the docs. First tile about 0.5 s instead of 4 s, cached terrain tiles five times faster, a `maxTriangles` cap. Relief tiles 3 to 4 times faster alone and 10 to 80 times for neighbours (each tile no longer runs its kernel on four whole source tiles; computed tiles kept per worker, `TV_PROTOCOL_CACHE_MB`; PNG level 3). Same pixels.
+- **Desktop** (`2ba6460`): Restart and install / Check for updates in About; the light build's window reads "Terrain Viewer Light"; the tile service section has a status dot, its address and API reference, addresses to copy, and folds with Fold all.
+- **QGIS plugin 0.5.0** (`1adf3ba`): one plain plugin with **Install** (the per-platform tile service downloaded from the release, version and sha256 pinned); compute locally first in the panel, 14 modes checked against the service and gdaldem, served as Float32 values QGIS styles with its ramps, a full-HD canvas in 0.2 to 0.5 s.
+- **Shadow docs** (`6bb1f62`): far field, curvature and when the soft edge shows, in the user docs; soft edge measured (+0.1 ms in the Alps); related work in Shadow Renderers.
 
 ##### Aspect: east and west no longer swapped
 
