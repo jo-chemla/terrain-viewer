@@ -52,7 +52,7 @@ The 9 decoded tiles are stitched into one padded `(n + 2·halo) × (n + 2·halo)
 ## 4. The kernel
 
 - **Slope, Aspect, TRI, TPI, Roughness, Curvature** all reuse the same Horn 3×3 gradient (`hornGradient()` in `lib/normal-derived-protocol.ts`, ported from GDAL's `GDALSlopeHornAlg`), Mercator-corrected by `cos(tileCenterLat)` so the ground-distance denominator is real, not the nominal equator-only pixel size.
-- **Blobness / Eigen-Ratio / Orientation** build a Förstner/Harris structure tensor from 9 Horn gradients (one per sub-cell of the 3×3 window) and read off `det/trace`, the eigenvalue ratio, or the principal eigenvector's axis.
+- **Blobness / Eigen-Ratio / Orientation** build a Förstner/Harris structure tensor from 9 Horn gradients (one per sub-cell of the 3×3 window) and read off `det/trace`, the eigenvalue ratio, or the principal eigenvector's axis turned by 90° (the direction a feature runs).
 - **SVF / Openness / Local Dominance** march outward in 8 compass directions (`lib/horizon-angle.ts`) rather than sampling a fixed-size window — see that file's own precision/performance tradeoffs (fixed 8 directions, integer-pixel steps, an optional "fast" power-of-two-radius approximation).
 
 The exact per-mode formulas are on the [Equations page](/dev/equations); this page is about what happens to the result once it's computed.

@@ -128,13 +128,14 @@ def score(mode, ref_name, mine, ref, tol, circular=False, mask=None, need=99.0, 
         failures.append(f"{mode} vs {ref_name}: {ok:.2f}% within {tol} (need {need}%)")
 
 
-# 0. The structure tensor's orientation, offline: a compass axis of the
-# dominant gradient, not mirrored (lib/blobness-protocol.test.ts's cases).
+# 0. The structure tensor's orientation, offline: the compass axis a feature
+# runs along (a N-S ridge 0, E-W 90), not mirrored (lib/blobness-protocol.test.ts's cases).
 print("0. orientation on planes and ridges")
 _e, _n = np.meshgrid(np.arange(-2.0, 3.0), np.arange(2.0, -3.0, -1.0))  # 5x5, row 0 north
-for label, zz, want in [("plane rising NE", _e + _n, 45), ("plane rising NW", -_e + _n, 135),
-                        ("east-west slope", 3 * _e, 90), ("north-south slope", 2 * _n, 0),
-                        ("ridge running N-S", -10 * np.abs(_e), 90), ("ridge running E-W", -10 * np.abs(_n), 0)]:
+for label, zz, want in [("plane rising NE", _e + _n, 135), ("plane rising NW", -_e + _n, 45),
+                        ("slope rising east", 3 * _e, 0), ("slope rising north", 2 * _n, 90),
+                        ("ridge running N-S", -10 * np.abs(_e), 0), ("ridge running E-W", -10 * np.abs(_n), 90),
+                        ("ridge running NE-SW", -10 * np.abs(_e - _n), 45), ("ridge running NW-SE", -10 * np.abs(_e + _n), 135)]:
     got = float(kernels.orientation(*kernels.structure_tensor(zz, 1.0))[0, 0])
     print(f"  {label:<18} {got:6.2f} (want {want})")
     if min(abs(got - want), 180 - abs(got - want)) > 1e-6:

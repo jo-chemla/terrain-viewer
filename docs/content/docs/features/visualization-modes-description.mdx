@@ -36,7 +36,7 @@ A local 2D PCA of the window's gradient vectors, via the Förstner/Harris struct
 
 - **Blobness:** det(J)/trace(J) — large where the gradient direction varies in every direction (peaks, pits, saddles, knolls), near zero on a uniform slope or straight ridge/valley; conflates shape with steepness
 - **Eigenvalue Ratio:** λmin/λmax of the structure tensor (0–100%) — shape only, independent of steepness: 0% is a coherent linear feature (slope/ridge/valley), 100% is an isotropic blob (peak/pit/saddle)
-- **Dominant Orientation:** axis (0–180°, clockwise from north) of the tensor's dominant eigenvector, the direction the elevation changes most: across a linear feature (ridge, valley, fault line), so a ridge running north-south reads 90° and the feature runs at the value ± 90°; most meaningful where Eigenvalue Ratio is low
+- **Dominant Orientation:** the direction a linear feature (ridge, valley, fault line, terrace edge) runs, as an axis 0–180° clockwise from north: a ridge running north-south reads 0° (or 180°, the same axis), east-west 90°, north-east to south-west 45°. On a plain slope it is the direction of the contour lines. The colour ramp wraps (0° and 180° share a colour); most meaningful where Eigenvalue Ratio is low
 
 ### Relief Visualization
 
