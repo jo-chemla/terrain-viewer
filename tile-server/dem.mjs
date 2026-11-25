@@ -51,7 +51,7 @@ const DEFAULT_MAXZOOM = 20
 const isHttps = (u) => /^https:\/\//i.test(u)
 // A library url may leave out https:// (wms-raw, quantized mesh) or carry one
 // of the app's prefixes before it (pmtiles://, epsg3395://).
-const bareUrl = (u) => (u ?? "").replace(/^(pmtiles|epsg3395):\/\//i, "")
+const bareUrl = (u) => (u ?? "").replace(/^(pmtiles|epsg3395|epsg4326):\/\//i, "")
 // gem15://, openbuildings://, metachm://: the VRT reader's cell-routed mosaics.
 const schemeOk = (u) => isHttps(u) || /^(gem15|openbuildings|metachm):\/\//i.test(u) || !/^[a-z][a-z0-9+.-]*:/i.test(u)
 const hostOf = (u) => { try { const b = bareUrl(u); return new URL(isHttps(b) ? b : `https://${b}`).hostname } catch { return undefined } }

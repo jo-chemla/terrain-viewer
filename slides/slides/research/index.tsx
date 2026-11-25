@@ -14,7 +14,7 @@ const riverRem = shot('river-rem.jpg');
 const grid42 = shot('split-modes/historical-grid-4x2.jpg');
 const terrainAnalysis = shot('terrain-analysis-full.jpg');
 const coverage3d = shot('coverage-3d-lidar-europe.jpg');
-const coverageOverlays = shot('coverage-overlays.jpg');
+const glihtKiuic = shot('gliht-kiuic-relief.jpg');
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
 // The look of open-slide's stock getting-started deck: white, Geist, hairline
@@ -800,7 +800,7 @@ Kiuic 1: lo = 67.66 m, hi = 153.42 m`}</Formula>
           </div>
         </>
       }
-      right={<Shot src={coverageOverlays} caption="Coverage overlays; G-LiHT is under 3D and LiDAR coverage" width={752} height={520} />}
+      right={<Shot src={glihtKiuic} caption="Kiuic 1 (2013) read from NASA's KMZ as terrain: hillshade and colour relief, 75-150 m" width={752} height={520} />}
     />
   </Frame>
 );

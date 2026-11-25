@@ -25,15 +25,19 @@
 //    100 where it's perfectly isotropic (a blob — peak/pit/saddle). Two patches
 //    with the same blobness score but different steepness will still read
 //    differently here; two with different steepness but the same *shape* won't.
-//  - "orientation": the dominant eigenvector's axis, 0-180° (an axis has no
-//    inherent direction — 0° and 180° are the same axis, unlike Aspect's full
-//    0-360° compass bearing). The dominant eigenvector is the dominant
-//    GRADIENT direction, so this is the axis ACROSS a linear feature: a
-//    ridge, valley or fault line running north-south reads 90°, one running
-//    east-west 0° (the feature itself runs at this value ± 90°). Not
-//    mirrored, unlike Aspect was: Horn's dx (west - east) and dy (south -
-//    north) are both negated, and the tensor is quadratic in them, so a
-//    plane rising to the north-east reads 45° (blobness-protocol.test.ts).
+//  - "orientation": the direction a linear feature runs, as a compass axis
+//    0-180° (an axis has no inherent direction — 0° and 180° are the same
+//    axis, unlike Aspect's full 0-360° compass bearing): a ridge, valley or
+//    fault line running north-south reads 0° (or 180°), one running
+//    east-west 90°, one running north-east to south-west 45°. It is the
+//    axis of the tensor's MINOR eigenvector, i.e. the dominant gradient
+//    direction (the major eigenvector, across the feature) turned by 90°;
+//    until 2026-11-26 the value was that across-axis itself (a north-south
+//    ridge read 90°), which nobody read the intended way. On a plane the
+//    "feature" is the contour: a plane rising to the north-east reads 135°.
+//    Not mirrored, unlike Aspect was: Horn's dx (west - east) and dy (south -
+//    north) are both negated, and the tensor is quadratic in them
+//    (blobness-protocol.test.ts).
 //    Most meaningful where eigen-ratio is low (a coherent edge) and closer
 //    to noise where it's high (an isotropic blob has no dominant axis).
 
@@ -129,7 +133,8 @@ export function eigenRatioFromTensor(Ixx: number, Iyy: number, Ixy: number): num
   return lambdaMax > 1e-12 ? (lambdaMin / lambdaMax) * 100 : 0
 }
 
-// Dominant (largest-eigenvalue) eigenvector's axis, as a 0-180° orientation rather
+// The feature's direction: the dominant (largest-eigenvalue) eigenvector's
+// axis turned by 90°, as a 0-180° orientation rather
 // than a 0-360° direction — a ridge/valley line and its own reverse are the same
 // axis, unlike Aspect's compass bearing where opposite directions mean opposite
 // slope-facing. Standard 2D-tensor principal-axis formula: the eigenvector angle
@@ -137,14 +142,15 @@ export function eigenRatioFromTensor(Ixx: number, Iyy: number, Ixy: number): num
 // 0.5*atan2(2*Ixy, Ixx-Iyy), counterclockwise from the gx axis. gx = west - east
 // and gy = south - north are minus the east and north slopes, and an axis is its
 // own opposite, so that is also the angle from east toward north: the compass
-// bearing is 90 - mathDeg, folded mod 180 (not 360) since only the axis, not
-// which end of it, is meaningful here. (Aspect's mirroring, fixed 2026-11-25,
+// bearing of the gradient axis is 90 - mathDeg, and the feature runs at
+// right angles to it: 180 - mathDeg, folded mod 180 (not 360) since only the
+// axis, not which end of it, is meaningful here. (Aspect's mirroring, fixed 2026-11-25,
 // came from negating only dx; nothing here is negated alone.)
 export function orientationFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
   const trace = Ixx + Iyy
   if (trace < 1e-9) return 0 // flat ground — no dominant axis
   const mathDeg = 0.5 * Math.atan2(2 * Ixy, Ixx - Iyy) * RAD_TO_DEG
-  const compassDeg = 90 - mathDeg
+  const compassDeg = 180 - mathDeg // along the feature: the gradient axis (90 - mathDeg) + 90
   return ((compassDeg % 180) + 180) % 180
 }
 

@@ -389,17 +389,18 @@ def eigen_ratio(ixx, iyy, ixy, xp=np):
 
 
 def orientation(ixx, iyy, ixy, xp=np):
-    """The dominant eigenvector's axis as a compass bearing folded to 0-180:
-    the axis along which the elevation changes most (across a ridge, not
-    along it). Horn's x and y are both the opposite of east and north and
-    the tensor is quadratic in them, so nothing is mirrored: 90 minus the
-    math angle is the bearing (lib/blobness-protocol.test.ts)."""
+    """The direction a feature runs, as a compass bearing folded to 0-180:
+    the dominant eigenvector's axis (across a ridge) turned by 90 degrees, so
+    a ridge running north-south reads 0, east-west 90. Horn's x and y are
+    both the opposite of east and north and the tensor is quadratic in them,
+    so nothing is mirrored: 180 minus the math angle is the bearing
+    (lib/blobness-protocol.ts orientationFromTensor and its test)."""
     a = 2 * ixy
     b = ixx - iyy
     xp.arctan2(a, b, out=a)
     xp.degrees(a, out=a)
     a *= 0.5
-    v = xp.subtract(90.0, a, out=a)
+    v = xp.subtract(180.0, a, out=a)
     xp.mod(v, 180.0, out=v)
     v += 180.0
     xp.mod(v, 180.0, out=v)

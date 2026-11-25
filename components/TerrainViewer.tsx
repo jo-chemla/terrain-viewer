@@ -96,7 +96,7 @@ import { thresholdProtocol, lumaProtocol } from '@/lib/threshold-protocol'
 import { isobandProtocol } from '@/lib/isoband-protocol'
 import { unpaperProtocol } from '@/lib/unpaper-protocol'
 import { tileTransformProtocol } from '@/lib/tile-transform-protocol'
-import { epsg3395Protocol } from '@/lib/epsg3395-protocol'
+import { epsg3395Protocol, epsg4326Protocol } from '@/lib/epsg3395-protocol'
 import { googleTimelapseProtocol } from '@/lib/google-timelapse'
 import { pcMosaicProtocol } from '@/lib/pc-mosaic'
 import { glihtProtocol } from '@/lib/gliht-protocol'
@@ -1789,6 +1789,7 @@ export function TerrainViewer() {
     // and underzoom fixes (lib/tile-transform-protocol.ts).
     registerProtocol('tiletx', withTileResultCache(tileTransformProtocol))
     registerProtocol('epsg3395', withTileResultCache(epsg3395Protocol))
+    registerProtocol('epsg4326', withTileResultCache(epsg4326Protocol))
     registerProtocol('gtimelapse', withTileResultCache(googleTimelapseProtocol))
     registerProtocol('pcmosaic', withTileResultCache(pcMosaicProtocol))
     // NASA G-LiHT DTM KMZs read in place (lib/gliht-protocol.ts): the grey

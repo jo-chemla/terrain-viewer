@@ -220,7 +220,7 @@ One mode at a time; its own parameters count (`curvatureMode`, `lrmRadius`, `svf
 | `shapeIndex` | none | -1 bowl, -0.5 valley, 0 saddle, 0.5 ridge, 1 dome |
 | `blobness` | none | det/trace of the gradient's structure tensor (a squared slope) |
 | `eigenRatio` | none | λmin/λmax of that tensor, 0 linear (slope, ridge, valley) to 1 isotropic (peak, pit, saddle) |
-| `orientation` | degree | The axis of the dominant gradient, clockwise from north, 0 to 180 |
+| `orientation` | degree | The direction a ridge or valley runs (the dominant gradient's axis turned by 90°), clockwise from north, 0 to 180: north-south 0, east-west 90 |
 | `lrm` | m | Elevation minus its low-pass trend |
 | `svf` | none | The visible share of the sky, 0 to 1 (1 on open flat ground) |
 | `openness` | degree | Mean zenith angle to the horizon, 90 on flat ground |

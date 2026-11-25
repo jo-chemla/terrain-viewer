@@ -529,7 +529,7 @@ export const VALUE_MODES = {
   shapeIndex: { unit: "1", description: "Shape index (Koenderink and van Doorn): -1 bowl, -0.5 valley, 0 saddle, 0.5 ridge, 1 dome", to: () => ({ a: 1 / CURV_SCALE, b: 0 }) },
   blobness: { unit: "1", description: "Blobness: det/trace of the gradient structure tensor (a squared slope, unitless); the app's ramp reads it ×100", to: () => ({ a: 1 / 100, b: 0 }) },
   eigenRatio: { unit: "1", description: "Eigenvalue ratio λmin/λmax of the gradient structure tensor, 0 (linear: slope, ridge, valley) to 1 (isotropic: peak, pit, saddle); the app's ramp reads it as a percentage", to: () => ({ a: 1 / 100, b: 0 }) },
-  orientation: { unit: "degree", description: "Axis of the dominant gradient direction, clockwise from north, 0 to 180" },
+  orientation: { unit: "degree", description: "Direction a ridge or valley runs (the dominant gradient axis turned by 90 degrees), clockwise from north, 0 to 180" },
   lrm: { unit: "m", description: "Local Relief Model: elevation minus its low-pass trend (lrmRadius)" },
   svf: { unit: "1", description: "Sky View Factor, the visible share of the sky, 0 to 1 (1: flat open ground); the app's ramp reads it as a percentage", to: () => ({ a: 1 / 100, b: 0 }) },
   openness: { unit: "degree", description: "Openness (opennessMode positive or negative): mean zenith angle to the horizon, 90 on flat ground, more on summits (positive) or in valleys (negative); the app's ramp reads it minus 90", to: () => ({ a: 1, b: 90 }) },

@@ -955,19 +955,21 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
-  // Dominant Orientation (0-180°, axis of the same structure tensor's
-  // principal eigenvector) from lib/blobness-protocol.ts — sequential rather
-  // than diverging since 0° and 180° are the SAME axis (see that file's
-  // header), not opposite extremes.
+  // Dominant Orientation (0-180°, the direction a feature runs, from the
+  // same structure tensor) from lib/blobness-protocol.ts — CYCLIC since 0°
+  // and 180° are the SAME axis (see that file's header): 0 and 180 share the
+  // orange (north-south), with yellow at 45° (NE-SW), blue at 90° (east-west)
+  // and purple at 135° (NW-SE), so a north-south ridge does not flicker
+  // between the two ends of the ramp.
   "orientation-default": {
     name: "Dominant Orientation",
     colors: [
       "interpolate", ["linear"], ["elevation"],
       0, "rgb(230, 85, 13)",
-      45, "rgb(253, 190, 133)",
-      90, "rgb(254, 230, 206)",
-      135, "rgb(158, 202, 225)",
-      180, "rgb(49, 130, 189)",
+      45, "rgb(240, 200, 60)",
+      90, "rgb(49, 130, 189)",
+      135, "rgb(150, 90, 180)",
+      180, "rgb(230, 85, 13)",
     ],
     continuous: true,
   },
