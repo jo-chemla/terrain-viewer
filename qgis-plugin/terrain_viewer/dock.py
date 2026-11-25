@@ -9,7 +9,7 @@ from urllib.parse import urlsplit, parse_qsl
 
 from qgis.PyQt.QtCore import Qt, QTimer
 from qgis.PyQt.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
+    QApplication, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox, QScrollArea, QToolButton, QFrame, QGroupBox, QSizePolicy,
 )
 from qgis.core import (
@@ -27,6 +27,7 @@ except ImportError:  # pragma: no cover
 
 from .service import Catalog, ServiceError, tile_url, values_url, split_link, KEY_PARAMS, walk_modes
 from .layers import LayerStack, PROP, tree_ranks
+from . import local_server
 
 SETTINGS = "terrain_viewer"
 DEFAULT_SERVICE = "http://localhost:3400"
@@ -261,6 +262,22 @@ class TerrainViewerDock(QDockWidget):
         line.addWidget(self.url, 1)
         line.addWidget(go)
         outer.addLayout(line)
+        # A platform zip carries a tile service (server/): "Local bundled"
+        # starts it on this machine when the panel connects. Picked by
+        # default while no other address was saved.
+        self.bundled = None
+        self.token = None
+        if local_server.bundled():
+            saved = s.value(f"{SETTINGS}/service", "")
+            default_on = not saved or saved == DEFAULT_SERVICE
+            self.bundled = QCheckBox("Local bundled tile service")
+            info = local_server.bundle_info()
+            self.bundled.setToolTip(f"The tile service inside this plugin (Node {info.get('node', '?')}, {info.get('platform', '')}), "
+                                    "started on this machine (127.0.0.1) when the panel connects and stopped when QGIS quits")
+            self.bundled.setChecked(str(s.value(f"{SETTINGS}/bundled", "true" if default_on else "false")).lower() in ("1", "true"))
+            self.bundled.toggled.connect(self.bundled_toggled)
+            outer.addWidget(self.bundled)
+            self.url.setEnabled(not self.bundled.isChecked())
         self.status = QLabel("Not connected")
         self.status.setWordWrap(True)
         outer.addWidget(self.status)
@@ -279,6 +296,16 @@ class TerrainViewerDock(QDockWidget):
             e.editingFinished.connect(self.keys_changed)
             self.keys[k] = e
             src.addRow(k, e)
+        if self.bundled is not None:
+            # Only for the bundled service, only from here: never shipped,
+            # never in a layer's address. Read when the service starts.
+            self.token = QLineEdit(s.value(f"{SETTINGS}/earthdataToken", ""))
+            self.token.setEchoMode(QLineEdit.EchoMode.Password)
+            self.token.setPlaceholderText("optional, for G-LiHT's protected files")
+            self.token.setToolTip("A NASA Earthdata token (https://urs.earthdata.nasa.gov, Generate Token), given to the "
+                                  "bundled tile service as EARTHDATA_TOKEN when it starts; changing it restarts the service")
+            self.token.editingFinished.connect(self.token_changed)
+            src.addRow("Earthdata token", self.token)
         outer.addLayout(src)
 
         link = QHBoxLayout()
@@ -332,18 +359,65 @@ class TerrainViewerDock(QDockWidget):
             s.setValue(f"{SETTINGS}/{k}", e.text().strip())
         self.schedule_all()
 
+    def use_bundled(self):
+        return self.bundled is not None and self.bundled.isChecked()
+
+    def bundled_toggled(self, on):
+        QgsSettings().setValue(f"{SETTINGS}/bundled", "true" if on else "false")
+        self.url.setEnabled(not on)
+        if on:
+            self.connect_service()
+        else:
+            local_server.stop_instance()
+            self.url.setText(QgsSettings().value(f"{SETTINGS}/service", DEFAULT_SERVICE))
+            self.status.setText("Bundled tile service stopped: Connect to the address above")
+
+    def token_changed(self):
+        s = QgsSettings()
+        token = self.token.text().strip()
+        if token == (s.value(f"{SETTINGS}/earthdataToken", "") or ""):
+            return
+        s.setValue(f"{SETTINGS}/earthdataToken", token)
+        if self.use_bundled() and local_server.instance().running():
+            local_server.stop_instance()
+            self.connect_service()
+
+    def start_bundled(self):
+        """The bundled service's address, started if needed; None (and the
+        reason in the status line) when it does not start."""
+        server = local_server.instance()
+        if not server.running():
+            self.status.setText("Starting the bundled tile service...")
+            QApplication.processEvents()
+        try:
+            url = server.start(earthdata_token=self.token.text().strip() if self.token is not None else "")
+        except RuntimeError as e:
+            self.status.setText(f"The bundled tile service did not start: {e} (log: {server.log_path})")
+            return None
+        self.url.setText(url)
+        return url
+
     def connect_service(self):
+        bundled = self.use_bundled()
+        if bundled and self.start_bundled() is None:
+            return False
         base = self.service_url()
         try:
             self.catalog = Catalog(base)
         except ServiceError as e:
             self.status.setText(f"No tile service at {base}: {e}")
             return False
-        QgsSettings().setValue(f"{SETTINGS}/service", base)
+        if not bundled:
+            QgsSettings().setValue(f"{SETTINGS}/service", base)
         self.stack.ranks = tree_ranks(self.catalog.tree)
         self.build()
-        self.status.setText(f"{len(self.catalog.sources)} sources, {len(self.catalog.modes)} modes from {base}")
+        counts = f"{len(self.catalog.sources)} sources, {len(self.catalog.modes)} modes"
+        self.status.setText(f"{counts}. {local_server.instance().status()}" if bundled else f"{counts} from {base}")
         self.adopt_existing()
+        if bundled:
+            # The bundled service may be on another port than when the project
+            # was saved: the layers' addresses follow it.
+            self.schedule_all()
         return True
 
     def build(self):

@@ -39,7 +39,11 @@ node compare-engines.mjs http://localhost:3400 out/   # the two engines side by 
 
 Environment: `PORT` (3400), `TV_RENDER_CONCURRENCY` (2 browser pages), `TV_DIRECT_WORKERS` (worker threads of the direct engine, the cores minus one, at most 8; 0: in the server's thread, `TV_DIRECT_CONCURRENCY` (4) at a time), `TV_QUEUE_TIMEOUT` (30 s, then 503), `TV_RENDER_TIMEOUT` (90 s, then 504), `TILE_CACHE_DIR` (rendered tiles, kept a week),
 `TV_BASE_URL` (the app the browser engine opens, default
-`https://terrain-viewer.iconem.com/`), `CHROME_PATH`, `TV_SOFTWARE_GL=1`,
+`https://terrain-viewer.iconem.com/`), `CHROME_PATH` (unset: the installed
+Chrome, else the installed Edge; with neither, the views needing the browser
+engine answer 501 and say so), `TV_SOFTWARE_GL=1`, `TV_HOST` (`127.0.0.1`:
+listen on this machine only), `TV_EXIT_WITH_STDIN=1` (stop when the standard
+input closes, as the QGIS plugin's bundled service does),
 `TV_ALLOWED_HOSTS`, `TV_MAPBOX_KEY` / `TV_MAPTILER_KEY` / `TV_CESIUM_ION_KEY` (the
 service's own keys, used when a request brings none).
 

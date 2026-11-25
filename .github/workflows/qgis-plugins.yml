@@ -1,0 +1,90 @@
+# The QGIS plugins' zips (qgis-plugin/make_zip.py): the plain ones (pure
+# Python, a tile service to connect to) and the Terrain Viewer platform zips
+# with the tile service inside (Node from nodejs.org, the service, its
+# node_modules with that platform's sharp). Each platform is built on its own
+# runner and its service started there as the plugin starts it
+# (qgis-plugin/smoke_bundled.py): a /processes answer and a tile drawn with
+# sharp. macOS x64 is built on the arm64 runner (make_zip.py builds any
+# platform from any host) and started under Rosetta when the runner has it.
+# On demand; with release_tag, the zips are attached to that release
+# (created beforehand, --prerelease --latest=false: see
+# docs/content/docs/dev/releases.mdx).
+name: QGIS plugins
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Attach the zips to this existing release (e.g. qgis-plugins-2026-11-25); empty: run artifacts only"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  bundled:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, targets: windows-x64, smoke: windows-x64 }
+          - { os: macos-latest, targets: "macos-arm64 macos-x64", smoke: macos-arm64 }
+          - { os: ubuntu-latest, targets: linux-x64, smoke: linux-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (the root package for build.mjs, then tile-server)
+        shell: bash
+        run: |
+          pnpm install --frozen-lockfile --filter . --ignore-scripts
+          cd tile-server && pnpm install --frozen-lockfile && node build.mjs
+      - name: Platform zips
+        shell: bash
+        run: python qgis-plugin/make_zip.py --bundled ${{ matrix.targets }}
+      - name: Start the bundled service, ask a tile, stop it
+        shell: bash
+        run: |
+          v=$(sed -n 's/^version=//p' qgis-plugin/terrain_viewer/metadata.txt | tr -d '\r')
+          python -I qgis-plugin/smoke_bundled.py "qgis-plugin/dist/terrain_viewer-$v-${{ matrix.smoke }}.zip"
+      - name: macOS x64 under Rosetta
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        shell: bash
+        run: |
+          v=$(sed -n 's/^version=//p' qgis-plugin/terrain_viewer/metadata.txt | tr -d '\r')
+          arch -x86_64 /usr/bin/true || { echo "no Rosetta on this runner: macos-x64 built, not started"; exit 0; }
+          python -I qgis-plugin/smoke_bundled.py "qgis-plugin/dist/terrain_viewer-$v-macos-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qgis-plugins-${{ matrix.smoke }}
+          path: qgis-plugin/dist/*.zip
+          retention-days: 7
+
+  release:
+    needs: bundled
+    if: ${{ !cancelled() && inputs.release_tag != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: bundles
+      - name: Plain zips, and attach everything
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 qgis-plugin/make_zip.py
+          mkdir -p assets
+          find bundles -name '*.zip' -exec cp {} assets/ \;
+          cp qgis-plugin/dist/*.zip assets/
+          ls -la assets
+          gh release upload "${{ inputs.release_tag }}" assets/*.zip --clobber

@@ -87,6 +87,8 @@ import { handleProxy } from "./proxy.mjs"
 import { stacItem, STAC_SUFFIX } from "./stac.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
+// TV_HOST=127.0.0.1: only this machine (the QGIS plugin's bundled service); unset: every interface.
+const HOST = process.env.TV_HOST || undefined
 const BASE_URL = process.env.TV_BASE_URL || DEFAULT_BASE_URL
 const CACHE_DIR = process.env.TILE_CACHE_DIR || path.join(os.tmpdir(), "terrain-viewer-tiles")
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000
@@ -134,11 +136,16 @@ async function cached(key, ext) {
   try {
     const f = file(key, ext)
     const stat = await fs.stat(f)
-    return Date.now() - stat.mtimeMs > CACHE_TTL ? null : await fs.readFile(f)
+    // An empty file is a write cut short (before the atomic store below): a miss.
+    return !stat.size || Date.now() - stat.mtimeMs > CACHE_TTL ? null : await fs.readFile(f)
   } catch { return null }
 }
+/** Written beside, then renamed: a service stopped mid-write (the QGIS plugin
+ *  stops its bundled one right after a tile went out) leaves no truncated
+ *  file to be served for a week. */
 async function store(key, ext, bytes) {
-  try { await fs.mkdir(CACHE_DIR, { recursive: true }); await fs.writeFile(file(key, ext), bytes) } catch { /* a cache */ }
+  const f = file(key, ext), tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.part`
+  try { await fs.mkdir(CACHE_DIR, { recursive: true }); await fs.writeFile(tmp, bytes); await fs.rename(tmp, f) } catch { fs.rm(tmp, { force: true }).catch(() => {}) }
 }
 async function sweep() {
   try {
@@ -464,7 +471,7 @@ export function start(port = PORT) {
     }, RENDER_TIMEOUT)
     res.on("close", () => clearTimeout(timer))
     requestContext.run({ signal: controller.signal }, () => handle(req, res))
-  }).listen(port, () => console.error(`terrain-viewer tiles on http://localhost:${port}/ (app: ${BASE_URL})`))
+  }).listen(port, HOST, () => console.error(`terrain-viewer tiles on http://${HOST || "localhost"}:${port}/ (app: ${BASE_URL})`))
 }
 
 async function handle(req, res) {
@@ -665,4 +672,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   const server = start()
   const stop = () => { server.close(); closePool(); closeBrowser().finally(() => process.exit(0)) }
   process.on("SIGTERM", stop); process.on("SIGINT", stop)
+  // TV_EXIT_WITH_STDIN=1: stop when the standard input closes, i.e. when the
+  // process that started it (the QGIS plugin) is gone, even after a crash.
+  if (process.env.TV_EXIT_WITH_STDIN) { process.stdin.on("end", stop); process.stdin.on("error", stop); process.stdin.resume() }
 }

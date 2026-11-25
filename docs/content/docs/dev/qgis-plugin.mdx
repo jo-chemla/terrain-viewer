@@ -18,21 +18,45 @@ A dock panel laid out as the app's sidebar: the same groups (Elevation Hypso, Te
 - "Open from link": paste a share link, get its layers. `/view?<the link's query>` answers what the view switches on, the opacities, the parameters every layer keeps and the camera (the reading `/qgis.qgz` does).
 - **Freeze** copies the layers drawn now (the checked ones) into a new group under the live one, which stays on top, named with the date, the time and the place ("Frozen 2026-11-24 14:05 — 44.51, 4.00 z11"): XYZ, vector tile and values layers alike, every setting in their addresses, with their opacity, blending, style and order. The copies carry no mark the panel looks for, so later changes leave them as they are; several freezes stack as several groups, the newest on top, to compare settings side by side.
 - A saved project reopens as it was: on Connect, the panel reads its layers' addresses back into its checkboxes and settings.
-- Pure Python on QGIS's own API, no dependency. It needs a reachable tile service: a local one (`cd tile-server && pnpm start`) or a hosted one.
+- Pure Python on QGIS's own API, no dependency. It needs a tile service: the one inside the platform zips (below), a local one (`cd tile-server && pnpm start`) or a hosted one.
 
 ### Install
 
-Both plugins are on the [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24) release: `terrain_viewer-0.2.2.zip` and `send2map_app-0.5.0.zip`, for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28). In QGIS: **Plugins > Manage and Install Plugins > Install from ZIP**, pick the zip, **Install Plugin**. The Terrain Viewer button is on the Web toolbar (or **Web > Terrain Viewer**). Not yet on plugins.qgis.org (its `metadata.txt` needs an `email` first).
+The zips are on the [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25) release (Terrain Viewer 0.3.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28). Terrain Viewer comes in two variants, which install into the same folder and replace each other:
+
+| Zip | Size | What it needs |
+|---|---|---|
+| `terrain_viewer-0.3.0.zip` (plain) | 20 KB | Pure Python. A tile service to connect to: a local one (`cd tile-server && pnpm start`) or a hosted one |
+| `terrain_viewer-0.3.0-windows-x64.zip`, `-macos-arm64`, `-macos-x64`, `-linux-x64` (bundled) | 50 to 62 MB | Nothing running: the tile service is inside (`terrain_viewer/server/`: Node 22, the service, its node_modules with that platform's sharp binaries) |
+| `send2map_app-0.5.1.zip` | 30 KB | Pure Python, no service |
+
+In QGIS: **Plugins > Manage and Install Plugins > Install from ZIP**, pick the zip, **Install Plugin**. The Terrain Viewer button is on the Web toolbar (or **Web > Terrain Viewer**). Not yet on plugins.qgis.org (its `metadata.txt` needs an `email` first); the bundled zips are for the release only: they carry a platform binary and are some 2,500 times the size of the plain one.
+
+#### The bundled tile service
+
+With a platform zip, the panel has a **Local bundled tile service** box, checked by default while no other address was saved:
+
+- **Connect** starts it as a subprocess, `bin/node server.mjs` in `terrain_viewer/server/`, listening on this machine only (`127.0.0.1`), on port 3410 or, when that is taken, a free one; the address field shows it and the status line says where it runs and its process id. The first start takes about 3 s. A saved project's layers follow the port: on Connect their addresses are rewritten with the current one.
+- It stops when the plugin unloads (QGIS quitting, the plugin disabled, reinstalled or updated) or the box is unchecked; and, if QGIS goes without stopping it (a crash), by itself: it is started with `TV_EXIT_WITH_STDIN=1` and stops when its standard input, a pipe from QGIS, closes. Its log is `terrain-viewer-qgis-tile-service.log` in the system's temporary folder; the status line names it when the service does not start.
+- **Earthdata token** (optional, shown with the box): a NASA Earthdata token for G-LiHT's protected files, given to the service as `EARTHDATA_TOKEN` when it starts (changing it restarts the service). It is kept in QGIS's settings (`terrain_viewer/earthdataToken`), never in a layer's address, and no token ships in a zip; the service reads no `.env` (`TV_ENV_FILE` points at nothing).
+- **The browser engine**: 3D, tilted, rotated or split views, and the few sources or modes the direct engine does not draw, are rendered by the app in a headless browser (playwright-core, included). The service uses an installed Google Chrome, else Microsoft Edge (on every Windows); with neither, those requests answer 501 with a message saying to install one or set `CHROME_PATH`. The panel's XYZ layers are 2D and drawn by the direct engine, so the plugin works without a browser.
+- QGIS's zip installer drops the executable bits on macOS and Linux: the plugin sets them on `bin/node` before starting it. The macOS Node is the one nodejs.org signs and notarizes; sharp's libraries come from its npm packages.
 
 From the repository:
 
 ```bash
-cd qgis-plugin && python make_zip.py   # dist/terrain_viewer-0.2.2.zip and dist/send2map_app-0.5.0.zip
+cd qgis-plugin
+python make_zip.py                         # dist/terrain_viewer-0.3.0.zip and dist/send2map_app-0.5.1.zip
+python make_zip.py --bundled windows-x64   # dist/terrain_viewer-0.3.0-windows-x64.zip (any platform from any host; none named: all four)
+python smoke_bundled.py dist/terrain_viewer-0.3.0-windows-x64.zip              # starts its service as the plugin does, asks a tile, stops it (no QGIS)
+QT_QPA_PLATFORM=offscreen python-qgis test_bundled.py dist/terrain_viewer-0.3.0-windows-x64.zip   # the same through the panel, in QGIS
 ```
+
+`--bundled` needs the root install and tile-server's (`tile-server/build.mjs` bundles the app's code into `generated/` first). It takes Node 22.22.3 from nodejs.org, checked against its `SHASUMS256.txt`, and installs tile-server's production dependencies flat (`node-linker=hoisted`: a zip keeps no symlinks) with pnpm's `supportedArchitectures` set to the platform, so the right `@img/sharp-*` binaries land; source maps and type declarations are left out. The [QGIS plugins workflow](https://github.com/Iconem/terrain-viewer/actions/workflows/qgis-plugins.yml) (`.github/workflows/qgis-plugins.yml`, on demand) builds each platform on its own runner, starts its service there with `smoke_bundled.py`, and with `release_tag` attaches all the zips to a release.
 
 ## Send2MapApp: "Open in"
 
-A second plugin in the same folder, [`qgis-plugin/send2map_app/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/send2map_app): the place shown or clicked in QGIS opened in another viewer at the same place and scale, from a dropdown on the Web toolbar (the current view, in the destination picked, which is remembered), the button itself (a map tool: the point clicked), the map canvas's right-click menu ("Open in" at the point clicked) or **Web > Send2MapApp**. QGIS 3.22 to 4.x; install it from the [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24) release as above.
+A second plugin in the same folder, [`qgis-plugin/send2map_app/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/send2map_app): the place shown or clicked in QGIS opened in another viewer at the same place and scale, from a dropdown on the Web toolbar (the current view, in the destination picked, which is remembered), the button itself (a map tool: the point clicked), the map canvas's right-click menu ("Open in" at the point clicked) or **Web > Send2MapApp**. QGIS 3.22 to 4.x; install it from the [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25) release as above.
 
 - **A QGIS map tool**: the button is checked while the tool is on, with a crosshair cursor carrying an "open elsewhere" badge, and unchecks itself when another map tool (Pan, Identify, ...) is picked, as QGIS's own tools do. The destination picked is kept in QGIS's settings (`plugins/send2map_app/destination`).
 - **Icons**: QGIS-style SVGs for the plugin, Terrain Viewer and the web viewers, QGIS's own 3D globe for Google Maps 3D and Bing Maps 3D, the publishers' logos for Google Earth, Esri, Maxar and Search-EO.

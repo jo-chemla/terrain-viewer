@@ -5,6 +5,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
 from .dock import TerrainViewerDock
+from . import local_server
 
 
 class TerrainViewerPlugin:
@@ -22,6 +23,9 @@ class TerrainViewerPlugin:
         self.iface.addPluginToWebMenu("Terrain Viewer", self.action)
 
     def unload(self):
+        # The bundled tile service, if this session started it (QGIS calls
+        # unload when it quits, and when the plugin is disabled or updated).
+        local_server.stop_instance()
         if self.dock:
             self.iface.removeDockWidget(self.dock)
             self.dock.deleteLater()

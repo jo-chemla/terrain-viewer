@@ -2,7 +2,8 @@
 // maps have drawn everything. The base block of the MCP server's pictures
 // (mcp/tools.mjs) and of the tile service (server.mjs); it knows neither.
 //
-// Environment: CHROME_PATH (a Chromium binary; unset: the installed Chrome),
+// Environment: CHROME_PATH (a Chromium binary; unset: the installed Chrome,
+// else the installed Edge),
 // TV_SOFTWARE_GL=1 (no graphics card: SwiftShader), TV_TIMING (lap times).
 
 let browserPromise
@@ -15,8 +16,15 @@ export async function browser() {
       // container without one.
       const args = process.env.TV_SOFTWARE_GL ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--hide-scrollbars"] : ["--enable-gpu", "--ignore-gpu-blocklist", "--hide-scrollbars"]
       const exe = process.env.CHROME_PATH
-      // An installed Chrome by default; CHROME_PATH for a container's Chromium.
-      return chromium.launch(exe ? { executablePath: exe, args } : { channel: "chrome", args })
+      // CHROME_PATH for a container's Chromium; else an installed Chrome,
+      // else an installed Edge (on every Windows), else a clear refusal: the
+      // direct engine does not need a browser, only the views it hands over.
+      if (exe) return chromium.launch({ executablePath: exe, args })
+      try { return await chromium.launch({ channel: "chrome", args }) } catch (chrome) {
+        try { return await chromium.launch({ channel: "msedge", args }) } catch {
+          throw Object.assign(new Error(`No Chrome or Edge found: this view needs the browser engine (3D, tilted, rotated or split views, and the sources or modes the direct engine does not draw). Install Google Chrome or Microsoft Edge, or set CHROME_PATH to a Chromium. (${String(chrome?.message ?? chrome).split(/\r?\n/)[0]})`), { status: 501 })
+        }
+      }
     })().catch((e) => { browserPromise = undefined; throw e })
   }
   return browserPromise

@@ -4,8 +4,8 @@ qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 supportsQt6=True
 description=Terrain Viewer's modes (slope, sky view factor, openness, matcap, contours...) as QGIS layers, set from a panel like the app's sidebar.
-about=A dock panel with the groups of Terrain Viewer's sidebar. Each checked mode becomes an XYZ layer of a Terrain Viewer tile service (a local one: cd tile-server && pnpm start, or a hosted one), with its settings in the layer's address; changing a setting rewrites the address. The overlays (contours, iso-line, mound candidates, plane slicer, graticule) can also be loaded as vector tiles. "Open from link" loads the layers of a share link. "Freeze" copies the layers drawn now into a group the panel never changes, to compare settings. The panel is built from what the service answers, so new modes and settings appear without a plugin update. Pure Python, no dependency.
-version=0.2.2
+about=A dock panel with the groups of Terrain Viewer's sidebar. Each checked mode becomes an XYZ layer of a Terrain Viewer tile service (the one inside the platform zips, started on this machine; a local one: cd tile-server && pnpm start; or a hosted one), with its settings in the layer's address; changing a setting rewrites the address. The overlays (contours, iso-line, mound candidates, plane slicer, graticule) can also be loaded as vector tiles. "Open from link" loads the layers of a share link. "Freeze" copies the layers drawn now into a group the panel never changes, to compare settings. The panel is built from what the service answers, so new modes and settings appear without a plugin update. The plain zip is pure Python, no dependency; the platform zips add Node and the tile service.
+version=0.3.0
 author=Iconem
 # TODO before publishing on plugins.qgis.org: email=<the maintainer's address> (required there)
 homepage=https://terrain-viewer.iconem.com/docs/dev/qgis-plugin
@@ -14,7 +14,10 @@ repository=https://github.com/Iconem/terrain-viewer
 category=Web
 icon=icon.svg
 tags=terrain,dem,elevation,hillshade,slope,sky view factor,openness,contours,lidar,archaeology,xyz,vector tiles,web,ogc api
-changelog=0.2.2
+changelog=0.3.0
+    * Platform zips (Windows x64, macOS arm64 and x64, Linux x64) carry the tile service: "Local bundled tile service" starts it on this machine when the panel connects, stops it when QGIS quits; an optional Earthdata token for it
+    * The plain zip is unchanged: pure Python, a tile service to connect to
+  0.2.2
     * Needs a tile service from 2026-11-24 or later: the fallback to the removed /modes and /tiles addresses is gone
     * The button sits on the Web toolbar, with an SVG icon
   0.2.1

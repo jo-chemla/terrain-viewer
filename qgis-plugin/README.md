@@ -22,12 +22,22 @@ API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24)
-(Terrain Viewer 0.2.2, Send2MapApp 0.5.0). To build them:
+The zips of each version are on a release: [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25)
+(Terrain Viewer 0.3.0, Send2MapApp 0.5.1). Terrain Viewer comes plain (pure
+Python, a tile service to connect to) or bundled, one zip per platform
+(`-windows-x64`, `-macos-arm64`, `-macos-x64`, `-linux-x64`, 50 to 62 MB)
+with the tile service inside: "Local bundled tile service" in the panel starts
+it on 127.0.0.1 when it connects and stops it when QGIS quits; see
+[the docs](../docs/content/docs/dev/qgis-plugin.mdx#the-bundled-tile-service).
+To build them:
 
 ```bash
-python make_zip.py          # dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
+python make_zip.py                      # dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
+python make_zip.py --bundled [platform] # dist/terrain_viewer-<version>-<platform>.zip, all four when none is named
 ```
+
+`.github/workflows/qgis-plugins.yml` builds them all on demand, starts each
+platform's service on its own runner, and attaches the zips to a release.
 
 In QGIS: Plugins > Manage and Install Plugins > Install from ZIP. Or, while
 working on it, link the folder into the profile's plugins folder (Windows:
@@ -35,8 +45,9 @@ working on it, link the folder into the profile's plugins folder (Windows:
 uses `QGIS4`), then enable it in the plugin manager. `send2map_app` installs
 the same way, and replaces an earlier Send2MapApp in place (same folder name).
 
-It needs a tile service: a local one (`cd tile-server && pnpm start`, then
-`http://localhost:3400`) or a hosted one.
+The plain zip needs a tile service: a local one (`cd tile-server && pnpm
+start`, then `http://localhost:3400`) or a hosted one. A platform zip has its
+own.
 
 ## Use
 
@@ -90,10 +101,13 @@ It needs a tile service: a local one (`cd tile-server && pnpm start`, then
 | `terrain_viewer/service.py` | The service's catalogs and the tile addresses (no widget) |
 | `terrain_viewer/layers.py` | The layers in the project: the group tree, creation, address rewrite, opacity, blend, vector tile style |
 | `terrain_viewer/dock.py` | The panel |
+| `terrain_viewer/local_server.py` | The bundled tile service (platform zips, `server/`): started on 127.0.0.1, stopped on unload or when QGIS goes |
 | `terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.svg` | The QGIS plugin around it |
 | `send2map_app/` | The "Open in" plugin: `destinations.py` (the URL builders, no QGIS import), `send2map_apptool.py` (the canvas as a camera, the map tool, opening a URL or a KML), `send2map_app.py` (toolbar, Web menu, canvas right-click menu) |
-| `make_zip.py` | The installable zips |
+| `make_zip.py` | The installable zips, plain and `--bundled` per platform |
 | `test_plugin.py` | A headless check of `terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
+| `test_bundled.py` | A platform zip unzipped into a temporary folder, its service started through the panel, a tile asked, the plugin unloaded: `QT_QPA_PLATFORM=offscreen python-qgis test_bundled.py dist/terrain_viewer-<version>-windows-x64.zip` |
+| `smoke_bundled.py` | The same without QGIS (the build runners): `python -I smoke_bundled.py <zip>` |
 | `test_send2map.py` | A headless check of `send2map_app`, no network: `QT_QPA_PLATFORM=offscreen python-qgis test_send2map.py` |
 | `test_open_in.py`, `open_in_reference.mjs` | `send2map_app`'s destinations against the web app's (`open-in-links.tsx`, evaluated by Node): `python test_open_in.py`, no QGIS |
 

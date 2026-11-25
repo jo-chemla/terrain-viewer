@@ -389,6 +389,9 @@ The browser engine suits a few views, a cache filled in advance, or pictures of 
 | Variable | Meaning | Default |
 |---|---|---|
 | `PORT` | The port | 3400 |
+| `TV_HOST` | The interface to listen on; `127.0.0.1` keeps the service to this machine (the QGIS plugin's bundled one) | every interface |
+| `CHROME_PATH` | A Chromium for the browser engine | the installed Chrome, else Edge; with neither, the views needing the browser answer `501` |
+| `TV_EXIT_WITH_STDIN` | `1`: stop when the standard input closes, i.e. when the process that started the service is gone (the QGIS plugin) | off |
 | `TV_BASE_URL` | The app to render | `https://terrain-viewer.iconem.com/` |
 | `TILE_CACHE_DIR` | Where tiles and pictures are kept a week | `/data/tiles` in the image |
 | `TV_RENDER_CONCURRENCY` | Pages rendered at the same time; each is a whole app | 2 |

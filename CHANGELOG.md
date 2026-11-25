@@ -1,3 +1,17 @@
+# Changelog — QGIS Plugin With the Tile Service Inside
+
+#### TL;DR
+
+- **Terrain Viewer 0.3.0 for QGIS, with the tile service bundled**: one zip per platform (Windows x64, macOS arm64 and x64, Linux x64, 50 to 62 MB) carries Node 22, the tile service and its dependencies with that platform's sharp binaries. Install it from ZIP and it works with nothing running: the panel's **Local bundled tile service** box (checked by default) starts the service on `127.0.0.1` when the panel connects and stops it when QGIS quits, the plugin unloads, or QGIS crashes. An optional **Earthdata token** field passes `EARTHDATA_TOKEN` to it for G-LiHT; no token ships. The plain zip (pure Python, a service to connect to) stays. Release: [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25), with Send2MapApp 0.5.1 (destinations in the web app's order). Docs: [QGIS Plugin, the bundled tile service](/docs/dev/qgis-plugin#the-bundled-tile-service).
+- **Tile service**: the browser engine falls back to Microsoft Edge when Chrome is not installed, and with neither answers `501` with a message instead of an error trace; `TV_HOST` (listen on one interface) and `TV_EXIT_WITH_STDIN` (stop when the parent goes) are new.
+- **Fix, tile cache**: a service stopped right after answering could leave an empty cache file, served as an empty tile for a week. Tiles are now written beside and renamed, and an empty file counts as a miss.
+
+#### Details
+
+- `qgis-plugin/make_zip.py --bundled [platform]` builds any platform from any host: Node from nodejs.org checked against `SHASUMS256.txt`, tile-server's production dependencies installed flat (`node-linker=hoisted`) with pnpm's `supportedArchitectures`, source maps and type declarations left out. `.github/workflows/qgis-plugins.yml` (on demand) builds each platform on its own runner, starts its service there (`qgis-plugin/smoke_bundled.py`), and with `release_tag` attaches the zips to a release.
+- `qgis-plugin/terrain_viewer/local_server.py`: port 3410, or a free one when it is taken (a saved project's layers follow the port on Connect); `CREATE_NO_WINDOW` on Windows; the executable bit set again on macOS and Linux (QGIS's zip installer drops it); no `.env` read. `qgis-plugin/test_bundled.py` unzips a platform zip into a temporary folder and drives it through the panel in headless QGIS (3.44 LTR and 4.2 on Windows: started in about 4 s, `/processes` and a slope tile answered, gone after unload).
+
+
 # Changelog — Live GPU Terrain Shadows
 
 #### TL;DR
