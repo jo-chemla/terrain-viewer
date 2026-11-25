@@ -14,6 +14,7 @@ const riverRem = shot('river-rem.jpg');
 const grid42 = shot('split-modes/historical-grid-4x2.jpg');
 const terrainAnalysis = shot('terrain-analysis-full.jpg');
 const coverage3d = shot('coverage-3d-lidar-europe.jpg');
+const coverageOverlays = shot('coverage-overlays.jpg');
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
 // The look of open-slide's stock getting-started deck: white, Geist, hairline
@@ -753,6 +754,57 @@ const P5Tells: Page = () => (
   </Frame>
 );
 
+const P5bRelief: Page = () => (
+  <Frame eyebrow="Pre-rendered relief" title="The publishers' own relief renders, as overlays">
+    <TwoCol
+      leftWidth={940}
+      left={
+        <div style={{ borderBottom: `1px solid ${ink.rule}` }}>
+          <Row k="Maya lowlands" v="Tikal, Holmul, La Corona, Chactun (hillshade, SVF, local dominance); M-REDD+ and G-LiHT blends. Tulane MARI-GISLAB, CC BY-NC-SA." />
+          <Row k="Americas" v="USGS 3DEP, Canada HRDEM, INEGI Mexico, Kentucky and Pennsylvania lidar." />
+          <Row k="North" v="England EA 1 m, Ireland GSI, Norway, Sweden, Finland." />
+          <Row k="Benelux" v="AHN4 multi-directional, Flanders 25 cm hillshade and SVF, Wallonia, Luxembourg." />
+          <Row k="Central Europe" v="basemap.de and eight Länder, Austria, swissALTI3D, Czechia, Slovakia, Poland." />
+          <Row k="Southern Europe" v="IGN LiDAR HD and RGE ALTI, Spain and its regions, Portugal, South Tyrol." />
+          <Row k="Asia-Pacific" v="GSI red relief map, CS立体図 of Nagano and Hyogo, LINZ, Tasmania, Queensland." />
+        </div>
+      }
+      right={
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+          <Card title="Imagery, not elevation" accent={teal}>Each stacks as an overlay over any terrain. The app's own modes do not apply: there is no elevation behind it.</Card>
+          <Card title="92 entries, one search">A Library section of its own, folded at first. "archaeology", "relief" or "sky view factor" finds all of it.</Card>
+          <Card title="Credited, and licensed" accent={rose}>Each carries its publisher's credit and licence. Most are open; the Maya renders are not for commercial use.</Card>
+        </div>
+      }
+    />
+  </Frame>
+);
+
+const P5cGliht: Page = () => (
+  <Frame eyebrow="NASA G-LiHT" title="Airborne lidar campaigns, read where they lie">
+    <TwoCol
+      leftWidth={880}
+      left={
+        <>
+          <Bullets size={24}>
+            <Li k="1,521 campaigns">2011 to 2026, as a coverage overlay: click one, Use as overlay.</Li>
+            <Li k="gliht://">reads the KMZ's zip directory by HTTP Range, then only the PNG tiles a map tile needs, warped to Web Mercator.</Li>
+            <Li k="Heights, not a hillshade">the grey is the 1 m bare earth, stretched linearly; white is the 99.9th percentile.</Li>
+            <Li k="Measured">on 8 campaigns against the Float32 GeoTIFFs: 0.01 to 0.2 m RMS, 0.9 m on a 750 m mountain.</Li>
+            <Li k="So Kiuic is terrain">the three 2013 blocks over the Puuc hills, Yucatán: every mode runs on them.</Li>
+            <Li k="No CORS at NASA">the tile service's allow-listed /proxy/gliht reads for the app.</Li>
+          </Bullets>
+          <div style={{ marginTop: 22 }}>
+            <Formula label="Fitted per KMZ on the 1 m level">{`metres = lo + grey/255 · (hi − lo)
+Kiuic 1: lo = 67.66 m, hi = 153.42 m`}</Formula>
+          </div>
+        </>
+      }
+      right={<Shot src={coverageOverlays} caption="Coverage overlays; G-LiHT is under 3D and LiDAR coverage" width={752} height={520} />}
+    />
+  </Frame>
+);
+
 const P6Change: Page = () => (
   <Frame
     eyebrow="Earth surface processes"
@@ -968,6 +1020,8 @@ export const notes: (string | undefined)[] = [
   'The archaeological toolbox is RVT, and the app implements it: LRM, sky-view factor, openness, local dominance.',
   'The LRM radius is a scale choice. The app shows the radius in metres so you know what neighbourhood you are looking at.',
   'The tells detector proposes candidates; the iterator lets you look at each one. Resolution is the limit, not the method.',
+  'Some publishers already render the relief: hillshades, sky view factor, red relief maps. Over ninety of those services are in the Library as overlays, credited, the Maya renders non-commercial. Useful where the elevation itself is not published.',
+  'G-LiHT is NASA\'s airborne lidar. Its KMZ pictures look like hillshades but are heights, stretched to 8 bits; measured against the GeoTIFFs they decode to the 8-bit step. So the app reads them in place, by range requests, and the Kiuic blocks in the Puuc work as terrain with every mode.',
   'A DEM of difference is a terrain source like any other. Three things break it: datum, resolution, co-registration.',
   'River REM is the river-referenced cousin of the LRM, in a companion app one click away.',
   'The derivatives are the classic geomorphometry formulas, as implemented: Horn, Zevenbergen and Thorne, Weiss.',
@@ -989,6 +1043,8 @@ export default [
   P3Archaeology,
   P4Radius,
   P5Tells,
+  P5bRelief,
+  P5cGliht,
   P6Change,
   P7River,
   P8Geomorph,

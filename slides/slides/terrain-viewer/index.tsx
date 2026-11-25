@@ -687,6 +687,25 @@ const P11Docs: Page = () => (
   </Frame>
 );
 
+const P11bBeyond: Page = () => (
+  <Frame eyebrow="Beyond the browser tab" title="A tile service, a desktop app, QGIS plugins">
+    <div style={{ display: 'flex', gap: 24 }}>
+      <Card title="Tile service" accent={teal}>Every 2D mode as XYZ tiles, Float32 GeoTIFF values for GDAL and quantized-mesh terrain for Cesium and Blender, computed by the app's own code in Node. Each mode is described as an OGC API – Processes process; each export has a STAC Item.</Card>
+      <Card title="Desktop app">The same build in the system's own webview (Electrobun), for local files offline. It can run the tile service on this computer, on port 3400.</Card>
+      <Card title="QGIS plugins" accent={rose}>Terrain Viewer 0.5.0: the sidebar as a QGIS dock panel that writes tile service layers. Send2MapApp 0.5.1: the app's Open in list, from QGIS.</Card>
+    </div>
+    <div style={{ marginTop: 36 }}>
+      <Code size={23}>{`docker run -p 3400:3400 ghcr.io/iconem/terrain-viewer-tiles
+http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=mapterhorn&modes=slope
+http://localhost:3400/quantized-mesh/mapterhorn/layer.json`}</Code>
+    </div>
+    <div style={{ display: 'flex', gap: 24, marginTop: 36 }}>
+      <Card title="The app still needs none of it" accent={teal}>The website keeps computing in the browser. The service is for clients that only read tiles.</Card>
+      <Card title="Checked against the app">The same tiles drawn by the service and by the app: a mean difference of about 1 on 255 or less for most modes.</Card>
+    </div>
+  </Frame>
+);
+
 const P12Close: Page = () => (
   <Closing
     title={
@@ -736,6 +755,7 @@ export const notes: (string | undefined)[] = [
   'Bookmarks are query strings with a thumbnail. Export, import, hand them out by link.',
   'Share is the current URL. Your own remote sources are written into it so the recipient sees what you see.',
   'There is a skill and an llms.txt, so an assistant can answer a question with a link that opens the right view.',
+  'Outside the browser: the tile service hands what the app draws to anything that reads tiles, QGIS, Cesium, Blender, GDAL. The desktop app can run it locally, and the QGIS plugin gives it the app\'s sidebar. The website itself still needs no server.',
   'Open it and pan somewhere you know.',
   'Appendix: the larger models in the library. Google GEM-15 and Open Buildings, G-LiHT under the Maya canopy, the global 30 m models side by side, strips by catalogue, Sentinel-2 by date.',
 ];
@@ -758,6 +778,7 @@ export default [
   P9Bookmarks,
   P10Share,
   P11Docs,
+  P11bBeyond,
   P12Close,
   PA1Datasets,
 ] satisfies Page[];

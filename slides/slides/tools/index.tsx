@@ -682,6 +682,52 @@ const P12Export: Page = () => (
   </Frame>
 );
 
+const P12bQgis: Page = () => (
+  <Frame eyebrow="QGIS plugin" title="The app's sidebar, as a QGIS dock panel">
+    <TwoCol
+      leftWidth={900}
+      left={
+        <Bullets size={25}>
+          <Li k="The same panel">Elevation Hypso, Terrain Analysis, Relief Visualization, Hillshade, Lighting Effects, Overlays: a checkbox per mode, its opacity, its settings behind a gear.</Li>
+          <Li k="Layers are addresses">each checked mode is an XYZ layer whose tile service address the panel writes; a changed setting rewrites it.</Li>
+          <Li k="Built from /processes">a new mode or parameter in the app reaches the panel without a plugin release.</Li>
+          <Li k="Values">a mode's Float32 values through /gdal.xml, for the raster calculator, zonal statistics, Identify.</Li>
+          <Li k="Open from link">paste a share link, get its layers.</Li>
+          <Li k="Freeze">copies the layers drawn now into a group named with the date and the place, to compare settings side by side.</Li>
+        </Bullets>
+      }
+      right={
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
+            <Box w={560} accent={teal}>Terrain Viewer panel in QGIS</Box>
+            <div style={{ color: ink.dim, fontSize: 32 }}>↓</div>
+            <Box w={560}>A tile service<br /><span style={{ color: dim, fontSize: 21 }}>the desktop app's, one installed from the panel, or a hosted one</span></Box>
+            <div style={{ color: ink.dim, fontSize: 32 }}>↓</div>
+            <Box w={560} accent={rose}>XYZ, vector tile and GDAL layers<br /><span style={{ color: dim, fontSize: 21 }}>opacity and blending stay QGIS settings</span></Box>
+          </div>
+          <div style={{ marginTop: 28 }}>
+            <Card title="Terrain Viewer 0.5.0" accent={teal}>One 50 KB pure-Python zip for every platform, QGIS 3.28 to 4.x. Release qgis-plugins-2026-11-25c, Install from ZIP; not on plugins.qgis.org yet.</Card>
+          </div>
+        </>
+      }
+    />
+  </Frame>
+);
+
+const P12cQgisLocal: Page = () => (
+  <Frame eyebrow="QGIS plugin" title="No server to set up, and Open in from QGIS">
+    <div style={{ display: 'flex', gap: 24 }}>
+      <Card title="Install (48 MB)" accent={teal}>Downloads this platform's tile service (Node 22, the service, sharp) from the release the plugin pins, checks its sha256 and size, unpacks it in the QGIS profile. Off until checked; Connect starts it on 127.0.0.1, and it stops with QGIS.</Card>
+      <Card title="Or the desktop app">Settings › Desktop: local tile service runs the same service on localhost:3400 while the app is open. The panel's default address points at it.</Card>
+    </div>
+    <div style={{ display: 'flex', gap: 24, marginTop: 24 }}>
+      <Card title="Experimental: compute locally" accent={rose}>14 modes in numpy, no tile service: hillshade, slope, aspect, curvature, TPI, TRI, roughness, LRM, sky view factor, openness, shadows, contours… Served as Float32 tiles GDAL reads, so QGIS's own ramps apply. 100 % within tolerance against the tile service and gdaldem.</Card>
+      <Card title="Send2MapApp 0.5.1" accent="#a78bfa">The app's Open in list in QGIS: the canvas centre or a clicked point, at the same scale, in Terrain Viewer, its historical mode, Wayback, Google Earth, ShadeMap, LiDAR Lens… A test fails when the app gains a destination the plugin lacks.</Card>
+    </div>
+    <p style={{ fontSize: 22, color: dim, margin: '28px 0 0', lineHeight: 1.4 }}>Found on the way: the numpy port's comparison with gdaldem showed the app's aspect mirrored east-west. Fixed on 2026-11-25, with a test.</p>
+  </Frame>
+);
+
 const P13Embed: Page = () => (
   <Frame eyebrow="Embedding" title="An iframe is the link in a src">
     <TwoCol
@@ -742,6 +788,10 @@ export const notes: (string | undefined)[] = [
   "Contours trace elevation or the LRM. The iso-line traces any measure: elevation, slope, every derived mode or a light's brightness, at one value or every interval, and can fill above it.",
   'Building shadows are a GPU mask over OSM footprints. The sun slider is live.',
   'Export the DEM, or every layer, raw values or coloured, on the same Web Mercator grid.',
+  `The QGIS plugin puts the app's sidebar in a QGIS dock: same groups, same modes, same settings. Each checked mode becomes an ordinary XYZ layer whose address the panel writes; a saved project reopens with its settings read back from those addresses.
+The panel is built from the tile service's process descriptions, so it follows the app. Freeze keeps a copy of what is drawn now, to compare settings.`,
+  `It needs a tile service, but nobody has to set one up: Install downloads a pinned, hash-checked copy, or the desktop app runs one. For 14 modes an experimental box computes them in QGIS's own Python, no service at all.
+Send2MapApp is the other direction: from QGIS, open the same place in the app or any of the viewers in its Open in list.`,
   'Embedding is the same link in an iframe. Presets and instruction parameters keep it short.',
   'Try the profile first.',
 ];
@@ -764,6 +814,8 @@ export default [
   P10Iso,
   P11Buildings,
   P12Export,
+  P12bQgis,
+  P12cQgisLocal,
   P13Embed,
   P14Close,
 ] satisfies Page[];

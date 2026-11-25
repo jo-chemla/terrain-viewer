@@ -8,6 +8,7 @@ const hardShadows = shot('viz-modes/hard-shadows.jpg');
 const matcap = shot('viz-modes/matcap.jpg');
 const lrmR64 = shot('viz-modes/lrm-r64.jpg');
 const sourceInfo = shot('terrain-source-info.jpg');
+const poPlain = shot('viz-modes/shadow-po-plain-sunset.jpg');
 
 // ─── Shared Terrain Viewer deck kit (same in every terrain-viewer deck) ───────
 // The look of open-slide's stock getting-started deck: white, Geist, hairline
@@ -616,6 +617,38 @@ total = clamp(0.35 + diffuse, 0, 1) + specular`}</Formula>
   </Frame>
 );
 
+const P7bShadows: Page = () => (
+  <Frame eyebrow="Live GPU shadows" title="One ray per pixel, out past the edge of the view">
+    <TwoCol
+      leftWidth={860}
+      left={
+        <>
+          <Formula label="Per fragment, a march toward the sun">{`steps: 1 texel × 40, then 1/40 of the distance
+drop = d²(1 − k) / 2R, k ≈ 0.13 for refraction`}</Formula>
+          <Formula label="Soft edge: the sun is a disc 0.53° across">{`visible = smoothstep(±0.27°, sun alt − horizon)
+penumbra ≈ 0.0093·d: 9 m at 1 km, 90 m at 10 km`}</Formula>
+          <Bullets size={24}>
+            <Li k="Two R32F mosaics">the view's DEM tiles, then the same DEM three zooms coarser, at most 36 tiles: 81 × 81 km at zoom 13 in the Alps.</Li>
+            <Li k="Far field after the view">the ray enters the coarse mosaic where it leaves the view mosaic; earlier, coarse ground would fill narrow valleys.</Li>
+            <Li k="Moving the sun">uniforms and one draw. Soft or Hard is one uniform: no recompile, no upload.</Li>
+            <Li k="Exports and the Iso-line">still read shadow:// tiles: hard, flat Earth, within the Search Radius.</Li>
+          </Bullets>
+        </>
+      }
+      right={
+        <>
+          <Shot src={poPlain} caption="The Alps' shadow over the Po plain east of Turin, sun 1.5° above the horizon from 255°" width={772} height={390} position="center" />
+          <div style={{ marginTop: 20, borderBottom: `1px solid ${ink.rule}` }}>
+            <Row k="87 km" v="that shadow with the Earth's curvature; 107 km on a flat Earth." />
+            <Row k="IoU 0.98–0.999" v="against a long-reach reference, four cases; 0.86–0.98 before the far field." />
+            <Row k="+0.2–1.5 ms" v="per 1280 × 800 frame for the far field; the soft edge under 0.1 ms in the mountains." />
+          </div>
+        </>
+      }
+    />
+  </Frame>
+);
+
 const P8SourceProtocols: Page = () => (
   <Frame eyebrow="Source protocols" title="Elevation MapLibre cannot read, as Terrarium">
     <TwoCol
@@ -795,6 +828,100 @@ const P12State: Page = () => (
   </Frame>
 );
 
+const P12bTileService: Page = () => (
+  <Frame eyebrow="Tile service" title="What the app draws, served as tiles over HTTP">
+    <div style={{ display: 'flex', gap: 18, alignItems: 'stretch' }}>
+      <Box accent={teal} w={330}>QGIS, MapLibre, CesiumJS,<br />Blender, GDAL</Box>
+      <Arrow />
+      <Box w={330}><span style={{ fontFamily: mono }}>tile-server/</span><br /><span style={{ color: dim, fontSize: 21 }}>port 3400, its API at /docs</span></Box>
+      <Arrow />
+      <Box accent={rose} w={420}>The app's code, run in Node<br /><span style={{ color: dim, fontSize: 21 }}>or the app itself in headless Chrome</span></Box>
+    </div>
+    <div style={{ marginTop: 32 }}>
+      <Code size={22}>{`/terrain-tiles/{z}/{x}/{y}.png?terrainSource=mapterhorn&modes=slope,hillshade
+/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback&imageryDate=2020-01-01
+/bbox/7.6,45.95,7.7,46/800x600.png      /render.png?lat=…&lng=…&zoom=…&viewMode=3d
+/processes   /processes/slope   /sources   /colorramps   /qgis.qgz?<a share link's query>`}</Code>
+    </div>
+    <div style={{ display: 'flex', gap: 24, marginTop: 32 }}>
+      <Card title="Every mode is a process" accent={teal}>OGC API – Processes, Part 1: each mode's settings as inputs with a JSON Schema. A process runs by asking for its tiles; POST execution answers 501 with the tile links.</Card>
+      <Card title="The app's own words">Anything else in the query is an app URL parameter: ramps, opacities, light, radii. Modes stack in the map's order, never the order written.</Card>
+      <Card title="Three ways to run it" accent={rose}>docker run -p 3400:3400 ghcr.io/iconem/terrain-viewer-tiles; the desktop app's local tile service; the QGIS plugin's Install button.</Card>
+    </div>
+  </Frame>
+);
+
+const EngineRow = ({ k, diff, direct, browser }: { k: string; diff: string; direct: string; browser: string }) => (
+  <div style={{ display: 'flex', gap: 16, padding: '10px 0', borderTop: `1px solid ${ink.rule}`, fontSize: 23, lineHeight: 1.3 }}>
+    <span style={{ flex: 1, color: ink.text }}>{k}</span>
+    <span style={{ width: 80, textAlign: 'right', fontFamily: mono, color: ink.muted }}>{diff}</span>
+    <span style={{ width: 120, textAlign: 'right', fontFamily: mono, color: teal }}>{direct}</span>
+    <span style={{ width: 130, textAlign: 'right', fontFamily: mono, color: ink.muted }}>{browser}</span>
+  </div>
+);
+
+const P12cEngines: Page = () => (
+  <Frame eyebrow="Tile service · engines" title="The app's code in Node, or the app in a browser">
+    <TwoCol
+      leftWidth={800}
+      left={
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+          <Card title="Direct: headless, Node + sharp" accent={teal}>Rebuilds the map's layer stack from the URL and computes each layer with the app's code bundled for Node: lib/*-protocol.ts, MapLibre's hillshade passes and the matcap and Phong shaders rewritten in JavaScript. Worker threads, one tile each.</Card>
+          <Card title="Browser: the app in headless Chrome">For 3D, tilted, rotated and split views and the imagery. Opens the app on the 2048 px block that holds the tile, cuts it into 64 tiles, keeps them a week: 3 to 10 s, then under 0.1 s.</Card>
+          <Card title="The same readers" accent={rose}>The app's protocols, registered in Node through the same registry: Terrarium, COG, VRT, WMS and WCS, LERC, PMTiles, quantized mesh, differences.</Card>
+        </div>
+      }
+      right={
+        <>
+          <div style={{ display: 'flex', gap: 16, paddingBottom: 10, fontSize: 19, color: ink.muted }}>
+            <span style={{ flex: 1 }}>Same tile drawn by both</span>
+            <span style={{ width: 80, textAlign: 'right' }}>diff</span>
+            <span style={{ width: 120, textAlign: 'right' }}>direct</span>
+            <span style={{ width: 130, textAlign: 'right' }}>browser</span>
+          </div>
+          <EngineRow k="Hillshade (combined)" diff="0.9" direct="451 ms" browser="6290 ms" />
+          <EngineRow k="Colour relief" diff="0.22" direct="53 ms" browser="3931 ms" />
+          <EngineRow k="Slope" diff="0.02" direct="864 ms" browser="4607 ms" />
+          <EngineRow k="Sky-view factor" diff="0.06" direct="855 ms" browser="5691 ms" />
+          <EngineRow k="Local dominance" diff="0.09" direct="1112 ms" browser="5703 ms" />
+          <EngineRow k="Cast shadows" diff="0" direct="228 ms" browser="4094 ms" />
+          <EngineRow k="Contours" diff="2.13" direct="431 ms" browser="10951 ms" />
+          <EngineRow k="LRM + SVF + hillshade" diff="1" direct="977 ms" browser="5699 ms" />
+          <p style={{ fontSize: 20, color: dim, margin: '16px 0 0', lineHeight: 1.4 }}>Largest mean difference on 0–255 of four tiles, median times; 196 pairs at Matterhorn z12 and Paris z14 (2026-11-21). Each answer names its engine in x-tv-engine; x-tv-engine-why says why not the direct one.</p>
+        </>
+      }
+    />
+  </Frame>
+);
+
+const P12dOutputs: Page = () => (
+  <Frame eyebrow="Tile service · outputs" title="Values, meshes and provenance, not only pictures">
+    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <Card title="Float32 values, for GDAL" accent={teal}>One mode before its ramp, in natural units: slope in degrees, SVF 0 to 1, curvature in 1/m. NaN for no data, deflate with the float predictor. /gdal.xml is the whole world as one raster with overviews.</Card>
+        <Code size={19}>{`/terrain-tiles/{z}/{x}/{y}.tif?modes=slope
+gdalinfo "http://localhost:3400/gdal.xml?modes=svf"`}</Code>
+      </div>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <Card title="Quantized mesh, for 3D">Any source the direct engine reads, as quantized-mesh-1.0 with vertex normals, for CesiumJS and Blender. delatin by default (about 45 % fewer triangles), martini three to four times faster to make.</Card>
+        <Code size={19}>{`/quantized-mesh/mapterhorn/layer.json
+  ?mesher=martini&maxTriangles=8000`}</Code>
+      </div>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <Card title="A STAC Item per export" accent={rose}>STAC 1.1.0 with the Processing extension: the lineage, the software version, the processes and inputs as run, derived_from the source. Worked out from the address alone; API keys left out.</Card>
+        <Code size={19}>{`…/13/4270/2911.tif.stac.json?modes=slope
+Link: <….stac.json>; rel="describedby"`}</Code>
+      </div>
+    </div>
+    <div style={{ display: 'flex', gap: 32, marginTop: 40 }}>
+      <Stat n="141" label="terrain sources at /sources, built-in and library" />
+      <Stat n="268" label="colour ramps at /colorramps" />
+      <Stat n="2–6 ms" label="to compress a 256 px value tile, beside 10–20 ms of slope" />
+      <Stat n="~1,000/s" label="cached mesh tiles served, kept gzipped" />
+    </div>
+  </Frame>
+);
+
 const P13Close: Page = () => (
   <Closing
     title={
@@ -809,6 +936,7 @@ const P13Close: Page = () => (
       'terrain-viewer.iconem.com/docs/dev/equations',
       'terrain-viewer.iconem.com/docs/dev/terrain-analysis-pipeline',
       'terrain-viewer.iconem.com/docs/dev/tile-caches',
+      'terrain-viewer.iconem.com/docs/dev/tile-service',
     ]}
   />
 );
@@ -821,12 +949,20 @@ export const notes: (string | undefined)[] = [
   'SVF and openness march the horizon in eight directions. A max cannot be coarsened; a mean can, which is why local dominance can use the pyramid.',
   'LRM subtracts an ancestor tile. The half-pixel correction removed a slope-correlated bias.',
   'Lighting starts from a real normal on the GPU. The live path exists for view-dependent terms.',
+  `Hard Shadows now has a live GPU renderer, the default. Each pixel marches one ray toward the sun over a Float32 mosaic of the view, then over the same terrain three zooms coarser: tens of kilometres at zoom 13, hundreds at zoom 11.
+Two corrections matter at that range. The Earth curves away: 690 m of drop at 100 km, refraction included. Under a 1.5 degree sunset the Alps' shadow over the Po plain is 87 km, not the 107 a flat Earth gives.
+And the sun is a disc, 0.53 degrees: the edge softens by about 9 m per kilometre of shadow. It only shows on long shadows or close up.`,
   'Source protocols read what MapLibre cannot and hand back Terrarium.',
   'Derived modes read any source scheme. The URL carries every parameter, so the cache key is always right.',
   'The registry: one place to register, one way to fetch. Twice a scheme was missed before it existed.',
   'Two caches, and the rule: clone on both sides, return an ImageBitmap.',
   'November 2026: every per-pixel loop rewritten for the same output, then the heavy ones moved to workers. A worker does not make a tile faster; it lets several compute at once and keeps the page drawing.',
   'nuqs for the URL, jotai for the personal; the parameter list and the STAC catalog are generated from the code.',
+  `The app has no server, but other tools want what it draws. The tile service is that: one small server, one address per kind of answer, and every mode described as an OGC API Processes process.
+Running a process means asking for its tiles: a tile is milliseconds of work asked hundreds of times, which a job queue would only slow down. Run it from Docker, from the desktop app, or let the QGIS plugin install it.`,
+  `Two engines. The direct one is the app's own protocol code bundled for Node, with sharp for the image files: no browser, a tile in tens to hundreds of milliseconds. The browser engine opens the real app in headless Chrome for what only the app draws: 3D, splits, imagery.
+The table is the check: the same tiles drawn by both, a mean difference of 1 on 255 or less for most modes.`,
+  'Not only pictures. Float32 values a GIS can compute on, through GDAL; Cesium terrain for CesiumJS and Blender, from any source the direct engine reads; and a STAC Item for every export saying what made it.',
   'Read the dev pages; every formula there is transcribed from its protocol file.',
 ];
 
@@ -843,11 +979,15 @@ export default [
   P5Horizon,
   P6Lrm,
   P7Lighting,
+  P7bShadows,
   P8SourceProtocols,
   P9VizProtocols,
   P10Registry,
   P11Caches,
   P11bPerf,
   P12State,
+  P12bTileService,
+  P12cEngines,
+  P12dOutputs,
   P13Close,
 ] satisfies Page[];
