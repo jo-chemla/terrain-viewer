@@ -594,7 +594,7 @@ The browser engine suits a few views, a cache filled in advance, or pictures of 
 | `TV_RENDER_TIMEOUT` | Seconds before a request not yet answered gets a `504` | 90 |
 | `TV_ALLOWED_HOSTS` | Host names accepted in the `Host` header, comma-separated | any |
 | `TV_MAPBOX_KEY`, `TV_MAPTILER_KEY`, `TV_CESIUM_ION_KEY` | The operator's keys, used when a request gives none: anyone who can reach the service then uses them | none |
-| `EARTHDATA_TOKEN` | An Earthdata user token, for [`/proxy/earthdata`](#cors-proxy-for-nasa-g-liht). Read from the environment, else from the repository's `.env` (that key only) | none |
+| `EARTHDATA_TOKEN` | An Earthdata user token, for [`/proxy/earthdata`](#cors-proxy-for-nasa-g-liht). Read from the environment, else from the repository's `.env` (that key only; `TV_ENV_FILE` names another file: the desktop app's service reads `tile-service.env` in the app's folder, see [Desktop](/features/advanced/desktop#local-tile-service)) | none |
 | `TV_PROXY_MAX_RANGE`, `TV_PROXY_MAX_FULL` | Largest byte range, and largest whole file, the proxy passes | 16 MiB, 64 MiB |
 | `TV_PROXY_CONCURRENCY`, `TV_PROXY_TIMEOUT` | Upstream reads at a time (eight times as many wait, then `503`), and milliseconds before a `504` | 16, 60000 |
 
