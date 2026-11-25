@@ -23,9 +23,15 @@ class TerrainViewerPlugin:
         self.iface.addPluginToWebMenu("Terrain Viewer", self.action)
 
     def unload(self):
-        # The bundled tile service, if this session started it (QGIS calls
+        # The local tile service, if this session started it (QGIS calls
         # unload when it quits, and when the plugin is disabled or updated).
         local_server.stop_instance()
+        # The local compute's server thread, if it ran (live/ is only
+        # imported when its box was checked).
+        import sys
+        live = sys.modules.get(__package__ + ".live.server")
+        if live is not None:
+            live.LiveServer.shutdown()
         if self.dock:
             self.dock.health_timer.stop()
             self.iface.removeDockWidget(self.dock)
@@ -42,6 +48,6 @@ class TerrainViewerPlugin:
             self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
             self.dock.visibilityChanged.connect(self.action.setChecked)
             # The panel opening connects to the address, but never starts the
-            # bundled service: only Connect does.
+            # local service: only Connect does.
             self.dock.connect_service(start_bundled=False)
         self.dock.setVisible(on)

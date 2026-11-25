@@ -45,7 +45,7 @@ app = QgsApplication([], False)
 app.initQgis()
 import numpy as np  # noqa: E402
 
-from terrain_viewer.live import kernels, kernels_numba  # noqa: E402
+from terrain_viewer.live import kernels, kernels_numba, modes  # noqa: E402
 from terrain_viewer.live.dem import TILE, Dem, ground_resolution_m  # noqa: E402
 from terrain_viewer.live.server import LiveServer  # noqa: E402
 
@@ -83,16 +83,16 @@ def label(mode, opts):
 
 
 def opts_of(mode, o):
-    d = dict(kernels.DEFAULTS[mode])
+    d = dict(modes.DEFAULTS[mode])
     d.update(o)
     return d
 
 
 def one(mode, opts, t, xp=np):
-    g = grids[kernels.halo_of(mode, opts)][t]
+    g = grids[modes.halo_of(mode, opts)][t]
     if xp is not np:
         g = xp.asarray(g)
-    v = kernels.render(mode, g, TILE, ground_resolution_m(t[0], t[2]), opts, xp)
+    v = modes.render(mode, g, TILE, ground_resolution_m(t[0], t[2]), opts, xp)
     return v if xp is np else xp.asnumpy(v)
 
 
@@ -134,7 +134,7 @@ def node_ms(mode, opts):
         return None
     out = []
     for t in TILES:
-        halo = kernels.halo_of(mode, opts)
+        halo = modes.halo_of(mode, opts)
         g = grids[halo][t]
         g.astype(np.float32).tofile(os.path.join(tmp, "p.bin"))
         job = {"padded": os.path.join(tmp, "p.bin"), "out": os.path.join(tmp, "o.bin"), "stride": g.shape[0], "n": TILE, "halo": halo,

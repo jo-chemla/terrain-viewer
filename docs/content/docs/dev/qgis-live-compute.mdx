@@ -1,11 +1,87 @@
 ---
 title: QGIS Live Compute (experiment)
-description: Terrain modes computed inside QGIS with numpy, no tile service - hillshade, sky view factor and the shadow sweep ported and checked pixel for pixel against the app's kernels, four ways to plug them into QGIS compared, numpy, numba, cupy and the tile service timed per tile in QGIS 4.2 and 3.44.
+description: Terrain modes computed inside QGIS with numpy, no tile service - 14 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, TPI, TRI, roughness, LRM, sky view factor, openness, shadows, contours, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; served as Float32 values GDAL reads so QGIS's own colour ramps apply; parallel tiles timed before and after; numpy, numba, cupy and the tile service compared.
 ---
 
-Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-the-modes-computed-in-qgis) asks whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes for three modes of increasing cost and measures what it costs. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that is off by default (**Experimental: compute locally**).
+Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-the-modes-computed-in-qgis) asks whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that is off by default (**Experimental: compute locally**).
 
-## What was built
+## Second round: 14 modes, values, parallel tiles
+
+The same day, a second round (plugin 0.5.0) answered three questions the first one left: can the plugin serve more of the app's modes, can QGIS style them with its own colour ramps, and does the server use the cores. The box moved to the top of the panel (**Experimental: compute locally (no tile service)**, in bold, off by default); checking it lists the modes, each with a gear for its settings, and a **Draw as** choice: values (the default) or grey image tiles.
+
+### The modes and how well they match
+
+`live/modes.py` holds the modes; each gives its values over a 256 px tile in natural units, Float32, the same units as the tile service's `/terrain-tiles/{z}/{x}/{y}.tif`. `qgis-plugin/test_live.py` checks each one, tile by tile on Mont Blanc at z12, z13 and z14 (with `--service`, against a tile service of the same commit), and against GDAL's own tools where GDAL has the mode. The score is the share of pixels within the tolerance given; 100 % everywhere, in QGIS 4.2 and 3.44:
+
+| Mode | Values | Port of | Against the tile service (the app's protocol in Node) | Against GDAL |
+|---|---|---|---|---|
+| Elevation (hypsometric tint) | m | the decoded tile | 100 % (exact) | |
+| Hillshade | 0-1 | Horn, as gdaldem | | 100 % within 1 grey level (gdaldem hillshade) |
+| Multidirectional hillshade | 0-1 | gdaldem -multidirectional (four lights, 225 to 360°, weighted by aspect) | | 100 % within 1 grey level |
+| Slope | ° | `lib/slope-protocol.ts` (Horn) | 100 % within 0.1° + 0.5 %¹ | 100 % within 0.01° (gdaldem slope) |
+| Aspect | ° from north | gdaldem aspect | 100 %, mirrored² | 100 % within 0.05° (gdaldem aspect -zero_for_flat) |
+| Curvature: combined, profile, plan, det-hessian, casorati, shape-index | 1/m, 1/m², unitless | `lib/curvature-protocol.ts` | 100 % within 1e-4 1/m + 0.5 %¹ ³ | |
+| TPI | m | `lib/tpi-protocol.ts` | 100 % (exact) | 100 % (gdaldem TPI) |
+| TRI | m | `lib/tri-protocol.ts` | 100 % (exact) | 100 % (gdaldem TRI, Riley) |
+| Roughness | m | `lib/roughness-protocol.ts` | 100 % (exact) | 100 % (gdaldem roughness) |
+| Local relief model | m | `lib/lrm-protocol.ts` (the tile minus its ancestor 4 levels up, bilinear) | 100 % within 0.05 m (median 0.001) | |
+| Sky view factor | 0-1 | `lib/horizon-kernel.ts`, precise | 100 % within 0.001 (median 5e-5) | |
+| Openness, positive and negative | ° | `lib/horizon-kernel.ts`, precise | 100 % within 0.05° (median 0.002) | |
+| Shadows | 1 lit, 0 in shadow | `lib/shadow-kernel.ts` | 0 pixels differ from the kernel run in Node, six suns | |
+| Contours (raster mask) | 1 minor, 2 major | a pixel whose 4-neighbour lies below a level it is above | | 100 %: every GDAL contour line within 1 px of the mask and back (gdal.ContourGenerate, rasterized) |
+
+¹ The service divides by the ground size at the centre of its 512 px Mapterhorn tile, the plugin at the centre of its 256 px tile: 0.1 to 0.3 % apart at 45° north, and slope also travels as Terrain-RGB, in steps of 0.1°.
+² **The app's aspect is mirrored east-west**: `lib/aspect-protocol.ts` computes `atan2(dy, -dx)` with `dx` = west minus east, so an east-facing slope reads 270° (gdaldem: 90°). The plugin follows gdaldem; the test compares it with the service's values mirrored back, and they agree to 3e-5°. The app's protocol needs the same fix (`atan2(dy, dx)`), not made here.
+³ The service packs curvature as Terrarium times 1000 over the app's own scale, so values past ±0.33 1/m (±3.3e-3 1/m² for det-hessian) are clipped there; those pixels (steep summits at z14) are left out of the comparison.
+
+Not ported: the modes that need a GPU or a whole view (matcap, Phong, the mound detector, the eigen-based ones, local dominance, the fast sky view factor with far rings), and colour relief by the app's own ramps (QGIS's ramps take that role, below).
+
+### Values and colour ramps: a GDAL source, not a Python provider
+
+The first round's open question was how to give QGIS **values** (so that QGIS's own colour ramps, Identify, the raster calculator and Processing work) rather than pictures coloured in numpy. Two designs were on the table:
+
+| | Registered Python raster provider | The localhost server's Float32 tiles read by GDAL (built) |
+|---|---|---|
+| How | a `QgsRasterDataProvider` subclass; QGIS calls `block(band, extent, w, h)` for the whole canvas | `/{mode}/{z}/{x}/{y}.tif` (Float32, NaN no data) and a GDAL WMS description (TMS minidriver, the same as the tile service's `/gdal.xml`), opened by QGIS's own `gdal` provider; the XML is the layer's source |
+| Who computes | QGIS's render thread, holding the GIL through the Python parts; one block for the whole canvas, nothing shown until it is done | the server's threads; GDAL asks up to 16 tiles at once (`MaxConnections`) and caches the blocks it read |
+| Values in QGIS | yes | yes: Identify, raster calculator, zonal statistics, Processing, Save As GeoTIFF |
+| Styling | QGIS's renderers | QGIS's renderers (the plugin sets a coloured default: a ramp of QGIS's style over the mode's range, grey and multiplied for the shades, two colours for the contour mask) |
+| Outside QGIS | no | yes: the same XML opens in gdalinfo, gdal_translate, rasterio |
+| Saved project | needs the provider registered before the project opens | needs the server running (it asks port 3420 first, so a reopened project's layers work again once the box is checked) |
+| Risk | the traps of the first probe (exit 127 on a wrong capabilities type, objects collected under QGIS) | GDAL WMS is a mature driver; the server is the one already built |
+
+**Chosen: GDAL over the server's Float32 tiles.** It reuses the server, keeps the computing off QGIS's render thread, is parallel by construction, works outside QGIS, and has the same shape as the tile service's values, so the panel treats both alike. A Terrarium-encoded PNG read through a VRT was ruled out: it quantises (1/256 m) and needs a pixel function to decode. The grey image tiles stay as **Draw as: Grey image tiles (XYZ)**, the form QGIS shows progressively, tile by tile.
+
+The coloured default per mode: hypsometric ramp (the plugin's own: QGIS's style has none) over the 2nd to 98th percentile of the elevation in view, YlOrRd for slope, Turbo for aspect, RdBu for curvature, TPI and LRM, Magma for TRI and roughness, reversed Greys for sky view factor and openness. Any of them can be changed in the layer's **Symbology** like any raster's.
+
+### Parallelism
+
+The first server already gave each request a thread (`ThreadingHTTPServer`) and fetched a tile's neighbours in parallel. This round added:
+
+- **A compute pool sized to the cores**: a semaphore with one slot per logical core around the numpy part; fetching happens before taking a slot, so a slow network never holds a core.
+- **The listen backlog**: socketserver's default queue of 5 connections overflowed as soon as more than 5 clients connected at once, and Windows retries a refused connection after about half a second. Sixteen clients got 60 to 75 tiles/s from the first server whatever the mode; raised to 128, 300 to 650.
+- **Caches**: decoded elevation within a 256 MB budget (it was 512 tiles of up to 1 MB each), and the finished tiles (64 MB LRU), so a re-render or the same mode as values and as a picture is not computed twice.
+- **Prefetch**: when the canvas moves, its elevation tiles and a ring around are fetched in the background before QGIS asks.
+- **A fix**: the address of a grey XYZ layer was written into QGIS's source by hand, so its settings were cut at the first `&` (a mode with two settings lost the second); it is now encoded by `QgsDataSourceUri`, which each QGIS version reads back (a percent-encoded address written by hand is decoded by 4.2, not by 3.44).
+
+Measured with `qgis-plugin/bench_canvas.py`: a 1920×1080 canvas at z12, z13 and z14 around Mont Blanc (48, 40 and 45 tiles), elevation already cached, every tile fresh (a cache-busting parameter), median of 3 runs, QGIS 4.2 on the 20-core laptop; "before" is the cb7c545 server, timed the same way.
+
+| Server, form | Hillshade z12 / z13 / z14 | Sky view factor r = 16 | Shadows, sun 30° |
+|---|---|---|---|
+| before, grey XYZ | 33 / 34 / 40 tiles/s (1.1 to 1.5 s a canvas) | 35 / 35 / 35 | 36 / 39 / 37 |
+| after, grey XYZ | 54 / 57 / 54 (0.7 to 0.9 s) | 43 / 50 / 46 | 53 / 54 / 57 |
+| after, values (GDAL) | 244 / 206 / 100 (0.2 to 0.45 s) | 104 / 83 / 93 (0.46 to 0.48 s) | 149 / 118 / 147 (0.3 to 0.34 s) |
+
+QGIS 3.44, the same runs: before, grey XYZ 31 to 56 tiles/s (0.84 to 1.5 s a canvas); after, grey XYZ 28 to 46 (no gain: QGIS's pace, within the noise); after, values: hillshade 134 to 143 (0.3 s), sky view factor 57 to 62 (0.65 to 0.84 s), shadows 91 to 108 (0.42 to 0.48 s).
+
+- **The XYZ form is limited by QGIS**, not by the server: QGIS's XYZ provider has at most 6 tiles in flight (the server saw a peak of 6) and paces them at about 50 tiles/s. GDAL asks 16 at a time, so the values form, the default, is 2.5 to 7 times faster than before (1.5 to 3 times in 3.44).
+- **The sky view factor is bound by the GIL**: 8 directions × 16 steps × 3 small numpy calls per tile; numpy releases the GIL inside each call, but the calls are short, so more threads do not add much (about 60 to 100 tiles/s whatever the concurrency). numba, when it imports, is the remedy (`kernels_numba.py`).
+- The server alone, the 40 z13 tiles from 16 client threads: hillshade 278, shadows 110 to 180, sky view factor 60 to 90 tiles/s (before: 60 to 75 for every mode, the backlog).
+- Laptop noise is large (±30 % between runs); the ranking holds across runs.
+
+## First round
+
+### What was built
 
 - **Elevation** (`live/dem.py`): Mapterhorn's 512 px WebP Terrarium tiles (or the AWS Terrarium PNGs), decoded by `QImage`. Both QGIS 4.2 (Qt 6.11) and 3.44 (Qt 5.15) list `webp` among their image formats, and `QImage` is reentrant, so it decodes in worker threads. The RGB packing is turned into metres with numpy. The plugin always serves 256 px tiles: with a 512 px source, tile z/x/y is one quarter of tile z-1. Past the source's depth (a 404), the parent tile is upsampled. The padded grid is the 3×3 tiles around the one asked for (fetched in parallel), cropped to the halo, so the halo is at most 256 px. Decoded tiles go into an LRU cache with in-flight de-duplication, because the nine neighbours of one tile are shared by nine requests.
 - **Kernels** (`live/kernels.py`), vectorised numpy written against an array module (`xp`), so cupy runs the same code:
@@ -18,15 +94,16 @@ Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-the-modes-computed-in-q
 
 ```bash
 # headless, from qgis-plugin/ (python-qgis.bat resets PATH and PYTHONPATH)
-QT_QPA_PLATFORM=offscreen NODE=<path to node.exe> python-qgis test_live.py [out-dir]
+QT_QPA_PLATFORM=offscreen NODE=<path to node.exe> python-qgis test_live.py [--service http://127.0.0.1:3461] [out-dir]
+QT_QPA_PLATFORM=offscreen python-qgis bench_canvas.py [--old <folder with tv_old/live/>] --json canvas.json
 QT_QPA_PLATFORM=offscreen NODE=... TV_EXTRA_PYTHONPATH=<numba/cupy pip --target dir> python-qgis bench_live.py --service http://localhost:3461 --json out.json
 ```
 
-## Timings
+### Timings
 
 The test machine is a laptop with 20 logical cores and an NVIDIA RTX A1000 Laptop GPU. Both QGIS installs run the same Python 3.12.13 and numpy 2.4.6; numba 0.68 and cupy 14.2 (CUDA 12.9) were pip-installed into a scratch folder with `--target`, never into QGIS. The test set is 16 z12 tiles around Mont Blanc. Each cell is the median ms per 256 px tile, QGIS 4.2 / QGIS 3.44. The two columns are separate runs of the same code, and the gap between them is laptop noise (power states), not Qt 5 against Qt 6. Expect ±50 % from run to run.
 
-### Kernels alone (grids in memory, colour included)
+#### Kernels alone (grids in memory, colour included)
 
 | Mode | numpy, 1 thread | numpy, 8 threads (throughput) | numba, all cores | numba, 1 thread | cupy (with host↔device) | app's JS kernel in Node, 1 thread |
 |---|---|---|---|---|---|---|
@@ -36,7 +113,7 @@ The test machine is a laptop with 20 logical cores and an NVIDIA RTX A1000 Lapto
 | Shadows, r = 256, sun 45° | 4.8 / 4.5 | 2.1 / 1.6 | 2.1 / 1.7 | 3.1 / 2.4 | 16 / 14 | 3.6 / 2.5 |
 | Shadows, r = 256, sun 15° | 9.3 / 6.7 | 2.8 / 2.1 | 2.5 / 1.9 | 3.5 / 2.8 | 23 / 14 | 5.0 / 3.4 |
 
-### Whole tiles over HTTP (elevation already cached)
+#### Whole tiles over HTTP (elevation already cached)
 
 From the request to the last byte of the PNG. One at a time measures latency; 8 at a time measures throughput (wall time divided by tiles). The tile service is `tile-server/server.mjs` from the same commit, direct engine with 8 workers, on port 3461. An opacity changed by a millionth on every run keeps it from answering from its tile cache.
 
@@ -52,7 +129,7 @@ From the request to the last byte of the PNG. One at a time measures latency; 8 
 
 In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet cached) draws in 0.4 to 1.0 s. While QGIS's parallel renderer requests tiles, per-tile compute rises to about 40 ms for the sky view factor at r = 16 and 15 to 19 ms for shadows. That is GIL contention among concurrent requests (see below).
 
-### What the numbers say
+#### What the numbers say
 
 - **numpy is enough for these three modes.** Every mode stays under 15 ms per tile in one thread, below the cost of a network fetch of the tile. Shadows and hillshade are memory-bound array operations, and the vectorised sweep is as fast as V8 running the app's own loop.
 - **Threads help when the operations are large.** numpy releases the GIL inside each array operation. The shadow sweep is a few large gathers and scans, and gains 2 to 3× from 8 threads. The sky view factor is hundreds of small operations on 64k pixels (8 directions × radius), so threads mostly wait on the GIL and gain nothing (slightly worse at r = 8).
@@ -73,7 +150,7 @@ In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet ca
 | Saved project | the provider must be registered before the project opens | the plugin layer type must be registered | the address holds a port that changes each session | a file path |
 | Code | moderate; crash-prone (below) | the most | the least | little |
 
-**Chosen for the prototype: (c).** It is the least code, uses only API that QGIS 3.28 already has (tested in 3.44 and 4.2), and leaves tiling, threading, caching, resampling between zoom levels and reprojection to QGIS. Option (d) is the right shape for exports and batch runs. Option (a) is the way to get **values**. The probe showed that it works in both versions, with two traps found the hard way:
+**Chosen for the prototype: (c).** It is the least code, uses only API that QGIS 3.28 already has (tested in 3.44 and 4.2), and leaves tiling, threading, caching, resampling between zoom levels and reprojection to QGIS. Option (d) is the right shape for exports and batch runs. For values, the second round kept (c) and added Float32 tiles that GDAL reads (see [values and colour ramps](#values-and-colour-ramps-a-gdal-source-not-a-python-provider)) rather than option (a), whose probe worked in both versions but found two traps the hard way:
 
 - `capabilities()` must return the flag type the version expects (`Qgis.RasterInterfaceCapability` in 3.44 and 4.x). Returning the old `QgsRasterDataProvider.Size | Identify` makes 3.44 exit with no traceback (exit code 127).
 - The Python objects returned by the factory and by `clone()` must be kept referenced, or they are collected while QGIS still uses them.
@@ -87,16 +164,16 @@ In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet ca
 
 ## Limits of the prototype
 
-- Three modes, in grey (no colour ramps), opaque and multiplied, as the plugin shows shading layers.
+- Fourteen modes; the GPU and whole-view modes stay on the tile service (above).
 - Elevation from Mapterhorn (or AWS) only. The halo is at most one tile (256 px), which is enough for the sweep's default radius but not for its 512 px cap.
-- A project saved with the local layers points at a port that is gone the next session. Uncheck the box before saving, or re-check it after reopening.
-- Elevation is fetched with `urllib`, which ignores QGIS's proxy and authentication settings. `QgsBlockingNetworkRequest` would respect them.
-- The sky view factor is the "precise" variant; the app defaults to "fast" (far rings from coarser tiles), which is not ported.
+- A project saved with the local layers points at the server's port: it asks 3420 first, so the layers work again once the box is checked after reopening (not when that port was taken and another was given).
+- Elevation is fetched with `urllib`, which ignores QGIS's proxy and authentication settings. `QgsBlockingNetworkRequest` would respect them (the tile service installer uses it).
+- The sky view factor and openness are the "precise" variant; the app defaults to "fast" (far rings from coarser tiles), which is not ported.
 
 ## Next steps
 
-1. Colour ramps from `lib/color-ramps.ts` and the app's remaining cheap modes (aspect, curvature, TPI, TRI, roughness, LRM): a few numpy lines each, checked like these against Node.
-2. Values through option (a): a Python raster provider computing the canvas extent as Float32, as a "values" layer that needs no service.
-3. numba used when present; a fused cupy `RawKernel` only if a canvas-mosaic path is built.
-4. `QgsBlockingNetworkRequest` for proxies, a disk cache of decoded elevation, a stable port (or a scheme the layers can be re-pointed by on project load).
+1. numba used when present, with `nogil`, for the sky view factor and openness (the GIL-bound modes).
+2. The app's aspect fixed (`lib/aspect-protocol.ts`, mirrored east-west), then the test compares unmirrored.
+3. `QgsBlockingNetworkRequest` for the elevation, a disk cache of decoded tiles, the other terrain sources (any Terrarium or Terrain-RGB pyramid, a COG through GDAL).
+4. A Processing provider over the same `modes.values()`, for exports and batch runs.
 5. The tile service's sky view factor (1 to 2 s a tile): profile it.

@@ -1,11 +1,12 @@
-"""A platform zip's tile service started as the plugin starts it, without
-QGIS (for the build machines of .github/workflows/qgis-plugins.yml):
-  python smoke_bundled.py dist/terrain_viewer-<version>-<platform>.zip
-Unzips it into a temporary folder the way QGIS's installer does (no
+"""A tile service bundle started as the plugin starts it, without QGIS (for
+the build machines of .github/workflows/qgis-plugins.yml):
+  python -I smoke_bundled.py dist/terrain-viewer-tile-service-<platform>.zip
+Unzips it into a temporary folder the way the plugin's installer does (no
 executable bits), loads terrain_viewer/local_server.py alone (the package
 itself imports QGIS), starts the service, asks /processes and a /terrain-tiles
-tile drawn with sharp, stops it and checks it is gone. test_service_paths.py is the
-same check through the panel, in QGIS."""
+tile drawn with sharp, stops it and checks it is gone. test_service_paths.py
+is the same check through the panel, in QGIS, the bundle installed by the
+panel's own installer."""
 import importlib.util
 import json
 import os
@@ -15,17 +16,18 @@ import time
 import urllib.request
 import zipfile
 
+HERE = os.path.dirname(os.path.abspath(__file__))
 tmp = tempfile.mkdtemp(prefix="tv-smoke-")
 with zipfile.ZipFile(sys.argv[1]) as z:
     z.extractall(tmp)
-spec = importlib.util.spec_from_file_location("local_server", os.path.join(tmp, "terrain_viewer", "local_server.py"))
+spec = importlib.util.spec_from_file_location("local_server", os.path.join(HERE, "terrain_viewer", "local_server.py"))
 local_server = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(local_server)
 
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 failures = []
-print("bundle:", local_server.bundle_info())
-server = local_server.LocalServer()
+print("bundle:", local_server.bundle_info(tmp))
+server = local_server.LocalServer(tmp)
 t0 = time.time()
 try:
     base = server.start(timeout=90)

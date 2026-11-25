@@ -238,6 +238,168 @@ class ModeRow:
             self.dock.stack.style(layer, self.opacity_value(), self.mode.get("shading") and not key.endswith(":vector"))
 
 
+class LocalSection:
+    """The panel's "Experimental: compute locally" box, at its top: modes
+    computed in QGIS's Python (live/), no tile service. Off by default; its
+    rows are built the first time it is checked (numpy is imported then)."""
+
+    def __init__(self, dock):
+        self.dock = dock
+        self.box = QFrame()
+        self.box.setFrameShape(QFrame.Shape.StyledPanel)
+        lay = QVBoxLayout(self.box)
+        lay.setContentsMargins(6, 4, 6, 4)
+        self.check = QCheckBox("Experimental: compute locally (no tile service)")
+        f = self.check.font()
+        f.setBold(True)
+        self.check.setFont(f)
+        self.check.setToolTip("Terrain modes computed in QGIS's Python with numpy from Mapterhorn elevation tiles, served "
+                              "from a thread of QGIS on 127.0.0.1: no tile service, no Node. Drawn as values (QGIS's colour "
+                              "ramps, Identify, raster calculator) or as grey tiles.")
+        self.check.toggled.connect(dock.toggle_local)
+        lay.addWidget(self.check)
+        self.body = QWidget()
+        self.body.setVisible(False)
+        lay.addWidget(self.body)
+        self.rows = {}
+        self.form = None
+        self.built = False
+        self.timer = QTimer(dock)
+        self.timer.setSingleShot(True)
+        self.timer.setInterval(400)
+        self.timer.timeout.connect(self.apply_all)
+        self.prefetch_timer = QTimer(dock)
+        self.prefetch_timer.setSingleShot(True)
+        self.prefetch_timer.setInterval(150)
+        self.prefetch_timer.timeout.connect(self.prefetch)
+        if dock.canvas is not None:
+            dock.canvas.extentsChanged.connect(self.extent_changed)
+
+    def extent_changed(self):
+        if self.check.isChecked():
+            self.prefetch_timer.start()
+
+    def build(self):
+        from .live import modes  # numpy is only imported when asked
+        from .live.layers import DEFAULT_ON, ORDER
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        out = QHBoxLayout()
+        out.addWidget(QLabel("Draw as"))
+        self.form = QComboBox()
+        self.form.addItem("Values (QGIS colour ramps, Identify)", True)
+        self.form.addItem("Grey image tiles (XYZ)", False)
+        self.form.setToolTip("Values: Float32 rasters read by GDAL, drawn by QGIS's own renderers (another ramp or "
+                             "classification from the layer's Symbology). Grey tiles: 8-bit pictures, shown tile by tile")
+        self.form.setMinimumWidth(60)
+        self.form.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.form.currentIndexChanged.connect(lambda _i: self.apply_all())
+        out.addWidget(self.form, 1)
+        lay.addLayout(out)
+        for mode in reversed(ORDER):  # the base first, as the panel's groups read
+            spec = modes.MODES[mode]
+            row = QWidget()
+            rl = QVBoxLayout(row)
+            rl.setContentsMargins(0, 0, 0, 0)
+            rl.setSpacing(0)
+            head = QHBoxLayout()
+            check = QCheckBox(spec["label"])
+            check.setChecked(mode in DEFAULT_ON)
+            check.setToolTip(f"Values in {spec['unit']}")
+            check.toggled.connect(lambda _on, m=mode: self.apply(m))
+            head.addWidget(check, 1)
+            panel = QFrame()
+            panel.setVisible(False)
+            form = QFormLayout(panel)
+            form.setContentsMargins(18, 0, 0, 4)
+            widgets = {}
+            for key, default in spec["defaults"].items():
+                if key in spec.get("enums", {}):
+                    w = QComboBox()
+                    w.addItems(list(spec["enums"][key]))
+                    w.setCurrentText(str(default))
+                    w.currentTextChanged.connect(lambda _v: self.timer.start())
+                    get = w.currentText
+                elif isinstance(default, int):
+                    w = QSpinBox()
+                    w.setRange(1, 256)
+                    w.setValue(default)
+                    w.setKeyboardTracking(False)
+                    w.valueChanged.connect(lambda _v: self.timer.start())
+                    get = w.value
+                else:
+                    w = QDoubleSpinBox()
+                    w.setRange(-1e6, 1e6)
+                    w.setDecimals(1)
+                    w.setValue(float(default))
+                    w.setKeyboardTracking(False)
+                    w.valueChanged.connect(lambda _v: self.timer.start())
+                    get = w.value
+                widgets[key] = get
+                form.addRow(_label(key, mode), w)
+            if widgets:
+                more = QToolButton()
+                more.setText("⚙")
+                more.setCheckable(True)
+                more.setAutoRaise(True)
+                more.setToolTip("Settings")
+                more.toggled.connect(panel.setVisible)
+                head.addWidget(more)
+            rl.addLayout(head)
+            rl.addWidget(panel)
+            lay.addWidget(row)
+            self.rows[mode] = (check, widgets)
+        self.built = True
+
+    def opts(self, mode):
+        from .live import modes
+        defaults = modes.MODES[mode]["defaults"]
+        # Only what differs from the defaults goes into the address.
+        return {k: get() for k, get in self.rows[mode][1].items() if str(get()) != str(defaults[k])}
+
+    def as_values(self):
+        return self.form is None or bool(self.form.currentData())
+
+    def canvas_extent(self):
+        c = self.dock.canvas
+        if c is None:
+            return None, 0
+        try:
+            to_merc = QgsCoordinateTransform(c.mapSettings().destinationCrs(), QgsCoordinateReferenceSystem("EPSG:3857"),
+                                             QgsProject.instance())
+            return to_merc.transformBoundingBox(c.extent()), c.width()
+        except Exception:  # noqa: BLE001 - an extent outside Web Mercator
+            return None, 0
+
+    def apply(self, mode):
+        from .live.layers import LocalLayers
+        if not self.check.isChecked():
+            return
+        ext, width = self.canvas_extent()
+        LocalLayers().set_mode(mode, self.rows[mode][0].isChecked(), self.opts(mode), self.as_values(), ext, width)
+
+    def apply_all(self):
+        for mode in self.rows:
+            self.apply(mode)
+
+    def prefetch(self):
+        from .live.layers import LocalLayers
+        ext, width = self.canvas_extent()
+        if ext is not None and self.check.isChecked():
+            LocalLayers().prefetch(ext, width)
+
+    def toggle(self, on):
+        from .live.layers import LocalLayers
+        if on and not self.built:
+            self.build()
+        self.body.setVisible(on)
+        if on:
+            self.prefetch()
+            self.apply_all()
+        else:
+            LocalLayers().remove_all()
+
 class TerrainViewerDock(QDockWidget):
     def __init__(self, canvas=None, parent=None, message_bar=None):
         super().__init__("Terrain Viewer", parent)
@@ -265,6 +427,12 @@ class TerrainViewerDock(QDockWidget):
         body = QWidget()
         outer = QVBoxLayout(body)
 
+        # Experimental, off by default, at the top: modes computed here with
+        # numpy (live/), no tile service.
+        self.local_section = LocalSection(self)
+        self.local = self.local_section.check
+        outer.addWidget(self.local_section.box)
+
         line = QHBoxLayout()
         self.url = QLineEdit(s.value(f"{SETTINGS}/service", DEFAULT_SERVICE))
         self.url.setPlaceholderText("Tile service, e.g. http://localhost:3400")
@@ -274,25 +442,27 @@ class TerrainViewerDock(QDockWidget):
         line.addWidget(self.url, 1)
         line.addWidget(go)
         outer.addLayout(line)
-        # A platform zip carries a tile service (server/). Off by default:
-        # checking "Local bundled tile service" enables it, and Connect
+        # The local tile service: downloaded on demand (Install), off by
+        # default: checking "Local tile service" enables it, and Connect
         # starts it on this machine; it never starts on its own.
         self.bundled = None
         self.token = None
-        if local_server.bundled():
-            self.bundled = QCheckBox("Local bundled tile service")
-            info = local_server.bundle_info()
-            self.bundled.setToolTip(f"The tile service inside this plugin (Node {info.get('node', '?')}, {info.get('platform', '')}): "
-                                    "when checked, Connect starts it on this machine (127.0.0.1); unchecking it or quitting QGIS "
-                                    "stops it. Unchecked, the panel connects to the address above (e.g. the Terrain Viewer "
-                                    "desktop app's tile service, http://localhost:3400)")
+        self.install_btn = None
+        self.install_task = None
+        if local_server.bundled() or local_server.installable():
+            row = QHBoxLayout()
+            self.bundled = QCheckBox("Local tile service")
             self.bundled.setChecked(str(s.value(f"{SETTINGS}/bundled", "false")).lower() in ("1", "true"))
             self.bundled.toggled.connect(self.bundled_toggled)
-            outer.addWidget(self.bundled)
-            self.url.setEnabled(not self.bundled.isChecked())
+            row.addWidget(self.bundled, 1)
+            self.install_btn = QPushButton()
+            self.install_btn.clicked.connect(self.install_clicked)
+            row.addWidget(self.install_btn)
+            outer.addLayout(row)
         self.status = QLabel("Not connected")
         self.status.setWordWrap(True)
         outer.addWidget(self.status)
+        self.refresh_service_row()
 
         src = QFormLayout()
         self.source = QComboBox()
@@ -309,13 +479,13 @@ class TerrainViewerDock(QDockWidget):
             self.keys[k] = e
             src.addRow(k, e)
         if self.bundled is not None:
-            # Only for the bundled service, only from here: never shipped,
+            # Only for the local service, only from here: never shipped,
             # never in a layer's address. Read when the service starts.
             self.token = QLineEdit(s.value(f"{SETTINGS}/earthdataToken", ""))
             self.token.setEchoMode(QLineEdit.EchoMode.Password)
             self.token.setPlaceholderText("optional, for G-LiHT's protected files")
             self.token.setToolTip("A NASA Earthdata token (https://urs.earthdata.nasa.gov, Generate Token), given to the "
-                                  "bundled tile service as EARTHDATA_TOKEN when it starts; changing it restarts the service")
+                                  "local tile service as EARTHDATA_TOKEN when it starts; changing it restarts the service")
             self.token.editingFinished.connect(self.token_changed)
             src.addRow("Earthdata token", self.token)
         outer.addLayout(src)
@@ -340,13 +510,6 @@ class TerrainViewerDock(QDockWidget):
         outer.addLayout(freeze)
         self.freeze_btn = freeze_btn
 
-        # Experimental, off by default: modes computed here with numpy (live/), no tile service.
-        self.local = QCheckBox("Experimental: compute locally")
-        self.local.setToolTip("Hillshade, sky view factor and shadows computed in QGIS's Python from Mapterhorn "
-                              "elevation tiles, served to XYZ layers from a localhost thread")
-        self.local.toggled.connect(self.toggle_local)
-        outer.addWidget(self.local)
-
         self.groups_host = QWidget()
         self.groups_layout = QVBoxLayout(self.groups_host)
         self.groups_layout.setContentsMargins(0, 0, 0, 0)
@@ -359,11 +522,7 @@ class TerrainViewerDock(QDockWidget):
         self.setWidget(body)
 
     def toggle_local(self, on):
-        from .live import layers as live_layers  # numpy is only imported when asked
-        if on:
-            live_layers.add_local_layers()
-        else:
-            live_layers.remove_local_layers()
+        self.local_section.toggle(on)
 
     # -- the service ------------------------------------------------------
     def service_url(self):
@@ -386,18 +545,102 @@ class TerrainViewerDock(QDockWidget):
         self.schedule_all()
 
     def use_bundled(self):
-        return self.bundled is not None and self.bundled.isChecked()
+        return self.bundled is not None and self.bundled.isChecked() and local_server.bundled()
+
+    # -- installing the local service -------------------------------------
+    def refresh_service_row(self):
+        """The box enabled once a service is installed; the button installs it, or removes it."""
+        if self.bundled is None:
+            return
+        have = local_server.bundled()
+        info = local_server.bundle_info() if have else {}
+        self.bundled.setEnabled(have)
+        self.url.setEnabled(not (have and self.bundled.isChecked()))
+        legacy = have and local_server.current_dir() == local_server.LEGACY_DIR
+        if have:
+            self.bundled.setToolTip(f"The local tile service (Node {info.get('node', '?')}, {info.get('platform', '')}, built "
+                                    f"{info.get('built', '?')}, in {local_server.current_dir()}): when checked, Connect starts "
+                                    "it on this machine (127.0.0.1); unchecking it or quitting QGIS stops it. Unchecked, the "
+                                    "panel connects to the address above (e.g. the Terrain Viewer desktop app's tile service, "
+                                    "http://localhost:3400)")
+        else:
+            self.bundled.setToolTip("Install the local tile service first (the button on the right)")
+        self.install_btn.setVisible(not legacy)
+        if have:
+            self.install_btn.setText("Remove")
+            self.install_btn.setToolTip("Delete the downloaded tile service")
+            return
+        try:
+            from .service_install import asset
+            size = asset()[3]
+        except Exception:  # noqa: BLE001 - nothing pinned for this platform
+            size = 0
+        p = local_server.pins()
+        self.install_btn.setText("Install" + (f" ({size / 1e6:.0f} MB)" if size else ""))
+        self.install_btn.setToolTip(f"Install the local tile service: download it for {local_server.platform_label()} "
+                                    f"(Node, the service, its image libraries) from the GitHub release "
+                                    f"{p.get('release', '?')}, check its sha256, unpack it into {local_server.installed_dir()}")
+
+    def install_clicked(self):
+        if local_server.bundled():
+            from .service_install import uninstall
+            self.bundled.setChecked(False)
+            uninstall()
+            self.status.setText("Local tile service removed")
+            self.refresh_service_row()
+        else:
+            self.install_service()
+
+    def install_service(self, wait=False, fetch=None):
+        """Downloads and unpacks the pinned service, in a QgsTask (wait: in
+        this thread, for the tests). Returns True when installed (wait) or
+        started (no wait)."""
+        from .service_install import InstallError, install
+        self.install_btn.setEnabled(False)
+        self.status.setText("Downloading the local tile service...")
+
+        def done(error, where=None):
+            self.install_btn.setEnabled(True)
+            self.install_task = None
+            if error:
+                self.warn(f"The local tile service was not installed: {error}")
+            else:
+                self.status.setText(f"Local tile service installed in {where}: check Local tile service and press Connect")
+            self.refresh_service_row()
+
+        if wait:
+            try:
+                where = install(fetch=fetch)
+            except (InstallError, OSError) as e:
+                done(e)
+                return False
+            done(None, where)
+            return True
+        from qgis.core import QgsApplication, QgsTask
+
+        def run(task):
+            def progress(n, total):
+                if total > 0:
+                    task.setProgress(100.0 * n / total)
+            return install(progress=progress, fetch=fetch)
+
+        def finished(exception, result=None):
+            done(exception, result)
+        self.install_task = QgsTask.fromFunction("Installing the Terrain Viewer tile service", run, on_finished=finished)
+        self.install_task.progressChanged.connect(lambda v: self.status.setText(f"Downloading the local tile service... {v:.0f} %"))
+        QgsApplication.taskManager().addTask(self.install_task)
+        return True
 
     def bundled_toggled(self, on):
         QgsSettings().setValue(f"{SETTINGS}/bundled", "true" if on else "false")
         self.url.setEnabled(not on)
         self.health_timer.stop()
         if on:
-            self.status.setText("Bundled tile service enabled: press Connect to start it")
+            self.status.setText("Local tile service enabled: press Connect to start it")
         else:
             local_server.stop_instance()
             self.url.setText(QgsSettings().value(f"{SETTINGS}/service", DEFAULT_SERVICE))
-            self.status.setText("Bundled tile service stopped: press Connect to use the address above")
+            self.status.setText("Local tile service stopped: press Connect to use the address above")
 
     def token_changed(self):
         s = QgsSettings()
@@ -414,12 +657,12 @@ class TerrainViewerDock(QDockWidget):
         reason in the status line) when it does not start."""
         server = local_server.instance()
         if not server.running():
-            self.status.setText("Starting the bundled tile service...")
+            self.status.setText("Starting the local tile service...")
             QApplication.processEvents()
         try:
             url = server.start(earthdata_token=self.token.text().strip() if self.token is not None else "")
         except RuntimeError as e:
-            self.status.setText(f"The bundled tile service did not start: {e} (log: {server.log_path})")
+            self.status.setText(f"The local tile service did not start: {e} (log: {server.log_path})")
             return None
         self.url.setText(url)
         return url
@@ -444,7 +687,7 @@ class TerrainViewerDock(QDockWidget):
         bundled = self.use_bundled()
         if bundled and not local_server.instance().running():
             if not start_bundled:
-                self.status.setText("Bundled tile service enabled: press Connect to start it")
+                self.status.setText("Local tile service enabled: press Connect to start it")
                 return False
             if self.start_bundled() is None:
                 self.warnings.append(self.status.text())

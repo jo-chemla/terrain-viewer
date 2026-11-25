@@ -1,11 +1,18 @@
 """Headless check of the experimental local compute (terrain_viewer/live/):
-  QT_QPA_PLATFORM=offscreen python-qgis test_live.py [out-dir]
-1. The numpy kernels against the app's own (lib/shadow-kernel.ts, lib/horizon-kernel.ts
-   run by Node through live_reference.mjs) on real Mapterhorn tiles around Mont Blanc.
-2. numba's port against numpy, when numba imports.
-3. End to end: the localhost XYZ server, one XYZ layer per mode, the canvas
-   extent rendered by QGIS's parallel renderer.
-Network: tiles.mapterhorn.com."""
+  QT_QPA_PLATFORM=offscreen NODE=<node> python-qgis test_live.py [--service http://127.0.0.1:3461] [out-dir]
+1. Shadows and sky view factor against the app's own kernels (lib/shadow-kernel.ts,
+   lib/horizon-kernel.ts run by Node through live_reference.mjs).
+2. Every value mode against the tile service's values (/terrain-tiles/...tif,
+   the app's protocols run in Node), when --service is given: the share of
+   pixels within a tolerance (the "match score"), on three tiles at z12-14.
+3. The 3x3 family, hillshade (single and multidirectional) and the contour
+   mask against GDAL's own gdaldem and contour generator.
+4. numba's port against numpy, when numba imports.
+5. End to end: the localhost server, values layers (GDAL over Float32 tiles,
+   QGIS's renderers) and grey XYZ layers drawn by QGIS's parallel renderer.
+6. The panel's box: off by default, at the top, a group of layers when
+   checked, gone with the server when unchecked.
+Network: tiles.mapterhorn.com (and the tile service)."""
 import json
 import math
 import os
@@ -13,6 +20,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -24,16 +33,25 @@ from qgis.PyQt.QtCore import QEventLoop, QSize  # noqa: E402
 
 app = QgsApplication([], False)
 app.initQgis()
-out = sys.argv[1] if len(sys.argv) > 1 else tempfile.mkdtemp(prefix="tv-live-")
+args = [a for a in sys.argv[1:]]
+service = None
+if "--service" in args:
+    i = args.index("--service")
+    service = args[i + 1].rstrip("/")
+    del args[i:i + 2]
+out = args[0] if args else tempfile.mkdtemp(prefix="tv-live-")
 os.makedirs(out, exist_ok=True)
 
 import numpy as np  # noqa: E402
+from osgeo import gdal, ogr  # noqa: E402
 
-from terrain_viewer.live import kernels, kernels_numba  # noqa: E402
+from terrain_viewer.live import kernels, kernels_numba, modes  # noqa: E402
 from terrain_viewer.live.dem import TILE, Dem, ground_resolution_m  # noqa: E402
 from terrain_viewer.live.server import LiveServer  # noqa: E402
 
+gdal.UseExceptions()
 failures = []
+scores = []  # (mode, reference, score %, detail)
 
 
 def tile_of(lat, lng, z):
@@ -64,7 +82,32 @@ def reference(kind, padded, halo, **kw):
     return np.fromfile(outp, np.float32).reshape(TILE, TILE)
 
 
+def score(mode, ref_name, mine, ref, tol, circular=False, mask=None, need=99.0, rel=0.0):
+    """The share of pixels where |mine - ref| <= tol + rel |ref| (circular:
+    angles in degrees), NaN in both counted as equal."""
+    d = np.abs(mine.astype(np.float64) - ref.astype(np.float64))
+    if circular:
+        d = np.minimum(d, 360 - d)
+    raw = d.copy()
+    if rel:
+        d = d - rel * np.abs(ref.astype(np.float64))
+    both_nan = np.isnan(mine) & np.isnan(ref)
+    d[both_nan] = 0
+    d[np.isnan(d)] = np.inf
+    raw[both_nan] = 0
+    if mask is not None:
+        d, raw = d[mask], raw[mask]
+    ok = float((d <= tol).mean() * 100)
+    finite = raw[np.isfinite(raw)]
+    detail = f"median |diff| {np.median(finite):.3g}, p99 {np.percentile(finite, 99):.3g}, tol {tol:g}" + (f" + {rel:g} |ref|" if rel else "")
+    scores.append((mode, ref_name, ok, detail))
+    print(f"  {mode:<22} vs {ref_name:<14} {ok:6.2f}% within tol ({detail})", flush=True)
+    if ok < need:
+        failures.append(f"{mode} vs {ref_name}: {ok:.2f}% within {tol} (need {need}%)")
+
+
 # 1. numpy against the app's kernels.
+print("1. against the app's kernels (Node)")
 if node is None:
     print("SKIP reference: no node on PATH")
 else:
@@ -75,7 +118,7 @@ else:
         mine = kernels.shadow(padded, TILE, halo, d_row, d_col, res, math.radians(alt))
         ref = reference("shadow", padded, halo, dRow=d_row, dCol=d_col, altitudeRad=math.radians(alt))
         diff = int((mine != ref).sum())
-        print(f"shadow az {az} alt {alt}: {ref.mean() * 100:.1f}% in shadow, {diff} px differ")
+        print(f"  shadow az {az} alt {alt}: {ref.mean() * 100:.1f}% in shadow, {diff} px differ")
         if diff > TILE * TILE * 0.001:
             failures.append(f"shadow az {az} alt {alt}: {diff} px differ from lib/shadow-kernel.ts")
     for r in (8, 32):
@@ -83,11 +126,135 @@ else:
         mine = kernels.svf(padded, TILE, r, res)
         ref = reference("svf", padded, r)
         d = float(np.abs(mine - ref).max())
-        print(f"svf r {r}: max |diff| {d:.4f} (%)")
+        print(f"  svf r {r}: max |diff| {d:.4f} (%)")
         if d > 0.05:
             failures.append(f"svf r {r}: max diff {d}")
 
-# 2. numba against numpy.
+# 2. Against the tile service's values.
+TILES = [(12, 2126, 1460), (13, 4253, 2921), (14, 8507, 5843)]  # Mont Blanc, z12 to z14
+# mode -> (local opts, the service's query, tolerance in the mode's unit, circular)
+REF = [
+    ("elevation", {}, "modes=elevation", 0.01, False),
+    # The service packs slope as Terrain-RGB, 0.1 degree steps.
+    ("slope", {}, "modes=slope", 0.1, False),
+    # Relative tolerances (below, REL): the service divides by the ground
+    # size at the centre of its 512 px tile, the plugin at its 256 px tile's
+    # centre, 0.1 to 0.3 % apart at 45 degrees north; det-hessian goes as 1/L^4.
+    ("aspect", {}, "modes=aspect", 0.5, True),
+    ("tri", {}, "modes=tri", 0.05, False),
+    ("tpi", {}, "modes=tpi", 0.01, False),
+    ("roughness", {}, "modes=roughness", 0.01, False),
+    ("lrm", {"radius": 16}, "modes=lrm&lrmRadius=16", 0.05, False),
+    ("svf", {"radius": 8}, "modes=svf&svfRadius=8&svfPrecision=precise", 0.001, False),
+    ("openness", {"radius": 8, "mode": "positive"}, "modes=openness&opennessRadius=8&opennessMode=positive&opennessPrecision=precise", 0.05, False),
+    ("openness", {"radius": 8, "mode": "negative"}, "modes=openness&opennessRadius=8&opennessMode=negative&opennessPrecision=precise", 0.05, False),
+] + [("curvature", {"mode": m}, f"modes=curvature&curvatureMode={m}", tol, False) for m, tol in
+     [("combined", 1e-4), ("profile", 1e-4), ("plan", 1e-3), ("det-hessian", 1e-6), ("casorati", 1e-4), ("shape-index", 0.01)]]
+
+
+def service_values(t, query):
+    url = f"{service}/terrain-tiles/{t[0]}/{t[1]}/{t[2]}.tif?terrainSource=mapterhorn&compression=none&{query}"
+    with urllib.request.urlopen(url, timeout=300) as r:
+        data = r.read()
+    name = f"/vsimem/ref-{t[0]}-{t[1]}-{t[2]}.tif"
+    gdal.FileFromMemBuffer(name, data)
+    a = gdal.Open(name).ReadAsArray().astype(np.float32)
+    gdal.Unlink(name)
+    return a
+
+
+if service:
+    print(f"2. against the tile service's values ({service})")
+    for mode, opts, query, tol, circ in REF:
+        o = modes.parse_opts(mode, opts)
+        mine, ref = [], []
+        for t in TILES:
+            mine.append(modes.values(mode, dem.grid(*t), ground_resolution_m(t[0], t[2]), o))
+            ref.append(service_values(t, query))
+        mine, ref = np.stack(mine), np.stack(ref)
+        mask = None
+        ref_name = "tile service"
+        if mode == "aspect":
+            # The direction of flat ground is arbitrary; and the app's aspect
+            # (lib/aspect-protocol.ts) is mirrored east-west against gdaldem,
+            # which the local one follows: compared mirrored back.
+            mask = np.stack([modes.v_slope(dem.padded(*t, 1), ground_resolution_m(t[0], t[2])) > 2 for t in TILES])
+            ref = (360 - ref) % 360
+            ref_name = "tile service, mirrored E-W"
+        if mode == "curvature":
+            # The service packs curvature as Terrarium, x1000 over the app's
+            # scale: values past +-32767 / scale are clipped there.
+            clip = 32767 / {"det-hessian": 1e7, "shape-index": 1e3}.get(opts["mode"], 1e5)
+            mask = np.abs(ref) < 0.999 * clip
+        label = mode + (f":{opts['mode']}" if "mode" in opts else "")
+        score(label, ref_name, mine, ref, tol, circ, mask, rel=0.005 if mode in ("slope", "curvature") else 0.0)
+else:
+    print("2. SKIP the tile service comparison: no --service")
+
+# 3. Against gdaldem and GDAL's contours.
+print("3. against GDAL (gdaldem, contour generator)")
+
+
+def mem_dataset(a, res_m):
+    ds = gdal.GetDriverByName("MEM").Create("", a.shape[1], a.shape[0], 1, gdal.GDT_Float32)
+    ds.SetGeoTransform((0, res_m, 0, 0, 0, -res_m))
+    ds.GetRasterBand(1).WriteArray(a)
+    return ds
+
+
+def gdaldem(a, res_m, what, **kw):
+    out_name = f"/vsimem/dem-{what}.tif"
+    gdal.DEMProcessing(out_name, mem_dataset(a, res_m), what, computeEdges=False, **kw)
+    r = gdal.Open(out_name).ReadAsArray().astype(np.float32)[1:-1, 1:-1]
+    gdal.Unlink(out_name)
+    return r
+
+
+for t in TILES[:2]:
+    p = dem.padded(*t, 1)
+    r_m = ground_resolution_m(t[0], t[2])
+    tag = f"z{t[0]}"
+    score(f"hillshade {tag}", "gdaldem", 1 + 254 * modes.hillshade(p, r_m, 315, 45, 1), gdaldem(p, r_m, "hillshade", azimuth=315, altitude=45), 1.01)
+    score(f"multihillshade {tag}", "gdaldem", 1 + 254 * modes.multidirectional(p, r_m, 45, 1), gdaldem(p, r_m, "hillshade", altitude=45, multiDirectional=True), 1.01)
+    score(f"slope {tag}", "gdaldem", modes.v_slope(p, r_m), gdaldem(p, r_m, "slope"), 0.01)
+    sl = modes.v_slope(p, r_m) > 2
+    score(f"aspect {tag}", "gdaldem", modes.v_aspect(p, r_m), gdaldem(p, r_m, "aspect", zeroForFlat=True), 0.05, True, sl)
+    score(f"tri {tag}", "gdaldem", modes.v_tri(p), gdaldem(p, r_m, "TRI", alg="Riley"), 0.01)
+    score(f"tpi {tag}", "gdaldem", modes.v_tpi(p), gdaldem(p, r_m, "TPI"), 0.01)
+    score(f"roughness {tag}", "gdaldem", modes.v_roughness(p), gdaldem(p, r_m, "roughness"), 0.01)
+
+    # The contour mask against GDAL's contour lines, burnt into the same grid:
+    # each within a pixel of the other.
+    mine = ~np.isnan(modes.contour_mask(p, 50, 0))
+    src = mem_dataset(p, r_m)
+    drv = ogr.GetDriverByName("Memory")
+    vds = drv.CreateDataSource("c")
+    lyr = vds.CreateLayer("c", geom_type=ogr.wkbLineString)
+    lyr.CreateField(ogr.FieldDefn("elev", ogr.OFTReal))
+    gdal.ContourGenerate(src.GetRasterBand(1), 50, 0, [], 0, 0, lyr, -1, 0)
+    burn = gdal.GetDriverByName("MEM").Create("", p.shape[1], p.shape[0], 1, gdal.GDT_Byte)
+    burn.SetGeoTransform((0, r_m, 0, 0, 0, -r_m))
+    gdal.RasterizeLayer(burn, [1], lyr, burn_values=[1], options=["ALL_TOUCHED=TRUE"])
+    lines = burn.ReadAsArray()[1:-1, 1:-1] > 0
+
+    def grow(m):
+        g = m.copy()
+        g[1:] |= m[:-1]
+        g[:-1] |= m[1:]
+        g[:, 1:] |= m[:, :-1]
+        g[:, :-1] |= m[:, 1:]
+        return g
+    inner = np.zeros_like(mine)
+    inner[1:-1, 1:-1] = True
+    recall = float((grow(mine)[lines & inner]).mean() * 100)
+    precision = float((grow(lines)[mine & inner]).mean() * 100)
+    s = min(recall, precision)
+    scores.append((f"contours {tag}", "GDAL contours", s, f"recall {recall:.2f}%, precision {precision:.2f}% (within 1 px)"))
+    print(f"  contours {tag:<13} vs GDAL contours {s:6.2f}% (recall {recall:.2f}%, precision {precision:.2f}%, within 1 px)")
+    if s < 98:
+        failures.append(f"contours {tag}: recall {recall:.1f}%, precision {precision:.1f}%")
+
+# 4. numba against numpy.
 if kernels_numba.available:
     padded = dem.padded(z, x, y, 256)
     for az, alt in [(315, 15), (120, 8), (0, 10)]:
@@ -97,28 +264,21 @@ if kernels_numba.available:
         print(f"numba shadow az {az}: {int((a != b).sum())} px differ")
         if (a != b).sum() > TILE * TILE * 0.001:
             failures.append(f"numba shadow az {az}")
-    p8 = dem.padded(z, x, y, 8)
-    d = float(np.abs(kernels.svf(p8, TILE, 8, res) - kernels_numba.svf(p8, TILE, 8, res, *kernels_numba.svf_rays(8, res))).max())
-    p1 = dem.padded(z, x, y, 1)
-    dh = float(np.abs(kernels.hillshade(p1, res) - kernels_numba.hillshade(p1, res, 315.0, 45.0, 1.0)).max())
-    print(f"numba svf max diff {d:.4f}, hillshade {dh:.5f}")
-    if d > 0.05 or dh > 1e-3:
-        failures.append("numba svf/hillshade")
 else:
-    print("SKIP numba: not importable")
+    print("4. SKIP numba: not importable")
 
-# 3. End to end in QGIS: XYZ layers on the localhost server.
+# 5. End to end in QGIS: values (gdal) and grey XYZ layers on the localhost server.
+print("5. drawn by QGIS")
+from terrain_viewer.live.layers import LocalLayers  # noqa: E402
+
 srv = LiveServer.instance()
+ll = LocalLayers()
 merc = QgsCoordinateReferenceSystem("EPSG:3857")
 cx, cy = 6.8652 * 20037508.34 / 180, math.log(math.tan(math.radians(90 + 45.8326) / 2)) * 6378137
 ext = QgsRectangle(cx - 12000, cy - 9000, cx + 12000, cy + 9000)
-for mode, opts in [("hillshade", {}), ("slope", {}), ("svf", {"radius": 16}), ("shadows", {"altitude": 15})]:
-    uri = f"type=xyz&url={srv.xyz_url(mode, opts)}&zmin=0&zmax=17"
-    layer = QgsRasterLayer(uri, f"local {mode}", "wms")
-    if not layer.isValid():
-        failures.append(f"{mode}: layer invalid ({layer.error().summary()})")
-        continue
-    QgsProject.instance().addMapLayer(layer)
+
+
+def draw(layer, name):
     ms = QgsMapSettings()
     ms.setLayers([layer])
     ms.setDestinationCrs(merc)
@@ -127,30 +287,52 @@ for mode, opts in [("hillshade", {}), ("slope", {}), ("svf", {"radius": 16}), ("
     job = QgsMapRendererParallelJob(ms)
     loop = QEventLoop()
     job.finished.connect(loop.quit)
-    import time
     t0 = time.perf_counter()
     job.start()
     loop.exec()
     wall = (time.perf_counter() - t0) * 1000
     img = job.renderedImage()
-    img.save(os.path.join(out, f"live-{mode}.png"))
+    img.save(os.path.join(out, f"live-{name}.png"))
     rgb32 = img.convertToFormat(img.Format.Format_RGB32)  # kept alive while its bits are read
     ptr = rgb32.constBits()
     nbytes = img.width() * img.height() * 4
     if hasattr(ptr, "setsize"):
         ptr.setsize(nbytes)
-    px = np.frombuffer(ptr, np.uint8, count=nbytes).copy()
-    spread = int(px[0::4].max()) - int(px[0::4].min())
-    st = srv.stats.get(mode, {"tiles": 0, "fetch_ms": 0, "compute_ms": 0})
-    print(f"render {mode}: {wall:.0f} ms for 1024x768, {st['tiles']} tiles, "
-          f"compute {st['compute_ms'] / max(st['tiles'], 1):.1f} ms/tile, grey spread {spread}")
-    if st["tiles"] == 0 or spread < 20:
-        failures.append(f"{mode}: rendered image empty or flat")
-LiveServer.shutdown()
+    px = np.frombuffer(ptr, np.uint8, count=nbytes).reshape(-1, 4)[:, :3].astype(int)
+    return wall, int(px.max() - px.min()), len(np.unique(px[::37] @ np.array([65536, 256, 1])))
 
-# 4. The panel's off-by-default box: a group of three layers, gone when unchecked.
+
+for as_values in (True, False):
+    for mode in modes.MODES:
+        layer = ll.set_mode(mode, True, {}, as_values, ext, 1024)
+        if layer is None:
+            failures.append(f"{mode} ({'values' if as_values else 'xyz'}): layer invalid")
+            continue
+        before = srv.stats.get(mode, {}).get("tiles", 0)
+        wall, spread, colours = draw(layer, f"{mode}-{'values' if as_values else 'xyz'}")
+        tiles = srv.stats.get(mode, {}).get("tiles", 0) - before
+        kind = "values" if as_values else "grey xyz"
+        print(f"  {mode:<15} {kind:<8} {wall:6.0f} ms, {tiles:3d} tiles, spread {spread}, {colours} colours")
+        if spread < 20:
+            failures.append(f"{mode} ({kind}): rendered image empty or flat")
+        if as_values and modes.MODES[mode]["kind"] == "ramp" and colours < 8:
+            failures.append(f"{mode} (values): {colours} colours, the ramp did not apply")
+        ll.set_mode(mode, False)
+    srv.clear_results()
+# Identify reads the numbers.
+slope = ll.set_mode("slope", True, {}, True)
+from qgis.core import QgsPointXY, QgsRaster  # noqa: E402
+ident = slope.dataProvider().identify(QgsPointXY(cx, cy), QgsRaster.IdentifyFormat.IdentifyFormatValue
+                                      if hasattr(QgsRaster, "IdentifyFormat") else QgsRaster.IdentifyFormatValue).results()
+v = list(ident.values())[0] if ident else None
+print(f"  identify slope at Mont Blanc: {v}")
+if v is None or not (0 <= float(v) <= 90):
+    failures.append(f"identify slope: {v}")
+ll.remove_all()
+
+# 6. The panel's box: off by default, at the top, the default modes when checked.
 from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
-from terrain_viewer.live.layers import GROUP_PROP  # noqa: E402
+from terrain_viewer.live.layers import DEFAULT_ON, GROUP_PROP  # noqa: E402
 
 dock = TerrainViewerDock(None)
 
@@ -159,18 +341,32 @@ def local_groups():
     return [g for g in QgsProject.instance().layerTreeRoot().findGroups(True) if g.customProperty(GROUP_PROP)]
 
 
+body = dock.widget().layout()
+if body.itemAt(0).widget() is not dock.local_section.box:
+    failures.append("dock: the local compute box is not at the top of the panel")
 if dock.local.isChecked() or local_groups():
     failures.append("dock: local compute must be off by default")
 dock.local.setChecked(True)
 g = local_groups()
 names = [n.layer().name() for n in g[0].findLayers()] if g else []
 print("dock local group:", names)
-if len(g) != 1 or len(names) != 3 or not all(n.layer().isValid() for n in g[0].findLayers()):
+if len(g) != 1 or len(names) != len(DEFAULT_ON) or not all(n.layer().isValid() for n in g[0].findLayers()):
     failures.append(f"dock: local group {names}")
+dock.local_section.rows["slope"][0].setChecked(True)
+if len(local_groups()[0].findLayers()) != len(DEFAULT_ON) + 1:
+    failures.append("dock: checking slope added no layer")
+dock.local_section.form.setCurrentIndex(1)  # grey tiles
+if not all(n.layer().providerType() == "wms" for n in local_groups()[0].findLayers()):
+    failures.append("dock: grey tiles did not replace the values layers")
 dock.local.setChecked(False)
 if local_groups() or LiveServer._instance is not None:
     failures.append("dock: unchecking leaves the group or the server")
 
+print("\nmatch scores:")
+for m, ref, s, d in scores:
+    print(f"  {m:<24} {ref:<14} {s:6.2f}%  {d}")
+with open(os.path.join(out, "scores.json"), "w") as f:
+    json.dump([{"mode": m, "reference": r, "score": s, "detail": d} for m, r, s, d in scores], f, indent=1)
 print("out:", out)
 print("FAILURES:" if failures else "ALL OK", *failures, sep="\n  ")
 app.exitQgis()

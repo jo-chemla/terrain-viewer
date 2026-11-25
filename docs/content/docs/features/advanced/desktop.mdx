@@ -54,7 +54,7 @@ The desktop app can run the [tile service](/dev/tile-service) on this computer, 
 
 **With QGIS**: install the Terrain Viewer QGIS plugin (the plain zip is enough), turn the setting on here, then in QGIS open the Terrain Viewer panel (Web toolbar), keep the address `http://localhost:3400` (or the port picked here) and press **Connect**. If the app is closed or the setting off, the panel warns that the service does not answer and suggests starting the desktop app with its tile service on.
 
-How it runs: the build ships the service in `Resources/app/tile-service/` (Node 22, the service, its node_modules with the platform's sharp: the folder the QGIS plugin's platform zips carry, staged by `ci-bundle.sh` with `qgis-plugin/make_zip.py --server-dir`), about 30 MB more in the installers. The main process (`desktop/src/bun/tile-service.ts`) starts that Node as a child process. Not inside the main process: Cottontail loads sharp and runs the service, but drew a slope tile in 57 s where Node takes 5 (2026-11-25), and a crash there would take the window along.
+How it runs: the build ships the service in `Resources/app/tile-service/` (Node 22, the service, its node_modules with the platform's sharp: the same folder as the tile service bundle the QGIS plugin installs from its panel, staged by `ci-bundle.sh` with `qgis-plugin/make_zip.py --server-dir`), about 30 MB more in the installers. The main process (`desktop/src/bun/tile-service.ts`) starts that Node as a child process. Not inside the main process: Cottontail loads sharp and runs the service, but drew a slope tile in 57 s where Node takes 5 (2026-11-25), and a crash there would take the window along.
 
 ## Updates
 

@@ -1,22 +1,29 @@
 """The plugins as zips QGIS installs (Plugins > Manage and Install Plugins >
-Install from ZIP):
+Install from ZIP), and the tile service bundles the Terrain Viewer plugin
+downloads:
   python make_zip.py                 -> dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
   python make_zip.py send2map_app    -> only that one
-  python make_zip.py --bundled [windows-x64 macos-arm64 macos-x64 linux-x64]
-      -> dist/terrain_viewer-<version>-<platform>.zip: Terrain Viewer with the
-         tile service inside (terrain_viewer/server/: Node, the service and its
-         production node_modules with that platform's sharp binaries), so it
-         works with no service running. Any platform builds from any host:
-         Node comes from nodejs.org (checked against its SHASUMS256.txt) and
-         pnpm installs another platform's sharp binaries through
-         supportedArchitectures. Needs the root install and tile-server's
-         (`pnpm install` in both): tile-server/build.mjs bundles the app's
-         code into tile-server/generated/ first. Built by
+  python make_zip.py --service-bundle [windows-x64 macos-arm64 macos-x64 linux-x64]
+      -> dist/terrain-viewer-tile-service-<platform>.zip: the tile service of
+         a platform (Node, the service and its production node_modules with
+         that platform's sharp binaries; bundle.json), what the plugin's
+         "Install local tile service" downloads from the release and unpacks.
+         Any platform builds from any host: Node comes from nodejs.org
+         (checked against its SHASUMS256.txt) and pnpm installs another
+         platform's sharp binaries through supportedArchitectures. Needs the
+         root install and tile-server's (`pnpm install` in both):
+         tile-server/build.mjs bundles the app's code into
+         tile-server/generated/ first. Built by
          .github/workflows/qgis-plugins.yml for the releases.
+  python make_zip.py --pins <release-tag> <folder>
+      -> terrain_viewer/service_pins.json: that release's address and, per
+         platform, the bundle in <folder>, its sha256 and size (the plugin
+         downloads nothing else). Written before the plain zip is built.
   python make_zip.py --server-dir <platform> <folder>
-      -> that folder holds the same tile service alone (bin/node, server.mjs,
-         node_modules...): what the desktop app ships (desktop/ci-bundle.sh,
-         desktop/gen-config.mjs) and starts from its settings.
+      -> that folder holds the same tile service unzipped (bin/node,
+         server.mjs, node_modules...): what the desktop app ships
+         (desktop/ci-bundle.sh, desktop/gen-config.mjs) and starts from its
+         settings.
 The tile service shipped this way has no browser engine: playwright-core is
 left out and it runs with TV_NO_BROWSER=1, so 3D, tilted, rotated or split
 views answer 501 (QGIS asks for flat, north-up tiles only)."""
@@ -38,7 +45,7 @@ tile_server = os.path.join(repo, "tile-server")
 PLUGINS = ["terrain_viewer", "send2map_app"]
 SKIP_DIRS = {"__pycache__", "logos-hd"}  # logos-hd: the icons' sources, not used by the plugin
 
-# The Node shipped in the bundled zips: an LTS, the one the service is tested with.
+# The Node shipped in the service bundles: an LTS, the one the service is tested with.
 NODE_VERSION = "22.22.3"
 # platform label -> (nodejs.org archive suffix, pnpm os, pnpm cpu)
 TARGETS = {
@@ -62,9 +69,9 @@ def version_of(name):
     return meta["general"]["version"]
 
 
-def add_tree(z, src, arcroot):
+def add_tree(z, src, arcroot, skip_top=()):
     for root, dirs, files in os.walk(src):
-        dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS)
+        dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not (root == src and d in skip_top))
         for f in sorted(files):
             if f.endswith((".pyc", ".pyo")):
                 continue
@@ -86,11 +93,12 @@ def build(name):
     os.makedirs(os.path.join(here, "dist"), exist_ok=True)
     out = os.path.join(here, "dist", f"{name}-{version_of(name)}.zip")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        add_tree(z, os.path.join(here, name), name)
+        # server/: a tile service unpacked there for development, never shipped.
+        add_tree(z, os.path.join(here, name), name, skip_top=("server",))
     return out
 
 
-# -- the bundled variant ------------------------------------------------------
+# -- the tile service bundles ----------------------------------------------------
 
 def run(cmd, cwd):
     exe = shutil.which(cmd[0])
@@ -217,16 +225,42 @@ def stage_server(target, server):
     return info
 
 
-def build_bundled(target):
+SERVICE_BUNDLE = "terrain-viewer-tile-service-{}.zip"
+REPOSITORY = "Iconem/terrain-viewer"
+
+
+def build_service_bundle(target):
     dist = os.path.join(here, "dist")
     server = os.path.join(dist, ".stage", target, "server")
     stage_server(target, server)
-    out = os.path.join(dist, f"terrain_viewer-{version_of('terrain_viewer')}-{target}.zip")
+    out = os.path.join(dist, SERVICE_BUNDLE.format(target))
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        add_tree(z, os.path.join(here, "terrain_viewer"), "terrain_viewer")
-        add_tree(z, server, "terrain_viewer/server")
+        add_tree(z, server, "")
     print(out, f"{os.path.getsize(out) / 1e6:.1f} MB")
     return out
+
+
+def write_pins(release, folder):
+    """terrain_viewer/service_pins.json from the bundles in `folder`."""
+    assets = {}
+    for target in TARGETS:
+        path = os.path.join(folder, SERVICE_BUNDLE.format(target))
+        if not os.path.exists(path):
+            print("  no bundle for", target)
+            continue
+        with open(path, "rb") as f:
+            data = f.read()
+        assets[target] = {"file": os.path.basename(path), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+    if not assets:
+        sys.exit(f"no {SERVICE_BUNDLE.format('<platform>')} in {folder}")
+    pins = {"release": release, "base": f"https://github.com/{REPOSITORY}/releases/download/{release}", "node": NODE_VERSION,
+            "assets": assets}
+    dest = os.path.join(here, "terrain_viewer", "service_pins.json")
+    with open(dest, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(pins, f, indent=2)
+        f.write("\n")
+    print(dest, json.dumps(pins, indent=2))
+    return pins
 
 
 if __name__ == "__main__":
@@ -235,9 +269,13 @@ if __name__ == "__main__":
         if len(args) != 3:
             sys.exit("usage: make_zip.py --server-dir <platform> <folder>")
         stage_server(args[1], os.path.abspath(args[2]))
-    elif args[:1] == ["--bundled"]:
+    elif args[:1] == ["--service-bundle"]:
         for t in args[1:] or list(TARGETS):
-            build_bundled(t)
+            build_service_bundle(t)
+    elif args[:1] == ["--pins"]:
+        if len(args) != 3:
+            sys.exit("usage: make_zip.py --pins <release-tag> <folder>")
+        write_pins(args[1], os.path.abspath(args[2]))
     else:
         for name in args or PLUGINS:
             print(build(name))

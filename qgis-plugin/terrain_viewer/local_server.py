@@ -1,18 +1,25 @@
-"""The bundled tile service: the platform zips of the plugin carry one in
-terrain_viewer/server/ (Node, the service, its node_modules with that
-platform's sharp; qgis-plugin/make_zip.py --bundled). Off by default: it is
-started only when "Local bundled tile service" is checked in the panel and
-the panel connects, on this machine only (127.0.0.1), on a port of its own,
-and stopped when the box is unchecked, the plugin unloads or QGIS quits. It
-also stops by itself when its standard input closes, i.e. if QGIS goes
-without stopping it. It has no browser engine (no playwright-core, no Chrome
-or Edge looked for): QGIS asks for flat, north-up tiles, which the direct
-engine draws; anything else answers 501.
+"""The local tile service: Node, the service and its node_modules with the
+platform's sharp, as one folder (qgis-plugin/make_zip.py --service-bundle).
+The plain plugin does not carry it: "Install local tile service" in the
+panel downloads the bundle of this platform from the GitHub release named in
+service_pins.json (that version, its sha256 checked) into the plugin's data
+folder (service_install.py). A copy unpacked as terrain_viewer/server/ (a
+0.4 platform zip, a developer's build) is used first.
 
-No QGIS widget here: the panel shows `status()`; the test drives it as is."""
+Off by default: it is started only when "Local tile service" is checked in
+the panel and the panel connects, on this machine only (127.0.0.1), on a
+port of its own, and stopped when the box is unchecked, the plugin unloads
+or QGIS quits. It also stops by itself when its standard input closes, i.e.
+if QGIS goes without stopping it. It has no browser engine (no
+playwright-core, no Chrome or Edge looked for): QGIS asks for flat, north-up
+tiles, which the direct engine draws; anything else answers 501.
+
+No QGIS widget here (and no QGIS import at load: smoke_bundled.py loads this
+file alone): the panel shows `status()`; the tests drive it as is."""
 import atexit
 import json
 import os
+import platform
 import socket
 import stat
 import subprocess
@@ -22,22 +29,86 @@ import time
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SERVER_DIR = os.path.join(HERE, "server")
+LEGACY_DIR = os.path.join(HERE, "server")
+PINS = os.path.join(HERE, "service_pins.json")
 # The port asked first, so the layers of a saved project find the service
 # again next time; another free one when it is taken.
 PREFERRED_PORT = 3410
 
 
-def node_path(server_dir=SERVER_DIR):
+def platform_label():
+    """This machine as the bundles name it, or None when there is none for it."""
+    m = platform.machine().lower()
+    arm, x64 = m in ("arm64", "aarch64"), m in ("amd64", "x86_64", "x64")
+    if sys.platform == "win32" and x64:
+        return "windows-x64"
+    if sys.platform == "darwin":
+        return "macos-arm64" if arm else "macos-x64"
+    if sys.platform.startswith("linux") and x64:
+        return "linux-x64"
+    return None
+
+
+def pins():
+    """service_pins.json: the release, the base address and, per platform,
+    the bundle's file name, sha256 and size."""
+    try:
+        with open(PINS, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def service_home():
+    """Where downloaded services live: the plugin's data folder in the QGIS
+    profile (TV_SERVICE_HOME overrides it, e.g. for tests)."""
+    if os.environ.get("TV_SERVICE_HOME"):
+        return os.environ["TV_SERVICE_HOME"]
+    try:
+        from qgis.core import QgsApplication
+        base = QgsApplication.qgisSettingsDirPath()
+    except Exception:  # noqa: BLE001 - outside QGIS
+        base = os.path.join(os.path.expanduser("~"), ".terrain_viewer")
+    return os.path.join(base, "terrain_viewer", "tile-service")
+
+
+def installed_dir(p=None, plat=None):
+    """The folder the pinned bundle of this platform is (or would be) unpacked in."""
+    p = p if p is not None else pins()
+    plat = plat or platform_label()
+    if not p.get("release") or not plat:
+        return None
+    return os.path.join(service_home(), p["release"], plat)
+
+
+def current_dir():
+    """The service this plugin runs: terrain_viewer/server/ when there is
+    one, else the installed one (None when neither)."""
+    if bundled(LEGACY_DIR):
+        return LEGACY_DIR
+    d = installed_dir()
+    return d if d and bundled(d) else None
+
+
+def installable():
+    """Whether a bundle is pinned for this platform."""
+    return bool(platform_label() and platform_label() in pins().get("assets", {}))
+
+
+def node_path(server_dir):
     return os.path.join(server_dir, "bin", "node.exe" if sys.platform == "win32" else "node")
 
 
-def bundled(server_dir=SERVER_DIR):
-    """Whether this copy of the plugin carries a tile service."""
-    return os.path.isfile(node_path(server_dir)) and os.path.isfile(os.path.join(server_dir, "server.mjs"))
+def bundled(server_dir=None):
+    """Whether a tile service is at hand (in `server_dir`, or the one this plugin runs)."""
+    server_dir = server_dir or current_dir()
+    return bool(server_dir) and os.path.isfile(node_path(server_dir)) and os.path.isfile(os.path.join(server_dir, "server.mjs"))
 
 
-def bundle_info(server_dir=SERVER_DIR):
+def bundle_info(server_dir=None):
+    server_dir = server_dir or current_dir()
+    if not server_dir:
+        return {}
     try:
         with open(os.path.join(server_dir, "bundle.json"), encoding="utf-8") as f:
             return json.load(f)
@@ -70,8 +141,8 @@ def _get(url, timeout):
 class LocalServer:
     """One bundled service process."""
 
-    def __init__(self, server_dir=SERVER_DIR):
-        self.server_dir = server_dir
+    def __init__(self, server_dir=None):
+        self.server_dir = server_dir  # None: current_dir() when it starts
         self.proc = None
         self.port = None
         self.log_path = os.path.join(tempfile.gettempdir(), "terrain-viewer-qgis-tile-service.log")
@@ -87,12 +158,12 @@ class LocalServer:
 
     def status(self):
         if self.running():
-            return f"Bundled tile service running on {self.url} (process {self.proc.pid})"
+            return f"Local tile service running on {self.url} (process {self.proc.pid})"
         if self.error:
-            return f"Bundled tile service stopped: {self.error}"
+            return f"Local tile service stopped: {self.error}"
         if self.proc is not None:  # started, then gone without stop()
-            return f"Bundled tile service stopped (exit code {self.proc.returncode}, log: {self.log_path})"
-        return "Bundled tile service not started"
+            return f"Local tile service stopped (exit code {self.proc.returncode}, log: {self.log_path})"
+        return "Local tile service not started"
 
     def start(self, earthdata_token="", timeout=60):
         """Start the service if it is not running, wait until it answers
@@ -100,9 +171,10 @@ class LocalServer:
         (and the end of its log) otherwise."""
         if self.running():
             return self.url
-        if not bundled(self.server_dir):
-            raise RuntimeError("this copy of the plugin has no bundled tile service (install a platform zip)")
-        node = node_path(self.server_dir)
+        server_dir = self.server_dir or current_dir()
+        if not bundled(server_dir):
+            raise RuntimeError("no local tile service installed (Install local tile service, in the panel)")
+        node = node_path(server_dir)
         if sys.platform != "win32":
             # QGIS's zip installer drops the executable bits.
             mode = os.stat(node).st_mode
@@ -118,7 +190,7 @@ class LocalServer:
             "TV_NO_BROWSER": "1",
             # No .env is read next to the service: the token, if any, is the
             # one set in the plugin's settings.
-            "TV_ENV_FILE": os.path.join(self.server_dir, "no-such.env"),
+            "TV_ENV_FILE": os.path.join(server_dir, "no-such.env"),
         })
         if earthdata_token:
             env["EARTHDATA_TOKEN"] = earthdata_token
@@ -129,7 +201,7 @@ class LocalServer:
             kwargs["start_new_session"] = True  # Ctrl+C in QGIS's terminal is not for it
         log = open(self.log_path, "wb")
         self.error = None
-        self.proc = subprocess.Popen([node, "server.mjs"], cwd=self.server_dir, env=env, stdin=subprocess.PIPE,
+        self.proc = subprocess.Popen([node, "server.mjs"], cwd=server_dir, env=env, stdin=subprocess.PIPE,
                                      stdout=log, stderr=subprocess.STDOUT, **kwargs)
         log.close()
         deadline = time.time() + timeout

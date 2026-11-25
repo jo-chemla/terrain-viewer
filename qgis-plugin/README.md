@@ -22,26 +22,29 @@ API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b)
-(Terrain Viewer 0.4.0, Send2MapApp 0.5.1). Terrain Viewer comes plain (pure
-Python, a tile service to connect to: the Terrain Viewer desktop app's, with
-Settings > Desktop: local tile service on, is `http://localhost:3400`) or
-bundled, one zip per platform (`-windows-x64`, `-macos-arm64`, `-macos-x64`,
-`-linux-x64`, 48 to 60 MB) with the tile service inside, off by default:
-checking "Local bundled tile service" in the panel enables it, Connect starts
-it on 127.0.0.1, unchecking it or quitting QGIS stops it. It has no browser
-engine (flat, north-up tiles only, what QGIS asks for). A service that does
-not answer is warned about in the panel and the message bar; see
-[the docs](../docs/content/docs/dev/qgis-plugin.mdx#the-bundled-tile-service).
+The zips of each version are on a release: [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c)
+(Terrain Viewer 0.5.0, Send2MapApp 0.5.1). Terrain Viewer is one plain zip,
+pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
+Settings > Desktop: local tile service on, `http://localhost:3400`), a local
+or hosted one, or one installed from the panel: **Install** downloads this
+platform's tile service bundle (Node and the service, about 48 MB) from the
+release that `terrain_viewer/service_pins.json` pins, checks its sha256 and
+unpacks it into the plugin's data folder; the **Local tile service** box then
+enables it, off by default, Connect starts it on 127.0.0.1, unchecking it or
+quitting QGIS stops it. No browser engine (flat, north-up tiles only, what
+QGIS asks for). See [the docs](../docs/content/docs/dev/qgis-plugin.mdx#the-local-tile-service-installed-from-the-panel).
 To build them:
 
 ```bash
-python make_zip.py                      # dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
-python make_zip.py --bundled [platform] # dist/terrain_viewer-<version>-<platform>.zip, all four when none is named
+python make_zip.py                              # dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
+python make_zip.py --service-bundle [platform]  # dist/terrain-viewer-tile-service-<platform>.zip, all four when none is named
+python make_zip.py --pins <release-tag> dist    # terrain_viewer/service_pins.json from those bundles
 ```
 
-`.github/workflows/qgis-plugins.yml` builds them all on demand, starts each
-platform's service on its own runner, and attaches the zips to a release.
+`.github/workflows/qgis-plugins.yml` builds the bundles on demand, starts
+each platform's service on its own runner, and with a release tag attaches
+them, pins their hashes into the plain zip it then builds, and attaches that
+too, with `service_pins.json` (commit it back).
 
 In QGIS: Plugins > Manage and Install Plugins > Install from ZIP. Or, while
 working on it, link the folder into the profile's plugins folder (Windows:
@@ -49,9 +52,8 @@ working on it, link the folder into the profile's plugins folder (Windows:
 uses `QGIS4`), then enable it in the plugin manager. `send2map_app` installs
 the same way, and replaces an earlier Send2MapApp in place (same folder name).
 
-The plain zip needs a tile service: a local one (`cd tile-server && pnpm
-start`, then `http://localhost:3400`) or a hosted one. A platform zip has its
-own.
+Without any tile service, the experimental **compute locally** box at the
+top of the panel draws 14 modes computed in QGIS with numpy.
 
 ## Use
 
@@ -105,14 +107,15 @@ own.
 | `terrain_viewer/service.py` | The service's catalogs and the tile addresses (no widget) |
 | `terrain_viewer/layers.py` | The layers in the project: the group tree, creation, address rewrite, opacity, blend, vector tile style |
 | `terrain_viewer/dock.py` | The panel |
-| `terrain_viewer/local_server.py` | The bundled tile service (platform zips, `server/`): started on 127.0.0.1, stopped on unload or when QGIS goes |
+| `terrain_viewer/local_server.py` | The local tile service (installed, or a `server/` folder): started on 127.0.0.1, stopped on unload or when QGIS goes |
+| `terrain_viewer/service_install.py`, `service_pins.json` | The **Install** button: the pinned bundle downloaded through QGIS's network manager, its sha256 checked, unpacked into the plugin's data folder; **Remove** |
 | `terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.svg` | The QGIS plugin around it |
 | `send2map_app/` | The "Open in" plugin: `destinations.py` (the URL builders, no QGIS import), `send2map_apptool.py` (the canvas as a camera, the map tool, opening a URL or a KML), `send2map_app.py` (toolbar, Web menu, canvas right-click menu) |
-| `make_zip.py` | The installable zips, plain and `--bundled` per platform |
+| `make_zip.py` | The installable zips, the tile service bundles (`--service-bundle`) and their pins (`--pins`) |
 | `test_plugin.py` | A headless check of `terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
-| `test_service_paths.py` | A zip unzipped into a temporary plugins folder and driven through the panel in headless QGIS, for the bundled service or an external address (the desktop app's): Connect, processes, a slope layer, a tile, the unresponsive warnings: `QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py bundled dist/terrain_viewer-<version>-windows-x64.zip`, or `... external dist/terrain_viewer-<version>.zip http://localhost:3400 [--stop "<command>"]` |
-| `smoke_bundled.py` | The same without QGIS (the build runners): `python -I smoke_bundled.py <zip>` |
-| `terrain_viewer/live/`, `test_live.py`, `bench_live.py`, `live_reference.mjs` | Experimental, off by default (the panel's **Experimental: compute locally** box): hillshade, sky view factor and shadows computed with numpy in QGIS, served to XYZ layers from a localhost thread. `test_live.py` checks them against the app's kernels (run in Node) and draws them; `bench_live.py` times them. Findings: [QGIS Live Compute](../docs/content/docs/dev/qgis-live-compute.mdx) |
+| `test_service_paths.py` | The plain zip unzipped into a temporary plugins folder and driven through the panel in headless QGIS: `installed` (Install from a bundle served locally, or the real pinned download; a tampered download refused; Connect, a slope tile, the unresponsive warnings, Remove) or `external` (an address, the desktop app's): `QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-<version>.zip [dist/terrain-viewer-tile-service-windows-x64.zip]`, or `... external dist/terrain_viewer-<version>.zip http://localhost:3400 [--stop "<command>"]` |
+| `smoke_bundled.py` | A service bundle started without QGIS (the build runners): `python -I smoke_bundled.py dist/terrain-viewer-tile-service-<platform>.zip` |
+| `terrain_viewer/live/`, `test_live.py`, `bench_live.py`, `bench_canvas.py`, `live_reference.mjs` | Experimental, off by default (the **Experimental: compute locally** box at the top of the panel): 14 modes computed with numpy in QGIS (`live/modes.py`), served from a localhost thread as Float32 tiles GDAL reads (QGIS's colour ramps, Identify) or grey XYZ tiles. `test_live.py [--service <url>]` scores each mode against the app's kernels in Node, the tile service and gdaldem, and draws them; `bench_live.py` times the kernels, `bench_canvas.py` a 1920x1080 canvas. Findings: [QGIS Live Compute](../docs/content/docs/dev/qgis-live-compute.mdx) |
 | `test_send2map.py` | A headless check of `send2map_app`, no network: `QT_QPA_PLATFORM=offscreen python-qgis test_send2map.py` |
 | `test_open_in.py`, `open_in_reference.mjs` | `send2map_app`'s destinations against the web app's (`open-in-links.tsx`, evaluated by Node): `python test_open_in.py`, no QGIS |
 

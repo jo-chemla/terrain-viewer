@@ -1,21 +1,23 @@
-# The QGIS plugins' zips (qgis-plugin/make_zip.py): the plain ones (pure
-# Python, a tile service to connect to) and the Terrain Viewer platform zips
-# with the tile service inside (Node from nodejs.org, the service, its
-# node_modules with that platform's sharp). Each platform is built on its own
-# runner and its service started there as the plugin starts it
+# The QGIS plugins (qgis-plugin/make_zip.py): the plain zips (pure Python)
+# and the tile service bundles the Terrain Viewer plugin downloads on demand
+# ("Install local tile service": Node from nodejs.org, the service, its
+# node_modules with that platform's sharp). Each platform's bundle is built
+# on its own runner and started there as the plugin starts it
 # (qgis-plugin/smoke_bundled.py): a /processes answer and a tile drawn with
 # sharp. macOS x64 is built on the arm64 runner (make_zip.py builds any
 # platform from any host) and started under Rosetta when the runner has it.
-# On demand; with release_tag, the zips are attached to that release
+# On demand; with release_tag, the bundles are attached to that release
 # (created beforehand, --prerelease --latest=false: see
-# docs/content/docs/dev/releases.mdx).
+# docs/content/docs/dev/releases.mdx), their sha256 pinned into the plugin
+# (service_pins.json, also attached, to commit back), then the plain zips
+# built and attached: the plugin only ever downloads the bundles it pins.
 name: QGIS plugins
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Attach the zips to this existing release (e.g. qgis-plugins-2026-11-25); empty: run artifacts only"
+        description: "Attach the bundles and zips to this existing release (e.g. qgis-plugins-2026-11-25c); empty: run artifacts only"
         type: string
         default: ""
 
@@ -23,7 +25,7 @@ permissions:
   contents: write
 
 jobs:
-  bundled:
+  service:
     strategy:
       fail-fast: false
       matrix:
@@ -47,30 +49,27 @@ jobs:
         run: |
           pnpm install --frozen-lockfile --filter . --ignore-scripts
           cd tile-server && pnpm install --frozen-lockfile && node build.mjs
-      - name: Platform zips
+      - name: Service bundles
         shell: bash
-        run: python qgis-plugin/make_zip.py --bundled ${{ matrix.targets }}
-      - name: Start the bundled service, ask a tile, stop it
+        run: python qgis-plugin/make_zip.py --service-bundle ${{ matrix.targets }}
+      - name: Start the service, ask a tile, stop it
         shell: bash
-        run: |
-          v=$(sed -n 's/^version=//p' qgis-plugin/terrain_viewer/metadata.txt | tr -d '\r')
-          python -I qgis-plugin/smoke_bundled.py "qgis-plugin/dist/terrain_viewer-$v-${{ matrix.smoke }}.zip"
+        run: python -I qgis-plugin/smoke_bundled.py "qgis-plugin/dist/terrain-viewer-tile-service-${{ matrix.smoke }}.zip"
       - name: macOS x64 under Rosetta
         if: runner.os == 'macOS'
         continue-on-error: true
         shell: bash
         run: |
-          v=$(sed -n 's/^version=//p' qgis-plugin/terrain_viewer/metadata.txt | tr -d '\r')
           arch -x86_64 /usr/bin/true || { echo "no Rosetta on this runner: macos-x64 built, not started"; exit 0; }
-          python -I qgis-plugin/smoke_bundled.py "qgis-plugin/dist/terrain_viewer-$v-macos-x64.zip"
+          python -I qgis-plugin/smoke_bundled.py qgis-plugin/dist/terrain-viewer-tile-service-macos-x64.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: qgis-plugins-${{ matrix.smoke }}
-          path: qgis-plugin/dist/*.zip
+          name: tile-service-${{ matrix.smoke }}
+          path: qgis-plugin/dist/terrain-viewer-tile-service-*.zip
           retention-days: 7
 
   release:
-    needs: bundled
+    needs: service
     if: ${{ !cancelled() && inputs.release_tag != '' }}
     runs-on: ubuntu-latest
     steps:
@@ -78,13 +77,15 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: bundles
-      - name: Plain zips, and attach everything
+      - name: Pin the bundles, build the plain zips, attach everything
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 qgis-plugin/make_zip.py
           mkdir -p assets
-          find bundles -name '*.zip' -exec cp {} assets/ \;
-          cp qgis-plugin/dist/*.zip assets/
+          find bundles -name 'terrain-viewer-tile-service-*.zip' -exec cp {} assets/ \;
+          python3 qgis-plugin/make_zip.py --pins "${{ inputs.release_tag }}" assets
+          python3 qgis-plugin/make_zip.py
+          cp qgis-plugin/dist/*.zip qgis-plugin/terrain_viewer/service_pins.json assets/
+          (cd assets && sha256sum *.zip > SHA256SUMS)
           ls -la assets
-          gh release upload "${{ inputs.release_tag }}" assets/*.zip --clobber
+          gh release upload "${{ inputs.release_tag }}" assets/* --clobber

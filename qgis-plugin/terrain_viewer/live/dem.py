@@ -26,7 +26,7 @@ SOURCES = {
     # 256 px PNG, global to z15.
     "aws": {"url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png", "size": 256, "maxzoom": 15, "encoding": "terrarium"},
 }
-USER_AGENT = "terrain-viewer-qgis-live/0.1"
+USER_AGENT = "terrain-viewer-qgis-live/0.2"
 
 
 def decode(rgb, encoding):
@@ -64,9 +64,11 @@ class Dem:
     """Decoded 256 px tiles of one source, an LRU cache with in-flight
     de-duplication (nine tiles of a padded grid are shared by nine requests)."""
 
-    def __init__(self, source="mapterhorn", cache_tiles=512, workers=8):
+    def __init__(self, source="mapterhorn", cache_mb=256, workers=16):
         self.spec = SOURCES[source] if isinstance(source, str) else source
-        self.cache_tiles = cache_tiles
+        # A byte budget, not a count: a 512 px source tile is 1 MB decoded.
+        self.cache_bytes = cache_mb * 1024 * 1024
+        self.cached_bytes = 0
         self.cache = OrderedDict()
         self.inflight = {}
         self.lock = threading.Lock()
@@ -130,10 +132,11 @@ class Dem:
         finally:
             with self.lock:
                 self.inflight.pop(key, None)
-                if ev[2] is None:
+                if ev[2] is None and key not in self.cache:
                     self.cache[key] = ev[1]
-                    while len(self.cache) > self.cache_tiles:
-                        self.cache.popitem(last=False)
+                    self.cached_bytes += ev[1].nbytes
+                    while self.cached_bytes > self.cache_bytes and len(self.cache) > 1:
+                        self.cached_bytes -= self.cache.popitem(last=False)[1].nbytes
             ev[0].set()
         return v
 
@@ -165,6 +168,31 @@ class Dem:
         for (dy, dx), f in futs.items():
             mosaic[(dy + 1) * TILE:(dy + 2) * TILE, (dx + 1) * TILE:(dx + 2) * TILE] = f.result()
         return np.ascontiguousarray(mosaic[TILE - halo:2 * TILE + halo, TILE - halo:2 * TILE + halo])
+
+    def grid(self, z, x, y):
+        """The padded grids of one tile, as modes.values() asks for them
+        (grid(halo), grid.ancestor(k)), each fetched once."""
+        return TileGrid(self, z, x, y)
+
+    def prefetch(self, tiles):
+        """Starts fetching tiles [(z, x, y)] in the background (a canvas's
+        tiles, before their requests arrive)."""
+        for t in tiles:
+            self.pool.submit(self.tile, *t)
+
+
+class TileGrid:
+    def __init__(self, dem, z, x, y):
+        self.dem, self.z, self.x, self.y = dem, z, x, y
+        self._by_halo = {}
+
+    def __call__(self, halo):
+        if halo not in self._by_halo:
+            self._by_halo[halo] = self.dem.padded(self.z, self.x, self.y, halo)
+        return self._by_halo[halo]
+
+    def ancestor(self, k):
+        return self.dem.padded(self.z - k, self.x >> k, self.y >> k, 1)
 
 
 def upsample2(a):

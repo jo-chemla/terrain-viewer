@@ -65,8 +65,12 @@ DIRECTIONS = 8
 _DIRS = [(math.sin(2 * math.pi * i / DIRECTIONS), math.cos(2 * math.pi * i / DIRECTIONS)) for i in range(DIRECTIONS)]
 
 
-def svf(padded, n, radius_px, res_m, xp=np):
-    """padded: (n + 2 r)^2 -> (n, n) float32, sky view factor in percent."""
+def horizon(padded, n, radius_px, res_m, sign=1.0, aggregate="svf", xp=np):
+    """lib/horizon-kernel.ts computeHorizonRows, "precise": per direction the
+    steepest elevation-to-distance ratio over every pixel of the radius.
+    aggregate "svf": sky view factor in percent, 100 (1 - mean sin(max(angle, 0)));
+    "openness": the mean signed horizon angle, in degrees (openness is 90
+    minus it). sign -1: the terrain flipped (negative openness)."""
     r0 = radius_px
     centre = padded[r0:r0 + n, r0:r0 + n]
     acc = xp.zeros((n, n), xp.float32)
@@ -79,15 +83,25 @@ def svf(padded, n, radius_px, res_m, xp=np):
             if (rr, rc) in seen or (rr == 0 and rc == 0):
                 continue  # same pixel, same tangent: the max cannot change
             seen.add((rr, rc))
-            inv = 1.0 / (math.sqrt(rr * rr + rc * rc) * res_m)
+            inv = sign / (math.sqrt(rr * rr + rc * rc) * res_m)
             view = padded[r0 + rr:r0 + rr + n, r0 + rc:r0 + rc + n]
             xp.subtract(view, centre, out=tmp)
             tmp *= inv
             xp.maximum(best, tmp, out=best)
-        # sin(atan(t)) = t / sqrt(1 + t^2), with t clamped at 0 (horizon below).
-        t = xp.maximum(best, 0.0)
-        acc += t / xp.sqrt(1.0 + t * t)
-    return ((1.0 - acc / DIRECTIONS) * 100.0).astype(xp.float32)
+        if aggregate == "svf":
+            # sin(atan(t)) = t / sqrt(1 + t^2), with t clamped at 0 (horizon below).
+            t = xp.maximum(best, 0.0)
+            acc += t / xp.sqrt(1.0 + t * t)
+        else:
+            acc += xp.arctan(best)
+    if aggregate == "svf":
+        return ((1.0 - acc / DIRECTIONS) * 100.0).astype(xp.float32)
+    return (xp.degrees(acc / DIRECTIONS)).astype(xp.float32)
+
+
+def svf(padded, n, radius_px, res_m, xp=np):
+    """padded: (n + 2 r)^2 -> (n, n) float32, sky view factor in percent."""
+    return horizon(padded, n, radius_px, res_m, 1.0, "svf", xp)
 
 
 # ---------------------------------------------------------------- shadows
@@ -188,34 +202,3 @@ def shadow(padded, n, halo, d_row, d_col, res_m, altitude_rad, xp=np):
     return shade if row_major else shade.T
 
 
-# ---------------------------------------------------------------- one tile
-DEFAULTS = {
-    "hillshade": {"azimuth": 315.0, "altitude": 45.0, "exaggeration": 1.0},
-    "slope": {},
-    "svf": {"radius": 8, "min": 0.0, "max": 100.0},
-    "shadows": {"azimuth": 315.0, "altitude": 45.0, "radius": 256, "darkness": 0.6},
-}
-
-
-def halo_of(mode, opts):
-    if mode in ("hillshade", "slope"):
-        return 1
-    return int(opts["radius"])
-
-
-def render(mode, padded, n, res_m, opts, xp=np):
-    """-> (n, n) uint8 grey, opaque (the plugin multiplies shading layers)."""
-    if mode == "hillshade":
-        v = hillshade(padded, res_m, opts["azimuth"], opts["altitude"], opts["exaggeration"], xp) * 255.0
-    elif mode == "slope":
-        v = 255.0 - xp.clip(slope_deg(padded, res_m, xp) * (255.0 / 60.0), 0, 255)
-    elif mode == "svf":
-        lo, hi = float(opts["min"]), float(opts["max"])
-        v = xp.clip((svf(padded, n, int(opts["radius"]), res_m, xp) - lo) * (255.0 / max(hi - lo, 1e-6)), 0, 255)
-    elif mode == "shadows":
-        d_row, d_col = sun_step(opts["azimuth"])
-        s = shadow(padded, n, int(opts["radius"]), d_row, d_col, res_m, math.radians(opts["altitude"]), xp)
-        v = xp.where(s, 255.0 * (1.0 - float(opts["darkness"])), 255.0)
-    else:
-        raise ValueError(f"unknown mode {mode}")
-    return v.astype(xp.uint8)
