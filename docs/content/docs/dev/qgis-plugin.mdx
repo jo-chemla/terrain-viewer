@@ -1,34 +1,101 @@
 ---
 title: QGIS Plugins
-description: Two released QGIS plugins - Terrain Viewer 0.6.0, the app's sidebar as a QGIS panel whose modes are tile service layers (Colour and Values per mode), with an Install button for a local tile service and an experimental local compute of 16 modes in numpy - and Send2MapApp 0.5.1, the app's "Open in" list in QGIS.
+description: Two QGIS plugins - Terrain Viewer 0.7.0, the app's sidebar as a QGIS panel with three backends (a local tile service installed from the panel, a remote tile service, an experimental Python compute in numpy) under one modes tree (Colour, Values and Vector per mode) - and Send2MapApp 0.5.1, the app's "Open in" list in QGIS.
 ---
 
 Two QGIS plugins are released, both in [`qgis-plugin/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin), their zips on the repository's `qgis-plugins-*` releases ([install](#install)):
 
-- **Terrain Viewer** (0.6.0, MIT, QGIS 3.28 to 4.x): a dock panel laid out as the app's sidebar. Each checked mode is a layer of a [tile service](/dev/tile-service), with its settings in the layer's address; the panel's **Install** button downloads a local tile service for this platform (pinned, sha256 checked, off until enabled), and an experimental box at its top computes 16 modes in QGIS itself with numpy, no service at all ([QGIS Live Compute](/dev/qgis-live-compute)).
+- **Terrain Viewer** (0.7.0, MIT, QGIS 3.28 to 4.x): a dock panel laid out as the app's sidebar. A backend is picked at its top: the **local service** (a [tile service](/dev/tile-service) packaged for QGIS, downloaded and started from the panel), a **remote service** (any tile service's address), or **Python** (experimental: the modes computed in QGIS itself with numpy, no service at all, [QGIS Live Compute](/dev/qgis-live-compute)). Under all three, the same modes tree: each checked mode is a layer, with its settings in the layer's address.
 - **Send2MapApp** (0.5.1, GPL v2 or later, QGIS 3.22 to 4.x): "Open in", the place shown or clicked in QGIS opened in another viewer at the same place and scale ([below](#send2mapapp-open-in)).
 
 Both are checked headless in QGIS 4.2 and 3.44 LTR (`qgis-plugin/test_*.py`). Neither is on plugins.qgis.org yet. How they came about: [design history](#design-history).
 
 ## Terrain Viewer: the panel
 
-A dock panel laid out as the app's sidebar: the same groups (Elevation Hypso, Terrain Analysis, Relief Visualization, Hillshade, Lighting Effects, Overlays), each mode a row (its checkbox on the left, its forms on the right: **Colour**, **Values**, **Vector**) with its opacity and settings (ramp, range, radius, method) behind a gear button, a terrain source picker, the keys, and the address of a tile service.
+A dock panel laid out as the app's sidebar. From the top:
 
-- Each checked mode is a layer of the project: an XYZ layer whose address the panel writes (`/terrain-tiles/{z}/{x}/{y}.png?modes=<mode>&<its settings>`), as `/qgis.qgz` does, in a "Terrain Viewer (live)" group with the app's panel groups, stacked as the map stacks them. A changed setting rewrites that layer's address and refreshes it; only the settings that differ from the app's defaults go into it. Opacity and blending stay QGIS layer settings (the tiles are asked opaque, the shading modes multiplied; see the QGIS section of the tile service page).
-- The overlays (contours, iso-line, mound candidates, plane slicer, graticule) are raster layers as the app draws them, and on demand also vector tile layers (`.pbf`), styled by the plugin in the mode's colour.
-- The lists come from the service: `/sources` for the terrain sources, `/colorramps` for the ramps, and `/processes?expand=true`, each mode as an [OGC API - Processes](/dev/tile-service#visualization-modes-ogc-api---processes) description: the panel's groups (`x-tv-groups`) and, for each mode, its form, whether it is shading, its opacity parameter (`x-tv-` properties) and its settings as inputs (the app's URL parameters, with type, allowed values and default, from the generated URL reference). A service older than 2026-11-24 has no `/processes` and is refused with a message to update it (0.2.2 dropped the fallback to the removed `/modes` and `/tiles`). So a new mode or parameter in the app reaches the plugin without a plugin release.
-- A mode computed as numbers has a **Values** box: its values before the ramp, in natural units, as a Float32 raster GDAL reads from the service's `/gdal.xml` (see [values, not colours](/dev/tile-service#values-not-colours)), for QGIS's own analysis tools.
-- **A mode's forms** (0.6.0): checking the mode turns on its Colour layer (the first time; afterwards the forms it had); Colour and Values can each be checked alone or together, and checking one checks the mode; unchecking the mode or its last form **removes** the layers (0.5.0 only hid them, so a box and the map could disagree). A layer removed by hand in the layer tree, or by a new project, unchecks its form. The gear is shown while Colour (or Vector) is on. A changed setting rewrites the layer's address with `setDataSource`, which keeps the renderer, opacity, blending and resampling set in the layer's properties.
-- "Open from link": paste a share link, get its layers. `/view?<the link's query>` answers what the view switches on, the opacities, the parameters every layer keeps and the camera (the reading `/qgis.qgz` does).
-- **Freeze** copies the layers drawn now (the checked ones) into a new group under the live one, which stays on top, named with the date, the time and the place ("Frozen 2026-11-24 14:05 — 44.51, 4.00 z11"): XYZ, vector tile and values layers alike, every setting in their addresses, with their opacity, blending, style and order. The copies carry no mark the panel looks for, so later changes leave them as they are; several freezes stack as several groups, the newest on top, to compare settings side by side.
+1. **The backend**: three buttons, **Local service**, **Remote service**, **Python**, and under them the picked one's options (below).
+2. **The status line**: what is connected, or why not.
+3. **Source**: the terrain source (from the service's `/sources`), and a **zoom to** button that moves the map canvas to the source's bounds (the whole world for a global source such as Mapterhorn).
+4. **API keys**, folded behind a key icon: Mapbox, MapTiler, HERE, Google, Cesium ion. They are kept in QGIS's settings (`terrain_viewer/mapboxKey`, `maptilerKey`, `hereKey`, `googleKey`, `cesiumIonKey`). The three a tile service reads (`mapboxKey`, `maptilerKey`, `cesiumIonKey`) go into the address of every layer, so a project saved with a keyed source holds the key; the Python backend uses the Mapbox and MapTiler keys for those two sources. HERE and Google are the app's basemap keys: kept, sent nowhere yet.
+5. **Open link**: a share link, whole or just its query.
+6. **Freeze**.
+7. **Light**, folded: the light of hillshade, Phong, terrain shadows and building shadows, one for all as in the app. A pad (drag the point: its angle from north, clockwise, is the azimuth; its distance from the centre the elevation, 90° at the centre, 0° at the rim) and two sliders, kept in step.
+8. **The modes tree**: the app's groups (Elevation Hypso, Terrain Analysis, Relief Visualization, Hillshade, Lighting Effects, Overlays).
+
+### The three backends
+
+| Backend | What it is | When to use it | Its options |
+|---|---|---|---|
+| **Local service** | The tile service packaged for QGIS (Node, the service, its image libraries; 48 to 59 MB per platform), run on this machine (`127.0.0.1`) from the plugin's data folder | No desktop app, no server to run: every mode and source, nothing to set up | **Connect** (installs it the first time, then starts it; about 3 s), **Install** / **Remove** |
+| **Remote service** | Any tile service at an address: the [desktop app's](#with-the-desktop-app) (`http://localhost:3400`), one you run (`cd tile-server && pnpm start`, e.g. `http://localhost:3400`), or a hosted one | The desktop app is open, you develop the service, or a team shares one | The address, **Connect** |
+| **Python** (experimental) | The modes computed in QGIS's own Python with numpy and served from a thread of QGIS on `127.0.0.1` ([QGIS Live Compute](/dev/qgis-live-compute)) | No service at all, fast panning; for the modes it computes | **Connect** |
+
+- **Connect** works the same for each: the service is asked `/health` first (3 s), so a service that is not there gives one message in the status line and the message bar, and no layer is made until a backend is connected (no tile asks a dead address). Picking another backend connects to it: the checked modes' layers are re-pointed to it (their style, opacity and resampling kept), and the local service, if it ran, stops.
+- The panel opening (the toolbar button, a saved project) connects a remote service, but never starts the local service or the Python backend: those wait for **Connect**.
+- 0.6.0's bug, "with Local tile service checked, Connect does nothing": the button's `clicked(checked=False)` argument reached `connect_service(start_bundled)` as "do not start". Every button now drops it.
+- While connected to a service, its `/health` is asked every 15 s in the background; a service that went away is said once, and its return too.
+
+### One modes tree for every backend
+
+The tree comes from the service's `/processes` (each mode as an [OGC API - Processes](/dev/tile-service#visualization-modes-ogc-api---processes) description: its group, form, shading, opacity parameter, settings with their types and defaults). Before any service answers, and for the Python backend, it comes from the snapshot the plugin carries (`assets/catalog.json`, made by `qgis-plugin/make_assets.py` from a tile service), so the tree is there at once and the same under every backend. A mode or parameter added to the app reaches the panel through the service with no plugin release.
+
+- **A mode's row**: its checkbox on the left, its forms on the right, then the settings cog. A click anywhere on the row's line toggles the mode, not only on the box. The forms are **Colour** (the mode as the app draws it, an XYZ layer), **Values** (the numbers before the colour ramp, a Float32 raster GDAL reads from the service's `/gdal.xml`, for the raster calculator, zonal statistics or Identify; only for the modes computed as numbers) and, for the overlays, **Vector** then **Raster**.
+- **Overlays default to vector tiles**: checking contours, iso-line, mound candidates, plane slicer or graticule turns on its Vector form (sharp at every zoom, styled in QGIS in the mode's colour); Raster draws it as the app does.
+- Checking a mode turns on its default form (the first time; afterwards the forms it had); each form can be checked alone or with the others, and checking one checks the mode. Unchecking the mode or its last form **removes** its layers, every layer with its key (a copy made with QGIS's Duplicate Layer carries the key: 0.6.0 left it drawing), and **the groups left empty go too**, the live group itself when nothing is left. A layer removed by hand unchecks its form.
+- **Under the Python backend**, the modes it does not compute are greyed out, with a note on hover; the settings it ignores (the app's colour ramps, for instance: it draws with QGIS's) are greyed out too; and only the forms it makes show, Values only where the mode has values (hillshade is colour only).
+- **Settings**, under the cog while a drawn form is on: every number that has a usual range is a **slider with its number box**, as in the app (sun azimuth and elevation, opacities, exaggeration, radii, ranges; the box takes values beyond the slider). **Colour ramps** are a select with each ramp's preview, **matcap textures** a select with each texture's preview (the app's 20), both packaged with the plugin as sprite sheets (`assets/colorramps.png`, `assets/matcaps.png`, made by `make_assets.py` from the service's `/colorramps/{id}.png` and the app's matcap pictures). Colours are QGIS colour buttons.
+- **Symmetric ramps** (LRM, TPI, curvature, openness, local dominance, shape index, and the hypsometric tint's "symmetric"): checked, the maximum is edited and the minimum follows it live (minimum = -maximum), read only.
+- A changed setting rewrites the layer's address half a second after the last change (`setDataSource`, which keeps the renderer, opacity, blending and resampling set in the layer's properties). Only the settings that differ from the app's defaults go into it.
+- **Opacity and blending are QGIS layer settings**: the tiles are asked opaque (QGIS draws neighbouring tiles a pixel over each other, so half transparent tiles show lines along their edges); the shading modes (hillshade, Phong, terrain and building shadows) are multiplied over the layers under them.
+- Each form is a layer of the "Terrain Viewer (live)" group, in a subgroup named as the app's panel group, stacked as the map stacks them; the Python backend's layers go in the same tree (0.6.0 had a separate "local compute" group, removed on connect).
+
+#### The modes and their backends
+
+Every mode is drawn by a tile service, local or remote. The Python column is what `live/` computes in plugin 0.7.0; "in progress" marks the modes being ported (to be reconciled at release).
+
+| Mode | Group | Forms (service) | Python |
+|---|---|---|---|
+| Elevation Hypso (`colorRelief`) | | Colour, Values | Yes: Colour, Values (the range follows the view unless set) |
+| Slope | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| Aspect | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| Curvature (six forms) | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| TRI | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| TPI | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| Roughness | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| Shape index | Terrain Analysis | Colour, Values | In progress |
+| Blobness | Terrain Analysis | Colour, Values | In progress |
+| Eigen ratio | Terrain Analysis | Colour, Values | No |
+| Orientation | Terrain Analysis | Colour, Values | No |
+| Local relief model | Relief Visualization | Colour, Values | Yes: Colour, Values |
+| Sky view factor | Relief Visualization | Colour, Values | Yes: Colour, Values |
+| Openness (positive, negative) | Relief Visualization | Colour, Values | Yes: Colour, Values |
+| Local dominance | Relief Visualization | Colour, Values | In progress |
+| Hillshade | | Colour | Yes: Colour (standard; the multidirectional methods as gdaldem's multidirectional shade) |
+| Matcap | Lighting Effects | Colour | Yes: Colour |
+| Phong | Lighting Effects | Colour | Yes: Colour |
+| Terrain shadows | Lighting Effects | Colour | Yes: Colour |
+| Building shadows | Lighting Effects | Colour | No |
+| Contours | Overlays | Vector, Raster | Yes: Vector (lines for the view), Raster |
+| Iso-line | Overlays | Vector, Raster | No |
+| Plane slicer | Overlays | Vector, Raster | In progress |
+| Graticule | Overlays | Vector, Raster | In progress |
+| Mound candidates | Overlays | Vector, Raster | No |
+
+**Sources under the Python backend**: it reads Terrarium and Terrain-RGB tile pyramids, decoded in numpy: Mapterhorn (the default), AWS Terrain, the library's other Terrarium and Terrain-RGB sources with a public address (GSI Japan, LINZ New Zealand, Open Waters Seascape, Re:Earth), Mapbox and MapTiler with their keys, or a typed `{z}/{x}/{y}` address (Terrain-RGB when it says so, Terrarium otherwise). It follows the source picked: changing it re-points the layers. Not read: COGs, VRTs, LERC (Esri), WMS/WCS rasters, quantized mesh (Cesium), PMTiles and the differences of two sources; picking one says so once and draws Mapterhorn. Those need a tile service, which reads every GDAL source (in principle the Python backend could read any GDAL source too, through GDAL's warped reads; not done).
+
+### Open link, Freeze, saved projects
+
+- **Open link**: paste a share link (`https://terrain-viewer.iconem.com/?zoom=...`) or only its query (`zoom=12.34&lat=...`, with or without the `?`); its modes are checked, their settings and opacities set, the terrain source picked, the light set, the canvas moved to its camera. With a service, `/view?<the link's query>` answers what the view switches on (the reading `/qgis.qgz` does); under Python, the link's `show*` switches are read by the panel. The service is asked first: if it is not there, one message, no layer.
+- The link's source is kept: `terrainSourceA` (the app's name for view A's source) is read as the source, and an id the list lacks is added to it and picked (0.6.0 typed it into the box, where it was ignored, so the previous source, for instance `custom-at-tirol-dgm5`, stayed in every address).
+- The link's other parameters go into every layer's address only when some mode takes them (`/processes`' inputs): the app's own, such as `splitRatio`, the camera or view B's source, stay out of the tiles (0.6.0 forwarded them all).
+- **Freeze** copies the layers drawn now (the checked ones) into a new group under the live one, which stays on top, named with the date, the time and the place ("Frozen 2026-11-24 14:05 — 44.51, 4.00 z11"): XYZ, vector tile, values and the Python backend's layers alike, every setting in their addresses, with their opacity, blending, style and order. The copies carry no mark the panel looks for, so later changes leave them as they are; several freezes stack, the newest on top.
 - A saved project reopens as it was: on Connect, the panel reads its layers' addresses back into its checkboxes and settings.
-- Pure Python on QGIS's own API, no dependency. It needs a tile service: the [Terrain Viewer desktop app's](#with-the-desktop-app) (`http://localhost:3400`), one [installed from the panel](#the-local-tile-service-installed-from-the-panel) (a download, off until enabled), a local one (`cd tile-server && pnpm start`) or a hosted one; or, for 16 modes, none: the experimental [local compute](/dev/qgis-live-compute) at the top of the panel.
-- QGIS is a flat, north-up client that picks the tiles it loads: the plugin never asks for 3D, tilted, rotated or split views, so the service it talks to needs no browser.
-- When the service does not answer (at Connect, or later: the panel asks its `/health` every 15 s in the background), the status line and QGIS's message bar say so. For an address on this machine (`localhost`, `127.0.0.1`) the warning suggests starting the desktop app with its tile service on (port of the address), or a local service, and checking **Local tile service** (installed from the panel); for a remote one, checking the address or the network.
+- Pure Python on QGIS's own API, no dependency (numpy, which QGIS ships, for the Python backend). QGIS is a flat, north-up client that picks the tiles it loads: the plugin never asks for 3D, tilted, rotated or split views, so the service it talks to needs no browser.
 
 ### Install
 
-The zips are on the [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d) release (Terrain Viewer 0.6.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28); 0.5.0 stays on [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c), 0.4.0 on [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b) and 0.3.0 on [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25). Since 0.5.0 Terrain Viewer is **one plain zip** for every platform; the tile service is downloaded from the panel when wanted:
+Terrain Viewer 0.7.0 (the panel described above) is built from the repository (`python make_zip.py`) until its release; the zip grows to about 190 KB with its previews and catalog snapshot. The zips released so far are on the [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d) release (Terrain Viewer 0.6.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28); 0.5.0 stays on [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c), 0.4.0 on [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b) and 0.3.0 on [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25). Since 0.5.0 Terrain Viewer is **one plain zip** for every platform; the tile service is downloaded from the panel when wanted:
 
 | Asset | Size | What it is |
 |---|---|---|
@@ -45,12 +112,12 @@ The simplest local setup: run the [Terrain Viewer desktop app](/features/advance
 
 #### The local tile service, installed from the panel
 
-Under the address field, the panel has a **Local tile service** row: a box, disabled until a service is installed, and a button.
+The **Local service** backend, picked at the top of the panel: a line saying what is installed, an **Install** (or **Remove**) button and **Connect**. Connect installs it the first time, then starts it.
 
 - **Install (48 MB)** downloads the bundle of this platform (Windows x64, macOS arm64 or x64, Linux x64) from the GitHub release named in the plugin's `service_pins.json`, checks its sha256 and size against the pin (a different file is refused and nothing is installed), and unpacks it into the plugin's data folder in the QGIS profile, `<profile>/terrain_viewer/tile-service/<release>/<platform>/`. The download goes through QGIS's network manager (its proxy and SSL settings), in a QGIS task with its progress in the status line; GitHub's redirect to its download host is followed. A plugin version pins one release of the service, so the plugin and the service it starts are always a tested pair; a new pin installs next to the old one, which is then deleted. **Remove** stops and deletes it.
-- Installed, the box is **off by default**, so the service never runs unless asked for. Checking it only enables it; **Connect** starts it. The panel opening (the toolbar button, a saved project) never starts it: with the box on, the status line says to press Connect. Unchecked, the panel connects to the address field, e.g. the desktop app's service.
+- It runs only when asked for: picking **Local service** (or **Connect** with it picked) starts it; the panel opening (the toolbar button, a saved project) never does, the status line then says to press Connect. Picking another backend stops it.
 - **Connect** starts it as a subprocess, `bin/node server.mjs` in that folder, listening on this machine only (`127.0.0.1`), on port 3410 or, when that is taken, a free one; the address field shows it and the status line says where it runs and its process id. The first start takes about 3 s. A saved project's layers follow the port: on Connect their addresses are rewritten with the current one.
-- It stops when the plugin unloads (QGIS quitting, the plugin disabled, reinstalled or updated) or the box is unchecked; and, if QGIS goes without stopping it (a crash), by itself: it is started with `TV_EXIT_WITH_STDIN=1` and stops when its standard input, a pipe from QGIS, closes. Its log is `terrain-viewer-qgis-tile-service.log` in the system's temporary folder; the status line names it when the service does not start.
+- It stops when the plugin unloads (QGIS quitting, the plugin disabled, reinstalled or updated) or another backend is picked; and, if QGIS goes without stopping it (a crash), by itself: it is started with `TV_EXIT_WITH_STDIN=1` and stops when its standard input, a pipe from QGIS, closes. Its log is `terrain-viewer-qgis-tile-service.log` in the system's temporary folder; the status line names it when the service does not start.
 - **No Earthdata token in the plugin** (0.6.0; 0.5.0 had a field): a NASA Earthdata token for G-LiHT's protected files lives in a tile service's environment only (`EARTHDATA_TOKEN`). The service started from the panel inherits QGIS's environment, so an `EARTHDATA_TOKEN` set for QGIS reaches it; the plugin never stores one (0.6.0 deletes the old `terrain_viewer/earthdataToken` setting), no token goes into a layer's address or ships in a bundle, and the service reads no `.env` (`TV_ENV_FILE` points at nothing). The service's Earthdata proxy is unchanged.
 - **No browser engine**: the service draws what QGIS asks for, flat north-up tiles, with the direct engine (Node and sharp). playwright-core is not in the bundle and the service runs with `TV_NO_BROWSER=1`, so it never looks for Chrome or Edge; a 3D, tilted, rotated or split view, or a source only the app draws, answers 501 with a message.
 - If it stops while connected (a crash, the process killed), the background health check warns, and Connect starts it again.
@@ -71,16 +138,19 @@ From the repository:
 
 ```bash
 cd qgis-plugin
-python make_zip.py                                     # dist/terrain_viewer-0.6.0.zip and dist/send2map_app-0.5.1.zip
+python make_assets.py [http://localhost:3400]          # terrain_viewer/assets/: ramp and matcap previews, the catalog snapshot (a tile service running)
+python make_zip.py                                     # dist/terrain_viewer-0.7.0.zip and dist/send2map_app-0.5.1.zip
 python make_zip.py --service-bundle windows-x64        # dist/terrain-viewer-tile-service-windows-x64.zip (any platform from any host; none named: all four)
 python make_zip.py --pins <release-tag> dist           # terrain_viewer/service_pins.json from the bundles in dist/ (before the plain zip)
 python make_zip.py --server-dir windows-x64 <folder>   # the service unzipped, as the desktop app ships it
 python -I smoke_bundled.py dist/terrain-viewer-tile-service-windows-x64.zip   # starts it as the plugin does, asks a tile, stops it (no QGIS)
 # Through the panel, in headless QGIS, from a temporary plugins folder: Install (the bundle served from this machine and
 # pinned, a tampered one refused), Connect, processes, a slope layer, a tile, the unresponsive warnings, Remove
-QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-0.6.0.zip dist/terrain-viewer-tile-service-windows-x64.zip
-QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-0.6.0.zip   # the real download from the pinned release
-QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py external dist/terrain_viewer-0.6.0.zip http://localhost:3400 [--stop "<command>"]
+QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-0.7.0.zip dist/terrain-viewer-tile-service-windows-x64.zip
+QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-0.7.0.zip   # the real download from the pinned release
+QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py external dist/terrain_viewer-0.7.0.zip http://localhost:3400 [--stop "<command>"]
+QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py   # no service, no network: slider ranges, links, the Python mapping, the assets, the light pad
+QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/   # the panel against a service: forms, cleanup, both shadows, light, symmetric, previews, links, Freeze
 ```
 
 `--service-bundle` needs the root install and tile-server's (`tile-server/build.mjs` bundles the app's code into `generated/` first). It takes Node 22.22.3 from nodejs.org, checked against its `SHASUMS256.txt`, and installs tile-server's production dependencies flat (`node-linker=hoisted`: a zip keeps no symlinks) with pnpm's `supportedArchitectures` set to the platform, so the right `@img/sharp-*` binaries land; source maps, type declarations and playwright-core are left out. The [QGIS plugins workflow](https://github.com/Iconem/terrain-viewer/actions/workflows/qgis-plugins.yml) (`.github/workflows/qgis-plugins.yml`, on demand) builds each platform's bundle on its own runner and starts it there with `smoke_bundled.py`; with `release_tag` it attaches the bundles, writes their hashes into `service_pins.json`, builds the plain zips with those pins inside and attaches them too, with `service_pins.json` and `SHA256SUMS`. The pins file is then committed back, so the repository's plugin pins the released bundles. A release: create it (`gh release create qgis-plugins-<date> --prerelease --latest=false`), run the workflow with its tag, commit the attached `service_pins.json`.
@@ -114,4 +184,4 @@ The plan for step 2, kept for reference; what was built and measured is on [QGIS
 - **Checking:** the port is checked against the app tile by tile, as `tile-server/compare-engines.mjs` checks the direct engine against the browser: same tiles, a table of differences.
 - **Keeping in step:** two implementations of each mode drift. The comparison above runs in CI on a fixed set of tiles, so a change to a protocol that the Python port does not follow fails a check.
 
-Where it stands (0.6.0): reading through GDAL, the numpy kernels, delivery as Float32 values GDAL reads (so QGIS's own colour ramps apply) or as coloured tiles, and the tile-by-tile check are done for 16 modes, Phong and matcap included, plus contour lines as a vector layer per view (`qgis-plugin/test_live.py`, against the app's kernels in Node, the tile service and gdaldem). Not done: the comparison in CI, the Processing provider, and the modes that need a whole view (the mound detector, local dominance, the eigen-based ones); for those, the tile service layers stay the way in.
+Where it stands (0.7.0: the Python backend is one of the panel's three, under the same modes tree): reading through GDAL, the numpy kernels, delivery as Float32 values GDAL reads (so QGIS's own colour ramps apply) or as coloured tiles, and the tile-by-tile check are done for 16 modes, Phong and matcap included, plus contour lines as a vector layer per view (`qgis-plugin/test_live.py`, against the app's kernels in Node, the tile service and gdaldem). Not done: the comparison in CI, the Processing provider, and the modes that need a whole view (the mound detector, local dominance, the eigen-based ones); for those, the tile service layers stay the way in.
