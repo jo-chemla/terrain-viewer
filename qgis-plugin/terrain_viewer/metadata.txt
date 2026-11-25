@@ -5,7 +5,7 @@ qgisMaximumVersion=4.99
 supportsQt6=True
 description=Terrain Viewer's modes (slope, sky view factor, openness, matcap, contours...) as QGIS layers, set from a panel like the app's sidebar.
 about=A dock panel with the groups of Terrain Viewer's sidebar, one modes tree whatever draws it. Pick a backend at the top (radio buttons): Python backend (the modes computed in QGIS itself with numpy, no service, started when picked: every mode, from tile pyramids, COGs, VRTs, raw WMS and WCS, QGIS raster layers and anything GDAL opens), Packaged tile server (the Terrain Viewer tile service packaged for QGIS, Node and the service, about 50 MB, downloaded from the project's GitHub release the first time, its sha256 checked, started on this machine when you connect, stopped with QGIS), or Remote tile server (an address: the Terrain Viewer desktop app's, http://localhost:3400, one you run, or a hosted one). Each checked mode becomes a layer, with its settings in the layer's address; changing a setting rewrites the address. Each row has its opacity and its forms: Color (or Raster), Values (a Float32 raster for Identify, the raster calculator, Processing) and, for the overlays, Vector (vector tiles, the default). Sliders with number boxes, ramp and matcap selects with previews, a light direction pad shared by the shaded modes (free, or the sun at a date and time over the map's centre), contour labels, symmetric ramps, the source picker in groups (the project's elevation layers, the worldwide defaults, the terrain library) with a zoom to the source and the raw elevation of a library COG, VRT or WMS added as a QGIS layer, API keys behind a key. "Open link" loads the layers of a share link (or its query). "Freeze" copies the layers drawn now into a group the panel never changes, to compare settings. Updates: add the plugin repository https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml in the plugin manager's settings, or press Update in the panel when it says a newer version is out. The panel is built from what the service answers, so new modes and settings appear without a plugin update. Pure Python, no dependency.
-version=0.9.0
+version=0.9.1
 author=Iconem
 # TODO before publishing on plugins.qgis.org: email=<the maintainer's address> (required there)
 homepage=https://terrain-viewer.iconem.com/docs/dev/qgis-plugin
@@ -14,7 +14,9 @@ repository=https://github.com/Iconem/terrain-viewer
 category=Web
 icon=icon.svg
 tags=terrain,dem,elevation,hillshade,slope,sky view factor,openness,contours,lidar,archaeology,xyz,vector tiles,web,ogc api
-changelog=0.9.0
+changelog=0.9.1
+    * Blobness orientation is now the direction a feature runs (north-south 0, east-west 90), with a cyclic ramp, as in the web app; the bundled tile service rebuilt with it.
+    0.9.0
     * Updates without plugins.qgis.org: each release attaches a QGIS plugin repository (plugins.xml, also at the fixed address https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml: add it once in Plugins > Manage and Install Plugins > Settings, and tick "Show also experimental plugins"); and the panel looks for a newer version once a day and offers "Update to x.y.z" (downloaded from the release, its sha256 checked, installed over this version, the plugin reloaded)
     * The first mode checked in a fresh, empty project sets it up as QGIS would (EPSG:3857, the whole world); after every mode was unchecked, the next one keeps the canvas where it is (0.8.0 kept it every time)
     * A mode's opacity is a small slider in its row, between its name and its forms (it was under the cog)
