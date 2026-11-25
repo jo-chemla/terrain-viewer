@@ -1,16 +1,24 @@
 # Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
 
-<!-- released: 2026-11-25T13:30 -->
+<!-- released: 2026-11-25T18:00 -->
 
 #### TL;DR
 
 - **[Live GPU terrain shadows](/docs/dev/lighting-effects)**: shadows follow the sun in real time, come from relief tens of kilometres away with the Earth's curvature, and have soft edges.
 - **Search catalogs and coverage**: one forgiving search across Sources Coverage (terrain, basemaps, historical catalogs: "lidr" finds LiDAR), and one in the timeline's Catalogs picker.
-- **[Terrain as quantized mesh](/docs/dev/tile-service#quantized-mesh)**: the tile service streams any terrain source as Cesium terrain, for CesiumJS or Blender, and its relief tiles are 3 to 80 times faster.
-- **[Tile service in the desktop app](/docs/features/advanced/desktop#local-tile-service)**: one switch in Settings runs it on your computer, with addresses to copy for QGIS, Blender or Cesium. A missed app update can now be installed from About.
-- **[QGIS plugin](/docs/dev/qgis-plugin)**: installs the local tile service in one click, and can compute 14 terrain modes in QGIS itself (experimental), coloured with QGIS's own ramps.
+- **[Terrain as quantized mesh](/docs/dev/tile-service#quantized-mesh)**: the tile service streams any terrain source as Cesium terrain at true heights, for CesiumJS or Blender, and its relief tiles are 3 to 80 times faster.
+- **[Tile service in the desktop app](/docs/features/advanced/desktop#local-tile-service)**: one switch in Settings runs it on your computer, with addresses to copy for QGIS, Blender or Cesium. The app now finds updates while open and shows download progress.
+- **[QGIS plugin](/docs/dev/qgis-plugin)**: installs the local tile service in one click, and can compute 17 terrain modes in QGIS itself (experimental), as colours, values or contour lines.
 
 #### Details
+
+##### Evening of 2026-11-25
+
+- **Tile service** (`63bd534`, `50d994b`): quantized mesh meshed by martini by default (delatin with `?mesher=delatin`) and on the WGS84 ellipsoid (EGM96 geoid added, `?heights=orthometric` to opt out); `/terrain-tiles/{source}/…` and `/basemap-tiles/{source}/…` path forms, `/basemaps` list; colour ramps as pictures (`/colorramps/{id}.png`); `/view?url=` takes a whole share link; Scalar tag "Visualization modes (OGC API – Processes)", copyable wrapping quick start, full-width page at `/docs/api/tile-service/`. The drawing code's hash is in every cache key, so tiles drawn by older code are never served (shown in `/health`). Matcap and Phong 2 to 3.5 times faster, hillshade and others 15 to 35 % (`40a92e8`, no per-pixel allocation).
+- **QGIS plugin 0.6.0** (`b88d9a6`): Colour / Values boxes per mode that add and remove their layers; local Phong, matcap and live contour lines; values layers resampled bilinear; Earthdata field removed.
+- **Desktop** (`0d9b7c3`): checks for updates every hour while open, download progress with time left, quick start in its own fold.
+- **Library** (`42b0600`): Wales 1 m DTM and DSM hillshades, DSM and nDSM; Iceland's hillshade and TPI; [Research lidar endpoints](/docs/dev/research-lidar-endpoints) lists what can and can't be streamed.
+- **Docs** (`61f866c`, `f17f080`): the QGIS page describes the released plugins, the Po plain shadow picture, checked references on six pages, slides for the tile service, QGIS, shadows, relief and G-LiHT; TRI, Laplacian and Casorati wording corrected.
 
 ##### Later on 2026-11-25
 
