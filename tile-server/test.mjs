@@ -100,10 +100,37 @@ function assertStacItem(item) {
 {
   const { openapi } = await import("./openapi.mjs")
   const doc = openapi()
-  assert.deepEqual(doc.tags.map((t) => t.name), ["OGC API - Processes", "Terrain tiles", "Quantized mesh", "Basemap tiles", "Catalogs", "Viewport", "Values", "Service"])
+  assert.deepEqual(doc.tags.map((t) => t.name), ["Visualization modes (OGC API – Processes)", "Terrain tiles", "Quantized mesh", "Basemap tiles", "Catalogs", "Viewport", "Values", "Service"])
   const used = new Set(Object.values(doc.paths).flatMap((p) => Object.values(p).flatMap((op) => op.tags)))
   assert.deepEqual([...used].sort(), doc.tags.map((t) => t.name).sort(), "every tag used, every used tag listed")
   assert.ok(!Object.keys(doc.paths).some((p) => p.startsWith("/tiles/")), "no /tiles path documented")
+  // martini and ellipsoidal heights by default; the source-in-path forms documented.
+  assert.equal(doc.paths["/quantized-mesh/{source}/layer.json"].get.parameters.find((x) => x.name === "mesher").schema.default, "martini")
+  assert.equal(doc.paths["/quantized-mesh/{source}/layer.json"].get.parameters.find((x) => x.name === "heights").schema.default, "ellipsoidal")
+  for (const path of ["/terrain-tiles/{source}/{z}/{x}/{y}.{format}", "/basemap-tiles/{source}/{z}/{x}/{y}.{format}", "/basemaps", "/colorramps/{id}.{format}"]) assert.ok(doc.paths[path], path)
+  assert.ok(doc.paths["/view"].get.parameters.some((x) => x.name === "url"), "/view takes a whole link")
+}
+
+// The geoid (EGM96): N in Paris and the Alps, the extremes, and a tile's grid
+// shifted by it, interpolated within a centimetre of a lookup per point.
+{
+  const { undulation, addUndulation } = await import("./geoid.mjs")
+  assert.ok(Math.abs((await undulation(48.8566, 2.3522)) - 44.56) < 0.05, "Paris: N about +44.6 m")
+  assert.ok(Math.abs((await undulation(45.83, 6.86)) - 51.52) < 0.05, "Mont Blanc: N about +51.5 m")
+  assert.ok((await undulation(5, 78)) < -95, "south of India: the geoid's low, below -95 m")
+  const { tileBounds } = await import("./quantized-mesh.mjs")
+  const b = tileBounds(9, 533, 386)
+  const g = new Float32Array(257 * 257).fill(1000); g[5] = NaN
+  await addUndulation(g, 257, b, 1)
+  assert.ok(Number.isNaN(g[5]), "a hole stays a hole")
+  let worst = 0
+  for (const [r, c] of [[0, 0], [128, 128], [256, 256], [37, 201], [255, 3]]) {
+    const n = await undulation(b.north - (r / 256) * (b.north - b.south), b.west + (c / 256) * (b.east - b.west))
+    worst = Math.max(worst, Math.abs(g[r * 257 + c] - 1000 - n))
+  }
+  assert.ok(worst < 0.01, `interpolated N within 1 cm of a lookup (worst ${worst.toFixed(4)} m)`)
+  await addUndulation(g, 257, b, -1)
+  assert.ok(Math.abs(g[128 * 257 + 128] - 1000) < 1e-3, "and back")
 }
 
 // The tile service: a 256 px tile is drawn one MapLibre zoom lower, in a block of 8 x 8.
@@ -349,7 +376,7 @@ function assertStacItem(item) {
     const maxError = levelGeometricError(z) * 0.25
     assert.ok(Math.abs(levelGeometricError(0) - 77067.34) < 0.01, "Cesium's level-0 error for 65 samples, 2 root tiles")
     for (const mesher of ["martini", "delatin"]) {
-      const bytes = await quantizedMeshTile(how, { z, x, y, normals: true, mesher, errorScale: 0.25 })
+      const bytes = await quantizedMeshTile(how, { z, x, y, normals: true, mesher, errorScale: 0.25, heights: "orthometric" })
       const d = decodeTile(bytes)
       const r = here(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
       const n = d.vertexCount
@@ -414,10 +441,17 @@ function assertStacItem(item) {
       assert.ok(Math.hypot(...hop) > 1 && hop[0] * up[0] + hop[1] * up[1] + hop[2] * up[2] > 0)
     }
     assert.ok(stubbed > 0, "the synthetic source was read")
-    // Without normals asked, no extension.
-    assert.deepEqual(decodeTile(await quantizedMeshTile(how, { z, x, y })).extensions, {})
+    // Without normals asked, no extension. By default martini, and heights
+    // above the ellipsoid: the synthetic surface (above sea level) raised by
+    // the geoid's height there, about +50 m.
+    const dflt = decodeTile(await quantizedMeshTile(how, { z, x, y }))
+    assert.deepEqual(dflt.extensions, {})
+    const ortho = decodeTile(await quantizedMeshTile(how, { z, x, y, heights: "orthometric" }))
+    const shift = dflt.header.minHeight - ortho.header.minHeight
+    assert.ok(shift > 45 && shift < 56, `ellipsoidal heights: the geoid added (${shift.toFixed(2)} m)`)
+    assert.equal(dflt.triangleCount, decodeTile(await quantizedMeshTile(how, { z, x, y, mesher: "martini" })).triangleCount, "martini by default")
     // delatin stops at maxTriangles (worst points first).
-    const capped = decodeTile(await quantizedMeshTile(how, { z, x, y, errorScale: 0.01, maxTriangles: 200 }))
+    const capped = decodeTile(await quantizedMeshTile(how, { z, x, y, errorScale: 0.01, maxTriangles: 200, mesher: "delatin" }))
     assert.ok(capped.triangleCount <= 202 && capped.triangleCount > 150, `capped at 200: ${capped.triangleCount}`)
     // Holes are grown from the data around, not pits at 0; no data at all is flat.
     const holey = new Float32Array(65 * 65).fill(500); holey[32 * 65 + 32] = NaN
@@ -472,10 +506,14 @@ function assertStacItem(item) {
     // quantized mesh has its own group, layer.json first.
     const spec = await json("/openapi.json")
     assert.match(spec.info.description, /^## Quick start/)
-    assert.ok(spec.info.description.includes(`${base}/quantized-mesh/mapterhorn/layer.json?mesher=martini`))
+    assert.ok(spec.info.description.includes(`${base}/quantized-mesh/mapterhorn/layer.json?mesher=delatin`))
+    assert.ok(spec.info.description.includes(`${base}/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope`), "the quick start names the source in the path")
     const qmOps = Object.entries(spec.paths).filter(([, v]) => v.get?.tags?.includes("Quantized mesh")).map(([k]) => k)
     assert.deepEqual(qmOps, ["/quantized-mesh/{source}/layer.json", "/quantized-mesh/{source}/{z}/{x}/{y}.terrain"])
-    assert.match(await (await get("/docs")).text(), /defaultOpenAllTags: true/)
+    const docsPage = await (await get("/docs")).text()
+    assert.match(docsPage, /defaultOpenAllTags: true/)
+    assert.match(docsPage, /customCss: ".*white-space:pre-wrap/, "the quick start's code blocks wrap")
+    assert.match(docsPage, /tv-copy/, "and get a copy button")
     assert.equal((await get("/?f=json")).status, 200)
     const { conformsTo } = await json("/conformance")
     assert.ok(conformsTo.includes("http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/ogc-process-description"))
@@ -546,6 +584,57 @@ function assertStacItem(item) {
     // /view: what a share link switches on.
     const view = await json("/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainAnalysisOpacity=0.4&terrainSourceA=x")
     assert.ok(view.active.includes("slope")); assert.ok(Math.abs(view.opacity.slope - 0.2) < 1e-9); assert.equal(view.params.terrainSource, "x")
+    // The whole link as `url`, and the tiles that draw it (a library id in the path).
+    const link0 = "https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn#x"
+    const byUrl = await json(`/view?url=${encodeURIComponent(link0)}`)
+    assert.deepEqual(byUrl.active, (await json("/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn")).active)
+    assert.ok(byUrl.active.includes("slope")); assert.equal(byUrl.params.terrainSource, "mapterhorn")
+    assert.ok(byUrl.tiles.terrain.startsWith(`${base}/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=`) && /modes=[^&]*slope/.test(byUrl.tiles.terrain), byUrl.tiles.terrain)
+    assert.match(view.tiles.terrain, /\/terrain-tiles\/\{z\}\/\{x\}\/\{y\}\.png\?.*terrainSource=x/, "an unknown source stays in the query")
+
+    // A source in the path: the same tile as the query form; unknown ids 404.
+    const inPath = await get("/terrain-tiles/mapterhorn/2/2/1.png?modes=slope&background=none")
+    assert.equal(inPath.status, 200)
+    const inQuery = await get("/terrain-tiles/2/2/1.png?modes=slope&background=none&terrainSource=mapterhorn")
+    assert.ok(Buffer.from(await inPath.arrayBuffer()).equals(Buffer.from(await inQuery.arrayBuffer())), "path and query forms answer the same tile")
+    assert.match(inPath.headers.get("link"), /terrainSource=mapterhorn/)
+    assert.equal((await get("/terrain-tiles/custom/2/2/1.png?modes=slope&terrainSource=mapterhorn")).status, 200, "custom: the source from the query")
+    assert.equal((await get("/terrain-tiles/no-such-source/2/2/1.png")).status, 404)
+    assert.equal((await get("/terrain-tiles/mapterhorn/2/2/1.tif?modes=slope")).headers.get("x-tv-value-unit"), "degree")
+    assert.equal((await get("/terrain-tiles/mapterhorn/2/2/1.pbf?modes=contours")).status, 200)
+    assert.equal((await get("/terrain-tiles/mapterhorn/2/2/1.png.stac.json?modes=slope")).status, 200)
+    assert.equal((await get("/basemap-tiles/no-such-basemap/2/2/1.jpg")).status, 404)
+    const { basemaps, sourceInPath } = await import("./server.mjs")
+    const bms = await basemaps()
+    assert.ok(bms.some((x) => x.id === "wayback" && x.kind === "dated") && bms.some((x) => x.id === "esri" && x.kind === "static"))
+    assert.equal((await json("/basemaps")).basemaps.length, bms.length)
+    const bw = await sourceInPath("/basemap-tiles/wayback/2/2/1.jpg", "?imageryDate=2020-01-01")
+    assert.equal(bw.pathname, "/basemap-tiles/2/2/1.jpg"); assert.equal(new URLSearchParams(bw.search).get("imagerySource"), "wayback")
+    assert.equal(new URLSearchParams((await sourceInPath("/basemap-tiles/bing/2/2/1.jpg", "")).search).get("basemapSource"), "bing", "bing without a date: Bing Aerial")
+    assert.equal(new URLSearchParams((await sourceInPath("/basemap-tiles/bing/2/2/1.jpg", "?imageryDate=2021-05-01")).search).get("imagerySource"), "bing", "with one: dated")
+    assert.equal(new URLSearchParams((await sourceInPath("/terrain-tiles/mapterhorn/2/2/1.png", "?url=x")).search).get("terrainSource"), "mapterhorn", "the path wins")
+    assert.equal(await sourceInPath("/terrain-tiles/2/2/1.png", ""), null)
+
+    // Colour ramps as pictures: the size asked, horizontal (low on the left)
+    // or vertical (low at the bottom), the ramp's colours at its ends.
+    const sharpR = (await import("sharp")).default
+    const rampRes = await get("/colorramps/slope-plantopo.png?width=100&height=4")
+    assert.equal(rampRes.status, 200); assert.equal(rampRes.headers.get("content-type"), "image/png")
+    const { data: rp, info: ri } = await sharpR(Buffer.from(await rampRes.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    assert.deepEqual([ri.width, ri.height], [100, 4])
+    assert.equal(rp[3], 0, "slope-plantopo is transparent below 29 degrees")
+    assert.deepEqual([...rp.subarray(99 * 4, 99 * 4 + 4)], [216, 37, 37, 255], "its last stop at the right end")
+    const vRes = await get("/colorramps/slope-plantopo.jpg?orientation=vertical")
+    assert.equal(vRes.headers.get("content-type"), "image/jpeg")
+    const { data: vp, info: vi } = await sharpR(Buffer.from(await vRes.arrayBuffer())).raw().toBuffer({ resolveWithObject: true })
+    assert.deepEqual([vi.width, vi.height], [16, 256], "vertical: 16 x 256 by default")
+    assert.ok(vp[0] > 190 && vp[1] < 70 && vp[2] < 70, "the top is the highest value (red)")
+    const bottom = vp.subarray((255 * 16) * vi.channels)
+    assert.ok(bottom[0] > 245 && bottom[1] > 245 && bottom[2] > 245, "the bottom is transparent, laid on white in a JPEG")
+    assert.equal((await get("/colorramps/slope-plantopo.png?orientation=diagonal")).status, 400)
+    assert.equal((await get("/colorramps/slope-plantopo.png?width=0")).status, 400)
+    assert.equal((await get("/colorramps/no-such-ramp.png")).status, 404)
+    assert.equal((await json("/colorramps/slope-plantopo")).id, "slope-plantopo", "the JSON stays")
 
     // Tiles: the address, the old /tiles/{z}/{x}/{y} and titiler's tile
     // addresses gone, and the modes refused on each.
@@ -579,6 +668,9 @@ function assertStacItem(item) {
     // Quantized mesh: layer.json and a tile of Mapterhorn, gzipped on
     // request, normals by the Accept header, the bounds of the grid.
     const layer = await json("/quantized-mesh/mapterhorn/layer.json?error=0.5")
+    assert.match(layer.description, /WGS84 ellipsoid/)
+    assert.match((await json("/quantized-mesh/mapterhorn/layer.json?heights=orthometric")).description, /sea level/)
+    assert.equal((await get("/quantized-mesh/mapterhorn/layer.json?heights=geoid")).status, 400)
     assert.equal(layer.format, "quantized-mesh-1.0"); assert.equal(layer.scheme, "tms"); assert.deepEqual(layer.extensions, ["octvertexnormals"])
     assert.equal(layer.maxzoom, 17, "512 px tiles to z17: level 17"); assert.equal(layer.available.length, 18)
     assert.equal(layer.tiles[0], "{z}/{x}/{y}.terrain?error=0.5")

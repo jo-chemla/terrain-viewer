@@ -17,14 +17,19 @@
 //   availableRanges(maxzoom, bounds)    its `available` field
 //   requestedExtensions(accept, query)  the extensions a request asks for
 //
-// Meshing: delatin (Delaunay refinement, any grid) by default, or
-// @mapbox/martini (right-triangulated irregular network, a 2^k + 1 grid).
+// Meshing: @mapbox/martini (right-triangulated irregular network, a 2^k + 1
+// grid) by default, or delatin (Delaunay refinement, any grid).
 // Measured on Mapterhorn around the Matterhorn, levels 10 to 14, 257 x 257:
 // for the same error delatin makes 45% fewer triangles (and bytes) in about
 // three to five times the time (25 to 55 ms a tile against 4 to 8; delatin's
 // time grows with its points, about 7 us each). Both stop at `maxError`
 // metres of vertical error, delatin also at `maxTriangles`. Skirts are the
-// client's (the spec leaves them out).
+// client's (the spec leaves them out). martini is the default since
+// 2026-11-25: three times faster to make for twice the triangles, which a
+// GPU draws without noticing; delatin when bytes matter more than time.
+//
+// Heights are what the caller gives, in metres: Cesium reads them as
+// ellipsoidal (above WGS84). The tile service adds the geoid (geoid.mjs).
 import Martini from "@mapbox/martini"
 import Delatin from "delatin"
 
@@ -105,7 +110,7 @@ const martinis = new Map()
  *  row pairs (row 0 the north edge). delatin stops at `maxTriangles` (its
  *  worst points first, so a capped mesh is the best one of that size);
  *  martini ignores it. */
-export function meshGrid(heights, size, maxError, mesher = "delatin", maxTriangles = MAX_TRIANGLES) {
+export function meshGrid(heights, size, maxError, mesher = "martini", maxTriangles = MAX_TRIANGLES) {
   if (mesher === "delatin") {
     const tin = new Delatin(heights, size, size)
     // tin.run(maxError), with the cap: each refine adds one point, two
@@ -167,18 +172,19 @@ function horizonOcclusionPoint(positions, cx, cy, cz) {
 /**
  * One quantized-mesh-1.0 tile.
  * @param {object} o
- * @param {Float32Array|number[]} o.heights  size * size heights in metres, row by row,
+ * @param {Float32Array|number[]} o.heights  size * size heights in metres above the
+ *   WGS84 ellipsoid (what Cesium reads), row by row,
  *   row 0 along the north edge, column 0 along the west edge; NaN: no data (see o.fill)
  * @param {number} o.size      the grid's side; 2^k + 1 for martini (65, 129, 257)
  * @param {{west:number,south:number,east:number,north:number}} o.bounds  degrees
  * @param {number} o.maxError  metres of vertical error allowed
- * @param {"delatin"|"martini"} [o.mesher]  delatin by default
+ * @param {"martini"|"delatin"} [o.mesher]  martini by default
  * @param {boolean} [o.normals]  write the oct-encoded vertex normals extension
  * @param {number|"nearest"} [o.fill]   holes grown from the data around ("nearest", the default) or set to a height
  * @param {number} [o.maxTriangles]  delatin's cap (MAX_TRIANGLES)
  * @returns {Uint8Array}
  */
-export function encodeTile({ heights, size, bounds, maxError, mesher = "delatin", normals = false, fill = "nearest", maxTriangles = MAX_TRIANGLES }) {
+export function encodeTile({ heights, size, bounds, maxError, mesher = "martini", normals = false, fill = "nearest", maxTriangles = MAX_TRIANGLES }) {
   if (heights.length !== size * size) throw new Error(`heights holds ${heights.length} values, not ${size} x ${size}`)
   const grid = filled(heights, size, fill)
   const { coords, triangles: tri } = meshGrid(grid, size, Math.max(0, maxError), mesher, maxTriangles)

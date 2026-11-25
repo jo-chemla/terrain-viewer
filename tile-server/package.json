@@ -18,6 +18,7 @@
     "@mapbox/vector-tile": "^3.0.0",
     "@maplibre/maplibre-gl-style-spec": "26.4.4",
     "delatin": "^0.2.0",
+    "egm96-universal": "1.1.1",
     "geotiff": "^3.0.5",
     "maplibre-contour": "0.1.1",
     "pbf": "^5.2.0",

@@ -3,6 +3,9 @@
 // headless browser (the renderer of the MCP server's `screenshot` tool), so
 // every source the app reads and every mode it computes comes out the same.
 //
+//   GET /terrain-tiles/{source}/{z}/{x}/{y}.*, /basemap-tiles/{source}/{z}/{x}/{y}.*
+//                                      the same tiles with a library id in the path
+//                                      (sourceInPath); the query forms stay
 //   GET /terrain-tiles/{z}/{x}/{y}.png|jpg   one Web Mercator tile (XYZ) of the
 //                                      elevation modes, 256 px; {y}@2x or
 //                                      tilesize=512 for 512 px
@@ -48,12 +51,15 @@
 // the source's credit but no scale bar.
 //
 //   GET /sources, /sources/{id}        the terrain sources, by id
-//   GET /colorramps, /colorramps/{id}  the colour ramps, by id
+//   GET /colorramps, /colorramps/{id}  the colour ramps, by id; /colorramps/{id}.png|jpg
+//                                      a picture of one (width, height, orientation)
+//   GET /basemaps                      what /basemap-tiles/{source}/... takes
 //   GET /algorithms                    the modes, and which engine draws them
 //   GET /, /conformance                OGC API Common landing page (JSON) and conformance
 //   GET /processes, /processes/{id}    each mode as an OGC API - Processes description
 //                                      (processes.mjs); run by asking for its tiles
-//   GET /view?<share query>            what a share link switches on, for the QGIS plugin
+//   GET /view?<share query>, /view?url=<share link>
+//                                      what a share link switches on, for the QGIS plugin
 //   GET /tilejson.json                 a TileJSON; tile_format=pbf for the vector tiles
 //   GET /qgis.qgz                      a QGIS project of the view: every layer, stacked and
 //                                      grouped as the map, the view's ones checked, its
@@ -80,11 +86,11 @@ import os from "node:os"
 import path from "node:path"
 import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
-import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.mjs"
+import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES, IMAGERY_SOURCES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./openapi.mjs"
 import { processCatalog, processList, withLinks, landingPage, BASEMAP_PROCESS, CONFORMANCE } from "./processes.mjs"
-import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers, meshLevel } from "./direct.mjs"
+import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers, meshLevel, rampImage } from "./direct.mjs"
 import { layerJson, requestedExtensions, CONTENT_TYPE as QM_TYPE, EXTENSIONS as QM_EXTENSIONS, MAX_TRIANGLES as QM_MAX_TRIANGLES } from "./quantized-mesh.mjs"
 import { gunzipSync, gzip as gzipCb } from "node:zlib"
 import { promisify } from "node:util"
@@ -432,12 +438,15 @@ async function valuesFor(format, query, at) {
 // ── Quantized mesh: a source as Cesium terrain ────────────────────────────
 
 const MESHERS = ["martini", "delatin"]
+const HEIGHTS = ["ellipsoidal", "orthometric"]
 /** /quantized-mesh/{source}/layer.json (`tile` null) or one .terrain tile
  *  (`tile` [z, x, y]): `{ json }` or `{ bytes, type }`. Read with the same
  *  source lookup and keys as /terrain-tiles; `error` scales Cesium's
  *  geometric error of the level into the mesh's error (0.5), `mesher` is
- *  delatin (the default) or martini, `maxTriangles` caps delatin's mesh,
- *  `extensions` (or the Accept header) asks for the vertex normals. */
+ *  martini (the default since 2026-11-25) or delatin, `maxTriangles` caps
+ *  delatin's mesh, `heights` is ellipsoidal (the default: what Cesium reads,
+ *  the geoid added, geoid.mjs) or orthometric (the source's heights above sea
+ *  level), `extensions` (or the Accept header) asks for the vertex normals. */
 async function quantizedMesh(source, tile, search, headers) {
   const q = new URLSearchParams(search)
   if (source !== "custom") { q.delete("url"); q.delete("terrainSourceA"); q.set("terrainSource", source) }
@@ -446,11 +455,13 @@ async function quantizedMesh(source, tile, search, headers) {
   const raw = take("error")
   const errorScale = raw === undefined ? 0.5 : Number(raw)
   if (!(errorScale > 0) || errorScale > 16) throw status(400, "error is a positive number (at most 16): the share of Cesium's geometric error of the level allowed in the mesh, 0.5 by default")
-  const mesher = take("mesher") ?? "delatin"
+  const mesher = take("mesher") ?? "martini"
   if (!MESHERS.includes(mesher)) throw status(400, `mesher is ${MESHERS.join(" or ")}`)
   const capRaw = take("maxTriangles")
   const maxTriangles = capRaw === undefined ? QM_MAX_TRIANGLES : Number(capRaw)
   if (!Number.isInteger(maxTriangles) || maxTriangles < 2 || maxTriangles > 262144) throw status(400, `maxTriangles is a whole number from 2 to 262144 (delatin stops refining there; ${QM_MAX_TRIANGLES} by default)`)
+  const heights = take("heights") ?? "ellipsoidal"
+  if (!HEIGHTS.includes(heights)) throw status(400, "heights is ellipsoidal (the default: above the WGS84 ellipsoid, what Cesium expects) or orthometric (above sea level, the source's own)")
   const how = await plan({ terrainSource: view.terrainSource }, new URLSearchParams(), keys)
   if (how.engine !== "direct") throw status(400, `This source cannot be read here: ${how.why}`)
   const maxzoom = meshLevel(how.dem)
@@ -459,7 +470,7 @@ async function quantizedMesh(source, tile, search, headers) {
     const qs = new URLSearchParams(search).toString()
     return {
       json: layerJson({
-        name: how.dem.name ?? how.dem.id, description: `${how.dem.name ?? how.dem.id}, from the Terrain Viewer tile service`,
+        name: how.dem.name ?? how.dem.id, description: `${how.dem.name ?? how.dem.id}, from the Terrain Viewer tile service; heights ${heights === "ellipsoidal" ? "above the WGS84 ellipsoid (the EGM96 geoid added to an orthometric source)" : "above sea level (orthometric)"}`,
         attribution: entry?.attribution ?? how.dem.name ?? "", tiles: [`{z}/{x}/{y}.terrain${qs ? "?" + qs : ""}`],
         maxzoom, bounds: how.dem.bounds, extensions: QM_EXTENSIONS,
       }),
@@ -468,17 +479,17 @@ async function quantizedMesh(source, tile, search, headers) {
   const [z, x, y] = tile
   if (z > 21 || x >= 2 ** (z + 1) || y >= 2 ** z) throw status(404, "No such tile: level z has 2^(z+1) x 2^z tiles (geographic TMS)")
   const normals = requestedExtensions(headers.accept, take("extensions")).includes("octvertexnormals")
-  const key = `mesh|${how.dem.tiles}|${errorScale}|${mesher}${mesher === "delatin" && maxTriangles !== QM_MAX_TRIANGLES ? ":" + maxTriangles : ""}|${normals ? "n" : ""}|${z}/${x}/${y}`
+  const key = `mesh|${how.dem.tiles}|${errorScale}|${mesher}${mesher === "delatin" && maxTriangles !== QM_MAX_TRIANGLES ? ":" + maxTriangles : ""}|${normals ? "n" : ""}|${heights === "ellipsoidal" ? "e" : "o"}|${z}/${x}/${y}`
   // Kept gzipped: compressed once, in the thread pool (10 ms for a 220 kB
   // tile at level 6), and a cached tile goes out as it is read.
   let gz = await cached(key, "terrain.gz")
   if (!gz) {
-    const bytes = Buffer.from(await directRun("mesh", { view: { terrainSource: view.terrainSource }, rest: new URLSearchParams(), keys }, { z, x, y, errorScale, mesher, normals, maxTriangles }))
+    const bytes = Buffer.from(await directRun("mesh", { view: { terrainSource: view.terrainSource }, rest: new URLSearchParams(), keys }, { z, x, y, errorScale, mesher, normals, maxTriangles, heights }))
     gz = await gzipAsync(bytes, { level: 6 })
-    // A tile with no data (two triangles at 0 m) is not kept: outside the
-    // source it costs nothing to make again, and a source that failed for a
-    // moment would otherwise leave a hole for a week.
-    const empty = bytes.length < 256 && bytes.readFloatLE(24) === 0 && bytes.readFloatLE(28) === 0
+    // A tile with no data (flat: two triangles at one height, sea level) is
+    // not kept: outside the source it costs nothing to make again, and a
+    // source that failed for a moment would otherwise leave a hole for a week.
+    const empty = bytes.length < 256 && bytes.readFloatLE(24) === bytes.readFloatLE(28)
     if (!empty) store(key, "terrain.gz", gz)
   }
   return { gz, type: normals ? `${QM_TYPE};extensions=octvertexnormals` : QM_TYPE }
@@ -518,6 +529,79 @@ export function basemapQuery(search) {
   if (asked.length) throw status(400, `/basemap-tiles draws the imagery only; ask /terrain-tiles for ${asked.join(", ")}`)
   q.delete("algorithm"); q.set("modes", "basemap")
   return q
+}
+
+/** What /basemap-tiles/{source}/... takes in the path: the dated imagery
+ *  (imagerySource, with imageryDate) and the app's built-in basemaps with a
+ *  fixed address (basemapSource). "bing" is both: dated with an imageryDate,
+ *  Bing Aerial without. */
+export async function basemaps() {
+  const { BUILTIN_BASEMAP_SOURCES } = await import("./generated/app-lib.mjs")
+  return [
+    ...IMAGERY_SOURCES.map((id) => ({ id, kind: "dated", param: "imagerySource", note: "with imageryDate=YYYY-MM-DD" })),
+    ...BUILTIN_BASEMAP_SOURCES.map((s) => ({ id: s.id, name: s.name, kind: "static", param: "basemapSource", ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.apiKey ? { key: s.apiKey } : {}) })),
+  ]
+}
+
+/** The path forms with a source id, `/terrain-tiles/{source}/{z}/{x}/{y}.*`
+ *  and `/basemap-tiles/{source}/{z}/{x}/{y}.*` (the scheme of
+ *  /quantized-mesh/{source}/...), as the query forms every handler reads:
+ *  `{ pathname, search }`, or null when the address is not one. `custom`
+ *  keeps the source the query gives (an address, a COG, a JSON
+ *  configuration). An unknown id is a 404. Also with `.stac.json` after. */
+export async function sourceInPath(pathname, search) {
+  const m = pathname.match(/^\/(terrain-tiles|basemap-tiles)\/([^/]+)\/(\d+)\/(\d+)\/(\d+)((?:@[12]x)?\.[a-z]+(?:\.stac\.json)?)$/)
+  if (!m) return null
+  const [, endpoint, rawId, z, x, y, tail] = m
+  const id = decodeURIComponent(rawId)
+  const q = new URLSearchParams(search)
+  if (id !== "custom") {
+    if (endpoint === "terrain-tiles") {
+      if (!sources().some((s) => s.id === id)) throw status(404, `No terrain source "${id}": see /sources (an address, a COG or a JSON configuration goes in the query: /terrain-tiles/{z}/{x}/{y}.png?terrainSource=...)`)
+      for (const k of ["url", "terrainSourceA", "sourceA"]) q.delete(k)
+      q.set("terrainSource", id)
+    } else {
+      const known = await basemaps()
+      const dated = known.some((b) => b.id === id && b.kind === "dated"), fixed = known.some((b) => b.id === id && b.kind === "static")
+      if (!dated && !fixed) throw status(404, `No basemap "${id}": see /basemaps (an XYZ or COG address goes in the query: /basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=...)`)
+      q.delete("imageryUrl")
+      if (dated && (q.has("imageryDate") || !fixed)) { q.set("imagerySource", id); q.delete("basemapSource") }
+      else { q.set("basemapSource", id); q.delete("imagerySource"); q.delete("imageryDate") }
+    }
+  }
+  const qs = q.toString()
+  return { pathname: `/${endpoint}/${z}/${x}/${y}${tail}`, search: qs ? "?" + qs : "" }
+}
+
+/** /view's query: a share link's query as is, or the whole link as `url`
+ *  (its query read, the address before it ignored; other parameters given
+ *  beside it are added). */
+export function viewQuery(search) {
+  const q = new URLSearchParams(search)
+  const link = q.get("url")
+  if (!link || !link.includes("?")) return q
+  const inner = new URLSearchParams(link.slice(link.indexOf("?") + 1).replace(/#.*$/, ""))
+  q.delete("url")
+  for (const [k, v] of q) if (!inner.has(k)) inner.set(k, v)
+  return inner
+}
+
+/** /view's `tiles`: the addresses that draw what a share link shows, its
+ *  terrain modes stacked in one XYZ template (the source in the path when it
+ *  is a library id) and, when the link shows imagery, its basemap's. */
+export function viewTiles(self, read) {
+  const params = { ...(read.params ?? {}) }
+  const src = params.terrainSource
+  delete params.terrainSource
+  const modes = (read.active ?? []).filter((m) => m !== "basemap")
+  const byId = src && sources().some((s) => s.id === src)
+  const q = new URLSearchParams({ ...(modes.length ? { modes: modes.join(",") } : {}), ...(src && !byId ? { terrainSource: src } : {}), ...params })
+  const qs = q.toString().replace(/%2C/g, ",")
+  const bq = new URLSearchParams(params).toString().replace(/%2C/g, ",")
+  return {
+    terrain: `${self}/terrain-tiles/${byId ? encodeURIComponent(src) + "/" : ""}{z}/{x}/{y}.png${qs ? "?" + qs : ""}`,
+    ...((read.active ?? []).includes("basemap") ? { basemap: `${self}/basemap-tiles/{z}/{x}/{y}.jpg${bq ? "?" + bq : ""}` } : {}),
+  }
 }
 
 export function start(port = PORT) {
@@ -567,6 +651,9 @@ async function handle(req, res) {
       // its source has it so (projects written before 2026-11-23): read it
       // as the query.
       const u = new URL(!req.url.includes("?") && /%3F/i.test(req.url) ? req.url.replace(/%3F/i, "?") : req.url, "http://x")
+      // A source id in the path: read as the query form.
+      const inPath = await sourceInPath(u.pathname, u.search)
+      if (inPath) { u.pathname = inPath.pathname; u.search = inPath.search }
       if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, browser: slot.stats(), direct: { ...directSlot.stats(), ...poolStats() } }))
       // A browser goes to the page to try the service; a client that asks
       // for JSON gets the index of addresses.
@@ -584,9 +671,12 @@ async function handle(req, res) {
       if (u.pathname === "/" && !wantsJson) return send(302, "text/plain", "See /docs", { location: "/docs" })
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify(landingPage(self, {
         docs: "/docs", quickStart: "/docs#description/quick-start", openapi: "/openapi.json", conformance: "/conformance", processes: "/processes", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
-        terrainTiles: "/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
+        terrainTiles: "/terrain-tiles/{source}/{z}/{x}/{y}.png?modes=slope",
+        terrainTilesByQuery: "/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id, URL or JSON>",
         vectorTiles: "/terrain-tiles/{z}/{x}/{y}.pbf?modes=contours,moundDetector",
-        basemapTiles: "/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback&imageryDate=2020-01-01",
+        basemapTiles: "/basemap-tiles/{source}/{z}/{x}/{y}.jpg (an id of /basemaps)",
+        basemapTilesByQuery: "/basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=<XYZ or COG address>",
+        basemaps: "/basemaps", colorrampImage: "/colorramps/{id}.png?width=256&height=16",
         render: "/render.jpg?lat=45.83&lng=6.86&zoom=11&width=1024&height=640&modes=hillshade,contours",
         quantizedMesh: "/quantized-mesh/{source}/layer.json",
         modes: MODE_NAMES, app: BASE_URL,
@@ -600,8 +690,9 @@ async function handle(req, res) {
         return send(200, "application/json", JSON.stringify(withLinks(self, p), null, 2))
       }
       if (u.pathname === "/view") {
-        const { view, rest } = viewOf(u.search)
-        return send(200, "application/json", JSON.stringify(viewForPlugin(await readView(view, rest, activeLayers))))
+        const { view, rest } = viewOf(viewQuery(u.search))
+        const read = viewForPlugin(await readView(view, rest, activeLayers))
+        return send(200, "application/json", JSON.stringify({ ...read, tiles: viewTiles(self, read) }))
       }
       if (u.pathname === "/qgis.qgz") {
         const { view, rest, take } = viewOf(u.search)
@@ -632,6 +723,24 @@ async function handle(req, res) {
         const found = sources().find((x) => x.id === id)
         if (!found) return send(404, "text/plain", "No such source: see /sources")
         return send(200, "application/json", JSON.stringify({ ...found, description: library().terrain.find((x) => x.id === id)?.description }))
+      }
+      if (u.pathname === "/basemaps") return send(200, "application/json", JSON.stringify({ basemaps: await basemaps(), note: "Give an id in the path: /basemap-tiles/{id}/{z}/{x}/{y}.jpg (a dated one with imageryDate). An XYZ or COG address: /basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=..." }))
+      // A ramp as a picture: the app's interpolation (MapLibre's colour
+      // relief), horizontal by default.
+      const rampPic = u.pathname.match(/^\/colorramps\/([^/]+)\.(png|jpg|jpeg)$/)
+      if (rampPic) {
+        const { colorRampsFlat } = await import("./generated/app-lib.mjs")
+        const id = decodeURIComponent(rampPic[1])
+        const ramp = colorRampsFlat[id]
+        if (!ramp) return send(404, "text/plain", "No such ramp: see /colorramps")
+        const p = u.searchParams
+        const orientation = p.get("orientation") ?? "horizontal"
+        if (orientation !== "horizontal" && orientation !== "vertical") return send(400, "text/plain", "orientation is horizontal (the default: the lowest value on the left) or vertical (the lowest at the bottom)")
+        const dim = (k, d) => { const v = p.get(k); if (v === null) return d; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > 4096) throw status(400, `${k} is a whole number from 1 to 4096`); return n }
+        const width = dim("width", orientation === "vertical" ? 16 : 256), height = dim("height", orientation === "vertical" ? 256 : 16)
+        const ext = rampPic[2] === "png" ? "png" : "jpg"
+        const bytes = await rampImage(ramp.colors, { width, height, orientation, format: ext, reverse: p.get("reverse") === "true" })
+        return send(200, TYPES[ext], bytes, { "cache-control": "public, max-age=86400" })
       }
       if (u.pathname === "/colorramps" || u.pathname.startsWith("/colorramps/")) {
         const { colorRampsFlat } = await import("./generated/app-lib.mjs")
@@ -686,7 +795,7 @@ async function handle(req, res) {
         const made = await tile(z, x, y, ext, basemapQuery(u.search), bt[4] === "@2x" ? 2 : 1)
         return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": EXPOSED, ...describedBy(self, u) })
       }
-      if (/^\/basemap-tiles\//.test(u.pathname)) return send(404, "text/plain", "Basemap tiles are /basemap-tiles/{z}/{x}/{y}.jpg or .png (imagery has neither values nor vector tiles)")
+      if (/^\/basemap-tiles\//.test(u.pathname)) return send(404, "text/plain", "Basemap tiles are /basemap-tiles/{source}/{z}/{x}/{y}.jpg (an id of /basemaps) or /basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=..., .jpg or .png (imagery has neither values nor vector tiles)")
       const t = u.pathname.match(/^\/terrain-tiles\/(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
       if (t) {
         const [z, x, y] = t.slice(1, 4).map(Number)

@@ -3,7 +3,7 @@
   "info": {
     "title": "Terrain Viewer tile service",
     "version": "0.1.0",
-    "description": "## Quick start\n\nCopy an address into QGIS (XYZ Tiles), MapLibre, CesiumJS or Blender. `{z}/{x}/{y}` stay as they are: the client fills them.\n\n**Slope, Mapterhorn, XYZ tiles** (any mode of `/processes`, several comma-separated)\n\n```\nhttp://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=mapterhorn&modes=slope\n```\n\n**Sky-view factor, IGN RGE ALTI (France), XYZ tiles** (zoom 12 and finer; the first tiles of an area take a second or two)\n\n```\nhttp://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=custom-fr-ign-rgealti-highres&modes=svf\n```\n\n**Cesium terrain (quantized mesh), Mapterhorn: the layer.json** (CesiumJS, Blender's OGC 3D Tiles add-on as a *Quantized-mesh terrain* entry; delatin mesher)\n\n```\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json\n```\n\n**The same, meshed by martini** (about three times faster to make, twice the triangles)\n\n```\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json?mesher=martini\n```\n\n**A picture of a box** (west,south,east,north; `.tif` with one mode for its values)\n\n```\nhttp://localhost:3400/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours\n```\n\n**The STAC Item of a tile** (any raster export's address plus `.stac.json`)\n\n```\nhttp://localhost:3400/terrain-tiles/12/2133/1449.png.stac.json?terrainSource=mapterhorn&modes=slope\n```\n\n**The modes, as OGC API - Processes** (each mode's settings: `/processes/{id}`)\n\n```\nhttp://localhost:3400/processes\n```\n\n## About\n\nWhat Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+    "description": "## Quick start\n\nCopy an address into QGIS (XYZ Tiles), MapLibre, CesiumJS or Blender. `{z}/{x}/{y}` stay as they are: the client fills them.\n\n**Slope, Mapterhorn, XYZ tiles** (any mode of `/processes`, several comma-separated; the source id is the path segment after `/terrain-tiles/` (`/sources` lists them))\n\n```text\nhttp://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope\n```\n\n**Sky-view factor, IGN RGE ALTI (France), XYZ tiles** (zoom 12 and finer; the first tiles of an area take a second or two)\n\n```text\nhttp://localhost:3400/terrain-tiles/custom-fr-ign-rgealti-highres/{z}/{x}/{y}.png?modes=svf\n```\n\n**A source given by its address (Terrarium tiles, a COG, a VRT, JSON)** (the query form, for anything that is not a library id)\n\n```text\nhttp://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=hillshade&terrainSource=https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\n```\n\n**Cesium terrain (quantized mesh), Mapterhorn: the layer.json** (CesiumJS, Blender's OGC 3D Tiles add-on as a *Quantized-mesh terrain* entry; martini mesher, heights above the ellipsoid (geoid added))\n\n```text\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json\n```\n\n**The same, meshed by delatin** (half the triangles, three times slower to make)\n\n```text\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json?mesher=delatin\n```\n\n**Imagery: Esri Wayback of 2020, XYZ tiles** (dated imagery and the built-in basemaps by id: `/basemaps`)\n\n```text\nhttp://localhost:3400/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01\n```\n\n**A picture of a box** (west,south,east,north; `.tif` with one mode for its values)\n\n```text\nhttp://localhost:3400/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours\n```\n\n**A colour ramp as a picture** (a legend; `orientation=vertical`; the ids: `/colorramps`)\n\n```text\nhttp://localhost:3400/colorramps/slope-plantopo.png?width=256&height=16\n```\n\n**The STAC Item of a tile** (any raster export's address plus `.stac.json`)\n\n```text\nhttp://localhost:3400/terrain-tiles/mapterhorn/12/2133/1449.png.stac.json?modes=slope\n```\n\n**The modes, as OGC API - Processes** (each mode's settings: `/processes/{id}`)\n\n```text\nhttp://localhost:3400/processes\n```\n\n**Addresses.** A library id goes in the path, as `{source}`: `/terrain-tiles/{source}/{z}/{x}/{y}.png`, `/basemap-tiles/{source}/{z}/{x}/{y}.jpg`, `/quantized-mesh/{source}/layer.json`. Anything else (a tile address, a COG, a VRT, a JSON configuration) goes in the query: `/terrain-tiles/{z}/{x}/{y}.png?terrainSource=...`, `/basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=...`, `/quantized-mesh/custom/layer.json?terrainSource=...` (`custom` in the path means the same everywhere). Both forms answer the same tile.\n\n## About\n\nWhat Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`, the terrain as Cesium meshes at `/quantized-mesh`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/Iconem/terrain-viewer"
@@ -20,7 +20,7 @@
   ],
   "tags": [
     {
-      "name": "OGC API - Processes",
+      "name": "Visualization modes (OGC API – Processes)",
       "description": "The modes as OGC API - Processes processes (OGC 18-062r2), with OGC API Common's landing page and conformance. `/processes` lists every mode with its settings; a process is run by asking for its tiles: its description links them."
     },
     {
@@ -33,11 +33,11 @@
     },
     {
       "name": "Basemap tiles",
-      "description": "`/basemap-tiles`: the imagery as XYZ tiles."
+      "description": "`/basemap-tiles`: the imagery under the terrain, as XYZ tiles, as the app draws it. Not only the historical imagery: the dated sources (Esri Wayback, Google Earth historical, Bing, HLS, EOX Sentinel-2, each with a date) and the app's built-in basemaps with a fixed address (Google, Bing Aerial, Esri, Mapbox, MapTiler, HERE), both by id in the path (`/basemaps` lists them), plus any XYZ or COG address in the query (`imageryUrl`). Drawn by the browser engine."
     },
     {
       "name": "Catalogs",
-      "description": "What can be named by id: sources, colour ramps, modes, and what a share link switches on."
+      "description": "What can be named by id: terrain sources, basemaps, colour ramps (and pictures of them), modes, and what a share link switches on."
     },
     {
       "name": "Viewport",
@@ -582,7 +582,7 @@
         ],
         "operationId": "terrainTile",
         "summary": "One XYZ tile of the elevation modes",
-        "description": "A 256 px Web Mercator tile of the modes computed from the elevation (every mode but `basemap`), stacked as described under `modes`. For 512 px write `{y}@2x` in the address or add `tilesize=512`. The camera is the tile's: `lat`, `lng`, `zoom`, `pitch` and `bearing` are not read. The imagery is at `/basemap-tiles`. titiler's `url` (the source) and `algorithm` (one mode) are read; its address `/tiles/WebMercatorQuad/...` was removed on 2026-11-25 (404). **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
+        "description": "A 256 px Web Mercator tile of the modes computed from the elevation (every mode but `basemap`), stacked as described under `modes`. A library source can go in the path instead: `/terrain-tiles/{source}/{z}/{x}/{y}.{format}`. For 512 px write `{y}@2x` in the address or add `tilesize=512`. The camera is the tile's: `lat`, `lng`, `zoom`, `pitch` and `bearing` are not read. The imagery is at `/basemap-tiles`. titiler's `url` (the source) and `algorithm` (one mode) are read; its address `/tiles/WebMercatorQuad/...` was removed on 2026-11-25 (404). **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
         "parameters": [
           {
             "name": "z",
@@ -817,6 +817,428 @@
         }
       }
     },
+    "/terrain-tiles/{source}/{z}/{x}/{y}.{format}": {
+      "get": {
+        "tags": [
+          "Terrain tiles"
+        ],
+        "operationId": "terrainTileBySource",
+        "summary": "One XYZ tile of the elevation modes, the source by id",
+        "description": "The same tile as `/terrain-tiles/{z}/{x}/{y}.{format}?terrainSource={source}`, with the library id in the path, as `/quantized-mesh/{source}/...`: shorter, and the source cannot be lost from a template. `.tif`, `.pbf` and `.mvt` work the same way. `custom` takes the source from the query (an address, a COG, a VRT or a JSON configuration), which is the query form. An unknown id answers 404. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "An id from `/sources`, or `custom` with `terrainSource` in the query.",
+            "example": "mapterhorn"
+          },
+          {
+            "name": "z",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 22
+            },
+            "example": 12
+          },
+          {
+            "name": "x",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 2125
+          },
+          {
+            "name": "y",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 1464
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpg"
+              ],
+              "default": "png"
+            }
+          },
+          {
+            "name": "tilesize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                256,
+                512
+              ],
+              "default": 256
+            },
+            "description": "The side of the tile in pixels."
+          },
+          {
+            "name": "engine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "direct",
+                "browser"
+              ]
+            },
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+          },
+          {
+            "name": "background",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "map",
+                "none"
+              ],
+              "default": "map"
+            },
+            "description": "`none`: no white (or black) map background, a transparent PNG to stack layers in a GIS. Direct engine only; the browser's tiles keep the map's background."
+          },
+          {
+            "name": "modes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "hillshade",
+                  "colorRelief",
+                  "contours",
+                  "slope",
+                  "aspect",
+                  "curvature",
+                  "tpi",
+                  "roughness",
+                  "tri",
+                  "shapeIndex",
+                  "blobness",
+                  "eigenRatio",
+                  "orientation",
+                  "lrm",
+                  "svf",
+                  "openness",
+                  "localDominance",
+                  "phong",
+                  "matcap",
+                  "shadows",
+                  "buildingShadows",
+                  "basemap",
+                  "moundDetector",
+                  "isoline",
+                  "graticules",
+                  "planeSlicer"
+                ]
+              }
+            },
+            "description": "The modes to draw, comma-separated (`style: form, explode: false`). `algorithm` is read as the same parameter. Each mode is a process: `/processes/{id}` lists its settings.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "mapboxKey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Your Mapbox access token, for the `mapbox` source. Read by the server's readers and given to the app as a setting, never put in the app's address; a tile drawn with a key is cached apart from one without."
+          },
+          {
+            "name": "maptilerKey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Your MapTiler key, for the `maptiler` source."
+          },
+          {
+            "name": "cesiumIonKey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Your Cesium ion token, for the `cesium` source and other ion assets."
+          },
+          {
+            "name": "appParams",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": "Any other URL parameter of the app, given as it is at the top level of the query (for example `slopeOpacity=0.6`): ramps, opacities, light direction, contour interval. The list is the app's URL reference.",
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tile",
+            "headers": {
+              "link": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`<{this address}.stac.json?{query}>; rel=\"describedby\"; type=\"application/geo+json\"`: the answer's STAC Item (Processing extension)."
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is wrong; the body says which",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such source"
+          },
+          "500": {
+            "description": "The app could not be rendered; the body says why",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/basemap-tiles/{source}/{z}/{x}/{y}.{format}": {
+      "get": {
+        "tags": [
+          "Basemap tiles"
+        ],
+        "operationId": "basemapTileBySource",
+        "summary": "One XYZ tile of the imagery, the source by id",
+        "description": "A basemap of `/basemaps` by id: a dated source (`wayback`, `ge-historical`, `bing`, `hls`, `eox-s2`) with `imageryDate`, or a built-in basemap with a fixed address (`google`, `googlesat`, `bing`, `esri`, `mapbox`, `maptiler`, `here`). `bing` is both: dated with an `imageryDate`, Bing Aerial without. The same tile as the query form `/basemap-tiles/{z}/{x}/{y}.{format}?imagerySource=...` (or `basemapSource=...`); `custom` takes the imagery from the query. An unknown id answers 404. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "An id from `/basemaps`, or `custom`.",
+            "example": "wayback"
+          },
+          {
+            "name": "z",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 22
+            },
+            "example": 14
+          },
+          {
+            "name": "x",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 8492
+          },
+          {
+            "name": "y",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 5792
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "jpg",
+                "png"
+              ],
+              "default": "jpg"
+            }
+          },
+          {
+            "name": "imageryDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "For a dated source: the date, YYYY-MM-DD (the nearest image the source has).",
+            "example": "2020-01-01"
+          },
+          {
+            "name": "tilesize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                256,
+                512
+              ],
+              "default": 256
+            },
+            "description": "The side of the tile in pixels."
+          },
+          {
+            "name": "mapboxKey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Your Mapbox token, for `mapbox`."
+          },
+          {
+            "name": "maptilerKey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Your MapTiler key, for `maptiler`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tile",
+            "headers": {
+              "link": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`<{this address}.stac.json?{query}>; rel=\"describedby\"; type=\"application/geo+json\"`: the answer's STAC Item (Processing extension)."
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is wrong; the body says which",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such basemap"
+          },
+          "500": {
+            "description": "The app could not be rendered; the body says why",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/basemaps": {
+      "get": {
+        "tags": [
+          "Catalogs"
+        ],
+        "operationId": "basemaps",
+        "summary": "The basemaps, by id",
+        "description": "What `/basemap-tiles/{source}/...` takes: the dated imagery (`kind: dated`, read with `imageryDate`) and the built-in basemaps with a fixed address (`kind: static`), each with the query parameter it stands for (`imagerySource` or `basemapSource`) and the API key it needs.",
+        "responses": {
+          "200": {
+            "description": "The list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/basemap-tiles/{z}/{x}/{y}.{format}": {
       "get": {
         "tags": [
@@ -824,7 +1246,7 @@
         ],
         "operationId": "basemapTile",
         "summary": "One XYZ tile of the imagery",
-        "description": "The basemap as the app draws it: dated imagery (`imagerySource`, `imageryDate`), an XYZ or COG address (`imageryUrl`), or the app's named basemap and its overlays (`basemapSource`, `overlayBasemapIds` and the other basemap parameters of the app, at the top level of the query). Drawn by the browser engine. A terrain mode in `modes` is refused: ask `/terrain-tiles` and stack the two. `{y}@2x` or `tilesize=512` for 512 px. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
+        "description": "The basemap as the app draws it: dated imagery (`imagerySource`, `imageryDate`), an XYZ or COG address (`imageryUrl`), or the app's named basemap and its overlays (`basemapSource`, `overlayBasemapIds` and the other basemap parameters of the app, at the top level of the query). A source of `/basemaps` can go in the path instead: `/basemap-tiles/{source}/{z}/{x}/{y}.{format}`. Drawn by the browser engine. A terrain mode in `modes` is refused: ask `/terrain-tiles` and stack the two. `{y}@2x` or `tilesize=512` for 512 px. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
         "parameters": [
           {
             "name": "z",
@@ -1840,7 +2262,7 @@
         ],
         "operationId": "quantizedMeshLayer",
         "summary": "A source as Cesium terrain: its layer.json",
-        "description": "The layer.json a Cesium terrain client reads first (CesiumJS `CesiumTerrainProvider.fromUrl`, Cesium for Unreal or Unity, Blender add-ons that read Cesium terrain): TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326` (two tiles at level 0), `available` level by level (whole at level 0, the source's bounds below), down to the level as fine as the source (its deepest 256 px Web Mercator zoom, less one), `extensions: [octvertexnormals]` and the source's attribution. The tile template keeps the query given. Any source the direct engine reads (`/sources`, engine `direct`): Terrarium and Terrain-RGB pyramids, COG, VRT, WMS, LERC, PMTiles, with the same API keys as `/terrain-tiles`.",
+        "description": "The layer.json a Cesium terrain client reads first (CesiumJS `CesiumTerrainProvider.fromUrl`, Cesium for Unreal or Unity, Blender add-ons that read Cesium terrain): TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326` (two tiles at level 0), `available` level by level (whole at level 0, the source's bounds below), down to the level as fine as the source (its deepest 256 px Web Mercator zoom, less one), `extensions: [octvertexnormals]` and the source's attribution. The tile template keeps the query given (`mesher`, `heights`, ...). Heights are above the WGS84 ellipsoid by default, as quantized-mesh expects (see `heights`). Any source the direct engine reads (`/sources`, engine `direct`): Terrarium and Terrain-RGB pyramids, COG, VRT, WMS, LERC, PMTiles, with the same API keys as `/terrain-tiles`.",
         "parameters": [
           {
             "name": "source",
@@ -1880,12 +2302,26 @@
             "schema": {
               "type": "string",
               "enum": [
-                "delatin",
-                "martini"
+                "martini",
+                "delatin"
               ],
-              "default": "delatin"
+              "default": "martini"
             },
-            "description": "`delatin` (the default): Delaunay refinement, about 45% fewer triangles and bytes than martini for the same error, 20 to 55 ms a tile. `martini`: a right-triangulated irregular network on the 257 x 257 grid, 5 to 15 ms a tile, about twice the triangles."
+            "description": "`martini` (the default since 2026-11-25): a right-triangulated irregular network on the 257 x 257 grid, 5 to 15 ms a tile, about twice the triangles of delatin. `delatin`: Delaunay refinement, about 45% fewer triangles and bytes for the same error, 20 to 55 ms a tile (three times slower): for a scene where bytes matter more than the time to make them."
+          },
+          {
+            "name": "heights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ellipsoidal",
+                "orthometric"
+              ],
+              "default": "ellipsoidal"
+            },
+            "description": "The vertical datum of the heights. `ellipsoidal` (the default): above the WGS84 ellipsoid, what quantized-mesh means and what CesiumJS, Cesium for Unreal and Unity and Cesium World Terrain use; the sources give heights above sea level (orthometric), so the EGM96 geoid's height N is added (h = H + N: about +45 m in Paris, +51 m in the Alps, from -106 m south of India to +85 m in New Guinea). Without it the ground sits N metres too low under 3D Tiles, photogrammetry and GNSS data. `orthometric`: the source's own heights above sea level, for a client that places everything on the geoid (a local scene in metres above sea level). An ellipsoidal source (`cesium`) is not shifted again: with `orthometric` it has N taken off. EGM96 15' grid, bilinear (NGA, public domain), shipped with the service."
           },
           {
             "name": "maxTriangles",
@@ -1963,7 +2399,7 @@
         ],
         "operationId": "quantizedMeshTile",
         "summary": "One quantized-mesh-1.0 terrain tile",
-        "description": "One tile of the geographic TMS grid (level z: 2^(z+1) x 2^z tiles, y from the south) as quantized-mesh-1.0: the source's Web Mercator pixels of the matching zoom resampled (bilinear) to a 257 x 257 grid over the tile, meshed within the error asked, encoded with the header (centre, heights, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices and the four edge lists; skirts are the client's. With `octvertexnormals` asked (Accept header or `extensions`), the oct-encoded vertex normals. Gzipped when the client accepts it. A tile with no data is flat at 0 m.",
+        "description": "One tile of the geographic TMS grid (level z: 2^(z+1) x 2^z tiles, y from the south) as quantized-mesh-1.0: the source's Web Mercator pixels of the matching zoom resampled (bilinear) to a 257 x 257 grid over the tile, shifted by the geoid to ellipsoidal heights (unless `heights=orthometric`), meshed within the error asked, encoded with the header (centre, heights, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices and the four edge lists; skirts are the client's. With `octvertexnormals` asked (Accept header or `extensions`), the oct-encoded vertex normals. Gzipped when the client accepts it. A tile with no data is flat at sea level (the geoid's height at its centre, or 0 m with `heights=orthometric`).",
         "parameters": [
           {
             "name": "source",
@@ -2033,12 +2469,26 @@
             "schema": {
               "type": "string",
               "enum": [
-                "delatin",
-                "martini"
+                "martini",
+                "delatin"
               ],
-              "default": "delatin"
+              "default": "martini"
             },
             "description": "As for layer.json."
+          },
+          {
+            "name": "heights",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ellipsoidal",
+                "orthometric"
+              ],
+              "default": "ellipsoidal"
+            },
+            "description": "As for layer.json: above the WGS84 ellipsoid (the geoid added) or above sea level."
           },
           {
             "name": "maxTriangles",
@@ -2445,6 +2895,114 @@
         }
       }
     },
+    "/colorramps/{id}.{format}": {
+      "get": {
+        "tags": [
+          "Catalogs"
+        ],
+        "operationId": "colorrampImage",
+        "summary": "A colour ramp as a picture",
+        "description": "The ramp from its first stop to its last, coloured as the app colours the map (MapLibre's colour relief: linear between the stops, 8-bit), for a legend or a ramp picker. Horizontal by default, the lowest value on the left; `orientation=vertical` puts it at the bottom. PNG keeps the ramp's transparency (a slope ramp is transparent below its first colour); JPEG lays it on white.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "An id from `/colorramps`.",
+            "example": "slope-plantopo"
+          },
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpg"
+              ],
+              "default": "png"
+            }
+          },
+          {
+            "name": "width",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            },
+            "description": "Width in pixels: 256 horizontal, 16 vertical by default.",
+            "example": 256
+          },
+          {
+            "name": "height",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            },
+            "description": "Height in pixels: 16 horizontal, 256 vertical by default.",
+            "example": 16
+          },
+          {
+            "name": "orientation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "horizontal",
+                "vertical"
+              ],
+              "default": "horizontal"
+            },
+            "description": "Which way the values run."
+          },
+          {
+            "name": "reverse",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "The highest value first."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The picture",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A wrong size or orientation"
+          },
+          "404": {
+            "description": "No such ramp"
+          }
+        }
+      }
+    },
     "/terrain-tiles/{z}/{x}/{y}.{vectorFormat}": {
       "get": {
         "tags": [
@@ -2634,7 +3192,7 @@
     "/": {
       "get": {
         "tags": [
-          "OGC API - Processes"
+          "Visualization modes (OGC API – Processes)"
         ],
         "operationId": "landingPage",
         "summary": "Landing page",
@@ -2673,7 +3231,7 @@
     "/conformance": {
       "get": {
         "tags": [
-          "OGC API - Processes"
+          "Visualization modes (OGC API – Processes)"
         ],
         "operationId": "conformance",
         "summary": "Conformance classes",
@@ -2695,7 +3253,7 @@
     "/processes": {
       "get": {
         "tags": [
-          "OGC API - Processes"
+          "Visualization modes (OGC API – Processes)"
         ],
         "operationId": "processes",
         "summary": "The modes, as OGC API - Processes processes",
@@ -2729,7 +3287,7 @@
     "/processes/{processId}": {
       "get": {
         "tags": [
-          "OGC API - Processes"
+          "Visualization modes (OGC API – Processes)"
         ],
         "operationId": "process",
         "summary": "One mode, as a process description",
@@ -2796,9 +3354,19 @@
           "Catalogs"
         ],
         "operationId": "view",
-        "summary": "What a share link switches on",
-        "description": "Given the query of a share link, as is: the modes it switches on (`active`), each one's opacity (its own times its group's), the parameters every layer keeps (`params`, the terrain source among them) and the camera. The QGIS plugin's Open link.",
+        "summary": "Read a Terrain Viewer share link: which modes it shows",
+        "description": "Turns a link of the app (the address the Share dialog copies, `https://terrain-viewer.iconem.com/?...`) into what this service needs to draw the same view: the modes it switches on (`active`), every mode's opacity (`opacity`: its own times its group's), the parameters every layer keeps (`params`: the terrain source, ramps, light...), the camera (`camera`: lat, lng, zoom, when the link has them) and the tile addresses that draw it (`tiles.terrain`, an XYZ template of the active modes; `tiles.basemap` when the link shows imagery). The QGIS plugin's *Open link* reads it to add the view's layers.\n\n**Two ways to ask.** Give the whole link as `url` (URL-encoded): `/view?url=https%3A%2F%2Fterrain-viewer.iconem.com%2F%3FshowTerrainAnalysis%3Dtrue%26slopeOpacity%3D0.5%26terrainSourceA%3Dmapterhorn`. Or paste the link's query (what follows `?`) after `/view?`: `/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn`.\n\n**What comes back** for that link (shortened): `{\"active\": [\"slope\", \"hillshade\"], \"opacity\": {\"slope\": 0.5, \"hillshade\": 1, ...}, \"params\": {\"terrainSource\": \"mapterhorn\"}, \"camera\": {}, \"tiles\": {\"terrain\": \"http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope,hillshade\"}}`. Each active mode is a process (`/processes/{id}`) with its settings.",
         "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "A whole share link of the app; its query is read (other parameters given beside it are added).",
+            "example": "https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn"
+          },
           {
             "name": "appParams",
             "in": "query",
@@ -2809,14 +3377,14 @@
                 "type": "string"
               }
             },
-            "description": "The query of a share link, as is.",
+            "description": "Or the query of a share link, as is, at the top level.",
             "style": "form",
             "explode": true
           }
         ],
         "responses": {
           "200": {
-            "description": "The view",
+            "description": "The view: active modes, their opacities, the parameters, the camera",
             "content": {
               "application/json": {
                 "schema": {

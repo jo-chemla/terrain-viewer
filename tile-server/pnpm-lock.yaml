@@ -20,6 +20,9 @@ importers:
       delatin:
         specifier: ^0.2.0
         version: 0.2.0
+      egm96-universal:
+        specifier: 1.1.1
+        version: 1.1.1
       geotiff:
         specifier: ^3.0.5
         version: 3.0.5
@@ -386,6 +389,9 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
+  egm96-universal@1.1.1:
+    resolution: {integrity: sha512-rHOKjWBcT2SQ1SqATOt3FdVVEkd6+n4Q+j0IDivVc/yqS0SmQ+LLUbNdCRuS6C0aibv9UXxqOyAGIyyg4E22Qg==}
+
   esbuild@0.28.2:
     resolution: {integrity: sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==}
     engines: {node: '>=18'}
@@ -431,6 +437,9 @@ packages:
 
   quickselect@3.0.0:
     resolution: {integrity: sha512-XdjUArbK4Bm5fLLvlm5KpTFOiOThgfWWI4axAZDWg4E/0mKdZyI9tNEfds27qCi1ze/vwTR16kvmmGhRra3c2g==}
+
+  rfc4648@1.5.4:
+    resolution: {integrity: sha512-rRg/6Lb+IGfJqO05HZkN50UtY7K/JhxJag1kP23+zyMfrvoB0B7RWv06MbOzoc79RgCdNTiUaNsTT1AJZ7Z+cg==}
 
   semver@7.8.6:
     resolution: {integrity: sha512-9lpSSU4Mly3mrtruwLs1eLK6+gzbzqeBFwRNjIjE+9LuDpWdYctrQlQ3ej1Ilgi7gknpsTRnPoLP8DpCHqHIJw==}
@@ -685,6 +694,10 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
+  egm96-universal@1.1.1:
+    dependencies:
+      rfc4648: 1.5.4
+
   esbuild@0.28.2:
     optionalDependencies:
       '@esbuild/aix-ppc64': 0.28.2
@@ -748,6 +761,8 @@ snapshots:
   quick-lru@6.1.2: {}
 
   quickselect@3.0.0: {}
+
+  rfc4648@1.5.4: {}
 
   semver@7.8.6: {}
 

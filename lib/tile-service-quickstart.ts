@@ -22,17 +22,22 @@ export function tileServiceQuickstart(base: string): TileServiceQuickstartUrl[] 
     {
       label: "Slope, Mapterhorn (XYZ tiles)",
       hint: "QGIS XYZ Tiles, MapLibre raster source, any XYZ client",
-      url: `${b}/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=mapterhorn`,
+      url: `${b}/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope`,
     },
     {
       label: "Sky-view factor, IGN LiDAR HD DTM (XYZ tiles, France)",
       hint: "QGIS XYZ Tiles, MapLibre raster source, any XYZ client",
-      url: `${b}/terrain-tiles/{z}/{x}/{y}.png?modes=svf&terrainSource=custom-ign-lidarhd-dtm-wms-raw`,
+      url: `${b}/terrain-tiles/custom-ign-lidarhd-dtm-wms-raw/{z}/{x}/{y}.png?modes=svf`,
     },
     {
       label: "Terrain mesh, Mapterhorn (quantized-mesh layer.json)",
-      hint: "CesiumJS CesiumTerrainProvider, Blender terrain add-ons",
+      hint: "CesiumJS CesiumTerrainProvider, Blender terrain add-ons; martini mesher (?mesher=delatin for half the triangles), heights above the ellipsoid",
       url: `${b}/quantized-mesh/mapterhorn/layer.json`,
+    },
+    {
+      label: "Imagery, Esri Wayback 2020 (XYZ tiles)",
+      hint: "QGIS XYZ Tiles, a raster overlay in Blender or CesiumJS; the ids: /basemaps",
+      url: `${b}/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01`,
     },
   ]
 }

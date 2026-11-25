@@ -8,16 +8,17 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 
 | Address | What it answers |
 |---|---|
-| `/terrain-tiles/{z}/{x}/{y}.png\|jpg` | One Web Mercator tile of the elevation modes, 256 px (`@2x` or `tilesize=512` for 512) |
-| `/basemap-tiles/{z}/{x}/{y}.jpg\|png` | One tile of the imagery (`imagerySource`, `imageryDate`, `imageryUrl`, the app's basemap parameters) |
+| `/terrain-tiles/{source}/{z}/{x}/{y}.png\|jpg` | One Web Mercator tile of the elevation modes, 256 px (`@2x` or `tilesize=512` for 512); a library id in the path, or `/terrain-tiles/{z}/{x}/{y}…?terrainSource=` for an address, a COG or JSON (`custom` in the path: the same) |
+| `/basemap-tiles/{source}/{z}/{x}/{y}.jpg\|png` | One tile of the imagery: a dated source or a built-in basemap by id (`/basemaps`), or `/basemap-tiles/{z}/{x}/{y}…?imageryUrl=` (and `imagerySource`, `imageryDate`, the app's basemap parameters) |
 | `/terrain-tiles/{z}/{x}/{y}.pbf\|mvt` | The overlays as a vector tile: contours, iso-line, mound detector, plane slicer, graticule |
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
 | `/bbox/{w},{s},{e},{n}/{width}x{height}.png\|jpg\|tif` | The same as `/render` with `bbox`, `width`, `height` (one handler) |
-| `/quantized-mesh/{source}/layer.json`, `.../{z}/{x}/{y}.terrain` | Any direct source as Cesium terrain (quantized-mesh-1.0, geographic TMS, octvertexnormals; delatin, or `mesher=martini`; `maxTriangles`); meshing in `quantized-mesh.mjs`, standalone; tiles kept gzipped |
+| `/quantized-mesh/{source}/layer.json`, `.../{z}/{x}/{y}.terrain` | Any direct source as Cesium terrain (quantized-mesh-1.0, geographic TMS, octvertexnormals; martini, or `mesher=delatin` with `maxTriangles`; heights above the ellipsoid, the EGM96 geoid added (`geoid.mjs`), or `heights=orthometric`); meshing in `quantized-mesh.mjs`, standalone; tiles kept gzipped |
 | `/terrain-tiles/{z}/{x}/{y}.tif`, `/render.tif`, `/gdal.xml` | One mode's values before its ramp, in natural units: Float32 GeoTIFF tiles, an area (like a WCS), one GDAL raster; deflate-compressed (`compression=none` to skip); `.png?encoding=terrarium\|terrainrgb` packs them in a PNG |
 | `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
 | `<raster export>.stac.json` | The export's STAC Item (Processing extension, `stac.mjs`), also named by the answer's `Link: <…>; rel="describedby"` header |
-| `/processes`, `/processes/{id}` | Each mode as an OGC API - Processes description (settings as inputs with JSON Schema, outputs, `x-tv-` panel data), read by the QGIS plugin (`../qgis-plugin/`); `/`, `/conformance` per OGC API Common; `/view?<share query>` |
+| `/processes`, `/processes/{id}` | Each mode as an OGC API - Processes description (settings as inputs with JSON Schema, outputs, `x-tv-` panel data), read by the QGIS plugin (`../qgis-plugin/`); `/`, `/conformance` per OGC API Common; `/view?url=<share link>` (or its query): the modes it shows and their `/terrain-tiles` template |
+| `/colorramps/{id}.png\|jpg` | A colour ramp as a picture (`width`, `height`, `orientation=vertical`, `reverse`), interpolated as the map does |
 | `/openapi.json`, `/docs`, `/health` | `/docs` opens on a quick start of ready-to-copy addresses; `/` redirects to `/docs` (JSON index with `Accept: application/json`); `/health`: queues and workers |
 
 Removed, answering 404 with the address to use: `/tiles/{z}/{x}/{y}` and
@@ -35,7 +36,7 @@ pnpm install             # at the repository root, once
 cd tile-server && pnpm install
 pnpm start               # builds generated/, then http://localhost:3400
 pnpm test                # builds, then the engine checks (network)
-node openapi.mjs         # rewrites docs/public/tile-service-openapi.json
+node openapi.mjs         # rewrites docs/public/tile-service-openapi.json (the docs build runs it too)
 node compare-engines.mjs http://localhost:3400 out/   # the two engines side by side
 node bench-direct.mjs [out/]   # ms per tile of the relief modes, in this thread (network)
 node bench-direct.mjs --compare out-a/ out-b/   # two versions' tiles, pixel for pixel
@@ -60,6 +61,7 @@ and with `TV_RENDER_URL` asks a running tile service for its pictures.
 | File | Role |
 |---|---|
 | `server.mjs`, `openapi.mjs` | The service: the addresses above, 2048 px blocks cut into tiles, the cache; the OpenAPI document and the Scalar page. |
+| `geoid.mjs` | The EGM96 geoid's height above the ellipsoid (egm96-universal, NGA's 15' grid, bilinear): quantized-mesh heights made ellipsoidal. |
 | `url.mjs` | A view description to the app's link and back to query parameters (`buildViewUrl`, `viewToQuery`, `queryToView`). The mode table mirrors `skills/terrain-viewer/SKILL.md`. |
 | `render.mjs` | The browser engine: the app in a headless browser, waited on until its maps have drawn (`withSettledPage`). |
 | `direct.mjs` | The direct engine: rebuilds the map's layer stack from the app's URL parameters and draws every 2D terrain mode and the overlays with the app's own code; the hillshade and the live Phong and matcap shaders are ported line by line. `plan()` says when a request goes to the browser instead, and why. |

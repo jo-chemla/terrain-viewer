@@ -124,6 +124,8 @@ export async function resolveDemOrWhy(source, settings = {}) {
       ...(spec.bounds ? { bounds: spec.bounds } : {}),
       ...(spec.customEncoding ? { customEncoding: spec.customEncoding } : {}),
       ...(entry.external ? { external: true } : {}),
+      // Vertical datum: unset is orthometric (lib/source-schema.ts).
+      ...(entry.datum ? { datum: entry.datum } : {}),
     },
   }
 }

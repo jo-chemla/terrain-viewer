@@ -4,8 +4,6 @@ icon: Grid3x3
 description: What the app draws, served as XYZ tiles and as pictures of a viewport over HTTP, from a Docker image; its addresses and parameters browsed with Scalar
 ---
 
-import { ScalarReference } from '@/components/scalar-reference';
-
 The app runs in the browser and has no server. The tile service is a small server that hands out what the app draws, so a map library, QGIS or a script can use a Terrain Viewer view without running the app. Two engines draw:
 
 | Engine | Draws | Time per tile |
@@ -21,7 +19,7 @@ docker run -p 3400:3400 --shm-size=1g -v tv-tiles:/data/tiles ghcr.io/iconem/ter
 
 Or from a clone, without Docker: `cd tile-server && pnpm install && pnpm start` (after `pnpm install` at the root). The service is its own package, `tile-server/`, with its own image (`tile-server/Dockerfile`).
 
-Then `http://localhost:3400/docs` is the reference below with a working **Test request** button, and `http://localhost:3400/openapi.json` its OpenAPI document. `http://localhost:3400/` opens that page too: its first section is the quick start below, with the service's own address in each line.
+Then `http://localhost:3400/docs` is the [API reference](/api/tile-service/) with a working **Test request** button, and `http://localhost:3400/openapi.json` its OpenAPI document. `http://localhost:3400/` opens that page too: its first section is the quick start below, with the service's own address in each line.
 
 ## Quick start
 
@@ -30,25 +28,37 @@ Copy an address into QGIS (*XYZ Tiles*), MapLibre, CesiumJS or Blender. Leave `{
 Slope from Mapterhorn, as XYZ tiles (any mode of `/processes`, or several comma-separated):
 
 ```text
-http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=mapterhorn&modes=slope
+http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope
 ```
 
 Sky-view factor from IGN RGE ALTI (France), as XYZ tiles (zoom 12 and finer; the first tiles of an area take a second or two):
 
 ```text
-http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=custom-fr-ign-rgealti-highres&modes=svf
+http://localhost:3400/terrain-tiles/custom-fr-ign-rgealti-highres/{z}/{x}/{y}.png?modes=svf
 ```
 
-Cesium terrain (quantized mesh) from Mapterhorn: the layer.json, for CesiumJS or Blender (see [Quantized mesh](#quantized-mesh)):
+A source given by its address rather than an id (Terrarium tiles here; a COG, a VRT or a JSON configuration the same way), in the query:
+
+```text
+http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=hillshade&terrainSource=https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png
+```
+
+Cesium terrain (quantized mesh) from Mapterhorn: the layer.json, for CesiumJS or Blender (see [Quantized mesh](#quantized-mesh); martini mesher, heights above the ellipsoid):
 
 ```text
 http://localhost:3400/quantized-mesh/mapterhorn/layer.json
 ```
 
-The same terrain meshed by martini instead of delatin (made about three times faster, with twice the triangles):
+The same terrain meshed by delatin instead of martini (half the triangles, three times slower to make):
 
 ```text
-http://localhost:3400/quantized-mesh/mapterhorn/layer.json?mesher=martini
+http://localhost:3400/quantized-mesh/mapterhorn/layer.json?mesher=delatin
+```
+
+Imagery: Esri Wayback of 2020 as XYZ tiles (the dated imagery and the built-in basemaps by id: `/basemaps`):
+
+```text
+http://localhost:3400/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01
 ```
 
 A picture of a box (west, south, east, north in degrees; `.tif` with one mode gives its values):
@@ -57,10 +67,16 @@ A picture of a box (west, south, east, north in degrees; `.tif` with one mode gi
 http://localhost:3400/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours
 ```
 
+A colour ramp as a picture, for a legend (`orientation=vertical`; the ids: `/colorramps`):
+
+```text
+http://localhost:3400/colorramps/slope-plantopo.png?width=256&height=16
+```
+
 The STAC Item of a tile (any raster export's address plus `.stac.json`):
 
 ```text
-http://localhost:3400/terrain-tiles/12/2133/1449.png.stac.json?terrainSource=mapterhorn&modes=slope
+http://localhost:3400/terrain-tiles/mapterhorn/12/2133/1449.png.stac.json?modes=slope
 ```
 
 The modes, as OGC API - Processes (each mode's settings: `/processes/{id}`):
@@ -73,11 +89,25 @@ http://localhost:3400/processes
 
 | Address | Answers | Like |
 |---|---|---|
-| `/terrain-tiles/{z}/{x}/{y}.png` or `.jpg` | One Web Mercator tile of the modes computed from the elevation, by its index. 256 px; `{y}@2x` or `tilesize=512` for 512 px | An XYZ tile layer, titiler's `/tiles` |
-| `/basemap-tiles/{z}/{x}/{y}.jpg` or `.png` | One tile of the imagery: `imagerySource` and `imageryDate`, `imageryUrl`, or the app's basemap parameters (`basemapSource`, `overlayBasemapIds`) | An XYZ basemap |
+| `/terrain-tiles/{source}/{z}/{x}/{y}.png` or `.jpg` (or `/terrain-tiles/{z}/{x}/{y}…?terrainSource=`) | One Web Mercator tile of the modes computed from the elevation, by its index. 256 px; `{y}@2x` or `tilesize=512` for 512 px | An XYZ tile layer, titiler's `/tiles` |
+| `/basemap-tiles/{source}/{z}/{x}/{y}.jpg` or `.png` (or `/basemap-tiles/{z}/{x}/{y}…?imageryUrl=`) | One tile of the imagery under the terrain, see [Addresses](#addresses-a-source-in-the-path-or-in-the-query) for which | An XYZ basemap |
 | `/render.png` or `.jpg` | A picture of a viewport: `lat`, `lng`, `zoom`, or `bbox=west,south,east,north`, with `width` and `height`. Can be tilted (`viewMode=3d`, `pitch`, `bearing`) or split, and can mix imagery and terrain modes | A WMS GetMap |
 | `/bbox/{w},{s},{e},{n}/{width}x{height}.png`, `.jpg` or `.tif` | The same answer as `/render` with `bbox`, `width` and `height`, the box and the size in the address (titiler's form); its `.stac.json` Item and `Link` header like `/render` | titiler's `/bbox` |
 | `/quantized-mesh/{source}/layer.json` and `/{z}/{x}/{y}.terrain` | The elevation as Cesium terrain, see [Quantized mesh](#quantized-mesh) | Cesium ion terrain |
+
+### Addresses: a source in the path or in the query
+
+The source can be named in the path, as `/quantized-mesh/{source}/…` always did, or given in the query. Both forms answer the same tile, and the query forms stay:
+
+| In the path: a library id | In the query: anything else |
+|---|---|
+| `/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope` | `/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<address, COG, VRT or JSON>` |
+| `/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01` | `/basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=<XYZ or COG address>` |
+| `/quantized-mesh/mapterhorn/layer.json` | `/quantized-mesh/custom/layer.json?terrainSource=<…>` |
+
+An id goes in the path because it is short and cannot be lost from a copied template; an address cannot (it holds slashes and its own `{z}/{x}/{y}`). `custom` in the path means "the source is in the query" on all three. An unknown id answers 404 naming the list to look in (`/sources`, `/basemaps`). The same holds for `.tif`, `.pbf`, `.mvt` and `.stac.json`.
+
+`/basemap-tiles` is not only the historical imagery: it draws the basemap as the app does, so it serves the dated sources (`wayback`, `ge-historical`, `bing`, `hls`, `eox-s2`, each with `imageryDate`), the app's built-in basemaps with a fixed address (`google`, `googlesat`, `bing`, `esri`, `mapbox`, `maptiler`, `here`), any XYZ or COG address (`imageryUrl`), and the app's basemap parameters (`basemapSource`, `overlayBasemapIds`). `bing` is in both lists: dated with an `imageryDate`, Bing Aerial without. It keeps its name for that reason. `/basemaps` lists the ids.
 
 A tile is the map alone. A viewport keeps the scale bar and the credits. The terrain tiles refuse `basemap` and the basemap tiles refuse terrain modes: ask both and stack them in the client.
 
@@ -115,9 +145,11 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 |---|---|
 | `/sources`, `/sources/{id}` | The 141 terrain sources: built-in and library, with type, tile address, zoom range, extent, and the engine that can draw each |
 | `/colorramps`, `/colorramps/{id}` | The app's 268 colour ramps, to name as `colorRamp` (colour relief) or `slopeColorRamp` (slope); one ramp gives its stops |
+| `/colorramps/{id}.png` or `.jpg` | A ramp as a picture, coloured as the map colours it (MapLibre's colour relief: linear between the stops): `width` and `height` (256 × 16 by default, 16 × 256 vertical), `orientation=vertical` (the lowest value at the bottom; horizontal: on the left), `reverse=true`. PNG keeps the ramp's transparency, JPEG is on white. For a legend or a ramp picker |
+| `/basemaps` | What `/basemap-tiles/{source}/…` takes: the dated imagery and the built-in basemaps, each with the parameter it stands for and its API key |
 | `/algorithms` | The modes with the engine that draws each |
-| `/processes`, `/processes/{id}` | Each mode as an [OGC API - Processes](#ogc-api---processes) description: its settings as inputs with their JSON Schema (type, range, values, default), its outputs, its panel group, form, opacity parameters, and the unit and typical range of its values. The [QGIS plugin](/dev/qgis-plugin) builds its panel from it |
-| `/view?<a share link's query>` | What that view switches on, each mode's opacity, the parameters its layers keep, the camera |
+| `/processes`, `/processes/{id}` | Each mode as an [OGC API - Processes](#visualization-modes-ogc-api---processes) description: its settings as inputs with their JSON Schema (type, range, values, default), its outputs, its panel group, form, opacity parameters, and the unit and typical range of its values. The [QGIS plugin](/dev/qgis-plugin) builds its panel from it |
+| `/view?url=<a share link>` or `/view?<its query>` | Reads a link of the app: which modes it switches on (`active`), each mode's opacity, the parameters its layers keep, the camera, and `tiles.terrain`, the XYZ template that draws it here. Paste `https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn` (URL-encoded) as `url` and the answer has `"active": ["slope", "hillshade"]` and `"tiles": {"terrain": "…/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope,hillshade"}`. The QGIS plugin's *Open link* reads it |
 
 A source that is not listed can still be given whole, as its address or as a JSON configuration.
 
@@ -191,7 +223,7 @@ Any source the direct engine reads also comes as Cesium terrain, [quantized-mesh
 
 | Address | Answers |
 |---|---|
-| `/quantized-mesh/{source}/layer.json` | The layer.json a Cesium client reads first: TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326`, `available` level by level (level 0 whole, the source's bounds below), `maxzoom` the level as fine as the source (its deepest 256 px Web Mercator zoom less one: 17 for Mapterhorn), `extensions: [octvertexnormals]`, the source's attribution. The tile template keeps the query given, so `?mesher=martini` or a key on the layer.json's address reaches every tile |
+| `/quantized-mesh/{source}/layer.json` | The layer.json a Cesium client reads first: TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326`, `available` level by level (level 0 whole, the source's bounds below), `maxzoom` the level as fine as the source (its deepest 256 px Web Mercator zoom less one: 17 for Mapterhorn), `extensions: [octvertexnormals]`, the source's attribution. The tile template keeps the query given, so `?mesher=delatin`, `?heights=orthometric` or a key on the layer.json's address reaches every tile |
 | `/quantized-mesh/{source}/{z}/{x}/{y}.terrain` | One tile, `application/vnd.quantized-mesh`, gzipped when the client accepts it, cached a week |
 
 `{source}` is an id from `/sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration, as for `/terrain-tiles`). The API keys are the same as for the other tiles (`mapboxKey`, `maptilerKey`, `cesiumIonKey`, or the operator's). Parameters:
@@ -199,9 +231,25 @@ Any source the direct engine reads also comes as Cesium terrain, [quantized-mesh
 | Parameter | Default | What it does |
 |---|---|---|
 | `error` | 0.5 | The mesh's vertical error, as a share of Cesium's geometric error of the level (77 km at level 0, halved each level: 4.7 m at level 14, so 2.35 m by default). Smaller for a finer mesh, larger for a lighter one |
-| `mesher` | `delatin` | `delatin` or `martini`, see [Martini or delatin](#martini-or-delatin) |
+| `mesher` | `martini` | `martini` or `delatin`, see [Martini or delatin](#martini-or-delatin) |
+| `heights` | `ellipsoidal` | `ellipsoidal` (above the WGS84 ellipsoid, the geoid added) or `orthometric` (above sea level, as the source gives them), see [Heights: ellipsoid or sea level](#heights-ellipsoid-or-sea-level) |
 | `maxTriangles` | 32768 | delatin only: the most triangles a tile gets. The mesh stops refining there, worst points first. The default only bounds noisy or very fine sources; lower it to keep a Blender scene light |
 | `extensions` | | `octvertexnormals`, for a client that does not send Cesium's `Accept: application/vnd.quantized-mesh;extensions=octvertexnormals` |
+
+### Heights: ellipsoid or sea level
+
+![Three surfaces a height can be counted from: the ground, the WGS84 ellipsoid, the geoid (mean sea level), with h_WGS84 = H_MSL + dz_geoid, +45 m in Paris and about -100 m south of India; which sources count from which surface](/screenshots/tile-service/height-references.png)
+
+Quantized mesh is ellipsoidal: Cesium places a vertex at its height above the WGS84 ellipsoid (`h`), as Cesium World Terrain, 3D Tiles and Google Photorealistic 3D Tiles do. The elevation sources count from sea level instead (`H`, orthometric: Mapterhorn, AWS Terrain Tiles, Copernicus, IGN, AHN…). Served as they are, the meshes sat too low by the geoid's height `N`, about 45 m in Paris and 51 m in the Alps, and a photogrammetry mesh or a 3D Tiles city placed with GNSS floated above the ground.
+
+Since 2026-11-25 the service adds it: `h = H + N`, with `N` from **EGM96** (NGA's 15′ grid, bilinear; the grid is a work of the US government, public domain, read through the MIT package `egm96-universal`, shipped with the service, nothing fetched). EGM2008 differs from EGM96 by less than a metre in most places and a few metres in high mountains, inside a tile's error at the levels where the shift is visible; the national sea-level datums of the sources differ from the geoid by a metre or two anyway. The source's own datum is read from its entry: `cesium` (Cesium World Terrain, already ellipsoidal) is not shifted again.
+
+| `heights` | The mesh's heights | For |
+|---|---|---|
+| `ellipsoidal` (default) | Above the WGS84 ellipsoid: the source's heights plus `N` | CesiumJS, Cesium for Unreal and Unity, Blender's OGC 3D Tiles add-on: anything that mixes the terrain with 3D Tiles, GNSS or Cesium's globe |
+| `orthometric` | Above sea level, as the source gives them (an ellipsoidal source has `N` taken off) | A client that places everything above sea level, a local scene in metres |
+
+One parameter rather than two endpoints (as Re:Earth Terrain's `ellipsoid` and `elevation`): the source stays the only path segment, the other choices (`mesher`, `error`) are parameters too, and the layer.json's tile template carries it to every tile. The layer.json's `description` says which heights it serves. A tile with no data is flat at sea level, the geoid's height at its centre (0 m with `orthometric`). Looking `N` up costs under a millisecond a tile (65 × 65 samples, interpolated). The module is `tile-server/geoid.mjs`.
 
 ### Blender
 
@@ -209,8 +257,8 @@ The [OGC 3D Tiles add-on](https://github.com/jo-chemla/blender_ogc3dtiles) (`ble
 
 1. Start the tile service: the desktop app runs it on port 3400, or `docker run -p 3400:3400 ghcr.io/iconem/terrain-viewer-tiles`.
 2. In Blender, open the 3D viewport's sidebar (N), tab **3D Tiles**, and add an entry (+) of type **Quantized-mesh terrain**.
-3. Paste the layer.json address as its URL: `http://localhost:3400/quantized-mesh/mapterhorn/layer.json`. Another source: its id in place of `mapterhorn` (`custom-global-gem15-dtm`, `custom-nl-ahn-dtm`…); a keyed one: add `?maptilerKey=…`; lighter tiles: add `?maxTriangles=8000` or `?error=1`.
-4. Drape imagery on top under **Raster overlays**, as a URL template: this service's imagery, `http://localhost:3400/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback`, or a terrain mode as a picture, `http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=hillshade,slope`.
+3. Paste the layer.json address as its URL: `http://localhost:3400/quantized-mesh/mapterhorn/layer.json`. Another source: its id in place of `mapterhorn` (`custom-global-gem15-dtm`, `custom-nl-ahn-dtm`…); a keyed one: add `?maptilerKey=…`; lighter tiles: add `?error=1` (or `?mesher=delatin`, half the triangles). The heights are ellipsoidal, as the add-on reads them.
+4. Drape imagery on top under **Raster overlays**, as a URL template: this service's imagery, `http://localhost:3400/basemap-tiles/wayback/{z}/{x}/{y}.jpg`, or a terrain mode as a picture, `http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=hillshade,slope`.
 5. Press **Start**. Tiles load as the camera moves. A photogrammetry mesh or a point cloud on top can blend into the terrain (the add-on's *Terrain blending*, beta).
 
 The add-on asks for the normals itself; for a client that does not, `?extensions=octvertexnormals` adds them (smooth shading). Checked with the desktop app's service on port 3400.
@@ -226,7 +274,7 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
 })
 // Any XYZ layer of the service draped over it:
 viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
-  url: "http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=slope&background=none",
+  url: "http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope&background=none",
 }))
 ```
 
@@ -250,13 +298,13 @@ A new tile of a tile pyramid (Mapterhorn, AWS, Esri) takes 0.2 to 0.6 s the firs
 
 ### How a tile is made
 
-The grid is geographic TMS (EPSG:4326, two tiles at level 0, `y` from the south). The source's Web Mercator pixels of the zoom as wide as the tile (level `z` reads 256 px zoom `z + 1`, capped at the source's deepest) are read with a two-pixel border and resampled once, bilinear, to a 257 × 257 grid over the tile; holes are grown from the data around them. The grid is meshed within the error, then encoded with the header (centre, minimum and maximum height, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices, the west, south, east and north edge lists and, when asked, the oct-encoded vertex normals. Skirts are the client's, as the spec says. A tile with no data is flat at 0 m (and not cached). The meshing is `tile-server/quantized-mesh.mjs`, a module with no server in it: it takes a height grid and gives the tile, so another app can use it with its own reader.
+The grid is geographic TMS (EPSG:4326, two tiles at level 0, `y` from the south). The source's Web Mercator pixels of the zoom as wide as the tile (level `z` reads 256 px zoom `z + 1`, capped at the source's deepest) are read with a two-pixel border and resampled once, bilinear, to a 257 × 257 grid over the tile; holes are grown from the data around them. The geoid's height is added (unless `heights=orthometric`), then the grid is meshed within the error, then encoded with the header (centre, minimum and maximum height, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices, the west, south, east and north edge lists and, when asked, the oct-encoded vertex normals. Skirts are the client's, as the spec says. A tile with no data is flat at sea level (and not cached). The meshing is `tile-server/quantized-mesh.mjs`, a module with no server in it: it takes a height grid and gives the tile, so another app can use it with its own reader.
 
 What keeps it fast: the workers start with the service (the first tile no longer waits about 3 s for them); a source tile fetched by one worker is shared with the others, and decoded tiles are shared with `/terrain-tiles`; each tile is gzipped once, off the main thread, and kept gzipped, so a cached tile goes out as it is read (about 1,000 tiles a second, 16 requests at a time on a 20-thread machine, against 200 when every answer was compressed again).
 
 ### Martini or delatin
 
-| | delatin (default) | martini |
+| | delatin | martini (default) |
 |---|---|---|
 | Method | Delaunay refinement: adds the worst point, one at a time, until the error is met | RTIN: right triangles split in halves over a 2^k + 1 grid (257 × 257) |
 | Triangles for the same error | About 45 % fewer, so 45 % fewer bytes to stream and less memory in Blender | About twice as many |
@@ -279,7 +327,7 @@ Measured on Mapterhorn around the Matterhorn, one 257 × 257 tile per level, err
 
 gzip takes off about 60 %. Through the service, a tile not yet cached takes 25 to 50 ms with delatin and 17 to 30 ms with martini once its source tiles are read; the first tiles of a new area also wait for the source (60 to 170 ms for Mapterhorn).
 
-Which to pick: **delatin** for a client that streams or keeps the tiles (Blender, CesiumJS over a network, a cache): each tile is made once and sent many times, and half the triangles is half the download and half the memory. **martini** to make many tiles once and fast (a bulk export, a server short of CPU), or where a regular mesh is wanted. With either, `error` is the first setting to change: doubling it roughly halves the triangles.
+**martini** is the default since 2026-11-25: a tile is made three times faster, which is what a viewer waits for while it streams a new area, and twice the triangles is nothing to a GPU (25,000 triangles a tile). **delatin** (`?mesher=delatin`) when bytes count more than time: a slow network, a scene kept in memory (half the triangles is half the download and half the memory), a cache served many times. With either, `error` is the first setting to change: doubling it roughly halves the triangles.
 
 ## A QGIS project
 
@@ -305,16 +353,16 @@ A layer's settings are in its address: QGIS edits an XYZ address in the layer's 
 ## Raster tiles in a map
 
 ```text
-/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=custom-nl-ahn-dtm
-/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback&imageryDate=2020-01-01
+/terrain-tiles/custom-nl-ahn-dtm/{z}/{x}/{y}.png?modes=slope
+/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01
 /render.jpg?bbox=6.7,45.75,7.0,45.95&width=800&height=600&modes=hillshade,contours
 ```
 
 ```js
-map.addSource("tv-slope", { type: "raster", tileSize: 256, tiles: ["http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=slope"] })
+map.addSource("tv-slope", { type: "raster", tileSize: 256, tiles: ["http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope"] })
 ```
 
-## OGC API - Processes
+## Visualization modes (OGC API - Processes)
 
 Each mode is described as a process of [OGC API - Processes, Part 1: Core](https://docs.ogc.org/is/18-062r2/18-062r2.html) (OGC 18-062r2), with the landing page and conformance of OGC API Common:
 
@@ -645,6 +693,6 @@ Papers:
 
 ## Reference
 
-The document is written by `tile-server/openapi.mjs`. **Test request** below calls `http://localhost:3400`, so it answers when the container runs on your computer.
+Every address, parameter and answer: **[the API reference](/api/tile-service/)**, a page of its own over the full width, as the service's own `/docs` shows it. Its **Test request** calls `http://localhost:3400`, so it answers when the service runs on your computer.
 
-<ScalarReference url="/docs/tile-service-openapi.json" sidebar />
+The document is written by `tile-server/openapi.mjs`; `node tile-server/openapi.mjs` rewrites the docs' copy, `docs/public/tile-service-openapi.json`. The docs build runs it before `next build`, and `tile-server`'s tests fail when the tracked copy is stale.

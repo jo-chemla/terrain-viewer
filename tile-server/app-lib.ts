@@ -18,3 +18,6 @@ export { default as chroma } from "chroma-js"
 // The quick-start addresses (lib/tile-service-quickstart.ts), shared with the
 // desktop app's Settings > Desktop: local tile service.
 export { tileServiceQuickstart } from "../lib/tile-service-quickstart"
+// The built-in basemaps with a fixed address: what /basemap-tiles/{source}/...
+// takes besides the dated imagery (server.mjs basemaps()).
+export { BUILTIN_BASEMAP_SOURCES } from "../lib/basemap-sources"

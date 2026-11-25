@@ -36,6 +36,7 @@ import { buildViewUrl, DEFAULT_BASE_URL } from "./url.mjs"
 import { float32GeoTiff } from "./tiff.mjs"
 import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
 import { encodeTile, tileBounds, levelGeometricError } from "./quantized-mesh.mjs"
+import { addUndulation, undulation, warmUpGeoid } from "./geoid.mjs"
 
 let appPromise
 const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs").then((A) => { A.registerDerivedProtocols(); return A })))
@@ -180,7 +181,7 @@ let chromaPromise
 const chroma = () => (chromaPromise ??= import("./generated/app-lib.mjs").then((m) => m.chroma))
 /** Loads the app's code now rather than on the first tile: a worker that
  *  starts cold would spend its first tile's time budget on it. */
-export const warmUp = () => Promise.all([app(), chroma(), import("./dem.mjs").then((d) => d.warmUp?.())])
+export const warmUp = () => Promise.all([app(), chroma(), warmUpGeoid(), import("./dem.mjs").then((d) => d.warmUp?.())])
 
 /** Any colour MapLibre takes, as premultiplied RGBA 0..1. */
 function colour(c, ch, opacity = 1) {
@@ -224,6 +225,35 @@ function rampOf(expr, ch, encoding = "terrarium") {
     const i = Math.floor(p), f = p - i, a = cols[i], b = cols[Math.min(n - 1, i + 1)]
     out[0] = a[0] + (b[0] - a[0]) * f; out[1] = a[1] + (b[1] - a[1]) * f; out[2] = a[2] + (b[2] - a[2]) * f; out[3] = a[3] + (b[3] - a[3]) * f
   }
+}
+
+/**
+ * A colour ramp (an `interpolate` expression of /colorramps/{id}) as a
+ * picture: its first stop to its last, coloured by rampOf, the colour relief's
+ * own interpolation. Horizontal: the lowest value on the left; vertical: at
+ * the bottom. PNG keeps the ramp's transparency, JPEG lays it on white.
+ * @returns {Promise<Buffer>}
+ */
+export async function rampImage(expr, { width = 256, height = 16, orientation = "horizontal", format = "png", reverse = false } = {}) {
+  const ramp = rampOf(expr, await chroma())
+  const lo = Number(expr[3]), hi = Number(expr[expr.length - 2])
+  const vertical = orientation === "vertical"
+  const n = vertical ? height : width
+  const line = new Uint8Array(n * 4), px = new Float64Array(4)
+  for (let i = 0; i < n; i++) {
+    // Pixel centres, from the first stop to the last.
+    let t = n === 1 ? 0.5 : i / (n - 1)
+    if (vertical) t = 1 - t
+    if (reverse) t = 1 - t
+    ramp(lo + (hi - lo) * t, px)
+    const a = px[3]
+    if (format === "png") { for (let c = 0; c < 3; c++) line[4 * i + c] = a > 0 ? Math.round((px[c] / a) * 255) : 0; line[4 * i + 3] = Math.round(a * 255) }
+    else { for (let c = 0; c < 3; c++) line[4 * i + c] = Math.round((px[c] + (1 - a)) * 255); line[4 * i + 3] = 255 }
+  }
+  const rgba = Buffer.alloc(width * height * 4)
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) rgba.set(line.subarray(4 * (vertical ? y : x), 4 * (vertical ? y : x) + 4), 4 * (y * width + x))
+  const img = sharp(rgba, { raw: { width, height, channels: 4 } })
+  return format === "png" ? img.png().toBuffer() : img.flatten({ background: "#ffffff" }).jpeg({ quality: 92 }).toBuffer()
 }
 
 const rgbaPx = new Float64Array(4)
@@ -638,15 +668,26 @@ export async function geographicGrid(dem, z, x, y, size = 257) {
 
 /** One quantized-mesh-1.0 tile of the source (quantized-mesh.mjs): the
  *  geographic grid, meshed within `errorScale` times Cesium's geometric
- *  error of the level (at least 5 cm). A tile with no data is flat at 0, a
- *  source that refused the request (401, 403) is an error. */
-export async function quantizedMeshTile({ dem }, { z, x, y, size = 257, errorScale = 0.5, normals = false, mesher = "delatin", maxTriangles }) {
+ *  error of the level (at least 5 cm). `heights`: "ellipsoidal" (the
+ *  default, what Cesium expects: the geoid's undulation added to an
+ *  orthometric source, geoid.mjs) or "orthometric" (the source's own
+ *  heights above sea level; an ellipsoidal source has the undulation taken
+ *  off). A tile with no data is flat at sea level (0 m, or the geoid's height
+ *  at its centre when ellipsoidal); a source that refused the request (401,
+ *  403) is an error. */
+export async function quantizedMeshTile({ dem }, { z, x, y, size = 257, errorScale = 0.5, normals = false, mesher = "martini", maxTriangles, heights: datum = "ellipsoidal" }) {
   const heights = await geographicGrid(dem, z, x, y, size)
+  const bounds = tileBounds(z, x, y)
   if (heights.every(Number.isNaN)) {
     const refused = refusalOf(dem)
     if (refused) throw Object.assign(new Error(`The source refused the request (HTTP ${refused}): check the API key or its allowed origins`), { status: 502 })
+    // Flat: one height, so the service sees an empty tile (and keeps it out of its cache).
+    if (datum === "ellipsoidal") heights.fill(Math.round((await undulation((bounds.south + bounds.north) / 2, (bounds.west + bounds.east) / 2)) * 100) / 100)
+  } else {
+    const from = dem.datum === "ellipsoidal" ? "ellipsoidal" : "orthometric"
+    if (from !== datum) await addUndulation(heights, size, bounds, datum === "ellipsoidal" ? 1 : -1)
   }
-  return encodeTile({ heights, size, bounds: tileBounds(z, x, y), maxError: Math.max(0.05, levelGeometricError(z) * errorScale), mesher, normals, ...(maxTriangles ? { maxTriangles } : {}) })
+  return encodeTile({ heights, size, bounds, maxError: Math.max(0.05, levelGeometricError(z) * errorScale), mesher, normals, ...(maxTriangles ? { maxTriangles } : {}) })
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────────
