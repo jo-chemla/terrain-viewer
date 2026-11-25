@@ -1,8 +1,9 @@
 // Client-side Terrain Ruggedness Index (TRI) tile computation, registered as the
 // `tri://` maplibre custom protocol. See lib/normal-derived-protocol.ts for the
-// shared pipeline — TRI itself is Riley et al. 2006's definition: the root-mean-
-// square elevation difference between a cell and its 8 immediate neighbors, in the
-// same units as the source elevation (meters).
+// shared pipeline — TRI itself is Riley, DeGloria & Elliot 1999's definition: the
+// square root of the sum of the squared elevation differences between a cell and
+// its 8 immediate neighbors (not their mean), in the units of the source elevation
+// (meters).
 
 import {
   sharedTileCache, runNormalDerivedProtocol, buildProtocolUrl, type UpstreamEncoding,

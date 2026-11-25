@@ -19,13 +19,13 @@ Grouped as they are in the panel — **Terrain Analysis** (surface derivatives +
 - **Curvature:** rate of slope change — Profile, Plan, Mean/Combined, Gaussian (Det Hessian), or Casorati ([Zevenbergen & Thorne 1987](https://doi.org/10.1002/esp.3290120107); definitions in [Minár et al. 2020](https://doi.org/10.1016/j.earscirev.2020.103414))
   - **Profile (Flow Acceleration):** rate of slope change along the steepest-descent direction, affects flow acceleration
   - **Plan (Convergence/Divergence):** rate of aspect change across contours, affects flow convergence/divergence — equivalent to the divergence of the normalized gradient field, div(∇z/|∇z|)
-  - **Mean/Combined:** discrete Laplacian (∇²z) — mean curvature H = (κ₁+κ₂)/2, general surface bending that doesn't separate flow direction from contour direction
+  - **Mean/Combined:** discrete Laplacian ∇²z = κ₁+κ₂ ≈ 2H (twice the mean curvature H = (κ₁+κ₂)/2, exactly so on gentle slopes), general surface bending that doesn't separate flow direction from contour direction
   - **Gaussian Curvature (Det Hessian):** determinant of the Hessian (fxx·fyy − fxy²) — Gaussian curvature K = κ₁·κ₂, a blob/saddle detector, positive at bowl/dome-shaped extrema and negative at saddle points
-  - **Casorati:** κ = √((κ₁²+κ₂²)/2) — RMS of the two principal curvatures (Koch, 1993); always ≥ 0, measures how curved the surface is regardless of shape (dome, ridge, saddle, valley and bowl all read the same), zero only on flat ground
+  - **Casorati:** κ = √((κ₁²+κ₂²)/2) — RMS of the two principal curvatures (Casorati's curvature, 1890; Koenderink & van Doorn's "curvedness", 1992); always ≥ 0, measures how curved the surface is regardless of shape (dome, ridge, saddle, valley and bowl all read the same), zero only on flat ground
 
 #### Neighborhood statistics
 
-- **TRI (Terrain Ruggedness Index):** mean elevation difference to neighbors ([Riley, DeGloria & Elliot 1999](https://arc.lib.montana.edu/ojs/index.php/IJS/article/view/2914))
+- **TRI (Terrain Ruggedness Index):** square root of the summed squared elevation differences to the 8 neighbours, not their mean ([Riley, DeGloria & Elliot 1999](https://arc.lib.montana.edu/ojs/index.php/IJS/article/view/2914))
 - **TPI (Topographic Position Index):** elevation relative to neighborhood mean ([Weiss 2001](https://www.jennessent.com/downloads/TPI-poster-TNC_18x22.pdf); [Guisan, Weiss & Weiss 1999](https://doi.org/10.1023/A:1009841519580); on archaeological landscapes, [De Reu et al. 2013](https://doi.org/10.1016/j.geomorph.2012.12.015))
 - **Roughness:** max−min elevation in a neighborhood
 - **Shape Index:** SI = (2/π)·atan2(κ₁+κ₂, κ₁−κ₂) — Koenderink & van Doorn (1992); scale-free and bounded to [−1, 1] regardless of curvature magnitude: +1 dome/peak, +0.5 ridge, 0 saddle, −0.5 valley, −1 pit/bowl
