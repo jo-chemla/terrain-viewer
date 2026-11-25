@@ -9,8 +9,46 @@
 // nofollow: every such address is the same single-page app, and search
 // engines otherwise list "/?sidebarCollapsed=true" and its cousins as pages
 // of their own (Bing did, 2026-11).
-import { ArrowUpRight, History, Mountain, Sun } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Download, History, Mountain, Package, Sun, Table2, Terminal } from 'lucide-react';
 import type { ReactNode } from 'react';
+
+// A row of buttons at the top of a page, the first one filled as OpenInApp,
+// the others outlined, for MDX:
+//
+//   <LinkButtons links={[
+//     { href: "/docs/api/tile-service/", label: "Tile service API (Scalar)", icon: "api" },
+//     { href: "https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest", label: "Download", icon: "download" },
+//   ]} />
+//
+// Plain anchors, like OpenInApp: a link inside these docs is written with
+// its /docs prefix and opens in the same tab; an absolute (https) link opens
+// in a new one.
+const LINK_ICONS = { api: Table2, download: Download, release: Package, terminal: Terminal, app: Mountain } as const;
+const BUTTON = 'inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold no-underline shadow-sm transition-opacity hover:opacity-90';
+
+export function LinkButtons({ links }: { links: { href: string; label: string; icon?: keyof typeof LINK_ICONS }[] }) {
+  return (
+    <p className="not-prose my-5 flex flex-wrap gap-3">
+      {links.map(({ href, label, icon }, i) => {
+        const Icon = icon ? LINK_ICONS[icon] : null;
+        const external = /^https?:/.test(href);
+        const Arrow = external ? ArrowUpRight : ArrowRight;
+        return (
+          <a
+            key={href}
+            href={href}
+            {...(external ? { target: '_blank', rel: 'noopener' } : {})}
+            className={`${BUTTON} ${i === 0 ? 'bg-fd-primary text-fd-primary-foreground' : 'border bg-fd-card text-fd-foreground'}`}
+          >
+            {Icon ? <Icon className="size-4" /> : null}
+            <span>{label}</span>
+            <Arrow className="size-4 opacity-70" />
+          </a>
+        );
+      })}
+    </p>
+  );
+}
 
 const ICONS = { terrain: Mountain, historical: History, sun: Sun } as const;
 

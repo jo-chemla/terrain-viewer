@@ -1,0 +1,48 @@
+---
+title: Planetary terrain, notes on the Moon and Mars
+sidebarTitle: Moon and Mars (notes)
+icon: Orbit
+description: Notes, not a feature - how Moon and Mars terrain could stream through an Earth Web Mercator map (lunar lat/lon relabelled as Earth's, exaggeration 3.67 or 1.88), where real heights are (USGS Astrogeology's STAC, Float32 COGs with open CORS (Kaguya, HiRISE, CTX)), Cesium ion's Moon terrain, and what is left for later (an aggregate mosaic, the poles)
+---
+
+Notes of 2026-11-25. Nothing here is in the app: the endpoints and their CORS are in [Research lidar endpoints, Moon and Mars](/dev/research-lidar-endpoints#moon-and-mars), and an earlier experiment sits on the unmerged `moon-lola` branch (LOLA's 5 m south pole COG and Kaguya through `vrt://`, 2026-11-14).
+
+## Fake EPSG:3857: Earth's tiles, the Moon's coordinates
+
+MapLibre, the tile protocols and Web Mercator all assume the Earth. PROJ, and so titiler and GDAL, refuse to transform between celestial bodies (unless told to ignore it with `PROJ_IGNORE_CELESTIAL_BODY`), so a Moon raster cannot be honestly reprojected to Earth's Web Mercator. What works is to **relabel, not reproject**: read the Moon's latitude and longitude as if they were Earth's and stream the tiles as ordinary EPSG:3857 tiles. A crater at 26° W, 51° S is drawn where 26° W, 51° S would be on Earth.
+
+That makes NASA Trek's tiles usable for streaming: Moon Trek and Mars Trek serve mosaics and shaded relief keylessly, with `Access-Control-Allow-Origin: *`, on an equirectangular lunar or Martian grid. Relabelled as Earth's geographic grid, they need only the same plate carrée to Mercator step as any equirectangular tile set (as `lib/epsg3395-protocol.ts` does from World Mercator); no body-to-body transform is involved.
+
+**The catch is the scale.** Web Mercator converts degrees to ground metres with Earth's radius (6 378 km), so one degree of Moon is drawn as an Earth degree, 3.67 times too wide (Moon 1 737.4 km), and on Mars 1.88 times (3 396.2 km). The heights, in metres, are not stretched with it, so every slope, hillshade, shadow and 3D relief comes out 3.67 (or 1.88) times too flat. The fix is the terrain exaggeration:
+
+| Body | Mean radius | Earth / body | Exaggeration for true slopes |
+|---|---|---|---|
+| Moon | 1 737.4 km | 3.67 | **3.67** |
+| Mars | 3 396.2 km | 1.88 | **1.88** |
+
+With it, slopes, the hillshade's light and the shadows' lengths match the real ground. Contour intervals and the heights read by the elevation picker stay in metres; distances the map measures are Earth's and must be divided by the same factor. The other way round (scaling the heights down instead) keeps the map's distances true only if every horizontal distance is also scaled, which nothing in the app does.
+
+## Real heights: USGS Astrogeology's STAC
+
+Trek has shaded relief, not heights. Heights are on [USGS Astrogeology's STAC API](https://stac.astrogeology.usgs.gov/api/) (`stac.astrogeology.usgs.gov/api`, assets on `astrogeo-ard.s3-us-west-2.amazonaws.com`): **raw Float32 Cloud-Optimized GeoTIFFs** (nodata -32767 on the Kaguya items), each with a hillshade COG beside it, CC0, and **open CORS**: `Access-Control-Allow-Origin: *` on the search and on the files, and the preflight of a `Range` request answered with `Access-Control-Allow-Headers: range` (checked 2026-11-25). So the browser can read them in place, like any COG of the [STAC search](/dev/stac-search).
+
+| Collection | Body | Items (2026-11-25) | Resolution |
+|---|---|---|---|
+| `kaguya_terrain_camera_usgs_dtms_v2_equi` (Kaguya/SELENE Terrain Camera, USGS DTMs v2) | Moon | **118 379** | about 10 to 14 m (13.5 m on the item checked) |
+| `kaguya_terrain_camera_usgs_dtms_v2_northpolar`, `_southpolar` | Moon, poles | | polar stereographic |
+| `mro_hirise_socet_dtms` (MRO HiRISE) | Mars | 1 262 | **1 to 2 m** (gsd 2.0 m on the three items checked) |
+| `mro_ctx_controlled_usgs_dtms` (MRO CTX, with a geoid-adjusted DEM) | Mars | 44 628 | 20 m |
+
+Each item is one stereo strip in its own equirectangular projection on the body's sphere, so a reader relabels its CRS as Earth's (lon/lat, or the projection's metres divided by the body's radius) before placing it. The newest HiRISE item's `dtm` address answered `404` on 2026-11-25: check an item's assets before relying on them.
+
+## Later: an aggregate mosaic
+
+118 379 strips do not stream as one source: a view of a crater touches tens of them, and a zoomed-out view thousands. They deserve what our 3D-tiled open data got, a **hierarchical aggregate mosaic**: a footprint index, then per zoom level a mosaic of the strips that cover each tile (the finest available, the others under it), with coarse overviews built once so that a zoomed-out view reads a handful of files instead of every strip. The pieces exist (the `vrt://` reader and its release-hosted indexes, [Dataset indexes](/dev/dataset-indexes); the [on-the-fly mosaics](/dev/on-the-fly-mosaics) of the STAC sources), but not for now.
+
+## The poles
+
+Web Mercator stops at about 85.05° north and south. Relabelled as Earth's, the Moon loses its polar caps, which is where the lunar south pole's landing sites (Artemis) and the permanently shadowed craters are. The polar Kaguya collections and LOLA's polar DEMs are in polar stereographic; showing them means another relabelling (the `moon-lola` branch put the pole at 0, 0 of a metric fake-Mercator, true to scale near the pole and wrong far from it), not the equirectangular route above.
+
+## Cesium ion's Moon terrain
+
+Cesium ion also hosts a Moon terrain (Cesium Moon Terrain), for CesiumJS on the Moon's ellipsoid. It needs an ion access token, and it is drawn by CesiumJS on a lunar globe, not by MapLibre: a route for a Cesium view of the Moon, or through the app's `quantized-mesh://` protocol with the same relabelling (the `moon-lola` branch listed it as a project needing a token). Not tested here.

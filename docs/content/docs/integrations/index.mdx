@@ -1,0 +1,19 @@
+---
+title: Tools & Integrations
+sidebarTitle: Overview
+icon: Blocks
+description: Terrain Viewer outside the browser tab - the tile service and its API, the QGIS plugins, the desktop app and the River-REM companion app
+---
+
+The app runs in a browser tab. These pages cover the ways to use it from somewhere else, or to take its output into another tool.
+
+| | What it is | Where to get it |
+|---|---|---|
+| [Tile service](/dev/tile-service) | What the app draws, served as XYZ tiles, quantized mesh and viewport pictures over HTTP, for QGIS, MapLibre, CesiumJS, Blender or a script | `docker run -p 3400:3400 ghcr.io/iconem/terrain-viewer-tiles`, the desktop app, or the QGIS plugin's **Install** button |
+| [Tile service API (Scalar)](/api/tile-service/) | Every address of the tile service with its parameters, browsable and testable | This site; a running service also serves it at `/docs` |
+| [QGIS Plugins](/dev/qgis-plugin) | The app's sidebar as a QGIS panel (Terrain Viewer) and the app's "Open in" list in QGIS (Send2MapApp) | The [`qgis-plugins-*` releases](https://github.com/Iconem/terrain-viewer/releases?q=qgis-plugins&expanded=true) |
+| [QGIS Live Compute](/dev/qgis-live-compute) | The plugin's experiment: 16 modes computed in QGIS with numpy, no tile service | Part of the Terrain Viewer plugin |
+| [Desktop App](/features/advanced/desktop) | The app as a Windows, macOS and Linux application, for local files and offline docs | The [`desktop-latest` release](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest), and `winget install terrain-viewer` once the package is accepted |
+| [River-REM](/features/river-rem) | Iconem's companion app for river-relative elevation models | [rem.prod.heritagewatch.ai](https://rem.prod.heritagewatch.ai/) |
+
+The pages keep their addresses (`/dev/...`, `/features/...`): only their place in the sidebar changed, so older links still work. Assistants reach the app through the [MCP server](/features/mcp-server), and other web pages through [embedding](/features/embedding).

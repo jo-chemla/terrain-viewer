@@ -1,0 +1,14 @@
+{
+  "title": "Tools & Integrations",
+  "icon": "Blocks",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "../dev/tile-service",
+    "[Table2][Tile service API (Scalar)](/api/tile-service/)",
+    "../dev/qgis-plugin",
+    "../dev/qgis-live-compute",
+    "../features/advanced/desktop",
+    "../features/river-rem"
+  ]
+}

@@ -4,11 +4,24 @@ description: The web app packaged as a desktop application with Electrobun - wha
 icon: Monitor
 ---
 
+<LinkButtons links={[
+  { href: "https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest", label: "Download the desktop app", icon: "download" },
+  { href: "https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest-light", label: "Light build (online docs)", icon: "release" },
+]} />
+
 <Callout title="Download" type="info">
 
-The current installers are on the [desktop-latest release](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest), replaced by every build: for Windows the Installer (about 220 MB, with the documentation inside), the Setup and the Portable zip, and the macOS and Linux bundles. The light build, documentation on the website, is on [desktop-latest-light](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest-light). `winget install Iconem.TerrainViewer` installs it once the package is in winget-pkgs.
+The current installers are on the [desktop-latest release](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest), replaced by every build: for Windows the Installer (about 220 MB, with the documentation inside), the Setup and the Portable zip, and the macOS and Linux bundles. The light build, documentation on the website, is on [desktop-latest-light](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest-light).
 
 </Callout>
+
+### With winget (Windows)
+
+```powershell
+winget install terrain-viewer
+```
+
+`terrain-viewer` is the package's moniker; its full identifier is `Iconem.TerrainViewer` (`winget install --id Iconem.TerrainViewer`). It runs the Installer of the full build (documentation inside) from the permanent `desktop-v<version>` release, per user and without admin rights; the app then keeps itself up to date like any other install. This works once the package is accepted into winget's community repository: the submission, [microsoft/winget-pkgs#469738](https://github.com/microsoft/winget-pkgs/pull/469738) (version 2026.11.14), passed the automated validation and was waiting for a moderator's review on 2026-11-25. Until it is merged, winget answers that no package matches: use the release above.
 
 The desktop app is the same Vite build as the website, shown in the operating system's own webview (WebView2 on Windows, WKWebView on macOS, WebKitGTK on Linux) by [Electrobun](https://framework.blackboard.sh/electrobun/). No Chromium is bundled, so a build without the documentation is about 40 MB. The point is working offline on local data: a COG picked from disk opens through the app's own file picker and every mode runs in the webview; online sources (Mapterhorn, basemaps, WMS services) still need the network. It is an experiment: unsigned, built by the `Desktop bundles` GitHub workflow, on demand only since 2026-10-03 (the weekly schedule and the macOS and Linux jobs are paused to save Actions minutes, so bundles are built locally for now; every platform's last bundle stays on the release), and attached to the rolling [`desktop-latest`](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest) release, which is replaced on every run. Each platform comes in two files, `TerrainViewer-with-offline-docs-v<date>-Setup-<platform>` (the documentation bundled for offline reading, about 220 MB) and `TerrainViewer-light-online-docs-v<date>-Setup-<platform>` (about 40 MB, its Documentation button opens this website); Windows and Linux also get a `...-Portable-<platform>.zip` that runs without installing. The date is the build day. Sources live in `desktop/` of the repository.
 
@@ -21,7 +34,7 @@ The website installs as an app on a phone or a tablet, no store and no download:
 
 On Windows the Setup file is one self-contained `.exe` (the payload is appended to Electrobun's installer stub, the layout its Linux installer uses; Hutch itself only writes a zip with a hidden `.installer` folder beside the exe). It installs under `%LOCALAPPDATA%\com.iconem.terrain-viewer` (`-light` for the light build, so both can be installed) and adds a Start menu entry; the light build's shortcuts are named "Terrain Viewer Light" so the two installs do not overwrite each other's. Links the app opens in a new tab (the documentation, GitHub, data providers) go to the system browser: the page sends them to the main process over the host channel, because on Windows Electrobun's WebView2 wrapper has no new-window handler and a plain `window.open` would pop WebView2's own bare window. On Linux the Setup is a self-extracting tar.gz.
 
-On Windows, `winget install Iconem.TerrainViewer` or the Installer on the release adds a Start Menu entry, per user and with no admin rights. Each build also stays on a permanent `desktop-v<version>` release. A Planet key does not ship with the app: paste your own in Settings for the monthly mosaics.
+On Windows, `winget install terrain-viewer` ([once the package is merged](#with-winget-windows)) or the Installer on the release adds a Start Menu entry, per user and with no admin rights. Each build also stays on a permanent `desktop-v<version>` release. A Planet key does not ship with the app: paste your own in Settings for the monthly mosaics.
 
 The Portable zip needs no installation: unzip it anywhere and start `Terrain Viewer.cmd` (Windows) or `./terrain-viewer` (Linux); the program itself is `bin/launcher`, which has to stay next to `Resources/`. Nothing is written outside the folder except the webview's own profile.
 

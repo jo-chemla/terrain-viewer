@@ -1,7 +1,7 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { MDXComponents } from 'mdx/types';
 import { Mermaid } from '@/components/mermaid';
-import { OpenInApp } from '@/components/open-in-app';
+import { LinkButtons, OpenInApp } from '@/components/open-in-app';
 
 // Static asset paths (as opposed to other docs pages) are authored
 // root-relative from the main app's perspective, e.g.
@@ -47,6 +47,7 @@ export function getMDXComponents(components?: MDXComponents) {
     ),
     Mermaid,
     OpenInApp,
+    LinkButtons,
     ...components,
   } satisfies MDXComponents;
 }

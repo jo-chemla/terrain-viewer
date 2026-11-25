@@ -1,8 +1,13 @@
 ---
-title: Tile service (Scalar)
+title: Tile service
 icon: Grid3x3
 description: What the app draws, served as XYZ tiles and as pictures of a viewport over HTTP, from a Docker image; its addresses and parameters browsed with Scalar
 ---
+
+<LinkButtons links={[
+  { href: "/docs/api/tile-service/", label: "Tile service API (Scalar)", icon: "api" },
+  { href: "https://github.com/Iconem/terrain-viewer/tree/main/tile-server", label: "Source: tile-server/", icon: "terminal" },
+]} />
 
 The app runs in the browser and has no server. The tile service is a small server that hands out what the app draws, so a map library, QGIS or a script can use a Terrain Viewer view without running the app. Two engines draw:
 
@@ -620,7 +625,7 @@ Not yet run on a server.
 
 ## CORS proxy for NASA G-LiHT
 
-Two NASA hosts hold G-LiHT and neither lets a web page read it: [glihtdata.gsfc.nasa.gov](https://glihtdata.gsfc.nasa.gov/) sends no CORS header, and LP DAAC's Earthdata Cloud copy wants an Earthdata login and refuses the preflight. The service passes a short list of their files through (`tile-server/proxy.mjs`, tested by `proxy-test.mjs`), see [NASA G-LiHT](/dev/g-liht) for what they hold:
+Two NASA hosts hold G-LiHT and neither lets a web page read it: [glihtdata.gsfc.nasa.gov](https://glihtdata.gsfc.nasa.gov/) sends no CORS header, and LP DAAC's Earthdata Cloud copy wants an Earthdata login and refuses the preflight. A CORS-unblocking browser extension only helps with the first, and then as a rule for that host alone ([how](/dev/g-liht#a-cors-extension-one-host-at-a-time)). The service passes a short list of their files through (`tile-server/proxy.mjs`, tested by `proxy-test.mjs`), see [NASA G-LiHT](/dev/g-liht) for what they hold:
 
 | Address | Upstream | Allowed |
 |---|---|---|
