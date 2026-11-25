@@ -192,7 +192,7 @@ $$
 
 - **Blobness** $= \dfrac{\det(J)}{\operatorname{tr}(J)} \cdot \dfrac{100}{64}$ — the $\tfrac{100}{64}$ corrects for the Horn kernel's $8\times$ gradient inflation ($\det$ is degree-4 in the gradient, so $8^2 = 64$) and rescales to roughly match TRI/Roughness's visual range. High where gradient direction varies in every direction (peaks/pits/saddles/knolls); near zero on a uniform slope or straight ridge, however steep.
 - **Eigen-Ratio** $= \dfrac{\lambda_{\min}}{\lambda_{\max}} \cdot 100$ — shape only, independent of magnitude: 0 on a perfectly coherent edge (slope/ridge/valley), 100 on a perfectly isotropic blob (peak/pit/saddle). The $8\times$ inflation cancels in this ratio, so no extra scale correction is needed.
-- **Orientation** — dominant eigenvector's axis, folded to $0$–$180°$ (a line has no inherent direction, only an axis):
+- **Orientation** — dominant eigenvector's axis, folded to $0$–$180°$ (an axis has no inherent direction): the dominant gradient direction, across a ridge or valley, not along it. $g_x$ and $g_y$ are both negated slopes (west − east, south − north) and $J$ is quadratic in them, so the axis is not mirrored (`lib/blobness-protocol.test.ts`):
 
   $$
   \theta_{\text{math}} = \tfrac{1}{2}\operatorname{atan2}(2I_{xy},\, I_{xx}-I_{yy}) \cdot \frac{180}{\pi}
