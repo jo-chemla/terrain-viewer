@@ -32,7 +32,7 @@
 //                          their footprints in lidar/kml/tiles/<c>_tiles.kmz
 
 export const GLIHT_ORIGIN = "https://glihtdata.gsfc.nasa.gov"
-/** The G-LiHT address setting's default: the local tile service's CORS proxy
+/** The G-LiHT proxy setting's default: the local tile service's CORS proxy
  *  (tile-server/proxy.mjs). Chrome and Firefox let an https page fetch
  *  http://localhost (a potentially trustworthy origin, not mixed content);
  *  Chrome 142+ asks the user once for local network access. */

@@ -37,5 +37,6 @@ The id works on its own, without a password: treat it like a key and do not past
 
 - **OpenTopography** global datasets are read without a key from their public bucket. Its API (not used by the viewer) takes a key from the [OpenTopography portal](https://portal.opentopography.org/requestService?service=api).
 - **Titiler**, the tile server some sources go through, is a URL rather than a key: Settings, Titiler Endpoint, with `https://titiler.xyz` by default.
+- **G-LiHT proxy** is not a key either, but sits at the bottom of **Settings → API Keys** (in both the per-key and the batch view): the address NASA G-LiHT's KMZs are read through. Its explanation shows on hover over the label or the field; the arrow next to the label puts the default back. See [Streaming settings](/features/advanced/streaming-settings#g-liht-proxy).
 
 The rest of the app's sources need nothing: Mapterhorn, AWS terrain tiles, the national LiDAR models, Esri Wayback, Google Earth historical imagery and Timelapse, and the open STAC catalogues.

@@ -10,7 +10,7 @@
 // convention (float32dem, COG).
 //
 // glihtdata.gsfc.nasa.gov sends no CORS header, so where the KMZs are read
-// from is a local setting (Settings > Sources: "G-LiHT address",
+// from is a local setting (Settings > API Keys: "G-LiHT proxy",
 // glihtBaseUrlAtom): by default the local tile service's proxy
 // (GLIHT_DEFAULT_BASE, http://localhost:3400/proxy/gliht; an https page may
 // fetch http://localhost, a potentially trustworthy origin), empty for the

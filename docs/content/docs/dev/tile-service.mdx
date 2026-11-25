@@ -631,7 +631,7 @@ Two NASA hosts hold G-LiHT and neither lets a web page read it: [glihtdata.gsfc.
 - **Range passes through**: one range per request, at most `TV_PROXY_MAX_RANGE`; a whole file only under `TV_PROXY_MAX_FULL` (a 286 MB tar.gz answers `413`). Answers carry `Access-Control-Allow-Origin: *` and expose `Content-Range`, `Accept-Ranges`, `ETag`; `OPTIONS` answers the preflight a `Range` header triggers. GLiHT answers are `cache-control: public, max-age=604800` (the files have not changed since 2017), Earthdata ones `private, max-age=3600`.
 - **The token stays on the server**: the browser never sees it. Earthdata answers a token holder with a redirect to a signed S3 address; the service follows it without the token (S3 never receives it), keeps the signed address 30 minutes so the next Range reads skip the login hop, and turns a redirect to the login page into a `401` that says what to fix.
 - **The VRT**: LP DAAC's GeoTIFFs are the files NASA ships gzipped, uncompressed: Float32, one strip per row, no overviews, UTM. The VRT names the file 512 px at a time, so the app's in-browser `vrt://` reader derives a minimum zoom at which a tile reads a few windows (about z16), instead of the whole file at z12. Add it as a custom terrain source, type VRT.
-- In the app: **Settings > G-LiHT address** = `<service>/proxy/gliht` (a link fills it from the Tile Service field).
+- In the app: **Settings > API Keys > G-LiHT proxy** = `<service>/proxy/gliht` (the default is the service on this computer, `http://localhost:3400/proxy/gliht`).
 
 ### Getting the Earthdata token
 

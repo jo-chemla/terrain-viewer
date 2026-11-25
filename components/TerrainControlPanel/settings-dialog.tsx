@@ -3,7 +3,8 @@ import { bookmarksAtom } from "@/lib/bookmarks"
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useAtom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai"
-import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles, Compass, BookOpen } from "lucide-react"
+import { Moon, Sun, Settings, ExternalLink, Trash2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Sparkles, Compass, BookOpen, RotateCcw } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Label } from "@/components/ui/label"
@@ -434,6 +435,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [titilerEndpoint, setTitilerEndpoint] = useAtom(titilerEndpointAtom)
   const [tileServerUrl, setTileServerUrl] = useAtom(tileServerUrlAtom)
   const [glihtBaseUrl, setGlihtBaseUrl] = useAtom(glihtBaseUrlAtom)
+  const glihtHelp = `Where the NASA G-LiHT KMZs are read from. Default: the tile service on this computer, ${GLIHT_DEFAULT_BASE}; when it does not answer, NASA's host is tried directly and a message says so. Empty (clear the field): NASA's host only, which sends no CORS header, so a CORS-unblocking browser extension is needed. Or another tile service (its address followed by /proxy/gliht${tileServerUrl ? `, e.g. ${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht` : ""}), or any CORS proxy written with {url} where the address goes.`
   const [apiKeysViewMode, setApiKeysViewMode] = useState<"individual" | "batch">("individual")
   const [batchApiKeys, setBatchApiKeys] = useState("")
   const [useCogProtocolVsTitiler, setUseCogProtocolVsTitiler] = useAtom(useCogProtocolVsTitilerAtom)
@@ -937,28 +939,6 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </span>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <div className="flex gap-2">
-                <Label className="flex-1 min-w-0" htmlFor="gliht-base-url">G-LiHT address</Label>
-                <Input className="flex-2 min-w-0 cursor-text" id="gliht-base-url" type="text" placeholder="empty: https://glihtdata.gsfc.nasa.gov directly" value={glihtBaseUrl} onChange={(e) => setGlihtBaseUrl(e.target.value.trim())} />
-              </div>
-              <span className="text-xs text-muted-foreground break-words">
-                Where the NASA G-LiHT KMZs are read from. Default: the tile service on this computer, <code>{GLIHT_DEFAULT_BASE}</code>
-                {glihtBaseUrl !== GLIHT_DEFAULT_BASE && (
-                  <> (<button type="button" className="underline cursor-pointer" onClick={() => setGlihtBaseUrl(GLIHT_DEFAULT_BASE)}>use it</button>)</>
-                )}
-                ; when it does not answer, NASA's host is tried directly and a message says so. Empty
-                {glihtBaseUrl !== "" && (
-                  <> (<button type="button" className="underline cursor-pointer" onClick={() => setGlihtBaseUrl("")}>clear</button>)</>
-                )}
-                : NASA's host only, which sends no CORS header, so a CORS-unblocking browser extension is needed.
-                {tileServerUrl && ![GLIHT_DEFAULT_BASE, `${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht`].includes(glihtBaseUrl) && (
-                  <> Or the tile service set above, <code>{tileServerUrl.replace(/\/+$/, "")}/proxy/gliht</code> (<button type="button" className="underline cursor-pointer" onClick={() => setGlihtBaseUrl(`${tileServerUrl.replace(/\/+$/, "")}/proxy/gliht`)}>use it</button>)</>
-                )}
-                {" "}Or any CORS proxy written with <code>{"{url}"}</code> where the address goes.
-              </span>
-            </div>
-
             <div className="space-y-2 pt-1">
               <div className="flex items-center gap-2">
                 <Label className="flex-1 min-w-0" htmlFor="cesium-detail">Cesium terrain detail</Label>
@@ -1294,6 +1274,33 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
 
               </>
             )}
+
+            {/* Not a key, but kept with them: an address this browser reads a
+                provider through. Shown in both views (the batch editor only
+                holds keys); its explanation is on hover, on the label and the
+                field. */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 min-w-0">
+                <Tooltip>
+                  <TooltipTrigger delay={0} render={<Label htmlFor="gliht-base-url" className="min-w-0 cursor-help">G-LiHT proxy</Label>} />
+                  <TooltipContent className="max-w-[min(360px,90vw)]">
+                    <p>{glihtHelp}</p>
+                  </TooltipContent>
+                </Tooltip>
+                {glihtBaseUrl !== GLIHT_DEFAULT_BASE && (
+                  <TooltipIconButton icon={RotateCcw} tooltip={`Back to the default, ${GLIHT_DEFAULT_BASE}`} onClick={() => setGlihtBaseUrl(GLIHT_DEFAULT_BASE)} className="h-6 w-6" />
+                )}
+              </div>
+              <Input
+                id="gliht-base-url"
+                type="text"
+                className="cursor-text"
+                placeholder="empty: https://glihtdata.gsfc.nasa.gov directly"
+                title={glihtHelp}
+                value={glihtBaseUrl}
+                onChange={(e) => setGlihtBaseUrl(e.target.value.trim())}
+              />
+            </div>
           </CollapsibleSection>
           <Separator />
           <CollapsibleSection title="Map bounds constraints" openAtom={isSettingsMapBoundsOpenAtom}>

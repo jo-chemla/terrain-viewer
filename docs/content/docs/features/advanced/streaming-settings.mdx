@@ -20,9 +20,9 @@ Two engines can turn a Cloud-Optimized GeoTIFF into map tiles:
 
 The **Titiler Endpoint** field at the bottom of the panel points both the streaming fallback and the export path at your own instance (default `https://titiler.xyz`); it travels with a [Project export](/features/index) so a shared project keeps working against the same server.
 
-### G-LiHT address
+### G-LiHT proxy
 
-Where NASA G-LiHT's KMZs are read from (the coverage popup's **Use as overlay** and the Kiuic library entries): empty for NASA's host, which sends no CORS header, so only with a CORS-unblocking browser extension; a [tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)'s `<server>/proxy/gliht` (the **use it** link fills it from the Tile Service field); or any CORS proxy written with `{url}` where the address goes. Kept in this browser only. See [NASA G-LiHT](/dev/g-liht).
+In **Settings → API Keys** since 2026-11-25 (it was here, as G-LiHT address), its explanation on hover. Where NASA G-LiHT's KMZs are read from (the coverage popup's **Use as overlay** and the Kiuic library entries). By default the tile service on this computer, `http://localhost:3400/proxy/gliht`; when it does not answer, NASA's host is tried directly and a message says so (the arrow next to the label puts the default back). Empty: NASA's host only, which sends no CORS header, so only with a CORS-unblocking browser extension. Or another [tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)'s `<server>/proxy/gliht`, or any CORS proxy written with `{url}` where the address goes. Kept in this browser only. See [NASA G-LiHT](/dev/g-liht).
 
 ### High-Precision Elevation Quantization
 
