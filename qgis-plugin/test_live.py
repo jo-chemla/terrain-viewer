@@ -523,17 +523,21 @@ def draw(layer, name):
 
 from terrain_viewer.live import layers as live_layers  # noqa: E402
 
+# Settings that put something in the view (Mont Blanc's massif: no plane at
+# sea level, no building to shade).
+VIEW_OPTS = {"elevation": {"min": 1000.0, "max": 4800.0}, "planeSlicer": {"value": 2500.0}}
+FLAT_OK = {"buildingShadows"}  # no building in this view: flat is right (checked in its own section)
 for mode in modes.MODES:
-    # The modes and vector forms the panel's layers know (live/layers.py
-    # ORDER, its contour-only vector layer); the others are checked above
-    # until the panel adds them.
-    if not modes.MODES[mode]["python_supported"] or mode not in live_layers.ORDER:
-        print(f"  {mode:<15} skipped: not in live/layers.py yet")
+    # Every mode live/ computes, every form (vector: contours.view_vector,
+    # through live/layers.py's memory layer).
+    if not modes.MODES[mode]["python_supported"]:
+        print(f"  {mode:<15} skipped: served by the tile service only")
+        continue
+    if mode not in live_layers.ORDER:
+        failures.append(f"{mode}: not in live/layers.py's ORDER")
         continue
     for form in modes.forms_of(mode):
-        if form == "vector" and mode != "contours":
-            continue
-        opts = {"min": 1000.0, "max": 4800.0} if mode == "elevation" else {}
+        opts = VIEW_OPTS.get(mode, {})
         layer = ll.set_form(mode, form, True, opts, ext, 1024)
         if form == "vector" and layer is not None:
             ll.refresh_vector(layer, opts, ext, 1024, wait=True)
@@ -545,11 +549,11 @@ for mode in modes.MODES:
         tiles = srv.stats.get(mode, {}).get("tiles", 0) - before
         extra = f", {layer.featureCount()} lines" if form == "vector" else ""
         print(f"  {mode:<15} {form:<7} {wall:6.0f} ms, {tiles:3d} tiles, spread {spread}, {colours} colours{extra}")
-        if spread < 20:
+        if spread < 20 and mode not in FLAT_OK:
             failures.append(f"{mode} ({form}): rendered image empty or flat")
         if modes.MODES[mode]["kind"] in ("ramp", "rgb") and form != "vector" and colours < 8:
             failures.append(f"{mode} ({form}): {colours} colours, the ramp did not apply")
-        if form == "vector" and layer.featureCount() < 10:
+        if form == "vector" and layer.featureCount() < (10 if mode in ("contours", "isoline") else 1):
             failures.append(f"{mode} (vector): {layer.featureCount()} lines")
         ll.set_form(mode, form, False)
     srv.clear_results()
@@ -640,6 +644,20 @@ if row.check.isChecked():
 dock.rows["contours"].check.setChecked(True)
 if py_keys("contours") != ["contours:vector"]:
     failures.append(f"dock: contour lines layer {py_keys('contours')}")
+# The other overlays: their vector form too (contours.view_vector), plane
+# slicer as polygons.
+for mid, geom in (("isoline", "LineString"), ("graticules", "LineString"), ("planeSlicer", "Polygon")):
+    r = dock.rows[mid]
+    if not r.row.header.isEnabled():
+        failures.append(f"dock: {mid} greyed out under Python")
+        continue
+    r.check.setChecked(True)
+    lyr = dock.stack.find(mid + ":vector")
+    ok = lyr is not None and lyr.providerType() == "memory" and geom.lower() in lyr.source().lower()
+    print(f"  {mid:<12} vector -> {lyr.name() if lyr else None} ({lyr.source() if lyr else ''})")
+    if not ok:
+        failures.append(f"dock: {mid} vector layer under Python")
+    r.check.setChecked(False)
 # A setting the Python backend reads goes into its address; one it ignores is greyed.
 svf = dock.rows["svf"]
 svf.check.setChecked(True)

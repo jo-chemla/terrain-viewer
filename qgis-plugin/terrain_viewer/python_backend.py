@@ -24,6 +24,9 @@ SETTING_ALIAS = {
     "phong": {"phongDiffuseStrength": "diffuse", "phongSpecularStrength": "specular",
               "phongFresnelStrength": "fresnel", "phongFresnelPower": "fresnelPower"},
     "matcap": {"matcapTextureId": "texture", "matcapRotationDeg": "rotation"},
+    "isoline": {"isolineMode": "at"},
+    "graticules": {"graticuleDensity": "density", "graticuleWidth": "width", "graticuleColor": "color"},
+    "planeSlicer": {"planeSlicerReferenceMode": "reference"},
 }
 # The shared light (illuminationDir, illuminationAlt) -> live/'s names.
 LIGHT_ALIAS = ("azimuth", "altitude")
@@ -52,15 +55,26 @@ def _lower_first(s):
     return s[:1].lower() + s[1:]
 
 
+def _computed(reg, m):
+    """live/ computes `m` (a registry entry not marked python_supported: False)."""
+    return bool(m) and m in reg and reg[m].get("python_supported", True)
+
+
 def py_mode(service_id, values=None, reg=None):
     """live/'s mode for a service mode (and its settings: a multidirectional
-    hillshade method), or None when live/ does not compute it."""
+    hillshade method), or None when live/ does not compute it (absent, or
+    listed with python_supported False, as the mound detector)."""
     reg = reg if reg is not None else (registry() or {})
-    if service_id == "hillshade" and values and values.get("hillshadeMethod") in MULTIDIRECTIONAL and "multihillshade" in reg:
+    if service_id == "hillshade" and values and values.get("hillshadeMethod") in MULTIDIRECTIONAL and _computed(reg, "multihillshade"):
         return "multihillshade"
     for cand in (MODE_ALIAS.get(service_id), service_id, _lower_first(service_id), service_id.lower()):
-        if cand and cand in reg:
-            return cand
+        if cand in reg:
+            return cand if _computed(reg, cand) else None
+    # By the registry's own `service` field (its entries that need no
+    # particular setting to match).
+    for m, spec in reg.items():
+        if spec.get("service") == service_id and not spec.get("service_query") and _computed(reg, m):
+            return m
     return None
 
 
@@ -95,11 +109,14 @@ def py_forms(service_id, service_forms, reg=None):
     if py is None:
         return set()
     spec = reg[py]
-    mine = {"colour"}
-    if spec.get("values", True) and spec.get("kind") != "rgb":
-        mine.add("values")
-    if spec.get("vector"):
-        mine.add("vector")
+    if spec.get("outputs"):
+        mine = set(spec["outputs"])
+    else:
+        mine = {"colour"}
+        if spec.get("values", True) and spec.get("kind") != "rgb":
+            mine.add("values")
+        if spec.get("vector"):
+            mine.add("vector")
     return set(service_forms) & mine
 
 
