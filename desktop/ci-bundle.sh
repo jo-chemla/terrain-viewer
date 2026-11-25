@@ -61,9 +61,37 @@ if [ "$(uname -s)" = "Darwin" ]; then
   # that into "unidentified developer", which System Settings > Privacy &
   # Security > Open Anyway lets through. Hutch has already written the
   # dmg by now, so the signed .app is repacked into a fresh one.
+  # Electrobun's own signature is broken: its binaries are only
+  # linker-signed and `codesign --verify` reports "code has no resources
+  # but signature indicates they must be present" (3DTiled CI, 2026-11-24).
+  # The updater feed is left as Hutch wrote it, on purpose: this .app is
+  # Electrobun's self-extractor (Contents/MacOS/launcher and the payload
+  # Resources/<hash>.tar.zst), which unpacks the payload over itself on
+  # first launch. The feed (stable-macos-arm64-update.json, the .tar.zst,
+  # the checksum json) is that same payload, and the hash the updater
+  # compares is the one in the payload's Resources/version.json, written
+  # at build time: signing the wrapper changes neither.
   app=$(find "$builddir" -maxdepth 1 -name "*.app" | head -n 1)
   codesign --force --deep --sign - "$app"
-  codesign --verify --deep --strict "$app" && echo "ad-hoc signed: $app"
+  # standalone (not `verify && echo`), so set -e stops the bundle when it fails
+  codesign --verify --deep --strict "$app"
+  echo "ad-hoc signed: $app"
+  # The .pkg: double-clicked, macOS blocks the package once (System
+  # Settings > Privacy & Security > Open Anyway), and what Installer
+  # writes carries no download quarantine, so the installed app opens like
+  # any other; a drag from the dmg keeps the quarantine and needs
+  # `xattr -cr`. Not relocatable: otherwise Installer updates whichever
+  # copy of the bundle id it finds (in Downloads, on a mounted dmg) instead
+  # of /Applications. desktop.yml installs a quarantined copy on the runner
+  # and checks the installed app carries no quarantine.
+  bundle_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist")
+  pkgroot=$(mktemp -d)
+  cp -R "$app" "$pkgroot/"
+  pkgbuild --analyze --root "$pkgroot" component.plist
+  plutil -replace 0.BundleIsRelocatable -bool NO component.plist
+  pkgbuild --root "$pkgroot" --component-plist component.plist --install-location /Applications \
+    --identifier "$bundle_id.pkg" --version "${BUILD_VERSION:-$(date -u +%Y.%-m.%-d)}" artifacts/Installer.pkg
+  rm -rf "$pkgroot" component.plist
   rm -f artifacts/*.dmg
   # The drag-to-install window: the app, a link to /Applications and an
   # arrow between them, laid out by dmgbuild (dmg-settings.py), which
@@ -84,14 +112,15 @@ if [ "$(uname -s)" = "Darwin" ]; then
     # Without dmgbuild: the same two items (the app and the Applications
     # link), in Finder's default layout. hdiutil right after Hutch's own
     # dmg step failed once on the runner with no message (the second
-    # variant of the run): give it a few tries.
+    # variant of the run), and with "Resource busy" on 3DTiled's runners
+    # (2026-11-23): give it a few tries.
     stage=$(mktemp -d)
     cp -R "$app" "$stage/"
     ln -s /Applications "$stage/Applications"
-    for attempt in 1 2 3 4; do
+    for attempt in 1 2 3 4 5; do
       if hdiutil create -volname "Terrain Viewer" -srcfolder "$stage" -ov -format UDZO "$dmg"; then break; fi
+      [ "$attempt" = 5 ] && exit 1
       echo "hdiutil failed (attempt $attempt), retrying"; sleep 10
-      [ "$attempt" = 4 ] && exit 1
     done
     rm -rf "$stage"
   fi
@@ -184,6 +213,7 @@ for f in artifacts/*; do
     portable.zip) kind=Portable; ext=zip ;;
     Setup.exe)    kind=Setup; ext=exe ;;
     Installer.exe) kind=Installer; ext=exe ;;
+    Installer.pkg) kind=Installer; ext=pkg ;;   # the macOS package (installs into /Applications)
     *.tar.gz)     kind=Setup; ext=tar.gz ;;
     *.dmg)        kind=Setup; ext=dmg ;;   # the macOS installer image
     *)            kind=Setup; ext=${name##*.} ;;

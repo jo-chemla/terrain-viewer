@@ -123,6 +123,44 @@ jobs:
         continue-on-error: true
         id: light
         run: bash ci-bundle.sh online light-online-docs
+      - name: Install each .pkg from a quarantined copy (macOS)
+        # What a user does: the .pkg downloaded by a browser (hence the
+        # quarantine flag), installed by Installer. What it installs must
+        # carry no quarantine, or the app would need `xattr -cr` like a drag
+        # from the dmg. A package that fails is removed from out/, so the
+        # release job does not publish it, and the job is marked failed.
+        if: runner.os == 'macOS'
+        working-directory: desktop
+        shell: bash
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+          pkgs=(out/*.pkg)
+          [ ${#pkgs[@]} -gt 0 ] || { echo "::error title=No .pkg::ci-bundle.sh built no .pkg"; exit 1; }
+          failed=0
+          for pkg in "${pkgs[@]}"; do
+            pkgutil --payload-files "$pkg" > payload.txt
+            app=$(grep -E '^\./[^/]+\.app$' payload.txt | head -n 1 | sed 's#^\./##')
+            echo "--- $pkg installs /Applications/$app"
+            q="$RUNNER_TEMP/quarantined.pkg"
+            cp "$pkg" "$q"
+            xattr -w com.apple.quarantine "0083;$(printf %x "$(date +%s)");Safari;$(uuidgen)" "$q"
+            ok=1
+            sudo installer -pkg "$q" -target / | tail -n 1 || ok=0
+            if [ -z "$app" ] || [ ! -d "/Applications/$app" ]; then
+              echo "::error title=.pkg did not install::$pkg left nothing in /Applications"; ok=0
+            elif xattr -r -l "/Applications/$app" | grep -q com.apple.quarantine; then
+              echo "::error title=Quarantined after install::/Applications/$app carries com.apple.quarantine"; ok=0
+            elif ! codesign --verify --deep --strict "/Applications/$app"; then
+              echo "::error title=Signature::/Applications/$app does not verify"; ok=0
+            else
+              echo "installed from the quarantined package, no quarantine on /Applications/$app"
+            fi
+            [ -n "$app" ] && sudo rm -rf "/Applications/$app"
+            rm -f "$q" payload.txt
+            [ "$ok" = 1 ] || { rm -f "$pkg"; failed=1; }
+          done
+          exit $failed
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -167,7 +205,7 @@ jobs:
         run: |
           sha=$(git rev-parse --short HEAD)
           date=$(date -u +%Y-%m-%d)
-          notes="Desktop bundles built on $date from \`$sha\`, the full build (\`with-offline-docs\`: the documentation inside, for offline reading). The light build (\`light-online-docs\`, about 180 MB smaller, the documentation on the website) is on the desktop-latest-light release. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/ for what works and how to run them. Setup files are installers (zip holding the installer on Windows, dmg on macOS, self-extracting tar.gz on Linux); Portable zips unpack anywhere and run as they are. macOS: open the dmg and drag the app onto Applications; it is not notarized (ad-hoc signed only), so on first launch go to System Settings, Privacy & Security, Open Anyway (or right-click, Open); if it is reported as damaged, run xattr -cr on the app once (see the docs page). Windows: SmartScreen, More info, Run anyway."
+          notes="Desktop bundles built on $date from \`$sha\`, the full build (\`with-offline-docs\`: the documentation inside, for offline reading). The light build (\`light-online-docs\`, about 180 MB smaller, the documentation on the website) is on the desktop-latest-light release. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/ for what works and how to run them. Setup files are installers (zip holding the installer on Windows, dmg on macOS, self-extracting tar.gz on Linux); Portable zips unpack anywhere and run as they are. macOS (not notarized, ad-hoc signed only): download the Installer .pkg and double-click it; macOS blocks it once, then System Settings, Privacy & Security, Open Anyway, and the installer puts the app in Applications, where it opens normally. The dmg is the second route: drag the app onto Applications, then run xattr -cr \"/Applications/Terrain Viewer.app\" once in Terminal before opening it (see the docs page). Windows: SmartScreen, More info, Run anyway."
           if ! gh release view desktop-latest >/dev/null 2>&1; then
             gh release create desktop-latest --title "Desktop: latest build, full with offline docs ($date)" --notes "$notes" --latest
           fi
@@ -210,7 +248,7 @@ jobs:
           [ -n "$(ls -A assets-light)" ] || { echo "no light feed built"; exit 0; }
           sha=$(git rev-parse --short HEAD)
           date=$(date -u +%Y-%m-%d)
-          notes="Light desktop bundles built on $date from \`$sha\`: the documentation opens on the website, about 180 MB smaller than the full build on the desktop-latest release. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/. Setup files are installers, Portable zips unpack anywhere and run as they are; the .tar.zst and update.json are the updater's feed, which an installed light build reads at launch. Windows: SmartScreen, More info, Run anyway."
+          notes="Light desktop bundles built on $date from \`$sha\`: the documentation opens on the website, about 180 MB smaller than the full build on the desktop-latest release. Unsigned and experimental: see https://terrain-viewer.iconem.com/docs/features/advanced/desktop/. Setup files are installers, Portable zips unpack anywhere and run as they are; the .tar.zst and update.json are the updater's feed, which an installed light build reads at launch. macOS: double-click the Installer .pkg; it is blocked once, then System Settings, Privacy & Security, Open Anyway, and the installed app opens normally. The dmg is the second route and needs xattr -cr \"/Applications/Terrain Viewer Light.app\" once after the drag. Windows: SmartScreen, More info, Run anyway."
           if ! gh release view desktop-latest-light >/dev/null 2>&1; then
             gh release create desktop-latest-light --title "Desktop: latest build, light with online docs ($date)" --notes "$notes"
           fi
