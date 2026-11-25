@@ -65,3 +65,4 @@ public/vrt/
 public/coverage/*.geojson
 # the docs screenshots live on the docs-media release (docs/media.lock, scripts/docs-media.mjs)
 docs/public/screenshots/
+qgis-plugin/out/
