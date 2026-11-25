@@ -19,7 +19,7 @@ The same day, a second round (plugin 0.5.0) answered three questions the first o
 | Hillshade | 0-1 | Horn, as gdaldem | | 100 % within 1 grey level (gdaldem hillshade) |
 | Multidirectional hillshade | 0-1 | gdaldem -multidirectional (four lights, 225 to 360°, weighted by aspect) | | 100 % within 1 grey level |
 | Slope | ° | `lib/slope-protocol.ts` (Horn) | 100 % within 0.1° + 0.5 %¹ | 100 % within 0.01° (gdaldem slope) |
-| Aspect | ° from north | gdaldem aspect | 100 %, mirrored² | 100 % within 0.05° (gdaldem aspect -zero_for_flat) |
+| Aspect | ° from north | gdaldem aspect | 100 %² | 100 % within 0.05° (gdaldem aspect -zero_for_flat) |
 | Curvature: combined, profile, plan, det-hessian, casorati, shape-index | 1/m, 1/m², unitless | `lib/curvature-protocol.ts` | 100 % within 1e-4 1/m + 0.5 %¹ ³ | |
 | TPI | m | `lib/tpi-protocol.ts` | 100 % (exact) | 100 % (gdaldem TPI) |
 | TRI | m | `lib/tri-protocol.ts` | 100 % (exact) | 100 % (gdaldem TRI, Riley) |
@@ -31,7 +31,7 @@ The same day, a second round (plugin 0.5.0) answered three questions the first o
 | Contours (raster mask) | 1 minor, 2 major | a pixel whose 4-neighbour lies below a level it is above | | 100 %: every GDAL contour line within 1 px of the mask and back (gdal.ContourGenerate, rasterized) |
 
 ¹ The service divides by the ground size at the centre of its 512 px Mapterhorn tile, the plugin at the centre of its 256 px tile: 0.1 to 0.3 % apart at 45° north, and slope also travels as Terrain-RGB, in steps of 0.1°.
-² **The app's aspect is mirrored east-west**: `lib/aspect-protocol.ts` computes `atan2(dy, -dx)` with `dx` = west minus east, so an east-facing slope reads 270° (gdaldem: 90°). The plugin follows gdaldem; the test compares it with the service's values mirrored back, and they agree to 3e-5°. The app's protocol needs the same fix (`atan2(dy, dx)`), not made here.
+² **The app's aspect was mirrored east-west until 2026-11-25**: `lib/aspect-protocol.ts` computed `atan2(dy, -dx)` with `dx` = west minus east, so an east-facing slope read 270° (gdaldem: 90°). Found by this comparison (they agreed to 3e-5° once mirrored back), fixed in the app (`atan2(dy, dx)`, `lib/aspect-protocol.test.ts`); the test now compares unmirrored.
 ³ The service packs curvature as Terrarium times 1000 over the app's own scale, so values past ±0.33 1/m (±3.3e-3 1/m² for det-hessian) are clipped there; those pixels (steep summits at z14) are left out of the comparison.
 
 Not ported: the modes that need a GPU or a whole view (matcap, Phong, the mound detector, the eigen-based ones, local dominance, the fast sky view factor with far rings), and colour relief by the app's own ramps (QGIS's ramps take that role, below).
@@ -173,7 +173,7 @@ In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet ca
 ## Next steps
 
 1. numba used when present, with `nogil`, for the sky view factor and openness (the GIL-bound modes).
-2. The app's aspect fixed (`lib/aspect-protocol.ts`, mirrored east-west), then the test compares unmirrored.
+2. ~~The app's aspect fixed~~ Done 2026-11-25.
 3. `QgsBlockingNetworkRequest` for the elevation, a disk cache of decoded tiles, the other terrain sources (any Terrarium or Terrain-RGB pyramid, a COG through GDAL).
 4. A Processing provider over the same `modes.values()`, for exports and batch runs.
 5. The tile service's sky view factor (1 to 2 s a tile): profile it.

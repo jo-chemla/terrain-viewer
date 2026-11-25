@@ -40,8 +40,8 @@ def v_slope(p, res_m, xp=np):
 def v_aspect(p, res_m, xp=np):
     """The compass bearing the slope faces, clockwise from north, 0 on flat
     ground: gdaldem aspect -zero_for_flat (an east-facing slope is 90).
-    lib/aspect-protocol.ts is the same formula mirrored east-west (it reads
-    an east-facing slope as 270): checked against both, this follows GDAL."""
+    Same as lib/aspect-protocol.ts (fixed 2026-11-25, it used to read an
+    east-facing slope as 270) and gdaldem: checked against both."""
     x, y = _horn(p, res_m)
     a = xp.degrees(xp.arctan2(x, y))  # x: downhill toward the east, y: toward the north
     a = xp.where(a < 0, a + 360.0, a)

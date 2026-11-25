@@ -12,6 +12,10 @@
 
 #### Details
 
+##### Aspect: east and west no longer swapped
+
+- The Aspect mode read an east-facing slope as west-facing (270° instead of 90°): `lib/aspect-protocol.ts`'s Horn `dx` is west minus east, so GDAL's `atan2(dy, -dx)` becomes `atan2(dy, dx)` here. Found by the QGIS plugin's comparison with gdaldem; `lib/aspect-protocol.test.ts`.
+
 ##### QGIS Plugin Experiment: Terrain Modes Computed in QGIS, No Tile Service
 
 - **Experiment: the QGIS plugin can compute hillshade, sky view factor and terrain shadows itself**, in QGIS's Python with numpy, from Mapterhorn elevation tiles, with no tile service. It is off by default: check **Experimental: compute locally** in the Terrain Viewer panel and a "Terrain Viewer (local compute)" group appears; uncheck it and the group goes away. The shadows match the app's pixel for pixel, the sky view factor to 0.004 %.

@@ -175,12 +175,9 @@ if service:
         mask = None
         ref_name = "tile service"
         if mode == "aspect":
-            # The direction of flat ground is arbitrary; and the app's aspect
-            # (lib/aspect-protocol.ts) is mirrored east-west against gdaldem,
-            # which the local one follows: compared mirrored back.
+            # The direction of flat ground is arbitrary. (Until 2026-11-25 the
+            # app's aspect was mirrored east-west; both follow gdaldem now.)
             mask = np.stack([modes.v_slope(dem.padded(*t, 1), ground_resolution_m(t[0], t[2])) > 2 for t in TILES])
-            ref = (360 - ref) % 360
-            ref_name = "tile service, mirrored E-W"
         if mode == "curvature":
             # The service packs curvature as Terrarium, x1000 over the app's
             # scale: values past +-32767 / scale are clipped there.

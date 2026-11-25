@@ -72,7 +72,7 @@ $$
 \text{aspect}° = (90 - \theta_{\text{math}}) \bmod 360
 $$
 
-(0 if $\partial z/\partial x = \partial z/\partial y = 0$, i.e. flat ground.) `lib/aspect-protocol.ts`.
+(0 if $\partial z/\partial x = \partial z/\partial y = 0$, i.e. flat ground.) `lib/aspect-protocol.ts`, `aspectCompassDeg`. Its Horn `dx` is west minus east, $-\partial z/\partial x$, so the code reads `atan2(dy, dx)`; until 2026-11-25 it read `atan2(dy, -dx)` and mirrored east and west (an east-facing slope showed 270°).
 
 ### TRI (Terrain Ruggedness Index)
 
