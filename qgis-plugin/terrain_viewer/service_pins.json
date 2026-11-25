@@ -5,8 +5,23 @@
   "assets": {
     "windows-x64": {
       "file": "terrain-viewer-tile-service-windows-x64.zip",
-      "sha256": "95b02e1af00766609606f6cac8fddc955cea81be5b5b26d50d9d87dc30e82ef7",
-      "size": 48466625
+      "sha256": "9247f692cb249f1163a9493bb859a4be99e120f8086394c140b3cff0941f24b4",
+      "size": 48469365
+    },
+    "macos-arm64": {
+      "file": "terrain-viewer-tile-service-macos-arm64.zip",
+      "sha256": "7aa55dec55c7605aa07b9df58be176a5b32a8d4d200f02d811ac66a2d76d517c",
+      "size": 52083832
+    },
+    "macos-x64": {
+      "file": "terrain-viewer-tile-service-macos-x64.zip",
+      "sha256": "dc365a46d316966471444cc01afa4475095d5f4e960fece0a496abf2ff96c139",
+      "size": 54047138
+    },
+    "linux-x64": {
+      "file": "terrain-viewer-tile-service-linux-x64.zip",
+      "sha256": "0c09b8cca89ab4c48dfd4b8db7b1c4e1309f59fcb6c24543eed67a51db93a0c3",
+      "size": 59059130
     }
   }
 }
