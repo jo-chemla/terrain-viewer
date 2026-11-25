@@ -1,76 +1,62 @@
-# Changelog — QGIS Plugin Experiment: Terrain Modes Computed in QGIS, No Tile Service
+# Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
+
 <!-- released: 2026-11-25T11:11 -->
 
 #### TL;DR
 
-- **Experiment: the QGIS plugin can compute hillshade, sky view factor and terrain shadows itself**, in QGIS's Python with numpy, from Mapterhorn elevation tiles, with no tile service. It is off by default: check **Experimental: compute locally** in the Terrain Viewer panel and a "Terrain Viewer (local compute)" group appears; uncheck it and the group goes away. The shadows match the app's pixel for pixel, the sky view factor to 0.004 %.
-- **Fast enough**: 1 to 15 ms a tile on one CPU core, 5 to 100 times faster end to end than the same tiles from the tile service. The GPU (cupy) is slower than the CPU for tiles this small. Timings, the four ways to plug it into QGIS and next steps: [QGIS Live Compute](/docs/dev/qgis-live-compute).
+- **[Live GPU terrain shadows](/docs/dev/lighting-effects)**: shadows follow the sun in real time, come from relief tens of kilometres away with the Earth's curvature, and have soft edges.
+- **Search catalogs and coverage**: one forgiving search across Sources Coverage (terrain, basemaps, historical catalogs: "lidr" finds LiDAR), and one in the timeline's Catalogs picker.
+- **[Terrain as quantized mesh](/docs/dev/tile-service#quantized-mesh)**: the tile service streams any terrain source as Cesium terrain, for CesiumJS or Blender.
+- **[Tile service in the desktop app](/docs/features/advanced/desktop#local-tile-service)**: one switch in Settings runs it on your computer, for QGIS, Blender or Cesium.
+- **[QGIS plugin](/docs/dev/qgis-plugin), packaged and computing in QGIS**: a build with the tile service inside, and an experimental mode computing hillshade, sky view factor and shadows in QGIS itself.
 
 #### Details
+
+##### QGIS Plugin Experiment: Terrain Modes Computed in QGIS, No Tile Service
+
+- **Experiment: the QGIS plugin can compute hillshade, sky view factor and terrain shadows itself**, in QGIS's Python with numpy, from Mapterhorn elevation tiles, with no tile service. It is off by default: check **Experimental: compute locally** in the Terrain Viewer panel and a "Terrain Viewer (local compute)" group appears; uncheck it and the group goes away. The shadows match the app's pixel for pixel, the sky view factor to 0.004 %.
+- **Fast enough**: 1 to 15 ms a tile on one CPU core, 5 to 100 times faster end to end than the same tiles from the tile service. The GPU (cupy) is slower than the CPU for tiles this small. Timings, the four ways to plug it into QGIS and next steps: [QGIS Live Compute](/docs/dev/qgis-live-compute).
 
 - `qgis-plugin/terrain_viewer/live/`: `dem.py` (Terrarium WebP/PNG through `QImage`, 256 px tiles from 512 px sources, padded 3×3 grid, LRU cache with in-flight de-duplication), `kernels.py` (Horn hillshade and slope, the "precise" sky view factor of `lib/horizon-kernel.ts`, the shadow-height sweep of `lib/shadow-kernel.ts` vectorised as one gather and two block-wise cumulative maxima; numpy or cupy), `kernels_numba.py` (the same kernels as loops, used only if numba imports), `server.py` (a `ThreadingHTTPServer` on 127.0.0.1 serving `/{mode}/{z}/{x}/{y}.png`), `layers.py` (the group of XYZ layers). `dock.py` only gains the checkbox.
 - `qgis-plugin/test_live.py` compares the numpy kernels with the TypeScript ones (`live_reference.mjs`, Node with `--experimental-strip-types`), compares numba with numpy, renders each mode through `QgsMapRendererParallelJob` and checks the checkbox. It passes in QGIS 4.2 and 3.44. `bench_live.py` times numpy (1 and 8 threads), numba, cupy, Node and the tile service.
 - A Python `QgsRasterDataProvider` was probed and works in 3.44 and 4.2, provided `capabilities()` returns `Qgis.RasterInterfaceCapability` flags (otherwise 3.44 exits without a traceback). It is the planned way to serve Float32 values with no service.
 
-# Changelog — Lighter Imagery Footprints, Every Entry Dated
-
-<!-- released: 2026-11-25T11:10 -->
-
-#### TL;DR
+##### Lighter Imagery Footprints, Every Entry Dated
 
 - **Imagery footprints load faster**: showing the footprint of an OSM Editor Layer Index source now downloads only that source's outline, usually under a kilobyte, instead of the outlines of a whole continent (more than half a megabyte for Europe).
 - **One search in Sources Coverage**: the historical catalogs no longer have a second filter box of their own there; the box at the top of the section covers them. The timeline's Catalogs picker keeps its own.
 - **What's new is in order again**: the latest changes show as new and are listed newest first.
-
-#### Details
 
 - ELI sizes, measured 2026-11-25. osmlab/editor-layer-index publishes the whole index only: `imagery.geojson` 6.7 MB (1.33 MB gzip from GitHub Pages, which serves no brotli; 1.24 MB brotli from jsDelivr), `imagery.json` 6.5 MB (1.31 MB gzip), `imagery.xml` 10.2 MB (1.27 MB gzip); no geometry-free or per-region file. Its `sources/` tree has one unminified GeoJSON per source (4 to 50 kB each) but no list to find them by id. `@osm-editor-kit/maplibre-editor-layer-index` 1.0.2, which the app uses, already splits it: a locator without polygons (names, boxes, countries, dates; 579 kB raw, 78 kB gzip, 61 kB brotli) that the coverage group and the search load, details per continent (tile URLs; Europe 766 kB raw, 69 kB gzip) and polygons per continent (Europe 1.6 MB raw, 580 kB gzip; North America 609 / 198 kB; Asia 850 / 210 kB). The "14 MB" in the coverage section's comment was stale.
 - The polygons now come one per file: the `eli-geometries` plugin in `vite.config.ts` writes the package's 998 polygons to `eli-geometries/<geometryId>.json` at build time (3.5 MB raw, 1.1 MB gzip in all; median 0.3 kB gzip, 95 % under 4 kB, the largest 177 kB) and serves them from the package in dev, so nothing is tracked or put on a release and the files always match the installed locator. `lib/eli-geometry.ts` (`loadEliCoverageFeatures`, same collection as the package's `loadCoverageFeatures`) fetches and caches them, falling back to the continent shard when a file is missing; used by the coverage footprints, the timeline's dated ELI layers and "Use as basemap".
 - `historical-catalog-tree.tsx`: `compact` (the coverage section) hides the tree's own search box; the section's top search passes its matches down as `filter`.
 - Changelog: the entries of 2026-11-24 and 2026-11-25 got their `<!-- released -->` markers (time suffixes from their commits) and TL;DRs for end users, with the former TL;DRs moved under Details. The two shadow entries are one, and three tile-service and dependency entries have no TL;DR (developer notes, left out of the app). `lib/changelog.test.ts` (`node scripts/test-lib.mjs lib/changelog.test.ts`) fails when an entry has no marker, two share one, or the file is not newest first.
 
-# Changelog — Cesium Terrain From Any Source, Box Pictures by Address
-
-<!-- released: 2026-11-25T11:03 -->
-
-#### TL;DR
+##### Cesium Terrain From Any Source, Box Pictures by Address
 
 - **Any terrain source as a 3D globe in Cesium and Blender**: the tile service now serves every terrain it reads (Mapterhorn, AWS, Mapbox, MapTiler, Esri, national lidar, GEM-15...) in Cesium's terrain format, so CesiumJS, Cesium for Unreal or Unity and Blender add-ons that read Cesium terrain load it as a globe, with smooth shading. Docs: [Tile service, Quantized mesh](/docs/dev/tile-service#quantized-mesh).
 - **Pictures of a box by address again**: a picture or the values of a box can be asked with the box and the size in the address, as before yesterday, now documented.
-
-#### Details
 
 - Endpoints: `/quantized-mesh/{source}/layer.json` and `/quantized-mesh/{source}/{z}/{x}/{y}.terrain` (quantized-mesh-1.0, geographic TMS, octvertexnormals, gzip, CORS, cached a week except empty tiles), for every source whose `/sources` engine is `direct`, with the same keys as `/terrain-tiles`; `error` (0.5, a share of Cesium's level geometric error), `mesher` (`delatin` or `martini`), `extensions`. An `OPTIONS` preflight now answers 204. `/bbox/{w},{s},{e},{n}/{width}x{height}.png|jpg|tif` answers what `/render` with `bbox`, `width` and `height` answers (one handler), with its `.stac.json` Item and `Link` header, in OpenAPI under Viewport; titiler's `/tiles/WebMercatorQuad/...` and `/WebMercatorQuad/tilejson.json` stay removed.
 - `tile-server/quantized-mesh.mjs` is standalone (a height grid in, a tile out, no server). Delatin by default: on Mapterhorn around the Matterhorn, levels 10 to 14, it makes about 45 % fewer triangles than martini for the same error in about three times the time (16 to 24 ms a tile at the default error, against 6 to 7). `direct.mjs` `geographicGrid` resamples the source's Web Mercator pixels of the matching zoom to a 257 × 257 geographic grid with a two-pixel border; the meshing runs in the direct engine's workers.
 - Tests: a synthetic surface served by a stubbed fetch, decoded by the module's decoder and by HERE's `@here/quantized-mesh-decoder` field by field, checked against the surface and the spec's invariants (index order, winding, edge lists, bounding sphere, normals); over HTTP, a Mapterhorn tile in the Alps, and `/bbox` drawing byte for byte what `/render?bbox` draws. Next: a water mask, the metadata extension for sparse sources, a STAC Item for `.terrain`.
 
-# Changelog — Desktop App Runs the Tile Service for QGIS; Bundled Service Off by Default
-<!-- released: 2026-11-25T10:58 -->
-
-#### TL;DR
+##### Desktop App Runs the Tile Service for QGIS; Bundled Service Off by Default
 
 - **The desktop app can serve tiles to QGIS**: **Settings > Desktop: local tile service** (desktop app only, never on the website) runs the tile service on this computer (off by default, port 3400 unless you change it). Turn it on, then press Connect in the QGIS plugin with its default address. It starts with the app while the setting is on and stops when the app closes. Docs: [Desktop App, local tile service](/docs/features/advanced/desktop#local-tile-service).
 - **QGIS plugin 0.4.0**: the bundled tile service is **off by default** and only starts when you check **Local bundled tile service** and press Connect. If the tile service does not answer (at Connect, or later), the panel and QGIS's message bar say so, and for a local address suggest starting the desktop app with its tile service on (or the bundled one). Both variants stay: the 20 KB plain zip and the platform zips with the service inside, about 3 MB smaller now. Release: [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b).
 - **No browser for the plugin**: QGIS asks for flat, north-up tiles only, so the service inside the plugin and the desktop app ships without playwright-core and never looks for Chrome or Edge; a 3D, tilted or split view answers 501.
 
-#### Details
-
 - `desktop/src/bun/tile-service.ts` starts the shipped Node on `Resources/app/tile-service/server.mjs` as a child process (`TV_HOST=127.0.0.1`, `TV_EXIT_WITH_STDIN`, `TV_NO_BROWSER`, no `.env`), keeps the setting in `tile-service.json` and logs to `tile-service.log` next to `updater.log`; a port already answered by another tile service or program is reported, not fought over. Not inside the main process: Cottontail runs the service with sharp but drew a slope tile in 57 s where Node takes 5. `ci-bundle.sh` stages the service with `qgis-plugin/make_zip.py --server-dir <platform>`, `gen-config.mjs --tile-service=required` copies it, `desktop.yml` installs and builds tile-server first. The installers grow by about 30 MB (light Windows Setup 67 MB, full 252 MB; built on all three platforms by run 45590628336). The page's side: `lib/desktop-bridge.ts` (`tile-service-status`, `tile-service-set`, the `tv-desktop-tile-service` event), `components/TerrainControlPanel/desktop-tile-service-section.tsx`.
 - `tile-server/render.mjs`: `TV_NO_BROWSER=1`, or playwright-core missing, makes the browser engine a 501 with a message.
 - `qgis-plugin/test_service_paths.py` replaces `test_bundled.py`: the bundled service, or an external address, driven through the panel in headless QGIS (Connect, processes, a slope layer, a tile, a dead local address, the service going away while connected). Run on Windows in QGIS 4.2 and 3.44 LTR for the three paths: the bundled service, the packaged desktop app's service (light build made locally, started at launch with the setting on; the Node child exits by itself when the app is killed), and the plain plugin against `node tile-server/server.mjs` on another port.
 
-# Changelog — Live Shadows Reach Far: Far-Field Relief, Earth Curvature, Soft Edges
-
-<!-- released: 2026-11-25T10:53 -->
-
-#### TL;DR
+##### Live Shadows Reach Far: Far-Field Relief, Earth Curvature, Soft Edges
 
 - **Long shadows from far away**: live terrain shadows now also come from relief tens of kilometres beyond the view (a second, coarser elevation mosaic around it), with the ground lowered by the Earth's curvature on long rays. At sunrise over Mont Blanc (sun 2°) the match with a long-reach reference goes from 0.96 to 0.999 (IoU); over the Po plain east of Turin at a 1.5° sunset, where the Alps' shadow comes from 60 to 100 km away, from 0.86 to 0.98. A frame costs 2 to 4 ms per megapixel on a laptop GPU.
 - **Soft shadow edges**: the penumbra of the sun's disc, wider the farther the ridge casting it (Lighting Effects > Shadows > **Edge: Soft / Hard**, on by default).
 - **Clearer names**: the shadow toggle is **Terrain (+ buildings if DSM)**: a terrain model such as Mapterhorn has no buildings, and its slopes cast long shadows only under a low sun (the outer rim of the light pad). The renderer switch reads **Live (GPU) / Tiles (CPU)**.
 - **Exports**: the Snapshot captures the live shadows as you see them; per-mode exports and the Iso-line use the shadow tiles. How both renderers work: [Shadow Renderers](/docs/dev/shadow-renderers).
-
-#### Details
 
 - `lib/shadow-live-math.ts`: the fragment shader is now generated there (`shadowFragmentShader`) next to its line-by-line CPU twin `sunVisibilityCpu`: highest horizon angle over the view mosaic, then over the far mosaic from where the ray leaves the view mosaic; ground drop `d² (1 − k) / 2R` with k = 0.13 (`curvatureDrop`, `CURVATURE_PER_M2`); metres per texel from the Mercator scale (`texelGroundMeters`); soft edge as a smoothstep of the angular margin over the sun's 0.2665° radius. `chooseFarLayout` (three zooms coarser, up to three coarse tiles a side, at most 36 tiles), `farTransform`, `boxExitDistance`.
 - `lib/shadow-live-gl-layer.ts`: a `MosaicTexture` per mosaic (view and far field) sharing the decoded-tile cache; the far mosaic is kept while it holds a one-tile margin around the view mosaic.
@@ -79,16 +65,10 @@
 - The tile kernel is unchanged: its sliding maximum needs a ray rising linearly with the distance, so no curvature (under 1 m within its radius at z13 and finer) and no far field.
 - Live shadows draw in every view of a split, as live Phong.
 
-# Changelog — QGIS Plugin With the Tile Service Inside
-
-<!-- released: 2026-11-25T01:59 -->
-
-#### TL;DR
+##### QGIS Plugin With the Tile Service Inside
 
 - **The QGIS plugin works on its own**: Terrain Viewer 0.3.0 for QGIS comes as one zip per platform (Windows, macOS, Linux) with the tile service inside. Install it from ZIP and the terrain layers work with nothing else running. See [QGIS Plugin](/docs/dev/qgis-plugin#the-bundled-tile-service).
 - **Fix**: a tile could stay blank for a week when the tile service was stopped right after drawing it.
-
-#### Details
 
 - Former TL;DR: **Terrain Viewer 0.3.0 for QGIS, with the tile service bundled**: one zip per platform (Windows x64, macOS arm64 and x64, Linux x64, 50 to 62 MB) carries Node 22, the tile service and its dependencies with that platform's sharp binaries. Install it from ZIP and it works with nothing running: the panel's **Local bundled tile service** box (checked by default) starts the service on `127.0.0.1` when the panel connects and stops it when QGIS quits, the plugin unloads, or QGIS crashes. An optional **Earthdata token** field passes `EARTHDATA_TOKEN` to it for G-LiHT; no token ships. The plain zip (pure Python, a service to connect to) stays. Release: [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25), with Send2MapApp 0.5.1 (destinations in the web app's order).
 - **Tile service**: the browser engine falls back to Microsoft Edge when Chrome is not installed, and with neither answers `501` with a message instead of an error trace; `TV_HOST` (listen on one interface) and `TV_EXIT_WITH_STDIN` (stop when the parent goes) are new.
@@ -96,16 +76,10 @@
 - `qgis-plugin/make_zip.py --bundled [platform]` builds any platform from any host: Node from nodejs.org checked against `SHASUMS256.txt`, tile-server's production dependencies installed flat (`node-linker=hoisted`) with pnpm's `supportedArchitectures`, source maps and type declarations left out. `.github/workflows/qgis-plugins.yml` (on demand) builds each platform on its own runner, starts its service there (`qgis-plugin/smoke_bundled.py`), and with `release_tag` attaches the zips to a release.
 - `qgis-plugin/terrain_viewer/local_server.py`: port 3410, or a free one when it is taken (a saved project's layers follow the port on Connect); `CREATE_NO_WINDOW` on Windows; the executable bit set again on macOS and Linux (QGIS's zip installer drops it); no `.env` read. `qgis-plugin/test_bundled.py` unzips a platform zip into a temporary folder and drives it through the panel in headless QGIS (3.44 LTR and 4.2 on Windows: started in about 4 s, `/processes` and a slope tile answered, gone after unload).
 
-# Changelog — Live Terrain Shadows That Reach Farther
-
-<!-- released: 2026-11-25T01:45 -->
-
-#### TL;DR
+##### Live Terrain Shadows That Reach Farther
 
 - **Terrain shadows move live**: Hard Shadows are now drawn by the graphics card. Dragging the sun, changing the hour or using the Sun Shadow Calculator moves the mountains' shadows in real time, and long shadows reach across the whole view. On a device that cannot run it, the app goes back to the tile shadows by itself (Lighting Effects > Shadows > Renderer).
 - **Tile shadows reach eight times farther**, at about the same speed: long shadows under a low sun are no longer cut short. Exports use them. Links that set a search radius keep it.
-
-#### Details
 
 - Former TL;DR (live): **Hard Shadows draw live on the GPU** ([Shadow Renderers](/docs/dev/shadow-renderers#live-renderer)): every pixel marches its own ray toward the sun over a Float32 mosaic of the view's DEM tiles. The sun pad, the Datetime hours and the Sun Shadow Calculator now move terrain shadows in real time, and shadows reach the edge of the view plus a tile, with no Search Radius and no height tolerance (low plateau edges are kept). Mercator, globe and 3D terrain.
 - **Renderer: Live / Tiles** under Lighting Effects, Shadows (advanced; `shadowRenderer`, default `live`). Tiles is the `shadow://` pipeline with its Search Radius; exports and the Iso-line always use it, and it takes over by itself when the GPU layer cannot run on the device.
@@ -119,16 +93,10 @@
 - `lib/shadow-kernel.test.ts` (offline, `node --test lib/shadow-kernel.test.ts`): a cone and a cliff under eight suns against a continuous ray (sweep IoU 0.989 to 1, the old march 0.807 to 1: its nearest-pixel steps shadowed lit flanks at oblique azimuths), the cliff's shadow length, the same cut for every column, sun overhead, flat ground, sun below the horizon.
 - `scripts/bench-shadow.mjs`: the old march (radius 32, 64) against the sweep (32 to 768), best of `REPS` runs per tile; numbers in the benchmark page.
 
-# Changelog — One Fuzzy Search for Sources Coverage, Quieter Attribution Button
-
-<!-- released: 2026-11-25T01:40 -->
-
-#### TL;DR
+##### One Fuzzy Search for Sources Coverage, Quieter Attribution Button
 
 - **One search box for Sources Coverage**: the filter at the top of the section searches terrain, basemaps and the historical catalogs at once, and forgives typos ("lidr" finds the LiDAR coverage). Groups with a match open, the others hide.
 - **Quieter credits button**: hovering the map's ⓘ no longer fills it with colour.
-
-#### Details
 
 - Former TL;DR: **Sources Coverage has one search for everything it lists**: a filter box at the top of the section now covers Terrain (Mapterhorn, 3D and LiDAR, OpenTopography, the terrain library, your sources), Basemaps · Static (ELI, your basemaps, the basemap library) and the historical catalogs, instead of the historical catalogs alone. It is typo-tolerant, using the Library's matcher ("lidr" finds the LiDAR coverage, "swistopo" the swisstopo datasets). Groups with a match open, the others hide, and "Nothing matches" says when nothing does.
 - **Catalog search sized like its dialog**: the filter box in the timeline's Catalogs picker uses the dialog's 12px text, is 28px high and has a 12px icon (it was 14px text in a 36px box).
@@ -136,25 +104,15 @@
 - `historical-catalog-tree.tsx`: `useCatalogEntries` and `catalogSearchText` exported; a `filter` prop (`{ query, ids }`) takes a search run elsewhere and hides the tree's own box. `SourceInfoSection.tsx` runs `searchLibrary` once over every coverage leaf (with its section and group names), every group that has no leaves yet (ELI before it loads; a match loads it) and every historical catalog, so exact matches win across the whole list before any near miss. While searching, the folds are forced open but not stored, and Expand all is disabled.
 - The `Input`s also get `md:text-xs`: without it the primitive's `md:text-sm` won on wide screens (this also fixes the coverage panel's Search by name field).
 
-# Changelog — Tile Service Without titiler's Addresses
-
-<!-- released: 2026-11-25T01:32 -->
-
-#### Details
+##### Tile Service Without titiler's Addresses
 
 - **Tile service: titiler's addresses are removed**, like `/tiles/{z}/{x}/{y}` and `/modes` the day before: `/tiles/WebMercatorQuad/{z}/{x}/{y}`, `/WebMercatorQuad/tilejson.json` and `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` answer 404 naming `/terrain-tiles`, `/tilejson.json` and `/render.{format}?bbox=…&width=…&height=…` (which draws exactly what `/bbox` drew). Nothing in the repository called them (app, QGIS plugins, MCP server, scripts, desktop). titiler's parameter names `url`, `algorithm` and `tilesize` are still read.
 - `tile-server/server.mjs` and `stac.mjs`: the alias patterns are gone, so neither a `.stac.json` Item nor a `Link` header is made for them; `openapi.mjs` (and `docs/public/tile-service-openapi.json`), the tile-server README and [Tile service](/docs/dev/tile-service#removed-addresses) say so; `test.mjs` checks the three 404s.
 
-# Changelog — G-LiHT Through the Local Proxy by Default, CORS Extensions Fixed, Stretch Measured on Eight Campaigns
-
-<!-- released: 2026-11-25T00:17 -->
-
-#### TL;DR
+##### G-LiHT Through the Local Proxy by Default, CORS Extensions Fixed, Stretch Measured on Eight Campaigns
 
 - **NASA G-LiHT lidar loads more reliably**: when the local tile service runs, G-LiHT goes through it by default; when it does not, the app says so and reads NASA's files directly. Browser extensions that unblock cross-site requests now work with it too.
 - **Kiuic terrain a little more accurate**: the conversion from the grey pictures back to heights was measured on eight campaigns, and the Kiuic Library entries use the refined values.
-
-#### Details
 
 - Former TL;DR: **G-LiHT reads through the local tile service by default**: **Settings > G-LiHT address** starts at `http://localhost:3400/proxy/gliht` (an https page may reach `http://localhost`; Chrome asks once for local network access). When the service does not answer, a message says so and the KMZs are read from NASA's host directly; the field can still be cleared for NASA's host only, or set to any proxy.
 - **CORS-unblocking extensions work now**: the map stayed empty with one because the reader's first request was a suffix `Range` (`bytes=-65557`), which needs a preflight the extensions do not approve, so the real request was never sent. On NASA's host the reader now asks a `HEAD` for the length, then `bytes=start-end` only, and never reads `Content-Range` (hidden behind an extension). Details: [NASA G-LiHT, CORS](/docs/dev/g-liht#cors-why-an-unblocking-extension-showed-nothing).
@@ -162,17 +120,11 @@
 - `lib/gliht-kmz.ts`: `openZip` places the tail from the end record (directory offset + size), `headSize`, `GLIHT_DEFAULT_BASE`; `lib/gliht-protocol.ts`: the proxy-down fallback (retried every 30 s) and two one-time toasts; `tile-server/proxy.mjs`: `Access-Control-Allow-Private-Network: true` on preflights. `lib/gliht-kmz.test.ts` now replays a browser behind an extension (suffix range refused, no `Content-Range`).
 - `scripts/gliht-stretch.py <c>_DTM.tif <c>_DTM.kmz`: fits `lo`/`hi`, RMSE, per-tile spread and linearity (numpy, rasterio, Pillow; data downloaded outside the repository).
 
-# Changelog — Transparency in the Edit Dialog, Catalog Search, Library Tidy
-
-<!-- released: 2026-11-25T00:15 -->
-
-#### TL;DR
+##### Transparency in the Edit Dialog, Catalog Search, Library Tidy
 
 - **Transparency moved to the edit dialog**: how an overlay blends (as served, opaque, dark over, light over) is now set in its edit dialog, under Opacity. The button it replaces could crash the site.
 - **Search the historical catalogs**: the timeline's Catalogs picker has a filter box that finds catalogs by name, provider or country, typos forgiven.
 - **Library tidied**: smaller tabs; Load all and Clear all are gone (add or remove by row or by section).
-
-#### Details
 
 - Former TL;DR: **Transparency moves to the edit dialog**: an overlay's alpha mode (as served, opaque, dark over, light over) is now a **Transparency** field under Opacity in the source's edit dialog, instead of a button on every row. The row button crashed the deployed site when clicked ("Base UI error #31": its menu heading was a group label outside a menu group). Stored choices and the Library defaults (light over for the Maya local dominance layers) are unchanged; an untouched source keeps following its Library default.
 - **Search the catalogs**: the historical catalogs list (the timeline's Catalogs picker and the Sources Coverage panel) has a filter box: name, description, provider (the STAC host), group and country, with the Library's typo-tolerant matcher. Groups with a match open, the others hide.
@@ -182,56 +134,48 @@
 - `components/TerrainControlPanel/alpha-mode-menu.tsx` deleted; the field is in `custom-basemap-modal.tsx` (written as `alphaMode` only once the user picks one). Checked every `DropdownMenuLabel` / `SelectLabel`: no other one sits outside its group; both primitives now say so in a comment (Select's equivalent is error #56).
 - Attribution: the vendor CSS glows on any `:focus` of the button; `src/index.css` clears it and puts a `--ring` shadow on the box under `:has(:focus-visible)`.
 
-# Changelog — geotiff.js 3
-
-<!-- released: 2026-11-25T00:11 -->
-
-#### Details
+##### geotiff.js 3
 
 - **geotiff.js 2.1.3 → 3.0.5** in the app, as the tile service, the MCP server and `@geomatico/maplibre-cog-protocol` already had: one copy in the main chunk instead of two. Main chunk 6,467 → 6,428 kB (gzip 1,881 → 1,869 kB); `dist/assets` 192 kB smaller. No change to what the app shows.
 - 3.0's breaking changes met: IFD tags are read with `getValue()` / `loadValueIndexed()` (the offset and byte-count arrays are lazy), `getGDALMetadata()` is async (the local COG check read `STATISTICS_MINIMUM` from a promise and would have lost it silently), `Pool.decode()` is gone (we only pass the pool to `readRasters`). The decoder worker is still an inline blob, so nothing changes in Vite.
 - `readRastersSparse` (`lib/float32dem-protocol.ts`) stays: 3.0 now synthesises a block whose byte count is 0, but fills it with `GDAL_NODATA || 0`, so a float hole tagged `nan` read as 0 m. It now looks up each block's offset and count lazily.
 - `lib/float-geotiff.test.ts` (offline): a Float32 and an RGBA GeoTIFF from our writer decode with geotiff 3 (values, NaN, bbox, CRS), and a sparse strip reads as NaN. `node scripts/test-lib.mjs lib/float-geotiff.test.ts`.
 
-# Changelog — Tile Service: STAC Provenance, API Reference Order
-
-<!-- released: 2026-11-25T00:10 -->
-
-#### Details
+##### Tile Service: STAC Provenance, API Reference Order
 
 - **[A STAC Item for each export](/docs/dev/tile-service#provenance-a-stac-item-for-each-export)** (proof of concept): every raster the tile service answers (value TIFFs and PNGs, rendered tiles and pictures, basemap tiles) has a STAC 1.1.0 Item with the Processing extension at its address plus `.stac.json`, named by a `Link: <…>; rel="describedby"` header on the answer: footprint, the terrain source it was derived from, the process and parameters as executed (`processing:expression`), a lineage sentence, the software version. Worked out from the address, nothing drawn, API keys left out.
 - **API reference order**: `/docs` lists OGC API - Processes first (it lists the modes), then Terrain tiles and Basemap tiles, Catalogs, Viewport, Values, Service. The "titiler addresses" group is gone: its tile and bbox operations duplicated `/terrain-tiles` and `/render` (still answered, named in their descriptions) and the TileJSON is listed as `/tilejson.json` under Terrain tiles.
 - `tile-server/stac.mjs`; the tests check every item against a vendored copy of the extension's schema (`tile-server/schemas/stac-processing-v1.2.0.json`) with a small offline validator, and the tag order.
 
-# Changelog — NASA G-LiHT KMZs, CORS Proxy, Earthdata
+# Changelog — Pre-rendered Relief, One Library Dialog, QGIS Plugins
 
 <!-- released: 2026-11-24T17:04 -->
 
 #### TL;DR
 
-- **NASA G-LiHT lidar on the map**: any G-LiHT campaign's 1 m terrain can be drawn as an overlay from its footprint's **Use as overlay**, read straight from NASA's files.
-- **Kiuic, Yucatán, as terrain**: three lidar blocks covering 93 km² of the Puuc hills, missing from OpenTopography, are in the Library as terrain and as overlays.
+- **[Pre-rendered relief](/docs/features/basemaps#pre-rendered-relief) in the basemap Library**: 76 relief maps rendered by their publishers in about 30 countries (national lidar hillshades, Japan's red relief map, Maya lidar), each with its credit. Handy for archaeology.
+- **[Library](/docs/features/national-datasets) in one dialog**: Terrain and Basemap tabs, one filter beside them, and a search that finds little in one tab points to the other.
+- **[QGIS plugins](/docs/dev/qgis-plugin)**: Terrain Viewer and Send2MapApp for QGIS 3 and 4, installed from ZIP.
 
 #### Details
+
+##### NASA G-LiHT KMZs, CORS Proxy, Earthdata
+
+- **NASA G-LiHT lidar on the map**: any G-LiHT campaign's 1 m terrain can be drawn as an overlay from its footprint's **Use as overlay**, read straight from NASA's files.
+- **Kiuic, Yucatán, as terrain**: three lidar blocks covering 93 km² of the Puuc hills, missing from OpenTopography, are in the Library as terrain and as overlays.
 
 - Former TL;DR: **NASA G-LiHT in the app**: the coverage popup's **Use as overlay** draws any G-LiHT campaign's 1 m DTM KMZ, read in place by a new `gliht://` protocol (HTTP Range: the zip directory, then only the tiles a map tile needs). The pictures turn out to be the elevation stretched to grey, not a hillshade: measured against the GeoTIFFs, they decode back to 0.06-0.2 m.
 - **Kiuic as terrain**: the three wall-to-wall Kiuic blocks (93 km² of the Puuc, Yucatan, absent from OpenTopography) are in the Library as terrain, decoded from NASA's KMZ with their measured stretch, and as greyscale overlays.
 - **[CORS proxy](/docs/dev/tile-service#cors-proxy-for-nasa-g-liht) in the tile service**: `/proxy/gliht` (glihtdata's KMZs only) and `/proxy/earthdata` (LP DAAC's G-LiHT GeoTIFFs, with an Earthdata token kept on the server, plus a VRT for the in-browser reader). **Settings > G-LiHT address** points the app at it; without it a CORS-unblocking browser extension works.
 - `lib/gliht-kmz.ts` (reader, tested offline on 230 kB of recorded KMZ subsets against GeoTIFF heights), `lib/gliht-protocol.ts`, `tile-server/proxy.mjs` (allow-list, one Range of at most 16 MiB, whole files under 64 MiB, 16 upstream reads at a time, the token never sent to S3; `proxy-test.mjs`). `EARTHDATA_TOKEN` is read from the environment or the repository's `.env`. Findings and setup: [NASA G-LiHT](/docs/dev/g-liht).
 
-# Changelog — Overlay Transparency, Hidden Sources, MERRA-2 by Month
-
-<!-- released: 2026-11-24T16:51 -->
-
-#### TL;DR
+##### Overlay Transparency, Hidden Sources, MERRA-2 by Month
 
 - **[Blend overlays with the imagery](/docs/features/basemaps#transparency)**: an overlay can be drawn as served, opaque, **dark over** (it shades the imagery, like a relief render) or **light over**. The Maya local dominance layers now use light over, so they no longer cover the map with a black sheet.
 - **Overlays show in the Simple basemap mode too**, not only with per-view basemaps.
 - **Hidden layers stop downloading**: unchecked overlays, views that hide the basemap and the minimized minimap no longer fetch anything in the background.
 - **NASA MERRA-2 month by month on the timeline**: air temperature, wind speed, dust, aerosols and ozone, one map a month since January 1980.
 - **Featured bookmark**: the Cévennes, on the Ardèche–Lozère border, in a black-and-white slope.
-
-#### Details
 
 - Former TL;DR: **[Transparency per overlay](/docs/features/basemaps#transparency)**: a button beside each tiled or WMS overlay's opacity sets what its tiles' alpha becomes: as served, opaque, **dark over** (a multiply: a grey relief render shades the imagery) or **light over** (a screen). Kept with the overlay; the Library gives the default. The Maya local dominance layers now default to light over: their ground is dark and the mounds bright, so drawn opaque they were a black sheet with white specks.
 - **Overlays draw in the Simple basemap mode too**: a checked overlay drew nothing unless the basemaps were per view (Split).
@@ -243,17 +187,11 @@
 - MERRA-2 series: `MERRA2_LAYERS` in `lib/national-historical.ts` (months GIBS lacks for a layer left out); not in the STAC catalog build.
 - Open In: the QGIS plugin's list follows (`qgis-plugin/send2map_app/destinations.py`).
 
-# Changelog — One Library Dialog, Short Credits
-
-<!-- released: 2026-11-24T16:47 -->
-
-#### TL;DR
+##### One Library Dialog, Short Credits
 
 - **[Library](/docs/features/national-datasets) in one dialog**: the Terrain and Basemap tabs switch the list inside the same dialog, and the filter sits beside the tabs.
 - **Credits stay folded**: the map's credits open only when you click the ⓘ, and no longer spread across the map on their own.
 - **[Short credits on the map](/docs/features/byod#editing-the-lists)**: sources from the same publisher share one short credit line (seventeen Maya renders read as one); the full credit stays in Source Info.
-
-#### Details
 
 - Former TL;DR: **[Library](/docs/features/national-datasets) in one dialog**: the Terrain and Basemap tabs now swap the list inside the same dialog, with no fade out and in. The tabs are larger and the filter sits at the right of the tab row (under it on a narrow screen), with Load all and Clear all below.
 - **Attribution stays folded**: the map's credits open only when you click the ⓘ. They used to open by themselves when the sources changed or the layout moved the control, and with the Maya renders on the box spread a paragraph across the whole map. Opened, it is a card with the theme's corners and padding, at most 32 rem wide, scrolling past 40% of the screen.
@@ -263,16 +201,10 @@
 - A source added from the Library before it had a short credit takes the Library's (same id), unless its credit was edited since.
 - Opening a library from a link (`?openLibrary=`) or the tour unfolds its sidebar section, where the list lives.
 
-# Changelog — QGIS Plugins Release, Drag-to-Install DMG
-
-<!-- released: 2026-11-24T16:41 -->
-
-#### TL;DR
+##### QGIS Plugins Release, Drag-to-Install DMG
 
 - **[QGIS plugins](/docs/dev/qgis-plugin) to download**: Terrain Viewer and Send2MapApp for QGIS 3.22 to 4.x, installed from ZIP. Send2MapApp now sits on the Web toolbar and behaves like a QGIS map tool.
 - **The macOS app installs by dragging**: the disk image opens on the usual drag-to-Applications window, and the [desktop page](/docs/features/advanced/desktop#opening-the-macos-build) explains how to open an app that is not notarized.
-
-#### Details
 
 - Former TL;DR: **QGIS plugins on a release**: [`qgis-plugins-2026-11-24`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-24) holds Terrain Viewer 0.2.2 and Send2MapApp 0.5.0 as zips to install in QGIS 3.22 to 4.x (Plugins > Manage and Install Plugins > Install from ZIP).
 - **Send2MapApp behaves like a QGIS tool**: its button is on the Web toolbar, its map tool has a crosshair cursor with an "open elsewhere" badge and unchecks itself when another map tool is picked, and its icons are QGIS-style SVGs (QGIS's own 3D globe for Google Maps 3D and Bing Maps 3D).
@@ -282,17 +214,11 @@
 - Send2MapApp 0.5.0: the map tool is a `QgsMapToolEmitPoint`; the destination is kept under `plugins/send2map_app/destination` (0.4.0's `send2map_app/destination` is still read). The headless test checks the cursor, the icons, the tool unchecking on Pan, and a right click opening nothing.
 - Desktop: `desktop/dmg-settings.py` lays out the dmg with dmgbuild (Finder's layout written without Finder, so it works on a CI runner); without dmgbuild, hdiutil packs the app and the Applications link in Finder's default layout.
 
-# Changelog — Pre-rendered Relief Library
-
-<!-- released: 2026-11-24T15:44 -->
-
-#### TL;DR
+##### Pre-rendered Relief Library
 
 - **[Pre-rendered relief](/docs/features/basemaps#pre-rendered-relief) in the basemap Library**: 76 shaded and enhanced relief maps already rendered by their publishers, from about 30 countries and regions (national lidar hillshades of England, France, Germany, Japan's red relief map, the United States and more), each with its credit and licence. Handy for archaeology.
 - **More Maya lidar**: blocks and transects over Campeche and Yucatán, and NASA strips across Campeche and Quintana Roo.
 - **Maya layers fixed**: the sky view factor and local dominance layers are no longer half transparent, and they no longer vanish when you zoom out.
-
-#### Details
 
 - Former TL;DR: **Pre-rendered relief in the basemap Library**: a section of its own, folded at first, for shaded and enhanced relief already rendered by a publisher, with archaeology in mind: 76 new overlays from about 30 countries and regions, among them the national and regional lidar hillshades of England, Ireland, the Netherlands, Flanders (with a 25 cm sky view factor), Wallonia, Luxembourg, Norway, Sweden, Finland, Germany (basemap.de and nine Länder), Austria, Switzerland, Czechia, Slovakia, Poland, France (IGN LiDAR HD), Spain, Portugal, South Tyrol, the US (3DEP), Canada, Mexico, Japan (GSI's red relief map and hypsometric tints, CS立体図), New Zealand and Australia. Each carries its publisher's credit and licence. The twelve Maya lidar renders and the Antarctic hillshade moved into it.
 - **More Maya lidar**: the Alianza M-REDD+ blocks and transects (Campeche and Yucatán, 2014) and the NASA G-LiHT strips across Campeche and Quintana Roo, from Tulane's MARI-GISLAB (CC BY-NC-SA 4.0, non-commercial); `?project=maya-lidar-campeche` opens them with Chactun.
@@ -301,17 +227,11 @@
 - Library: a source's `libraryGroup` (a key of `lib/library-groups.ts`) lists it in a thematic section after the scope sections; the search reads the group's title and keywords with each row. Adding a group is one record.
 - Sources: `forceOpaque` and `underzoom` (1 to 3 levels; only the tiles inside `bounds` are fetched, at most 64 per tile) are read through a new `tiletx://` protocol (`lib/tile-transform-protocol.ts`), for any tiled or WMS raster source. A source added before the Library gave it either field gets it from the Library entry with the same id. Chactun's sky view factor goes to zoom 20, as its service does.
 
-# Changelog — Library Tabs, Credits on the Map
-
-<!-- released: 2026-11-24 -->
-
-#### TL;DR
+##### Library Tabs, Credits on the Map
 
 - **[Library](/docs/features/national-datasets) tabs**: the Library has a Terrain and a Basemap tab. Your filter carries over, and a search that finds little in one tab points to the other.
 - **[Credits on the map](/docs/features/byod#editing-the-lists)**: overlays, Library basemaps and the terrain source now show their credit in the map's attribution while they are drawn.
 - **Hidden basemaps stop loading tiles**: a basemap or overlay at opacity 0 no longer downloads tiles.
-
-#### Details
 
 - Former TL;DR: **Library tabs**: the Library has a Terrain and a Basemap tab. The filter carries over, each tab shows its matches while you type, and a search that finds little in one tab offers the other ("4 matches in Basemaps"). It opens on the tab of the section it was opened from, and an entry goes to that tab's list.
 - **Credits on the map**: overlays, your own and Library basemaps and the terrain source now put their credit in the map's attribution (their `attribution`, else their name, linked to their page), only while drawn, each line once.

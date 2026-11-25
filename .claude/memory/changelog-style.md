@@ -1,6 +1,6 @@
 ---
 name: changelog-style
-description: How the user wants CHANGELOG.md entries written - a TL;DR of 3 to 5 bullets at most, repeats folded, details under a second heading, a link and one picture when a feature has a page
+description: How the user wants CHANGELOG.md entries written - one entry per day, a TL;DR of 3 to 5 plain bullets always, repeats folded, details under a second heading, a released marker
 type: feedback
 ---
 
@@ -34,6 +34,20 @@ missing or duplicate marker, or an entry out of newest-first order.
 
 The TL;DR is read by end users in the app: short, plain words, no file names,
 URL parameters, internal ids, endpoints or measurements; that prose goes under
-Details, which the app never shows. An entry with nothing for end users (a
-dependency bump, a tile-service API change) has no TL;DR at all and stays out
-of What's new.
+Details, which the app never shows.
+
+## One entry per day, always with a TL;DR
+
+**Same-day work goes into ONE entry** (the user has asked several times; on
+2026-11-25 they had nine agent entries for two days merged into two). Before
+adding an entry, look at the top one: if it is from today, fold your change into
+its TL;DR (rewording, still 3 to 5 bullets in all) and append your prose to its
+Details under a `##### <topic>` sub-heading; keep its marker, or move it to your
+commit time. Never add a second entry for the same day. Every entry has a
+TL;DR (a dependency bump or API change folds into the day's entry, or goes only
+under its Details). Parallel agents: one agent (or the parent) owns the day's
+entry; the others report a one-line summary instead of editing CHANGELOG.md.
+
+**Why:** "when multiple features are the same day, merge them and be concise,
+and always include the TL;DRs for the changelog surfaced to our clients through
+the app" (user, 2026-11-25).

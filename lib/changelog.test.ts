@@ -15,7 +15,7 @@ const entries = parseChangelog(readFileSync("CHANGELOG.md", "utf8").replace(/\r\
 const MARKER = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/
 
 test("CHANGELOG.md parses into entries", () => {
-  assert.ok(entries.length > 50, `only ${entries.length} entries parsed`)
+  assert.ok(entries.length > 30, `only ${entries.length} entries parsed`)
 })
 
 test("every entry has a released marker", () => {
