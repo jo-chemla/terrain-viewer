@@ -1,6 +1,6 @@
 # Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
 
-<!-- released: 2026-11-25T23:30 -->
+<!-- released: 2026-11-25T23:55 -->
 
 #### TL;DR
 
@@ -8,12 +8,13 @@
 - **Search catalogs and coverage**: one forgiving search across Sources Coverage (terrain, basemaps, historical catalogs: "lidr" finds LiDAR), and one in the timeline's Catalogs picker.
 - **[Terrain as quantized mesh](/docs/dev/tile-service#quantized-mesh)**: the tile service streams any terrain source as Cesium terrain at true heights, for CesiumJS or Blender, and its relief tiles are 3 to 80 times faster.
 - **[Tile service in the desktop app](/docs/features/advanced/desktop#local-tile-service)**: one switch in Settings runs it on your computer, with addresses to copy for QGIS, Blender or Cesium. The app now finds updates while open and shows download progress.
-- **[QGIS plugin 0.7.0](/docs/dev/qgis-plugin)**: pick a tile service on this computer (installed in one click), a remote one, or Python compute in QGIS itself at the top of the panel; one modes tree for all three, ramp and matcap previews, sliders and a light pad, and 24 terrain modes computed locally (experimental).
+- **[QGIS plugin 0.8.0](/docs/dev/qgis-plugin)**: pick a packaged tile server (installed in one click), a remote one, or the Python backend; Python computes all 25 terrain modes in QGIS itself from any elevation GDAL opens, a raster layer of your project included, with the app's color ramps, sliders, a light pad and the sun at a date and time.
 
 #### Details
 
 ##### Night of 2026-11-25
 
+- **Late** (`a194a76`, `1619432`, `93aed9f`, `ac442b4`, `9022ec3`, `f7c70db`, `5c5b233`, `c434d51`): `/terrain-sources` (and `/{id}`) open the Terrain tiles group in Scalar, `/sources` kept as a deprecated alias; building shadow roofs lit where building parts overlap (nonzero fill; Midtown 59–73 % → 100 % of roofs lit) and only the buildings that reach a tile drawn (one Midtown tile 115 s → 1.4 s); sky view factor and openness 15–35 % faster, the QGIS local dominance, openness and sky view factor up to twice as fast at 512 px. Docs: Tools & Integrations right after the Overview, in the order desktop, River-REM, QGIS, live compute, tile service, its API; the desktop page downloads the light build first; real QGIS screenshots in the docs and the tools slides; PACUNAM's public layers (Tulane's hillshades, SVF and local dominance; no elevation values) and the El Pilar bare-earth hillshade in the Library; a planned vector overlays note (Overture, VIDA, Microsoft buildings).
 - **Tile service** (`f122546`, `d6a7c14`): `/basemaps` opens the Basemap tiles group in Scalar, and `{source}` offers the library ids while taking any string; `/view` also takes a bare query or an unencoded link. Vector tiles (contours, iso-lines) written 2 to 3 times faster, live building shadow geometry twice as fast; same bytes.
 - **Web app** (`d21d858`): the G-LiHT proxy sits in Settings > API Keys, its explanation on hover, with an arrow to restore the default. Cesium World Terrain streams once a Cesium ion token is set.
 - **Desktop** (`25000ee`, `9b71aba`): the tile service reads `EARTHDATA_TOKEN` from the environment or a `tile-service.env` file for G-LiHT; macOS gets a re-signed app and a `.pkg` installer, checked from a quarantined copy in CI.
@@ -21,6 +22,9 @@
 
 ##### QGIS Plugins
 
+- **QGIS plugin 0.8.0** (`12431a5`, `98662fb`, `9b175db`, `fc5bc98`, release [`qgis-plugins-2026-11-25f`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25f), tile service bundles rebuilt): backends as radio buttons named Packaged tile server, Remote tile server and Python backend (no Connect for Python); Color everywhere; no zoom-out to the world when every mode is unchecked; sun at a date and time (date-time picker, day-of-year and hour sliders, the app's solar model) beside the free light pad; pointing-hand cursor on rows and buttons; QGIS labels on contours, iso-lines, plane slicer and graticule (black with a white buffer); switching backend no longer drops a checked mode's layer.
+- **Python backend parity**: every color ramp and mode setting applies as in the tile service (88 cases, 100 % of pixels within 3 levels; all eight hillshade methods, fast sky view factor), the hypsometric tint no longer clamped to 0–1 and its Values layer styled with the same ramp; any GDAL elevation as source (a project raster layer, local COG or VRT, `/vsicurl/`, WCS: one warp per zoom, 6–14 ms a tile warm); the mound detector ported (same points as the service), so all 25 modes run in Python.
+- **Local files for the tile server**: the plugin registers a raster layer's file with a tile server on this machine (`POST /files`, an HMAC id, never a path in a tile address, `TV_FILE_ROOTS`, `TV_LOCAL_FILES=off`).
 - **QGIS plugin 0.7.0** (`f0f2629`, `f078f69`, `f97cf9b`, release [`qgis-plugins-2026-11-25e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25e)): three backends picked at the top (Local service installed and started by Connect, Remote service by address, experimental Python); one modes tree for all three, modes Python cannot draw greyed out, Values only where a mode has values; a click anywhere on a row toggles it; colour ramp and matcap selects with previews (sprite sheets packaged, `make_assets.py`); symmetric ramps mirror Min from Max; slider plus number box for every numeric setting; a light pad shared by hillshade, Phong and both shadows; unchecking removes all of a mode's layers and empty groups; overlays default to vector (Vector box first); zoom to the source's bounds; API keys behind a key icon; Open link takes a full link or a bare query, checks the service once, picks the link's source and keeps app-only parameters out of tiles.
 - **Python compute, 24 of 25 modes** (`f078f69`): shape index, blobness, eigenvalue ratio, orientation, RVT local dominance, building shadows (OpenFreeMap footprints burnt with GDAL), iso-line, graticule and plane slicer, as colours, values and vector layers, matching the tile service (99 to 100 % of pixels); only the mound detector is left. The Python backend reads Terrarium and Terrain-RGB pyramids and follows a change of source; COG, VRT, LERC and quantized mesh need a tile service. Timings in [QGIS Live Compute](/docs/dev/qgis-live-compute).
 - **QGIS plugin 0.6.0** (`b88d9a6`): Colour / Values boxes per mode that add and remove their layers; local Phong, matcap and live contour lines; values layers resampled bilinear; Earthdata field removed.
