@@ -1,6 +1,8 @@
-// Benchmark of the Hard Shadows tile kernel (lib/shadow-kernel.ts) against
-// Mapricot's GPU terrain-shadow shader, on the same Terrarium tiles, view and
-// sun. Findings: docs/content/docs/dev/shadow-benchmark.mdx.
+// Benchmark of the Hard Shadows tile kernel (lib/shadow-kernel.ts): the
+// shadow-height sweep the tiles use since 2026-11-25 against the per-pixel ray
+// march it replaced, and both against Mapricot's GPU terrain-shadow shader, on
+// the same Terrarium tiles, view and sun. Findings:
+// docs/content/docs/dev/shadow-benchmark.mdx.
 //
 //   node scripts/bench-shadow.mjs              # ours (Node) + Mapricot (Chrome)
 //   node scripts/bench-shadow.mjs --no-chrome  # ours only
@@ -18,7 +20,7 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs"
 import { spawn } from "node:child_process"
 import { dirname, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { buildShadowRay, computeShadowRows } from "../lib/shadow-kernel.ts"
+import { buildShadowRay, computeShadowRowsMarch, computeShadowTile } from "../lib/shadow-kernel.ts"
 
 const args = new Set(process.argv.slice(2))
 const TERRARIUM = "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png"
@@ -29,9 +31,12 @@ const PLACES = [
   { name: "Chamonix valley", lon: 6.8694, lat: 45.9237, zoom: 13 },
   { name: "Seine cliffs and plateau, Les Andelys", lon: 1.4170, lat: 49.2400, zoom: 15 },
 ]
-const RADII = [32, 64] // the default and the slider's maximum
+const OLD_RADII = [32, 64] // the march's default and slider maximum until 2026-11-25
+const SWEEP_RADII = [32, 64, 128, 256, 384, 512] // 256 the new default, 512 the new maximum
 const REF_RADIUS = Number(process.env.REF_RADIUS ?? 768) // reference: long enough for every shadow in these views
-const REPS = 5
+// Best of REPS runs per tile: on a loaded machine the minimum is the stable
+// figure (the median of 5 moved 2 to 4x between runs on 2026-11-25).
+const REPS = Number(process.env.REPS ?? 9)
 
 // ---------- tiles ----------
 function decodePng(buf) {
@@ -89,8 +94,8 @@ async function loadRange(z, x0, y0, x1, y1) {
   for (let i = 0; i < jobs.length; i += 16) await Promise.all(jobs.slice(i, i + 16).map(([x, y]) => tile(z, x, y)))
 }
 
-// The tile padded by `halo` pixels from its neighbours (any halo, unlike the
-// app's nine-tile fetch, which stops at one tile: fine for radius <= 256).
+// The tile padded by `halo` pixels from its neighbours (any halo; the app's
+// fetch takes one ring of neighbours up to a 256 px halo, two up to 512).
 function padded(z, x, y, n, halo) {
   const stride = n + 2 * halo, out = new Float32Array(stride * stride), max = (1 << z) * n - 1
   for (let pr = 0; pr < stride; pr++) {
@@ -133,48 +138,38 @@ function kernelInput(z, x, y, radiusPx) {
   const n = 256, { padded: grid, stride } = padded(z, x, y, n, radiusPx), az = (SUN.azimuthDeg * Math.PI) / 180
   return { padded: grid, stride, n, radiusPx, dRow: -Math.cos(az), dCol: Math.sin(az), groundResM: groundRes(tileLat(y + 0.5, z), z, n), altitudeRad: (SUN.altitudeDeg * Math.PI) / 180 }
 }
-function runOurs(input) {
-  const ray = buildShadowRay(input), out = new Uint8ClampedArray(input.n * input.n * 4)
-  computeShadowRows(input, ray, 0, input.n, out)
-  return out
-}
-
-// Idea 1 (bench only): stop a ray once its line to the sun is above the
-// highest point of the padded grid — nothing further can rise above it.
-// Exact: same pixels as the kernel.
-function runEarlyExit(input) {
+// The march as it shipped until 2026-11-25 (no early exit).
+function runOldMarch(input) {
   const { padded: g, stride, n, radiusPx } = input
-  const ray = buildShadowRay(input), out = new Uint8ClampedArray(n * n * 4)
-  let top = -Infinity
-  for (let i = 0; i < g.length; i++) if (g[i] > top) top = g[i]
-  const rise = Float64Array.from(ray.invDist, (v) => ray.tanAltitude / v) // dist * tan(alt)
-  const steps = ray.offsets.length
+  const { offsets, invDist, tanAltitude } = buildShadowRay(input), out = new Uint8ClampedArray(n * n * 4)
+  const steps = offsets.length
   for (let row = 0; row < n; row++) {
     for (let col = 0; col < n; col++) {
       const base = (row + radiusPx) * stride + col + radiusPx, c = g[base]
-      for (let j = 0; j < steps; j++) {
-        const line = c + rise[j]
-        if (line > top) break
-        if (g[base + ray.offsets[j]] > line) { out[(row * n + col) * 4 + 3] = 255; break }
-      }
+      for (let j = 0; j < steps; j++) if ((g[base + offsets[j]] - c) * invDist[j] > tanAltitude) { out[(row * n + col) * 4 + 3] = 255; break }
     }
   }
   return out
 }
-
-// Idea 2 (bench only): the classic shadow-height sweep. Walk the padded grid
-// from the sun's side; each pixel takes the shadow height of its neighbour
-// one step toward the sun (linear between the two pixels the step falls
-// between) minus step * tan(alt), and is in shadow when that is above its
-// own ground. O(1) per pixel whatever the shadow length; the reach is the
-// whole padded grid toward the sun.
-function runSweep(input) {
-  const { padded: g, stride, n, radiusPx } = input
-  const mask = sweepGrid(g, stride, stride, input)
-  const out = new Uint8ClampedArray(n * n * 4)
-  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (mask[(r + radiusPx) * stride + c + radiusPx]) out[(r * n + c) * 4 + 3] = 255
+// The march kept in the kernel as the reference: same pixels, plus the exact
+// early exit above the padded grid's highest point.
+function runMarch(input) {
+  const out = new Uint8ClampedArray(input.n * input.n * 4)
+  computeShadowRowsMarch(input, buildShadowRay(input), 0, input.n, out)
   return out
 }
+// What the tiles run.
+function runSweep(input) {
+  const out = new Uint8ClampedArray(input.n * input.n * 4)
+  computeShadowTile(input, out)
+  return out
+}
+
+// A whole-view variant of the sweep (bench only): walk the view's grid from
+// the sun's side, each pixel taking the shadow height of its neighbour one
+// step toward the sun (linear between two pixels) minus step * tan(alt); the
+// reach is the whole grid toward the sun, so not the same for every pixel
+// (fine for one pass over a view, seams if used per tile).
 /** The sweep over any W x H grid; returns a 0/1 shadow mask of the same size. */
 function sweepGrid(g, W, H, { dRow, dCol, groundResM, altitudeRad }) {
   const S = new Float32Array(g.length), mask = new Uint8Array(g.length)
@@ -203,7 +198,7 @@ function time(fn, reps = REPS) {
   const all = []
   for (let r = 0; r < reps; r++) { const t = performance.now(); result = fn(); const d = performance.now() - t; all.push(d); best = Math.min(best, d) }
   all.sort((p, q) => p - q)
-  return { result, median: all[all.length >> 1] }
+  return { result, median: all[all.length >> 1], best }
 }
 const shadowCount = (o) => { let s = 0; for (let i = 3; i < o.length; i += 4) if (o[i]) s++; return s }
 function compare(o, ref) { let both = 0, either = 0; for (let i = 3; i < o.length; i += 4) { if (o[i] && ref[i]) both++; if (o[i] || ref[i]) either++ } return either ? both / either : 1 }
@@ -346,23 +341,21 @@ for (const p of PLACES) {
   const row = { place: p.name, zoom: p.zoom, z: T.z, tiles: tileList.length, ours: {}, mapricot: null }
   // Reference: long rays over a halo of REF_RADIUS.
   const refs = new Map(), refInputs = new Map()
-  for (const [x, y] of tileList) { const inp = kernelInput(T.z, x, y, REF_RADIUS); refInputs.set(`${x}/${y}`, inp); refs.set(`${x}/${y}`, runOurs(inp)) }
+  for (const [x, y] of tileList) { const inp = kernelInput(T.z, x, y, REF_RADIUS); refInputs.set(`${x}/${y}`, inp); refs.set(`${x}/${y}`, runMarch(inp)) }
   const pixels = tileList.length * 65536
   const refShadow = [...refs.values()].reduce((s, o) => s + shadowCount(o), 0)
   const variants = [
-    ...RADII.map((r) => ({ label: `kernel r=${r}`, radius: r, fn: runOurs })),
-    ...RADII.map((r) => ({ label: `early exit r=${r}`, radius: r, fn: runEarlyExit })),
-    { label: `kernel r=${REF_RADIUS}`, radius: REF_RADIUS, fn: runOurs },
-    { label: `early exit r=${REF_RADIUS}`, radius: REF_RADIUS, fn: runEarlyExit },
-    { label: `sweep, halo ${RADII[1]}`, radius: RADII[1], fn: runSweep },
-    { label: `sweep, halo ${REF_RADIUS}`, radius: REF_RADIUS, fn: runSweep },
+    ...OLD_RADII.map((r) => ({ label: `old march r=${r}`, radius: r, fn: runOldMarch })),
+    ...SWEEP_RADII.map((r) => ({ label: `sweep r=${r}`, radius: r, fn: runSweep })),
+    { label: `march r=${REF_RADIUS} (ref)`, radius: REF_RADIUS, fn: runMarch },
+    { label: `sweep r=${REF_RADIUS}`, radius: REF_RADIUS, fn: runSweep },
   ]
   for (const v of args.has("--chrome-only") ? [] : variants) {
     let total = 0, max = 0, shadow = 0, iouSum = 0
     for (const [x, y] of tileList) {
       const inp = v.radius === REF_RADIUS ? refInputs.get(`${x}/${y}`) : kernelInput(T.z, x, y, v.radius)
-      const { result, median } = time(() => v.fn(inp))
-      total += median; max = Math.max(max, median); shadow += shadowCount(result); iouSum += compare(result, refs.get(`${x}/${y}`))
+      const { result, best } = time(() => v.fn(inp))
+      total += best; max = Math.max(max, best); shadow += shadowCount(result); iouSum += compare(result, refs.get(`${x}/${y}`))
     }
     row.ours[v.label] = { perTile: total / tileList.length, maxTile: max, total, pool4: total / 4, shadowPct: (100 * shadow) / pixels, iou: iouSum / tileList.length }
     console.log(`  ${v.label.padEnd(22)} ${fmt(total / tileList.length).padStart(6)} ms/tile (max ${fmt(max)})  total ${fmt(total).padStart(6)} ms  shadow ${((100 * shadow) / pixels).toFixed(1)} %  IoU vs ref ${(iouSum / tileList.length).toFixed(3)}`)
@@ -377,7 +370,7 @@ for (const p of PLACES) {
       for (let c = 0; c < W; c++) { const gx = Math.min(Math.max(T.x0 * 256 - halo + c, 0), max); g[r * W + c] = tiles.get(`${T.z}/${gx >> 8}/${gy >> 8}`)[(gy & 255) * 256 + (gx & 255)] }
     }
     const inp = refInputs.values().next().value
-    const { result: mask, median } = time(() => sweepGrid(g, W, H, inp))
+    const { result: mask, best: median } = time(() => sweepGrid(g, W, H, inp))
     let shadow = 0, both = 0, either = 0
     for (const [x, y] of tileList) {
       const ref = refs.get(`${x}/${y}`)

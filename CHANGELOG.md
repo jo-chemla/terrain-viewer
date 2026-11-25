@@ -1,3 +1,18 @@
+# Changelog — Hard Shadows: a Shadow-Height Sweep, Radius 256 by Default; the Shadow Benchmark
+
+#### TL;DR
+
+- **Terrain shadows reach eight times farther for about the same cost**: the Search Radius defaults to 256 px (it was 32) and goes up to 512 (it was 64). In the Alps under a 15° sun the old default found half the mountain shadows a long reference finds (IoU 0.55); 256 finds 0.75, 512 finds 0.90. On gentle relief (Seine cliffs, z15) 256 is exact where 32 missed 6 %. Same for the tiles, exports, split views and the Iso-line's hard-shadow measure. Links that set `shadowRadiusPx` keep their value.
+- **How**: the per-pixel ray march became a shadow-height sweep, a sliding maximum along the lines toward the sun whose work per sample does not depend on the radius. Radius 256 takes 4.6 ms a tile in Chamonix against 4.0 for the old march at 32, and 3.0 against 5.4 at Les Andelys; at equal radius it gives the march's pixels, faster. Every pixel reaches the same distance, so tiles agree at their seams, and the reach stops, exactly, where nothing ahead can be high enough.
+- **[Shadow Benchmark](/docs/dev/shadow-benchmark)** (new page, from the previous commit): how Mapricot's GPU shadows work, ours against them point by point and timed on the same tiles, view and sun, and five improvements ranked by expected gain. Ideas 2 to 4 are this change; a live GPU shadow layer (idea 1) is in progress separately.
+
+#### Details
+
+- `lib/shadow-kernel.ts`: `computeShadowTile` (the sweep: the grid sheared along the sun's minor axis, van Herk / Gil-Werman over windows of `radius / hypot(1, b)` steps, two row-by-row passes, the window maximum interpolated between the pixel's two lines); the march stays as `computeShadowRowsMarch`, with the exact per-ray early exit, as the reference. `SHADOW_RADIUS_DEFAULT_PX` / `SHADOW_RADIUS_MAX_PX` in `lib/shadow-protocol.ts`, which caps the radius at two tiles.
+- `fetchPaddedElevationGrid` (`lib/normal-derived-protocol.ts`) takes as many rings of same-zoom neighbours as the halo needs (one up to a tile, as before; two above, 25 tiles). Why not a lower zoom for the far part: [the benchmark page](/docs/dev/shadow-benchmark#the-sweep-2026-11-25).
+- `lib/shadow-kernel.test.ts` (offline, `node --test lib/shadow-kernel.test.ts`): a cone and a cliff under eight suns against a continuous ray (sweep IoU 0.989 to 1, the old march 0.807 to 1: its nearest-pixel steps shadowed lit flanks at oblique azimuths), the cliff's shadow length, the same cut for every column, sun overhead, flat ground, sun below the horizon.
+- `scripts/bench-shadow.mjs`: the old march (radius 32, 64) against the sweep (32 to 768), best of `REPS` runs per tile; numbers in the benchmark page.
+
 # Changelog — One Fuzzy Search for Sources Coverage, Quieter Attribution Button
 
 #### TL;DR

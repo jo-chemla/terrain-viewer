@@ -12,6 +12,7 @@ import { LightDirectionControl } from "./light-direction-control"
 import { useDebouncedState } from "./use-debounced-state"
 import { activeProjectConfigAtom, lightingEffectsAdvancedAtom } from "@/lib/settings-atoms"
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
+import { SHADOW_RADIUS_MAX_PX } from "@/lib/shadow-protocol"
 
 // Common width for the Phong toggle groups (see SegmentedToggle in
 // controls-components for the segmented-control styling + why the active pill
@@ -279,7 +280,7 @@ export const LightingEffectsOptionsSection: React.FC<{
           <CheckboxWithSlider perView={perViewFor("showShadows")}
             id="lighting-shadows"
             label="Terrain"
-            tooltip="Hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light. The heaviest lighting mode: every light/radius change recomputes visible tiles. Shares Phong/Hillshade's light direction (same pad below)."
+            tooltip="Hard cast shadows — darkens a pixel wherever terrain within the Search Radius (256 px by default) rises above the sun's own angle in the sky, blocking direct light. Every light/radius change recomputes visible tiles. Shares Phong/Hillshade's light direction (same pad below)."
             checked={state.showShadows}
             onCheckedChange={(checked) => setState({ showShadows: checked })}
             sliderValue={state.shadowOpacity}
@@ -291,7 +292,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                 label="Search Radius (px)"
                 value={state.shadowRadiusPx}
                 onChange={(v) => setState({ shadowRadiusPx: v })}
-                min={2} max={64} step={1}
+                min={2} max={SHADOW_RADIUS_MAX_PX} step={1}
                 sliderId="shadow-radius"
               />
             </div>

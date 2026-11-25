@@ -454,11 +454,15 @@ export async function fetchPaddedElevationGrid(
   const upstreamUrl = (tx: number, ty: number) =>
     upstreamTemplate.replace("{z}", String(z)).replace("{x}", String(tx)).replace("{y}", String(ty))
 
+  // Rings of same-zoom neighbours: one for a halo up to a tile, two up to two
+  // tiles (Hard Shadows' long radii: 25 tiles, the view's border one ring
+  // wider, every tile cached and shared by its neighbours).
+  const rings = Math.max(1, Math.ceil(halo / n))
   const tilePromises = new Map<string, Promise<DecodedTile | null>>()
-  for (let tdy = -1; tdy <= 1; tdy++) {
+  for (let tdy = -rings; tdy <= rings; tdy++) {
     const ty = y + tdy
     if (ty < 0 || ty >= worldSize) continue
-    for (let tdx = -1; tdx <= 1; tdx++) {
+    for (let tdx = -rings; tdx <= rings; tdx++) {
       const tx = wrapTileX(x + tdx, z)
       tilePromises.set(`${tdx},${tdy}`, fetchOne(upstreamUrl(tx, ty), abortSignal))
     }
@@ -483,25 +487,30 @@ export async function fetchPaddedElevationGrid(
   const centerTile = resolved.get("0,0")
   if (!centerTile) throw new Error(`Failed to fetch center tile at ${z}/${x}/${y}`)
 
-  // The nine sources, a missing neighbour (world edge, failed fetch) standing
-  // in as the centre tile; indexed [tdy + 1][tdx + 1]. Resolved once, not per
-  // pixel: the per-pixel Map lookup on a template-string key cost ~44 ms of a
-  // 512 px tile (2026-11-16), for every derived mode.
-  const sources: DecodedTile[][] = [-1, 0, 1].map((tdy) => [-1, 0, 1].map((tdx) => resolved.get(`${tdx},${tdy}`) ?? centerTile))
+  // The nine (or 25) sources, a missing neighbour (world edge, failed fetch)
+  // standing in as the centre tile; indexed [tdy + rings][tdx + rings].
+  // Resolved once, not per pixel: the per-pixel Map lookup on a
+  // template-string key cost ~44 ms of a 512 px tile (2026-11-16), for every
+  // derived mode.
+  const offsets = Array.from({ length: 2 * rings + 1 }, (_, i) => i - rings)
+  const sources: DecodedTile[][] = offsets.map((tdy) => offsets.map((tdx) => resolved.get(`${tdx},${tdy}`) ?? centerTile))
   const anyHoles = Array.from(resolved.values()).some((t) => t?.valid)
 
   const stride = n + 2 * halo
   const padded = new Float32Array(stride * stride)
   const paddedValid = anyHoles ? new Uint8Array(stride * stride) : undefined
-  // Column spans of the padded row: left halo, the tile's own n columns, right halo.
-  const spans = [[-1, 0, halo], [0, halo, halo + n], [1, halo + n, stride]] as const
+  // Column spans of the padded row, one per tile column: the left halo, the
+  // tile's own n columns, the right halo.
+  const spans = offsets
+    .map((tdx) => [tdx, Math.max(0, halo + tdx * n), Math.min(stride, halo + (tdx + 1) * n)] as const)
+    .filter(([, pc0, pc1]) => pc1 > pc0)
   for (let pr = 0; pr < stride; pr++) {
     const globalRow = pr - halo
-    const tdy = globalRow < 0 ? -1 : globalRow >= n ? 1 : 0
+    const tdy = Math.min(rings, Math.max(-rings, Math.floor(globalRow / n)))
     const srcRow = globalRow - tdy * n
     const rowBase = pr * stride
     for (const [tdx, pc0, pc1] of spans) {
-      const source = sources[tdy + 1][tdx + 1]
+      const source = sources[tdy + rings][tdx + rings]
       const r = Math.min(Math.max(srcRow, 0), source.height - 1)
       const srcBase = r * source.width
       const maxC = source.width - 1

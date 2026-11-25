@@ -609,9 +609,10 @@ export const QUERY_STATE_PARSERS = {
     // something between it and the sun rises above the sun's own altitude.
     showShadows: parseAsBoolean.withDefault(false),
     shadowOpacity: parseAsFloat.withDefault(0.6),
-    // "Search Radius" — same convention as SVF/Openness: how many same-zoom
-    // pixels the single ray marches outward looking for an obstruction.
-    shadowRadiusPx: parseAsFloat.withDefault(32),
+    // "Search Radius": how far toward the sun, in same-zoom pixels, an
+    // obstruction is looked for (2 to 512; SHADOW_RADIUS_DEFAULT_PX and
+    // SHADOW_RADIUS_MAX_PX in lib/shadow-protocol.ts; 32 before 2026-11-25).
+    shadowRadiusPx: parseAsFloat.withDefault(256),
     // Shadows cast by OSM buildings on flat ground at their foot
     // (components/LayersAndSources/BuildingShadowLayer.tsx): heights from
     // OpenFreeMap's building layer, same light as the other shadows.

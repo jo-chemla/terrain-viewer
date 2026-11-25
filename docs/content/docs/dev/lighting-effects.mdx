@@ -144,42 +144,38 @@ Under Light Direction, Free mode shows a **Lights 1 / 2 / 3** choice and one col
 
 **Fresnel Rim** under Intensities adds Schlick's grazing-angle term, `(1 - n·v)^p`, where `v` is the direction from the ground to the camera: slopes that turn away from the viewer brighten along their edge, the way a glancing surface reflects more. It is view dependent: the live renderer rebuilds the view vector from the map's bearing and pitch every frame; the raster tiles (and the Iso-line's Phong measure) take the viewer straight above, `n·v = n_z`. The view vector is rebuilt (one direction for the whole viewport, which at terrain scale is indistinguishable from a per-pixel one), and the term takes the opposite of the theme's background: on the dark theme it adds into the specular channel as a white rim, on the light theme it multiplies the albedo down as a dark rim (the shade buffer cannot add a negative). **Rim Falloff** is the exponent `p` (`phongFresnelStrength`, `phongFresnelPower`): 1 is a broad glow, 8 a thin line. In a top-down view `n·v` is close to 1 everywhere flat and the rim only picks out steep faces; it comes into its own tilted, where it reads as back-lit ridges.
 
-## Hard Shadows: single-ray horizon march toward the sun
+## Hard Shadows: a shadow-height sweep toward the sun
 
 ![Hard Shadows visualization mode, with its Lighting Effects controls panel open](/screenshots/viz-modes/hard-shadows.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">Hard Shadows + Hillshade — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showLightingEffects=true&showPhong=false&showShadows=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>
 
-`lib/shadow-protocol.ts` does **not** call into `horizon-angle.ts`'s SVF/Openness functions — it's a hand-written single-ray variant of the same idea, explicitly framed that way in its header comment. SVF/Openness check 8 fixed compass directions and aggregate; a cast shadow only cares about **one** direction — straight toward the sun's actual azimuth (not snapped to a 45° tick):
+A cast shadow only cares about **one** direction, straight toward the sun's actual azimuth (not snapped to a 45° tick as SVF/Openness are): a pixel is in shadow when anything within the **Search Radius** toward the sun rises above the sun's own altitude angle.
 
-<Tabs items={['Code', 'Formula']}>
-<Tab value="Code">
-```ts
-const dCol = Math.sin(azimuthRad), dRow = -Math.cos(azimuthRad)
-for (let r = 1; r <= radiusPx; r++) {
-  const elevDiff = padded[(pr+rr)*stride + (pc+rc)] - centerElevation
-  const angle = Math.atan2(elevDiff, dist)
-  if (angle > maxAngle) maxAngle = angle
-}
-const inShadow = maxAngle > altitudeRad
-```
-</Tab>
+<Tabs items={['Formula', 'Code']}>
 <Tab value="Formula">
 $$
 \vec d = (\sin(\text{az}),\ -\cos(\text{az})) \qquad \text{(dCol, dRow)}
 $$
 
 $$
-\text{horizonAngle} = \max_{r=1}^{\text{radius}} \operatorname{atan2}\!\big(h(r) - h_{\text{center}},\ r \cdot L\big)
+\text{inShadow} = \max_{0 < s \le \text{radius}} \big(h(\vec p + s\,\vec d) - s \cdot L \cdot \tan(\text{alt})\big) > h(\vec p)
 $$
-
-$$
-\text{inShadow} = \text{horizonAngle} > \text{alt}_{\text{rad}}
-$$
+</Tab>
+<Tab value="Code">
+```ts
+// lib/shadow-kernel.ts, computeShadowTile: along each line toward the sun
+// (the grid sheared so lines are columns), a sliding maximum of width J:
+g[t] = hs(t) - t * drop                 // drop = step length * L * tan(alt)
+win[u] = max(g[u + 1 .. u + J])         // van Herk / Gil-Werman, O(1) per sample
+inShadow = lerp(win between the pixel's two lines) + u * drop > h(pixel)
+```
 </Tab>
 </Tabs>
 
-If anything between the pixel and the sun rises above the sun's own altitude angle, the pixel is in shadow. Output is plain opaque black where `inShadow`, fully transparent otherwise — the raster layer's own paint opacity (`state.shadowOpacity`) controls how dark shadows actually read on screen, the same convention every other derived-mode layer uses. Computation is synchronous CPU/JS, yielding periodically like the terrain-analysis protocols, with no GPU path and no live-GL layer.
+Until 2026-11-25 this was a ray march per pixel (up to `radius` nearest-pixel samples, default 32, at most 64). It is now a shadow-height sweep whose work per sample does not depend on the radius (4.6 ms a tile at radius 256 in the Alps, about what radius 32 cost), so the default is 256 px and the maximum 512; the reach is the same for every pixel (no seams between tiles), and it stops early, exactly, where nothing ahead can be high enough. How it works, the test and the timings: [Shadow Benchmark](/dev/shadow-benchmark#the-sweep-2026-11-25). A radius above one tile reads a second ring of neighbour tiles.
+
+If anything between the pixel and the sun rises above the sun's own altitude angle, the pixel is in shadow. Output is plain opaque black where `inShadow`, fully transparent otherwise — the raster layer's own paint opacity (`state.shadowOpacity`) controls how dark shadows actually read on screen, the same convention every other derived-mode layer uses. Computation is CPU/JS, on the raster worker pool when Raster Compute in a Worker is on, a few milliseconds a tile.
 
 Azimuth/altitude for Hard Shadows share the same `state.illuminationDir`/`illuminationAlt` state as Hillshade and Phong (no separate light control) — and can be driven by real solar position via [the sun-position math](/features/sun-position).
 

@@ -6,16 +6,17 @@
 // cached independent of light direction — dragging the light control never
 // re-derives elevation, only re-marches).
 //
-// Single-ray variant of lib/horizon-angle.ts's horizon-angle marching: SVF/
-// Openness check 8 fixed compass directions and aggregate; a cast shadow only
-// ever cares about ONE direction — straight toward the sun's actual azimuth
-// (not snapped to a 45° compass tick) — so this marches exactly that ray per
-// pixel and compares its horizon angle against the sun's altitude: if
-// something between here and the sun rises above the sun's own angle in the
-// sky, this pixel is in shadow.
-import { sharedTileCache, fetchPaddedElevationGrid, tileRowToLatRad, groundResolutionM, YIELD_EVERY_ROWS, yieldToMainThread, buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./normal-derived-protocol"
+// A cast shadow only ever cares about ONE direction, straight toward the
+// sun's actual azimuth: a pixel is in shadow when something within the Search
+// Radius toward the sun rises above the sun's own angle in the sky. Since
+// 2026-11-25 lib/shadow-kernel.ts answers that with a shadow-height sweep
+// (cost independent of the radius) instead of one ray march per pixel, so the
+// default radius is 256 px (it was 32) and the cap 512: a halo above one tile
+// comes from a second ring of same-zoom neighbours (fetchPaddedElevationGrid).
+// Why not a lower zoom for the far part: docs/content/docs/dev/shadow-benchmark.mdx.
+import { sharedTileCache, fetchPaddedElevationGrid, tileRowToLatRad, groundResolutionM, buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./normal-derived-protocol"
 import { toTileImage, type TileImage } from "./tile-image"
-import { buildShadowRay, computeShadowRows, type ShadowKernelInput } from "./shadow-kernel"
+import { computeShadowTile, type ShadowKernelInput } from "./shadow-kernel"
 import { computeInWorker, rasterComputeInWorker } from "./raster-compute-pool"
 
 const SHADOW_URL_RE = /^shadow:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(\d+)\/(terrarium|mapbox)\/(\d+)\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
@@ -26,6 +27,11 @@ const SHADOW_URL_RE = /^shadow:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(\d+)\/(terrarium|map
  *  separate light control for Shadows). `radiusPx` is how far same-zoom
  *  pixels are marched toward the sun looking for an obstruction — same
  *  "Search Radius" convention SVF/Openness use. */
+/** Hard Shadows' Search Radius: default and slider maximum, in tile pixels
+ *  (measured in docs/content/docs/dev/shadow-benchmark.mdx). */
+export const SHADOW_RADIUS_DEFAULT_PX = 256
+export const SHADOW_RADIUS_MAX_PX = 512
+
 export function buildShadowProtocolUrl(
   azimuthDeg: number, altitudeDeg: number, radiusPx: number,
   upstreamTileTemplate: string, encoding: UpstreamEncoding, tileSize: number,
@@ -43,7 +49,9 @@ export async function shadowProtocol(
   const [, azimuthDegStr, altitudeDegStr, radiusStr, encodingRaw, tileSizeStr, encodedTemplate, zStr, xStr, yStr] = match
   const azimuthDeg = parseFloat(azimuthDegStr)
   const altitudeDeg = parseFloat(altitudeDegStr)
-  const radiusPx = parseInt(radiusStr, 10)
+  // Capped where the fetch stops (two rings of neighbours) and the kernel
+  // stays under about 10 ms a 256 px tile.
+  const radiusPx = Math.min(parseInt(radiusStr, 10), Math.min(SHADOW_RADIUS_MAX_PX, 2 * parseInt(tileSizeStr, 10)))
   const encoding = encodingRaw as UpstreamEncoding
   const n = parseInt(tileSizeStr, 10)
   const upstreamTemplate = decodeURIComponent(encodedTemplate)
@@ -67,19 +75,15 @@ export async function shadowProtocol(
   const input: ShadowKernelInput = { padded, stride, n, radiusPx, dRow, dCol, groundResM, altitudeRad }
 
   // Settings, Streaming, Raster Compute in a Worker: the whole tile in the
-  // pool. A screenful at radius 64 froze the page for 100 ms at a time on the
-  // main thread (2026-11-18: 12 tiles, 19 frames missed).
+  // pool. With the old march a screenful at radius 64 froze the page for
+  // 100 ms at a time on the main thread (2026-11-18: 12 tiles, 19 frames
+  // missed); the sweep takes a few ms a tile, in one piece (it is not
+  // row-separable, so no yielding inside a tile).
   if (rasterComputeInWorker()) return { data: await toTileImage(await computeInWorker("shadow", input), n, n) }
 
-  const ray = buildShadowRay(input)
+  if (signal.aborted) throw new Error("Aborted")
   const outData = new Uint8ClampedArray(n * n * 4)
-  for (let row = 0; row < n; row += YIELD_EVERY_ROWS) {
-    if (row > 0) {
-      if (signal.aborted) throw new Error("Aborted")
-      await yieldToMainThread()
-    }
-    computeShadowRows(input, ray, row, Math.min(n, row + YIELD_EVERY_ROWS), outData)
-  }
+  computeShadowTile(input, outData)
 
   return { data: await toTileImage(outData, n, n) }
 }

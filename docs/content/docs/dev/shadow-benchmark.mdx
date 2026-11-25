@@ -1,9 +1,9 @@
 ---
 title: Shadow Benchmark (vs Mapricot)
-description: How Mapricot's GPU terrain shadows work, how they compare with our shadow:// tile kernel point by point, timings on the same tiles, view and sun, and what to improve, ranked by expected gain
+description: How Mapricot's GPU terrain shadows work, how they compare with our shadow:// tile kernel point by point, timings on the same tiles, view and sun, what to improve ranked by expected gain, and the shadow-height sweep that replaced our ray march
 ---
 
-[Mapricot's shadow gallery](https://mapricot.com/gallery/shadows/) draws terrain and building shadows on MapLibre with a day and hour slider. This page reads its page script as a specification, times it against our Hard Shadows (`lib/shadow-protocol.ts`, `lib/shadow-kernel.ts`) on the same work, and lists what to change on our side. The short comparison with ShadeMap is in [Related Work](/resources/related-work#shadow-techniques-compared).
+[Mapricot's shadow gallery](https://mapricot.com/gallery/shadows/) draws terrain and building shadows on MapLibre with a day and hour slider. This page reads its page script as a specification, times it against our Hard Shadows (`lib/shadow-protocol.ts`, `lib/shadow-kernel.ts`) on the same work, and lists what to change on our side. Ideas 2, 3 and 4 below shipped on 2026-11-25: [the sweep](#the-sweep-2026-11-25) replaced the per-pixel ray march, and the default Search Radius went from 32 to 256 px. The short comparison with ShadeMap is in [Related Work](/resources/related-work#shadow-techniques-compared).
 
 **Licence.** `mapricot.com/scripts/gallery/shadows.js` (505 lines, unminified, read 2026-11-24) carries no licence or copyright line, and the gallery is not on GitHub: the `mapricothq` organisation only holds the API clients (MIT). Mapricot's [Terms](https://mapricot.com/terms/) say Mapricot owns its software and website. So: readable, not reusable. Nothing of it is in this repo; the benchmark downloads the script when it runs and takes the shader from it.
 
@@ -23,9 +23,9 @@ description: How Mapricot's GPU terrain shadows work, how they compare with our 
 | | Ours (`shadow://`) | Mapricot |
 |---|---|---|
 | Unit of work | a 256 or 512 px tile, on the CPU (main thread or the raster worker pool, at most 4) | the whole view plus a tile border, one GPU draw |
-| Neighbours | the tile padded by the Search Radius from its eight neighbours | one stitched texture, so no seams; nothing beyond one tile off screen |
-| Ray | fixed one-pixel steps up to the radius (2 to 64 px, default 32), nearest pixel, stops at the first obstruction | growing steps, bilinear samples, stops at the first obstruction, the texture's edge or above the view's top |
-| Shadow length | capped by the radius: 32 px is 210 m at z14 in the Alps | capped by the view (and the 48-tile limit) |
+| Neighbours | the tile padded by the Search Radius from its neighbours (one ring up to a tile, two beyond) | one stitched texture, so no seams; nothing beyond one tile off screen |
+| Ray | until 2026-11-25 fixed one-pixel steps up to the radius (2 to 64 px, default 32), nearest pixel, stops at the first obstruction; since then a shadow-height sweep, linear samples, up to the radius (2 to 512 px, default 256), stops above the highest point ahead | growing steps, bilinear samples, stops at the first obstruction, the texture's edge or above the view's top |
+| Shadow length | capped by the radius: 256 px is 1.7 km at z14 in the Alps (32 px, the old default, was 210 m) | capped by the view (and the 48-tile limit) |
 | Precision | Float32 metres, exact comparison | `R16F`: 2 m steps above 2 048 m, 4 m above 4 096 m; plus a 1 m tolerance that hides low shadows |
 | Sun | the shared light direction and altitude (`illuminationDir`, `illuminationAlt`), one for the map | from the date and hour at the map's centre, one for the map |
 | Zoom | whatever MapLibre asks of the raster source, per tile resolution at the tile's latitude | map zoom + 1, coarser when the view is wide |
@@ -35,7 +35,7 @@ description: How Mapricot's GPU terrain shadows work, how they compare with our 
 
 ## Timings
 
-`node scripts/bench-shadow.mjs` (raw numbers in `.cache/shadow-bench/results.json`). Same Terrarium tiles for both, a 1280 × 800 view (DPR 1, pitch 0), sun at azimuth 135° and altitude 15°. Ours: the kernel in Node 22 on one thread, median of 5 runs per tile, padded grid already built. Mapricot: its own shader, in Chrome 157 headless on the real GPU (ANGLE D3D11, NVIDIA RTX A1000 Laptop), its decode, mosaic and upload code paths reproduced in the page, the draw timed to completion with a 1-pixel `readPixels` (its own round trip subtracted), median of 20. Laptop, 20 threads.
+The 2026-11-24 measurements that led to the sweep; the march against the sweep as shipped is in [the next section](#the-sweep-2026-11-25). `node scripts/bench-shadow.mjs` (raw numbers in `.cache/shadow-bench/results.json`). Same Terrarium tiles for both, a 1280 × 800 view (DPR 1, pitch 0), sun at azimuth 135° and altitude 15°. Ours: the kernel in Node 22 on one thread, median of 5 runs per tile, padded grid already built. Mapricot: its own shader, in Chrome 157 headless on the real GPU (ANGLE D3D11, NVIDIA RTX A1000 Laptop), its decode, mosaic and upload code paths reproduced in the page, the draw timed to completion with a 1-pixel `readPixels` (its own round trip subtracted), median of 20. Laptop, 20 threads.
 
 "Shadow" is the share of the view's tiles in shadow, "IoU" the overlap with a reference: our kernel with a 768 px radius, long enough for every shadow in both views.
 
@@ -74,10 +74,61 @@ What the numbers say:
 ## What to improve, by expected gain
 
 1. **A GPU shadow pass for the view (about 100× on the march, real-time sun).** We already draw Phong live on the GPU (`lib/phong-live-gl-layer.ts`); a live shadow layer marching a stitched elevation texture would make the sun slider and Sun Position's hour slider live for terrain, as they are for buildings, and remove the radius cap. Keep the `shadow://` tiles for export, split views and iso-lines. Use a float32 texture (or two R16F halves) rather than plain `R16F`, and no tolerance, to keep the low shadows Mapricot loses. Our own implementation: Mapricot's code is not licensed.
-2. **Replace the per-pixel ray by a shadow-height sweep in the tile kernel (3 to 7× at the same halo, any length).** Walk the padded grid from the sun's side, carrying a shadow height that drops by step × tan(altitude); one interpolated look-up per pixel instead of up to `radius` (the classic terrain shadow-map method, sketched as `runSweep` in the benchmark). At halo 64: 1.0 ms/tile against 5.2 (Chamonix) and 1.1 against 7.6 (Les Andelys, identical pixels). It reaches further than the march for the same halo (diagonal steps, slight softening), so its output is not bit-identical to today's: check it visually before switching.
-3. **Raise the radius cap, then the default (correctness more than speed).** With idea 2, a 256 px halo (the full nine-tile fetch) would cost about 4 ms a tile (the sweep scales with the padded area, 768² against 384² at halo 64), close to the 2.8 ms of radius 32 today, for shadows four to eight times longer (not measured at 256). A per-view or metatile pass (one sweep over the view plus a 768 px halo: 204 ms single-threaded, IoU 0.94) is the CPU way to reach Mapricot's quality.
-4. **Early exit with a local maximum (exact, 1.3 to 5× on gentle terrain).** Stop a ray once its line to the sun is above anything ahead. With the padded grid's maximum (what Mapricot does with the view's) it helps only away from high peaks; a coarse max pyramid (per 16 × 16 block) would carry it into mountains. Cheap to add to the current kernel, same pixels.
+2. **Replace the per-pixel ray by a shadow-height sweep in the tile kernel (3 to 7× at the same halo, any length).** *Done 2026-11-25, see [below](#the-sweep-2026-11-25).* Walk the padded grid from the sun's side, carrying a shadow height that drops by step × tan(altitude); one interpolated look-up per pixel instead of up to `radius` (the classic terrain shadow-map method, sketched as `runSweep` in the benchmark). At halo 64: 1.0 ms/tile against 5.2 (Chamonix) and 1.1 against 7.6 (Les Andelys, identical pixels). It reaches further than the march for the same halo (diagonal steps, slight softening), so its output is not bit-identical to today's: check it visually before switching.
+3. **Raise the radius cap, then the default (correctness more than speed).** *Done 2026-11-25: default 256, cap 512.* With idea 2, a 256 px halo (the full nine-tile fetch) would cost about 4 ms a tile (the sweep scales with the padded area, 768² against 384² at halo 64), close to the 2.8 ms of radius 32 today, for shadows four to eight times longer (not measured at 256). A per-view or metatile pass (one sweep over the view plus a 768 px halo: 204 ms single-threaded, IoU 0.94) is the CPU way to reach Mapricot's quality.
+4. **Early exit with a local maximum (exact, 1.3 to 5× on gentle terrain).** *Done 2026-11-25 in the sweep's form: the reach stops at (highest point ahead − lowest pixel of the tile) / rise per step; the reference march has the per-ray form.* Stop a ray once its line to the sun is above anything ahead. With the padded grid's maximum (what Mapricot does with the view's) it helps only away from high peaks; a coarse max pyramid (per 16 × 16 block) would carry it into mountains. Cheap to add to the current kernel, same pixels.
 5. **Growing steps past 50 px.** Mapricot's 2 % growth only changes anything for rays longer than 50 steps, so not for our current 64 px cap; it matters only if the march (not the sweep) is kept with a larger radius.
+
+## The sweep (2026-11-25)
+
+`computeShadowTile` in `lib/shadow-kernel.ts` is what the tiles, the exports, the split views and the Iso-line's hard-shadow measure run since 2026-11-25. The march stays next to it as `computeShadowRowsMarch`, the reference for the test and this benchmark.
+
+**How it works.** The sun direction's dominant axis (rows or columns) is the "major" one; one step toward the sun is one major pixel and `b` minor pixels (|b| ≤ 1). Shearing the grid along the minor axis turns the lines toward the sun into columns (each sample linear between the two pixels it falls between). Along a line, pixel `u` is in shadow when some sample `t` in `(u, u + J]` has `hs(t) − (t − u)·drop > h(u)`, `drop` being the sun's rise over one step: so when the maximum of `hs(t) − t·drop` over that window, plus `u·drop`, is above `h(u)`. That is a sliding maximum of fixed width, computed for every pixel at once with van Herk / Gil-Werman (a prefix and a suffix maximum per block of `J`): constant work per sample, whatever the radius. Each tile pixel takes the window maximum interpolated between its two sheared columns (exact on planes, so sunlit slopes never shadow themselves) and compares it with its own elevation. Two passes, row by row, over a band of about `(n + J) × n(1 + |b|)` samples.
+
+- **Same reach for every pixel.** `J = radius / hypot(1, b)` steps, the same Euclidean radius as the march: a pixel's shadow cannot depend on where it sits in its tile, so tiles agree at their seams. The textbook sweep, which carries a shadow height across the whole padded grid, reaches farther for pixels on the far side of the tile, so a shadow longer than the halo would stop on a tile edge; the bench keeps it for its one-pass-per-view row only.
+- **Exact early exit.** A sample `t` steps away can shadow a pixel only if it is more than `t·drop` above it, so `J` never exceeds (highest point the samples can reach − lowest pixel of the tile) / `drop`: few steps at a high sun or on gentle relief, none on flat ground.
+- **Versus the march.** Linear samples instead of the nearest pixel, and the window maximum interpolated between two lines (an upper bound of the exact maximum along the pixel's own line), so a shadow edge can move by about a pixel. The march's rounding was the bigger error: at azimuth 30° its first step looks due north, and it shadowed cone flanks the sun lights.
+
+**Test.** `node --test lib/shadow-kernel.test.ts` (or `node scripts/test-lib.mjs lib/shadow-kernel.test.ts`), offline: a cone and a step (a cliff) under eight suns each, against a continuous ray (bilinear samples every half pixel). The sweep scores an IoU of 0.989 to 1 on the cone, the march 0.807 to 1 (0.81 to 0.89 at azimuths 30°, 150° and 200°); both are exact on the cliff when the sun shines over it. It also checks the cliff's shadow length against the formula (within 2 px), that a radius cuts every column at the same row, and the sun overhead, flat ground and the sun below the horizon.
+
+**Timings** (`REPS=15 node scripts/bench-shadow.mjs --no-chrome`, best of 15 runs per tile, same tiles, view and sun as above, IoU against the march at radius 768). The laptop was busy with other work (77 % CPU): the old march's figures are about 1.4× those of the 2026-11-24 run, so compare these rows with each other, not with the tables above.
+
+**Chamonix, map zoom 13** (24 tiles at z14):
+
+| | Per tile (ms) | Slowest tile (ms) | Shadow | IoU |
+|---|---|---|---|---|
+| Old march, radius 32 (old default) | 4.0 | 7.1 | 43 % | 0.55 |
+| Old march, radius 64 (old maximum) | 6.1 | 10.8 | 46 % | 0.58 |
+| Sweep, radius 32 | 2.7 | 3.6 | 43 % | 0.55 |
+| Sweep, radius 64 | 2.7 | 3.1 | 46 % | 0.58 |
+| Sweep, radius 128 | 3.4 | 4.6 | 52 % | 0.64 |
+| **Sweep, radius 256 (new default)** | **4.6** | 6.8 | 62 % | **0.75** |
+| Sweep, radius 384 | 5.3 | 7.7 | 68 % | 0.83 |
+| **Sweep, radius 512 (new maximum)** | **8.4** | 9.9 | 71 % | **0.90** |
+| Sweep, radius 768 | 7.1 | 10.6 | 75 % | 1.000 |
+| March, radius 768 (the reference, with the early exit) | 59 | 157 | 75 % | 1 |
+
+**Les Andelys, map zoom 15** (8 tiles at z15):
+
+| | Per tile (ms) | Slowest tile (ms) | Shadow | IoU |
+|---|---|---|---|---|
+| Old march, radius 32 (old default) | 5.4 | 5.9 | 7.4 % | 0.94 |
+| Old march, radius 64 (old maximum) | 9.0 | 9.8 | 8.3 % | 0.99 |
+| Sweep, radius 32 | 2.2 | 2.4 | 7.3 % | 0.93 |
+| Sweep, radius 64 | 2.5 | 2.5 | 8.3 % | 0.99 |
+| **Sweep, radius 256 (new default)** | **3.0** | 3.6 | 8.6 % | **1.000** |
+| **Sweep, radius 512 (new maximum)** | **3.2** | 3.5 | 8.6 % | **1.000** |
+| Sweep, radius 768 | 3.9 | 4.3 | 8.6 % | 1.000 |
+| March, radius 768 (the reference, with the early exit) | 18 | 29 | 8.6 % | 1 |
+
+What they say:
+
+- **The new default costs about what the old one did, for shadows eight times longer.** Radius 256 takes 4.6 ms a tile in Chamonix against 4.0 for the old march at 32, and 3.0 against 5.4 at Les Andelys, where the early exit cuts the reach. In Chamonix under a 15° sun the match with the long reference goes from 0.55 to 0.75; at Les Andelys it is exact (the old default missed 6 %).
+- **Same pixels as the march at real-terrain scale, faster at every radius.** At equal radius the sweep's shadow share and IoU are within 0.3 points of the march's (0.546 against 0.548 at radius 32), and at radius 768 the two give the same pixels (IoU 1.000) in an eighth (Chamonix) and a fifth (Les Andelys) of the time.
+- **Cap 512.** The slider stops where the slowest Chamonix tile stays under 10 ms (9.9) on a busy machine, and 512 keeps the fetch to two rings of neighbours (below). The cost grows with the radius in the mountains (a longer band to sweep, and no early exit with Mont Blanc ahead) and barely at all on gentle relief.
+- **Mountain shadows under a very low sun still need more.** At 15° in the Alps 512 px reaches 0.90 of the reference; the rest is shadows longer than 3.4 km at z14. That is the live GPU layer's job (idea 1).
+
+**The halo: same-zoom neighbours, not a lower zoom.** `fetchPaddedElevationGrid` (`lib/normal-derived-protocol.ts`) now takes as many rings of same-zoom neighbours as the halo needs: one up to a tile (radius 256 on 256 px tiles, 512 on 512 px tiles, as before), two beyond (25 tiles). A lower zoom for the far part would have cut the fetch, but it needs a second sweep on a coarser grid, resampled onto the tile's pixels, with a step between the two resolutions where the near part ends. Same-zoom rings keep one grid and one sweep, and cost less than they look: tiles are cached and shared by neighbours, so for a whole view the extra fetch is a border one ring wider (a 5 × 4 view fetches 9 × 8 tiles instead of 7 × 6), once, whatever the sun does. What it does cost: a 1 280 px padded grid (6.5 MB of floats) per 256 px tile at radius 512, copied to the raster worker. A WMS source still gets the tile and its halo in one GetMap while that fits `WMS_MAX_GETMAP_PX`. The protocol caps the radius at two tiles and at 512.
 
 ## Running it
 
@@ -87,4 +138,4 @@ node scripts/bench-shadow.mjs --no-chrome  # ours only
 node scripts/bench-shadow.mjs --headed     # Chrome in a window
 ```
 
-Needs Node 22.18 or later (it imports the `.ts` kernel directly) and Chrome; no `pnpm install`. Tiles are cached in `.cache/shadow-bench/tiles/`. A whole run takes two to three minutes, most of it the 768 px references.
+Needs Node 22.18 or later (it imports the `.ts` kernel directly) and Chrome; no `pnpm install`. Tiles are cached in `.cache/shadow-bench/tiles/`. `REPS=15` sets the runs per tile (the best is kept, default 9). A whole run takes two to three minutes, most of it the 768 px march references.

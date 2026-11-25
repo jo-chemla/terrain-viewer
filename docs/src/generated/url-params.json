@@ -415,7 +415,7 @@
       "enum": null,
       "default": [],
       "defaultSource": "[]",
-      "note": "'overlay'-role custom basemap sources currently stacked on top of the active basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B, only meaningful in split-or-radio basemap mode…"
+      "note": "'overlay'-role custom basemap sources currently stacked on top of the active basemap (see basemap-byod-section.tsx's checkbox list), in both basemap modes; view A's list, and every view's with basema…"
     },
     {
       "key": "overlayBasemapIdsB",
@@ -1197,9 +1197,9 @@
       "type": "number",
       "items": null,
       "enum": null,
-      "default": 32,
-      "defaultSource": "32",
-      "note": "\"Search Radius\" — same convention as SVF/Openness: how many same-zoom pixels the single ray marches outward looking for an obstruction."
+      "default": 256,
+      "defaultSource": "256",
+      "note": "\"Search Radius\": how far toward the sun, in same-zoom pixels, an obstruction is looked for (2 to 512; SHADOW_RADIUS_DEFAULT_PX and SHADOW_RADIUS_MAX_PX in lib/shadow-protocol.ts; 32 before 2026-11-25…"
     },
     {
       "key": "showBuildingShadows",
@@ -3944,7 +3944,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "glihtBaseUrl",
-      "default": "\"\"",
+      "default": "GLIHT_DEFAULT_BASE",
       "note": ""
     },
     {

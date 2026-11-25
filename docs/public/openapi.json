@@ -650,7 +650,7 @@
             "name": "overlayBasemapIds",
             "in": "query",
             "required": false,
-            "description": "State. 'overlay'-role custom basemap sources currently stacked on top of the active basemap (see basemap-byod-section.tsx's checkbox list) — shared across A/B, only meaningful in split-or-radio basemap mode…",
+            "description": "State. 'overlay'-role custom basemap sources currently stacked on top of the active basemap (see basemap-byod-section.tsx's checkbox list), in both basemap modes; view A's list, and every view's with basema…",
             "schema": {
               "type": "array",
               "items": {
@@ -1545,10 +1545,10 @@
             "name": "shadowRadiusPx",
             "in": "query",
             "required": false,
-            "description": "State. \"Search Radius\" — same convention as SVF/Openness: how many same-zoom pixels the single ray marches outward looking for an obstruction.",
+            "description": "State. \"Search Radius\": how far toward the sun, in same-zoom pixels, an obstruction is looked for (2 to 512; SHADOW_RADIUS_DEFAULT_PX and SHADOW_RADIUS_MAX_PX in lib/shadow-protocol.ts; 32 before 2026-11-25…",
             "schema": {
               "type": "number",
-              "default": 32
+              "default": 256
             }
           },
           {
