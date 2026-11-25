@@ -1093,9 +1093,14 @@ async function isolineSvg(A, dem, s, rect, baseUrl) {
  *  min(render_height, 600 m) / tan(altitude), the roof outline at the tip,
  *  the union of the sweeps in black at the layer's opacity (overlaps never
  *  darken twice), the footprints cut back out (roofs stay lit). Nothing
- *  below map zoom 13, as in the map. */
+ *  below map zoom 13, as in the map. The roofs and the tips are filled
+ *  nonzero: lib/building-tiles.ts keeps an outer ring's winding positive
+ *  and a hole's negative, so overlapping parts (a tower on its podium, a
+ *  building whole in two tiles' buffers) add up instead of cancelling, as
+ *  even-odd did (the tower's roof stayed shaded: 35 % of the footprint
+ *  pixels in Midtown Manhattan). Exported for test.mjs. */
 const BUILDING_OWNER = {}
-async function buildingShadowSvg(A, s, { world, x0, y0, width, height }) {
+export async function buildingShadowSvg(A, s, { world, x0, y0, width, height }) {
   if (Math.log2(world / 512) < 12.5) return ""
   const Z = A.BUILDING_TILE_ZOOM, n = 2 ** Z, C = 40075016.686
   const alt = Math.max(1, Number(s.illuminationAlt ?? 45)), az = Number(s.illuminationDir ?? 315)
@@ -1127,6 +1132,18 @@ async function buildingShadowSvg(A, s, { world, x0, y0, width, height }) {
     seen.add(key)
     const cosLat = 1 / Math.cosh(PI * (1 - 2 * rings[0][0][1]))
     const sw = Math.min(600, h) / (C * cosLat)
+    // Only the buildings whose footprint or sweep reaches the rectangle: the
+    // z14 tiles fetched for the longest shadow hold some 50 000 buildings in
+    // Midtown, and the SVG of all of them (10 MB a tile) went to sharp whole.
+    // The outer ring holds the holes, and the sweep's box is the footprint's
+    // box and its shifted copy. The picture is the same up to the
+    // rasteriser's antialiasing (a Midtown tile: 456 of 262 144 pixels, by
+    // 8/255 at most), now 1.4 s instead of 115 s.
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity
+    for (const [x, y] of rings[0]) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y }
+    const ex = sw * dir[0], ey = sw * dir[1]
+    if ((Math.max(bx1, bx1 + ex) * world - x0 < -1) || (Math.min(bx0, bx0 + ex) * world - x0 > width + 1) ||
+        (Math.max(by1, by1 + ey) * world - y0 < -1) || (Math.min(by0, by0 + ey) * world - y0 > height + 1)) continue
     for (const ring of rings) {
       for (let i = 0; i < ring.length - 1; i++) {
         const [ax, ay] = ring[i], [bx, by] = ring[i + 1]
@@ -1143,7 +1160,7 @@ async function buildingShadowSvg(A, s, { world, x0, y0, width, height }) {
   }
   if (!walls && !tips) return ""
   const opacity = (s.lightingEffectsOpacity ?? 1) * (s.buildingShadowOpacity ?? 0.5)
-  return svgOf(width, height, `<defs><mask id="b" maskUnits="userSpaceOnUse" x="0" y="0" width="${width}" height="${height}"><path fill="#fff" fill-rule="nonzero" d="${walls}"/><path fill="#fff" fill-rule="evenodd" d="${tips}"/><path fill="#000" fill-rule="evenodd" d="${feet}"/></mask></defs><rect width="${width}" height="${height}" fill="#000" fill-opacity="${opacity}" mask="url(#b)"/>`)
+  return svgOf(width, height, `<defs><mask id="b" maskUnits="userSpaceOnUse" x="0" y="0" width="${width}" height="${height}"><path fill="#fff" fill-rule="nonzero" d="${walls}"/><path fill="#fff" fill-rule="nonzero" d="${tips}"/><path fill="#000" fill-rule="nonzero" d="${feet}"/></mask></defs><rect width="${width}" height="${height}" fill="#000" fill-opacity="${opacity}" mask="url(#b)"/>`)
 }
 
 /** The graticule (GraticuleLayer.tsx, geogrid): meridians and parallels
