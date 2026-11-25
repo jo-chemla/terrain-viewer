@@ -117,6 +117,10 @@ gliht://<campaign>/{z}/{x}/{y}?dem=<lo>,<hi>   Terrarium heights (terrain, type 
 gliht://<campaign>/{z}/{x}/{y}?cells=1         a per-cell campaign (AMIGA-Carb ones are by default)
 ```
 
+![Kiuic 1 (G-LiHT, April 2013) as terrain in the app, read from NASA's KMZ through gliht:// and the tile service's /proxy/gliht: hillshade under a colour relief stretched from 75 to 150 m, about 3 by 2 km of the Puuc hills with Maya platforms and mounds between them](/screenshots/gliht-kiuic-relief.jpg)
+
+Kiuic 1 above is the terrain entry (`custom-mx-gliht-kiuic1-kmz`, `?dem=67.66,153.42`) with the app's hillshade and colour relief, rendered by headless Chrome on the production site (2026-11-26). Every mode runs on it, as on any other terrain.
+
 `lib/gliht-kmz.ts` does the work, with no DOM (fetch and the PNG decoder are passed in), so `lib/gliht-kmz.test.ts` runs it in Node on recorded subsets of real KMZs (`lib/fixtures/gliht/`, 230 kB) and checks ten decoded heights against the Kiuic 2 GeoTIFF (worst 0.14 m). `lib/gliht-protocol.ts` is the MapLibre side.
 
 1. **Directory**: the last 64 kB of the KMZ (`Range: bytes=-65557`) hold the zip's end record; the central directory follows in the same answer when small, else in one more request (640 kB for Kiuic 1's 10 923 entries). Kept per KMZ.
