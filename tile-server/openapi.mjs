@@ -3,7 +3,7 @@
 // shows the same document: `node openapi.mjs` writes
 // docs/public/tile-service-openapi.json, and test.mjs fails when that copy
 // is stale.
-import { writeFileSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { MODE_NAMES, IMAGERY_SOURCES, STACK_ORDER } from "./url.mjs"
@@ -104,7 +104,31 @@ export function quickStart(base = "http://localhost:3400") {
   ].join("\n\n")
 }
 
-export function openapi(server = "http://localhost:3400") {
+/** The `{source}` path parameter: any string, with the known ids as the
+ *  schema's `examples` (JSON Schema, OpenAPI 3.1). Scalar's request panel
+ *  shows them as a list with "Add value" for any other text (checked on
+ *  1.77.0); the parameter's own `examples` map gives no list there, and
+ *  `anyOf: [{enum}, {type: string}]` neither. An `enum` would also give the
+ *  list but declare every other id invalid. The default id first, so it
+ *  stays the one filled in. */
+function sourceParam(known, first, description) {
+  const list = known?.length ? [...new Set([first, ...known, "custom"])] : []
+  return { name: "source", in: "path", required: true, schema: { type: "string", ...(list.length ? { examples: list } : {}) }, description, example: first }
+}
+
+/** The ids `{source}` offers: the terrain library's (generated/library.json,
+ *  as /sources lists them) and the basemaps' (as /basemaps lists them).
+ *  Needs generated/ (node build.mjs). */
+export async function sourceIds() {
+  const lib = JSON.parse(readFileSync(new URL("./generated/library.json", import.meta.url), "utf8"))
+  const { BUILTIN_BASEMAP_SOURCES } = await import("./generated/app-lib.mjs")
+  return {
+    terrain: lib.terrain.map((s) => s.id),
+    basemap: [...new Set([...IMAGERY_SOURCES, ...BUILTIN_BASEMAP_SOURCES.map((s) => s.id)])],
+  }
+}
+
+export function openapi(server = "http://localhost:3400", ids = {}) {
   return {
     openapi: "3.1.0",
     info: {
@@ -181,18 +205,21 @@ export function openapi(server = "http://localhost:3400") {
           tags: ["Terrain tiles"], operationId: "terrainTileBySource", summary: "One XYZ tile of the elevation modes, the source by id",
           description: "The same tile as `/terrain-tiles/{z}/{x}/{y}.{format}?terrainSource={source}`, with the library id in the path, as `/quantized-mesh/{source}/...`: shorter, and the source cannot be lost from a template. `.tif`, `.pbf` and `.mvt` work the same way. `custom` takes the source from the query (an address, a COG, a VRT or a JSON configuration), which is the query form. An unknown id answers 404." + STAC_NOTE,
           parameters: [
-            { name: "source", in: "path", required: true, schema: { type: "string" }, description: "An id from `/sources`, or `custom` with `terrainSource` in the query.", example: "mapterhorn" },
+            sourceParam(ids.terrain, "mapterhorn", "An id from `/sources`, or `custom` with `terrainSource` in the query. The list offers the ids; any other text is sent as written."),
             ...tileXYZ(), FORMAT, q("tilesize", { type: "integer", enum: [256, 512], default: 256 }, "The side of the tile in pixels."), ...VIEW_PARAMS.filter((p) => p.name !== "terrainSource"),
           ],
           responses: { ...image("The tile"), 404: { description: "No such source" } },
         },
+      },
+      "/basemaps": {
+        get: { tags: ["Basemap tiles"], operationId: "basemaps", summary: "The basemaps, by id", description: "What `/basemap-tiles/{source}/...` takes: the dated imagery (`kind: dated`, read with `imageryDate`) and the built-in basemaps with a fixed address (`kind: static`), each with the query parameter it stands for (`imagerySource` or `basemapSource`) and the API key it needs.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
       },
       "/basemap-tiles/{source}/{z}/{x}/{y}.{format}": {
         get: {
           tags: ["Basemap tiles"], operationId: "basemapTileBySource", summary: "One XYZ tile of the imagery, the source by id",
           description: "A basemap of `/basemaps` by id: a dated source (`wayback`, `ge-historical`, `bing`, `hls`, `eox-s2`) with `imageryDate`, or a built-in basemap with a fixed address (`google`, `googlesat`, `bing`, `esri`, `mapbox`, `maptiler`, `here`). `bing` is both: dated with an `imageryDate`, Bing Aerial without. The same tile as the query form `/basemap-tiles/{z}/{x}/{y}.{format}?imagerySource=...` (or `basemapSource=...`); `custom` takes the imagery from the query. An unknown id answers 404." + STAC_NOTE,
           parameters: [
-            { name: "source", in: "path", required: true, schema: { type: "string" }, description: "An id from `/basemaps`, or `custom`.", example: "wayback" },
+            sourceParam(ids.basemap, "wayback", "An id from `/basemaps`, or `custom`. The list offers the ids; any other text is sent as written."),
             ...tileXYZ(14, 8492, 5792), { ...FORMAT, schema: { type: "string", enum: ["jpg", "png"], default: "jpg" } },
             q("imageryDate", { type: "string", format: "date" }, "For a dated source: the date, YYYY-MM-DD (the nearest image the source has).", { example: "2020-01-01" }),
             q("tilesize", { type: "integer", enum: [256, 512], default: 256 }, "The side of the tile in pixels."),
@@ -201,9 +228,6 @@ export function openapi(server = "http://localhost:3400") {
           ],
           responses: { ...image("The tile"), 404: { description: "No such basemap" } },
         },
-      },
-      "/basemaps": {
-        get: { tags: ["Catalogs"], operationId: "basemaps", summary: "The basemaps, by id", description: "What `/basemap-tiles/{source}/...` takes: the dated imagery (`kind: dated`, read with `imageryDate`) and the built-in basemaps with a fixed address (`kind: static`), each with the query parameter it stands for (`imagerySource` or `basemapSource`) and the API key it needs.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
       },
       "/basemap-tiles/{z}/{x}/{y}.{format}": {
         get: {
@@ -382,9 +406,9 @@ export function openapi(server = "http://localhost:3400") {
       "/view": {
         get: {
           tags: ["Catalogs"], operationId: "view", summary: "Read a Terrain Viewer share link: which modes it shows",
-          description: "Turns a link of the app (the address the Share dialog copies, `https://terrain-viewer.iconem.com/?...`) into what this service needs to draw the same view: the modes it switches on (`active`), every mode's opacity (`opacity`: its own times its group's), the parameters every layer keeps (`params`: the terrain source, ramps, light...), the camera (`camera`: lat, lng, zoom, when the link has them) and the tile addresses that draw it (`tiles.terrain`, an XYZ template of the active modes; `tiles.basemap` when the link shows imagery). The QGIS plugin's *Open link* reads it to add the view's layers.\n\n**Two ways to ask.** Give the whole link as `url` (URL-encoded): `/view?url=https%3A%2F%2Fterrain-viewer.iconem.com%2F%3FshowTerrainAnalysis%3Dtrue%26slopeOpacity%3D0.5%26terrainSourceA%3Dmapterhorn`. Or paste the link's query (what follows `?`) after `/view?`: `/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn`.\n\n**What comes back** for that link (shortened): `{\"active\": [\"slope\", \"hillshade\"], \"opacity\": {\"slope\": 0.5, \"hillshade\": 1, ...}, \"params\": {\"terrainSource\": \"mapterhorn\"}, \"camera\": {}, \"tiles\": {\"terrain\": \"http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope,hillshade\"}}`. Each active mode is a process (`/processes/{id}`) with its settings.",
+          description: "Turns a link of the app (the address the Share dialog copies, `https://terrain-viewer.iconem.com/?...`) into what this service needs to draw the same view: the modes it switches on (`active`), every mode's opacity (`opacity`: its own times its group's), the parameters every layer keeps (`params`: the terrain source, ramps, light...), the camera (`camera`: lat, lng, zoom, when the link has them) and the tile addresses that draw it (`tiles.terrain`, an XYZ template of the active modes; `tiles.basemap` when the link shows imagery). The QGIS plugin's *Open link* reads it to add the view's layers.\n\n**Ways to ask.** Give the whole link as `url` (URL-encoded): `/view?url=https%3A%2F%2Fterrain-viewer.iconem.com%2F%3FshowTerrainAnalysis%3Dtrue%26slopeOpacity%3D0.5%26terrainSourceA%3Dmapterhorn`; `url` can also be only the link's query, with or without its `?`. Or paste the link's query (what follows `?`) after `/view?`: `/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn`. Or paste the whole link after `/view?`, unencoded: `/view?https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5`. A `#...` is ignored; the link's values win over parameters given beside it.\n\n**What comes back** for that link (shortened): `{\"active\": [\"slope\", \"hillshade\"], \"opacity\": {\"slope\": 0.5, \"hillshade\": 1, ...}, \"params\": {\"terrainSource\": \"mapterhorn\"}, \"camera\": {}, \"tiles\": {\"terrain\": \"http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope,hillshade\"}}`. Each active mode is a process (`/processes/{id}`) with its settings.",
           parameters: [
-            q("url", { type: "string" }, "A whole share link of the app; its query is read (other parameters given beside it are added).", { example: "https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn" }),
+            q("url", { type: "string" }, "A whole share link of the app, or only its query (`?zoom=...` or `zoom=...`); its query is read (other parameters given beside it are added).", { example: "https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn" }),
             q("appParams", { type: "object", additionalProperties: { type: "string" } }, "Or the query of a share link, as is, at the top level.", { style: "form", explode: true }),
           ],
           responses: ogcJson("The view: active modes, their opacities, the parameters, the camera"),
@@ -442,6 +466,6 @@ export const DOCS_COPY = fileURLToPath(new URL("../docs/public/tile-service-open
 export const docsCopyText = () => JSON.stringify(openapi(), null, 2) + "\n"
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  writeFileSync(DOCS_COPY, docsCopyText())
+  writeFileSync(DOCS_COPY, await docsCopyText())
   console.log("wrote", DOCS_COPY)
 }

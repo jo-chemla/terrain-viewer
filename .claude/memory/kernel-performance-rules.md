@@ -45,3 +45,21 @@ Already clean (checked 2026-11-25): slope, aspect, tri, tpi, roughness,
 blobness, lrm, horizon kernel (svf/openness), local dominance, shadow kernel,
 phong/matcap CPU shading. Their remaining cost is the maths itself (atan per
 ray, pow), not allocation. The live GL layers' CPU side has no per-pixel loop.
+
+Vectors and per-vertex work (second audit, 2026-11-25):
+
+7. **Bytes into a typed array, not a JS array.** `tile-server/mvt.mjs`'s
+   writer pushed every byte onto a number[] and copied each sub-message
+   into its parent byte by byte (four levels for a vertex): a growing
+   Uint8Array with `set()` made contours 3.1 -> 1.1-1.4 ms and an interval
+   iso-line 2.4-3.1 -> 0.9 ms a tile, same bytes.
+8. **Large float buffers straight into a Float32Array** that doubles when
+   full, not a number[] converted at the end: the building shadow sweep
+   (BuildingShadowLayer.tsx `buildGeometry`, 16 central-Paris tiles, 15 M
+   floats) 1250 -> 600 ms, same bytes (each double rounds to float32 the
+   same either way).
+9. **Where a library does the work, leave it.** The iso-line / plane slicer
+   tile (`lib/isoband-protocol.ts`) is d3-contour's isorings and stitch;
+   dropping the [x, y] per vertex and feeding a Float64Array made no
+   measurable difference, so it was not kept. maplibre-contour and earcut
+   likewise.

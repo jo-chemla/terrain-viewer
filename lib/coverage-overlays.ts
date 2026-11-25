@@ -473,7 +473,7 @@ async function build(id: string, ctx: { terrains: CustomTerrainSource[]; basemap
         return { ...f, properties: { ...f.properties,
           overlay: useId ?? id, ...(useId ? { role: "overlay" } : {}), color: OVERLAY_COLORS.gliht, hollow: false, opacity: p.ot ? 0.35 : 0.2,
           label: `G-LiHT ${p.id ?? ""}`.trim(),
-          detail: `NASA airborne LiDAR${bits ? ` · ${bits}` : ""}${useId ? " · Use as overlay draws its 1 m DTM KMZ (greyscale elevation; needs a CORS extension or the G-LiHT address setting)" : ""} · click to open the campaign's download folder`,
+          detail: `NASA airborne LiDAR${bits ? ` · ${bits}` : ""}${useId ? " · Use as overlay draws its 1 m DTM KMZ (greyscale elevation; needs a CORS extension or the G-LiHT proxy setting)" : ""} · click to open the campaign's download folder`,
           url: p.id ? `https://glihtdata.gsfc.nasa.gov/files/G-LiHT/${p.id}/` : "https://glihtdata.gsfc.nasa.gov/" } }
       })
       return { type: "FeatureCollection", features }

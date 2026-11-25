@@ -16,7 +16,8 @@
 //
 // The child listens on 127.0.0.1 only (no firewall prompt, nothing on the
 // network), has no browser engine (TV_NO_BROWSER: flat, north-up tiles; a 3D
-// or tilted view is a 501), reads no .env, and stops by itself when its
+// or tilted view is a 501), reads no .env but the EARTHDATA_TOKEN line of
+// <state dir>/tile-service.env (see start()), and stops by itself when its
 // standard input closes (TV_EXIT_WITH_STDIN), i.e. when the app goes, even
 // after a crash.
 import { spawn, type ChildProcess } from "node:child_process";
@@ -42,6 +43,8 @@ export function createTileService(opts: { stateDir: string; serverDir?: string; 
   const available = existsSync(node) && existsSync(join(serverDir, "server.mjs"));
   const settingsPath = join(opts.stateDir, "tile-service.json");
   const logPath = join(opts.stateDir, "tile-service.log");
+  /** EARTHDATA_TOKEN=<token>, when the app's environment has none. */
+  const envFilePath = join(opts.stateDir, "tile-service.env");
   const say = opts.log ?? ((...parts: unknown[]) => console.log("[tile-service]", ...parts));
 
   let settings = { enabled: false, port: DEFAULT_PORT };
@@ -114,14 +117,20 @@ export function createTileService(opts: { stateDir: string; serverDir?: string; 
       try { if (!(statSync(node).mode & 0o100)) chmodSync(node, 0o755); } catch { /* tried */ }
     }
     try { mkdirSync(opts.stateDir, { recursive: true }); writeFileSync(logPath, `${new Date().toISOString()} starting on 127.0.0.1:${port}\n`); } catch { /* a log */ }
+    // The app's environment, EARTHDATA_TOKEN included (G-LiHT's protected
+    // files through /proxy/earthdata). Without it in the environment, the
+    // service reads EARTHDATA_TOKEN=<token> from tile-service.env in the
+    // state dir, next to tile-service.json: that one key only, read at each
+    // request, so a token written there works without a restart. The token
+    // stays in this child: never in the page, a status or a tile address.
     const env: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !["PORT", "NODE_OPTIONS", "EARTHDATA_TOKEN"].includes(k)) env[k] = v;
+    for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !["PORT", "NODE_OPTIONS", "TV_ENV_FILE"].includes(k)) env[k] = v;
     Object.assign(env, {
       PORT: String(port),
       TV_HOST: "127.0.0.1",
       TV_EXIT_WITH_STDIN: "1",
       TV_NO_BROWSER: "1",
-      TV_ENV_FILE: join(serverDir, "no-such.env"),
+      TV_ENV_FILE: envFilePath,
     });
     let proc: ChildProcess;
     try {

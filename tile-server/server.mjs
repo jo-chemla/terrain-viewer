@@ -88,7 +88,7 @@ import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES, IMAGERY_SOURCES } from "./url.mjs"
 import { withSettledPage, closeBrowser } from "./render.mjs"
-import { openapi, DOCS_HTML } from "./openapi.mjs"
+import { openapi, sourceIds, DOCS_HTML } from "./openapi.mjs"
 import { processCatalog, processList, withLinks, landingPage, BASEMAP_PROCESS, CONFORMANCE } from "./processes.mjs"
 import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers, meshLevel, rampImage } from "./direct.mjs"
 import { layerJson, requestedExtensions, CONTENT_TYPE as QM_TYPE, EXTENSIONS as QM_EXTENSIONS, MAX_TRIANGLES as QM_MAX_TRIANGLES } from "./quantized-mesh.mjs"
@@ -279,6 +279,7 @@ export function sources() {
     ...library().terrain.map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.section ? { section: s.section } : {}), ...(s.tiles ? { url: s.tiles } : {}), ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.bounds ? { bounds: s.bounds } : {}), ...(s.resolutionM != null ? { resolutionM: s.resolutionM } : {}), ...engine(s) })),
   ]
 }
+let idsPromise // the ids /openapi.json offers for {source}, read once
 const SOURCES_NOTE = 'Give an id as terrainSource (or url). A source that is not listed: its tile address (a .tif is read as a COG, a .vrt as a VRT), or a configuration as JSON with the fields of a library entry, {"url": "...", "type": "terrarium" | "terrainrgb" | "cog" | "vrt" | "wms-raw" | "lerc" | "quantized-mesh" | "tilejson", ...}.'
 
 const shot = (ext) => (ext === "png" ? { type: "png" } : { type: "jpeg", quality: 85 })
@@ -587,14 +588,33 @@ export async function sourceInPath(pathname, search) {
   return { pathname: `/${endpoint}/${z}/${x}/${y}${tail}`, search: qs ? "?" + qs : "" }
 }
 
-/** /view's query: a share link's query as is, or the whole link as `url`
- *  (its query read, the address before it ignored; other parameters given
- *  beside it are added). */
+/** /view's query, from any of:
+ *  - a share link's query as is: `/view?zoom=12&lat=...`;
+ *  - `url` = the whole link (`https://...?zoom=12...`), or only its query
+ *    (`?zoom=12...` or `zoom=12...`), URL-encoded or not;
+ *  - the whole link pasted after `/view?` without encoding
+ *    (`/view?https://terrain-viewer.iconem.com/?zoom=12&lat=...`), which a
+ *    query parser reads as a first key `https://...?zoom`.
+ *  The address before `?` and a `#...` are ignored; the link's own values
+ *  win over parameters given beside it. */
 export function viewQuery(search) {
-  const q = new URLSearchParams(search)
-  const link = q.get("url")
-  if (!link || !link.includes("?")) return q
-  const inner = new URLSearchParams(link.slice(link.indexOf("?") + 1).replace(/#.*$/, ""))
+  const linkQuery = (s) => {
+    s = s.trim().replace(/#.*$/, "")
+    const at = s.indexOf("?")
+    if (at >= 0) return s.slice(at + 1)
+    // No `?`: a bare query (`zoom=12&lat=...`), or an address without one.
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(s) || !s.includes("=") ? "" : s
+  }
+  let raw = String(search ?? "").replace(/^\?/, "")
+  // A link pasted unencoded after /view?: its first key holds the address.
+  const first = raw.split("&", 1)[0]
+  if (/^[a-z][a-z0-9+.-]*(:|%3A)/i.test(first) && /\?|%3F/i.test(first.split("=", 1)[0])) {
+    const decoded = (() => { try { return decodeURIComponent(first) } catch { return first } })()
+    raw = linkQuery(decoded) + raw.slice(first.length)
+  }
+  const q = new URLSearchParams(raw)
+  if (!q.has("url")) return q
+  const inner = new URLSearchParams(linkQuery(q.get("url")))
   q.delete("url")
   for (const [k, v] of q) if (!inner.has(k)) inner.set(k, v)
   return inner
@@ -728,7 +748,7 @@ async function handle(req, res) {
         for (const k of ["modes", "algorithm", "encoding", "compression", "background", "engine", "lat", "lng", "zoom", "width", "height", "bbox"]) q.delete(k)
         return send(200, "application/xml", gdalWmsXml(self, r.mode, q.toString(), valueLevel(how.dem)), { "content-disposition": `inline; filename="terrain-viewer-${r.mode}.xml"` })
       }
-      if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self), null, 2))
+      if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self, await (idsPromise ??= sourceIds())), null, 2))
       if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
       if (u.pathname === "/sources") return send(200, "application/json", JSON.stringify({ sources: sources(), note: SOURCES_NOTE }))
       const one = u.pathname.match(/^\/sources\/([^/]+)$/)
