@@ -4230,6 +4230,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "settingsDesktopQuickstartOpen",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "lastSeenChangelogAt",
       "default": "\"2026-08-01\"",
       "note": "ISO date (\"YYYY-MM-DD\") of the newest changelog entry's `<!-- released -->` marker the user has already seen — see lib/changelog.ts."
