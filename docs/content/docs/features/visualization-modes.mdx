@@ -150,6 +150,8 @@ SVF/Openness/Local Dominance share the terrain-analysis pipeline above (just a r
 - **Openness** — mean angular distance from zenith to the horizon across the same 8 directions; **Positive** highlights ridges/summits, **Negative** highlights valleys/pits
 - **Local Dominance** — local visibility-weighted elevation contrast
 
+Other tools that compute these modes (gdaldem, RVT, MapLibre's own hillshade) and the papers behind each, with how the app's kernels differ from them: [Terrain Analysis Pipeline, related work](/dev/terrain-analysis-pipeline#related-work-and-references); for the local relief model (Hesse's full method, the multi-scale relief model): [LRM, related work](/dev/lrm#related-work-and-references).
+
 ![LRM (Local Relief Model) over Hillshade, with the Relief Visualization controls panel open](/screenshots/viz-modes/lrm.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">Relief Visualization — LRM + Hillshade, with the Relief Visualization controls panel open — Matterhorn massif — <a href="https://terrain-viewer.iconem.com/?lat=45.9763&lng=7.6586&zoom=12.6&pitch=0&bearing=0&viewMode=3d&showReliefVisualization=true&showLrm=true&showHillshade=true&hillshadeOpacity=0.5&exaggeration=1" target="_blank" rel="noopener noreferrer">open in app ↗</a></p>

@@ -5,7 +5,7 @@
 // "precise"/"fast" precision modes (see that file's header for the tradeoff
 // fast makes).
 //
-// Openness (Yokoyama, Merry & Pike, 2002) is a Sky-View-Factor relative, but
+// Openness (Yokoyama, Shirasawa & Pike, 2002) is a Sky-View-Factor relative, but
 // unlike SVF it isn't clamped to "at most fully open": Positive Openness is the
 // mean angular distance from zenith to the horizon across 8 directions, using
 // the *unclamped* (signed) horizon angle — a summit with nothing higher anywhere

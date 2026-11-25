@@ -155,3 +155,15 @@ The webmap reads one index, `DATA/flightData.js` (23 MB: `var flightData = {…}
 1. **A stretch for every campaign**: heights need `lo`/`hi` per KMZ, measured on the GeoTIFF (`scripts/gliht-stretch.py`); no rule replaces it (black is not a fixed percentile). Doing it for all 1 521 means downloading 142 GB of gzip once (or reading the uncompressed granules through Earthdata); a script could then bake `lo`/`hi` into `gliht.geojson`, and the popup could offer **Use as terrain** too.
 2. **Re-hosting as COGs** (Kiuic: 135 MB of gzip in, a few hundred MB out; the Yucatan CHM: 2.2 GB) still gives the best reading: exact Float32 with overviews, no proxy, no token. Not done without approval.
 3. **titiler** does not help with the archives (`/vsigzip/` re-inflates from the start for every window); with `GDAL_HTTP_HEADERS="Authorization: Bearer …"` a self-hosted titiler could read the LP DAAC granules, which a public titiler cannot (the token would be in every request).
+
+## Related work and references
+
+Where G-LiHT's data and its description live, and what the app reads from each (links checked 2026-11-25):
+
+- **[G-LiHT](https://gliht.gsfc.nasa.gov/)** (NASA Goddard): the instrument and its campaigns.
+- **[G-LiHT Data Center](https://glihtdata.gsfc.nasa.gov/)**: the webmap and the open directory tree. The coverage footprints are built from its `flightData.js` index, and the `gliht://` protocol reads its DTM KMZs.
+- **[G-LiHT Digital Terrain Model V001 (GLDTMT)](https://www.earthdata.nasa.gov/data/catalog/lpcloud-gldtmt-001)** (LP DAAC, NASA Earthdata): the cloud copy of the DTM GeoTIFFs, bare-earth heights on the EGM96 geoid, which the tile service's `/proxy/earthdata` route reads with a token. [Earthdata Search](https://search.earthdata.nasa.gov/) finds the granules of a place by hand, with the same login.
+
+Papers:
+
+- B. Cook, L. Corp, R. Nelson, E. Middleton, D. Morton, J. McCorkel, J. Masek, K. Ranson, V. Ly, P. Montesano, [NASA Goddard's LiDAR, Hyperspectral and Thermal (G-LiHT) Airborne Imager](https://doi.org/10.3390/rs5084045), *Remote Sensing* 5(8), 2013. The instrument, its data processing and its products, among them the lidar terrain, surface and canopy height models: the terrain model is what the app reads (as KMZ pictures or GeoTIFFs); the canopy height is not wired.

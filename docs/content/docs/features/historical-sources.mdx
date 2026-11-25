@@ -176,3 +176,19 @@ A few services refuse the headless browsers used for testing (Piedmont answers t
 ### Contributing them to the OSM Editor Layer Index
 
 `node docs/scripts/build-eli-contribution.mjs` writes one ELI source file per dated layer into `docs/public/eli-contribution/`, sorted by what the licence allows: *ready* (CC0, public domain, DL-DE Zero), *waiver* (CC BY and the like: ELI lists them once the publisher has signed the OSMF attribution waiver) and *ask* (a licence of the publisher's own). ArcGIS export services and time-parameter WMS are skipped, since ELI has no template for them. Nothing is sent: the files are what a pull request would carry, after the licence step and a check against ELI's existing entries.
+
+## Related work and references
+
+The services, libraries and specifications behind the timeline's providers and catalogs, and what the app takes from each (links checked 2026-11-25):
+
+- **[Esri World Imagery Wayback](https://livingatlas.arcgis.com/wayback/)** and its SDK **[@esri/wayback-core](https://github.com/Esri/wayback-core)**: the release catalog, the per-place metadata and the tile maths `lib/wayback.ts` is built on; the app walks the releases itself rather than with the SDK's `getWaybackItemsWithLocalChanges` (see [Esri Wayback](/dev/esri-wayback#what-the-sdk-gives)).
+- **[Google Earth, historical imagery](https://support.google.com/earth/answer/148094)** (Google Earth Pro's time slider) and **[GEHistoricalImagery](https://github.com/Mbucari/GEHistoricalImagery)**: the archive the `gehist://` protocol reads, and the open-source reader of its quadtree protocol whose packet walk and quadtree maths Iconem's GE_TimeMachine, the protocol's starting point, follows (see [Google Earth Historical](/dev/ge-historical#built-on)).
+- **[NASA HLS](https://hls.gsfc.nasa.gov/)** ([HLSS30 v2.0 on NASA Earthdata](https://www.earthdata.nasa.gov/data/catalog/lpcloud-hlss30-2.0)) and **[titiler-cmr](https://github.com/developmentseed/titiler-cmr)**: the Sentinel-2 half of the Harmonized Landsat and Sentinel-2 surface reflectance, composited per month on the fly by NASA VEDA's public titiler-cmr from the granules the Common Metadata Repository lists (see [On-the-fly mosaics](/dev/on-the-fly-mosaics)).
+- **[Planet mosaics](https://docs.planet.com/data/imagery/mosaics/)**: the monthly global mosaics the Planet provider shows, one per month, with your own API key.
+- **[EOxCloudless](https://cloudless.eox.at/)** (EOX): the yearly cloud-free Sentinel-2 mosaics of the Sentinel-2 provider.
+- **[Bing Maps tile system](https://learn.microsoft.com/en-us/bingmaps/articles/bing-maps-tile-system)**: the quadkey addressing of Bing's aerial tiles (`toQuadkey` in `lib/bing.ts`); the capture dates come from a header of each tile, not from an archive.
+- **[STAC](https://stacspec.org/)** ([specification](https://github.com/radiantearth/stac-spec)): the catalogs of `lib/stac-dated.ts`, searched through [HOT's STAC API](https://api.imagery.hotosm.org/stac) (OpenAerialMap, Maxar and Vantor Open Data, NOAA) and the [Planetary Computer](https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a) (Sentinel-2, with signed addresses), their items grouped by day and mosaicked.
+
+Papers:
+
+- M. Claverie, J. Ju, J. G. Masek, J. L. Dungan, E. F. Vermote, J.-C. Roger, S. V. Skakun, C. Justice, [The Harmonized Landsat and Sentinel-2 surface reflectance data set](https://doi.org/10.1016/j.rse.2018.09.002), *Remote Sensing of Environment* 219, 2018. How Landsat 8 and Sentinel-2 are made one 30 m series: atmospheric correction, the same tiling on the Sentinel-2 grid, view-angle normalization and band-pass adjustment. The app shows the Sentinel-2 product (HLSS30), whose monthly ticks start in 2016; the Landsat half (HLSL30) goes back to 2013 and is not used.
