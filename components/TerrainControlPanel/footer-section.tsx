@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
-import { useDesktopUpdate, describeDesktopUpdate, isDesktopApp, checkDesktopUpdate, applyDesktopUpdate } from "@/lib/desktop-bridge"
+import { useDesktopUpdate, describeDesktopUpdate, isDesktopApp, checkDesktopUpdate, applyDesktopUpdate, desktopUpdateLabel } from "@/lib/desktop-bridge"
 import { CREDITS_MARKDOWN, CREDITS_MARKDOWN_COMPONENTS } from "./settings-dialog"
 
 /** Not a shared `Section` instance on purpose — that component carries
@@ -50,6 +50,8 @@ const IS_DESKTOP = isDesktopApp
 // "Is this the latest?": one click asks GitHub for the newest commit on main
 // (what the website serves) and for the rolling desktop release (which names
 // the commit it was built from), and compares both with this build's commit.
+// The same click has the updater read its feed, so the two answers agree (a
+// newer bundle starts downloading). Both bypass the HTTP cache.
 type VersionCheckState =
   | { status: "idle" }
   | { status: "loading" }
@@ -58,17 +60,19 @@ type VersionCheckState =
 const VersionCheck: React.FC = () => {
   const [state, setState] = useState<VersionCheckState>({ status: "idle" })
   // The light build updates from desktop-latest-light (desktop/gen-config.mjs).
-  const light = useDesktopUpdate().light
+  const update = useDesktopUpdate()
+  const light = update.light
   // The answer lands below the fold of the sidebar: bring it into view.
   const answerRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (state.status === "done" || state.status === "error") answerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }) }, [state.status])
   const check = useCallback(async () => {
     setState({ status: "loading" })
+    checkDesktopUpdate()
     try {
       const api = "https://api.github.com/repos/Iconem/terrain-viewer"
       const [commitRes, releaseRes] = await Promise.all([
-        fetch(`${api}/commits/main`, { headers: { Accept: "application/vnd.github+json" } }),
-        fetch(`${api}/releases/tags/${light ? "desktop-latest-light" : "desktop-latest"}`, { headers: { Accept: "application/vnd.github+json" } }),
+        fetch(`${api}/commits/main`, { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" }),
+        fetch(`${api}/releases/tags/${light ? "desktop-latest-light" : "desktop-latest"}`, { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" }),
       ])
       if (!commitRes.ok) throw new Error(`GitHub answered ${commitRes.status}`)
       const commit = await commitRes.json()
@@ -108,7 +112,11 @@ const VersionCheck: React.FC = () => {
           {state.desktop && (
             <p>
               Desktop bundles: {state.desktop.date} from {state.desktop.sha || "?"}
-              {state.desktop.same ? " — same commit as this build" : ""}
+              {state.desktop.same ? " — same commit as this build" : state.desktop.sha ? ` — not this build: ${
+                update.status === "ready" ? "downloaded, Restart and install above"
+                : update.status === "available" || update.status === "downloading" || update.status === "checking" ? "the updater is fetching it"
+                : update.status === "up-to-date" ? "the updater's feed does not list it yet (a build being published?), Check for updates again in a minute"
+                : "Check for updates above"}` : ""}
               {" · "}<a href={state.desktop.url} target="_blank" rel="noopener noreferrer" className="underline">release page</a>
             </p>
           )}
@@ -141,7 +149,7 @@ const DesktopUpdateActions: React.FC = () => {
       {update.status === "ready" && (
         <button type="button" onClick={applyDesktopUpdate} className="inline-flex items-center gap-1 underline cursor-pointer font-semibold text-foreground">
           <RotateCw className="h-3 w-3" />
-          Restart and install{update.version ? ` ${update.version}` : ""}
+          Restart and install{desktopUpdateLabel(update) ? ` ${desktopUpdateLabel(update)}` : ""}
         </button>
       )}
       <button type="button" onClick={checkDesktopUpdate} disabled={busy} className="inline-flex items-center gap-1 underline cursor-pointer disabled:opacity-60 disabled:cursor-default">

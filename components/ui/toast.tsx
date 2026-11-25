@@ -20,7 +20,7 @@ export interface Toast {
   title: string
   /** Plain text, or nodes when part of it needs emphasis. */
   body?: React.ReactNode
-  /** ms before it dismisses itself. */
+  /** ms before it dismisses itself; Infinity keeps it until dismissed. */
   duration?: number
   /** One button under the body, e.g. "Reload". Clicking it runs `onClick`
    *  and dismisses the toast. */
@@ -71,6 +71,8 @@ export function useToast() {
 
 const ToastItem: React.FC<{ toast: Entry }> = ({ toast }) => {
   useEffect(() => {
+    // Infinity: stays until its × (or a toast of the same key) replaces it.
+    if (toast.duration === Infinity) return
     const t = setTimeout(() => dismissToast(toast.id), toast.duration ?? 4000)
     return () => clearTimeout(t)
   }, [toast.id, toast.duration])

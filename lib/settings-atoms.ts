@@ -555,6 +555,10 @@ export const isSettingsGeomorphometryOpenAtom = booleanField(settingsSectionsOpe
 export const isSettingsWhatsNewOpenAtom = booleanField(settingsSectionsOpenAtom, "whatsNew")
 // Desktop app only (Settings > Desktop: local tile service).
 export const isSettingsDesktopTileServiceOpenAtom = booleanField(settingsSectionsOpenAtom, "desktopTileService")
+/** Its Quick start list, a sub-section folded on its own; open by default.
+ *  A key of its own rather than a field of settingsSectionsOpen: a record
+ *  stored before the field existed would read it as folded. */
+export const isSettingsDesktopQuickstartOpenAtom = atomWithStorage("settingsDesktopQuickstartOpen", true, undefined, { getOnInit: true })
 
 // ISO date ("YYYY-MM-DD") of the newest changelog entry's `<!-- released -->`
 // marker the user has already seen — see lib/changelog.ts. A plain date, not

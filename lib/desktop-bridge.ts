@@ -3,8 +3,9 @@
 // updater's state; the page answers over __electrobunSendToHost, the same
 // channel FullscreenControlThemed uses for fullscreen. In the browser none
 // of this fires and `useDesktopUpdate()` stays at "idle".
-import { useSyncExternalStore } from "react"
+import { createElement, useSyncExternalStore } from "react"
 import { pushToast } from "@/components/ui/toast"
+import { DesktopUpdateProgress } from "@/components/DesktopUpdateProgress"
 import { importProjectBytes } from "@/lib/project-export"
 import { track } from "@/lib/analytics"
 
@@ -20,9 +21,18 @@ export interface DesktopUpdate {
   version?: string
   /** 0-100 while downloading. */
   progress?: number
+  /** Seconds left while downloading, from the rate so far (none at first). */
+  eta?: number
   message?: string
   /** The light build (docs online), whose feed is desktop-latest-light. */
   light?: boolean
+  /** When the "up to date" answer was given (ISO): it is as old as the check. */
+  checkedAt?: string
+  /** The commit the feed's build comes from (its release notes): the version
+   *  is the build day, so two builds of a day share it. */
+  commit?: string
+  /** The feed's download size, "67 MB". */
+  size?: string
 }
 
 let current: DesktopUpdate = { status: "idle" }
@@ -55,15 +65,32 @@ export function applyDesktopUpdate(): void {
   hostSend()?.({ type: "apply-update" })
 }
 
+/** "2026.11.25 (2ba6460)": the day alone does not tell two builds apart. */
+export function desktopUpdateLabel(u: DesktopUpdate): string {
+  return [u.version, u.commit ? `(${u.commit})` : ""].filter(Boolean).join(" ")
+}
+
+/** "about 2 min left", "a few seconds left". */
+export function formatEta(seconds: number | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds)) return ""
+  if (seconds < 10) return "a few seconds left"
+  if (seconds < 60) return `about ${Math.round(seconds / 5) * 5} s left`
+  return `about ${Math.round(seconds / 60)} min left`
+}
+
 /** One line for the About section, or null outside the desktop app. */
 export function describeDesktopUpdate(u: DesktopUpdate): string | null {
-  const v = u.version ? ` ${u.version}` : ""
+  const label = desktopUpdateLabel(u)
+  const v = label ? ` ${label}` : ""
   switch (u.status) {
     case "idle": return null
     case "checking": return "Update: checking…"
-    case "up-to-date": return "Update: up to date"
+    case "up-to-date": {
+      const at = u.checkedAt ? new Date(u.checkedAt) : null
+      return `Update: up to date${at && !Number.isNaN(at.getTime()) ? ` (checked at ${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})` : ""}`
+    }
     case "available": return `Update: ${v.trim() || "a new build"} available, starting the download…`
-    case "downloading": return `Update:${v} downloading… ${u.progress != null ? `${Math.round(u.progress)}%` : ""}`.trimEnd()
+    case "downloading": return [`Update:${v} downloading…`, u.progress != null ? `${Math.round(u.progress)}%` : "", formatEta(u.eta)].filter(Boolean).join(" ")
     case "ready": return `Update:${v} downloaded, installs at the next launch`
     case "applying": return `Update:${v} installing, the app restarts…`
     case "installed": return `Update:${v} installed at this launch`
@@ -73,17 +100,31 @@ export function describeDesktopUpdate(u: DesktopUpdate): string | null {
 
 // Electrobun's status names (desktop/src/bun/index.ts forwards them as is)
 // folded into the page's states.
-function fold(detail: { status?: string; version?: string; progress?: number; message?: string }): DesktopUpdate | null {
-  const { status, version, progress, message } = detail
+type UpdateEvent = { status?: string; version?: string; progress?: number; message?: string; checkedAt?: string; bytes?: number; total?: number }
+// The download's first sample, for the rate: bytes when the updater gives
+// them, else the percentage.
+let dlStart: { t: number; at: number } | null = null
+function etaOf(progress: number | undefined, bytes: number | undefined, total: number | undefined): number | undefined {
+  const at = bytes != null && total ? bytes : progress
+  const end = bytes != null && total ? total : 100
+  if (at == null) return current.eta
+  const now = performance.now()
+  if (!dlStart || at < dlStart.at) { dlStart = { t: now, at }; return undefined }
+  const seconds = (now - dlStart.t) / 1000
+  if (seconds < 1.5 || at <= dlStart.at) return current.eta
+  return (end - at) / ((at - dlStart.at) / seconds)
+}
+function fold(detail: UpdateEvent): DesktopUpdate | null {
+  const { status, version, progress, message, checkedAt, bytes, total } = detail
   switch (status) {
     // "installed" (this launch applied an update) stays shown over the
     // launch's own re-check, but not over one asked from About.
     case "checking": return current.status === "installed" && !manualCheck ? null : { status: "checking", version }
-    case "no-update": return current.status === "installed" && !manualCheck ? null : { status: "up-to-date", version }
-    case "update-available": return { status: "available", version }
+    case "no-update": return current.status === "installed" && !manualCheck ? null : { status: "up-to-date", version, checkedAt }
+    case "update-available": dlStart = null; return { status: "available", version }
     case "download-starting": case "download-progress": case "checking-local-tar": case "local-tar-found":
     case "fetching-patch": case "patch-not-found": case "downloading-full-bundle": case "applying-patch":
-      return { status: "downloading", version, progress: progress ?? current.progress }
+      return { status: "downloading", version, progress: progress ?? current.progress, eta: status === "download-progress" ? etaOf(progress, bytes, total) : current.eta }
     case "decompressing": return { status: "downloading", version, progress: 100, message }
     case "download-complete": case "ready": return { status: "ready", version }
     case "applying": case "launching-new-version": return { status: "applying", version }
@@ -99,42 +140,64 @@ function fold(detail: { status?: string; version?: string; progress?: number; me
  *  the feed the updater reads) once GitHub's API answers. */
 const RELEASES_API = "https://api.github.com/repos/Iconem/terrain-viewer/releases/tags/"
 function roughSize(light: boolean | undefined): string { return light ? "about 67 MB" : "about 250 MB" }
-async function exactSize(light: boolean | undefined, platform: string | undefined): Promise<string | null> {
+/** The feed's release: the bundle's size and the commit its notes name
+ *  ("built on 2026-11-25 from `2ba6460`"). Never from the HTTP cache: a
+ *  cached answer named the previous build. */
+async function feedRelease(light: boolean | undefined, platform: string | undefined): Promise<{ size: string | null; commit: string | null }> {
   try {
-    const res = await fetch(RELEASES_API + (light ? "desktop-latest-light" : "desktop-latest"), { headers: { accept: "application/vnd.github+json" } })
-    if (!res.ok) return null
-    const assets = ((await res.json()).assets ?? []) as Array<{ name: string; size: number }>
+    const res = await fetch(RELEASES_API + (light ? "desktop-latest-light" : "desktop-latest"), { headers: { accept: "application/vnd.github+json" }, cache: "no-store" })
+    if (!res.ok) return { size: null, commit: null }
+    const rel = await res.json()
+    const commit = /from `([0-9a-f]{7,})`/.exec(String(rel.body ?? ""))?.[1]?.slice(0, 7) ?? null
+    const assets = (rel.assets ?? []) as Array<{ name: string; size: number }>
     const asset = assets.find((a) => a.name.endsWith(".tar.zst") && (!platform || a.name.includes(`-${platform}-`)))
-    if (!asset) return null
-    const mb = asset.size / 1e6
-    return mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(0)} MB`
-  } catch { return null }
+    const mb = asset ? asset.size / 1e6 : 0
+    return { size: asset ? `${Math.round(mb)} MB` : null, commit }
+  } catch { return { size: null, commit: null } }
 }
 
+// The toasts: one key, "desktop-update". While the bundle downloads it stays
+// up (no timer) with a progress bar, the percentage and the time left
+// (components/DesktopUpdateProgress.tsx reads the store), until the
+// download ends, when "Update downloaded" with Restart and install replaces
+// it, or until its × dismisses it.
+function progressToast(): void {
+  pushToast({ key: "desktop-update", title: "Update available", body: createElement(DesktopUpdateProgress), duration: Infinity })
+}
+
+let releaseAskedFor: string | null = null
 export function initDesktopBridge(): void {
   window.addEventListener("tv-desktop-update", (ev) => {
-    const detail = (ev as CustomEvent<{ version?: string; status?: string; progress?: number; message?: string; light?: boolean; platform?: string }>).detail ?? {}
+    const detail = (ev as CustomEvent<UpdateEvent & { light?: boolean; platform?: string }>).detail ?? {}
     const folded = fold(detail)
     if (!folded) return
-    const next: DesktopUpdate = { ...folded, light: detail.light ?? current.light }
+    const light = detail.light ?? current.light
+    // The feed's commit and size, fetched once per feed version.
+    const sameFeed = !!folded.version && folded.version === current.version
+    const next: DesktopUpdate = { ...folded, light, commit: sameFeed ? current.commit : undefined, size: sameFeed ? current.size : undefined }
     if (next.status === "up-to-date" || next.status === "ready" || next.status === "error") manualCheck = false
     const was = current.status
     set(next)
-    if (next.status === was && next.status !== "error") return
-    const v = next.version ? `Terrain Viewer ${next.version}` : "A new Terrain Viewer build"
-    if (next.status === "available") {
-      const body = (size: string) => `${v} is downloading in the background (${size}, a few minutes). It installs at the next launch: the app then restarts itself once, which takes about half a minute. Progress shows under About.`
-      pushToast({ key: "desktop-update", title: "Update available", body: body(roughSize(detail.light)), duration: 15000 })
-      void exactSize(detail.light, detail.platform).then((size) => {
-        if (size && current.status === "available") pushToast({ key: "desktop-update", title: "Update available", body: body(size), duration: 15000 })
+    if ((next.status === "available" || next.status === "downloading" || next.status === "ready") && releaseAskedFor !== (next.version ?? "")) {
+      const asked = next.version
+      releaseAskedFor = asked ?? ""
+      void feedRelease(light, detail.platform).then(({ size, commit }) => {
+        if (current.version === asked) set({ ...current, size: size ?? current.size, commit: commit ?? current.commit })
       })
+    }
+    if (next.status === was && next.status !== "error") return
+    const label = desktopUpdateLabel(next)
+    const v = label ? `Terrain Viewer ${label}` : "A new Terrain Viewer build"
+    if (next.status === "available" || (next.status === "downloading" && was !== "available")) {
+      if (!next.size) set({ ...current, size: roughSize(light) })
+      progressToast()
     } else if (next.status === "ready") {
       pushToast({
         key: "desktop-update",
         title: "Update downloaded",
-        body: `${v} is ready. It installs at the next launch, or now; installing takes about half a minute, during which the app restarts itself. Missed this? About > Restart and install.`,
-        duration: 20000,
-        action: { label: "Restart now", onClick: applyDesktopUpdate },
+        body: `${v} is ready. Restart and install now (about half a minute, the app restarts itself), or it installs at the next launch. Also under About.`,
+        duration: Infinity,
+        action: { label: "Restart and install", onClick: applyDesktopUpdate },
       })
     } else if (next.status === "installed") {
       pushToast({ key: "desktop-update", title: "Updated", body: `${v} was installed at this launch.`, duration: 8000 })

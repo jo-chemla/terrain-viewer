@@ -268,7 +268,10 @@ function ulog(...parts: unknown[]) {
 // "error" from the flow below. The last one is kept and replayed when the
 // page asks (host-message "update-status"): the "complete" of a freshly
 // applied update fires before the page has loaded.
-type UpdateDetail = { status: string; version?: string; progress?: number; message?: string; light?: boolean; platform?: string };
+// checkedAt (ISO) dates an "up to date" answer: it is only as fresh as the
+// last check. bytes and total come with the download progress, for the
+// page's time left.
+type UpdateDetail = { status: string; version?: string; progress?: number; message?: string; light?: boolean; platform?: string; checkedAt?: string; bytes?: number; total?: number };
 let lastUpdateDetail: UpdateDetail | null = null;
 let feedVersion = "";
 function announceUpdate(status: string, version?: string, extra: Partial<UpdateDetail> = {}) {
@@ -282,12 +285,26 @@ function announceUpdate(status: string, version?: string, extra: Partial<UpdateD
     console.warn("announce update:", e);
   }
 }
+// One check at a time (launch, About, the hourly one). While the feed is
+// read, Electrobun's own checking / update-available / no-update entries
+// are logged but not forwarded: the outcome is announced once the check
+// returns, so a check while a downloaded build waits does not flash
+// "Update available" (and its toast) again before "ready".
+let checking = false;
+let inCheck = false;
+async function readFeed() {
+  inCheck = true;
+  try { return await Updater.checkForUpdate(); } finally { inCheck = false; }
+}
 async function updateOnLaunch() {
+  if (checking) return;
+  checking = true;
   try {
     const local = await Updater.getLocalInfo();
     if (!local.baseUrl || local.channel === "dev") { ulog("no feed (baseUrl empty) or dev channel"); return; }
     if (!selfUpdating) { ulog("outside the managed update directory: updates come from the package manager"); return; }
-    const info = await Updater.checkForUpdate();
+    announceUpdate("checking");
+    const info = await readFeed();
     ulog("check", info);
     feedVersion = info.version ?? "";
     if (info.error) { announceUpdate("error", info.error); return; }
@@ -311,47 +328,62 @@ async function updateOnLaunch() {
       ulog("applyUpdate returned");
       return;
     }
-    if (info.updateAvailable) {
-      await Updater.downloadUpdate();
-      if (Updater.updateInfo().updateReady) announceUpdate("ready", info.version ?? "");
-    }
+    await afterCheck(info);
   } catch (e) {
     ulog("update check failed", String(e));
-    announceUpdate("error", String(e));
-  }
-}
-// About > Check for updates and Restart and install (lib/desktop-bridge.ts).
-// A check asked by the user never applies by itself: a newer build is
-// downloaded and announced "ready", and installing stays the user's click.
-let checking = false;
-async function checkNow() {
-  if (checking) return;
-  checking = true;
-  try {
-    const local = await Updater.getLocalInfo();
-    if (!local.baseUrl || local.channel === "dev") { announceUpdate("error", "this build has no update feed"); return; }
-    if (!selfUpdating) { announceUpdate("error", "installed outside the app's update folder (winget or portable): update it the way it was installed"); return; }
-    const info = await Updater.checkForUpdate();
-    ulog("manual check", info);
-    feedVersion = info.version ?? feedVersion;
-    if (info.error) { announceUpdate("error", info.error); return; }
-    if (info.updateReady) { announceUpdate("ready", info.version ?? ""); return; }
-    if (info.updateAvailable) {
-      await Updater.downloadUpdate();
-      if (Updater.updateInfo().updateReady) announceUpdate("ready", info.version ?? "");
-    }
-  } catch (e) {
-    ulog("manual update check failed", String(e));
     announceUpdate("error", String(e));
   } finally {
     checking = false;
   }
 }
+// What a check found, when nothing waits to be applied: a newer bundle
+// (another hash on the feed: the updater compares hashes, so two builds of
+// the same day, both 2026.11.25, are told apart) is downloaded, with its
+// progress forwarded, and announced "ready"; otherwise "no-update", dated.
+async function afterCheck(info: { version?: string; updateAvailable?: boolean; updateReady?: boolean }) {
+  if (info.updateReady) { announceUpdate("ready", info.version ?? ""); return; }
+  if (info.updateAvailable) {
+    announceUpdate("update-available", info.version ?? "");
+    await Updater.downloadUpdate();
+    if (Updater.updateInfo().updateReady) announceUpdate("ready", info.version ?? "");
+    return;
+  }
+  announceUpdate("no-update", info.version ?? "", { checkedAt: new Date().toISOString() });
+}
+// About > Check for updates and Restart and install (lib/desktop-bridge.ts).
+// A check asked by the user never applies by itself: a newer build is
+// downloaded and announced "ready", and installing stays the user's click.
+// The hourly check (quiet when there is no feed) is the same: the launch
+// check used to be the only one, so an app left open said "up to date" all
+// day while newer builds came out.
+async function checkNow(periodic = false) {
+  if (checking) return;
+  checking = true;
+  try {
+    const local = await Updater.getLocalInfo();
+    if (!local.baseUrl || local.channel === "dev") { if (!periodic) announceUpdate("error", "this build has no update feed"); return; }
+    if (!selfUpdating) { if (!periodic) announceUpdate("error", "installed outside the app's update folder (winget or portable): update it the way it was installed"); return; }
+    // A downloaded build waits: the hourly check leaves it be.
+    if (periodic && Updater.updateInfo()?.updateReady) return;
+    announceUpdate("checking");
+    const info = await readFeed();
+    ulog(periodic ? "periodic check" : "manual check", info);
+    feedVersion = info.version ?? feedVersion;
+    if (info.error) { announceUpdate("error", info.error); return; }
+    await afterCheck(info);
+  } catch (e) {
+    ulog("update check failed", String(e));
+    announceUpdate("error", String(e));
+  } finally {
+    checking = false;
+  }
+}
+setInterval(() => { void checkNow(true); }, 60 * 60 * 1000);
 async function applyNow() {
   try {
     // A check first, so a page that only saw an old "ready" (the toast of a
     // previous session, replayed) still applies the downloaded bundle.
-    if (!Updater.updateInfo()?.updateReady) await Updater.checkForUpdate();
+    if (!Updater.updateInfo()?.updateReady) await readFeed();
     if (!Updater.updateInfo()?.updateReady) { announceUpdate("error", "no downloaded update to install; use Check for updates"); return; }
     ulog("applying on request", Updater.updateInfo().hash);
     await Updater.applyUpdate();
@@ -362,8 +394,10 @@ async function applyNow() {
 }
 Updater.onStatusChange((entry) => {
   ulog(entry.status, entry.message, entry.details ?? "");
-  const d = (entry.details ?? {}) as { progress?: number; version?: string };
-  announceUpdate(entry.status, d.version, { message: entry.message, progress: typeof d.progress === "number" ? d.progress : undefined });
+  if (inCheck && (entry.status === "checking" || entry.status === "update-available" || entry.status === "no-update")) return;
+  const d = (entry.details ?? {}) as { progress?: number; version?: string; bytesDownloaded?: number; totalBytes?: number };
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+  announceUpdate(entry.status, d.version, { message: entry.message, progress: num(d.progress), bytes: num(d.bytesDownloaded), total: num(d.totalBytes) });
 });
 // A beat after the window exists, so the page is there to receive the toast.
 setTimeout(() => { void updateOnLaunch(); }, 4000);
@@ -427,8 +461,8 @@ mainWindow.webview.on("host-message", (event: unknown) => {
   if (msg?.type === "tile-service-set") void tileService.update(msg as { enabled?: unknown; port?: unknown });
   // The page has loaded (or wants a refresh): replay the latest state.
   if (msg?.type === "update-status" && lastUpdateDetail) {
-    const { status, version, message, progress } = lastUpdateDetail;
-    announceUpdate(status, version, { message, progress });
+    const { status, version, ...rest } = lastUpdateDetail;
+    announceUpdate(status, version, rest);
   }
 });
 

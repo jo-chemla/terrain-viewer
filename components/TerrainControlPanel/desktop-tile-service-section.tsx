@@ -4,7 +4,10 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
-import { Check, Copy, ExternalLink } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { useAtom } from "jotai"
+import { Check, ChevronDown, Copy, ExternalLink } from "lucide-react"
+import { isSettingsDesktopQuickstartOpenAtom } from "@/lib/settings-atoms"
 import { useDesktopTileService, setDesktopTileService, DESKTOP_TILE_SERVICE_PORT } from "@/lib/desktop-bridge"
 import { tileServiceBase, tileServiceQuickstart } from "@/lib/tile-service-quickstart"
 import { cn } from "@/lib/utils"
@@ -24,6 +27,7 @@ export const DesktopTileServiceSettings: React.FC = () => {
   const busy = t.state === "starting" || t.state === "stopping"
   const address = tileServiceBase(t.port)
   const running = t.state === "running"
+  const [quickstartOpen, setQuickstartOpen] = useAtom(isSettingsDesktopQuickstartOpenAtom)
 
   if (t.answered && !t.available) {
     return (
@@ -103,8 +107,12 @@ export const DesktopTileServiceSettings: React.FC = () => {
           </a>
         </div>
       </div>
-      <div className="space-y-1.5 min-w-0">
-        <p className="text-xs font-semibold">Quick start</p>
+      <Collapsible open={quickstartOpen} onOpenChange={setQuickstartOpen} className="min-w-0">
+        <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold cursor-pointer text-left">
+          <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", !quickstartOpen && "-rotate-90")} />
+          Quick start
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-1.5 min-w-0">
         <ul className="space-y-1.5 min-w-0">
           {tileServiceQuickstart(address).map((q) => (
             <li key={q.url} className="min-w-0">
@@ -116,7 +124,8 @@ export const DesktopTileServiceSettings: React.FC = () => {
             </li>
           ))}
         </ul>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   )
 }
