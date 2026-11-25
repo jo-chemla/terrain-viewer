@@ -14,7 +14,7 @@
 // exactly at a level gave degenerate "ele 0" features. With `fill=rrggbb&a=`
 // the tile is instead a raster fill: clear below, the colour above, from the
 // same pixels the outline comes from, so the fill stops at the line.
-import { elevationToTerrarium, pixelView } from "./elevation-encoding"
+import { elevationToTerrarium, pixelView, writeTerrariumPx } from "./elevation-encoding"
 import { sharedTileCache, fetchDecodedTile, buildProtocolUrl, type UpstreamEncoding } from "./normal-derived-protocol"
 import { fetchTileBitmap } from "./protocol-registry"
 import { toTileImage, type TileImage } from "./tile-image"
@@ -105,6 +105,7 @@ export async function lumaProtocol(
   const upstreamUrl = decodeURIComponent(encodedTemplate).replace("{z}", zStr).replace("{x}", xStr).replace("{y}", yStr)
   const bitmap = await fetchTileBitmap(upstreamUrl, abortController.signal)
   const out = new Uint8ClampedArray(n * n * 4)
+  const out32 = pixelView(out)
   if (bitmap) {
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!
@@ -117,9 +118,8 @@ export async function lumaProtocol(
       const j = (sy * width + sx) * 4
       const a = data[j + 3] / 255
       const luma = 128 * (1 - a) + (0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2]) * a
-      const [r, g, b] = elevationToTerrarium(luma)
-      const o = i * 4
-      out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = 255
+      // The same bytes as elevationToTerrarium, without its array per pixel.
+      writeTerrariumPx(out, out32, i, luma)
     }
   }
   return { data: await toTileImage(out, n) }

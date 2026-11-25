@@ -54,25 +54,38 @@ function computeCombined(w: ElevationWindow): number {
 
 // Zevenbergen & Thorne (1987) second-order partial derivatives over the 3x3 window
 // (a0..a8 is their Z1..Z9, row-major, a4 the center cell) with ground spacing L.
-function computeSecondDerivatives(w: ElevationWindow): { p: number; q: number; r: number; t: number; s: number } {
+// They (and the principal curvatures below) go through one module-level
+// record, refilled per pixel and read at once: a fresh {p, q, r, t, s} or
+// {k1, k2} per pixel cost the per-pixel loop up to half its time.
+const D = { p: 0, q: 0, r: 0, t: 0, s: 0 }
+function computeSecondDerivatives(w: ElevationWindow): typeof D {
   const L = w.groundResolutionM
-  const p = (w.a5 - w.a3) / (2 * L) // dz/dx
-  const q = (w.a7 - w.a1) / (2 * L) // dz/dy
-  const r = (w.a5 - 2 * w.a4 + w.a3) / (L * L) // d2z/dx2
-  const t = (w.a7 - 2 * w.a4 + w.a1) / (L * L) // d2z/dy2
-  const s = (w.a2 - w.a0 - w.a8 + w.a6) / (4 * L * L) // d2z/dxdy
-  return { p, q, r, t, s }
+  D.p = (w.a5 - w.a3) / (2 * L) // dz/dx
+  D.q = (w.a7 - w.a1) / (2 * L) // dz/dy
+  D.r = (w.a5 - 2 * w.a4 + w.a3) / (L * L) // d2z/dx2
+  D.t = (w.a7 - 2 * w.a4 + w.a1) / (L * L) // d2z/dy2
+  D.s = (w.a2 - w.a0 - w.a8 + w.a6) / (4 * L * L) // d2z/dxdy
+  return D
 }
 
-export function computeProfileAndPlan(w: ElevationWindow): { profile: number; plan: number } {
+function computeProfile(w: ElevationWindow): number {
   const { p, q, r, t, s } = computeSecondDerivatives(w)
-
   const gradSq = p * p + q * q
-  if (gradSq < 1e-12) return { profile: 0, plan: 0 } // flat ground — direction undefined
+  if (gradSq < 1e-12) return 0 // flat ground: direction undefined
+  return 100 * (r * p * p + 2 * s * p * q + t * q * q) / (gradSq * Math.pow(1 + gradSq, 1.5))
+}
 
-  const profile = 100 * (r * p * p + 2 * s * p * q + t * q * q) / (gradSq * Math.pow(1 + gradSq, 1.5))
-  const plan = 100 * (r * q * q - 2 * s * p * q + t * p * p) / Math.pow(gradSq, 1.5)
-  return { profile, plan }
+function computePlan(w: ElevationWindow): number {
+  const { p, q, r, t, s } = computeSecondDerivatives(w)
+  const gradSq = p * p + q * q
+  if (gradSq < 1e-12) return 0 // flat ground: direction undefined
+  return 100 * (r * q * q - 2 * s * p * q + t * p * p) / Math.pow(gradSq, 1.5)
+}
+
+/** Both as an object, for callers outside a pixel loop (the tells detector's
+ *  candidates); the curvature tiles use computeProfile / computePlan. */
+export function computeProfileAndPlan(w: ElevationWindow): { profile: number; plan: number } {
+  return { profile: computeProfile(w), plan: computePlan(w) }
 }
 
 // det(H) = fxx*fyy - fxy^2, scaled to roughly match the other modes' ×100 magnitude.
@@ -86,11 +99,14 @@ export function computeDetHessian(w: ElevationWindow): number {
  *  only where the gradient is ~0, unlike computeProfileAndPlan's slope-corrected
  *  profile/plan curvatures; consistent with det-hessian's existing precedent
  *  rather than a new, more rigorous derivation). */
-function computePrincipalCurvatures(w: ElevationWindow): { k1: number; k2: number } {
+const K = { k1: 0, k2: 0 }
+function computePrincipalCurvatures(w: ElevationWindow): typeof K {
   const { r, t, s } = computeSecondDerivatives(w)
   const trace = r + t
   const disc = Math.sqrt((r - t) * (r - t) + 4 * s * s)
-  return { k1: (trace + disc) / 2, k2: (trace - disc) / 2 }
+  K.k1 = (trace + disc) / 2
+  K.k2 = (trace - disc) / 2
+  return K
 }
 
 // sqrt((κ1²+κ2²)/2) — Koch (1993)'s Casorati curvature, an always-nonnegative "how
@@ -148,7 +164,7 @@ export async function curvatureProtocol(
       : mode === "det-hessian" ? (w) => computeDetHessian(w) * CURVATURE_ENCODE_SCALE
       : mode === "casorati" ? (w) => computeCasorati(w) * CURVATURE_ENCODE_SCALE
       : mode === "shape-index" ? (w) => computeShapeIndex(w) * CURVATURE_ENCODE_SCALE
-      : mode === "profile" ? (w) => computeProfileAndPlan(w).profile * CURVATURE_ENCODE_SCALE
-      : (w) => computeProfileAndPlan(w).plan * CURVATURE_ENCODE_SCALE,
+      : mode === "profile" ? (w) => computeProfile(w) * CURVATURE_ENCODE_SCALE
+      : (w) => computePlan(w) * CURVATURE_ENCODE_SCALE,
   })
 }

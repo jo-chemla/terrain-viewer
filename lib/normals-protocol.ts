@@ -21,9 +21,9 @@
 // the row axis (increasing southward) — i.e. (x=east, y=south, z=up), which
 // matcap-protocol.ts/phong-protocol.ts both rely on directly.
 import {
-  sharedTileCache, fetchPaddedElevationGrid, hornGradient, tileRowToLatRad, groundResolutionM, RAD_TO_DEG,
+  sharedTileCache, fetchPaddedElevationGrid, tileRowToLatRad, groundResolutionM, RAD_TO_DEG,
   buildProtocolUrl, yieldToMainThread, YIELD_EVERY_ROWS,
-  type UpstreamEncoding, type ElevationWindow, type PaddedElevationGrid,
+  type UpstreamEncoding, type PaddedElevationGrid,
 } from "./normal-derived-protocol"
 import { computeNormalPixelsGPU } from "./gpu-normal-compute"
 import { toTileImage, type TileImage } from "./tile-image"
@@ -67,19 +67,17 @@ async function computeNormalPixelsUncached(
     const pr = row + 1
     for (let col = 0; col < n; col++) {
       const pc = col + 1
-      const window: ElevationWindow = {
-        a0: padded[(pr - 1) * stride + (pc - 1)], a1: padded[(pr - 1) * stride + pc], a2: padded[(pr - 1) * stride + (pc + 1)],
-        a3: padded[pr * stride + (pc - 1)], a4: padded[pr * stride + pc], a5: padded[pr * stride + (pc + 1)],
-        a6: padded[(pr + 1) * stride + (pc - 1)], a7: padded[(pr + 1) * stride + pc], a8: padded[(pr + 1) * stride + (pc + 1)],
-        invEwresXscale: invScale,
-        invNsresYscale: invScale,
-        groundResolutionM: groundResM,
-      }
+      const up = (pr - 1) * stride + pc, mid = pr * stride + pc, down = (pr + 1) * stride + pc
+      const a0 = padded[up - 1], a1 = padded[up], a2 = padded[up + 1]
+      const a3 = padded[mid - 1], a5 = padded[mid + 1]
+      const a6 = padded[down - 1], a7 = padded[down], a8 = padded[down + 1]
 
       // Standard heightfield-to-normal formula: a surface z = f(col, row) has
-      // (unnormalized) normal (-dz/dcol, -dz/drow, 1); dx/dy from hornGradient
-      // already are dz/d(ground distance) along those two pixel axes.
-      const { dx, dy } = hornGradient(window)
+      // (unnormalized) normal (-dz/dcol, -dz/drow, 1); dx/dy are hornGradient's
+      // (dz/d(ground distance) along those two pixel axes), inlined: a window
+      // object and a {dx, dy} per pixel made this loop twice as slow.
+      const dx = (a0 + a3 + a3 + a6 - (a2 + a5 + a5 + a8)) * invScale
+      const dy = (a6 + a7 + a7 + a8 - (a0 + a1 + a1 + a2)) * invScale
       const invLen = 1 / Math.sqrt(dx * dx + dy * dy + 1)
       const nx = -dx * invLen
       const ny = -dy * invLen

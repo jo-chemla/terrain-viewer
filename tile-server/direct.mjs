@@ -243,7 +243,7 @@ function hillshadeUniforms(paint, ch) {
   const n = dirs.length
   const pad = (arr, d) => Array.from({ length: n }, (_, i) => arr[i] ?? arr[arr.length - 1] ?? d)
   const rad = (d) => (d * PI) / 180
-  return {
+  const u = {
     method: paint["hillshade-method"] ?? "standard",
     exaggeration: paint["hillshade-exaggeration"] ?? 0.5,
     azimuths: dirs.map(rad),
@@ -252,6 +252,9 @@ function hillshadeUniforms(paint, ch) {
     highlights: pad(list(paint["hillshade-highlight-color"], "#FFFFFF"), "#FFFFFF").map((c) => colour(c, ch)),
     accent: colour(paint["hillshade-accent-color"] ?? "#000000", ch),
   }
+  // The standard method's denominator, the same for every pixel.
+  u.scaledDen = Math.pow(1.875 - u.exaggeration * 1.75, 0.5 * PI) - 1
+  return u
 }
 
 // MapLibre's hillshade fragment shader (maplibre-gl 6, hillshade.fragment.glsl).
@@ -266,7 +269,7 @@ function shade(u, dx, dy, out) {
     const azimuth = u.azimuths[0] + PI
     const slope = Math.atan(0.625 * Math.hypot(dx, dy))
     const base = 1.875 - ex * 1.75, maxValue = 0.5 * PI
-    const scaled = ex !== 0.5 ? ((Math.pow(base, slope) - 1) / (Math.pow(base, maxValue) - 1)) * maxValue : slope
+    const scaled = ex !== 0.5 ? ((Math.pow(base, slope) - 1) / u.scaledDen) * maxValue : slope
     const k = Math.min(1, Math.max(0, ex * 2))
     const sh = Math.abs(shadeMod((shadeAspect(dx, dy) + azimuth) / PI + 0.5, 2) - 1)
     const s = Math.sin(scaled) * k
@@ -436,7 +439,37 @@ async function protocolSampler(p, z, side, gx0, gy0, [lx, hx], [ly, hy]) {
   const w = hx - lx + 1, h = hy - ly + 1, c = p.rgba ? 4 : 1
   const G = await protocolWindow(p, z, side, gx0 + lx, gy0 + ly, w, h)
   const at = (i, j, q = 0) => G[(Math.min(h - 1, Math.max(0, j - ly)) * w + Math.min(w - 1, Math.max(0, i - lx))) * c + q]
-  return { G, at }
+  return { G, at, lx, ly, w, h }
+}
+
+/** The bilinear taps of positions F[from..from+count) on a grid whose index
+ *  0 is source pixel `lo`, `n` long: per position the two clamped indices
+ *  and the weight of the second. Made once a tile per axis, so the pixel
+ *  loop reads a grid without a closure, a floor or a clamp (they were most
+ *  of a resample's time). The clamping and the weight are bil()'s. */
+function taps(F, from, count, lo, n) {
+  const I0 = new Int32Array(count), I1 = new Int32Array(count), T = new Float64Array(count)
+  for (let k = 0; k < count; k++) {
+    const f = F[from + k], a = Math.floor(f)
+    T[k] = f - a
+    I0[k] = Math.min(n - 1, Math.max(0, a - lo))
+    I1[k] = Math.min(n - 1, Math.max(0, a + 1 - lo))
+  }
+  return { I0, I1, T }
+}
+
+/** A grid `w` wide resampled at the taps (bil()'s arithmetic, in its order). */
+function resampleTaps(G, w, X, Y) {
+  const width = X.T.length, height = Y.T.length, out = new Float32Array(width * height)
+  const XI0 = X.I0, XI1 = X.I1, XT = X.T
+  for (let j = 0; j < height; j++) {
+    const r0 = Y.I0[j] * w, r1 = Y.I1[j] * w, ty = Y.T[j], o = j * width
+    for (let i = 0; i < width; i++) {
+      const c0 = XI0[i], c1 = XI1[i], tx = XT[i]
+      out[o + i] = (G[r0 + c0] * (1 - tx) + G[r0 + c1] * tx) * (1 - ty) + (G[r1 + c0] * (1 - tx) + G[r1 + c1] * tx) * ty
+    }
+  }
+  return out
 }
 
 // ── Values ────────────────────────────────────────────────────────────────
@@ -492,14 +525,14 @@ export async function valuesOf({ dem, state: s }, mode, { world, x0, y0, width, 
   const FX = new Float64Array(width), FY = new Float64Array(height)
   for (let i = 0; i < width; i++) FX[i] = (x0 + i + 0.5) * k - 0.5 - gx0
   for (let j = 0; j < height; j++) FY[j] = (y0 + j + 0.5) * k - 0.5 - gy0
-  let G, at
+  let G, at, lx = 0, ly = 0, w = gw, h = gh
   if (mode === "elevation" || mode === "colorRelief") {
     G = await demWindow(dem, zd, side, gx0, gy0, gw, gh)
     at = (i, j) => G[Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))]
   } else {
     // The pixels read (nearest: the ones rounded to), not the margin.
     const range = (F, n) => (nearest ? [Math.round(F[0]), Math.round(F[n - 1])] : readRange(F, 0, n))
-    ;({ G, at } = await protocolSampler(protocolOf(A, mode, dem, s, baseUrl), zd, side, gx0, gy0, range(FX, width), range(FY, height)))
+    ;({ G, at, lx, ly, w, h } = await protocolSampler(protocolOf(A, mode, dem, s, baseUrl), zd, side, gx0, gy0, range(FX, width), range(FY, height)))
   }
   if (G.every(Number.isNaN)) {
     const refused = refusalOf(dem)
@@ -508,18 +541,23 @@ export async function valuesOf({ dem, state: s }, mode, { world, x0, y0, width, 
   }
   const { a, b } = def.to?.(s) ?? { a: 1, b: 0 }
   const out = new Float32Array(width * height)
+  if (!nearest) {
+    // bil() through taps made once per column and row (resampleTaps, kept
+    // in doubles here: the scaling below comes before the Float32 rounding).
+    const X = taps(FX, 0, width, lx, w), Y = taps(FY, 0, height, ly, h)
+    for (let j = 0; j < height; j++) {
+      const r0 = Y.I0[j] * w, r1 = Y.I1[j] * w, ty = Y.T[j]
+      for (let i = 0; i < width; i++) {
+        const c0 = X.I0[i], c1 = X.I1[i], tx = X.T[i]
+        const v = (G[r0 + c0] * (1 - tx) + G[r0 + c1] * tx) * (1 - ty) + (G[r1 + c0] * (1 - tx) + G[r1 + c1] * tx) * ty
+        out[j * width + i] = v * a + b
+      }
+    }
+    return out
+  }
   for (let j = 0; j < height; j++) {
     const fy = FY[j]
-    for (let i = 0; i < width; i++) {
-      const fx = FX[i]
-      let v
-      if (nearest) v = at(Math.round(fx), Math.round(fy))
-      else {
-        const ii = Math.floor(fx), jj = Math.floor(fy), tx = fx - ii, ty = fy - jj
-        v = (at(ii, jj) * (1 - tx) + at(ii + 1, jj) * tx) * (1 - ty) + (at(ii, jj + 1) * (1 - tx) + at(ii + 1, jj + 1) * tx) * ty
-      }
-      out[j * width + i] = v * a + b
-    }
+    for (let i = 0; i < width; i++) out[j * width + i] = at(Math.round(FX[i]), Math.round(fy)) * a + b
   }
   return out
 }
@@ -643,16 +681,12 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
   const FX = new Float32Array(ow), FY = new Float32Array(oh)
   for (let i = 0; i < ow; i++) FX[i] = (x0 + i - P + 0.5) * k - 0.5 - gx0
   for (let j = 0; j < oh; j++) FY[j] = (y0 + j - P + 0.5) * k - 0.5 - gy0
-  const bil = (G, fx, fy, q) => {
-    const i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j
-    const a = G(i, j, q), b = G(i + 1, j, q), c = G(i, j + 1, q), d = G(i + 1, j + 1, q)
-    return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
-  }
-  const resample = (G, margin = 0) => {
-    const w = width + 2 * margin, h = height + 2 * margin, out = new Float32Array(w * h)
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) out[j * w + i] = bil(G, FX[i + P - margin], FY[j + P - margin])
-    return out
-  }
+  // The output pixels' taps on the elevation window, and a grid of it (or of
+  // a protocolSampler window) resampled at them.
+  let eTaps
+  const elevationTaps = () => (eTaps ??= { X: taps(FX, P, width, 0, gw), Y: taps(FY, P, height, 0, gh) })
+  const resampleE = (G) => resampleTaps(G, gw, elevationTaps().X, elevationTaps().Y)
+  const resampleS = ({ G, lx, ly, w, h }) => resampleTaps(G, w, taps(FX, P, width, lx, w), taps(FY, P, height, ly, h))
   const latOf = (wy) => Math.atan(Math.sinh(PI * (1 - (2 * wy) / world)))
   // The source pixels the output pixels (no margin) read, for the protocols.
   const readX = readRange(FX, P, P + width), readY = readRange(FY, P, P + height)
@@ -673,7 +707,7 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
 
   for (const layer of layers) {
     if (layer === "colorRelief") {
-      paintValues(resample(clampAt(E)), A.computeColorReliefPaint({ ...s }), dem.encoding)
+      paintValues(resampleE(E), A.computeColorReliefPaint({ ...s }), dem.encoding)
     } else if (layer === "hillshade") {
       // MapLibre's prepare pass on the source grid (the Sobel sums, its zoom
       // factor, the 8-bit texture it keeps them in), then its shading pass.
@@ -698,19 +732,23 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
           DY[j * gw + i] = q8((g + h + h + n - (a + b + b + c)) * scale)
         }
       }
-      const gdx = clampAt(DX), gdy = clampAt(DY)
       const u = hillshadeUniforms(A.computeHillshadePaint(s), ch), px = [0, 0, 0, 0]
+      const { X, Y } = elevationTaps(), XI0 = X.I0, XI1 = X.I1, XT = X.T
       for (let j = 0; j < height; j++) {
         const cosLat = Math.cos(latOf(y0 + j + 0.5))
+        const r0 = Y.I0[j] * gw, r1 = Y.I1[j] * gw, ty = Y.T[j]
         for (let i = 0; i < width; i++) {
-          const dx = bil(gdx, FX[i + P], FY[j + P]) / cosLat, dy = bil(gdy, FX[i + P], FY[j + P]) / cosLat
+          // bil() on DX and DY, through the taps.
+          const a = r0 + XI0[i], b = r0 + XI1[i], c = r1 + XI0[i], d = r1 + XI1[i], tx = XT[i]
+          const dx = ((DX[a] * (1 - tx) + DX[b] * tx) * (1 - ty) + (DX[c] * (1 - tx) + DX[d] * tx) * ty) / cosLat
+          const dy = ((DY[a] * (1 - tx) + DY[b] * tx) * (1 - ty) + (DY[c] * (1 - tx) + DY[d] * tx) * ty) / cosLat
           if (Number.isNaN(dx) || Number.isNaN(dy)) continue
           shade(u, dx, dy, px)
           over(img, (j * width + i) * 4, px[0], px[1], px[2], px[3])
         }
       }
     } else if (live(layer)) {
-      await liveLighting(layer, s, { E: clampAt(E), bil, FX, FY, P, width, height, img, zd, side, gy0, base: baseUrl })
+      await liveLighting(layer, s, { E, gw, gh, FX, FY, P, width, height, img, zd, side, gy0, base: baseUrl })
     } else if (layer === "contours") {
       const c = await contourSource(dem, s)
       await overSvg(img, width, height, await contourSvg(c.dem, { minor: c.minor, major: c.major, weight: s.contourWeight, color: s.contourColor, labels: s.showContourLabels, theme: s.theme }, rect))
@@ -725,12 +763,11 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
     } else if (layer === "planeSlicer") {
       const paint = A.computePlaneSlicerPaint({ value: s.planeSlicerReferenceMode === "lrm" ? s.planeSlicerValueLrm : s.planeSlicerValue, side: s.planeSlicerSide, color: s.planeSlicerColor, opacity: s.planeSlicerOpacity })
       if (s.planeSlicerReferenceMode === "lrm") {
-        const { at } = await protocolSampler({ url: A.buildLrmProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, s.lrmRadius), run: A.lrmProtocol }, zd, side, gx0, gy0, readX, readY)
-        paintValues(resample(at), paint, "terrarium")
-      } else paintValues(resample(clampAt(E)), paint, dem.encoding)
+        paintValues(resampleS(await protocolSampler({ url: A.buildLrmProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, s.lrmRadius), run: A.lrmProtocol }, zd, side, gx0, gy0, readX, readY)), paint, "terrarium")
+      } else paintValues(resampleE(E), paint, dem.encoding)
     } else {
       const p = protocolOf(A, layer, dem, s, baseUrl)
-      const { at, G } = await protocolSampler(p, zd, side, gx0, gy0, readX, readY)
+      const S = await protocolSampler(p, zd, side, gx0, gy0, readX, readY), G = S.G
       if (p.rgba) {
         // bil() on each channel, its four reads and their clamping done once
         // a pixel instead of once a channel.
@@ -747,7 +784,7 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
           }
         }
       } else {
-        paintValues(resample(at), A.computeColorReliefPaint(A.MODE_RELIEF[layer](s)), p.enc ?? "terrarium")
+        paintValues(resampleS(S), A.computeColorReliefPaint(A.MODE_RELIEF[layer](s)), p.enc ?? "terrarium")
       }
     }
   }
@@ -787,41 +824,71 @@ const hexRgb01 = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h ?? "")); 
 /** lib/phong-live-gl-layer.ts and lib/matcap-live-gl-layer.ts, per output
  *  pixel, for a flat view (bearing and pitch 0: the camera-relative light
  *  and matcap basis reduce to fixed vectors). */
-async function liveLighting(layer, s, { E, bil, FX, FY, P, width, height, img, zd, side, gy0, base }) {
+async function liveLighting(layer, s, { E, gw, gh, FX, FY, P, width, height, img, zd, side, gy0, base }) {
   const A = await app()
   const ex = s.exaggeration
   // DEM_NORMAL_GLSL: Horn on the bilinear elevation, one source pixel either
   // side, the hornGradient signs (dx west − east), no /8; the ground
   // resolution of the source tile the pixel falls in.
-  const normal = (i, j, out) => {
-    const fx = FX[i + P], fy = FY[j + P]
-    const at = (dx, dy) => bil(E, fx + dx, fy + dy)
-    const a0 = at(-1, -1), a1 = at(0, -1), a2 = at(1, -1), a3 = at(-1, 0), a5 = at(1, 0), a6 = at(-1, 1), a7 = at(0, 1), a8 = at(1, 1)
+  // The nine bilinear reads of a pixel share their weights (a whole pixel
+  // apart, fx ± 1 has fx's fraction) and their rows: per pixel, the 4x4
+  // source pixels around it, lerped across once per row (12 lerps, not 18),
+  // then down. Columns and rows (clamped as the window's reads are), weights
+  // and the ground resolution are made once a tile. Same arithmetic, in the
+  // same order, as bil() at fx + dx, fy + dy: the same pixels.
+  const CX = new Int32Array(width * 4), TX = new Float64Array(width)
+  for (let i = 0; i < width; i++) {
+    const fx = FX[i + P], a = Math.floor(fx)
+    TX[i] = fx - a
+    for (let q = 0; q < 4; q++) CX[i * 4 + q] = Math.min(gw - 1, Math.max(0, a - 1 + q))
+  }
+  const RY = new Int32Array(height * 4), TY = new Float64Array(height), INV = new Float64Array(height)
+  for (let j = 0; j < height; j++) {
+    const fy = FY[j + P], a = Math.floor(fy)
+    TY[j] = fy - a
+    for (let q = 0; q < 4; q++) RY[j * 4 + q] = Math.min(gh - 1, Math.max(0, a - 1 + q)) * gw
     const row = Math.floor((gy0 + fy + 0.5) / side)
     const lat = Math.atan(Math.sinh(PI * (1 - (2 * (row + 0.5)) / 2 ** zd)))
-    const inv = 1 / ((EARTH * Math.cos(lat)) / (side * 2 ** zd))
+    INV[j] = 1 / ((EARTH * Math.cos(lat)) / (side * 2 ** zd))
+  }
+  const L = new Float64Array(12)
+  const normal = (i, j, out) => {
+    const tx = TX[i], ux = 1 - tx, c0 = CX[i * 4], c1 = CX[i * 4 + 1], c2 = CX[i * 4 + 2], c3 = CX[i * 4 + 3]
+    for (let q = 0; q < 4; q++) {
+      const o = RY[j * 4 + q], e0 = E[o + c0], e1 = E[o + c1], e2 = E[o + c2], e3 = E[o + c3]
+      L[q * 3] = e0 * ux + e1 * tx; L[q * 3 + 1] = e1 * ux + e2 * tx; L[q * 3 + 2] = e2 * ux + e3 * tx
+    }
+    const ty = TY[j], uy = 1 - ty
+    const a0 = L[0] * uy + L[3] * ty, a1 = L[1] * uy + L[4] * ty, a2 = L[2] * uy + L[5] * ty
+    const a3 = L[3] * uy + L[6] * ty, a5 = L[5] * uy + L[8] * ty
+    const a6 = L[6] * uy + L[9] * ty, a7 = L[7] * uy + L[10] * ty, a8 = L[8] * uy + L[11] * ty
+    const inv = INV[j]
     const gx = (a0 + a3 + a3 + a6 - (a2 + a5 + a5 + a8)) * inv, gy = (a6 + a7 + a7 + a8 - (a0 + a1 + a1 + a2)) * inv
     const nx = -gx * ex, ny = -gy * ex, len = Math.hypot(nx, ny, 1)
     out[0] = nx / len; out[1] = ny / len; out[2] = 1 / len
   }
-  const n = [0, 0, 0]
+  const n = new Float64Array(3)
   if (layer === "phong") {
     const toLight = (dir, alt) => { const az = (dir * PI) / 180, el = (alt * PI) / 180; return [-Math.sin(az) * Math.cos(el), -Math.cos(az) * Math.cos(el), Math.sin(el)] }
     const lights = [{ v: toLight(s.illuminationDir, s.illuminationAlt), c: hexRgb01(s.phongLight1Color) },
       ...[[s.phongLight2Dir, s.phongLight2Alt, s.phongLight2Color], [s.phongLight3Dir, s.phongLight3Alt, s.phongLight3Color]].slice(0, Math.max(0, Math.min(3, s.phongLightCount) - 1)).map(([d, a, c]) => ({ v: toLight(d, a), c: hexRgb01(c) }))]
     const H = lights.map(({ v }) => { const h = [v[0], v[1], v[2] + 1], l = Math.hypot(...h); return h.map((x) => x / l) })
+    // The lights flat, read by index in the pixel loop (no closure per pixel).
+    const LV = Float64Array.from(lights.flatMap((l) => l.v)), LC = Float64Array.from(lights.flatMap((l) => l.c)), LH = Float64Array.from(H.flat())
     const AMBIENT = 0.35, SHININESS = 32, count = lights.length, op = s.phongOpacity * s.lightingEffectsOpacity
     const kd = s.phongDiffuseStrength, ks = s.phongSpecularStrength, fs = s.phongFresnelStrength, fp = s.phongFresnelPower, dark = s.theme !== "dark" ? 1 : 0
+    const diff = new Float64Array(3)
     for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
       normal(i, j, n)
       if (Number.isNaN(n[0])) continue
-      const diff = [0, 0, 0]
+      diff[0] = 0; diff[1] = 0; diff[2] = 0
       let spec = 0
-      lights.forEach(({ v, c }, q) => {
-        const d = Math.max(n[0] * v[0] + n[1] * v[1] + n[2] * v[2], 0)
-        diff[0] += c[0] * d; diff[1] += c[1] * d; diff[2] += c[2] * d
-        spec += Math.pow(Math.max(n[0] * H[q][0] + n[1] * H[q][1] + n[2] * H[q][2], 0), SHININESS)
-      })
+      for (let q = 0; q < count; q++) {
+        const v = q * 3
+        const d = Math.max(n[0] * LV[v] + n[1] * LV[v + 1] + n[2] * LV[v + 2], 0)
+        diff[0] += LC[v] * d; diff[1] += LC[v + 1] * d; diff[2] += LC[v + 2] * d
+        spec += Math.pow(Math.max(n[0] * LH[v] + n[1] * LH[v + 1] + n[2] * LH[v + 2], 0), SHININESS)
+      }
       const rim = fs * Math.pow(1 - Math.min(1, Math.max(0, n[2])), fp)
       const add = Math.min(1, Math.max(0, ((ks * spec) / count + (1 - dark) * rim) * op))
       const o = (j * width + i) * 4
@@ -840,16 +907,20 @@ async function liveLighting(layer, s, { E, bil, FX, FY, P, width, height, img, z
     const tex = A.MATCAP_TEXTURES.find((x) => x.id === s.matcapTextureId) ?? A.MATCAP_TEXTURES.find((x) => x.id === A.DEFAULT_MATCAP_ID)
     const m = await matcapImage(new URL(tex.url, base).href)
     const rot = (s.matcapRotationDeg * PI) / 180, cb = Math.cos(rot), sb = Math.sin(rot), op = s.matcapOpacity * s.lightingEffectsOpacity
-    const texel = (x, y, c) => m.d[(Math.min(m.h - 1, Math.max(0, y)) * m.w + Math.min(m.w - 1, Math.max(0, x))) * 4 + c] / 255
+    const D = m.d, mw = m.w, mh = m.h, relative = s.matcapLightRelativeToCamera !== false
+    // The texture's bilinear, a channel at a time (texel / 255, as before).
+    const tap = (o00, o10, o01, o11, c, tx, ty) => ((D[o00 + c] / 255) * (1 - tx) + (D[o10 + c] / 255) * tx) * (1 - ty) + ((D[o01 + c] / 255) * (1 - tx) + (D[o11 + c] / 255) * tx) * ty
     for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
       normal(i, j, n)
       if (Number.isNaN(n[0])) continue
       const rx = n[0] * cb + n[1] * sb, ry = -n[0] * sb + n[1] * cb
       // Camera basis at bearing 0, pitch 0: right (1, 0, 0), up (0, -1, 0).
-      const [u, v] = s.matcapLightRelativeToCamera !== false ? [0.5 - 0.5 * rx, 0.5 + 0.5 * ry] : [rx * 0.5 + 0.5, ry * 0.5 + 0.5]
-      const px = u * m.w - 0.5, py = v * m.h - 0.5, x0 = Math.floor(px), y0 = Math.floor(py), tx = px - x0, ty = py - y0
-      const col = [0, 1, 2].map((c) => (texel(x0, y0, c) * (1 - tx) + texel(x0 + 1, y0, c) * tx) * (1 - ty) + (texel(x0, y0 + 1, c) * (1 - tx) + texel(x0 + 1, y0 + 1, c) * tx) * ty)
-      over(img, (j * width + i) * 4, col[0] * op, col[1] * op, col[2] * op, op)
+      const u = relative ? 0.5 - 0.5 * rx : rx * 0.5 + 0.5, v = relative ? 0.5 + 0.5 * ry : ry * 0.5 + 0.5
+      const px = u * mw - 0.5, py = v * mh - 0.5, x0 = Math.floor(px), y0 = Math.floor(py), tx = px - x0, ty = py - y0
+      const xa = Math.min(mw - 1, Math.max(0, x0)), xb = Math.min(mw - 1, Math.max(0, x0 + 1))
+      const ya = Math.min(mh - 1, Math.max(0, y0)) * mw, yb = Math.min(mh - 1, Math.max(0, y0 + 1)) * mw
+      const o00 = (ya + xa) * 4, o10 = (ya + xb) * 4, o01 = (yb + xa) * 4, o11 = (yb + xb) * 4
+      over(img, (j * width + i) * 4, tap(o00, o10, o01, o11, 0, tx, ty) * op, tap(o00, o10, o01, o11, 1, tx, ty) * op, tap(o00, o10, o01, o11, 2, tx, ty) * op, op)
     }
   }
 }

@@ -25,6 +25,7 @@ function parseColor(c: unknown): Rgba {
   return [d[0], d[1], d[2], d[3]]
 }
 
+/** The colour it returns may be reused by the next call: read it at once. */
 export type RampFn = (value: number) => Rgba
 
 /** A function from a (tile-encoded) value to RGBA, or null if the
@@ -36,6 +37,9 @@ export function compileRamp(expr: unknown): RampFn | null {
     const colors: Rgba[] = []
     for (let i = 3; i + 1 < expr.length; i += 2) { stops.push(Number(expr[i])); colors.push(parseColor(expr[i + 1])) }
     if (!stops.length) return null
+    // One colour refilled per call, not an array per pixel: callers read it
+    // at once (colorize) and keep nothing.
+    const mixed: Rgba = [0, 0, 0, 0]
     return (v) => {
       if (!(v > stops[0])) return colors[0]
       const last = stops.length - 1
@@ -44,7 +48,8 @@ export function compileRamp(expr: unknown): RampFn | null {
       while (stops[k] < v) k++
       const t = (v - stops[k - 1]) / (stops[k] - stops[k - 1] || 1)
       const a = colors[k - 1], b = colors[k]
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t]
+      mixed[0] = a[0] + (b[0] - a[0]) * t; mixed[1] = a[1] + (b[1] - a[1]) * t; mixed[2] = a[2] + (b[2] - a[2]) * t; mixed[3] = a[3] + (b[3] - a[3]) * t
+      return mixed
     }
   }
   if (expr[0] === "step") {
