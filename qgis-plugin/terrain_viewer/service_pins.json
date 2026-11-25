@@ -1,27 +1,27 @@
 {
-  "release": "qgis-plugins-2026-11-25f",
-  "base": "https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-2026-11-25f",
+  "release": "qgis-plugins-2026-11-26",
+  "base": "https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-2026-11-26",
   "node": "22.22.3",
   "assets": {
     "windows-x64": {
       "file": "terrain-viewer-tile-service-windows-x64.zip",
-      "sha256": "c68fcae88063099df9761f950d4139f7c4a479de093e2aed81af69eec82d26bc",
-      "size": 52250065
+      "sha256": "af3eef2e46b506c5592fcf774362ac60be7b5cdb8b2c0ed8135284495a2ef1ba",
+      "size": 52250200
     },
     "macos-arm64": {
       "file": "terrain-viewer-tile-service-macos-arm64.zip",
-      "sha256": "ddd935ceaaca7b3e5d7788b1cbab0271ea3fe951e92a2268c1e49ea086b9b9a6",
-      "size": 55864313
+      "sha256": "07dab3043fdd3256d2bb9d47c7ed05448a76481d3296fbffc3cb09c89e1b0515",
+      "size": 55864446
     },
     "macos-x64": {
       "file": "terrain-viewer-tile-service-macos-x64.zip",
-      "sha256": "d3947ba8ca4e60c7e60ba0888dca877c7606cc2f32f1331b7947c5a238671dfe",
-      "size": 57827619
+      "sha256": "7d5764b131d92e09ac5de039916ba0a1904ad867bbecf2844e03e5930cae6e5b",
+      "size": 57827752
     },
     "linux-x64": {
       "file": "terrain-viewer-tile-service-linux-x64.zip",
-      "sha256": "578a602352186f81194fad2f13315eb9a5f8247eee43fb9afd1dffc4627d92e6",
-      "size": 62839608
+      "sha256": "0a9334f6302c52114efd2843f507fded052189d9d45d9fa16f0f897423b84e57",
+      "size": 62839741
     }
   }
 }
