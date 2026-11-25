@@ -201,40 +201,70 @@ PHONG_AMBIENT, PHONG_SHININESS = 0.35, 32
 
 
 def phong(p, res_m, azimuth=315.0, altitude=45.0, diffuse=0.8, specular=0.2, fresnel=0.0, fresnel_power=3.0,
-          exaggeration=1.0, xp=np):
+          exaggeration=1.0, xp=np, lights=None):
     """The app's live Phong layer (lib/phong-live-gl-layer.ts, as the tile
-    service's liveLighting draws it on a light map, one white light, the
-    view north-up): the multiply factor (ambient plus diffuse over its
+    service's liveLighting draws it on a light map, the view north-up): per
+    channel the multiply factor (ambient plus the lights' diffuse over its
     maximum, darkened by the Fresnel rim) plus the specular highlight. Over
-    a white background this is the picture's grey; 0-1, highlights above 1.
-    (n + 2)^2 -> (n, n)."""
+    a white background this is the picture; 0-1, highlights above 1.
+    `lights`: [(azimuth, altitude, (r, g, b) 0-1)], the first one's
+    direction the shared light (phongLightCount, phongLight<i>Color, Dir,
+    Alt); None: one white light. (n + 2)^2 -> (n, n) grey with white lights,
+    (n, n, 3) with coloured ones."""
     nx, ny, nz = normals(p, res_m, exaggeration, xp)
-    az, el = math.radians(azimuth), math.radians(altitude)
-    lx, ly, lz = -math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)
-    hx, hy, hz = lx, ly, lz + 1.0
-    hl = math.sqrt(hx * hx + hy * hy + hz * hz)
-    hx, hy, hz = hx / hl, hy / hl, hz / hl
-    d = xp.maximum(nx * lx + ny * ly + nz * lz, 0.0)
-    spec = xp.maximum(nx * hx + ny * hy + nz * hz, 0.0) ** PHONG_SHININESS
+    lights = lights or [(azimuth, altitude, (1.0, 1.0, 1.0))]
+    count = len(lights)
+    diff = [0.0, 0.0, 0.0]
+    spec = 0.0
+    for az_deg, el_deg, col in lights:
+        az, el = math.radians(az_deg), math.radians(el_deg)
+        lx, ly, lz = -math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)
+        hx, hy, hz = lx, ly, lz + 1.0
+        hl = math.sqrt(hx * hx + hy * hy + hz * hz)
+        hx, hy, hz = hx / hl, hy / hl, hz / hl
+        d = xp.maximum(nx * lx + ny * ly + nz * lz, 0.0)
+        diff = [diff[c] + col[c] * d for c in range(3)]
+        spec = spec + xp.maximum(nx * hx + ny * hy + nz * hz, 0.0) ** PHONG_SHININESS
     rim = fresnel * (1.0 - xp.clip(nz, 0.0, 1.0)) ** fresnel_power
-    intensity = xp.clip((PHONG_AMBIENT + diffuse * d) / (PHONG_AMBIENT + diffuse), 0.0, 1.0)
-    shade = intensity * (1.0 - xp.clip(rim, 0.0, 1.0))  # a light map: the rim darkens
-    add = xp.clip(specular * spec, 0.0, 1.0) if specular > 0 else 0.0
-    return (shade + add).astype(xp.float32)
+    add = xp.clip(specular * spec / count, 0.0, 1.0) if specular > 0 else 0.0
+    white = all(tuple(col) == (1.0, 1.0, 1.0) for _a, _e, col in lights)
+    chans = []
+    for c in range(1 if white else 3):
+        intensity = xp.clip((PHONG_AMBIENT + diffuse * diff[c] / count) / (PHONG_AMBIENT + diffuse), 0.0, 1.0)
+        chans.append(intensity * (1.0 - xp.clip(rim, 0.0, 1.0)) + add)  # a light map: the rim darkens
+    if white:
+        return chans[0].astype(xp.float32)
+    return xp.stack(chans, axis=-1).astype(xp.float32)
 
 
-def matcap(p, res_m, texture, rotation=0.0, exaggeration=1.0, xp=np):
+def phong_lights(opts):
+    """The lights of the Phong settings (direct.mjs liveLighting): the shared
+    light in light1Color, then up to two more."""
+    from .overlays import hex_rgb
+
+    def rgb01(h, d):
+        r, g, b = hex_rgb(h, d)
+        return (r / 255.0, g / 255.0, b / 255.0)
+    out = [(float(opts["azimuth"]), float(opts["altitude"]), rgb01(opts.get("light1Color"), (255, 255, 255)))]
+    for i in (2, 3)[:max(0, min(3, int(opts.get("lightCount", 1))) - 1)]:
+        out.append((float(opts[f"light{i}Dir"]), float(opts[f"light{i}Alt"]), rgb01(opts.get(f"light{i}Color"), (255, 255, 255))))
+    return out
+
+
+def matcap(p, res_m, texture, rotation=0.0, exaggeration=1.0, xp=np, relative=True):
     """The app's live matcap layer (lib/matcap-live-gl-layer.ts, as the tile
     service's liveLighting draws it, the view north-up, the light relative
-    to the camera, its default): the normal rotated, read as a UV into the
-    matcap picture, bilinear. texture: (h, w, 3) float32 0-1.
+    to the camera, its default; `relative` False: the texture's own axes):
+    the normal rotated, read as a UV into the matcap picture, bilinear.
+    texture: (h, w, 3) float32 0-1.
     (n + 2)^2 -> (n, n, 3) float32 0-1."""
     nx, ny, _ = normals(p, res_m, exaggeration, xp)
     r = math.radians(rotation)
     cb, sb = math.cos(r), math.sin(r)
     rx, ry = nx * cb + ny * sb, -nx * sb + ny * cb
     h, w = texture.shape[:2]
-    px, py = (0.5 - 0.5 * rx) * w - 0.5, (0.5 + 0.5 * ry) * h - 0.5
+    u, v = (0.5 - 0.5 * rx, 0.5 + 0.5 * ry) if relative else (rx * 0.5 + 0.5, ry * 0.5 + 0.5)
+    px, py = u * w - 0.5, v * h - 0.5
     x0, y0 = xp.floor(px), xp.floor(py)
     tx, ty = (px - x0)[..., None], (py - y0)[..., None]
     x0, y0 = x0.astype(np.int64), y0.astype(np.int64)
@@ -279,6 +309,10 @@ LOCAL_DOMINANCE_STOPS = [(-5.0, (20, 20, 35, 1)), (0.0, (85, 88, 100, 1)), (3.0,
 ISOLINE_MEASURES = ("elevation", "slope", "aspect", "tri", "tpi", "roughness", "curvature", "shapeIndex", "blobness",
                     "eigenRatio", "orientation", "lrm", "hillshade", "multihillshade", "phong", "shadows")
 
+HILLSHADE_METHODS = ("standard", "combined", "igor", "basic", "multidirectional", "multidir-colors", "duotone-nw-ne",
+                     "aspect-multidir")
+HORIZON_PRECISIONS = ("fast", "precise")
+
 # kind: "shade" grey and multiplied, "ramp" a QGIS colour ramp over `range`
 # (`invert`: the ramp reversed; `stops`: the app's own ramp for the colour
 # tiles, `discrete` held between stops), "mask" fixed colours, "rgb" a
@@ -296,9 +330,14 @@ ISOLINE_MEASURES = ("elevation", "slope", "aspect", "tri", "tpi", "roughness", "
 # below, from `values` / `vector`.
 MODES = {
     "elevation": {"label": "Elevation (hypsometric tint)", "unit": "m", "kind": "ramp", "ramp": "hypso", "range": None,
-                  "defaults": {"min": 0.0, "max": 4000.0}, "colour_only": ("min", "max"), "service": "colorRelief"},
+                  "defaults": {}, "service": "colorRelief"},
+    # The values: gdaldem's Horn hillshade (0-1, the iso-line's measure);
+    # the colour tile: MapLibre's hillshade with the app's methods and
+    # colours (hillshade.py), as the tile service draws it.
     "hillshade": {"label": "Hillshade", "unit": "0-1", "kind": "shade", "range": (0, 1),
-                  "defaults": {"azimuth": 315.0, "altitude": 45.0, "exaggeration": 1.0}},
+                  "defaults": {"azimuth": 315.0, "altitude": 45.0, "exaggeration": 1.0, "method": "combined",
+                               "shadowColor": "#000000", "highlightColor": "#FFFFFF", "accentColor": "#808080"},
+                  "enums": {"method": HILLSHADE_METHODS}, "picture": True},
     "multihillshade": {"label": "Multidirectional hillshade", "unit": "0-1", "kind": "shade", "range": (0, 1),
                        "defaults": {"altitude": 45.0, "exaggeration": 1.0}, "service": "hillshade",
                        "service_query": {"hillshadeMethod": "multidirectional"}},
@@ -325,9 +364,10 @@ MODES = {
     "lrm": {"label": "Local relief model", "unit": "m", "kind": "ramp", "ramp": "RdBu", "invert": True, "range": (-20, 20),
             "defaults": {"radius": 16}},
     "svf": {"label": "Sky view factor", "unit": "0-1", "kind": "ramp", "ramp": "Greys", "invert": True, "range": (0.6, 1),
-            "defaults": {"radius": 8}, "opacity": 0.8},
+            "defaults": {"radius": 8, "precision": "fast"}, "enums": {"precision": HORIZON_PRECISIONS}, "opacity": 0.8},
     "openness": {"label": "Openness", "unit": "°", "kind": "ramp", "ramp": "Greys", "invert": True, "range": (75, 105),
-                 "defaults": {"radius": 8, "mode": "positive"}, "enums": {"mode": ("positive", "negative")}, "opacity": 0.8},
+                 "defaults": {"radius": 8, "mode": "positive", "precision": "fast"},
+                 "enums": {"mode": ("positive", "negative"), "precision": HORIZON_PRECISIONS}, "opacity": 0.8},
     "localDominance": {"label": "Local dominance", "unit": "°", "kind": "ramp", "ramp": "Greys", "invert": True,
                        "range": (-5, 15), "stops": LOCAL_DOMINANCE_STOPS, "defaults": {"minRadius": 8, "maxRadius": 32},
                        "outputs": ("colour", "values"), "python_supported": True, "service": "localDominance"},
@@ -337,7 +377,9 @@ MODES = {
                         "defaults": {"azimuth": 315.0, "altitude": 45.0}, "opacity": 0.5,
                         "outputs": ("colour", "values"), "python_supported": True, "service": "buildingShadows"},
     "contours": {"label": "Contours", "unit": "1 minor, 2 major", "kind": "mask", "range": (1, 2),
-                 "defaults": {"minor": 50.0, "major": 200.0}, "values": False, "vector": True,
+                 "defaults": {"minor": 50.0, "major": 200.0, "reference": "absolute", "minorLrm": 5.0, "majorLrm": 20.0,
+                              "lrmRadius": 16, "weight": 1.0, "color": ""},
+                 "enums": {"reference": ("absolute", "lrm")}, "values": False, "vector": True,
                  "vector_layer": {"geometry": "LineString", "fields": (("elev", "double"), ("major", "integer"))}},
     "isoline": {"label": "Iso-line", "unit": "", "kind": "mask", "range": None,
                 "defaults": {"measure": "slope", "at": "value", "value": 30.0, "interval": 10.0, "fill": False,
@@ -359,20 +401,37 @@ MODES = {
                     "vector_layer": {"geometry": "Polygon", "fields": (("value", "double"), ("side", "string"))}},
     "phong": {"label": "Phong", "unit": "0-1, highlights above", "kind": "shade", "range": (0, 1),
               "defaults": {"azimuth": 315.0, "altitude": 45.0, "diffuse": 0.8, "specular": 0.2, "fresnel": 0.0,
-                           "fresnelPower": 3.0, "exaggeration": 1.0}},
+                           "fresnelPower": 3.0, "exaggeration": 1.0, "lightCount": 1, "light1Color": "#ffffff",
+                           "light2Dir": 45.0, "light2Alt": 35.0, "light2Color": "#4a90d9", "light3Dir": 135.0,
+                           "light3Alt": 35.0, "light3Color": "#b8692e"}},
     "matcap": {"label": "Matcap", "unit": "", "kind": "rgb", "range": None, "values": False,
-               "defaults": {"texture": "clay_studio", "rotation": 0.0, "exaggeration": 1.0},
+               "defaults": {"texture": "clay_studio", "rotation": 0.0, "exaggeration": 1.0, "lightRelativeToCamera": True},
                "enums": {"texture": tuple(MATCAP_TEXTURES)}},
-    # Served by the tile service only.
-    "moundDetector": {"label": "Mound candidates", "unit": "", "kind": "mask", "range": None, "defaults": {},
-                      "outputs": ("vector",), "values": False, "vector": True, "python_supported": False,
-                      "service": "moundDetector"},
+    # lib/tells-protocol.ts, live/mounds.py: points per tile of the source's
+    # own pyramid; the vector form only, as in the tile service.
+    "moundDetector": {"label": "Mound candidates", "unit": "", "kind": "mask", "range": None,
+                      "defaults": {"size": 100.0, "radius": 4.0, "minRelief": 1.5, "blobnessMin": 0.0, "planMin": 0.0,
+                                   "detHessianMin": 0.0, "measureScale": True, "vetoResolution": "coarse",
+                                   "polarity": "mounds", "style": "outline", "outlineColor": "#ef4444",
+                                   "pitColor": "#3b82f6", "scaleMarkers": True, "scaleMultiplier": 10.0},
+                      "enums": {"vetoResolution": ("coarse", "fine"), "polarity": ("mounds", "pits", "both")},
+                      "outputs": ("vector",), "values": False, "vector": True, "python_supported": True,
+                      "service": "moundDetector",
+                      "vector_layer": {"geometry": "Point", "fields": (("a", "double"), ("blobness", "double"),
+                                                                       ("plan", "double"), ("detHessian", "double"),
+                                                                       ("pit", "integer"), ("scaleM", "double"))}},
 }
+from . import ramps  # noqa: E402
 for _m, _s in MODES.items():
+    _s.setdefault("service", _m)
+    # The settings of the colours alone (the app's ramp settings, under the
+    # tile service's names: slopeColorRamp, slopeMinDegrees, ...): kept as
+    # given, read by ramps.py; the values ignore them.
+    _s["colour_keys"] = ramps.colour_keys(_s["service"])
+    _s["colour_only"] = tuple(_s.get("colour_only", ())) + _s["colour_keys"]
     _s.setdefault("outputs", ("colour",) + (("values",) if _s.get("values", True) else ())
                   + (("vector",) if _s.get("vector") else ()))
     _s.setdefault("python_supported", True)
-    _s.setdefault("service", _m)
 DEFAULTS = {m: d["defaults"] for m, d in MODES.items()}
 # Top of the map first, the app's layer order (the tile service's
 # x-tv-stack-rank, highest first); multidirectional with the hillshade.
@@ -409,9 +468,34 @@ def ld_levels(opts, z):
     return [min(L, z) for L in range(lo, hi + 1)]
 
 
+def near_radius(mode, opts):
+    """The sky view factor's and openness's native radius: all of it when
+    precise, at most 8 pixels when fast (lib/horizon-angle.ts)."""
+    r = int(opts["radius"])
+    return min(r, FAST_NATIVE_RADIUS_PX) if opts.get("precision") == "fast" else r
+
+
+def far_levels(mode, opts, z):
+    """The fast horizon's far rings: one ancestor per octave past the near
+    radius (lib/horizon-angle.ts), as (levels capped at z, scale)."""
+    r, near = int(opts["radius"]), near_radius(mode, opts)
+    if opts.get("precision") != "fast" or r <= near:
+        return []
+    lo = kernels.octave_of(near) + 1
+    hi = max(lo, kernels.octave_of(r))
+    return [min(L, z) for L in range(lo, hi + 1)]
+
+
+FAST_NATIVE_RADIUS_PX = 8
+
+
 def halo_of(mode, opts):
-    if mode in ("svf", "openness", "shadows"):
+    if mode in ("svf", "openness"):
+        return near_radius(mode, opts)
+    if mode == "shadows":
         return int(opts["radius"])
+    if mode == "contours" and opts.get("reference") == "lrm":
+        return 0
     if mode in ("elevation", "lrm", "localDominance", "planeSlicer", "graticules", "buildingShadows", "moundDetector"):
         return 0
     if mode in ("blobness", "eigenRatio", "orientation"):
@@ -450,11 +534,15 @@ def prefetch(mode, grid, opts):
         grid(0)
         for k in ld_levels(opts, grid.z):
             grid.ancestor(k)
-    elif mode == "planeSlicer":
+    elif mode == "planeSlicer" or mode == "contours":
         if opts["reference"] == "lrm":
             prefetch("lrm", grid, {"radius": opts["lrmRadius"]})
         else:
-            grid(0)
+            grid(halo_of(mode, opts))
+    elif mode in ("svf", "openness"):
+        grid(halo_of(mode, opts))
+        for k in far_levels(mode, opts, grid.z):
+            grid.ancestor(k)
     elif mode == "isoline":
         m, mo, _s, e = _iso(opts)
         prefetch(m, grid if m in ("lrm", "localDominance") else _Grown(grid, e), mo)
@@ -475,6 +563,9 @@ def parse_opts(mode, query):
     for k, v in query.items():
         v = v[0] if isinstance(v, (list, tuple)) else v
         if mode == "isoline" and k.startswith("m_"):
+            opts[k] = v
+            continue
+        if k in spec["colour_keys"]:  # the ramp's settings, read by ramps.py
             opts[k] = v
             continue
         if k not in opts:
@@ -535,7 +626,11 @@ def values(mode, grid, res_m, opts, n=256, xp=np):
     if mode == "isoline":
         return isoline(grid, res_m, opts, n, xp)
     if mode == "moundDetector":
-        raise ValueError("the mound detector is served by the tile service only")
+        raise ValueError("the mound detector has a vector form only (live/mounds.py)")
+    if mode == "contours" and opts.get("reference") == "lrm":
+        # ContoursLayer.tsx: the lines of the local relief model, at its intervals.
+        lrm_v = values("lrm", grid, res_m, {"radius": opts["lrmRadius"]}, n, xp)
+        return contour_mask(xp.pad(lrm_v, 1, mode="edge"), float(opts["minorLrm"]), float(opts["majorLrm"]), xp)
     p = grid(halo_of(mode, opts))
     if mode == "hillshade":
         return hillshade(p, res_m, opts["azimuth"], opts["altitude"], opts["exaggeration"], xp)
@@ -562,11 +657,21 @@ def values(mode, grid, res_m, opts, n=256, xp=np):
         return v_tri(p, xp)
     if mode == "roughness":
         return v_roughness(p, xp)
-    if mode == "svf":
-        return horizon(p, n, int(opts["radius"]), res_m, 1.0, "svf", xp) / 100.0
-    if mode == "openness":
-        sign = -1.0 if opts["mode"] == "negative" else 1.0
-        return (90.0 - horizon(p, n, int(opts["radius"]), res_m, sign, "openness", xp)).astype(xp.float32)
+    if mode in ("svf", "openness"):
+        sign = -1.0 if mode == "openness" and opts["mode"] == "negative" else 1.0
+        agg = "svf" if mode == "svf" else "openness"
+        if opts.get("precision") == "fast":
+            far = []
+            for k in far_levels(mode, opts, grid.z):
+                scale = 1 << k
+                far.append((grid.ancestor(k).astype(xp.float64) if k else grid(1).astype(xp.float64), scale,
+                            grid.x - ((grid.x >> k) << k), grid.y - ((grid.y >> k) << k), scale * res_m))
+            h = kernels.horizon_fast(p, n, int(opts["radius"]), near_radius(mode, opts), res_m, sign, agg, far, xp)
+        else:
+            h = horizon(p, n, int(opts["radius"]), res_m, sign, agg, xp)
+        if mode == "svf":
+            return h / 100.0
+        return (90.0 - h).astype(xp.float32)
     if mode == "shadows":
         d_row, d_col = sun_step(opts["azimuth"])
         s = shadow(p, n, int(opts["radius"]), d_row, d_col, res_m, math.radians(opts["altitude"]), xp)
@@ -575,10 +680,11 @@ def values(mode, grid, res_m, opts, n=256, xp=np):
         return contour_mask(p, float(opts["minor"]), float(opts["major"]), xp)
     if mode == "phong":
         return phong(p, res_m, opts["azimuth"], opts["altitude"], opts["diffuse"], opts["specular"], opts["fresnel"],
-                     opts["fresnelPower"], opts["exaggeration"], xp)
+                     opts["fresnelPower"], opts["exaggeration"], xp, lights=phong_lights(opts))
     if mode == "matcap":
         from .textures import matcap_texture
-        return matcap(p, res_m, matcap_texture(opts["texture"]), opts["rotation"], opts["exaggeration"], xp)
+        return matcap(p, res_m, matcap_texture(opts["texture"]), opts["rotation"], opts["exaggeration"], xp,
+                      relative=bool(opts.get("lightRelativeToCamera", True)))
     raise ValueError(f"unknown mode {mode}")
 
 
@@ -590,6 +696,8 @@ def isoline(grid, res_m, opts, n=256, xp=np):
     fill, NaN elsewhere."""
     m, mo, s, e = _iso(opts)
     v = measure(m, grid, res_m, mo, n, e, xp).astype(xp.float64)
+    if v.ndim == 3:  # Phong with coloured lights: its grey
+        v = v.mean(axis=-1)
     if s:
         v = kernels.box_blur(v, s, xp)
     both = float(opts["weight"]) >= 2
@@ -647,14 +755,23 @@ def stops_lut(mode):
 
 
 def colour(mode, v, opts, lut=None, xp=np):
-    """Values -> the colour tile: (n, n) uint8 grey for the shades (drawn
-    multiplied), (n, n, 3) uint8 RGB through `lut` ((256, 3) uint8, the
-    mode's QGIS colour ramp sampled; grey when None) over the mode's range,
-    (n, n, 4) RGBA through the app's ramp for the modes with `stops`, RGBA
-    for the masks (clear off the lines), the picture itself for matcap."""
+    """Values -> the colour tile, as the tile service draws it: for the ramp
+    modes (RGBA) the app's ramp with the mode's ramp settings (ramps.py:
+    its ramp, min, max, invert, custom stops, shift); (n, n) uint8 grey for
+    the shades (drawn multiplied; RGB for Phong with coloured lights), RGBA
+    for the masks (clear off the lines), the picture itself for matcap.
+    Without the packaged ramps: `lut` ((256, 3), a QGIS ramp sampled) over
+    the mode's range, or the modes' own `stops`."""
     spec = MODES[mode]
     if spec["kind"] in ("rgb", "shade"):
         return (xp.clip(v, 0, 1) * 255 + 0.5).astype(xp.uint8)
+    if spec["kind"] == "ramp" and spec["colour_keys"] and ramps.ramps():
+        cm = opts.get("mode", "combined") if mode == "curvature" else "shape-index" if mode == "shapeIndex" else "combined"
+        out = ramps.colour(spec["service"], v, opts, cm, xp)
+        if out is not None:
+            return out
+    if mode == "contours":
+        return contour_colour(v, opts, xp)
     if spec.get("stops"):
         from .overlays import through_lut
         return through_lut(v, stops_lut(mode), *spec["range"], xp=xp)
@@ -675,11 +792,47 @@ def colour(mode, v, opts, lut=None, xp=np):
         for value, rgb in MASK_COLOURS.items():
             out[v == value] = rgb + (255,)
         return out
-    lo, hi = (opts["min"], opts["max"]) if mode == "elevation" else spec["range"]
+    lo, hi = (opts.get("min", 0.0), opts.get("max", 4000.0)) if mode == "elevation" else spec["range"]
     g = xp.nan_to_num(xp.clip((v - lo) * (255.0 / max(hi - lo, 1e-9)), 0, 255), nan=0)
     if lut is None:
         return g.astype(xp.uint8)
     return lut[g.astype(xp.intp)]
+
+
+def contour_colour(v, opts, xp=np):
+    """The contour mask as tile-server/contours.mjs strokes the lines: the
+    contour colour (rgba(0, 0, 0, 0.5) by default, on a light map), minor
+    lines half the weight of the major ones; a line's coverage of its pixel
+    as its alpha, widened a pixel a side per extra pixel of weight."""
+    from .ramps import rgba
+    r, g, b, a = rgba(opts.get("color") or "rgba(0, 0, 0, 0.5)")
+    w = max(float(opts.get("weight", 1.0)), 0.05)
+    out = xp.zeros(v.shape + (4,), xp.uint8)
+    for value, width in ((1.0, 0.5 * w), (2.0, w)):
+        m = v == value
+        grow = int(max(0, round((width - 1) / 2)))
+        for _ in range(grow):
+            g2 = m.copy()
+            g2[1:] |= m[:-1]
+            g2[:-1] |= m[1:]
+            g2[:, 1:] |= m[:, :-1]
+            g2[:, :-1] |= m[:, 1:]
+            m = g2
+        cover = min(1.0, width / (2 * grow + 1))
+        alpha = int(round(a * cover * 255))
+        sel = m & (out[..., 3] < alpha)
+        out[sel] = (int(r), int(g), int(b), alpha)
+    return out
+
+
+def picture(mode, grid, res_m, opts, n=256, xp=np):
+    """The colour tile of the modes drawn from the elevation rather than
+    from their values (hillshade: MapLibre's shading, hillshade.py), or
+    None. grid.native_size: the source's tile size (its own zoom)."""
+    if not MODES[mode].get("picture"):
+        return None
+    from .hillshade import picture as hillshade_picture
+    return hillshade_picture(grid(1), grid.z, grid.y, n, getattr(grid, "native_size", 256), opts)
 
 
 class PaddedGrid:

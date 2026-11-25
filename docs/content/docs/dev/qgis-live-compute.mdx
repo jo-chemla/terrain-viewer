@@ -1,7 +1,7 @@
 ---
 title: QGIS Live Compute
 icon: Cpu
-description: Terrain modes computed inside QGIS with numpy, no tile service - 25 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, shape index, blobness, eigenvalue ratio, orientation, TPI, TRI, roughness, LRM, sky view factor, openness, local dominance, terrain and building shadows, Phong, matcap, contours, iso-line, graticule, plane slicer, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; Color and Values per mode; how QGIS picks tile zooms and resamples; parallel tiles timed; numpy, numba, cupy and the tile service compared.
+description: Terrain modes computed inside QGIS with numpy, no tile service - all 25 of the app's modes, the mound detector included, colored as the tile service colors them (the app's ramps and every ramp, hillshade, Phong and contour setting), from any elevation GDAL opens (a QGIS raster layer, a local COG or VRT, /vsicurl/, WCS) or a tile pyramid; checked against the app's kernels, the tile service and gdaldem; how QGIS picks tile zooms and resamples; numpy, numba, cupy and the tile service compared.
 ---
 
 Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-as-planned) asked whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel, a third gave every mode row its Color and Values boxes, added Phong, matcap and contour lines, and measured how QGIS picks tile zooms and resamples. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that was off by default (**Experimental: compute locally**) until 0.7.0, where it became the panel's **Python** backend, beside the local and remote tile services, under the same modes tree.
@@ -10,12 +10,91 @@ Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-as-planned) asked wheth
 
 Plugin 0.7.0 dropped the separate box and its own flat list of modes. The **Python backend** is one of the three backends picked at the top of the panel ([the backends](/dev/qgis-plugin#the-three-backends)); since 0.8.0 it starts when picked, with no Connect button, and the panel shows the tile service's modes tree under it, as it does for a service:
 
-- `qgis-plugin/terrain_viewer/python_backend.py` maps the service's vocabulary onto `live/modes.py`'s registry: the mode ids (`colorRelief` is `elevation`; a hillshade with a multidirectional method is `multihillshade`), the URL parameters (`svfRadius` is `radius`, `contourMinor` is `minor`, `matcapTextureId` is `texture`, ...), and the shared light (`illuminationDir`, `illuminationAlt`) as `azimuth` and `altitude`. It reads the registry's own fields: `python_supported` (the mound detector is listed but greyed out), `service` (the service's id), `outputs` (the forms). A mode added to `live/modes.py` under the service's id is enabled with no change there, its settings matched by name or by their name with the mode's taken off (`localDominanceMaxRadius` is `maxRadius`). 24 of the tree's 25 modes are computed in Python.
-- The modes `live/` does not compute are greyed out with a note; the settings it ignores (the app's color ramps and ranges: it colors with QGIS's ramps) too; and only the forms it makes show (Values only where the service's mode has values: hillshade is color only). The table of which mode each backend draws is on [the plugin's page](/dev/qgis-plugin#the-modes-and-their-backends).
+- `qgis-plugin/terrain_viewer/python_backend.py` maps the service's vocabulary onto `live/modes.py`'s registry: the mode ids (`colorRelief` is `elevation`; every hillshade method is `hillshade` since its color tile draws the method, before that a multidirectional one was `multihillshade`), the URL parameters (`svfRadius` is `radius`, `contourMinor` is `minor`, `matcapTextureId` is `texture`, ...), and the shared light (`illuminationDir`, `illuminationAlt`) as `azimuth` and `altitude`. The ramp settings keep the service's names (`slopeColorRamp`, `svfMin`, `aspectShiftDegrees`, ...: `live/ramps.py` reads them). It reads the registry's own fields: `python_supported` (the mound detector was greyed out until its port), `service` (the service's id), `outputs` (the forms). A mode added to `live/modes.py` under the service's id is enabled with no change there, its settings matched by name or by their name with the mode's taken off (`localDominanceMaxRadius` is `maxRadius`). All 25 of the tree's modes are computed in Python (24 in 0.7.0).
+- The modes `live/` does not compute are greyed out with a note (none left); the settings it ignores too (0.7.0 greyed out the app's color ramps and ranges; they apply since, [below](#parity-with-the-tile-service)); and only the forms it makes show (Values only where the service's mode has values: hillshade is color only). The table of which mode each backend draws is on [the plugin's page](/dev/qgis-plugin#the-modes-and-their-backends).
 - Every vector form (contour lines, iso-lines, graticule lines, plane slicer areas) is a memory layer filled for the view by `contours.view_vector` in a QGIS task after each pan or zoom, its geometry and fields as the registry's `vector_layer` declares them (`live/layers.py`, whose layer order is `modes.ORDER`).
 - Its layers go in the panel's "Terrain Viewer (live)" tree, keyed as the service's (`slope`, `slope:values`, `contours:vector`), so picking another backend re-points them, Freeze copies them and a saved project reads them back. 0.6.0's "Terrain Viewer (local compute)" group is removed on connect.
-- **Sources**: it follows the source picked. It reads Terrarium and Terrain-RGB pyramids: Mapterhorn, AWS, the library's others with a public address, Mapbox and MapTiler with their keys, or a typed `{z}/{x}/{y}` address (its tile size read from one tile). A COG, VRT, LERC, WMS, quantized mesh, PMTiles or difference source says so once and draws Mapterhorn. Contour lines and the elevation prefetch follow the source too.
-- The hypsometric tint's range follows the view (2nd to 98th percentile) while the panel's minimum and maximum are the app's defaults (0 to 8100 m).
+- **Sources**: it follows the source picked: Terrarium and Terrain-RGB pyramids (Mapterhorn, AWS, the library's others with a public address, Mapbox and MapTiler with their keys, a typed `{z}/{x}/{y}` address) and, since the fifth round, any elevation GDAL opens ([below](#any-gdal-raster-as-the-source)). LERC, quantized mesh, PMTiles and difference sources say so once and draw Mapterhorn. Contour lines and the elevation prefetch follow the source too.
+- The hypsometric tint is the app's: its ramp's own stops (mby: -8000 to 5000 m) unless **customHypsoMinMax** is on (then min and max), the range that follows the view (2nd to 98th percentile, read again after each pan or zoom) when **hypsoAutoRange** is on. 0.7.0 drew the plugin's own ramp over the view's range whatever the settings, which is why the user saw a range of 0 to 1 and a ramp the panel could not change: a Values layer made before the canvas had an extent got the renderer's fallback range (0 to 1), and the colour tiles ignored `colorRamp`, `invertColorRamp` and `customHypsoMinMax`.
+
+## Fifth round: parity with the tile service, any GDAL source, the mound detector
+
+After 0.7.0 (2026-11-25), on the user's feedback: the hypsometric tint clamped to 0-1 with a ramp that could not be changed, many settings of the panel not applied under Python, and the question "can I select a local COG from raster layers, or any GDAL source, where GDAL just hands over the pixels of raw elevation that the Python backend transforms?".
+
+### Parity with the tile service
+
+Every colour tile of the Python backend is now the tile service's picture of the same mode and settings, ported rather than approximated:
+
+- **The ramp modes** (colour relief, slope, aspect, TRI, TPI, roughness, curvature, shape index, blobness, eigenvalue ratio, orientation, LRM, sky view factor, openness, local dominance): `live/ramps.py` ports `lib/mode-relief.ts` (which settings colour a mode, with the app's defaults), `computeColorReliefPaint` (the ramp remapped onto min and max, colours swapped end for end when inverted, custom stops held between them when discrete, aspect's cyclic shift, the hole and top stops) and the service's `rampOf` (stops packed in the tile's encoding, colours premultiplied and rounded to 8 bits). The ramps are the app's 268, packaged as `assets/colorramp_stops.json` (`make_assets.py`, from the service's `/colorramps/{id}`). live/'s values are natural units; the ramp reads the app's wire units (blobness, eigenvalue ratio and the sky view factor x100, curvature x100000, shape index x1000, openness minus 90), packed as the app packs them (Terrarium floored to 1/256, slope's Terrain-RGB floored to 0.1) and read as Float32, as the service samples them: a value on a discrete ramp's collapsed pair of stops falls below it, as there.
+- **The Values layer** gets the same ramp as a QGIS colour ramp shader in natural units (alpha kept), editable in its properties; it follows the panel's ramp settings when they change.
+- **The hillshade**: `live/hillshade.py` ports MapLibre's two passes as the service does (the prepare pass's Sobel sums with the zoom factor of the source's own zoom and tile size, kept in 8 bits; the shading pass with its cos(latitude)), with `computeHillshadePaint`: the eight methods, the shadow, highlight and accent colours, the exaggeration, over the map's white. (Its values stay gdaldem's Horn shade, the iso-line's measure.)
+- **Phong**: up to three lights with their colours (`phongLightCount`, `phongLight<i>Color`, `Dir`, `Alt`); **matcap**: the camera-relative switch.
+- **Sky view factor and openness**: the "fast" precision, the app's default (radii 1, 2, 4, ... and the near radius within 8 px, one ancestor ring per octave past it, three directions 0.3 rad apart, the steepest); "precise" as before.
+- **Contours**: their colour (`rgba(0, 0, 0, 0.5)` by default, as the service's), weight (minor lines half the major's) and the LRM reference (`contourReferenceMode=lrm` with its own intervals).
+- **The ground size** of a tile is the one at the centre of the source's own tile (a 512 px Mapterhorn tile at z-1), as the service's protocols take it: the values agree exactly (slope 100 % equal, it was 99.5 % within 0.5 % before).
+
+Measured with `test_live.py --service` (section 2b), Mont Blanc z12 and z13 (z12 to z14 for the pictures), against a service of the same commit and against the user's (the same results): each case is the share of pixels within 3 levels of the service's picture.
+
+| Mode | Parameters checked | Status | Match |
+|---|---|---|---|
+| Colour relief | `colorRamp`, `customHypsoMinMax`, `minElevation`, `maxElevation`, `invertColorRamp`; `hypsoAutoRange` (the view's range, by the panel); `hypsoSymmetric` (mirrored by the panel) | applied | 100 % |
+| Slope | `slopeColorRamp`, `slopeMinDegrees`, `slopeMaxDegrees`, `slopeInvertColorRamp`, custom stops | applied | 100 % |
+| Aspect | ramp, min, max, invert, `aspectShiftDegrees` | applied | 100 % |
+| TRI, TPI, roughness | ramp, min, max, invert, symmetric (TPI) | applied | 100 % |
+| Curvature | `curvatureMode` (6), ramp, min, max, invert, symmetric | applied | 100 % |
+| Shape index | ramp (custom discrete by default), custom stops, discrete, min, max, invert | applied | 100 % |
+| Blobness, eigenvalue ratio, orientation | ramp, min, max, invert | applied | 100 % |
+| LRM | `lrmRadius`, ramp, min, max, invert, symmetric | applied | 100 % |
+| Sky view factor | `svfRadius`, `svfPrecision` (fast, precise), ramp, min, max, invert | applied | 100 % (values 100 % within 0.001) |
+| Openness | `opennessRadius`, `opennessMode`, `opennessPrecision`, ramp, min, max, invert, symmetric | applied | 100 % |
+| Local dominance | min and max radius, ramp, min, max, invert, symmetric | applied | 100 % |
+| Hillshade | `hillshadeMethod` (8), light, `shadowColor`, `highlightColor`, `accentColor`, `hillshadeExag` | applied | 100 % (every method) |
+| Phong | diffuse, specular, Fresnel strength and power, light, `phongLightCount`, three lights' colour, direction, altitude | applied | 100 % |
+| Phong | `phongRenderer=raster`, `phongLightRelativeToCamera` (a flat north-up view: no effect) | not ported / no effect | |
+| Matcap | texture, rotation, `matcapLightRelativeToCamera` | applied | 100 % |
+| Matcap | `matcapRenderer=raster` | not ported | |
+| Shadows | `shadowRadiusPx` (up to 256 px here, 512 in the app), light | applied | 0 px against the app's kernel |
+| Shadows, building shadows | `shadowRenderer`, `shadowSoft`, `lightUseDatetime`, `lightDayOfYear`, `lightTimeOfDay`, `lightTimeMode` | not read by the tile service either | |
+| Building shadows | light | applied | 98.9-99.4 % within 1 px |
+| Contours | `contourMinor`, `contourMajor`, `contourReferenceMode`, `contourMinorLrm`, `contourMajorLrm`, `contourWeight`, `contourColor` | applied (pixel lines here, antialiased there) | 94-99 % within 1 px, same colour |
+| Contours, graticule | `showContourLabels`, `showGraticuleLabels` | labels on the vector layers (the panel) | |
+| Iso-line | measure, mode, value, interval, fill, fill opacity, smooth, weight, colour | applied | 99.2-100 % within 1 px |
+| Iso-line | `isolineCliff` (the cliff edge's teeth) | not ported | |
+| Graticule | density, width, colour | applied | 100 % within 1 px |
+| Plane slicer | reference, value, LRM value, side, colour | applied | 99.9-100 % within 1 px |
+| Mound detector | `tellSize`, `tellRadius`, `tellMinRelief`, `tellBlobnessMin`, `tellPlanMin`, `tellDetHessianMin`, `tellMeasureScale`, `tellVetoResolution`, `tellsPolarity` | applied | 100 % of the points, same measures |
+| Mound detector | `tellsStyle` outline, `tellsOutlineColor`, `tellsPitColor`, `tellsScaleMarkers`, `tellsScaleMultiplier` (the vector layer's style) | applied; the `by*` colour styles drawn as outlines | |
+
+Opacities are the QGIS layers' own, as with a service. One app rule is kept as it is: aspect's shift reads only `rgb()` and `rgba()` colours (`shiftCyclicRampStops`), so a shifted ramp written in hex reads black in the app, the service and here alike.
+
+### The mound detector
+
+`live/mounds.py` ports `lib/tells-protocol.ts` on the source's own tiles (a 512 px Mapterhorn tile at its zoom), as the protocol runs: the difference of the one-level and kLarge-level low-passes (lrm's half-pixel recentring, Float32 as the app keeps it), strict 3x3 extrema past the relief threshold, the strongest first, at most 2000, greedy suppression within half the tell size, then the blobness, plan convexity and Hessian vetoes on the low-pass ("coarse") or the tile's pixels ("fine"), pits on the flipped surface, and the half-maximum diameter on 8 rays. Holes (NaN) are the app's `paddedValid`. The vector form is a point layer for the view (the map's zoom, capped at z15 like the service's tiles), styled as the markers (`live/layers.py style_mounds`: the outline and pit colours, the measured diameter times the multiplier in ground metres).
+
+Against the service's `moundDetector` vector tiles (`test_live.py` section 2c, `qgis-plugin/mvt_reader.py` decodes them): Mont Blanc z12 (1524 points), z13 (893), z14 (223), z13 with both polarities, radius 16 and size 60 (1668), z13 with the fine veto and a blobness threshold (635): **every point at the same position with the same measures (100 %)**, 0.3 to 1.3 s a tile in numpy.
+
+### Any GDAL raster as the source
+
+The panel's source list now holds the project's raster layers ("QGIS layer: ..."), and the box takes a file path, a `/vsicurl/` address, an https GeoTIFF or VRT, a `WCS:` string or a GDAL WMS description. `live/gdal_source.py`:
+
+- **Probe**, once: the raster's extent in EPSG:3857 and lon/lat (its edge densified), the zoom of its resolution (one pixel's size in Web Mercator metres at the centre), its band's no data, scale and offset, its vertical unit (feet, US survey feet, from the band's unit type or a compound CRS's vertical axis).
+- **Tiles**: one `gdal.Warp` per zoom to a VRT on that zoom's own pixel grid over the raster (the transformer and the overview made once; GDAL picks the overview for the zoom), its XML shared between threads; a 256 px tile is one window of it. No data becomes NaN, scale and offset are applied, feet become metres. A tile outside the raster is NaN without a read. Everything else is the tile pyramids' machinery (`live/dem.py`): the LRU of tiles, the padded grids from the neighbours, the ancestors for LRM and local dominance, the same kernels. A QGIS layer of another provider than GDAL's (QGIS's own WMS or WCS) is read through its provider and QGIS's raster projector instead.
+- A full `gdal.Warp` per tile was the first try: 40 to 60 ms a tile, and threads did not overlap. The VRT window is 6 to 14 ms a tile in one thread, 2 to 5 ms in eight.
+
+Measured (`test_live.py` section 7) on a Lambert-93 COG made from Mapterhorn around Mont Blanc (`make_test_dem.py`: 20 m, 1073 x 1070, three overviews, a 40-pixel hole of no data) and the same in feet without overviews:
+
+| | |
+|---|---|
+| Probe | maxzoom 13 (28.7 m in Web Mercator), no data -9999, feet scale 0.3048 |
+| Elevation against Mapterhorn (warped twice) | median 0.44 m at z12 and z13, 0.71 m at z14 |
+| The feet file | within 0.0005 m of the metres one |
+| The hole | NaN in the tile, the slope NaN around it only |
+| 9 z14 tiles in parallel | about 0.6 s cold (each of 8 threads opens the file, PROJ and its VRT), 31 ms warm |
+| One tile in one thread | 6 to 14 ms warm; the first per zoom 30 to 50 ms |
+| A sky view factor tile on it | 36 ms (fast precision, elevation cached) |
+| Mapterhorn, for comparison | 9 z13 tiles over the network about 1 s, cached 0.1 ms |
+
+With a tile service on this machine, the same layer is registered with it (`POST /files`, [local files](/dev/tile-service#local-files)) and read there through the app's VRT reader: 3.2 m (median) from Mapterhorn on the same file, against GDAL's 0.4 m, an open question about that reader.
 
 ## Fourth round: the remaining modes, a registry the panel can grey out
 
@@ -69,13 +148,12 @@ Local dominance is the arctangent: 24 per pixel (numpy's float32 arctangent meas
 
 ### Remaining gaps
 
-- **Mound detector** (`moundDetector`, beta): tile service only.
-- **Hillshade methods** other than standard and multidirectional: combined, igor, basic, multidir-colors, duotone-nw-ne, aspect-multidir.
-- **Colors of the older modes**: QGIS ramps over the plugin's own ranges (slope 0-60 against the app's 0-55, TPI ±5 against ±20, ...), not the app's ramps; the new modes use the app's (`stops`). Per-mode ramp, min/max and invert settings are not in the registry; elevation uses the plugin's hypsometric ramp, not the app's color relief ramps.
+- ~~**Mound detector**~~ ported in the fifth round. ~~**Hillshade methods**~~ all eight, fifth round.
+- ~~**Colors of the older modes**~~ (fifth round: the app's ramps and settings): QGIS ramps over the plugin's own ranges (slope 0-60 against the app's 0-55, TPI ±5 against ±20, ...), not the app's ramps; the new modes use the app's (`stops`). Per-mode ramp, min/max and invert settings are not in the registry; elevation uses the plugin's hypsometric ramp, not the app's color relief ramps.
 - **Shadows**: the live renderer's soft edge (`shadowSoft`), the 512 px radius (256 here), the app's default sun altitude 45° (30° here).
 - **Iso-line**: the cliff teeth, the fill as vector polygons (the plane slicer gives them for the elevation and LRM), matcap as a measure, the app's units for the lights (luma 0-255) and the eigen ratio (%).
 - **Graticule labels**, contour labels.
-- **SVF and openness "fast" precision**: only "precise" is ported.
+- ~~**SVF and openness "fast" precision**~~ ported in the fifth round.
 - **Vector forms in the panel**: `live/layers.py` makes only the contour line layer; the others are in `contours.view_vector`, waiting for the panel.
 - numba: no port for local dominance or the structure tensor (numpy is fast enough).
 
@@ -308,10 +386,10 @@ In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet ca
 ## Limits of the prototype
 
 - Sixteen modes; the whole-view modes stay on the tile service (above).
-- Elevation from Mapterhorn (or AWS) only. The halo is at most one tile (256 px), which is enough for the sweep's default radius but not for its 512 px cap.
+- Elevation from Mapterhorn (or AWS) only (since: any pyramid of the library, any GDAL raster). The halo is at most one tile (256 px), which is enough for the sweep's default radius but not for its 512 px cap.
 - A project saved with the local layers points at the server's port: it asks 3420 first, so the layers work again once the box is checked after reopening (not when that port was taken and another was given).
 - Elevation is fetched with `urllib`, which ignores QGIS's proxy and authentication settings. `QgsBlockingNetworkRequest` would respect them (the tile service installer uses it).
-- The sky view factor and openness are the "precise" variant; the app defaults to "fast" (far rings from coarser tiles), which is not ported.
+- The sky view factor and openness were the "precise" variant; "fast", the app's default, is ported since the fifth round.
 
 ## Next steps
 

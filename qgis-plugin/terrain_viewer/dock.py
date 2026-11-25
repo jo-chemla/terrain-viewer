@@ -561,19 +561,12 @@ class ModeRow:
         sid = dock.python_source()
         srv = dock.live_server()
         ext, width = dock.canvas_extent()
-        rng = None
-        if py == "elevation":
-            # The app's 0 to 8100 m default is far too wide for one view: the
-            # view's own range (2nd to 98th percentile), as hypsoAutoRange.
-            d = {s["key"]: s.get("default") for s in self.mode.get("settings", [])}
-            if values.get("minElevation") == d.get("minElevation") and values.get("maxElevation") == d.get("maxElevation"):
-                if self.py_auto_range is None and ext is not None:
-                    self.py_auto_range = elevation_range(ext, width, sid)
-                rng = self.py_auto_range
-            else:
-                rng = (float(values.get("minElevation", 0)), float(values.get("maxElevation", 4000)))
-            if rng:
-                opts.update({"min": float(rng[0]), "max": float(rng[1])})
+        if py == "elevation" and values.get("hypsoAutoRange") in (True, "true"):
+            # The range follows the view (the app's hypsoAutoRange): its 2nd
+            # to 98th percentile; otherwise the ramp settings as the service.
+            if self.py_auto_range is None and ext is not None:
+                self.py_auto_range = elevation_range(ext, width, sid)
+            pyb.elevation_opts(values, opts, self.py_auto_range)
         for form, key in keys.items():
             if not self.row.on(form):
                 dock.remove_layers(key)
@@ -589,8 +582,13 @@ class ModeRow:
                 unit = spec.get("unit")
                 layer = stack.ensure_values(key, f"{self.mode['name']} (values{', ' + unit if unit else ''})", self.path,
                                             srv.gdal_xml(py, vopts, source=sid), None, backend="python")
-                if new and layer is not None and layer.isValid():
-                    apply_renderer(layer, py, rng)
+                # The colour tiles' ramp, again when the panel's ramp settings
+                # change (a style set in the layer's properties stays until then).
+                ramp_key = repr(sorted((k, v) for k, v in opts.items() if k in spec.get("colour_keys", ())))
+                if layer is not None and layer.isValid() and (new or layer.customProperty("terrain_viewer/ramp") != ramp_key):
+                    apply_renderer(layer, py, None, opts)
+                    layer.setCustomProperty("terrain_viewer/ramp", ramp_key)
+                    layer.triggerRepaint()
             else:
                 layer = stack.find(key)
                 if layer is not None and layer.providerType() != "memory":
@@ -641,6 +639,7 @@ class TerrainViewerDock(QDockWidget):
         self.pending = set()
         self.adopted = False
         self._py_sources = {}
+        self._service_sources = {}  # (service, layer or file) -> its file:<id> there
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(500)
@@ -665,6 +664,8 @@ class TerrainViewerDock(QDockWidget):
         # layer tree, a new project) unchecks the form it drew.
         self.removing = set()
         QgsProject.instance().layersWillBeRemoved.connect(self.layers_removed)
+        QgsProject.instance().layersAdded.connect(self.refresh_layer_sources)
+        QgsProject.instance().layersRemoved.connect(self.refresh_layer_sources)
         self.install_task = None
 
         s = QgsSettings()
@@ -1206,6 +1207,7 @@ class TerrainViewerDock(QDockWidget):
             self.source.addItem(label, s["id"])
         self.source.blockSignals(False)
         self.set_source(current or "mapterhorn", quiet=True)
+        self.refresh_layer_sources()
 
         def add_group(g, parent_layout, path):
             here = path + ((g["group"],) if g.get("group") else ())
@@ -1304,8 +1306,41 @@ class TerrainViewerDock(QDockWidget):
         if quiet:
             self.source.blockSignals(False)
 
+    def refresh_layer_sources(self, *_):
+        """The project's raster layers in the source list (layer:<id>), kept
+        in step with the project: any of them can be the elevation, read by
+        GDAL under the Python backend, registered with a tile service on
+        this machine (local_files.py)."""
+        current = self.current_source()
+        self.source.blockSignals(True)
+        for i in reversed(range(self.source.count())):
+            if str(self.source.itemData(i) or "").startswith(pyb.LAYER_PREFIX):
+                self.source.removeItem(i)
+        for label, data in pyb.layer_sources(QgsProject.instance()):
+            self.source.addItem(label, data)
+        self.source.blockSignals(False)
+        if current:
+            self.set_source(current, quiet=True)
+
+    def service_source(self, src):
+        """The source as the tile service takes it: a QGIS raster layer or a
+        raster file on this machine registered with a service on this
+        machine (file:<id>, local_files.py); anything else as it is."""
+        if not pyb.is_local_source(src):
+            return src
+        from . import local_files
+        key = (self.service_url(), src)
+        if key not in self._service_sources:
+            sid, why = local_files.service_source(self.service_url(), src)
+            if sid is None:
+                self.warn(why)
+                sid = src
+            self._service_sources[key] = sid
+        return self._service_sources[key]
+
     def source_changed(self):
         self._py_sources.clear()
+        self._service_sources.clear()
         for row in self.rows.values():
             row.py_auto_range = None
         self.schedule_all()
@@ -1461,7 +1496,7 @@ class TerrainViewerDock(QDockWidget):
         out = dict(self.extra)
         src = self.current_source()
         if src:
-            out["terrainSource"] = src
+            out["terrainSource"] = self.service_source(src)
         for k, v in self.key_values().items():
             if k in KEY_PARAMS:
                 out[k] = v
@@ -1500,10 +1535,13 @@ class TerrainViewerDock(QDockWidget):
 
     def cleanup(self):
         """Disconnected from the project (the plugin unloading)."""
-        try:
-            QgsProject.instance().layersWillBeRemoved.disconnect(self.layers_removed)
-        except (TypeError, RuntimeError):
-            pass
+        for signal, slot in ((QgsProject.instance().layersWillBeRemoved, self.layers_removed),
+                             (QgsProject.instance().layersAdded, self.refresh_layer_sources),
+                             (QgsProject.instance().layersRemoved, self.refresh_layer_sources)):
+            try:
+                signal.disconnect(slot)
+            except (TypeError, RuntimeError):
+                pass
         if self.canvas is not None:
             try:
                 self.canvas.extentsChanged.disconnect(self.extent_changed)
@@ -1559,6 +1597,11 @@ class TerrainViewerDock(QDockWidget):
         ext, width = self.canvas_extent()
         if ext is not None:
             LocalLayers(self.stack.project).prefetch(ext, width, self.python_source())
+        # A hypsometric range that follows the view, read again for the new one.
+        relief = self.rows.get("colorRelief")
+        if relief is not None and relief.values().get("hypsoAutoRange") in (True, "true"):
+            relief.py_auto_range = None
+            self.schedule(relief)
 
     def refresh_vectors(self):
         if self.connected != "python":

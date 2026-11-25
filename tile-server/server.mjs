@@ -100,6 +100,7 @@ import { runDirect, poolStats, closePool, startPool, POOL_SIZE } from "./direct-
 import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 import { handleProxy } from "./proxy.mjs"
 import { stacItem, STAC_SUFFIX } from "./stac.mjs"
+import { handleFiles } from "./files.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 // TV_HOST=127.0.0.1: only this machine (the QGIS plugin's bundled service); unset: every interface.
@@ -669,6 +670,10 @@ async function handle(req, res) {
       if (allowedHosts.length && !["localhost", "127.0.0.1", "[::1]", ...allowedHosts].includes(host)) return send(403, "text/plain", "Host not allowed")
       // CORS pass-through to NASA G-LiHT and Earthdata, allow-listed (proxy.mjs).
       if (req.url.startsWith("/proxy/")) return handleProxy(req, res, `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`)
+      // Local raster files, registered from this machine (files.mjs).
+      if (req.url === "/files" || req.url.startsWith("/files/") || req.url.startsWith("/files?")) {
+        if (await handleFiles(req, res, new URL(req.url, "http://x"))) return
+      }
       const exec = req.url.match(/^\/processes\/([^/?]+)\/execution(?:\?|$)/)
       if (exec) {
         // The standard's execution: the modes are run by asking for their

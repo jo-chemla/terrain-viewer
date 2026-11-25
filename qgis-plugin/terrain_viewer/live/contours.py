@@ -95,7 +95,6 @@ def view_values(dem, extent3857, width_px, mode, opts, max_tiles=MAX_TILES):
     with its own halo and ancestors, as the server's: no seams):
     (array, geotransform, z)."""
     from . import modes
-    from .dem import ground_resolution_m
     from .layers import tile_zoom
     z = tile_zoom(extent3857, width_px, dem.spec["maxzoom"] + (1 if dem.spec["size"] == 512 else 0))
     while True:
@@ -111,7 +110,7 @@ def view_values(dem, extent3857, width_px, mode, opts, max_tiles=MAX_TILES):
 
     def one(tx, ty):
         g = dem.grid(z, tx % (1 << z), ty)
-        return modes.values(mode, g, ground_resolution_m(z, ty), opts, TILE)
+        return modes.values(mode, g, dem.resolution_m(z, ty), opts, TILE)
 
     # A pool of its own: `one` waits on dem.pool (Dem.padded fetches the
     # neighbours there), so run on dem.pool itself it filled every worker
@@ -201,7 +200,45 @@ def view_vector(dem, extent3857, width_px, mode, opts):
                                   {"radius": o["lrmRadius"]} if lrm else {})
         value = o["valueLrm"] if lrm else o["value"]
         return [(w, [value, o["side"]]) for w in side_polygons(grid, gt, value, o["side"])], z
+    if mode == "moundDetector":
+        return view_mounds(dem, extent3857, width_px, o)
     raise ValueError(f"{mode} has no vector form here")
+
+
+TELLS_MAXZOOM = 15  # tile-server/direct.mjs: the mound tiles are made up to z15, overzoomed past it
+
+
+def view_mounds(dem, extent3857, width_px, opts, max_tiles=MAX_TILES):
+    """The mound candidates over a view (live/mounds.py): the source's tiles
+    at the map's zoom (the vector tiles the map loads, capped at z15, as the
+    tile service's), each detected on its own, as points in EPSG:3857 with
+    the protocol's measures. ([(wkb, [a, blobness, plan, detHessian, pit,
+    scaleM])], z)."""
+    from osgeo import ogr
+    from . import mounds
+    from .layers import tile_zoom
+    z = max(0, min(TELLS_MAXZOOM, tile_zoom(extent3857, width_px, 22) - 1))
+    while True:
+        n = 1 << z
+        size = 2 * WORLD / n
+        x0 = int(math.floor((extent3857.xMinimum() + WORLD) / size))
+        x1 = int(math.floor((extent3857.xMaximum() + WORLD) / size))
+        y0 = max(int(math.floor((WORLD - extent3857.yMaximum()) / size)), 0)
+        y1 = min(int(math.floor((WORLD - extent3857.yMinimum()) / size)), n - 1)
+        if (x1 - x0 + 1) * (y1 - y0 + 1) <= max_tiles or z == 0:
+            break
+        z -= 1
+    futs = {(tx, ty): _view_pool().submit(mounds.detect, dem, z, tx % n, ty, opts)
+            for ty in range(y0, y1 + 1) for tx in range(x0, x1 + 1)}
+    out = []
+    for (tx, ty), f in futs.items():
+        feats, tn = f.result()
+        for cx, cy, t in feats:
+            g = ogr.Geometry(ogr.wkbPoint)
+            g.AddPoint_2D(-WORLD + (tx + cx / tn) * size, WORLD - (ty + cy / tn) * size)
+            out.append((bytes(g.ExportToWkb()), [t["a"], t["blobness"], t["plan"], t["detHessian"], t["pit"],
+                                                 t.get("scaleM")]))
+    return out, z
 
 
 def style(layer, colour="#7a3b00"):

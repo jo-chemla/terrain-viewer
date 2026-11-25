@@ -494,7 +494,31 @@ The direct engine reads every source type the app reads, with the app's own read
 | Difference (nDSM, change) | `demdiff://` over its two operands, each read as above |
 | TileJSON | The manifest's tile template |
 
-Mapbox, MapTiler and Cesium ion are read with your API key (`mapboxKey`, `maptilerKey`, `cesiumIonKey`); without one neither engine can draw them, and a key the provider refuses gives an error that says so. Not read in the server, so drawn by the browser: a local file, a source whose address is not https (one demo entry of the library), STAC and MosaicJSON entries (none among the terrain sources), and a COG or VRT that does not answer. `/sources` gives each source its engine, and the reason when it is the browser.
+Mapbox, MapTiler and Cesium ion are read with your API key (`mapboxKey`, `maptilerKey`, `cesiumIonKey`); without one neither engine can draw them, and a key the provider refuses gives an error that says so. Not read in the server, so drawn by the browser: a file picked in the browser (`cog-local`), a source whose address is not https (one demo entry of the library), STAC and MosaicJSON entries (none among the terrain sources), and a COG or VRT that does not answer. `/sources` gives each source its engine, and the reason when it is the browser.
+
+### Local files
+
+A GeoTIFF (COG or not) or a GDAL VRT on the service's own machine is a source once it is registered (`tile-server/files.mjs`, since 2026-11-25): the QGIS plugin hands over its raster layer's file this way.
+
+```bash
+curl -X POST -H "Content-Type: application/json" --data '{"path": "C:/data/lidar.tif"}' http://127.0.0.1:3400/files
+# {"id": "9b1c...", "source": "file:9b1c...", "name": "lidar.tif", "type": "tiff"}
+curl -o slope.png "http://127.0.0.1:3400/terrain-tiles/14/8509/5839.png?modes=slope&terrainSource=file:9b1c..."
+curl -X DELETE http://127.0.0.1:3400/files/9b1c...   # forget it
+```
+
+The file is read by the app's own VRT reader (any CRS, reprojected with proj4, its overviews read by geotiff.js): a GeoTIFF gets a one-source VRT made from its header (size, geotransform, EPSG code, no data), a registered VRT keeps its own with its local sources re-pointed. The reader asks for `tvfile://<id>/<name>` addresses, which the server's thread and each worker answer from the registered file: nothing of a file is served over HTTP.
+
+What keeps a request from reading a file the user did not hand over:
+
+- **Registration only from this machine**: a request from a loopback address, with no `Origin` header (a web page's request always carries one, and a page cannot send JSON across origins without a preflight, which `/files` never grants), with a JSON body.
+- **The path checked**: absolute, resolved through its links (`realpath`), a regular file named `.tif`, `.tiff` or `.vrt` whose first bytes are a TIFF's or a VRT's. With `TV_FILE_ROOTS` set, it must lie under one of those folders, and so must every local source of a VRT (`../` included: the resolved path is what is checked). A VRT inside a VRT is refused.
+- **No path in an address**: a tile names `file:<id>`; the reader names an id and one of that entry's own file names (`0.tif`, `source.vrt`). The id is an HMAC (key in the cache folder) of the real path, size and modification time: not guessable, the same while the file is unchanged (its cached tiles stay valid), new when it changes. A changed file is not read until registered again.
+- `TV_LOCAL_FILES=off` turns registration off. The registry is `local-files.json` in `TILE_CACHE_DIR` (the workers read it there; a registration outlives a restart while the file is unchanged).
+
+Options weighed: a `file:` source taking any path under configured roots (simplest, but a path in every tile address, and any client of the port could read anything under the roots), symlinks in a served folder (the same, plus platform quirks), and the registry kept. Tests: `tile-server/test.mjs` (a UTM GeoTIFF plane and a VRT over it read as sources, the refusals, traversal attempts, roots, a changed file).
+
+Measured on the Mont Blanc test COG (Lambert-93, 20 m, `qgis-plugin/make_test_dem.py`): the service's read is 3 to 4 m (median) from the Mapterhorn elevation it was made from at z12 to z15, where GDAL's warp in the Python backend is 0.4 to 0.7 m. Not a shift (no offset of a few pixels does better) nor an overview choice (GDAL at every overview level stays 3 m from the service's read): something of the app's VRT reader's resampling, to look at in `lib/vrt-protocol.ts`. Vertical units in feet are not converted by that reader (the Python backend converts them).
 
 ### What goes to the browser
 
@@ -603,6 +627,8 @@ The browser engine suits a few views, a cache filled in advance, or pictures of 
 | `TV_PROTOCOL_CACHE_MB` | Memory each worker keeps for the relief modes' computed source tiles (slope, sky view factor, shadows…), so the 256 px tiles within one 512 px source tile and the neighbours cost one computation | 48 |
 | `TV_QUEUE_TIMEOUT` | Seconds a request may wait for its turn before a `503` with `Retry-After` | 30 |
 | `TV_RENDER_TIMEOUT` | Seconds before a request not yet answered gets a `504` | 90 |
+| `TV_FILE_ROOTS` | Folders a [local file](#local-files) must lie under to be registered, separated by the platform's path delimiter (`;` on Windows, `:` elsewhere) | any folder (registration from this machine only) |
+| `TV_LOCAL_FILES` | `off`: no local file can be registered | on |
 | `TV_ALLOWED_HOSTS` | Host names accepted in the `Host` header, comma-separated | any |
 | `TV_MAPBOX_KEY`, `TV_MAPTILER_KEY`, `TV_CESIUM_ION_KEY` | The operator's keys, used when a request gives none: anyone who can reach the service then uses them | none |
 | `EARTHDATA_TOKEN` | An Earthdata user token, for [`/proxy/earthdata`](#cors-proxy-for-nasa-g-liht). Read from the environment, else from the repository's `.env` (that key only; `TV_ENV_FILE` names another file: the desktop app's service reads `tile-service.env` in the app's folder, see [Desktop](/features/advanced/desktop#local-tile-service)) | none |

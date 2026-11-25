@@ -9,6 +9,11 @@
 import { readFileSync } from "node:fs"
 import sharp from "sharp"
 import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
+import { fileSourceEntry, installFileFetch, SOURCE_RE } from "./files.mjs"
+
+// The registered local files' tvfile:// addresses, answered in this thread
+// (the server's, or a direct-engine worker's) for the app's VRT reader.
+installFileFetch()
 
 const UA = "terrain-viewer-mcp/0.3 (+https://terrain-viewer.iconem.com)"
 
@@ -65,6 +70,8 @@ export function whyNotDirect(entry, keys = keysOf()) {
   if (need && !keys[need[1]]) return `${need[0]} needs an API key: give yours as ${need[1]}`
   if (entry.type === "stac" || entry.type === "mosaicjson") return "STAC and MosaicJSON sources are read by the app alone"
   if (entry.type === "cog-local") return "a local file exists only in the browser that opened it"
+  // A file registered with this service (files.mjs), read back over loopback.
+  if (entry.local) return null
   if (entry.type !== "dem-diff" && entry.url != null && !schemeOk(bareUrl(entry.url))) return "the source's address is not https"
   return null
 }
@@ -73,6 +80,8 @@ export function whyNotDirect(entry, keys = keysOf()) {
  *  configuration as an entry. */
 function entryOf(source) {
   if (!source) return entryOf("mapterhorn")
+  // file:<id>: a local file registered with this service (POST /files).
+  if (typeof source === "string" && SOURCE_RE.test(source)) return fileSourceEntry(source)
   if (typeof source === "object") {
     const url = String(source.url ?? "")
     const type = source.type ?? (/\.tiff?(\?|$)/i.test(url) ? "cog" : /\.vrt(\?|$)/i.test(url) ? "vrt" : /\{z\}/.test(url) ? "terrarium" : null)

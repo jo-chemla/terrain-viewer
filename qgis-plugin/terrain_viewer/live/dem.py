@@ -169,6 +169,16 @@ class Dem:
             mosaic[(dy + 1) * TILE:(dy + 2) * TILE, (dx + 1) * TILE:(dx + 2) * TILE] = f.result()
         return np.ascontiguousarray(mosaic[TILE - halo:2 * TILE + halo, TILE - halo:2 * TILE + halo])
 
+    def resolution_m(self, z, y):
+        """The ground size of a 256 px tile's pixel as the app's protocols
+        take it: at the centre of the source's own tile (a 512 px source's
+        tile z-1 holds four 256 px tiles), as the tile service computes."""
+        size = self.spec.get("size", TILE)
+        k = max(0, round(math.log2(max(size, TILE) / TILE)))
+        if k == 0 or z < k:
+            return ground_resolution_m(z, y)
+        return ground_resolution_m(z - k, y >> k, size)
+
     def grid(self, z, x, y):
         """The padded grids of one tile, as modes.values() asks for them
         (grid(halo), grid.ancestor(k)), each fetched once."""
@@ -185,6 +195,9 @@ class TileGrid:
     def __init__(self, dem, z, x, y):
         self.dem, self.z, self.x, self.y = dem, z, x, y
         self._by_halo = {}
+        # The source's own tile size: MapLibre's hillshade scales by it
+        # (live/hillshade.py), and the mound detector works on its tiles.
+        self.native_size = dem.spec.get("size", TILE)
 
     def __call__(self, halo):
         if halo not in self._by_halo:

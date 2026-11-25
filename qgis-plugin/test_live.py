@@ -14,6 +14,17 @@
    pictures (within a pixel); their vector forms against their rasters.
    0. (offline) the structure tensor's orientation on planes and ridges:
    not mirrored (lib/blobness-protocol.test.ts's cases).
+2b. (--service) Every colour tile against the service's picture: each
+   ramp mode with its default and changed ramp settings (ramp, min, max,
+   invert, shift, custom stops), the hillshade's eight methods and colours,
+   Phong's lights, matcap's camera-relative switch, the contours' colour,
+   weight and LRM reference; the mound detector's points against the
+   service's moundDetector vector tiles (positions and measures).
+7. The GDAL source (live/gdal_source.py): a Lambert-93 COG and a feet
+   GeoTIFF made from Mapterhorn (make_test_dem.py), read through GDAL warped
+   to EPSG:3857, against Mapterhorn; no data, vertical units, a QGIS raster
+   layer as the source, the time per tile; with --service, the same file
+   registered with the service (POST /files) and read there.
 5. End to end: the localhost server, each mode's forms (colour XYZ tiles,
    values read by GDAL with QGIS's renderers, contour lines) drawn by QGIS's
    parallel renderer; a new setting keeps a layer's own style.
@@ -168,9 +179,12 @@ REF = [
     ("tpi", {}, "modes=tpi", 0.01, False),
     ("roughness", {}, "modes=roughness", 0.01, False),
     ("lrm", {"radius": 16}, "modes=lrm&lrmRadius=16", 0.05, False),
-    ("svf", {"radius": 8}, "modes=svf&svfRadius=8&svfPrecision=precise", 0.001, False),
-    ("openness", {"radius": 8, "mode": "positive"}, "modes=openness&opennessRadius=8&opennessMode=positive&opennessPrecision=precise", 0.05, False),
-    ("openness", {"radius": 8, "mode": "negative"}, "modes=openness&opennessRadius=8&opennessMode=negative&opennessPrecision=precise", 0.05, False),
+    ("svf", {"radius": 8, "precision": "precise"}, "modes=svf&svfRadius=8&svfPrecision=precise", 0.001, False),
+    ("openness", {"radius": 8, "mode": "positive", "precision": "precise"}, "modes=openness&opennessRadius=8&opennessMode=positive&opennessPrecision=precise", 0.05, False),
+    ("openness", {"radius": 8, "mode": "negative", "precision": "precise"}, "modes=openness&opennessRadius=8&opennessMode=negative&opennessPrecision=precise", 0.05, False),
+    # "fast", the app's default: powers-of-two radii near, ancestor rings far.
+    ("svf", {"radius": 32}, "modes=svf&svfRadius=32", 0.001, False),
+    ("openness", {"radius": 24, "mode": "negative"}, "modes=openness&opennessRadius=24&opennessMode=negative", 0.05, False),
     # The structure tensor and local dominance: the service packs them as
     # Terrarium (1/256 of the app's units; blobness and eigenRatio are x100 there).
     ("shapeIndex", {}, "modes=shapeIndex", 0.01, False),
@@ -199,7 +213,9 @@ if service:
         o = modes.parse_opts(mode, opts)
         mine, ref = [], []
         for t in TILES:
-            mine.append(modes.values(mode, dem.grid(*t), ground_resolution_m(t[0], t[2]), o))
+            # The ground size at the centre of the source's own tile, as the
+            # service's protocols take it (and the plugin's server since 0.8).
+            mine.append(modes.values(mode, dem.grid(*t), dem.resolution_m(t[0], t[2]), o))
             ref.append(service_values(t, query))
         mine, ref = np.stack(mine), np.stack(ref)
         mask = None
@@ -309,6 +325,123 @@ if service:
               f"{m.mean() * 100:.1f}% / {r.mean() * 100:.1f}% drawn)")
         if sc < 97 or (m.any() != r.any()):
             failures.append(f"{label}: recall {recall:.1f}%, precision {precision:.1f}%")
+    # 2b. The colour tiles: the service's picture of each mode (opaque mode,
+    # background none for the overlays and ramps, the map's white under the
+    # shades, as the panel asks for them) against the plugin's.
+    print("2b. colour tiles against the tile service's pictures")
+    RAMP_CASES = [
+        ("elevation", {}, "colorRelief"), ("elevation", {"customHypsoMinMax": "true", "minElevation": "1000", "maxElevation": "4500",
+                                                         "colorRamp": "srtm", "invertColorRamp": "true"}, "colorRelief"),
+        ("slope", {}, "slope"), ("slope", {"slopeColorRamp": "spectral_11", "slopeMinDegrees": "10", "slopeMaxDegrees": "40",
+                                           "slopeInvertColorRamp": "true"}, "slope"),
+        ("aspect", {}, "aspect"), ("aspect", {"aspectShiftDegrees": "90"}, "aspect"),
+        ("tri", {}, "tri"), ("tri", {"triColorRamp": "viridis", "triMax": "20"}, "tri"),
+        ("tpi", {}, "tpi"), ("tpi", {"tpiMin": "-5", "tpiMax": "5"}, "tpi"),
+        ("roughness", {}, "roughness"), ("curvature", {}, "curvature"),
+        ("curvature", {"mode": "plan", "curvatureMin": "-0.5", "curvatureMax": "0.5"}, "curvature"),
+        ("shapeIndex", {}, "shapeIndex"), ("shapeIndex", {"shapeIndexColorRamp": "curvature-diverging"}, "shapeIndex"),
+        ("shapeIndex", {"shapeIndexCustomStops": '[{"value":-1,"color":"#000000"},{"value":1,"color":"#ffffff"}]',
+                        "shapeIndexCustomStopsDiscrete": "false"}, "shapeIndex"),
+        ("blobness", {}, "blobness"), ("eigenRatio", {}, "eigenRatio"), ("orientation", {}, "orientation"),
+        ("lrm", {}, "lrm"), ("lrm", {"radius": 64, "lrmColorRamp": "balance", "lrmMin": "-8", "lrmMax": "8"}, "lrm"),
+        ("svf", {}, "svf"), ("svf", {"radius": 32, "svfColorRamp": "svf-transparent", "svfMin": "40"}, "svf"),
+        ("openness", {}, "openness"), ("openness", {"radius": 24, "mode": "negative", "opennessInvertColorRamp": "true"}, "openness"),
+        ("localDominance", {}, "localDominance"),
+    ]
+    PY_TO_URL = {"radius": {"lrm": "lrmRadius", "svf": "svfRadius", "openness": "opennessRadius"},
+                 "mode": {"curvature": "curvatureMode", "openness": "opennessMode"}}
+
+    def colour_query(mode, svc, opts):
+        q = {"modes": svc, "background": "none", f"{svc}Opacity": "1"}
+        for k, v in opts.items():
+            q[PY_TO_URL.get(k, {}).get(mode, k)] = v
+        return urllib.parse.urlencode(q)
+
+    def colour_score(label, mine, ref, need=99.5):
+        if mine.ndim == 2:
+            mine = np.repeat(mine[..., None], 3, -1)
+        if ref.shape[-1] == 3 and mine.shape[-1] == 4:
+            ref = np.concatenate([ref, np.full(ref.shape[:2] + (1,), 255)], -1)
+        ref = ref[..., :mine.shape[-1]]
+        d = np.abs(mine.astype(int) - ref.astype(int)).max(axis=-1)
+        if mine.shape[-1] == 4:
+            d[(mine[..., 3] == 0) & (ref[..., 3] == 0)] = 0
+        sc = float((d <= 3).mean() * 100)
+        scores.append((label, "service picture", sc, f"max {d.max()} levels, median {np.median(d):g}"))
+        print(f"  {label:<60} {sc:6.2f}% within 3 levels (max {d.max()})")
+        if sc < need:
+            failures.append(f"colour {label}: {sc:.2f}%")
+
+    for mode, opts, svc in RAMP_CASES:
+        o = modes.parse_opts(mode, opts)
+        for t in TILES[:2]:
+            v = modes.values(mode, dem.grid(*t), dem.resolution_m(t[0], t[2]), o)
+            colour_score(f"{mode} {opts} z{t[0]}"[:60], modes.colour(mode, v, o), service_png(t, colour_query(mode, svc, opts)))
+    PICTURES = [
+        ("hillshade", {}, "modes=hillshade&hillshadeOpacity=1"),
+        ("hillshade", {"method": "standard", "azimuth": 200.0}, "modes=hillshade&hillshadeOpacity=1&hillshadeMethod=standard&illuminationDir=200"),
+        ("hillshade", {"method": "igor", "shadowColor": "#203080"}, "modes=hillshade&hillshadeOpacity=1&hillshadeMethod=igor&shadowColor=%23203080"),
+        ("hillshade", {"method": "basic", "altitude": 30.0}, "modes=hillshade&hillshadeOpacity=1&hillshadeMethod=basic&illuminationAlt=30"),
+        ("hillshade", {"method": "multidirectional"}, "modes=hillshade&hillshadeOpacity=1&hillshadeMethod=multidirectional"),
+        ("hillshade", {"method": "multidir-colors"}, "modes=hillshade&hillshadeOpacity=1&hillshadeMethod=multidir-colors"),
+        ("hillshade", {"method": "duotone-nw-ne"}, "modes=hillshade&hillshadeOpacity=1&hillshadeMethod=duotone-nw-ne"),
+        ("hillshade", {"method": "aspect-multidir"}, "modes=hillshade&hillshadeOpacity=1&hillshadeMethod=aspect-multidir"),
+        ("hillshade", {"exaggeration": 0.4, "highlightColor": "#ffee88", "accentColor": "#ff0000", "method": "standard"},
+         "modes=hillshade&hillshadeOpacity=1&hillshadeExag=0.4&highlightColor=%23ffee88&accentColor=%23ff0000&hillshadeMethod=standard"),
+        ("phong", {"lightCount": 3}, "modes=phong&phongOpacity=1&phongLightCount=3"),
+        ("phong", {"lightCount": 2, "light1Color": "#ff8800", "light2Dir": 90.0}, "modes=phong&phongOpacity=1&phongLightCount=2&phongLight1Color=%23ff8800&phongLight2Dir=90"),
+        ("matcap", {"lightRelativeToCamera": False}, "modes=matcap&background=none&matcapOpacity=1&matcapLightRelativeToCamera=false"),
+    ]
+    for mode, opts, query in PICTURES:
+        o = modes.parse_opts(mode, opts)
+        for t in TILES:
+            g = dem.grid(*t)
+            mine = modes.picture(mode, g, dem.resolution_m(t[0], t[2]), o)
+            if mine is None:
+                mine = modes.colour(mode, modes.values(mode, g, dem.resolution_m(t[0], t[2]), o), o)
+            colour_score(f"{mode} {opts} z{t[0]}"[:60], mine, service_png(t, query))
+    # The contours: antialiased lines there, pixel lines here: drawn within a
+    # pixel of each other, in the same colour.
+    for opts, query in [({}, "modes=contours&background=none"), ({"color": "#ff0000"}, "modes=contours&background=none&contourColor=%23ff0000"),
+                        ({"reference": "lrm"}, "modes=contours&background=none&contourReferenceMode=lrm")]:
+        t = TILES[1]
+        o = modes.parse_opts("contours", opts)
+        mine = modes.colour("contours", modes.values("contours", dem.grid(*t), dem.resolution_m(t[0], t[2]), o), o)
+        ref = service_png(t, query)
+        m, r = mine[..., 3] > 0, ref[..., 3] > 40
+        inner = np.zeros_like(m)
+        inner[2:-2, 2:-2] = True
+        recall = float(grow1(m)[r & inner].mean() * 100) if (r & inner).any() else 100.0
+        precision = float(grow1(r)[m & inner].mean() * 100) if (m & inner).any() else 100.0
+        same = bool(np.abs(mine[m][:, :3].mean(0) - ref[r][:, :3].mean(0)).max() < 12) if m.any() and r.any() else False
+        label = f"contours {opts} z{t[0]}"
+        scores.append((label, "service picture", min(recall, precision), f"recall {recall:.2f}%, precision {precision:.2f}% (within 1 px), same colour {same}"))
+        print(f"  {label:<60} recall {recall:.2f}%, precision {precision:.2f}%, same colour {same}")
+        if min(recall, precision) < 90 or not same:
+            failures.append(f"{label}: recall {recall:.1f}%, precision {precision:.1f}%, colour {same}")
+
+    # The mound detector: the points of the service's moundDetector vector
+    # tiles (the same tile of the source's pyramid), positions and measures.
+    print("2c. the mound detector against the tile service's vector tiles")
+    from mvt_reader import read_points  # noqa: E402
+    from terrain_viewer.live import mounds  # noqa: E402
+    for t, opts, q in [((13, 4253, 2921), {}, ""), ((14, 8507, 5843), {}, ""), ((12, 2126, 1460), {}, ""),
+                       ((13, 4253, 2921), {"polarity": "both", "radius": 16, "size": 60}, "&tellsPolarity=both&tellRadius=16&tellSize=60"),
+                       ((13, 4253, 2921), {"vetoResolution": "fine", "blobnessMin": 0.5, "measureScale": False},
+                        "&tellVetoResolution=fine&tellBlobnessMin=0.5&tellMeasureScale=false")]:
+        with urllib.request.urlopen(f"{service}/terrain-tiles/{t[0]}/{t[1]}/{t[2]}.pbf?terrainSource=mapterhorn&modes=moundDetector{q}", timeout=300) as r:
+            ref = {(x_, y_): tags for x_, y_, tags in read_points(r.read()).get("tells", [])}
+        t0 = time.perf_counter()
+        mine = {(x_, y_): tags for x_, y_, tags in mounds.tile_points(dem, *t, modes.parse_opts("moundDetector", opts))}
+        ms = (time.perf_counter() - t0) * 1000
+        common = set(ref) & set(mine)
+        same = sum(1 for k in common if set(ref[k]) == set(mine[k]) and all(abs(float(ref[k][f]) - float(mine[k][f])) < 0.011 for f in ref[k]))
+        sc = 100.0 * same / max(len(ref), len(mine), 1)
+        label = f"moundDetector {opts} z{t[0]}"
+        scores.append((label, "service tiles", sc, f"{len(ref)} points there, {len(mine)} here, {len(common)} at the same place, {same} with the same measures; {ms:.0f} ms"))
+        print(f"  {label:<60} {len(ref)} there, {len(mine)} here, {same} the same ({sc:.2f}%, {ms:.0f} ms)")
+        if sc < 99.5:
+            failures.append(f"{label}: {sc:.2f}%")
 else:
     print("2. SKIP the tile service comparison: no --service")
 
@@ -525,7 +658,8 @@ from terrain_viewer.live import layers as live_layers  # noqa: E402
 
 # Settings that put something in the view (Mont Blanc's massif: no plane at
 # sea level, no building to shade).
-VIEW_OPTS = {"elevation": {"min": 1000.0, "max": 4800.0}, "planeSlicer": {"value": 2500.0}}
+VIEW_OPTS = {"elevation": {"customHypsoMinMax": "true", "minElevation": "1000", "maxElevation": "4800"},
+             "planeSlicer": {"value": 2500.0}}
 FLAT_OK = {"buildingShadows"}  # no building in this view: flat is right (checked in its own section)
 for mode in modes.MODES:
     # Every mode live/ computes, every form (vector: contours.view_vector,
@@ -551,10 +685,11 @@ for mode in modes.MODES:
         print(f"  {mode:<15} {form:<7} {wall:6.0f} ms, {tiles:3d} tiles, spread {spread}, {colours} colours{extra}")
         if spread < 20 and mode not in FLAT_OK:
             failures.append(f"{mode} ({form}): rendered image empty or flat")
-        if modes.MODES[mode]["kind"] in ("ramp", "rgb") and form != "vector" and colours < 8:
+        # (Shape index's default ramp is five classes: fewer colours is right.)
+        if modes.MODES[mode]["kind"] in ("ramp", "rgb") and form != "vector" and colours < (4 if mode == "shapeIndex" else 8):
             failures.append(f"{mode} ({form}): {colours} colours, the ramp did not apply")
-        if form == "vector" and layer.featureCount() < (10 if mode in ("contours", "isoline") else 1):
-            failures.append(f"{mode} (vector): {layer.featureCount()} lines")
+        if form == "vector" and layer.featureCount() < (10 if mode in ("contours", "isoline", "moundDetector") else 1):
+            failures.append(f"{mode} (vector): {layer.featureCount()} features")
         ll.set_form(mode, form, False)
     srv.clear_results()
 
@@ -613,8 +748,8 @@ print("  enabled:", enabled)
 for m in enabled:
     if pyb.py_mode(m) is None:
         failures.append(f"dock: {m} enabled but live/ does not compute it")
-if dock.rows["moundDetector"].row.header.isEnabled():
-    failures.append("dock: the mound detector should be greyed out under Python")
+if not dock.rows["moundDetector"].row.header.isEnabled():
+    failures.append("dock: the mound detector should be computed under Python (live/mounds.py)")
 if dock.rows["hillshade"].row.available != {"colour"}:
     failures.append(f"dock: hillshade offers {dock.rows['hillshade'].row.available} under Python (colour only)")
 row = dock.rows["curvature"].row
@@ -665,8 +800,19 @@ svf.settings["svfRadius"].set(12)
 dock.flush()
 if "radius=12" not in dock.stack.find("svf").source().replace("%3D", "="):
     failures.append("dock: svfRadius did not reach the Python address")
-if svf.settings["svfColorRamp"].widget.isEnabled():
-    failures.append("dock: the SVF ramp should be greyed out under Python (it draws its own)")
+if not svf.settings["svfColorRamp"].widget.isEnabled():
+    failures.append("dock: the SVF ramp should apply under Python (live/ramps.py)")
+svf.settings["svfColorRamp"].set("svf-transparent")
+dock.flush()
+if "svfColorRamp=svf-transparent" not in urllib.parse.unquote(dock.stack.find("svf").source()):
+    failures.append("dock: svfColorRamp did not reach the Python address")
+# The mound detector's points, in a memory layer.
+md = dock.rows["moundDetector"]
+md.check.setChecked(True)
+mlyr = dock.stack.find("moundDetector:vector")
+if mlyr is None or mlyr.providerType() != "memory" or "point" not in mlyr.source().lower():
+    failures.append(f"dock: mound detector points layer {mlyr.source() if mlyr else None}")
+md.check.setChecked(False)
 # Another source live/ reads (AWS Terrarium) is followed.
 dock.set_source("aws")
 dock.flush()
@@ -678,6 +824,102 @@ for r in dock.rows.values():
     r.update()
 if py_keys():
     failures.append(f"dock: unchecked rows left Python layers {py_keys()}")
+
+# 7. The GDAL source: a Lambert-93 COG (overviews, a hole of no data) and a
+# feet GeoTIFF made from Mapterhorn, read through GDAL warped to EPSG:3857.
+print("7. any GDAL raster as the source")
+from make_test_dem import make as make_test_dem  # noqa: E402
+from terrain_viewer.live import gdal_source  # noqa: E402
+cog_path, ft_path = make_test_dem(os.path.join(out, "test-dem"))
+spec = gdal_source.probe(cog_path)
+spec_ft = gdal_source.probe(ft_path)
+print(f"  probe: maxzoom {spec['maxzoom']}, pixel {spec['pixel_m']:.1f} m (Web Mercator), {spec['overviews']} overviews, "
+      f"no data {spec['nodata']}, feet scale {spec_ft['vertical_scale']}")
+if spec_ft["vertical_scale"] != 0.3048 or spec["nodata"] != -9999 or spec["maxzoom"] != 13:
+    failures.append(f"gdal probe: {spec['maxzoom']}, {spec['nodata']}, {spec_ft['vertical_scale']}")
+gd, gft = gdal_source.GdalDem(spec), gdal_source.GdalDem(spec_ft)
+for t in TILES[:2] + [(14, 8507, 5843)]:
+    t0 = time.perf_counter()
+    a = gd.tile(*t)
+    first = (time.perf_counter() - t0) * 1000
+    b, m_ = gft.tile(*t), dem.tile(*t)
+    d = np.abs(a - m_)
+    med = float(np.nanmedian(d))
+    nan = float(np.isnan(a).mean() * 100)
+    feet = float(np.nanmax(np.abs(a - b)))
+    scores.append((f"gdal source z{t[0]}", "Mapterhorn", float((d[~np.isnan(d)] <= 2).mean() * 100),
+                   f"median |diff| {med:.2f} m (20 m Lambert-93 COG, warped twice), {nan:.1f}% no data, feet file within {feet:.3f} m"))
+    print(f"  z{t[0]}: median |COG - Mapterhorn| {med:.2f} m, {nan:.1f}% no data (the hole), feet file within {feet:.4f} m, first tile {first:.0f} ms")
+    if med > 1.5 or feet > 0.01:
+        failures.append(f"gdal source z{t[0]}: median {med:.2f} m, feet {feet:.3f}")
+# The hole: no data, and the kernels leave it out (NaN slope there, values around).
+hole_t = TILES[1]
+sl = modes.values("slope", gd.grid(*hole_t), gd.resolution_m(hole_t[0], hole_t[2]), {})
+if not (np.isnan(sl).any() and np.isfinite(sl).mean() > 0.9):
+    failures.append(f"gdal source: slope over the hole {np.isnan(sl).mean():.3f} NaN")
+# Speed: a 3x3 block of z14 tiles, cold (each thread's VRT) then warm.
+blk = [(14, 8505 + i, 5841 + j) for j in range(3) for i in range(3)]
+g2 = gdal_source.GdalDem(spec)
+t0 = time.perf_counter()
+[f.result() for f in [g2.pool.submit(g2.tile, *t) for t in blk]]
+cold = (time.perf_counter() - t0) * 1000
+blk2 = [(14, 8508 + i, 5841 + j) for j in range(3) for i in range(3)]
+t0 = time.perf_counter()
+[f.result() for f in [g2.pool.submit(g2.tile, *t) for t in blk2]]
+warm = (time.perf_counter() - t0) * 1000
+t0 = time.perf_counter()
+sv = modes.values("svf", g2.grid(14, 8509, 5842), g2.resolution_m(14, 5842), modes.parse_opts("svf", {}))
+svf_ms = (time.perf_counter() - t0) * 1000
+print(f"  speed: 9 tiles in parallel {cold:.0f} ms cold (each thread opens the file and its VRT), {warm:.0f} ms warm; "
+      f"a sky view factor tile {svf_ms:.0f} ms")
+scores.append(("gdal source speed", "-", 100.0, f"9 z14 tiles {cold:.0f} ms cold, {warm:.0f} ms warm; svf tile {svf_ms:.0f} ms"))
+# A QGIS raster layer as the source, through the panel's mapping.
+from qgis.core import QgsRasterLayer as _QRL  # noqa: E402
+rl = _QRL(cog_path, "Test DEM (Lambert-93)", "gdal")
+QgsProject.instance().addMapLayer(rl)
+items = pyb.layer_sources(QgsProject.instance())
+sid, why = pyb.source_spec("layer:" + rl.id(), [], {})
+print(f"  QGIS layer: listed {[l for l, _d in items]}, source {sid} {why or ''}")
+if ("QGIS layer: Test DEM (Lambert-93)", "layer:" + rl.id()) not in items or sid is None:
+    failures.append(f"gdal source: the QGIS layer as the source: {items}, {why}")
+else:
+    srv2 = LiveServer.instance()
+    with urllib.request.urlopen(f"http://127.0.0.1:{srv2.port}/elevation/13/4253/2921.tif?source={sid}", timeout=120) as r:
+        body = r.read()
+    gdal.FileFromMemBuffer("/vsimem/py.tif", body)
+    pv = gdal.Open("/vsimem/py.tif").ReadAsArray()
+    gdal.Unlink("/vsimem/py.tif")
+    if not np.allclose(np.nan_to_num(pv, nan=-1), np.nan_to_num(gd.tile(13, 4253, 2921), nan=-1), atol=1e-3):
+        failures.append("gdal source: the server's tile of the layer differs from the GdalDem's")
+if service:
+    from terrain_viewer import local_files  # noqa: E402
+    src, why = local_files.service_source(service, "layer:" + rl.id())
+    print(f"  registered with the service: {src} {why or ''}")
+    if src is None and "no /files" in (why or ""):
+        print("  SKIP the service's read: this service predates local files (tile-server/files.mjs)")
+    elif src is None or not src.startswith("file:"):
+        failures.append(f"local file with the service: {why}")
+    else:
+        t = TILES[1]
+        with urllib.request.urlopen(f"{service}/terrain-tiles/{t[0]}/{t[1]}/{t[2]}.tif?compression=none&modes=elevation&terrainSource={src}", timeout=300) as r:
+            gdal.FileFromMemBuffer("/vsimem/svc.tif", r.read())
+        sv_ = gdal.Open("/vsimem/svc.tif").ReadAsArray()
+        gdal.Unlink("/vsimem/svc.tif")
+        both = ~np.isnan(sv_) & ~np.isnan(gd.tile(*t))
+        med_s = float(np.median(np.abs(sv_ - dem.tile(*t))[both])) if both.any() else float("nan")
+        med_g = float(np.median(np.abs(sv_ - gd.tile(*t))[both])) if both.any() else float("nan")
+        scores.append(("local file via the service", "Mapterhorn", float(both.mean() * 100),
+                       f"median |service - Mapterhorn| {med_s:.2f} m, |service - GDAL| {med_g:.2f} m (the app's VRT reader)"))
+        print(f"  the service's read of the same file: median |service - Mapterhorn| {med_s:.2f} m, |service - GDAL here| {med_g:.2f} m")
+        if not both.any() or med_s > 10:
+            failures.append(f"local file via the service: median {med_s}")
+QgsProject.instance().removeMapLayer(rl.id())
+# The GDAL datasets live in the pools' threads: closed before QGIS exits (3.44 crashed at exit otherwise).
+for _d in (gd, gft, g2):
+    _d.pool.shutdown(wait=True)
+LiveServer.shutdown()
+import gc  # noqa: E402
+gc.collect()
 
 print("\nmatch scores:")
 for m, ref, s, d in scores:
