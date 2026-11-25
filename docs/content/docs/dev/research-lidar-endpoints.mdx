@@ -1,0 +1,68 @@
+---
+title: Research lidar endpoints
+description: Which archaeological and national lidar products of the papers, labs and portals the docs cite answer as tiles, what was added to the Library, what is closed (key, projection, CORS), download-only or unpublished, and what the Moon and Mars offer
+---
+
+The Library holds pre-rendered relief (hillshade, sky view factor, local dominance, see [Pre-rendered relief](/features/basemaps#pre-rendered-relief)) beside raw elevation. This page records a sweep, on 2026-11-25, of the research projects and portals the docs cite ([Related Work](/resources/related-work), [Research References](/resources/research-references)) for tile endpoints of their lidar products. Every endpoint below was asked for one tile or a GetCapabilities with `curl`, with an `Origin` header to see the CORS answer. "No CORS" means the browser cannot read the tiles itself.
+
+## Added to the Library
+
+| Entry | Endpoint | What it is | Notes |
+|---|---|---|---|
+| **GBR - Wales LiDAR DTM 1 m tinted hillshade 2020-23** (relief) | `dmwproductionblob.blob.core.windows.net/cogs/dtm_1m_wales_hillshade_2020_23_cubic_cog.tif` | Bare-earth hillshade blended with an elevation ramp, RGB COG (YCbCr JPEG), 191007x233000 px, nodata 255 | EPSG:27700, no CORS: read through titiler (`cogViaTitiler`), about 2 s a tile the first time. OGL v3 |
+| **GBR - Wales LiDAR DSM 1 m hillshade 2020-22** (relief) | `.../cogs/wales_lidar_dsm_1m_hillshade_cog.tif` | Grey hillshade of the surface model, grey plus alpha COG | Same route. OGL v3 |
+| **GBR - Wales WG LiDAR DSM 1m** (terrain) | `.../cogs/lidar/wales_dsm_32bit_cog.tif` | Float32 COG, nodata -9999 | Snowdon summit 1082.7 m, Cardiff Castle green 11.9 m through titiler. Joins the DTM entry already in the Library |
+| **GBR - Difference: Wales LiDAR DSM - DTM** (terrain, derived) | `diff://custom-uk-wg-lidar-dsm1-custom-uk-wg-lidar-dtm1` | nDSM, canopy and building height | Same flights on both sides, offset 0 |
+| **ISL - IslandsDEM 10 m hillshade** (relief) | `gis.lmi.is/geoserver/wms`, layer `LMI_raster:islandsdem_hillshade_10m` | WMS in EPSG:3857, PNG, sea transparent | CORS `*`. CC BY 4.0, Náttúrufræðistofnun (formerly Landmælingar Íslands) |
+| **ISL - IslandsDEM topographic position index** (relief) | same, `LMI_raster:TPI_IslandsDEM` | TPI of the 10 m DEM, colour ramp | A national micro-relief layer (the local relief model family). `LMI_raster:TRI_IslandsDEM` (ruggedness) is beside it, not added |
+
+The DataMapWales download page ([map 6969](https://datamap.gov.wales/maps/6969)) also links a 2023 DSM pseudocolour hillshade COG and 16-bit copies of the DTM and DSM. They were not added, since they repeat what is there.
+
+## Already in the Library
+
+The archaeology renders the docs cite were already present before this sweep: the twelve MARI-GISLAB (Tulane) services for Tikal, Holmul, La Corona and Chactún (hillshade, SVF, local dominance; PACUNAM Lidar Initiative and CHRP surveys, CC BY-NC-SA), the M-REDD+ and G-LiHT blends, the G-LiHT 2013 Yucatan DTMs (OpenTopography COGs) and the Kiuic KMZs ([NASA G-LiHT](/dev/g-liht)), Aguada Fénix (Inomata, OpenTopography), Flanders's sky view factor, Bavaria's combined relief, and the national hillshades of the [table](/features/basemaps#pre-rendered-relief). NCALM's surveys are published through OpenTopography, which the catalog search browses.
+
+## Exist but closed
+
+| Project or portal | Endpoint | Product | Why it is not in the Library |
+|---|---|---|---|
+| **Slovenia, ZRC SAZU (Relief Visualization Toolbox)**, published by the government GeoHub | `geohub.gov.si/ags/rest/services/TEMELJNE_KARTE/LIDAR201115CVAT/MapServer` and `.../LIDAR202325CVAT/MapServer` | The RVT combined visualization for archaeological topography (VAT) of the national lidar at 0.5 m, 2011-15 and 2023-25 flights, buildings kept. Anonymous tile cache, JPEG | The cache is on the national EPSG:3794 grid only (the WMTS lists only that matrix set; `export` returns a blank image, since the service's one dynamic layer is a coverage polygon), and the server sends `Access-Control-Allow-Credentials` without `Access-Control-Allow-Origin`, so no CORS. Usable only after reprojection through a proxy. The older `SI_sencenje` hillshade service asks for a token, and the ARSO GIS portal (the 2015 lidar hillshade WMTS) answered "temporarily unavailable" |
+| **Trentino, SIAT** (Provincia autonoma di Trento) | `siat.provincia.tn.it/geoserver/stem/ows`, layers `dtm_315_wg`, `2014_agg_2018_dtm_315_10` and others | Lidar hillshades (azimuth 135 and 315), render fine in EPSG:3857 | No CORS header |
+| **Estonia, Maa-amet** | `kaart.maaamet.ee/wms/fotokaart` (`reljeef`, `vreljeef`), `tiles.maaamet.ee/tm/tms/1.0.0/reljeef@LEST` | Hillshade and coloured hillshade of the lidar DTM | EPSG:3301 only (WMS and TMS); the `@GMC` Web Mercator pyramid exists for the map and the photos, not the relief. The raw 1 m DTM is in the Library already (WCS), so the app's own modes cover it |
+| **Denmark, Dataforsyningen (SDFI)** | `api.dataforsyningen.dk/dhm_DAF`, layers `dhm_terraen_skyggekort`, `dhm_overflade_skyggekort` | Terrain and surface hillshades of DHM, the Danish national lidar model | GetCapabilities is open, GetMap answers 403 without a token (free registration). The app has no key setting for it (`SourceApiKey`) |
+| **Scotland, Remote Sensing Portal** | `ows.remotesensing.data.gov.scot/geoserver/ows` (the old `srsp-ows.jncc.gov.uk` redirects there) | Every phase's DTM and DSM, including the HES archaeology flights | Styles are colour ramps and a presence mask only, no hillshade. The raw rasters are already in the Library (Scotland VRTs) |
+
+## Download-only or not public
+
+| Project | What exists | Status |
+|---|---|---|
+| Chactún, CHRP 2016 (Šprajc, ZRC SAZU; Kokalj et al. 2023) | [figshare 10.6084/m9.figshare.22202395](https://doi.org/10.6084/m9.figshare.22202395): SVF, openness, slope, canopy height | Zipped tiles, CC BY 4.0, no elevation. The MARI Chactún renders are the tiled route |
+| PACUNAM Lidar Initiative (Canuto et al. 2018) | Mapped features on [Dryad](https://doi.org/10.5061/dryad.k51j708) | Rasters not public; MARI's renders are the only tiles |
+| Angkor, Khmer Archaeology LiDAR Consortium and CALI (Evans et al. 2013, 2016) | Data delivered to consortium members; [Archaeoscape](https://arxiv.org/abs/2412.05203) (2024) packages Khmer lidar for machine learning | No public endpoint. Archaeoscape is access on request for academic use |
+| Llanos de Mojos, Casarabe culture (Prümers et al. 2022) | Figures and supplementary material | No public raster or tile endpoint found |
+| Upano valley (Rostain et al. 2024) | Figures | No public raster or tile endpoint found |
+| Peripatus and other Amazonian surveys (Khan et al.) | Figures | No public raster or tile endpoint found |
+| USGS planetary global mosaics (below) | GeoTIFFs on planetarymaps.usgs.gov | Stripped files, not COGs: download-only |
+
+When one of these projects releases rasters, OpenTopography's COG hosting (as for G-LiHT and Aguada Fénix) or a release asset ([Releases](/dev/releases)) are the two routes.
+
+## Moon and Mars
+
+Not built. What answers, as of 2026-11-25:
+
+| Source | Endpoint | Encoding | Grid | CORS |
+|---|---|---|---|---|
+| NASA Moon Trek | `trek.nasa.gov/tiles/Moon/EQ/<layer>/1.0.0/default/default028mm/{z}/{row}/{col}.{jpg,png}`, e.g. `LRO_WAC_Mosaic_Global_303ppd_v02`, `LRO_LOLA_Shade_Global_128ppd_v04`, `LRO_LOLA_ClrShade_Global_128ppd_v04` | Imagery: mosaic, grey and colour shaded relief. No height tiles | Equirectangular lunar geographic (`EPSG:104903`, GCS Moon 2000), 2x1 tiles at zoom 0 | `*`, keyless |
+| NASA Mars Trek | `trek.nasa.gov/tiles/Mars/EQ/Mars_MGS_MOLA_ClrShade_merge_global_463m/...` | Colour shaded relief | Same | `*` |
+| USGS Astrogeology STAC | `stac.astrogeology.usgs.gov/api`, assets on `astrogeo-ard.s3-us-west-2.amazonaws.com` | **Raw Float32 COG DTMs** (nodata -32767) with hillshade COGs beside them: Kaguya TC v2 (118 379 Moon items, about 10-14 m), HiRISE (1 m) and CTX DTMs on Mars | Per-strip equirectangular on the Moon 2015 sphere (R 1 737 400 m) or the Mars sphere | `*`, Range |
+| USGS global mosaics | `planetarymaps.usgs.gov/mosaic/Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif`, `Mars_MGS_MOLA_DEM_mosaic_global_463m.tif` | Int16, LOLA scale 0.5 m | Stripped (one row per block), no overviews: not range-readable usefully | |
+| OpenPlanetaryMap (Mars) | Carto basemap `opm-mars-basemap-v0-2`, hillshade on the `opmmarstiles` bucket | Imagery | Web Mercator XYZ on Mars lat/lon | Basemap `*`; the hillshade bucket sends none |
+| Cesium Moon Terrain (ion) | ion asset, quantized mesh | Heights | Geographic | Needs an ion token; not tested here |
+
+Could the app show it? Imagery in Web Mercator on Mars coordinates (OpenPlanetaryMap) would load as a plain basemap today; the map just labels Earth places. The rest needs three pieces:
+
+- **Relabel, not reproject.** PROJ refuses transforms between celestial bodies (unless `PROJ_IGNORE_CELESTIAL_BODY` is set on the server), so titiler cannot warp a Moon COG to Web Mercator. The browser COG reader would have to treat the file's lunar lon/lat (or its equirectangular metres divided by the lunar radius) as Earth lon/lat.
+- **Scale.** On Earth's tiles a lunar degree is drawn 3.67 times too long (6 378 / 1 737.4 km; 1.88 for Mars), so slopes, hillshade and shadows come out flattened by that factor. An exaggeration of 3.67 (Mars 1.88) restores true slopes; contour intervals and heights stay in metres.
+- **Grid.** Trek tiles are equirectangular, not Web Mercator: they need a reprojecting protocol like `epsg3395://` (lib/epsg3395-protocol.ts) but from the plate carrée grid. Web Mercator also stops at 85°, which cuts the lunar south pole where the Artemis sites are.
+
+The most promising route for heights is the USGS STAC: Float32 COGs with CORS, already a STAC API like the presets of [STAC search](/dev/stac-search), once the reader relabels their CRS.

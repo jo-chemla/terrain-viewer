@@ -34,6 +34,7 @@
     "cell-routed-sources",
     "dataset-indexes",
     "g-liht",
+    "research-lidar-endpoints",
     "lerc-protocol",
     "quantized-mesh-protocol",
     "demdiff-protocol",
