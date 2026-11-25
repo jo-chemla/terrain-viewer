@@ -127,6 +127,8 @@ From the request to the last byte of the PNG. One at a time measures latency; 8 
 
 ¹ An outlier of that run; 4.2 gave 2.9.
 
+The tile service columns are from before its fix of 2026-11-25. Each 256 px tile then computed the four 512 px source tiles its resampling margin touched; now it computes the one it reads, and keeps it for its neighbours. With the same 16 tiles and 8 workers, 1 at a time / 8 at a time, in ms: hillshade 39 / 11, sky view factor r = 8 15 / 29, r = 32 24 / 51, shadows (sun 15°) 15 / 14. The 1-at-a-time medians are mostly tiles whose source tile was already computed; a tile whose source tile is new costs 150 ms (r = 8) to 350 ms (r = 32), the 512 px kernel. See [Tile service](/docs/dev/tile-service).
+
 In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet cached) draws in 0.4 to 1.0 s. While QGIS's parallel renderer requests tiles, per-tile compute rises to about 40 ms for the sky view factor at r = 16 and 15 to 19 ms for shadows. That is GIL contention among concurrent requests (see below).
 
 #### What the numbers say
@@ -135,7 +137,7 @@ In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet ca
 - **Threads help when the operations are large.** numpy releases the GIL inside each array operation. The shadow sweep is a few large gathers and scans, and gains 2 to 3× from 8 threads. The sky view factor is hundreds of small operations on 64k pixels (8 directions × radius), so threads mostly wait on the GIL and gain nothing (slightly worse at r = 8).
 - **numba**, when it is there, is the cheapest speed-up: 1.5 to 2× on the sky view factor over all cores, and a 0.1 ms hillshade. But QGIS ships without it, and pip-installing into QGIS's Python is not something a plugin should do. The plugin would use it only when it imports (`kernels_numba.available`).
 - **cupy is slower than numpy per tile.** A 256 px tile is too little work for a GPU. Each array operation is one kernel launch (dozens per tile for the sky view factor), plus the transfers. A fused `RawKernel` with one thread per pixel would remove the launches, but the transfers stay. The GPU pays off on a whole canvas computed in one dispatch, like the app's live GPU shadows over a Float32 view mosaic, not on tiles.
-- **Against the tile service**, the local tiles are 5 to 100× faster, end to end. The service pays for its whole pipeline on each tile: the layer stack rebuilt from URL parameters, a worker hop, the app's colour paint and PNG encoding by sharp. Its sky view factor (1 to 2 s per tile, even at r = 8) is far above what the kernel costs in Node (60 to 110 ms in the column above) and deserves a look on the service's side.
+- **Against the tile service**, the local tiles were 5 to 100× faster, end to end. The service pays for its whole pipeline on each tile: the layer stack rebuilt from URL parameters, a worker hop, the app's colour paint and PNG encoding by sharp. Its sky view factor (1 to 2 s per tile, even at r = 8) was far above what the kernel costs in Node (60 to 110 ms in the column above): each 256 px tile computed four 512 px source tiles. Fixed on 2026-11-25 (see the note under the table): the service now comes within 1.5 to 3× of the local server, slower mostly on tiles whose 512 px source tile is new.
 
 ## Ways into QGIS
 

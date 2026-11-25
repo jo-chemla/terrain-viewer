@@ -161,7 +161,7 @@ A colour is for the eye; an analysis wants the number under it. One mode's value
 | `/terrain-tiles/{z}/{x}/{y}.png?modes=slope&encoding=terrarium` | The same values packed in a PNG as an elevation would be (`terrarium` or `terrainrgb`), for MapLibre's `raster-dem` or a few lines of numpy; `valueScale` multiplies them first, so small values (curvature) stay above the packing's step (1/256 for Terrarium, 0.1 for Terrain-RGB) |
 | `/gdal.xml?modes=slope` | The GeoTIFF tiles described for GDAL's WMS driver: one Float32 raster of the whole world down to the source's deepest zoom, with overviews. GDAL opens its address as is: `gdalinfo`, `gdal_translate -projwin`, `rasterio.open`, QGIS's Add Raster Layer |
 
-The compression costs 2 to 6 ms a 256 px tile, small beside its computation (40 to 80 ms for slope or curvature, about 0.6 s for the sky view factor), and divides the size by about 4 for elevation, 2 for slope, 1.4 for curvature or the sky view factor (their low bits are noise). Browsers do not display TIFF: the API reference's test request answers "Preview unavailable" for these and offers the file to download.
+The compression costs 2 to 6 ms a 256 px tile, small beside its computation (10 to 20 ms for slope, about 0.15 s for the sky view factor at radius 8 when its source tile is not cached yet), and divides the size by about 4 for elevation, 2 for slope, 1.4 for curvature or the sky view factor (their low bits are noise). Browsers do not display TIFF: the API reference's test request answers "Preview unavailable" for these and offers the file to download.
 
 One mode at a time; its own parameters count (`curvatureMode`, `lrmRadius`, `svfRadius`, `opennessMode`...), its ramp, range and opacity do not. The direct engine computes them, so a source it cannot read, or a mode that is a picture (hillshade, matcap, Phong, shadows, the overlays), is refused with a 400. Each answer gives its unit in `x-tv-value-unit`, and `/processes/{id}` gives it with each mode (`x-tv-values`).
 
@@ -541,6 +541,7 @@ The browser engine suits a few views, a cache filled in advance, or pictures of 
 | `TILE_CACHE_DIR` | Where tiles and pictures are kept a week | `/data/tiles` in the image |
 | `TV_RENDER_CONCURRENCY` | Pages rendered at the same time; each is a whole app | 2 |
 | `TV_DIRECT_WORKERS` | Worker threads of the direct engine, one tile each; 0 draws in the server's thread, `TV_DIRECT_CONCURRENCY` (4) tiles at a time | the cores minus one, at most 8 |
+| `TV_PROTOCOL_CACHE_MB` | Memory each worker keeps for the relief modes' computed source tiles (slope, sky view factor, shadows…), so the 256 px tiles within one 512 px source tile and the neighbours cost one computation | 48 |
 | `TV_QUEUE_TIMEOUT` | Seconds a request may wait for its turn before a `503` with `Retry-After` | 30 |
 | `TV_RENDER_TIMEOUT` | Seconds before a request not yet answered gets a `504` | 90 |
 | `TV_ALLOWED_HOSTS` | Host names accepted in the `Host` header, comma-separated | any |
@@ -549,7 +550,19 @@ The browser engine suits a few views, a cache filled in advance, or pictures of 
 | `TV_PROXY_MAX_RANGE`, `TV_PROXY_MAX_FULL` | Largest byte range, and largest whole file, the proxy passes | 16 MiB, 64 MiB |
 | `TV_PROXY_CONCURRENCY`, `TV_PROXY_TIMEOUT` | Upstream reads at a time (eight times as many wait, then `503`), and milliseconds before a `504` | 16, 60000 |
 
-A request whose client has gone (QGIS cancels the tiles it no longer shows while you pan) is dropped before its work starts, so several QGIS windows no longer pile up work nobody waits for. The direct engine draws in worker threads (`tile-server/direct-pool.mjs`): a sky view factor or openness tile keeps a thread busy for seconds, and on the server's own thread it held up every other request, `/health` included. A tile whose request is cancelled or reaches `TV_RENDER_TIMEOUT` has its worker ended, which stops the computation, and a fresh worker takes its place. Each worker keeps its own elevation cache, so memory grows with their number. `/health` reports each engine's `running`, `waiting` and `limit`, and for the direct engine `workers`, `busy` and `replaced` (workers ended since the start). The root address `/` redirects to the Scalar page `/docs`; with `Accept: application/json` it answers the index of addresses.
+A request whose client has gone (QGIS cancels the tiles it no longer shows while you pan) is dropped before its work starts, so several QGIS windows no longer pile up work nobody waits for. The direct engine draws in worker threads (`tile-server/direct-pool.mjs`): a sky view factor or openness tile keeps a thread busy for seconds, and on the server's own thread it held up every other request, `/health` included. A tile whose request is cancelled or reaches `TV_RENDER_TIMEOUT` has its worker ended, which stops the computation, and a fresh worker takes its place. Each worker keeps its own elevation cache and its own cache of computed relief tiles (`TV_PROTOCOL_CACHE_MB`), so memory grows with their number. `/health` reports each engine's `running`, `waiting` and `limit`, and for the direct engine `workers`, `busy` and `replaced` (workers ended since the start). The root address `/` redirects to the Scalar page `/docs`; with `Accept: application/json` it answers the index of addresses.
+
+**What a relief tile costs.** The relief modes (slope, curvature, sky view factor, openness, shadows…) are computed by the app's tile protocols on the source's own tiles, often 512 px, then resampled to the 256 px tile asked for. Only the source tiles whose pixels the tile reads are computed (until 2026-11-25 the resampling margin reached into the neighbours, four 512 px computations for every 256 px tile), and each worker keeps the computed tiles, so the other three 256 px tiles of a source tile, and the same mode's values (`.tif`), come from memory. Measured on a laptop (16 z12 tiles around Mont Blanc on Mapterhorn, elevation cached, one thread, `node tile-server/bench-direct.mjs`), ms per tile:
+
+| Mode | Before | A tile whose source tile is new | Tiles of a 4 × 4 block |
+|---|---|---|---|
+| Hillshade | 37 | 25 to 35 | 25 to 35 |
+| Slope | 61 to 76 | 21 | 11 to 13 |
+| Shadows (r = 256 px, sun 15°) | 82 to 100 | 23 to 32 | 7 to 9 |
+| Sky view factor, r = 8 | 537 to 546 | 150 to 165 | 15 to 20 |
+| Sky view factor, r = 32 | 1281 to 1352 | 325 to 360 | 15 to 16 |
+
+Over HTTP with 8 workers, the same 16 tiles 8 at a time take 11 ms a tile for the hillshade, 14 for shadows, 29 for the sky view factor at r = 8 and 51 at r = 32 (214 and 466 before). The outputs are the same pixels as before (`bench-direct.mjs --compare` on the 112 tiles of its cases).
 
 The browser in the container reads any address given as a source: keep the service away from a private network, or behind a proxy that restricts who can call it. It has no sign-in.
 

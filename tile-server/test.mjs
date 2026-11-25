@@ -638,6 +638,36 @@ function assertStacItem(item) {
   }
 }
 
+// The relief modes' cost (network: Mapterhorn). A 256 px tile at z12 reads
+// one quarter of a 512 px source tile: its protocol (the sky view factor's
+// kernel) runs once for that source tile, not for the four the bilinear
+// margin used to reach into, and the neighbour in the same source tile, or
+// the same mode's values, are answered from the protocol tile cache. Until
+// 2026-11-25 a tile cost four kernels (1.3 s at r = 32 on a laptop, now
+// 0.35 s, the neighbour 15 ms): the times are lenient, the run counts exact.
+{
+  const { drawCase } = await import("./bench-direct.mjs")
+  const { protocolCacheStats } = await import("./direct.mjs")
+  await drawCase("hillshade", [12, 2124, 1458]) // the elevation, the code warmed up
+  await drawCase("hillshade", [12, 2125, 1458])
+  const before = protocolCacheStats()
+  let t0 = performance.now()
+  const png = await drawCase("svf32", [12, 2124, 1458])
+  const first = performance.now() - t0
+  assert.equal(png.subarray(1, 4).toString(), "PNG")
+  assert.equal(protocolCacheStats().runs - before.runs, 1, "one kernel run for one tile")
+  t0 = performance.now()
+  await drawCase("svf32", [12, 2125, 1458])
+  const neighbour = performance.now() - t0
+  const tif = await drawCase("svf8.tif", [12, 2124, 1458])
+  assert.equal(tif.readUInt16LE(2), 42, "a GeoTIFF")
+  await drawCase("svf8", [12, 2124, 1458])
+  assert.equal(protocolCacheStats().runs - before.runs, 2, "the neighbour from the cache; the r = 8 values and picture share one run")
+  assert.ok(first < 2000, `a sky view factor tile (r = 32) took ${Math.round(first)} ms`)
+  assert.ok(neighbour < 500, `its neighbour in the same source tile took ${Math.round(neighbour)} ms`)
+  console.log(`sky view factor r = 32: ${Math.round(first)} ms, the neighbour ${Math.round(neighbour)} ms`)
+}
+
 console.log("ok")
 // The bundled app code (colour ramps) keeps a handle open.
 process.exit(0)

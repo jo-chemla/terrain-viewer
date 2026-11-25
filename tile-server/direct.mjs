@@ -226,6 +226,8 @@ function rampOf(expr, ch, encoding = "terrarium") {
   }
 }
 
+const rgbaPx = new Float64Array(4)
+
 // Source-over of a premultiplied colour onto the premultiplied canvas.
 function over(dst, o, r, g, b, a) {
   const k = 1 - a
@@ -253,55 +255,57 @@ function hillshadeUniforms(paint, ch) {
 }
 
 // MapLibre's hillshade fragment shader (maplibre-gl 6, hillshade.fragment.glsl).
+// Called for every pixel: no closure, array or object is made here (they
+// were half the hillshade's time); the arithmetic is the shader's, in its order.
+const shadeAspect = (x, y) => (x !== 0 ? Math.atan2(y, -x) : (PI / 2) * (y > 0 ? 1 : -1))
+const shadeMod = (a, n) => a - n * Math.floor(a / n)
 function shade(u, dx, dy, out) {
   const ex = u.exaggeration
-  const aspect = (x, y) => (x !== 0 ? Math.atan2(y, -x) : (PI / 2) * (y > 0 ? 1 : -1))
-  const mod = (a, n) => a - n * Math.floor(a / n)
   const S = u.shadows, H = u.highlights
-  let r = 0, g = 0, b = 0, a = 0
-  const add = (c, k) => { r += c[0] * k; g += c[1] * k; b += c[2] * k; a += c[3] * k }
   if (u.method === "standard") {
     const azimuth = u.azimuths[0] + PI
     const slope = Math.atan(0.625 * Math.hypot(dx, dy))
     const base = 1.875 - ex * 1.75, maxValue = 0.5 * PI
     const scaled = ex !== 0.5 ? ((Math.pow(base, slope) - 1) / (Math.pow(base, maxValue) - 1)) * maxValue : slope
     const k = Math.min(1, Math.max(0, ex * 2))
-    const sh = Math.abs(mod((aspect(dx, dy) + azimuth) / PI + 0.5, 2) - 1)
+    const sh = Math.abs(shadeMod((shadeAspect(dx, dy) + azimuth) / PI + 0.5, 2) - 1)
     const s = Math.sin(scaled) * k
-    const sc = [0, 1, 2, 3].map((c) => (S[0][c] + (H[0][c] - S[0][c]) * sh) * s)
-    const ak = (1 - Math.cos(scaled)) * k * (1 - sc[3])
-    r = u.accent[0] * ak + sc[0]; g = u.accent[1] * ak + sc[1]; b = u.accent[2] * ak + sc[2]; a = u.accent[3] * ak + sc[3]
+    const S0 = S[0], H0 = H[0], A = u.accent
+    const s0 = (S0[0] + (H0[0] - S0[0]) * sh) * s, s1 = (S0[1] + (H0[1] - S0[1]) * sh) * s, s2 = (S0[2] + (H0[2] - S0[2]) * sh) * s, s3 = (S0[3] + (H0[3] - S0[3]) * sh) * s
+    const ak = (1 - Math.cos(scaled)) * k * (1 - s3)
+    out[0] = A[0] * ak + s0; out[1] = A[1] * ak + s1; out[2] = A[2] * ak + s2; out[3] = A[3] * ak + s3
+    return
+  }
+  out[0] = 0; out[1] = 0; out[2] = 0; out[3] = 0
+  dx *= ex * 2; dy *= ex * 2
+  const len = Math.hypot(dx, dy)
+  if (u.method === "igor") {
+    const azimuth = u.azimuths[0] + PI
+    const slopeStrength = (Math.atan(len) * 2) / PI
+    const aspectStrength = 1 - Math.abs(shadeMod((shadeAspect(dx, dy) + azimuth) / PI + 0.5, 2) - 1)
+    shadeAdd(out, S[0], slopeStrength * aspectStrength); shadeAdd(out, H[0], slopeStrength * (1 - aspectStrength))
+  } else if (u.method === "multidirectional") {
+    const n = u.azimuths.length
+    for (let i = 0; i < n; i++) {
+      const cosAlt = Math.cos(u.altitudes[i]), sinAlt = Math.sin(u.altitudes[i]), cosAz = -Math.cos(u.azimuths[i]), sinAz = -Math.sin(u.azimuths[i])
+      const s = Math.min(1, Math.max(0, (sinAlt - (dy * cosAz * cosAlt - dx * sinAz * cosAlt)) / Math.sqrt(1 + len * len)))
+      if (s > 0.5) shadeAdd(out, H[i], (2 * s - 1) / n); else shadeAdd(out, S[i], (1 - 2 * s) / n)
+    }
   } else {
-    dx *= ex * 2; dy *= ex * 2
-    const len = Math.hypot(dx, dy)
-    if (u.method === "igor") {
-      const azimuth = u.azimuths[0] + PI
-      const slopeStrength = (Math.atan(len) * 2) / PI
-      const aspectStrength = 1 - Math.abs(mod((aspect(dx, dy) + azimuth) / PI + 0.5, 2) - 1)
-      add(S[0], slopeStrength * aspectStrength); add(H[0], slopeStrength * (1 - aspectStrength))
-    } else if (u.method === "multidirectional") {
-      const n = u.azimuths.length
-      for (let i = 0; i < n; i++) {
-        const cosAlt = Math.cos(u.altitudes[i]), sinAlt = Math.sin(u.altitudes[i]), cosAz = -Math.cos(u.azimuths[i]), sinAz = -Math.sin(u.azimuths[i])
-        const s = Math.min(1, Math.max(0, (sinAlt - (dy * cosAz * cosAlt - dx * sinAz * cosAlt)) / Math.sqrt(1 + len * len)))
-        if (s > 0.5) add(H[i], (2 * s - 1) / n); else add(S[i], (1 - 2 * s) / n)
-      }
-    } else {
-      const azimuth = u.azimuths[0] + PI
-      const cosAz = Math.cos(azimuth), sinAz = Math.sin(azimuth), cosAlt = Math.cos(u.altitudes[0]), sinAlt = Math.sin(u.altitudes[0])
-      const c = (sinAlt - (dy * cosAz * cosAlt - dx * sinAz * cosAlt)) / Math.sqrt(1 + len * len)
-      if (u.method === "basic") {
-        const s = Math.min(1, Math.max(0, c))
-        if (s > 0.5) add(H[0], 2 * s - 1); else add(S[0], 1 - 2 * s)
-      } else { // combined
-        const cang = Math.min(PI / 2, Math.max(0, Math.acos(Math.min(1, Math.max(-1, c)))))
-        const k = (Math.atan(len) * 4) / PI / PI
-        add(S[0], cang * k); add(H[0], (PI / 2 - cang) * k)
-      }
+    const azimuth = u.azimuths[0] + PI
+    const cosAz = Math.cos(azimuth), sinAz = Math.sin(azimuth), cosAlt = Math.cos(u.altitudes[0]), sinAlt = Math.sin(u.altitudes[0])
+    const c = (sinAlt - (dy * cosAz * cosAlt - dx * sinAz * cosAlt)) / Math.sqrt(1 + len * len)
+    if (u.method === "basic") {
+      const s = Math.min(1, Math.max(0, c))
+      if (s > 0.5) shadeAdd(out, H[0], 2 * s - 1); else shadeAdd(out, S[0], 1 - 2 * s)
+    } else { // combined
+      const cang = Math.min(PI / 2, Math.max(0, Math.acos(Math.min(1, Math.max(-1, c)))))
+      const k = (Math.atan(len) * 4) / PI / PI
+      shadeAdd(out, S[0], cang * k); shadeAdd(out, H[0], (PI / 2 - cang) * k)
     }
   }
-  out[0] = r; out[1] = g; out[2] = b; out[3] = a
 }
+function shadeAdd(out, c, k) { out[0] += c[0] * k; out[1] += c[1] * k; out[2] += c[2] * k; out[3] += c[3] * k }
 
 // ── Tiles of the app's protocols ──────────────────────────────────────────
 
@@ -333,8 +337,53 @@ function protocolOf(A, layer, dem, s, base) {
   return null
 }
 
+// The protocol tiles computed last, by address (the address holds the
+// source, every setting and the tile): a 512 px source tile serves the four
+// 256 px tiles inside it, and the neighbours a map asks next, from one run
+// of its kernel instead of four. An entry is the tile's values (Float32Array)
+// or its RGBA pixels (Uint8ClampedArray), a run under way its promise. Per
+// worker, TV_PROTOCOL_CACHE_MB (48) each.
+const PROTOCOL_CACHE_BYTES = Math.max(0, Number(process.env.TV_PROTOCOL_CACHE_MB ?? 48)) * 1024 * 1024
+const protocolTiles = new Map()
+let protocolBytes = 0, protocolRuns = 0, protocolHits = 0
+/** The protocol tile cache: kernels run, tiles answered from the cache, entries, bytes (test.mjs). */
+export const protocolCacheStats = () => ({ runs: protocolRuns, hits: protocolHits, entries: protocolTiles.size, bytes: protocolBytes })
+function protocolTile(p, z, x, y, side) {
+  const url = p.url.replace("{z}", z).replace("{x}", x).replace("{y}", y)
+  const have = protocolTiles.get(url)
+  if (have) { protocolHits++; protocolTiles.delete(url); protocolTiles.set(url, have); return have.promise }
+  protocolRuns++
+  const promise = (async () => {
+    try {
+      const r = await p.run({ url }, new AbortController())
+      // The protocols built on runNormalDerivedProtocol hand back their
+      // values unencoded beside the tile: read those, not the Terrarium
+      // packing, which clamps at ±32768 and steps by 1/256.
+      if (!p.rgba && r?.values?.length === side * side) return { values: r.values }
+      const px = await pixelsOf(r)
+      return px.width === side ? { px: px.data } : null
+    } catch { return null }
+  })()
+  const entry = { promise, bytes: 0 }
+  protocolTiles.set(url, entry)
+  promise.then((t) => {
+    if (protocolTiles.get(url) !== entry) return
+    if (!t) { protocolTiles.delete(url); return }
+    entry.bytes = (t.values ?? t.px).byteLength
+    protocolBytes += entry.bytes
+    while (protocolBytes > PROTOCOL_CACHE_BYTES && protocolTiles.size) {
+      const [k, e] = protocolTiles.entries().next().value
+      protocolTiles.delete(k)
+      protocolBytes -= e.bytes
+    }
+  })
+  return promise
+}
+
 /** A rectangle of a protocol's tiles at zoom z: `channels` floats a pixel
- *  (1: the decoded value, NaN for no data; 4: premultiplied RGBA 0..1). */
+ *  (1: the decoded value, NaN for no data; 4: premultiplied RGBA 0..1).
+ *  Every tile the rectangle overlaps is computed whole: callers ask for the
+ *  pixels they read (readRange), not a margin. */
 async function protocolWindow(p, z, side, x0, y0, w, h) {
   const ch = p.rgba ? 4 : 1
   const out = new Float32Array(w * h * ch).fill(p.rgba ? 0 : NaN)
@@ -343,31 +392,51 @@ async function protocolWindow(p, z, side, x0, y0, w, h) {
   for (let ty = Math.floor(y0 / side); ty <= Math.floor((y0 + h - 1) / side); ty++) for (let tx = Math.floor(x0 / side); tx <= Math.floor((x0 + w - 1) / side); tx++) {
     if (ty < 0 || ty >= n) continue
     const wx = ((tx % n) + n) % n
-    jobs.push((async () => {
-      let r, px
-      try {
-        r = await p.run({ url: p.url.replace("{z}", z).replace("{x}", wx).replace("{y}", ty) }, new AbortController())
-        // The protocols built on runNormalDerivedProtocol hand back their
-        // values unencoded beside the tile: read those, not the Terrarium
-        // packing, which clamps at ±32768 and steps by 1/256.
-        if (!p.rgba && r?.values?.length === side * side) {
-          const v = r.values
-          for (let j = Math.max(y0, ty * side); j < Math.min(y0 + h, (ty + 1) * side); j++) for (let i = Math.max(x0, tx * side); i < Math.min(x0 + w, (tx + 1) * side); i++) out[(j - y0) * w + (i - x0)] = v[(j - ty * side) * side + (i - tx * side)]
-          return
-        }
-        px = await pixelsOf(r)
-      } catch { return }
-      if (px.width !== side) return
-      const d = px.data, mapbox = p.enc === "mapbox"
-      for (let j = Math.max(y0, ty * side); j < Math.min(y0 + h, (ty + 1) * side); j++) for (let i = Math.max(x0, tx * side); i < Math.min(x0 + w, (tx + 1) * side); i++) {
+    jobs.push(protocolTile(p, z, wx, ty, side).then((t) => {
+      if (!t) return
+      const j0 = Math.max(y0, ty * side), j1 = Math.min(y0 + h, (ty + 1) * side), i0 = Math.max(x0, tx * side), i1 = Math.min(x0 + w, (tx + 1) * side)
+      if (t.values) {
+        const v = t.values
+        for (let j = j0; j < j1; j++) out.set(v.subarray((j - ty * side) * side + (i0 - tx * side), (j - ty * side) * side + (i1 - tx * side)), (j - y0) * w + (i0 - x0))
+        return
+      }
+      const d = t.px, mapbox = p.enc === "mapbox"
+      for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
         const o = ((j - ty * side) * side + (i - tx * side)) * 4, q = (j - y0) * w + (i - x0)
         if (p.rgba) { const a = d[o + 3] / 255; out[q * 4] = (d[o] / 255) * a; out[q * 4 + 1] = (d[o + 1] / 255) * a; out[q * 4 + 2] = (d[o + 2] / 255) * a; out[q * 4 + 3] = a }
         else if (d[o + 3] !== 0) out[q] = mapbox ? -10000 + (d[o] * 65536 + d[o + 1] * 256 + d[o + 2]) * 0.1 : d[o] * 256 + d[o + 1] + d[o + 2] / 256 - 32768
       }
-    })())
+    }))
   }
   await Promise.all(jobs)
   return out
+}
+
+/** The source pixels a bilinear read at positions F[from..to) touches with
+ *  a weight above zero: [lo, hi]. A position on a pixel centre reads that
+ *  pixel alone. Reading a protocol over these instead of a margin keeps it
+ *  from computing the neighbour tiles the margin reaches into (four 512 px
+ *  kernels for one 256 px tile: what made the sky view factor slow). */
+function readRange(F, from, to) {
+  let lo = Infinity, hi = -Infinity
+  for (let i = from; i < to; i++) {
+    const a = Math.floor(F[i])
+    if (a < lo) lo = a
+    const b = F[i] > a ? a + 1 : a
+    if (b > hi) hi = b
+  }
+  return [lo, hi]
+}
+
+/** A protocol's values (or RGBA) over the pixels the output reads, as a
+ *  clamped sampler in the coordinates of the full window (gx0, gy0). A read
+ *  outside lands on the same row or column inside, and is only ever a
+ *  zero-weight term of the bilinear: the result is the pixel's own. */
+async function protocolSampler(p, z, side, gx0, gy0, [lx, hx], [ly, hy]) {
+  const w = hx - lx + 1, h = hy - ly + 1, c = p.rgba ? 4 : 1
+  const G = await protocolWindow(p, z, side, gx0 + lx, gy0 + ly, w, h)
+  const at = (i, j, q = 0) => G[(Math.min(h - 1, Math.max(0, j - ly)) * w + Math.min(w - 1, Math.max(0, i - lx))) * c + q]
+  return { G, at }
 }
 
 // ── Values ────────────────────────────────────────────────────────────────
@@ -415,26 +484,34 @@ export async function valuesOf({ dem, state: s }, mode, { world, x0, y0, width, 
   const side = dem.tileSize, k = (side * 2 ** zd) / world
   const gx0 = Math.floor(x0 * k) - 2, gy0 = Math.floor(y0 * k) - 2
   const gw = Math.ceil((x0 + width) * k) + 2 - gx0, gh = Math.ceil((y0 + height) * k) + 2 - gy0
-  const G = mode === "elevation" || mode === "colorRelief"
-    ? await demWindow(dem, zd, side, gx0, gy0, gw, gh)
-    : await protocolWindow(protocolOf(A, mode, dem, s, baseUrl), zd, side, gx0, gy0, gw, gh)
-  if (G.every(Number.isNaN)) {
-    const refused = refusalOf(dem)
-    if (refused) throw Object.assign(new Error(`The source refused the request (HTTP ${refused}): check the API key or its allowed origins`), { status: 502 })
-    throw Object.assign(new Error("This source has no data here"), { status: 404 })
-  }
-  const at = (i, j) => G[Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))]
-  const { a, b } = def.to?.(s) ?? { a: 1, b: 0 }
   // Bilinear on the source grid at each output pixel centre, as the map
   // samples a raster-dem (and draw() samples before the ramp). An angle that
   // wraps (aspect, orientation) is taken from the nearest source pixel, so
   // 359° and 1° do not average to 180°.
   const nearest = mode === "aspect" || mode === "orientation"
+  const FX = new Float64Array(width), FY = new Float64Array(height)
+  for (let i = 0; i < width; i++) FX[i] = (x0 + i + 0.5) * k - 0.5 - gx0
+  for (let j = 0; j < height; j++) FY[j] = (y0 + j + 0.5) * k - 0.5 - gy0
+  let G, at
+  if (mode === "elevation" || mode === "colorRelief") {
+    G = await demWindow(dem, zd, side, gx0, gy0, gw, gh)
+    at = (i, j) => G[Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))]
+  } else {
+    // The pixels read (nearest: the ones rounded to), not the margin.
+    const range = (F, n) => (nearest ? [Math.round(F[0]), Math.round(F[n - 1])] : readRange(F, 0, n))
+    ;({ G, at } = await protocolSampler(protocolOf(A, mode, dem, s, baseUrl), zd, side, gx0, gy0, range(FX, width), range(FY, height)))
+  }
+  if (G.every(Number.isNaN)) {
+    const refused = refusalOf(dem)
+    if (refused) throw Object.assign(new Error(`The source refused the request (HTTP ${refused}): check the API key or its allowed origins`), { status: 502 })
+    throw Object.assign(new Error("This source has no data here"), { status: 404 })
+  }
+  const { a, b } = def.to?.(s) ?? { a: 1, b: 0 }
   const out = new Float32Array(width * height)
   for (let j = 0; j < height; j++) {
-    const fy = (y0 + j + 0.5) * k - 0.5 - gy0
+    const fy = FY[j]
     for (let i = 0; i < width; i++) {
-      const fx = (x0 + i + 0.5) * k - 0.5 - gx0
+      const fx = FX[i]
       let v
       if (nearest) v = at(Math.round(fx), Math.round(fy))
       else {
@@ -577,6 +654,8 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
     return out
   }
   const latOf = (wy) => Math.atan(Math.sinh(PI * (1 - (2 * wy) / world)))
+  // The source pixels the output pixels (no margin) read, for the protocols.
+  const readX = readRange(FX, P, P + width), readY = readRange(FY, P, P + height)
 
   // Premultiplied RGBA 0..1, the map's background to start with: white, or
   // black in the dark theme (BackgroundLayer).
@@ -604,10 +683,20 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
       const scale = side / Math.pow(2, exag + (28.2562 - zd))
       const q8 = (v) => (Math.round(Math.min(1, Math.max(0, v / 8 + 128 / 255)) * 255) / 255 - 128 / 255) * 8
       const DX = new Float32Array(gw * gh), DY = new Float32Array(gw * gh)
-      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
-        const a = at(i - 1, j - 1), b = at(i, j - 1), c = at(i + 1, j - 1), d = at(i - 1, j), f = at(i + 1, j), g = at(i - 1, j + 1), h = at(i, j + 1), n = at(i + 1, j + 1)
-        DX[j * gw + i] = q8((c + f + f + n - (a + d + d + g)) * scale)
-        DY[j * gw + i] = q8((g + h + h + n - (a + b + b + c)) * scale)
+      for (let j = 0; j < gh; j++) {
+        const inner = j > 0 && j < gh - 1
+        for (let i = 0; i < gw; i++) {
+          let a, b, c, d, f, g, h, n
+          if (inner && i > 0 && i < gw - 1) {
+            // Inside: the 3x3 window read straight, no clamping.
+            const o = j * gw + i
+            a = E[o - gw - 1]; b = E[o - gw]; c = E[o - gw + 1]; d = E[o - 1]; f = E[o + 1]; g = E[o + gw - 1]; h = E[o + gw]; n = E[o + gw + 1]
+          } else {
+            a = at(i - 1, j - 1); b = at(i, j - 1); c = at(i + 1, j - 1); d = at(i - 1, j); f = at(i + 1, j); g = at(i - 1, j + 1); h = at(i, j + 1); n = at(i + 1, j + 1)
+          }
+          DX[j * gw + i] = q8((c + f + f + n - (a + d + d + g)) * scale)
+          DY[j * gw + i] = q8((g + h + h + n - (a + b + b + c)) * scale)
+        }
       }
       const gdx = clampAt(DX), gdy = clampAt(DY)
       const u = hillshadeUniforms(A.computeHillshadePaint(s), ch), px = [0, 0, 0, 0]
@@ -636,20 +725,29 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
     } else if (layer === "planeSlicer") {
       const paint = A.computePlaneSlicerPaint({ value: s.planeSlicerReferenceMode === "lrm" ? s.planeSlicerValueLrm : s.planeSlicerValue, side: s.planeSlicerSide, color: s.planeSlicerColor, opacity: s.planeSlicerOpacity })
       if (s.planeSlicerReferenceMode === "lrm") {
-        const G = await protocolWindow({ url: A.buildLrmProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, s.lrmRadius), run: A.lrmProtocol }, zd, side, gx0, gy0, gw, gh)
-        paintValues(resample(clampAt(G)), paint, "terrarium")
+        const { at } = await protocolSampler({ url: A.buildLrmProtocolUrl(dem.tiles, dem.encoding, dem.tileSize, s.lrmRadius), run: A.lrmProtocol }, zd, side, gx0, gy0, readX, readY)
+        paintValues(resample(at), paint, "terrarium")
       } else paintValues(resample(clampAt(E)), paint, dem.encoding)
     } else {
       const p = protocolOf(A, layer, dem, s, baseUrl)
-      const G = await protocolWindow(p, zd, side, gx0, gy0, gw, gh)
+      const { at, G } = await protocolSampler(p, zd, side, gx0, gy0, readX, readY)
       if (p.rgba) {
-        const at = clampAt(G, 4), op = p.opacity ?? 1
-        for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
-          const fx = FX[i + P], fy = FY[j + P]
-          over(img, (j * width + i) * 4, bil(at, fx, fy, 0) * op, bil(at, fx, fy, 1) * op, bil(at, fx, fy, 2) * op, bil(at, fx, fy, 3) * op)
+        // bil() on each channel, its four reads and their clamping done once
+        // a pixel instead of once a channel.
+        const op = p.opacity ?? 1, [lx, hx] = readX, [ly, hy] = readY, w = hx - lx + 1
+        const col = (i) => Math.min(w - 1, Math.max(0, i - lx)), row = (j) => Math.min(hy - ly, Math.max(0, j - ly))
+        const C0 = new Int32Array(width), C1 = new Int32Array(width), TX = new Float64Array(width)
+        for (let i = 0; i < width; i++) { const fx = FX[i + P], ii = Math.floor(fx); TX[i] = fx - ii; C0[i] = col(ii) * 4; C1[i] = col(ii + 1) * 4 }
+        for (let j = 0; j < height; j++) {
+          const fy = FY[j + P], jj = Math.floor(fy), ty = fy - jj, R0 = row(jj) * w * 4, R1 = row(jj + 1) * w * 4
+          for (let i = 0; i < width; i++) {
+            const tx = TX[i], a = R0 + C0[i], b = R0 + C1[i], c = R1 + C0[i], d = R1 + C1[i], px = rgbaPx
+            for (let q = 0; q < 4; q++) px[q] = ((G[a + q] * (1 - tx) + G[b + q] * tx) * (1 - ty) + (G[c + q] * (1 - tx) + G[d + q] * tx) * ty) * op
+            over(img, (j * width + i) * 4, px[0], px[1], px[2], px[3])
+          }
         }
       } else {
-        paintValues(resample(clampAt(G)), A.computeColorReliefPaint(A.MODE_RELIEF[layer](s)), p.enc ?? "terrarium")
+        paintValues(resample(at), A.computeColorReliefPaint(A.MODE_RELIEF[layer](s)), p.enc ?? "terrarium")
       }
     }
   }
@@ -666,7 +764,9 @@ export async function draw({ dem, layers, state: s }, { world, x0, y0, width, he
     const text = esc(credit), tw = Math.min(width - 8, Math.round(text.length * 6.2) + 12)
     out = sharp(await out.png().toBuffer()).composite([{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect x="${width - tw}" y="${height - 18}" width="${tw}" height="18" fill="rgba(255,255,255,0.7)"/><text x="${width - 6}" y="${height - 5}" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333" text-anchor="end">${text}</text></svg>`) }])
   }
-  return format === "png" ? out.png().toBuffer() : out.flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer()
+  // zlib level 3: a third of the default level's time (2.5 ms against 7.5 a
+  // 256 px tile), 8 % larger.
+  return format === "png" ? out.png({ compressionLevel: 3 }).toBuffer() : out.flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer()
 }
 
 // ── The live Phong and matcap layers ──────────────────────────────────────

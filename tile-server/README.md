@@ -37,9 +37,11 @@ pnpm start               # builds generated/, then http://localhost:3400
 pnpm test                # builds, then the engine checks (network)
 node openapi.mjs         # rewrites docs/public/tile-service-openapi.json
 node compare-engines.mjs http://localhost:3400 out/   # the two engines side by side
+node bench-direct.mjs [out/]   # ms per tile of the relief modes, in this thread (network)
+node bench-direct.mjs --compare out-a/ out-b/   # two versions' tiles, pixel for pixel
 ```
 
-Environment: `PORT` (3400), `TV_RENDER_CONCURRENCY` (2 browser pages), `TV_DIRECT_WORKERS` (worker threads of the direct engine, the cores minus one, at most 8; 0: in the server's thread, `TV_DIRECT_CONCURRENCY` (4) at a time), `TV_QUEUE_TIMEOUT` (30 s, then 503), `TV_RENDER_TIMEOUT` (90 s, then 504), `TILE_CACHE_DIR` (rendered tiles, kept a week),
+Environment: `PORT` (3400), `TV_RENDER_CONCURRENCY` (2 browser pages), `TV_DIRECT_WORKERS` (worker threads of the direct engine, the cores minus one, at most 8; 0: in the server's thread, `TV_DIRECT_CONCURRENCY` (4) at a time), `TV_PROTOCOL_CACHE_MB` (48: each worker's memory of computed relief source tiles), `TV_QUEUE_TIMEOUT` (30 s, then 503), `TV_RENDER_TIMEOUT` (90 s, then 504), `TILE_CACHE_DIR` (rendered tiles, kept a week),
 `TV_BASE_URL` (the app the browser engine opens, default
 `https://terrain-viewer.iconem.com/`), `CHROME_PATH` (unset: the installed
 Chrome, else the installed Edge; with neither, the views needing the browser
@@ -68,6 +70,7 @@ and with `TV_RENDER_URL` asks a running tile service for its pictures.
 | `qgis-project.mjs` | `/qgis.qgz`: every layer of the app, stacked as the map and grouped as its panel, the view's layers checked and configured, over its basemap. |
 | `direct-pool.mjs`, `direct-worker.mjs` | The direct engine in worker threads: one tile per worker, a cancelled or timed-out tile ends its worker; started with the service; the HTTP source tiles fetched once for all workers. |
 | `compare-engines.mjs` | The same tiles from both engines, a table of differences and side-by-side pictures. |
+| `bench-direct.mjs` | The direct engine's ms per tile for hillshade, slope, shadows, the sky view factor (r = 8, 32) and their values, on 16 z12 tiles; writes them to compare two versions pixel for pixel. |
 | `app-lib.ts`, `app-render.ts`, `app-sources.ts`, `app-overlays.ts`, `build.mjs` | The app's catalog code, tile protocols, source readers and layer paints bundled for Node into `generated/` (not tracked), with `import.meta.env` empty so no key from `.env` can get in; plus `library.json` (the terrain library and the data hosts) and `url-params.json`. |
 | `browser-shim.mjs`, `maplibre-stub.mjs` | The few browser functions the bundled code calls, done with sharp; a stand-in for maplibre-gl, which the protocols only register with. |
 | `test.mjs` | The engine checks. |

@@ -56,7 +56,7 @@ TARGETS = {
 }
 # The service's files that run (the tests, the engine comparison and the
 # build step stay out).
-NOT_SHIPPED = {"test.mjs", "proxy-test.mjs", "compare-engines.mjs", "build.mjs"}
+NOT_SHIPPED = {"test.mjs", "proxy-test.mjs", "compare-engines.mjs", "bench-direct.mjs", "build.mjs"}
 # Production dependencies left out: playwright-core drives Chrome or Edge for
 # the browser engine (3D, tilted, split views), which a nadir 2D client such
 # as QGIS never asks for. render.mjs answers 501 without it.
