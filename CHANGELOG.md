@@ -49,7 +49,7 @@
 
 #### TL;DR
 
-- **The desktop app can serve tiles to QGIS**: **Settings > Desktop: local tile service** (desktop app only, never on the website) runs the tile service on this computer, on `http://localhost:3400` (port configurable), off by default, with its status shown. Turn it on, then in the QGIS plugin keep the address `http://localhost:3400` and press Connect. The service stays on this computer (`127.0.0.1`), starts again with the app while the setting is on, and stops with the app. Docs: [Desktop App, local tile service](/docs/features/advanced/desktop#local-tile-service).
+- **The desktop app can serve tiles to QGIS**: **Settings > Desktop: local tile service** (desktop app only, never on the website) runs the tile service on this computer (off by default, port 3400 unless you change it). Turn it on, then press Connect in the QGIS plugin with its default address. It starts with the app while the setting is on and stops when the app closes. Docs: [Desktop App, local tile service](/docs/features/advanced/desktop#local-tile-service).
 - **QGIS plugin 0.4.0**: the bundled tile service is **off by default** and only starts when you check **Local bundled tile service** and press Connect. If the tile service does not answer (at Connect, or later), the panel and QGIS's message bar say so, and for a local address suggest starting the desktop app with its tile service on (or the bundled one). Both variants stay: the 20 KB plain zip and the platform zips with the service inside, about 3 MB smaller now. Release: [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b).
 - **No browser for the plugin**: QGIS asks for flat, north-up tiles only, so the service inside the plugin and the desktop app ships without playwright-core and never looks for Chrome or Edge; a 3D, tilted or split view answers 501.
 
@@ -66,9 +66,9 @@
 #### TL;DR
 
 - **Long shadows from far away**: live terrain shadows now also come from relief tens of kilometres beyond the view (a second, coarser elevation mosaic around it), with the ground lowered by the Earth's curvature on long rays. At sunrise over Mont Blanc (sun 2°) the match with a long-reach reference goes from 0.96 to 0.999 (IoU); over the Po plain east of Turin at a 1.5° sunset, where the Alps' shadow comes from 60 to 100 km away, from 0.86 to 0.98. A frame costs 2 to 4 ms per megapixel on a laptop GPU.
-- **Soft shadow edges**: the penumbra of the sun's disc, wider the farther the ridge casting it (Lighting Effects, Shadows, **Edge: Soft / Hard**, advanced; `shadowSoft`, on by default).
+- **Soft shadow edges**: the penumbra of the sun's disc, wider the farther the ridge casting it (Lighting Effects > Shadows > **Edge: Soft / Hard**, on by default).
 - **Clearer names**: the shadow toggle is **Terrain (+ buildings if DSM)**: a terrain model such as Mapterhorn has no buildings, and its slopes cast long shadows only under a low sun (the outer rim of the light pad). The renderer switch reads **Live (GPU) / Tiles (CPU)**.
-- **[Shadow Renderers](/docs/dev/shadow-renderers)** replaces the Shadow Benchmark page: our two renderers, their sun conventions checked on a synthetic cliff (no direction bug), accuracy and timings, and what each export uses (per-mode exports and the Iso-line read the tiles, the Snapshot captures the live shadows as drawn).
+- **Exports**: the Snapshot captures the live shadows as you see them; per-mode exports and the Iso-line use the shadow tiles. How both renderers work: [Shadow Renderers](/docs/dev/shadow-renderers).
 
 #### Details
 
