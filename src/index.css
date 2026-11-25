@@ -359,8 +359,13 @@
   -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
 }
+/* Hover: no fill (the vendor's hover background, then a var(--accent) one
+   here, read as a block of the font colour behind the glyph), only the
+   pointer cursor. */
+.maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button,
 .maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button:hover {
-  background-color: var(--accent);
+  background-color: transparent;
+  cursor: pointer;
 }
 .maplibregl-ctrl-attrib.maplibregl-compact a {
   color: inherit;

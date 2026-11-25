@@ -1,3 +1,15 @@
+# Changelog — One Fuzzy Search for Sources Coverage, Quieter Attribution Button
+
+#### TL;DR
+
+- **Sources Coverage has one search for everything it lists**: a filter box at the top of the section now covers Terrain (Mapterhorn, 3D and LiDAR, OpenTopography, the terrain library, your sources), Basemaps · Static (ELI, your basemaps, the basemap library) and the historical catalogs, instead of the historical catalogs alone. It is typo-tolerant, using the Library's matcher ("lidr" finds the LiDAR coverage, "swistopo" the swisstopo datasets). Groups with a match open, the others hide, and "Nothing matches" says when nothing does.
+- **Catalog search sized like its dialog**: the filter box in the timeline's Catalogs picker uses the dialog's 12px text, is 28px high and has a 12px icon (it was 14px text in a 36px box).
+- **Attribution (i)**: hovering no longer fills the button with a block of colour, only the pointer cursor shows. The keyboard focus ring stays.
+
+#### Details
+
+- `historical-catalog-tree.tsx`: `useCatalogEntries` and `catalogSearchText` exported; a `filter` prop (`{ query, ids }`) takes a search run elsewhere and hides the tree's own box. `SourceInfoSection.tsx` runs `searchLibrary` once over every coverage leaf (with its section and group names), every group that has no leaves yet (ELI before it loads; a match loads it) and every historical catalog, so exact matches win across the whole list before any near miss. While searching, the folds are forced open but not stored, and Expand all is disabled.
+- The `Input`s also get `md:text-xs`: without it the primitive's `md:text-sm` won on wide screens (this also fixes the coverage panel's Search by name field).
 # Changelog — Tile Service Without titiler's Addresses
 
 #### TL;DR

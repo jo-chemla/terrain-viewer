@@ -19,6 +19,9 @@
 // (the STAC endpoint's host), group and country, with the Library's matcher
 // (lib/library-search.ts: separators ignored, typos tolerated); while it
 // holds text every group with a match is open and the others are hidden.
+// In the coverage section the box is not here: that section's own search
+// (one box over terrain, static basemaps and these catalogs) passes the
+// matching ids down as `filter`.
 import type React from "react"
 import { useMemo, useState } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -45,6 +48,7 @@ const SwitchRow: React.FC<{ checked: boolean; onChange: (v: boolean) => void; la
 const covers = (c: { bbox?: [number, number, number, number] }, center?: [number, number]) =>
   !c.bbox || !center || (center[0] >= c.bbox[0] && center[0] <= c.bbox[2] && center[1] >= c.bbox[1] && center[1] <= c.bbox[3])
 
+export type CatalogEntry = Entry
 type Entry = TimelineCatalog & { coverageOnly?: boolean; /** Selected by a link, not in this browser's My catalogs: a Keep button stores it. */ unlisted?: boolean }
 // Footprint-only rows first within their group (Allmaps, Rumsey, QMS).
 const entriesOf = (catalogs: TimelineCatalog[]): Entry[] => [...COVERAGE_ONLY_ENTRIES.map((e) => ({ ...e, coverageOnly: true as const })), ...catalogs]
@@ -84,7 +88,7 @@ function buildNodes(roots: string[], bare = false, entries: Entry[] = BUILTIN_EN
 }
 /** What the search box matches a row on. */
 const hostOf = (url?: string) => { try { return url ? new URL(url).host : "" } catch { return "" } }
-const searchText = (c: Entry) => [c.label, c.short, c.note, c.group, rootOf(c), c.continent, c.region, c.iso3, c.iso3 ? ISO3_NAMES[c.iso3] : "", hostOf(c.stac?.endpoint)].filter(Boolean).join(" ")
+export const catalogSearchText = (c: Entry) => [c.label, c.short, c.note, c.group, rootOf(c), c.continent, c.region, c.iso3, c.iso3 ? ISO3_NAMES[c.iso3] : "", hostOf(c.stac?.endpoint)].filter(Boolean).join(" ")
 const nodeCats = (n: Node): Entry[] => [...n.rows, ...n.children.flatMap(nodeCats)]
 const nodeKeys = (n: Node): string[] => [n.key, ...n.children.flatMap(nodeKeys)]
 /** Every foldable key of the tree, for the picker's expand/fold all; down
@@ -92,6 +96,17 @@ const nodeKeys = (n: Node): string[] => [n.key, ...n.children.flatMap(nodeKeys)]
 export const catalogTreeKeys = (roots: string[] = CATALOG_ROOT_ORDER, maxDepth = Infinity): string[] => {
   const walk = (n: Node): string[] => (n.depth > maxDepth ? [] : [n.key, ...n.children.flatMap(walk)])
   return buildNodes(roots).flatMap(walk).map((k) => `cat:${k}`)
+}
+
+/** Every row the tree lists under `roots`: the built-in and saved catalogs,
+ *  the footprint-only entries, and a STAC catalog a link selected that this
+ *  browser never saved (listed from its id, with a Keep button). Shared with
+ *  the coverage section, whose search runs over these rows and its own. */
+export function useCatalogEntries(selected: string[], roots: string[] = CATALOG_ROOT_ORDER): Entry[] {
+  const catalogs = useAtomValue(timelineCatalogsAtom)
+  const unlisted = selected.filter((id) => isStacCatalogId(id) && !catalogs.some((c) => c.id === id)).map((id) => stacCatalogDef(id)).filter((c): c is TimelineCatalog => !!c)
+  const unlistedKey = unlisted.map((c) => c.id).join(",")
+  return useMemo(() => [...entriesOf(catalogs), ...unlisted.map((c) => ({ ...c, unlisted: true }))].filter((c) => roots.includes(rootOf(c))), [catalogs, unlistedKey, roots.join("|")]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export const HistoricalCatalogTree: React.FC<{
@@ -108,14 +123,13 @@ export const HistoricalCatalogTree: React.FC<{
   /** Rows without the root header: the Community indexes rows inside the
    *  static basemaps' group of the same name. */
   bare?: boolean
+  /** A search run outside (the coverage section's): its text, and the ids
+   *  of the rows it kept. Replaces the tree's own search box. */
+  filter?: { query: string; ids: ReadonlySet<string> }
   className?: string
-}> = ({ selected, onChange, center, compact = false, roots = CATALOG_ROOT_ORDER, bare = false, className }) => {
+}> = ({ selected, onChange, center, compact = false, roots = CATALOG_ROOT_ORDER, bare = false, filter, className }) => {
   const { loading, counts, errors } = useAtomValue(catalogStatusAtom)
-  const catalogs = useAtomValue(timelineCatalogsAtom)
-  // A STAC catalog a link selected that this browser never saved: listed
-  // from its id (its endpoint is in it) with a Keep button.
-  const unlisted = selected.filter((id) => isStacCatalogId(id) && !catalogs.some((c) => c.id === id)).map((id) => stacCatalogDef(id)).filter((c): c is TimelineCatalog => !!c)
-  const entries = useMemo(() => [...entriesOf(catalogs), ...unlisted.map((c) => ({ ...c, unlisted: true }))], [catalogs, unlisted.map((c) => c.id).join(",")]) // eslint-disable-line react-hooks/exhaustive-deps
+  const entries = useCatalogEntries(selected)
   const setCustomCatalogs = useSetAtom(customTimelineCatalogsAtom)
   const [addOpen, setAddOpen] = useState(false)
   const removeCustom = (id: string) => {
@@ -140,8 +154,8 @@ export const HistoricalCatalogTree: React.FC<{
     if (covs.length) setCoverage((prev) => { const next = new Set(prev); for (const id of covs) on ? next.add(id) : next.delete(id); return [...next] })
   }
   const [query, setQuery] = useState("")
-  const q = query.trim()
-  const shown = useMemo(() => (q ? searchLibrary(entries, searchText, q) : entries), [entries, q])
+  const q = filter ? filter.query.trim() : query.trim()
+  const shown = useMemo(() => (filter ? entries.filter((c) => filter.ids.has(c.id)) : q ? searchLibrary(entries, catalogSearchText, q) : entries), [entries, q, filter])
   // While searching: only the groups holding a match, all of them open.
   const prune = (ns: Node[]): Node[] => ns.flatMap((n) => {
     const children = prune(n.children)
@@ -246,14 +260,17 @@ export const HistoricalCatalogTree: React.FC<{
           </Tooltip>
         </div>
       )}
-      {!bare && (
+      {!bare && !filter && (
+        // The size of the dialog's own text (text-xs, 28px high), not the
+        // Input's default 14px/36px; md:text-xs too, or the Input's
+        // md:text-sm wins on a wide screen.
         <div className="relative min-w-0 px-0.5 pb-1">
-          <Search className="absolute left-3 top-[calc(50%-2px)] -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Search className="absolute left-2.5 top-[calc(50%-2px)] -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
           <Input type="search" placeholder="Filter catalogs…" aria-label="Filter catalogs" value={query} onChange={(e) => setQuery(e.target.value)}
-            className={cn("pl-8 cursor-text", compact ? "h-8 text-xs" : "h-9")} />
+            className="h-7 pl-7 text-xs md:text-xs cursor-text" />
         </div>
       )}
-      {q && nodes.length === 0 && <p className="px-0.5 text-xs text-muted-foreground break-words">No catalog matches “{q}”.</p>}
+      {q && !filter && nodes.length === 0 && <p className="px-0.5 text-xs text-muted-foreground break-words">No catalog matches “{q}”.</p>}
       {nodes.map((n, i) => (
         <div key={n.key} className={i && !bare ? (compact ? "pt-1 border-t border-dashed mt-1" : "pt-1.5 border-t mt-1") : undefined}>{renderNode(n, !bare)}</div>
       ))}

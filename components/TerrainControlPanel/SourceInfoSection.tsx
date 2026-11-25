@@ -25,7 +25,8 @@ import { ExternalLink, ChevronDown, Maximize2, Info, ChevronsDownUp, ChevronsUpD
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { coverageOverlaysAtom, coverageGroups, type EliLike } from "@/lib/coverage-overlays"
-import { HistoricalCatalogTree, catalogTreeKeys } from "./historical-catalog-tree"
+import { HistoricalCatalogTree, catalogTreeKeys, catalogSearchText, useCatalogEntries } from "./historical-catalog-tree"
+import { searchLibrary } from "@/lib/library-search"
 import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
 import { coverageVisibleAtom, coverageOutlineOnlyAtom, timelineFootprintsAtom, timelineFollowViewportAtom, timelineWindowFilterAtom, coverageFoldsAtom, tickPicksKeepAtom, activeExtentsAtom, activeExtentIdsAtom } from "@/lib/settings-atoms"
 import { sourceFieldName } from "@/lib/grid-layouts"
@@ -301,7 +302,12 @@ const BasemapAttributionList: React.FC<{ state: any; mapRef: React.RefObject<Map
  *  tree.tsx, the same one the timeline's Catalogs select shows). A group
  *  checkbox takes the whole group; a master switch hides every footprint at
  *  once, the selection kept. Every group starts folded; what the user opens
- *  is kept across sessions (coverageFoldsAtom). */
+ *  is kept across sessions (coverageFoldsAtom). One filter box on top runs
+ *  over all three (terrain, static basemaps, historical catalogs) with the
+ *  Library's matcher (lib/library-search.ts: separators ignored, typos
+ *  tolerated, exact matches first across the whole list): while it holds
+ *  text the groups with a match are open and the rest hidden. */
+type CoverageGroupT = ReturnType<typeof coverageGroups>[number]
 const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; state: any; setState?: (u: any) => void }> = ({ mapRef, state, setState }) => {
   const [selected, setSelected] = useAtom(coverageOverlaysAtom)
   const [visible, setVisible] = useAtom(coverageVisibleAtom)
@@ -358,7 +364,11 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
   // the leaves load, then all get selected), and when stored overlays
   // already name ELI layers (their footprints need the index).
   const [eliArmed, setEliArmed] = useState(false)
-  const eliWanted = isOpenKey("cov:eli") || eliArmed || selected.some((id) => id.startsWith("eli:"))
+  const [query, setQuery] = useState("")
+  const q = query.trim()
+  // A search that names the ELI group loads its leaves, as opening it does.
+  const [eliSearched, setEliSearched] = useState(false)
+  const eliWanted = isOpenKey("cov:eli") || eliArmed || eliSearched || selected.some((id) => id.startsWith("eli:"))
   useEffect(() => {
     if (!eliArmed || !eliInView.length) return
     setEliArmed(false)
@@ -390,9 +400,10 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
     const leaves = leavesOf(g)
     const on = leaves.filter((l) => set.has(l.id)).length
     const all = on === leaves.length
-    const isOpen = isOpenKey(`cov:${g.key}`)
+    const isOpen = search ? true : isOpenKey(`cov:${g.key}`)
     const mixed = g.leaves.some((l) => l.color !== g.color)
-    const children = groups.filter((c) => c.parent === g.key)
+    const children = groups.filter((c) => c.parent === g.key && (!search || search.has(c)))
+    const shownLeaves = search ? g.leaves.filter((l) => search.leaves.has(`${g.key}\u0000${l.id}`)) : g.leaves
     return (
       <div key={g.key} className={depth ? "pl-[21px]" : undefined}>
         <div className="flex items-center gap-1.5 py-0.5">
@@ -412,9 +423,9 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
         </div>
         {isOpen && (
           <>
-            {g.leaves.length > 0 && (
+            {shownLeaves.length > 0 && (
               <div className="pl-[42px] space-y-0.5">
-                {g.leaves.map((l) => (
+                {shownLeaves.map((l) => (
                   <div key={l.id} className="flex items-center gap-1.5">
                     <Checkbox id={`cov-${l.id}`} checked={set.has(l.id)} onCheckedChange={(v) => setMany([l.id], v === true)} className="cursor-pointer" />
                     {(mixed || children.length > 0) && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: l.color }} />}
@@ -430,7 +441,7 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
                 ))}
               </div>
             )}
-            {g.leaves.length === 0 && children.length === 0 && <p className="pl-[42px] text-xs text-muted-foreground italic">None</p>}
+            {g.leaves.length === 0 && children.length === 0 && <p className="pl-[42px] text-xs text-muted-foreground italic">{g.key === "eli" && !eliWanted ? "Open to list the layers in view" : "None"}</p>}
             {children.map((c) => renderGroup(c, depth + 1))}
           </>
         )}
@@ -439,6 +450,36 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
   }
   const terrainGroups = groups.filter((g) => g.section === "Terrain" && !g.parent)
   const staticGroups = groups.filter((g) => g.section === "Basemaps" && !g.parent && g.key !== "allmaps" && g.key !== "qms")
+  // The search: one list of rows (every leaf of the two static trees, a
+  // group that has no leaves yet by its name, every historical catalog),
+  // matched in one pass so the exact-before-typos rule holds across all.
+  const catalogEntries = useCatalogEntries(timelineCatalogs, HISTORICAL_TREE_ROOTS)
+  const search = useMemo(() => {
+    if (!q) return null
+    const byKey = new Map(groups.map((g) => [g.key, g]))
+    type Row = { kind: "leaf" | "group" | "cat"; key: string; text: string }
+    const rows: Row[] = []
+    const walk = (g: CoverageGroupT, path: string[]) => {
+      const here = [...path, g.label]
+      if (!g.leaves.length) rows.push({ kind: "group", key: g.key, text: here.join(" ") })
+      for (const l of g.leaves) rows.push({ kind: "leaf", key: `${g.key}\u0000${l.id}`, text: [...here, l.label, l.detail].filter(Boolean).join(" ") })
+      for (const c of groups) if (c.parent === g.key) walk(c, here)
+    }
+    for (const g of terrainGroups) walk(g, ["Terrain"])
+    for (const g of staticGroups) walk(g, ["Basemaps", "Static"])
+    for (const c of catalogEntries) rows.push({ kind: "cat", key: c.id, text: `Basemaps Historical ${catalogSearchText(c)}` })
+    const hits = searchLibrary(rows, (r) => r.text, q)
+    const leaves = new Set(hits.filter((h) => h.kind === "leaf").map((h) => h.key))
+    const emptyGroups = new Set(hits.filter((h) => h.kind === "group").map((h) => h.key))
+    const catalogs = new Set(hits.filter((h) => h.kind === "cat").map((h) => h.key))
+    const has = (g: CoverageGroupT): boolean => emptyGroups.has(g.key) || g.leaves.some((l) => leaves.has(`${g.key}\u0000${l.id}`)) || groups.some((c) => c.parent === g.key && has(byKey.get(c.key)!))
+    return { leaves, emptyGroups, catalogs, has, total: hits.length }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, groups, catalogEntries])
+  const eliHit = !!search?.emptyGroups.has("eli")
+  useEffect(() => { if (eliHit) setEliSearched(true) }, [eliHit])
+  const shownTerrain = search ? terrainGroups.filter(search.has) : terrainGroups
+  const shownStatic = search ? staticGroups.filter(search.has) : staticGroups
   // The historical root takes every catalog of the tree: the dated ones are
   // state.timelineCatalogs, the footprint-only ones (Allmaps, QMS) coverage
   // overlays; a catalog a browser cannot query (disabled) is left out.
@@ -463,8 +504,8 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
     const { on, total, toggle } = sectionState(key)
     return (
       <div className={`flex w-full items-center gap-1 py-0.5 ${key === "Terrain" ? "" : "mt-1.5 border-t-2 pt-1.5"}`}>
-        <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={isOpenKey(`sec:${key}`, true) ? "Collapse" : "Expand"} onClick={() => setFolds((prev) => ({ ...prev, [`sec:${key}`]: !(prev[`sec:${key}`] ?? true) }))}>
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpenKey(`sec:${key}`, true) ? "" : "-rotate-90"}`} />
+        <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground p-0.5 shrink-0" aria-label={secOpen(key) ? "Collapse" : "Expand"} disabled={!!search} onClick={() => setFolds((prev) => ({ ...prev, [`sec:${key}`]: !(prev[`sec:${key}`] ?? true) }))}>
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${secOpen(key) ? "" : "-rotate-90"}`} />
         </button>
         <Checkbox id={`cov-sec-${key}`} checked={total > 0 && on === total} indeterminate={on > 0 && on < total} disabled={total === 0} onCheckedChange={(v) => toggle(v === true)} className="cursor-pointer" />
         <Label htmlFor={`cov-sec-${key}`} className="text-[11px] font-semibold uppercase tracking-wide text-foreground/80 cursor-pointer flex-1">{label}</Label>
@@ -481,10 +522,12 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
   const foldAll = (fold: boolean) => setFolds((prev) => ({ ...prev, ...Object.fromEntries(expandKeys.map((k) => [k, !fold])), ...Object.fromEntries(deeperKeys.map((k) => [k, false])) }))
   // Two folds of their own: the controls (the master switch and the flags),
   // then the catalogs (the three trees); Search results below is the third.
+  // While searching, every section with a match is open (folds untouched).
+  const secOpen = (key: string) => (search ? true : isOpenKey(`sec:${key}`, true))
   const partHeader = (key: string, label: string, right?: React.ReactNode) => (
     <div className="flex items-center justify-between gap-2">
       <button type="button" className="flex items-center gap-1 cursor-pointer text-xs font-medium" onClick={() => setFolds((prev) => ({ ...prev, [`sec:${key}`]: !(prev[`sec:${key}`] ?? true) }))}>
-        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpenKey(`sec:${key}`, true) ? "" : "-rotate-90"}`} />
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${(key === "catalogs" ? secOpen(key) : isOpenKey(`sec:${key}`, true)) ? "" : "-rotate-90"}`} />
         {label}
       </button>
       {right}
@@ -492,6 +535,10 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
   )
   return (
     <div id="tour-coverage-overlays" className="space-y-1.5 scroll-mt-[100px]">
+      <div className="relative min-w-0">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+        <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter terrain, basemaps and catalogs…" aria-label="Filter the coverage sources" className="h-7 pl-6 text-xs md:text-xs cursor-text" />
+      </div>
       {partHeader("controls", "Controls", (
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground tabular-nums">{selected.length ? `${selected.length} shown` : "none"}</span>
@@ -534,22 +581,24 @@ const CoverageOverlayPicker: React.FC<{ mapRef: React.RefObject<MapRef | null>; 
       {partHeader("catalogs", "Catalogs", (
         <Tooltip>
           <TooltipTrigger render={
-            <button type="button" className="cursor-pointer shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1" onClick={() => foldAll(allOpen)}>
+            <button type="button" className="cursor-pointer shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-default" disabled={!!search} onClick={() => foldAll(allOpen)}>
               {allOpen ? <ChevronsDownUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3" />}{allOpen ? "Fold all" : "Expand all"}
             </button>
           } />
           <TooltipContent><p>{allOpen ? "Fold the three sections" : "Open Terrain, Basemaps · Static and the historical tree's four groups, everything under them folded"}</p></TooltipContent>
         </Tooltip>
       ))}
-      {isOpenKey("sec:catalogs", true) && <div className="pl-1 space-y-0.5">
-      {sectionHeader("Terrain", "Terrain")}
-      {isOpenKey("sec:Terrain", true) && <div className="pl-1">{terrainGroups.map((g) => renderGroup(g, 0))}</div>}
-      {sectionHeader("Static", "Basemaps · Static")}
-      {isOpenKey("sec:Static", true) && <div className="pl-1">{staticGroups.map((g) => renderGroup(g, 0))}</div>}
-      {sectionHeader("Historical", "Basemaps · Historical")}
-      {isOpenKey("sec:Historical", true) && (
+      {secOpen("catalogs") && <div className="pl-1 space-y-0.5">
+      {search && search.total === 0 && <p className="px-0.5 text-xs text-muted-foreground break-words">Nothing matches “{q}”.</p>}
+      {shownTerrain.length > 0 && sectionHeader("Terrain", "Terrain")}
+      {shownTerrain.length > 0 && secOpen("Terrain") && <div className="pl-1">{shownTerrain.map((g) => renderGroup(g, 0))}</div>}
+      {shownStatic.length > 0 && sectionHeader("Static", "Basemaps · Static")}
+      {shownStatic.length > 0 && secOpen("Static") && <div className="pl-1">{shownStatic.map((g) => renderGroup(g, 0))}</div>}
+      {(!search || search.catalogs.size > 0) && sectionHeader("Historical", "Basemaps · Historical")}
+      {(!search || search.catalogs.size > 0) && secOpen("Historical") && (
         <div className="pl-1">
-          <HistoricalCatalogTree compact roots={HISTORICAL_TREE_ROOTS} selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined} />
+          <HistoricalCatalogTree compact roots={HISTORICAL_TREE_ROOTS} selected={timelineCatalogs} onChange={(ids) => setState?.({ timelineCatalogs: ids })} center={state.lng != null && state.lat != null ? [state.lng, state.lat] : undefined}
+            filter={search ? { query: q, ids: search.catalogs } : undefined} />
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">Hover the map to list the sources covering a point; click a footprint for the dataset's page and to put it on the map.</p>
@@ -591,7 +640,7 @@ const CatalogTextSearch: React.FC<{ state: any; result: TextSearchResult | null;
     <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); run() }}>
       <div className="relative flex-1">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={ids.length ? `Search the ${ids.length} checked catalogs by name, anywhere` : "Check catalogs in the tree to search them"} disabled={!ids.length} className="h-7 pl-6 text-xs" />
+        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={ids.length ? `Search the ${ids.length} checked catalogs by name, anywhere` : "Check catalogs in the tree to search them"} disabled={!ids.length} className="h-7 pl-6 text-xs md:text-xs" />
       </div>
       <Tooltip>
         <TooltipTrigger render={<span className="cursor-help shrink-0 text-muted-foreground"><Info className="h-3.5 w-3.5" /></span>} />

@@ -82,6 +82,8 @@ The tree is always open at the top of the Sources Coverage section. It has three
 
 A checkbox draws a group or a single entry; the chevron on the left opens it. A row shows how many of its items cover the view ("1 on · 2 here"), and a catalog that has nothing here is dimmed. Every group starts folded except the three parts; what you open is kept across sessions, here and in the timeline's Catalogs select alike.
 
+The **filter box** at the top of the section searches the whole tree at once: terrain datasets, static basemaps and historical catalogs, by name, detail, group and (for a catalog) description, provider host and country. It uses the Library's matcher: case, accents and separators do not count ("landcover", "land cover" and "land-cover" are the same), and when nothing matches exactly a word of four letters or more may be one letter off ("lidr" finds the LiDAR coverage, "swistopo" swisstopo). While it holds text, every group with a match is open and the others are hidden, the folds you set left as they were; "Nothing matches" says when the list is empty.
+
 The switches above the tree:
 
 | Switch | What it does |
