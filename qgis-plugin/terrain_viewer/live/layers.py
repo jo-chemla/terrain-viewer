@@ -97,14 +97,47 @@ def color_ramp(name, invert=False):
     return ramp
 
 
-def apply_renderer(layer, mode, value_range=None):
+def ramp_shader_items(mode, opts=None):
+    """The mode's colour ramp, as its colour tiles draw it (live/ramps.py:
+    the app's ramp with the panel's ramp, min, max, invert), as QGIS colour
+    ramp items in the values' natural units; None when it has none."""
+    from . import ramps
+    spec = modes.MODES[mode]
+    if spec["kind"] != "ramp" or not spec.get("colour_keys") or not ramps.ramps():
+        return None
+    o = opts or {}
+    cm = o.get("mode", "combined") if mode == "curvature" else "shape-index" if mode == "shapeIndex" else "combined"
+    stops = ramps.natural_stops(spec["service"], o, cm)
+    if not stops:
+        return None
+    items = []
+    for v, (r, g, b, a) in stops:
+        c = QColor(int(round(r)), int(round(g)), int(round(b)))
+        c.setAlphaF(min(max(float(a), 0.0), 1.0))
+        items.append(QgsColorRampShader.ColorRampItem(float(v), c, f"{v:g}"))
+    return items
+
+
+def apply_renderer(layer, mode, value_range=None, opts=None):
     """QGIS's own renderer for a values layer, as the mode's coloured
-    default: a colour ramp over its range, a grey stretch for the shades,
-    two colours for the contour mask."""
+    default: the colour tiles' own ramp (the app's, with the panel's ramp
+    settings `opts`) as a colour ramp shader, any ramp of QGIS's style over
+    the mode's range without one, a grey stretch for the shades, two colours
+    for the contour mask. Editable in the layer's properties like any."""
     spec = modes.MODES[mode]
     provider = layer.dataProvider()
+    items = ramp_shader_items(mode, opts)
     lo, hi = value_range or spec["range"] or (0.0, 1.0)
-    if spec["kind"] == "shade":
+    if items:
+        shader_fn = QgsColorRampShader(items[0].value, items[-1].value)
+        shader_fn.setColorRampType(_linear())
+        shader_fn.setColorRampItemList(items)
+        shader = QgsRasterShader()
+        shader.setRasterShaderFunction(shader_fn)
+        r = QgsSingleBandPseudoColorRenderer(provider, 1, shader)
+        r.setClassificationMin(items[0].value)
+        r.setClassificationMax(items[-1].value)
+    elif spec["kind"] == "shade":
         r = QgsSingleBandGrayRenderer(provider, 1)
         ce = QgsContrastEnhancement(provider.dataType(1))
         ce.setContrastEnhancementAlgorithm(QgsContrastEnhancement.ContrastEnhancementAlgorithm.StretchToMinimumMaximum)
@@ -278,8 +311,7 @@ class LocalLayers:
             return None
         layer.setCustomProperty(LAYER_PROP, _key(mode, form))
         if form == "values":
-            rng = (opts.get("min", 0.0), opts.get("max", 4000.0)) if mode == "elevation" else None
-            apply_renderer(layer, mode, rng)
+            apply_renderer(layer, mode, None, opts)
             values_resampling(layer, spec["kind"] != "mask")
         else:
             if layer.renderer():
@@ -370,7 +402,7 @@ _generation = {}  # layer id -> the generation of its latest task (one layer's r
 
 def vector_noun(mode):
     geom = modes.MODES[mode].get("vector_layer", {}).get("geometry", "LineString")
-    return "areas" if geom == "Polygon" else "lines"
+    return {"Polygon": "areas", "Point": "points"}.get(geom, "lines")
 
 
 def vector_layer(mode, name, opts=None):
@@ -392,6 +424,9 @@ def style_vector(layer, mode, opts=None):
         contours.style(layer)
         return
     o = modes.parse_opts(mode, opts or {})
+    if mode == "moundDetector":
+        style_mounds(layer, o)
+        return
     colour = QColor(str(o.get("color") or "#d01c8b"))
     if not colour.isValid():
         colour = QColor("#d01c8b")
@@ -404,6 +439,34 @@ def style_vector(layer, mode, opts=None):
     else:
         sym = QgsLineSymbol.createSimple({"line_color": colour.name(), "line_width": f"{width:.2f}", "line_width_unit": "MM"})
     layer.setRenderer(QgsSingleSymbolRenderer(sym))
+
+
+def style_mounds(layer, o):
+    """The mound markers as the app draws them (TellsMarkersLayer, direct.mjs
+    tellsSvg): a 2 px ring, the outline colour on mounds and the pit colour
+    on pits; with measureScale and scaleMarkers, a circle the measured
+    diameter (scaleM, 50 m when unmeasured) times scaleMultiplier across,
+    in metres on the ground; else 12 to 28 px across zooms 10 to 16, here 8
+    px (QGIS has no per-zoom size without an expression)."""
+    from qgis.core import QgsMarkerSymbol, QgsProperty, QgsRuleBasedRenderer, QgsSymbolLayer, QgsUnitTypes
+    rules = QgsRuleBasedRenderer.Rule(None)
+    for label, expr, colour in (("mounds", '"pit" = 0 OR "pit" IS NULL', o["outlineColor"]), ("pits", '"pit" = 1', o["pitColor"])):
+        c = QColor(str(colour))
+        sym = QgsMarkerSymbol.createSimple({"name": "circle", "color": "0,0,0,0", "outline_color": c.name() if c.isValid() else "#ef4444",
+                                            "outline_width": "2", "outline_width_unit": "Pixel", "size": "16", "size_unit": "Pixel"})
+        if o.get("measureScale") and o.get("scaleMarkers"):
+            sl = sym.symbolLayer(0)
+            try:
+                from qgis.core import Qgis
+                sl.setSizeUnit(Qgis.RenderUnit.MetersInMapUnits)  # metres on the ground, whatever the CRS
+            except AttributeError:  # QGIS < 3.30
+                sl.setSizeUnit(QgsUnitTypes.RenderMetersInMapUnits)
+            size_prop = QgsSymbolLayer.Property.Size if hasattr(QgsSymbolLayer, "Property") else QgsSymbolLayer.PropertySize
+            sl.setDataDefinedProperty(size_prop, QgsProperty.fromExpression(
+                f'coalesce("scaleM", 50) * {float(o["scaleMultiplier"])}'))
+        r = QgsRuleBasedRenderer.Rule(sym, 0, 0, expr, label)
+        rules.appendChild(r)
+    layer.setRenderer(QgsRuleBasedRenderer(rules))
 
 
 def replace_vector_features(layer, feats):

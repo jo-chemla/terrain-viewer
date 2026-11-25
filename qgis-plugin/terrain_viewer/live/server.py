@@ -33,12 +33,13 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import numpy as np
 
 from . import modes
-from .dem import SOURCES, TILE, Dem, ground_resolution_m
+from .dem import SOURCES, TILE
+from .gdal_source import make_dem
 
 # The port asked first, so a saved project's layers find the server again
 # next session (once the box is checked); another free one when taken.
 PREFERRED_PORT = 3420
-COLOUR_VERSION = 2  # bumped when the colour tiles change for the same settings
+COLOUR_VERSION = 3  # bumped when the colour tiles change for the same settings (3: the app's ramps)
 WORLD = 20037508.342789244
 
 
@@ -208,23 +209,32 @@ class LiveServer:
     def dem(self, source):
         with self._stats_lock:
             if source not in self._dems:
-                self._dems[source] = Dem(source)
+                self._dems[source] = make_dem(SOURCES[source])
             return self._dems[source]
 
     # -- one tile ---------------------------------------------------------------
-    def values(self, source, mode, z, x, y, opts):
+    def values(self, source, mode, z, x, y, opts, picture=False):
         """(n, n) float32 values of a tile and the timings; the computing
-        holds one of the `workers` slots, the fetching does not."""
+        holds one of the `workers` slots, the fetching does not. picture:
+        the colour tile of a mode drawn from the elevation (the hillshade),
+        when it has one (else None, and the values)."""
         dem = self.dem(source)
         t0 = time.perf_counter()
         grid = dem.grid(z, x, y)
         # Fetch first, outside the compute slots: a slow network must not
         # hold a core.
-        modes.prefetch(mode, grid, opts)
+        if picture and modes.MODES[mode].get("picture"):
+            grid(1)
+        else:
+            modes.prefetch(mode, grid, opts)
         t1 = time.perf_counter()
         with self.compute_slots:
             t2 = time.perf_counter()
-            v = modes.values(mode, grid, ground_resolution_m(z, y), opts, TILE)
+            v = modes.picture(mode, grid, dem.resolution_m(z, y), opts, TILE) if picture else None
+            if v is None:
+                v = modes.values(mode, grid, dem.resolution_m(z, y), opts, TILE)
+            elif picture:
+                v = ("picture", v)
             t3 = time.perf_counter()
         return v, {"fetch_ms": (t1 - t0) * 1000, "wait_ms": (t2 - t1) * 1000, "compute_ms": (t3 - t2) * 1000}
 
@@ -238,8 +248,11 @@ class LiveServer:
             self.inflight += 1
             self.peak_inflight = max(self.peak_inflight, self.inflight)
         try:
-            v, t = self.values(source, mode, z, x, y, opts)
-            body = tiff_float32(v) if ext == "tif" else png(modes.colour(mode, v, opts, self.luts.get(mode)))
+            v, t = self.values(source, mode, z, x, y, opts, picture=ext == "png")
+            if isinstance(v, tuple):
+                body = png(v[1])
+            else:
+                body = tiff_float32(v) if ext == "tif" else png(modes.colour(mode, v, opts, self.luts.get(mode)))
         finally:
             with self._stats_lock:
                 self.inflight -= 1
@@ -297,4 +310,6 @@ class LiveServer:
         self.httpd.shutdown()
         self.httpd.server_close()
         for d in self._dems.values():
-            d.pool.shutdown(wait=False)
+            # A GDAL source's datasets live in its pool's threads: let them end (and
+            # close them) before QGIS tears GDAL down.
+            d.pool.shutdown(wait=bool(d.spec.get("gdal") or d.spec.get("qgis_provider")))

@@ -6,6 +6,8 @@ all, for the Python backend):
 - colorramps.png + colorramps.json: every colour ramp of the app
   (lib/color-ramps.ts) as a 96x12 strip, one under the other, drawn by the
   tile service's /colorramps/{id}.png (the app's own ramp code).
+- colorramp_stops.json: the same ramps' stops (value, colour), which the
+  Python backend colours its tiles with (live/ramps.py).
 - matcaps.png + matcaps.json: every matcap of the app (lib/matcap-textures.ts:
   its two pictures from public/, Potree's from GitHub), 48x48 each, in a
   column.
@@ -122,6 +124,42 @@ def ramp_sprite(base, ramps):
     return len(ids)
 
 
+def css_rgba(c):
+    """#rrggbb, rgb(r, g, b) or rgba(r, g, b, a) -> "#rrggbbaa" (the only
+    forms the app's ramps use; anything else raises)."""
+    s = str(c).strip()
+    m = re.fullmatch(r"#([0-9a-fA-F]{6})", s)
+    if m:
+        return "#" + m.group(1).lower() + "ff"
+    m = re.fullmatch(r"rgba?\(([^)]*)\)", s)
+    if not m:
+        raise ValueError(f"unexpected ramp colour {c!r}")
+    parts = [p for p in re.split(r"[\s,/]+", m.group(1)) if p]
+    r, g, b = (int(round(float(p))) for p in parts[:3])
+    a = 1.0 if len(parts) < 4 else (float(parts[3][:-1]) / 100 if parts[3].endswith("%") else float(parts[3]))
+    return "#%02x%02x%02x%02x" % (r, g, b, int(round(a * 255)))
+
+
+def ramp_stops(base, ramps):
+    """colorramp_stops.json: every ramp's stops (/colorramps/{id}: the app's
+    `interpolate` expression, lib/color-ramps.ts colorRampsFlat), as
+    [value, colour] pairs, the colour as the app writes it (#rrggbb,
+    rgb(), rgba(): aspect's shift reads only the last two, as the app's),
+    for the Python backend's colour tiles (live/ramps.py evaluates them as
+    the tile service does)."""
+    out = {}
+    for r in ramps:
+        expr = get_json(f"{base}/colorramps/{urllib.request.quote(r['id'])}")["colors"]
+        if expr[:3] != ["interpolate", ["linear"], ["elevation"]]:
+            raise ValueError(f"{r['id']}: not a linear interpolate expression")
+        for i in range(4, len(expr), 2):
+            css_rgba(expr[i])  # a form live/ramps.py reads, or this raises
+        out[r["id"]] = [[expr[i], expr[i + 1].replace(" ", "")] for i in range(3, len(expr) - 1, 2)]
+    with open(os.path.join(OUT, "colorramp_stops.json"), "w", encoding="utf-8") as f:
+        json.dump({"ramps": out}, f, separators=(",", ":"))
+    return len(out)
+
+
 def matcap_sprite():
     ts = open(os.path.join(ROOT, "lib", "matcap-textures.ts"), encoding="utf-8").read()
     base = re.search(r'const BASE_URL = "([^"]+)"', ts).group(1)
@@ -153,6 +191,7 @@ def main():
     with open(os.path.join(OUT, "catalog.json"), "w", encoding="utf-8") as f:
         json.dump(cat, f, separators=(",", ":"))
     n_ramps = ramp_sprite(base, ramps)
+    ramp_stops(base, ramps)
     n_matcaps = matcap_sprite()
     for name in sorted(os.listdir(OUT)):
         print(f"{name:18} {os.path.getsize(os.path.join(OUT, name)) / 1024:7.1f} KB")

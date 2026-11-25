@@ -99,6 +99,71 @@ def horizon(padded, n, radius_px, res_m, sign=1.0, aggregate="svf", xp=np):
     return (xp.degrees(acc / DIRECTIONS)).astype(xp.float32)
 
 
+FAR_SUB_ANGLES = (-0.3, 0.0, 0.3)
+
+
+def _bilinear_padded(g, px, py, xp=np):
+    """lib/horizon-kernel.ts bilinear: (px, py) in the tile's own pixels of a
+    1-pixel padded grid, clamped."""
+    gx, gy = px + 1, py + 1
+    x0, y0 = xp.floor(gx), xp.floor(gy)
+    fx, fy = gx - x0, gy - y0
+    last = g.shape[0] - 1
+    x0, y0 = x0.astype(xp.intp), y0.astype(xp.intp)
+    cx0, cx1 = xp.clip(x0, 0, last), xp.clip(x0 + 1, 0, last)
+    cy0, cy1 = xp.clip(y0, 0, last), xp.clip(y0 + 1, 0, last)
+    return (g[cy0, cx0] * (1 - fx) * (1 - fy) + g[cy0, cx1] * fx * (1 - fy)
+            + g[cy1, cx0] * (1 - fx) * fy + g[cy1, cx1] * fx * fy)
+
+
+def horizon_fast(padded, n, radius_px, near_px, res_m, sign=1.0, aggregate="svf", far=(), xp=np):
+    """lib/horizon-kernel.ts computeHorizonRows, "fast": within `near_px`
+    (padded's halo) only the radii 1, 2, 4, ... and the near radius itself;
+    past it, per octave ring (`far`: [(ancestor (m + 2)^2, scale, x offset
+    in tiles, y offset, distance m)]) the ancestor read bilinear at each
+    direction and two directions 0.3 rad either side, the steepest of the
+    three. Same aggregates as horizon()."""
+    r0 = near_px
+    centre = padded[r0:r0 + n, r0:r0 + n].astype(xp.float64)
+    steps = []
+    r = 1
+    while r <= near_px:
+        steps.append(r)
+        r *= 2
+    if steps and steps[-1] != near_px:
+        steps.append(near_px)
+    rows = xp.arange(n, dtype=xp.float64)[:, None]
+    cols = xp.arange(n, dtype=xp.float64)[None, :]
+    acc = xp.zeros((n, n), xp.float64)
+    for d_row, d_col in _DIRS:
+        best = xp.full((n, n), -xp.inf, xp.float64)
+        for r in steps:
+            rr, rc = round(r * d_row), round(r * d_col)
+            dist = math.sqrt(rr * rr + rc * rc) * res_m
+            if dist == 0:
+                continue
+            view = padded[r0 + rr:r0 + rr + n, r0 + rc:r0 + rc + n]
+            best = xp.maximum(best, (view - centre) * (sign / dist))
+        ang = xp.where(xp.isinf(best), 0.0, xp.arctan(best))
+        for g, scale, xo, yo, dist_m in far:
+            ax = (xo * n + cols + 0.5) / scale - 0.5
+            ay = (yo * n + rows + 0.5) / scale - 0.5
+            best_d = xp.full((n, n), -xp.inf, xp.float64)
+            for spread in FAR_SUB_ANGLES:
+                ca, sa = math.cos(spread), math.sin(spread)
+                sr, sc = d_row * ca + d_col * sa, d_col * ca - d_row * sa
+                v = _bilinear_padded(g, ax + sc, ay + sr, xp)
+                best_d = xp.maximum(best_d, (v - centre) * sign)
+            ang = xp.maximum(ang, xp.where(xp.isinf(best_d), -xp.inf, xp.arctan(best_d / dist_m)))
+        if aggregate == "svf":
+            acc += xp.sin(xp.maximum(ang, 0.0))
+        else:
+            acc += ang
+    if aggregate == "svf":
+        return ((1.0 - acc / DIRECTIONS) * 100.0).astype(xp.float32)
+    return xp.degrees(acc / DIRECTIONS).astype(xp.float32)
+
+
 def svf(padded, n, radius_px, res_m, xp=np):
     """padded: (n + 2 r)^2 -> (n, n) float32, sky view factor in percent."""
     return horizon(padded, n, radius_px, res_m, 1.0, "svf", xp)

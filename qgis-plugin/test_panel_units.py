@@ -65,8 +65,12 @@ check(len(items) >= 20 and default == "clay_studio" and assets.matcap_icon("jade
 reg = pyb.registry()
 check(reg is not None, "live/'s registry (numpy)")
 check(pyb.py_mode("colorRelief", None, reg) == "elevation", "colorRelief is live/'s elevation")
-check(pyb.py_mode("hillshade", {"hillshadeMethod": "aspect-multidir"}, reg) == "multihillshade", "a multidirectional method")
-check(pyb.py_mode("moundDetector", None, reg) is None, "the mound detector is not computed in Python")
+check(pyb.py_mode("hillshade", {"hillshadeMethod": "aspect-multidir"}, reg) == "hillshade",
+      "every hillshade method is the hillshade (its colour tile draws the method: live/hillshade.py)")
+check(pyb.py_mode("moundDetector", None, reg) == "moundDetector", "the mound detector is computed in Python (live/mounds.py)")
+check(pyb.py_forms("moundDetector", {"colour", "vector"}, reg) == {"vector"}, "mound detector: the points only")
+py, opts = pyb.py_opts("moundDetector", {"tellSize": 60, "tellsPolarity": "both", "tellVetoResolution": "fine"}, None, reg)
+check(opts == {"size": 60.0, "polarity": "both", "vetoResolution": "fine"}, f"mound detector settings: {opts}")
 for sid in ("shapeIndex", "blobness", "eigenRatio", "orientation", "localDominance", "buildingShadows", "planeSlicer",
             "graticules", "isoline"):
     check(pyb.py_mode(sid, None, reg) is not None, f"{sid} is computed in Python")
@@ -83,14 +87,67 @@ check(not missing, f"every Python mode is in live/layers.py's ORDER {missing}")
 check(pyb.py_forms("hillshade", {"colour"}, reg) == {"colour"}, "hillshade: colour only")
 check(pyb.py_forms("slope", {"colour", "values"}, reg) == {"colour", "values"}, "slope: colour and values")
 check(pyb.py_forms("contours", {"colour", "vector"}, reg) == {"colour", "vector"}, "contours: raster and lines")
-py, opts = pyb.py_opts("svf", {"svfRadius": 12, "svfColorRamp": "svf-default"}, (315.0, 45.0), reg)
-check(py == "svf" and opts == {"radius": 12}, f"svf: the radius carries over, the ramp does not: {opts}")
+py, opts = pyb.py_opts("svf", {"svfRadius": 12, "svfColorRamp": "svf-default", "svfPrecision": "fast"}, (315.0, 45.0), reg)
+check(py == "svf" and opts == {"radius": 12}, f"svf: the radius carries over; the default ramp and precision stay out: {opts}")
+py, opts = pyb.py_opts("svf", {"svfColorRamp": "svf-transparent", "svfMin": 20, "svfMax": 100, "svfInvertColorRamp": True,
+                               "svfPrecision": "precise"}, None, reg)
+check(opts == {"svfColorRamp": "svf-transparent", "svfMin": "20", "svfInvertColorRamp": "true", "precision": "precise"},
+      f"svf: the ramp settings by the service's names (live/ramps.py), the precision: {opts}")
+py, opts = pyb.py_opts("colorRelief", {"colorRamp": "srtm", "customHypsoMinMax": True, "minElevation": 100,
+                                       "maxElevation": 8100, "hypsoAutoRange": False}, None, reg)
+check(py == "elevation" and opts == {"colorRamp": "srtm", "customHypsoMinMax": "true", "minElevation": "100"},
+      f"colour relief: its ramp, range and switch as the service reads them: {opts}")
+check(pyb.elevation_opts({"hypsoAutoRange": True}, {}, (812.0, 4410.5)) == {"customHypsoMinMax": "true",
+      "minElevation": "812", "maxElevation": "4410.5"}, "the range that follows the view")
+py, opts = pyb.py_opts("hillshade", {"hillshadeMethod": "igor", "shadowColor": "#203080", "hillshadeExag": 0.5}, None, reg)
+check(opts == {"method": "igor", "shadowColor": "#203080", "exaggeration": 0.5}, f"hillshade: method, colours: {opts}")
+py, opts = pyb.py_opts("phong", {"phongLightCount": 2, "phongLight2Color": "#ff0000"}, None, reg)
+check(opts == {"lightCount": 2, "light2Color": "#ff0000"}, f"phong: its lights: {opts}")
+py, opts = pyb.py_opts("contours", {"contourReferenceMode": "lrm", "contourWeight": 2, "contourColor": "#00ff00"}, None, reg)
+check(opts == {"reference": "lrm", "weight": 2.0, "color": "#00ff00"}, f"contours: reference, weight, colour: {opts}")
+# The panel settings live/ ignores: none left for the ramp modes.
+for sid, keys in (("slope", ["slopeColorRamp", "slopeMinDegrees", "slopeMaxDegrees", "slopeInvertColorRamp", "slopeOpacity"]),
+                  ("colorRelief", ["colorRamp", "customHypsoMinMax", "hypsoSymmetric", "hypsoAutoRange", "minElevation",
+                                   "maxElevation", "invertColorRamp"]),
+                  ("aspect", ["aspectColorRamp", "aspectMinDegrees", "aspectMaxDegrees", "aspectShiftDegrees", "aspectInvertColorRamp"]),
+                  ("curvature", ["curvatureMode", "curvatureColorRamp", "curvatureMin", "curvatureMax", "curvatureSymmetric"]),
+                  ("hillshade", ["hillshadeMethod", "shadowColor", "highlightColor", "accentColor", "hillshadeExag"])):
+    check(pyb.unsupported_settings(sid, keys, reg) == set(), f"{sid}: every setting applies under Python "
+          f"({pyb.unsupported_settings(sid, keys, reg)})")
+# live/ramps.py: the app's colour relief rules.
+from terrain_viewer.live import ramps  # noqa: E402
+check(len(ramps.ramps()) > 200, "the packaged ramps' stops")
+p = ramps.mode_paint("slope", {})
+check([c for _v, c in p[2:4]] == ["rgba(0,0,0,0)"] * 2 and abs(p[3][0] - 29) < 1e-9, f"slope's default ramp, its own stops: {p[2:4]}")
+p = ramps.mode_paint("slope", {"slopeMinDegrees": 10, "slopeMaxDegrees": 65, "slopeInvertColorRamp": True})
+check(abs(p[2][0] - 10) < 1e-9 and abs(p[-1][0] - 65) < 1e-9 and p[2][1] == "rgb(216,37,37)", "remapped and inverted")
+p = ramps.mode_paint("shapeIndex", {})
+check(p[-1][0] == p[-2][0] + 0.25 and abs(p[3][0] - (-500.001)) < 1e-9, "shape index: discrete custom stops, x1000, top stop")
+p = ramps.mode_paint("aspect", {"aspectShiftDegrees": 90})
+check(p[2] == (0.0, (255, 255, 0, 1.0)), f"aspect shifted 90 degrees: east's colour at north ({p[2]})")
+check(ramps.mode_paint("colorRelief", {"colorRamp": "no-such"}) is None, "an unknown ramp: no paint")
+import numpy as np  # noqa: E402
+c = ramps.colour("svf", np.array([[0.0, 1.0, np.nan]], np.float32), {})
+check(c[0, 0].tolist() == [20, 20, 35, 255] and c[0, 1].tolist() == [255, 255, 255, 255] and c[0, 2, 3] == 0,
+      f"svf's ramp on its natural 0-1 values, no data clear: {c.tolist()}")
+# Sources: GDAL rasters and QGIS layers are the Python backend's (and a local service's).
+check(pyb.is_local_source("C:/data/dem.tif") and pyb.is_local_source("/vsicurl/https://x.org/a.tif")
+      and pyb.is_local_source("https://x.org/dem.vrt") and pyb.is_local_source("layer:abc")
+      and not pyb.is_local_source("mapterhorn") and not pyb.is_local_source("https://x.org/{z}/{x}/{y}.png"),
+      "what the Python backend hands to GDAL")
+from terrain_viewer import local_files  # noqa: E402
+check(local_files.is_loopback("http://localhost:3400") and local_files.is_loopback("http://127.0.0.1:3461/")
+      and not local_files.is_loopback("https://tiles.example.com"), "a service on this machine")
+src, why = local_files.service_source("https://tiles.example.com", __file__)
+check(src is None and ".py" in why or "GeoTIFF" in why, f"a non-raster file is refused before asking: {why}")
+check(local_files.remote_address("https://x.org/dem.tif") == '{"url":"https://x.org/dem.tif","type":"cog"}',
+      "an https COG goes to the service as its address")
 py, opts = pyb.py_opts("hillshade", {"hillshadeExag": 1.0}, (120.0, 30.0), reg)
 check(opts == {"azimuth": 120.0, "altitude": 30.0}, f"hillshade: the shared light: {opts}")
 py, opts = pyb.py_opts("matcap", {"matcapTextureId": "jade", "matcapRotationDeg": 0}, None, reg)
 check(opts == {"texture": "jade"}, f"matcap: the texture: {opts}")
-check(pyb.unsupported_settings("svf", ["svfRadius", "svfColorRamp", "svfOpacity"], reg) == {"svfColorRamp"},
-      "svf: the ramp is greyed out, the radius and opacity are not")
+check(pyb.unsupported_settings("svf", ["svfRadius", "svfColorRamp", "svfOpacity"], reg) == set(),
+      "svf: the ramp, the radius and the opacity all apply")
 # A mode live/ adds under the service's id maps by itself, settings by their stripped names.
 fake = dict(reg)
 fake["shapeIndex"] = {"defaults": {"min": -1.0, "max": 1.0}, "kind": "ramp"}
