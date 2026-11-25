@@ -3,7 +3,7 @@ terrain_viewer/assets/, so the panel shows ramp and matcap previews and the
 modes tree without asking anything at runtime (and with no tile service at
 all, for the Python backend):
 
-- colorramps.png + colorramps.json: every colour ramp of the app
+- colorramps.png + colorramps.json: every color ramp of the app
   (lib/color-ramps.ts) as a 96x12 strip, one under the other, drawn by the
   tile service's /colorramps/{id}.png (the app's own ramp code).
 - matcaps.png + matcaps.json: every matcap of the app (lib/matcap-textures.ts:

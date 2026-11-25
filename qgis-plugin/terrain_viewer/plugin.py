@@ -44,10 +44,12 @@ class TerrainViewerPlugin:
 
     def toggle(self, on):
         if self.dock is None:
-            self.dock = TerrainViewerDock(self.iface.mapCanvas(), self.iface.mainWindow(), self.iface.messageBar())
+            bridge = self.iface.layerTreeCanvasBridge() if hasattr(self.iface, "layerTreeCanvasBridge") else None
+            self.dock = TerrainViewerDock(self.iface.mapCanvas(), self.iface.mainWindow(), self.iface.messageBar(), bridge)
             self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
             self.dock.visibilityChanged.connect(self.action.setChecked)
-            # The panel opening connects to the address, but never starts the
-            # local service: only Connect does.
+            # The panel opening connects to the address (or starts the Python
+            # backend), but never starts the packaged tile server: only
+            # Connect does.
             self.dock.connect_service(start_bundled=False)
         self.dock.setVisible(on)

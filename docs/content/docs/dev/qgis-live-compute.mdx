@@ -1,17 +1,17 @@
 ---
 title: QGIS Live Compute
 icon: Cpu
-description: Terrain modes computed inside QGIS with numpy, no tile service - 25 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, shape index, blobness, eigenvalue ratio, orientation, TPI, TRI, roughness, LRM, sky view factor, openness, local dominance, terrain and building shadows, Phong, matcap, contours, iso-line, graticule, plane slicer, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; Colour and Values per mode; how QGIS picks tile zooms and resamples; parallel tiles timed; numpy, numba, cupy and the tile service compared.
+description: Terrain modes computed inside QGIS with numpy, no tile service - 25 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, shape index, blobness, eigenvalue ratio, orientation, TPI, TRI, roughness, LRM, sky view factor, openness, local dominance, terrain and building shadows, Phong, matcap, contours, iso-line, graticule, plane slicer, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; Color and Values per mode; how QGIS picks tile zooms and resamples; parallel tiles timed; numpy, numba, cupy and the tile service compared.
 ---
 
-Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-as-planned) asked whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel, a third gave every mode row its Colour and Values boxes, added Phong, matcap and contour lines, and measured how QGIS picks tile zooms and resamples. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that was off by default (**Experimental: compute locally**) until 0.7.0, where it became the panel's **Python** backend, beside the local and remote tile services, under the same modes tree.
+Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-as-planned) asked whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel, a third gave every mode row its Color and Values boxes, added Phong, matcap and contour lines, and measured how QGIS picks tile zooms and resamples. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that was off by default (**Experimental: compute locally**) until 0.7.0, where it became the panel's **Python** backend, beside the local and remote tile services, under the same modes tree.
 
 ## In the panel since 0.7.0: the Python backend
 
-Plugin 0.7.0 dropped the separate box and its own flat list of modes. **Python** is one of the three backends picked at the top of the panel ([the backends](/dev/qgis-plugin#the-three-backends)), and the panel shows the tile service's modes tree under it, as it does for a service:
+Plugin 0.7.0 dropped the separate box and its own flat list of modes. The **Python backend** is one of the three backends picked at the top of the panel ([the backends](/dev/qgis-plugin#the-three-backends)); since 0.8.0 it starts when picked, with no Connect button, and the panel shows the tile service's modes tree under it, as it does for a service:
 
 - `qgis-plugin/terrain_viewer/python_backend.py` maps the service's vocabulary onto `live/modes.py`'s registry: the mode ids (`colorRelief` is `elevation`; a hillshade with a multidirectional method is `multihillshade`), the URL parameters (`svfRadius` is `radius`, `contourMinor` is `minor`, `matcapTextureId` is `texture`, ...), and the shared light (`illuminationDir`, `illuminationAlt`) as `azimuth` and `altitude`. It reads the registry's own fields: `python_supported` (the mound detector is listed but greyed out), `service` (the service's id), `outputs` (the forms). A mode added to `live/modes.py` under the service's id is enabled with no change there, its settings matched by name or by their name with the mode's taken off (`localDominanceMaxRadius` is `maxRadius`). 24 of the tree's 25 modes are computed in Python.
-- The modes `live/` does not compute are greyed out with a note; the settings it ignores (the app's colour ramps and ranges: it colours with QGIS's ramps) too; and only the forms it makes show (Values only where the service's mode has values: hillshade is colour only). The table of which mode each backend draws is on [the plugin's page](/dev/qgis-plugin#the-modes-and-their-backends).
+- The modes `live/` does not compute are greyed out with a note; the settings it ignores (the app's color ramps and ranges: it colors with QGIS's ramps) too; and only the forms it makes show (Values only where the service's mode has values: hillshade is color only). The table of which mode each backend draws is on [the plugin's page](/dev/qgis-plugin#the-modes-and-their-backends).
 - Every vector form (contour lines, iso-lines, graticule lines, plane slicer areas) is a memory layer filled for the view by `contours.view_vector` in a QGIS task after each pan or zoom, its geometry and fields as the registry's `vector_layer` declares them (`live/layers.py`, whose layer order is `modes.ORDER`).
 - Its layers go in the panel's "Terrain Viewer (live)" tree, keyed as the service's (`slope`, `slope:values`, `contours:vector`), so picking another backend re-points them, Freeze copies them and a saved project reads them back. 0.6.0's "Terrain Viewer (local compute)" group is removed on connect.
 - **Sources**: it follows the source picked. It reads Terrarium and Terrain-RGB pyramids: Mapterhorn, AWS, the library's others with a public address, Mapbox and MapTiler with their keys, or a typed `{z}/{x}/{y}` address (its tile size read from one tile). A COG, VRT, LERC, WMS, quantized mesh, PMTiles or difference source says so once and draws Mapterhorn. Contour lines and the elevation prefetch follow the source too.
@@ -19,7 +19,7 @@ Plugin 0.7.0 dropped the separate box and its own flat list of modes. **Python**
 
 ## Fourth round: the remaining modes, a registry the panel can grey out
 
-After 0.6.0, the same day: every terrain mode of the app and the tile service has a Python port except the mound detector. The new code is in `live/kernels.py` (structure tensor, local dominance, box blur, line masks), `live/overlays.py` (graticule, app colour ramps), `live/buildings.py` (building shadows) and `live/contours.py` (`view_values`, `view_vector`: the vector forms); `live/modes.py` registers them.
+After 0.6.0, the same day: every terrain mode of the app and the tile service has a Python port except the mound detector. The new code is in `live/kernels.py` (structure tensor, local dominance, box blur, line masks), `live/overlays.py` (graticule, app color ramps), `live/buildings.py` (building shadows) and `live/contours.py` (`view_values`, `view_vector`: the vector forms); `live/modes.py` registers them.
 
 ### What was added and how well it matches
 
@@ -31,7 +31,7 @@ After 0.6.0, the same day: every terrain mode of the app and the tile service ha
 | Dominant orientation | same tensor, 0-180° | tile service values; planes and ridges offline | 100 % within 0.01° (period 180) |
 | Local dominance (RVT) | `lib/local-dominance-kernel.ts`: one ring per octave of [minRadius, maxRadius] on the ancestor tiles, 8 directions, observer 1.6 m; the bilinear read made separable | tile service values | 100 % within 0.02° (median 0.002) |
 | Building shadows | the app's sweep of OpenFreeMap's z14 footprints (`buildingShadowSvg`), done as the terrain shadow sweep on flat ground: footprints burnt with their `render_height` (GDAL's MVT driver and `RasterizeLayer`, lowest first, the highest kept across tiles, capped at 600 m), `kernels.shadow` toward the sun, roofs lit | the service's picture, Manhattan z16 and z17 | 99.4 % and 98.9 % within 1 px off the footprints (below) |
-| Plane slicer | `computePlaneSlicerPaint`: below or above a value of the elevation or of its LRM, one colour at an opacity; polygons by `ContourGenerateEx` (POLYGONIZE, levels MIN, value, MAX) | the service's picture; its own raster | 99.9-100 % within 1 px; polygons on the same pixels 99.97-100 % |
+| Plane slicer | `computePlaneSlicerPaint`: below or above a value of the elevation or of its LRM, one color at an opacity; polygons by `ContourGenerateEx` (POLYGONIZE, levels MIN, value, MAX) | the service's picture; its own raster | 99.9-100 % within 1 px; polygons on the same pixels 99.97-100 % |
 | Graticule | `graticuleSvg` and `niceGraticuleDensity`: meridians and parallels, the stroke's coverage per pixel (the lines nest with the tiles and half-cover the pixels beside them, as the antialiased SVG); lines with `kind` and `deg` | the service's picture | 100 % |
 | Iso-line | `IsolineLayers.tsx`: a measure (elevation, slope, aspect, TRI, TPI, roughness, curvature, shape index, blobness, eigen ratio, orientation, LRM, hillshades, Phong, shadows) blurred by `smooth` (the isoband box blur), traced at a value (fill optional) or every interval, in the measure's own units; lines by GDAL over the view's mosaic of the measure | the service's picture; its own raster | 99.2-100 % within 1 px; lines 100 % within 1 px |
 
@@ -43,11 +43,11 @@ Phong and matcap were already in 0.6.0 and still match the service (100 % within
 
 ### Registry metadata for the panel
 
-Every entry of `MODES` now has `outputs` (of `colour`, `values`, `vector`; `forms_of` reads it), `python_supported` (False for the mound detector, listed so the panel can grey it out), `service` (its `/processes` id: elevation is `colorRelief`, the multidirectional hillshade `hillshade` with `service_query`), and where it applies `opacity` (the colour layer's default), `stops` (the app's ramp from `lib/color-ramps.ts`, used for the colour tiles of the new ramp modes, so they match the app), `vector_layer` (geometry and fields of the vector form). `ORDER` is the app's stacking order, top first; `PYTHON_MODES` the computed ones. `prefetch(mode, grid, opts)` fetches what a mode reads (the server calls it), `contours.view_vector(dem, extent, width_px, mode, opts)` returns any vector form as `[(wkb, attributes)]`.
+Every entry of `MODES` now has `outputs` (of `colour`, `values`, `vector`; `forms_of` reads it), `python_supported` (False for the mound detector, listed so the panel can grey it out), `service` (its `/processes` id: elevation is `colorRelief`, the multidirectional hillshade `hillshade` with `service_query`), and where it applies `opacity` (the color layer's default), `stops` (the app's ramp from `lib/color-ramps.ts`, used for the color tiles of the new ramp modes, so they match the app), `vector_layer` (geometry and fields of the vector form). `ORDER` is the app's stacking order, top first; `PYTHON_MODES` the computed ones. `prefetch(mode, grid, opts)` fetches what a mode reads (the server calls it), `contours.view_vector(dem, extent, width_px, mode, opts)` returns any vector form as `[(wkb, attributes)]`.
 
 ### Timings
 
-`python-qgis bench_live.py --per-mode`: values and colour tile, numpy in one thread, median over the Mont Blanc z12 tiles (Manhattan z16-z17 for the building shadows, the building tiles already fetched), 20-thread laptop, other work running (medians move ±30 % and more between runs):
+`python-qgis bench_live.py --per-mode`: values and color tile, numpy in one thread, median over the Mont Blanc z12 tiles (Manhattan z16-z17 for the building shadows, the building tiles already fetched), 20-thread laptop, other work running (medians move ±30 % and more between runs):
 
 | Mode | ms / 256 px | ms / 512 px |
 |---|---|---|
@@ -71,7 +71,7 @@ Local dominance is the arctangent: 24 per pixel (numpy's float32 arctangent meas
 
 - **Mound detector** (`moundDetector`, beta): tile service only.
 - **Hillshade methods** other than standard and multidirectional: combined, igor, basic, multidir-colors, duotone-nw-ne, aspect-multidir.
-- **Colours of the older modes**: QGIS ramps over the plugin's own ranges (slope 0-60 against the app's 0-55, TPI ±5 against ±20, ...), not the app's ramps; the new modes use the app's (`stops`). Per-mode ramp, min/max and invert settings are not in the registry; elevation uses the plugin's hypsometric ramp, not the app's colour relief ramps.
+- **Colors of the older modes**: QGIS ramps over the plugin's own ranges (slope 0-60 against the app's 0-55, TPI ±5 against ±20, ...), not the app's ramps; the new modes use the app's (`stops`). Per-mode ramp, min/max and invert settings are not in the registry; elevation uses the plugin's hypsometric ramp, not the app's color relief ramps.
 - **Shadows**: the live renderer's soft edge (`shadowSoft`), the 512 px radius (256 here), the app's default sun altitude 45° (30° here).
 - **Iso-line**: the cliff teeth, the fill as vector polygons (the plane slicer gives them for the elevation and LRM), matcap as a measure, the app's units for the lights (luma 0-255) and the eigen ratio (%).
 - **Graticule labels**, contour labels.
@@ -79,21 +79,21 @@ Local dominance is the arctangent: 24 per pixel (numpy's float32 arctangent meas
 - **Vector forms in the panel**: `live/layers.py` makes only the contour line layer; the others are in `contours.view_vector`, waiting for the panel.
 - numba: no port for local dominance or the structure tensor (numpy is fast enough).
 
-## Third round: Colour and Values per mode, Phong, matcap, contour lines, resampling
+## Third round: Color and Values per mode, Phong, matcap, contour lines, resampling
 
 Plugin 0.6.0, the same day, after a first try in QGIS 4.2 by the user: checking only "values" next to curvature drew nothing, toggling did not add or remove layers reliably, and QGIS 4 showed no local compute at all. The last one was an old install: both QGIS profiles still had 0.2.2.
 
 ### A mode's row
 
-Every mode row, of the tile service's groups and of the local compute box alike, is the same widget (`FormsRow` in `dock.py`): the mode's checkbox on the left, its forms on the right, **Colour**, **Values** and, where there is one, **Vector**, then the settings cog.
+Every mode row, of the tile service's groups and of the local compute box alike, is the same widget (`FormsRow` in `dock.py`): the mode's checkbox on the left, its forms on the right, **Color**, **Values** and, where there is one, **Vector**, then the settings cog.
 
-- Checking the mode turns its Colour layer on (the first time; afterwards the forms it had). Each form can be checked alone or with the others; checking a form checks the mode, unchecking the last one unchecks it.
+- Checking the mode turns its Color layer on (the first time; afterwards the forms it had). Each form can be checked alone or with the others; checking a form checks the mode, unchecking the last one unchecks it.
 - Each form is one layer, **added when checked and removed when unchecked**. 0.5.0 created the values layer only when the mode was also checked, and unchecking only hid layers, so a box and the layer tree could disagree.
 - A layer removed by hand (or by **File > New**) unchecks its form: the panel listens to the project's `layersWillBeRemoved` and tells its own removals apart.
-- The cog shows while Colour (or Vector) is on, with a fixed place so that the boxes line up from row to row.
-- In the local box, **Colour** is the server's PNG tiles, now coloured with the mode's ramp: QGIS's own ramp sampled at 256 steps on the main thread, so the same colours as the values layer's default renderer; grey and multiplied for the shades, RGB for matcap, the two browns of the mask on a clear background for contours. **Values** is the Float32 layer GDAL reads, as before. The **Draw as** choice is gone. A `c=2` parameter in the colour tiles' address keeps QGIS's disk cache from serving 0.5.0's grey tiles, which had the same address.
+- The cog shows while Color (or Vector) is on, with a fixed place so that the boxes line up from row to row.
+- In the local box, **Color** is the server's PNG tiles, now colored with the mode's ramp: QGIS's own ramp sampled at 256 steps on the main thread, so the same colors as the values layer's default renderer; grey and multiplied for the shades, RGB for matcap, the two browns of the mask on a clear background for contours. **Values** is the Float32 layer GDAL reads, as before. The **Draw as** choice is gone. A `c=2` parameter in the color tiles' address keeps QGIS's disk cache from serving 0.5.0's grey tiles, which had the same address.
 
-Checked in QGIS 4.2 and 3.44: `test_plugin.py` (section 2d) and `test_live.py` (section 6) walk curvature through values only, both, mode off, mode on (both back), Colour off, Values off, mode on (Colour back), and a layer removed by hand, comparing the layers in the project and the cog after each step.
+Checked in QGIS 4.2 and 3.44: `test_plugin.py` (section 2d) and `test_live.py` (section 6) walk curvature through values only, both, mode off, mode on (both back), Color off, Values off, mode on (Color back), and a layer removed by hand, comparing the layers in the project and the cog after each step.
 
 ### Phong, matcap, contour lines
 
@@ -103,7 +103,7 @@ Checked in QGIS 4.2 and 3.44: `test_plugin.py` (section 2d) and `test_live.py` (
 | Matcap (Clay Studio; Normal Sphere rotated 40°) | the live matcap layer, light relative to the camera (its default), bilinear lookup into the app's matcap pictures (`lib/matcap-textures.ts`: the app's two from terrain-viewer.iconem.com, Potree's from GitHub, fetched once) | the tile service's picture | 100 % within 3 levels per channel, median 0, p99 0 |
 | Contour lines (vector) | GDAL's `ContourGenerate` over the elevation of the view | the contour mask, rasterized | 100 % (recall and precision within 1 px), z12 and z13 |
 
-Phong's values are the multiply factor plus the highlight (0 to 1, highlights above). The colour layer is their grey, multiplied over the layers under it: the same as the tile service's Phong layer in QGIS (its picture is the shading over white, also multiplied), so a highlight brighter than the layer under it is not drawn in either. Matcap is a picture, with no values form.
+Phong's values are the multiply factor plus the highlight (0 to 1, highlights above). The color layer is their grey, multiplied over the layers under it: the same as the tile service's Phong layer in QGIS (its picture is the shading over white, also multiplied), so a highlight brighter than the layer under it is not drawn in either. Matcap is a picture, with no values form.
 
 **Contour lines as a vector layer, not vector tiles.** For each view, once the canvas stops (400 ms), a `QgsTask` mosaics the elevation tiles over the view (the zoom whose pixel is the canvas pixel, coarser until 64 tiles or fewer cover it), runs `gdal.ContourGenerate` at the minor interval, and replaces the features of a memory layer (`elev`, `major`). A later view's result wins over an older one still running. QGIS redraws a memory layer at once on pan and zoom, the lines run whole across the view (no tile seams or clipping), and Identify, the attribute table and Save As work. A vector tile path would mean a tile server writing MVT, with lines cut at every tile edge. The trade-off: the layer holds the lines of the last view only (a frozen copy keeps them).
 
@@ -111,7 +111,7 @@ Phong's values are the multiply factor plus the highlight (0 to 1, highlights ab
 
 Measured headless in QGIS 4.2 and 3.44 (same results in both) with `QgsMapRendererParallelJob`, a 1024×768 canvas whose pixel is the pixel of 256 px tiles at zoom 12.0, 12.3, 12.5 and 12.7, the localhost server logging the zoom of each tile asked for (`LiveServer.seen`):
 
-| Canvas zoom | XYZ (colour) layers ask | GDAL (values) layers ask |
+| Canvas zoom | XYZ (color) layers ask | GDAL (values) layers ask |
 |---|---|---|
 | 12.0 | z12, 20 tiles | z12, 20 tiles |
 | 12.3 | z12, 16 tiles (scaled up 1.23×) | z13, 48 tiles (scaled down) |
@@ -120,27 +120,27 @@ Measured headless in QGIS 4.2 and 3.44 (same results in both) with `QgsMapRender
 | 12.0, device pixel ratio 2 | z13, 63 tiles | z13, 63 tiles |
 | 12.3, device pixel ratio 2 | z13, 48 tiles | z14, 154 tiles |
 
-- **The XYZ provider rounds** the canvas zoom to the nearest tile zoom; **GDAL takes the level just finer** (an overview is used only when at least as fine as the request). So between zooms x.0 and x.5, a values layer reads up to three times the tiles of the colour layer: right for numbers (never scaled up), and only on that half of the range.
+- **The XYZ provider rounds** the canvas zoom to the nearest tile zoom; **GDAL takes the level just finer** (an overview is used only when at least as fine as the request). So between zooms x.0 and x.5, a values layer reads up to three times the tiles of the color layer: right for numbers (never scaled up), and only on that half of the range.
 - **The device pixel ratio is honoured**: at a ratio of 2 both ask one zoom deeper (four times the tiles, sharp on a HiDPI screen). No double fetching, no tiles of the wrong zoom.
 - **Default resampling** of every raster layer: nearest neighbour zoomed in and out, late (after the renderer), maximum oversampling 2.
 
-What resampling changes, measured by drawing the contour mask (two colours) at zooms 12.3 and 12.7 and counting the colours:
+What resampling changes, measured by drawing the contour mask (two colors) at zooms 12.3 and 12.7 and counting the colors:
 
-| Layer, setting | Colours | What happens |
+| Layer, setting | Colors | What happens |
 |---|---|---|
 | XYZ, default | 5532 / 2759 | the provider already scales its tiles smoothly into the canvas |
 | XYZ, bilinear (late) | 4881 / 2535 | a second resampling of the already scaled picture: slightly blurrier |
 | XYZ, early resampling | 1 / 1 | nothing drawn: the XYZ provider cannot resample (`ProviderHintCanPerformProviderResampling` is false) |
 | GDAL values, default | 3 / 3 | nearest: pixels dropped or doubled between zooms |
-| GDAL values, bilinear late | 2362 / 2269 | the rendered colours blended |
+| GDAL values, bilinear late | 2362 / 2269 | the rendered colors blended |
 | GDAL values, bilinear early | 3 / 3 for the mask's palette | GDAL resamples the values before the renderer: one resampling, of the numbers (a palette still shows only its classes) |
 
 What the plugin does since 0.6.0:
 
-- **Colour (XYZ) layers: nothing.** The provider's own smooth scaling is the single resampling; a resampler would add a second one, and early resampling blanks the layer (worth knowing before ticking it in the layer's properties).
+- **Color (XYZ) layers: nothing.** The provider's own smooth scaling is the single resampling; a resampler would add a second one, and early resampling blanks the layer (worth knowing before ticking it in the layer's properties).
 - **Values (GDAL) layers: early resampling, bilinear zoomed in and out**, set once when the layer is made (`values_resampling` in `layers.py`), for the tile service's values and the local ones alike; the contour mask (a palette) stays nearest. Identify reads the provider at the point, never the resampled picture.
 - **A user's choice is kept.** A changed setting re-points the layer with `setDataSource`, which keeps the resampling, renderer, opacity and blending (checked in both versions). The local layers used to be removed and made again on every change, losing all of them; they now use `setDataSource` too, and the panel's opacity is applied to a new layer only.
-- The local colour tiles now go to z18 (Mapterhorn's 512 px z17), the depth the values layers already read.
+- The local color tiles now go to z18 (Mapterhorn's 512 px z17), the depth the values layers already read.
 
 `test_live.py` checks that a values layer gets early bilinear resampling and that a new setting keeps a layer's own opacity and resampler.
 
@@ -148,7 +148,7 @@ What the plugin does since 0.6.0:
 
 ## Second round: 14 modes, values, parallel tiles
 
-The same day, a second round (plugin 0.5.0) answered three questions the first one left: can the plugin serve more of the app's modes, can QGIS style them with its own colour ramps, and does the server use the cores. The box moved to the top of the panel (**Experimental: compute locally (no tile service)**, in bold, off by default); checking it lists the modes, each with a gear for its settings, and a **Draw as** choice: values (the default) or grey image tiles.
+The same day, a second round (plugin 0.5.0) answered three questions the first one left: can the plugin serve more of the app's modes, can QGIS style them with its own color ramps, and does the server use the cores. The box moved to the top of the panel (**Experimental: compute locally (no tile service)**, in bold, off by default); checking it lists the modes, each with a gear for its settings, and a **Draw as** choice: values (the default) or grey image tiles.
 
 ### The modes and how well they match
 
@@ -175,25 +175,25 @@ The same day, a second round (plugin 0.5.0) answered three questions the first o
 ² **The app's aspect was mirrored east-west until 2026-11-25**: `lib/aspect-protocol.ts` computed `atan2(dy, -dx)` with `dx` = west minus east, so an east-facing slope read 270° (gdaldem: 90°). Found by this comparison (they agreed to 3e-5° once mirrored back), fixed in the app (`atan2(dy, dx)`, `lib/aspect-protocol.test.ts`); the test now compares unmirrored.
 ³ The service packs curvature as Terrarium times 1000 over the app's own scale, so values past ±0.33 1/m (±3.3e-3 1/m² for det-hessian) are clipped there; those pixels (steep summits at z14) are left out of the comparison.
 
-Not ported: the modes that need a whole view (the mound detector, the eigen-based ones, local dominance, the fast sky view factor with far rings), and colour relief by the app's own ramps (QGIS's ramps take that role, below). Phong and matcap came in the third round (above).
+Not ported: the modes that need a whole view (the mound detector, the eigen-based ones, local dominance, the fast sky view factor with far rings), and color relief by the app's own ramps (QGIS's ramps take that role, below). Phong and matcap came in the third round (above).
 
-### Values and colour ramps: a GDAL source, not a Python provider
+### Values and color ramps: a GDAL source, not a Python provider
 
-The first round's open question was how to give QGIS **values** (so that QGIS's own colour ramps, Identify, the raster calculator and Processing work) rather than pictures coloured in numpy. Two designs were on the table:
+The first round's open question was how to give QGIS **values** (so that QGIS's own color ramps, Identify, the raster calculator and Processing work) rather than pictures colored in numpy. Two designs were on the table:
 
 | | Registered Python raster provider | The localhost server's Float32 tiles read by GDAL (built) |
 |---|---|---|
 | How | a `QgsRasterDataProvider` subclass; QGIS calls `block(band, extent, w, h)` for the whole canvas | `/{mode}/{z}/{x}/{y}.tif` (Float32, NaN no data) and a GDAL WMS description (TMS minidriver, the same as the tile service's `/gdal.xml`), opened by QGIS's own `gdal` provider; the XML is the layer's source |
 | Who computes | QGIS's render thread, holding the GIL through the Python parts; one block for the whole canvas, nothing shown until it is done | the server's threads; GDAL asks up to 16 tiles at once (`MaxConnections`) and caches the blocks it read |
 | Values in QGIS | yes | yes: Identify, raster calculator, zonal statistics, Processing, Save As GeoTIFF |
-| Styling | QGIS's renderers | QGIS's renderers (the plugin sets a coloured default: a ramp of QGIS's style over the mode's range, grey and multiplied for the shades, two colours for the contour mask) |
+| Styling | QGIS's renderers | QGIS's renderers (the plugin sets a colored default: a ramp of QGIS's style over the mode's range, grey and multiplied for the shades, two colors for the contour mask) |
 | Outside QGIS | no | yes: the same XML opens in gdalinfo, gdal_translate, rasterio |
 | Saved project | needs the provider registered before the project opens | needs the server running (it asks port 3420 first, so a reopened project's layers work again once the box is checked) |
 | Risk | the traps of the first probe (exit 127 on a wrong capabilities type, objects collected under QGIS) | GDAL WMS is a mature driver; the server is the one already built |
 
 **Chosen: GDAL over the server's Float32 tiles.** It reuses the server, keeps the computing off QGIS's render thread, is parallel by construction, works outside QGIS, and has the same shape as the tile service's values, so the panel treats both alike. A Terrarium-encoded PNG read through a VRT was ruled out: it quantises (1/256 m) and needs a pixel function to decode. The grey image tiles stay as **Draw as: Grey image tiles (XYZ)**, the form QGIS shows progressively, tile by tile.
 
-The coloured default per mode: hypsometric ramp (the plugin's own: QGIS's style has none) over the 2nd to 98th percentile of the elevation in view, YlOrRd for slope, Turbo for aspect, RdBu for curvature, TPI and LRM, Magma for TRI and roughness, reversed Greys for sky view factor and openness. Any of them can be changed in the layer's **Symbology** like any raster's.
+The colored default per mode: hypsometric ramp (the plugin's own: QGIS's style has none) over the 2nd to 98th percentile of the elevation in view, YlOrRd for slope, Turbo for aspect, RdBu for curvature, TPI and LRM, Magma for TRI and roughness, reversed Greys for sky view factor and openness. Any of them can be changed in the layer's **Symbology** like any raster's.
 
 ### Parallelism
 
@@ -244,7 +244,7 @@ QT_QPA_PLATFORM=offscreen NODE=... TV_EXTRA_PYTHONPATH=<numba/cupy pip --target 
 
 The test machine is a laptop with 20 logical cores and an NVIDIA RTX A1000 Laptop GPU. Both QGIS installs run the same Python 3.12.13 and numpy 2.4.6; numba 0.68 and cupy 14.2 (CUDA 12.9) were pip-installed into a scratch folder with `--target`, never into QGIS. The test set is 16 z12 tiles around Mont Blanc. Each cell is the median ms per 256 px tile, QGIS 4.2 / QGIS 3.44. The two columns are separate runs of the same code, and the gap between them is laptop noise (power states), not Qt 5 against Qt 6. Expect ±50 % from run to run.
 
-#### Kernels alone (grids in memory, colour included)
+#### Kernels alone (grids in memory, color included)
 
 | Mode | numpy, 1 thread | numpy, 8 threads (throughput) | numba, all cores | numba, 1 thread | cupy (with host↔device) | app's JS kernel in Node, 1 thread |
 |---|---|---|---|---|---|---|
@@ -278,7 +278,7 @@ In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet ca
 - **Threads help when the operations are large.** numpy releases the GIL inside each array operation. The shadow sweep is a few large gathers and scans, and gains 2 to 3× from 8 threads. The sky view factor is hundreds of small operations on 64k pixels (8 directions × radius), so threads mostly wait on the GIL and gain nothing (slightly worse at r = 8).
 - **numba**, when it is there, is the cheapest speed-up: 1.5 to 2× on the sky view factor over all cores, and a 0.1 ms hillshade. But QGIS ships without it, and pip-installing into QGIS's Python is not something a plugin should do. The plugin would use it only when it imports (`kernels_numba.available`).
 - **cupy is slower than numpy per tile.** A 256 px tile is too little work for a GPU. Each array operation is one kernel launch (dozens per tile for the sky view factor), plus the transfers. A fused `RawKernel` with one thread per pixel would remove the launches, but the transfers stay. The GPU pays off on a whole canvas computed in one dispatch, like the app's live GPU shadows over a Float32 view mosaic, not on tiles.
-- **Against the tile service**, the local tiles were 5 to 100× faster, end to end. The service pays for its whole pipeline on each tile: the layer stack rebuilt from URL parameters, a worker hop, the app's colour paint and PNG encoding by sharp. Its sky view factor (1 to 2 s per tile, even at r = 8) was far above what the kernel costs in Node (60 to 110 ms in the column above): each 256 px tile computed four 512 px source tiles. Fixed on 2026-11-25 (see the note under the table): the service now comes within 1.5 to 3× of the local server, slower mostly on tiles whose 512 px source tile is new.
+- **Against the tile service**, the local tiles were 5 to 100× faster, end to end. The service pays for its whole pipeline on each tile: the layer stack rebuilt from URL parameters, a worker hop, the app's color paint and PNG encoding by sharp. Its sky view factor (1 to 2 s per tile, even at r = 8) was far above what the kernel costs in Node (60 to 110 ms in the column above): each 256 px tile computed four 512 px source tiles. Fixed on 2026-11-25 (see the note under the table): the service now comes within 1.5 to 3× of the local server, slower mostly on tiles whose 512 px source tile is new.
 
 ## Ways into QGIS
 
@@ -289,18 +289,18 @@ In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet ca
 | Responsiveness | one block for the whole canvas per render, so nothing shows until all of it is done; no tiles to cache unless the provider keeps its own | same as (a) | progressive: tiles appear as they finish; QGIS cancels the ones panned away | none: run, wait, load |
 | Caching | its own | its own | QGIS's network cache (the tiles say `max-age`) plus the decoded elevation LRU | the file |
 | Threading / GIL | runs in QGIS's render thread, holding the GIL for the Python parts | same | requests on their own threads; QGIS's renderer only waits on the network | Processing's task thread |
-| Values (Float32) | yes: Identify, raster calculator, statistics | no, only pixels | no, only 8-bit colours (would need GDAL's WMS driver over a Float32 encoding, as the service's `/gdal.xml`) | yes |
+| Values (Float32) | yes: Identify, raster calculator, statistics | no, only pixels | no, only 8-bit colors (would need GDAL's WMS driver over a Float32 encoding, as the service's `/gdal.xml`) | yes |
 | Saved project | the provider must be registered before the project opens | the plugin layer type must be registered | the address holds a port that changes each session | a file path |
 | Code | moderate; crash-prone (below) | the most | the least | little |
 
-**Chosen for the prototype: (c).** It is the least code, uses only API that QGIS 3.28 already has (tested in 3.44 and 4.2), and leaves tiling, threading, caching, resampling between zoom levels and reprojection to QGIS. Option (d) is the right shape for exports and batch runs. For values, the second round kept (c) and added Float32 tiles that GDAL reads (see [values and colour ramps](#values-and-colour-ramps-a-gdal-source-not-a-python-provider)) rather than option (a), whose probe worked in both versions but found two traps the hard way:
+**Chosen for the prototype: (c).** It is the least code, uses only API that QGIS 3.28 already has (tested in 3.44 and 4.2), and leaves tiling, threading, caching, resampling between zoom levels and reprojection to QGIS. Option (d) is the right shape for exports and batch runs. For values, the second round kept (c) and added Float32 tiles that GDAL reads (see [values and color ramps](#values-and-color-ramps-a-gdal-source-not-a-python-provider)) rather than option (a), whose probe worked in both versions but found two traps the hard way:
 
 - `capabilities()` must return the flag type the version expects (`Qgis.RasterInterfaceCapability` in 3.44 and 4.x). Returning the old `QgsRasterDataProvider.Size | Identify` makes 3.44 exit with no traceback (exit code 127).
 - The Python objects returned by the factory and by `clone()` must be kept referenced, or they are collected while QGIS still uses them.
 
 ## GPU "at shader level"
 
-- **QGIS's own raster shading** is a fixed C++ pipeline (`QgsRasterRenderer` subclasses: single band, pseudocolour, hillshade). A Python `QgsRasterRenderer` subclass is possible in principle, but it is called with blocks in a render thread like a provider. It is not a shader hook, and it can only colour values a provider already computed. The 2D canvas has no GLSL entry point; QGIS 3D's materials do, but they do not apply to 2D maps.
+- **QGIS's own raster shading** is a fixed C++ pipeline (`QgsRasterRenderer` subclasses: single band, pseudocolor, hillshade). A Python `QgsRasterRenderer` subclass is possible in principle, but it is called with blocks in a render thread like a provider. It is not a shader hook, and it can only color values a provider already computed. The 2D canvas has no GLSL entry point; QGIS 3D's materials do, but they do not apply to 2D maps.
 - **OpenGL compute through Qt**: PyOpenGL ships with QGIS on Windows (3.1.10). A `QOffscreenSurface` and `QOpenGLContext` on a worker thread could run the app's shaders. Per tile, it would pay the same upload and readback costs as cupy. It only makes sense for a canvas-sized mosaic in one dispatch, the way the app's live shadows work.
 - **cupy**: measured above. It works when installed (it needs the CUDA wheels), and it is slower than numpy per tile.
 - **Verdict**: CPU numpy for tiles now. A GPU path only as a canvas-mosaic renderer (option a or b computing the whole view at once), and only if a mode is too slow on the CPU, which none of these three is.

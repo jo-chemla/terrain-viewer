@@ -237,7 +237,7 @@ said = dock.status.text()
 print("  status:", said)
 check("does not answer" in said and "desktop app" in said, "the warning names the desktop app's tile service")
 if offered:
-    check("Local service" in said, "and the local service")
+    check("Packaged tile server" in said, "and the local service")
 check(len(iface.bar.messages) > n, "the warning went to the message bar too")
 # A remote address: no desktop app suggested.
 dock.url.setText("http://tv-unreachable.invalid:3400")

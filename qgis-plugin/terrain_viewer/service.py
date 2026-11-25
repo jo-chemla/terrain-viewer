@@ -77,13 +77,13 @@ def unresponsive_message(base, error, bundled_available=False, bundled_on=False,
     start)."""
     text = f"The tile service at {base} does not answer ({error})."
     if bundled_on:
-        return text + f" {bundled_status or 'The local tile service is not running'}: press Connect to start it again."
+        return text + f" {bundled_status or 'The packaged tile server is not running'}: press Connect to start it again."
     if is_local(base):
         port = urlsplit(base if "//" in base else "http://" + base).port
         text += (" Start the Terrain Viewer desktop app with its tile service on (Settings > Desktop: local tile service"
                  + (f", port {port}" if port else "") + "), or a tile service of your own (cd tile-server && pnpm start).")
         if bundled_available:
-            text += " Or pick \"Local service\" at the top of the panel to run one from QGIS (installed on first use)."
+            text += " Or pick \"Packaged tile server\" at the top of the panel to run one from QGIS (installed on first use)."
     else:
         text += " Check the address, your network, or whether that service is up."
     return text
@@ -155,7 +155,7 @@ def tree_of_processes(groups, modes):
 
 class Catalog:
     """What the service answers: its sources, its modes and their settings
-    (/processes, OGC API - Processes), its colour ramps. A service from
+    (/processes, OGC API - Processes), its color ramps. A service from
     before 2026-11-24 (no /processes) is not read: update it."""
 
     def __init__(self, base, snapshot=None):
@@ -250,7 +250,7 @@ def values_url(base, mode, values, common):
     """The address of one mode's values as a GDAL raster: the service's
     /gdal.xml, a GDAL WMS description of its Float32 GeoTIFF tiles, which
     GDAL (and so QGIS's gdal provider) opens by its URL. No opacity, no
-    background: numbers, not colours."""
+    background: numbers, not colors."""
     q = {"modes": mode["id"]}
     q.update({k: v for k, v in common.items() if v not in (None, "")})
     q.update(setting_params(mode, values))

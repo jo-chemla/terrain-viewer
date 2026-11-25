@@ -9,6 +9,7 @@ from qgis.core import (
     QgsLineSymbol, QgsFillSymbol, QgsMarkerSymbol, QgsDataProvider,
     QgsSingleBandGrayRenderer, QgsContrastEnhancement, QgsRasterPipe, Qgis,
 )
+from .labels import label_tile_layer
 
 try:  # QGIS 3.30+
     from qgis.core import Qgis
@@ -53,11 +54,11 @@ def values_resampling(layer, continuous=True):
     GDAL reads the level just finer than the canvas (a canvas at zoom 12.3
     reads z13 tiles), so the picture is mostly scaled down. QGIS's default
     is nearest neighbour after the renderer: pixels dropped or doubled. Early
-    resampling (GDAL resampling the values, before the colour ramp) bilinear
+    resampling (GDAL resampling the values, before the color ramp) bilinear
     both ways is one resampling, of the numbers; a palette (the contour mask)
     stays nearest. Identify reads the provider, never the resampled picture.
 
-    The XYZ (colour) layers get nothing: QGIS's XYZ provider already scales
+    The XYZ (color) layers get nothing: QGIS's XYZ provider already scales
     its tiles smoothly into the canvas (it rounds the canvas zoom to the
     nearest tile zoom), so a resampler there only resamples a second time,
     and early resampling, which that provider cannot do, draws nothing."""
@@ -76,17 +77,19 @@ def values_resampling(layer, continuous=True):
     provider.setZoomedOutResamplingMethod(method)
 
 
-def _colour(value, fallback):
+def _color(value, fallback):
     c = QColor(str(value)) if value else QColor()
     return c if c.isValid() else QColor(fallback)
 
 
 def vector_renderer(mode_id, values):
-    """A plain style for an overlay's vector tiles, coloured with the mode's
-    own colour setting when it has one."""
-    colour_key = {"contours": "contourColor", "isoline": "isolineColor", "planeSlicer": "planeSlicerColor",
-                  "graticules": "graticuleColor", "moundDetector": "tellsOutlineColor"}.get(mode_id)
-    colour = _colour(values.get(colour_key), "#7a3b00" if mode_id == "contours" else "#d01c8b")
+    """A plain style for an overlay's vector tiles, colored with the mode's
+    own color setting when it has one. Points only for the mound detector,
+    whose points are its features (the tells); the others' values are QGIS
+    labels on their lines (labels.py)."""
+    color_key = {"contours": "contourColor", "isoline": "isolineColor", "planeSlicer": "planeSlicerColor",
+                 "graticules": "graticuleColor", "moundDetector": "tellsOutlineColor"}.get(mode_id)
+    color = _color(values.get(color_key), "#7a3b00" if mode_id == "contours" else "#d01c8b")
     width = str(values.get({"contours": "contourWeight", "isoline": "isolineWeight", "graticules": "graticuleWidth"}.get(mode_id, ""), 1) or 1)
     try:
         width_mm = max(0.1, float(width) * 0.26)
@@ -94,16 +97,17 @@ def vector_renderer(mode_id, values):
         width_mm = 0.26
     styles = []
     line = QgsVectorTileBasicRendererStyle("lines", "", LINE)
-    line.setSymbol(QgsLineSymbol.createSimple({"line_color": colour.name(), "line_width": str(width_mm), "line_width_unit": "MM"}))
+    line.setSymbol(QgsLineSymbol.createSimple({"line_color": color.name(), "line_width": str(width_mm), "line_width_unit": "MM"}))
     styles.append(line)
     fill = QgsVectorTileBasicRendererStyle("areas", "", POLYGON)
-    fc = QColor(colour)
+    fc = QColor(color)
     fc.setAlpha(90)
-    fill.setSymbol(QgsFillSymbol.createSimple({"color": f"{fc.red()},{fc.green()},{fc.blue()},{fc.alpha()}", "outline_color": colour.name(), "outline_width": "0.3"}))
+    fill.setSymbol(QgsFillSymbol.createSimple({"color": f"{fc.red()},{fc.green()},{fc.blue()},{fc.alpha()}", "outline_color": color.name(), "outline_width": "0.3"}))
     styles.append(fill)
-    point = QgsVectorTileBasicRendererStyle("points", "", POINT)
-    point.setSymbol(QgsMarkerSymbol.createSimple({"color": colour.name(), "size": "2.5", "outline_color": "white"}))
-    styles.append(point)
+    if mode_id == "moundDetector":
+        point = QgsVectorTileBasicRendererStyle("points", "", POINT)
+        point.setSymbol(QgsMarkerSymbol.createSimple({"color": color.name(), "size": "2.5", "outline_color": "white"}))
+        styles.append(point)
     renderer = QgsVectorTileBasicRenderer()
     renderer.setStyles(styles)
     return renderer
@@ -134,6 +138,9 @@ class LayerStack:
     def __init__(self, project=None):
         self.project = project or QgsProject.instance()
         self.ranks = {}
+        # Called before a layer joins the project (the panel keeps the
+        # canvas where it is, keep_extent).
+        self.before_insert = None
 
     # -- the tree ---------------------------------------------------------
     def root(self, create=True):
@@ -183,6 +190,8 @@ class LayerStack:
         return self.project.layerTreeRoot().findLayer(layer.id()) if layer else None
 
     def _insert(self, layer, path, key):
+        if self.before_insert is not None:
+            self.before_insert()
         self.project.addMapLayer(layer, False)
         g = self.group(path)
         return g.insertLayer(self._index(g, tuple(path), self.ranks.get(("l", key), 10 ** 6)), layer)
@@ -214,6 +223,7 @@ class LayerStack:
                 layer.setCustomProperty(PROP, key)
                 layer.setCustomProperty(BACKEND_PROP, backend or "service")
                 layer.setRenderer(vector_renderer(mode_id, values or {}))
+                label_tile_layer(layer, mode_id)  # kept across address rewrites, as a change made in QGIS
                 self._insert(layer, path, key)
             elif layer.source() != uri:
                 layer.setDataSource(uri, layer.name(), "xyzvectortiles", QgsDataProvider.ProviderOptions())

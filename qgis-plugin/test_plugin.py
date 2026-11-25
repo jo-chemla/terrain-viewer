@@ -97,7 +97,7 @@ def visible_layers():
     return QgsProject.instance().layerTreeRoot().checkedLayers()
 
 
-# 1. A share link: colour relief, slope, LRM, hillshade (the app's defaults
+# 1. A share link: color relief, slope, LRM, hillshade (the app's defaults
 # under the show* switches).
 link = "http://localhost:5173/?zoom=11.32&lat=44.5061&lng=4.0005&showColorRelief=true&showRasterBasemap=true&showReliefVisualization=true&showTerrainAnalysis=true&slopeOpacity=0.8&slopeMaxDegrees=45"
 dock.open_link(link)
@@ -112,9 +112,9 @@ extent = QgsRectangle(x - half, y - half * 0.625, x + half, y + half * 0.625)
 # vector tiles), change a setting.
 dock.rows["svf"].check.setChecked(True)
 dock.rows["contours"].check.setChecked(True)
-if not dock.rows["contours"].vector.isChecked() or dock.rows["contours"].colour.isChecked():
+if not dock.rows["contours"].vector.isChecked() or dock.rows["contours"].color.isChecked():
     failures.append("overlays: vector tiles are not the default form")
-dock.rows["contours"].colour.setChecked(True)
+dock.rows["contours"].color.setChecked(True)
 dock.rows["svf"].settings["svfRadius"].set(20)
 # The slope's values too: a Float32 raster read by GDAL (/gdal.xml).
 dock.rows["slope"].numbers.setChecked(True)
@@ -216,9 +216,9 @@ print("legacy group adopted:", adopted is not None and adopted.name(), adopted i
 if adopted is not live_group or adopted.name() != ROOT_NAME or not adopted.customProperty(ROOT_PROP):
     failures.append("legacy live group not adopted")
 
-# 2d. A mode's forms: Colour and Values each add and remove their layer;
-# the mode's box turns them on (Colour the first time) and off; the cog shows
-# while Colour is on; a layer removed by hand unchecks its form.
+# 2d. A mode's forms: Color and Values each add and remove their layer;
+# the mode's box turns them on (Color the first time) and off; the cog shows
+# while Color is on; a layer removed by hand unchecks its form.
 row = dock.rows["curvature"]
 
 
@@ -228,20 +228,20 @@ def curvature_layers():
 
 for label, act, want in [
     ("values only", lambda: row.numbers.setChecked(True), ["curvature:values"]),
-    ("+ colour", lambda: row.colour.setChecked(True), ["curvature", "curvature:values"]),
+    ("+ color", lambda: row.color.setChecked(True), ["curvature", "curvature:values"]),
     ("mode off", lambda: row.check.setChecked(False), []),
     ("mode on: both back", lambda: row.check.setChecked(True), ["curvature", "curvature:values"]),
-    ("colour off", lambda: row.colour.setChecked(False), ["curvature:values"]),
+    ("color off", lambda: row.color.setChecked(False), ["curvature:values"]),
     ("values off", lambda: row.numbers.setChecked(False), []),
-    ("mode on: colour", lambda: row.check.setChecked(True), ["curvature"]),
+    ("mode on: color", lambda: row.check.setChecked(True), ["curvature"]),
 ]:
     act()
     got, cog = curvature_layers(), row.more.isVisibleTo(row.box)
     print(f"curvature {label:<20} -> {got}, mode {row.check.isChecked()}, cog {cog}")
-    if got != want or cog != row.colour.isChecked() or row.check.isChecked() != bool(want):
+    if got != want or cog != row.color.isChecked() or row.check.isChecked() != bool(want):
         failures.append(f"forms: curvature {label}: {got}, cog {cog}")
 QgsProject.instance().removeMapLayer(dock.stack.find("curvature").id())
-if row.check.isChecked() or row.colour.isChecked():
+if row.check.isChecked() or row.color.isChecked():
     failures.append("forms: a layer removed by hand left its form checked")
 
 # 2e. 0.7.0: layer cleanup, both shadows, the light, a whole-row click,
