@@ -179,7 +179,7 @@
         "auto",
         "off",
         "date",
-        "source-date\" as const"
+        "source-date"
       ],
       "default": "auto",
       "defaultSource": "\"auto\"",
@@ -193,7 +193,7 @@
       "enum": [
         "auto",
         "always",
-        "never\" as const"
+        "never"
       ],
       "default": "auto",
       "defaultSource": "\"auto\"",
@@ -207,7 +207,7 @@
       "enum": [
         "auto",
         "always",
-        "never\" as const"
+        "never"
       ],
       "default": "auto",
       "defaultSource": "\"auto\"",
@@ -221,7 +221,7 @@
       "enum": [
         "auto",
         "always",
-        "never\" as const"
+        "never"
       ],
       "default": "auto",
       "defaultSource": "\"auto\"",
@@ -992,7 +992,7 @@
       "items": null,
       "enum": [
         "raster",
-        "live\" as const"
+        "live"
       ],
       "default": "live",
       "defaultSource": "\"live\"",
@@ -1165,7 +1165,7 @@
       "items": null,
       "enum": [
         "raster",
-        "live\" as const"
+        "live"
       ],
       "default": "live",
       "defaultSource": "\"live\"",
@@ -1208,7 +1208,7 @@
       "items": null,
       "enum": [
         "raster",
-        "live\" as const"
+        "live"
       ],
       "default": "live",
       "defaultSource": "\"live\"",
@@ -1281,7 +1281,7 @@
       "items": null,
       "enum": [
         "local",
-        "utc\" as const"
+        "utc"
       ],
       "default": "local",
       "defaultSource": "\"local\"",
@@ -3176,7 +3176,7 @@
       "enum": [
         "under",
         "relief",
-        "top\" as const"
+        "top"
       ],
       "default": "under",
       "defaultSource": "\"under\"",
@@ -3327,7 +3327,7 @@
       "items": null,
       "enum": [
         "absolute",
-        "lrm\" as const"
+        "lrm"
       ],
       "default": "absolute",
       "defaultSource": "\"absolute\"",
@@ -3360,7 +3360,7 @@
       "items": null,
       "enum": [
         "value",
-        "interval\" as const"
+        "interval"
       ],
       "default": "value",
       "defaultSource": "\"value\"",

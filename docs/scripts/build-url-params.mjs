@@ -33,6 +33,9 @@ const urlKey = (k) => (/^source[A-H]$/.test(k) ? `terrainSource${k.slice(6)}` : 
 // from a few known modules so the spec can list the allowed values.
 const literalSources = ["lib/grid-layouts.ts", "components/TerrainViewer.tsx", "lib/settings-atoms.ts", "lib/terrain-types.ts", "lib/max-bounds.ts"].map(read).join("\n");
 const literals = (name) => {
+  // An inline literal (`["raster", "live"] as const`) loses its `as const`
+  // first, or the last value reads `live" as const`.
+  name = name.replace(/\s+as\s+const\s*$/, "");
   if (name.trim().startsWith("[")) return name.replace(/[\[\]]/g, "").split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
   if (!/^[A-Za-z0-9_]+$/.test(name.trim())) return null;
   name = name.trim();
