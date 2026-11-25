@@ -2,8 +2,8 @@
   "title": "Docs",
   "pages": [
     "overview",
-    "features",
     "integrations",
+    "features",
     "changelog",
     "dev",
     "resources"
