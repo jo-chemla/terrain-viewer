@@ -637,9 +637,9 @@ penumbra ≈ 0.0093·d: 9 m at 1 km, 90 m at 10 km`}</Formula>
       }
       right={
         <>
-          <Shot src={poPlain} caption="The Alps' shadow over the Po plain east of Turin, sun 1.5° above the horizon from 255°" width={772} height={390} position="center" />
+          <Shot src={poPlain} caption="The Alps' shadow over the Po plain east of Turin, sun 3.5° above the horizon from 255°" width={772} height={390} position="center" />
           <div style={{ marginTop: 20, borderBottom: `1px solid ${ink.rule}` }}>
-            <Row k="87 km" v="that shadow with the Earth's curvature; 107 km on a flat Earth." />
+            <Row k="87 km" v="that shadow under a 1.5° sun with the Earth's curvature; 107 km on a flat Earth." />
             <Row k="IoU 0.98–0.999" v="against a long-reach reference, four cases; 0.86–0.98 before the far field." />
             <Row k="+0.2–1.5 ms" v="per 1280 × 800 frame for the far field; the soft edge under 0.1 ms in the mountains." />
           </div>
