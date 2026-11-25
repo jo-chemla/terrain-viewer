@@ -524,6 +524,7 @@ interface SettingsSectionsOpenState {
   saveProject: boolean
   resources: boolean
   geomorphometry: boolean
+  desktopTileService: boolean
 }
 const settingsSectionsOpenAtom = atomWithStorage<SettingsSectionsOpenState>("settingsSectionsOpen", {
   whatsNew: true,
@@ -538,6 +539,7 @@ const settingsSectionsOpenAtom = atomWithStorage<SettingsSectionsOpenState>("set
   saveProject: false,
   resources: false,
   geomorphometry: false,
+  desktopTileService: true,
 }, undefined, { getOnInit: true })
 export const isSettingsAppearanceOpenAtom = booleanField(settingsSectionsOpenAtom, "appearance")
 export const isSettingsKeyboardShortcutsOpenAtom = booleanField(settingsSectionsOpenAtom, "keyboardShortcuts")
@@ -551,6 +553,8 @@ export const isSettingsSaveProjectOpenAtom = booleanField(settingsSectionsOpenAt
 export const isSettingsResourcesOpenAtom = booleanField(settingsSectionsOpenAtom, "resources")
 export const isSettingsGeomorphometryOpenAtom = booleanField(settingsSectionsOpenAtom, "geomorphometry")
 export const isSettingsWhatsNewOpenAtom = booleanField(settingsSectionsOpenAtom, "whatsNew")
+// Desktop app only (Settings > Desktop: local tile service).
+export const isSettingsDesktopTileServiceOpenAtom = booleanField(settingsSectionsOpenAtom, "desktopTileService")
 
 // ISO date ("YYYY-MM-DD") of the newest changelog entry's `<!-- released -->`
 // marker the user has already seen — see lib/changelog.ts. A plain date, not

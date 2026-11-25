@@ -70,6 +70,13 @@ jobs:
           pnpm run docs:build
           mkdir -p dist/docs
           cp -r docs/out/. dist/docs/
+      - name: Install and build the tile service
+        # The local tile service the app ships (Settings > Desktop: local tile
+        # service): ci-bundle.sh stages it with qgis-plugin/make_zip.py
+        # --server-dir (Node from nodejs.org, the service, its production
+        # node_modules with this platform's sharp).
+        shell: bash
+        run: cd tile-server && pnpm install --frozen-lockfile && node build.mjs
       - name: No Planet key in the build
         # vite.config.ts leaves it out; this catches anything that stops doing so.
         # Planet keys start with PLAK. Prose naming the prefix does not match.

@@ -4,13 +4,20 @@
 //
 // Environment: CHROME_PATH (a Chromium binary; unset: the installed Chrome,
 // else the installed Edge),
-// TV_SOFTWARE_GL=1 (no graphics card: SwiftShader), TV_TIMING (lap times).
+// TV_SOFTWARE_GL=1 (no graphics card: SwiftShader), TV_TIMING (lap times),
+// TV_NO_BROWSER=1 (never look for a browser: the copies inside the QGIS
+// plugin and the desktop app, which ship without playwright-core and only
+// draw what the direct engine draws; the rest answers 501).
+
+/** The 501 of a service without the browser engine. */
+const noBrowser = (why) => Object.assign(new Error(`This tile service has no browser engine (${why}): it draws the flat, north-up tiles and views the direct engine computes, which is what QGIS asks for. 3D, tilted, rotated or split views, and the sources or modes only the app draws, need the full service (cd tile-server && pnpm start, with Chrome or Edge installed).`), { status: 501 })
 
 let browserPromise
 export async function browser() {
   if (!browserPromise) {
     browserPromise = (async () => {
-      const { chromium } = await import("playwright-core")
+      if (process.env.TV_NO_BROWSER) throw noBrowser("TV_NO_BROWSER is set")
+      const { chromium } = await import("playwright-core").catch(() => { throw noBrowser("playwright-core is not installed") })
       // The machine's GPU when there is one (several times faster on the
       // heavy modes); TV_SOFTWARE_GL=1 forces software rendering, for a
       // container without one.

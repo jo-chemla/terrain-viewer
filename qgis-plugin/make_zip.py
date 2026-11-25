@@ -12,7 +12,14 @@ Install from ZIP):
          supportedArchitectures. Needs the root install and tile-server's
          (`pnpm install` in both): tile-server/build.mjs bundles the app's
          code into tile-server/generated/ first. Built by
-         .github/workflows/qgis-plugins.yml for the releases."""
+         .github/workflows/qgis-plugins.yml for the releases.
+  python make_zip.py --server-dir <platform> <folder>
+      -> that folder holds the same tile service alone (bin/node, server.mjs,
+         node_modules...): what the desktop app ships (desktop/ci-bundle.sh,
+         desktop/gen-config.mjs) and starts from its settings.
+The tile service shipped this way has no browser engine: playwright-core is
+left out and it runs with TV_NO_BROWSER=1, so 3D, tilted, rotated or split
+views answer 501 (QGIS asks for flat, north-up tiles only)."""
 import configparser
 import hashlib
 import json
@@ -43,6 +50,10 @@ TARGETS = {
 # The service's files that run (the tests, the engine comparison and the
 # build step stay out).
 NOT_SHIPPED = {"test.mjs", "proxy-test.mjs", "compare-engines.mjs", "build.mjs"}
+# Production dependencies left out: playwright-core drives Chrome or Edge for
+# the browser engine (3D, tilted, split views), which a nadir 2D client such
+# as QGIS never asks for. render.mjs answers 501 without it.
+NOT_SHIPPED_MODULES = ("playwright-core",)
 
 
 def version_of(name):
@@ -134,7 +145,7 @@ def node_modules(target, stage):
     run(["pnpm", "install", "--prod", "--frozen-lockfile", "--ignore-scripts", "--config.node-linker=hoisted",
          "--config.confirmModulesPurge=false"], stage)
     nm = os.path.join(stage, "node_modules")
-    for junk in (".bin", ".pnpm", ".modules.yaml", ".pnpm-workspace-state-v1.json", ".package-lock.json"):
+    for junk in (".bin", ".pnpm", ".modules.yaml", ".pnpm-workspace-state-v1.json", ".package-lock.json", *NOT_SHIPPED_MODULES):
         p = os.path.join(nm, junk)
         if os.path.isdir(p):
             shutil.rmtree(p)
@@ -169,33 +180,47 @@ def commit():
         return "unknown"
 
 
-def build_bundled(target):
+def stage_server(target, server):
+    """The tile service for a platform in the folder `server` (emptied
+    first): bin/node, the service's files, generated/, node_modules,
+    bundle.json. Returns bundle.json's content."""
     if target not in TARGETS:
         sys.exit(f"unknown platform {target}: one of {', '.join(TARGETS)}")
     generated = os.path.join(tile_server, "generated")
     if not os.path.exists(os.path.join(generated, "app-render.mjs")):
         run(["node", "build.mjs"], tile_server)
-    dist = os.path.join(here, "dist")
-    cache = os.path.join(dist, ".cache")
+    cache = os.path.join(here, "dist", ".cache")
     os.makedirs(cache, exist_ok=True)
-    stage_root = os.path.join(dist, ".stage", target)
-    if os.path.exists(stage_root):
-        shutil.rmtree(stage_root)
-    server = os.path.join(stage_root, "server")
+    if os.path.exists(server):
+        shutil.rmtree(server)
     os.makedirs(os.path.join(server, "bin"))
-    print(target)
+    print(target, "->", server)
     img = node_modules(target, server)
     for f in sorted(os.listdir(tile_server)):
         if f.endswith(".mjs") and f not in NOT_SHIPPED:
             shutil.copy(os.path.join(tile_server, f), server)
-    shutil.copytree(generated, os.path.join(server, "generated"))
+    # The build's own outputs only (a test picture may lie there).
+    shutil.copytree(generated, os.path.join(server, "generated"), ignore=shutil.ignore_patterns("test-*"))
     for name, data in node_binary(target, cache).items():
         dest = os.path.join(server, "bin", name if name != "LICENSE" else "NODE-LICENSE")
         with open(dest, "wb") as f:
             f.write(data)
+        if name == "node":
+            os.chmod(dest, 0o755)
+    info = {"platform": target, "node": NODE_VERSION, "sharp": img, "browser": False, "commit": commit(),
+            "built": time.strftime("%Y-%m-%d", time.gmtime())}
     with open(os.path.join(server, "bundle.json"), "w", encoding="utf-8") as f:
-        json.dump({"platform": target, "node": NODE_VERSION, "sharp": img, "commit": commit(),
-                   "built": time.strftime("%Y-%m-%d", time.gmtime())}, f, indent=2)
+        json.dump(info, f, indent=2)
+    size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(server) for f in fs)
+    count = sum(len(fs) for _, _, fs in os.walk(server))
+    print(f"  {count} files, {size / 1e6:.1f} MB unpacked")
+    return info
+
+
+def build_bundled(target):
+    dist = os.path.join(here, "dist")
+    server = os.path.join(dist, ".stage", target, "server")
+    stage_server(target, server)
     out = os.path.join(dist, f"terrain_viewer-{version_of('terrain_viewer')}-{target}.zip")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         add_tree(z, os.path.join(here, "terrain_viewer"), "terrain_viewer")
@@ -206,7 +231,11 @@ def build_bundled(target):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    if args[:1] == ["--bundled"]:
+    if args[:1] == ["--server-dir"]:
+        if len(args) != 3:
+            sys.exit("usage: make_zip.py --server-dir <platform> <folder>")
+        stage_server(args[1], os.path.abspath(args[2]))
+    elif args[:1] == ["--bundled"]:
         for t in args[1:] or list(TARGETS):
             build_bundled(t)
     else:

@@ -27,7 +27,7 @@ import {
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
   isSettingsSaveProjectOpenAtom, isSettingsResourcesOpenAtom, isSettingsGeomorphometryOpenAtom,
   isSettingsWhatsNewOpenAtom, lastSeenChangelogAtAtom, changelogViewAtom, changelogEntriesOpenAtom,
-  isTourOpenAtom,
+  isTourOpenAtom, isSettingsDesktopTileServiceOpenAtom,
 } from "@/lib/settings-atoms"
 import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_RELEASED_AT, type ChangelogEntry } from "@/lib/changelog"
 import { MAX_BOUNDS_MODES, type MaxBoundsMode } from "@/lib/max-bounds"
@@ -50,6 +50,8 @@ import resourcesGeomorphometryRaw from "@/docs/content/docs/resources/geomorphom
 import creditsRaw from "@/docs/content/docs/resources/credits.mdx?raw"
 import { fallbackToOnline } from "@/lib/online-asset-fallback"
 import { GLIHT_DEFAULT_BASE } from "@/lib/gliht-kmz"
+import { isDesktopApp } from "@/lib/desktop-bridge"
+import { DesktopTileServiceSettings } from "./desktop-tile-service-section"
 import vizModesDescriptionRaw from "@/docs/content/docs/features/visualization-modes-description.mdx?raw"
 
 // Single source of truth for these 4 sections lives in docs/content/docs/
@@ -1074,6 +1076,16 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
               </div>
             </div>
           </CollapsibleSection>
+
+          {/* Desktop app only: never rendered on the website. */}
+          {isDesktopApp && (
+            <>
+              <Separator />
+              <CollapsibleSection title="Desktop: local tile service" openAtom={isSettingsDesktopTileServiceOpenAtom}>
+                <DesktopTileServiceSettings />
+              </CollapsibleSection>
+            </>
+          )}
 
           <Separator />
           <CollapsibleSection title="Beta" openAtom={isSettingsBetaOpenAtom} contentClassName="space-y-4 pt-2">

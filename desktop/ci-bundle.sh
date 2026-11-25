@@ -13,7 +13,21 @@ set -euo pipefail
 docs="$1"; variant="$2"
 
 rm -rf build artifacts
-node gen-config.mjs --docs="$docs"
+# The local tile service (Settings > Desktop: local tile service): Node, the
+# service and its node_modules with this platform's sharp, the folder the
+# QGIS plugin's bundled zips carry. Staged once per job (both variants ship
+# it); needs tile-server installed and built (desktop.yml does it).
+if [ ! -f tile-service/server.mjs ]; then
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) target=macos-arm64 ;;
+    Darwin-*) target=macos-x64 ;;
+    Linux-*) target=linux-x64 ;;
+    *) target=windows-x64 ;;
+  esac
+  py=$(command -v python3 || command -v python)
+  "$py" ../qgis-plugin/make_zip.py --server-dir "$target" tile-service
+fi
+node gen-config.mjs --docs="$docs" --tile-service=required
 
 if [ "$(uname -s)" != "Darwin" ] && [ "$(uname -s)" != "Linux" ] && [ -z "${COTTONTAIL_NAMED:-}" ]; then
   # cottontail.exe (the Bun-compatible runtime that owns the window) ships

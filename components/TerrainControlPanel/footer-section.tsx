@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
-import { useDesktopUpdate, describeDesktopUpdate } from "@/lib/desktop-bridge"
+import { useDesktopUpdate, describeDesktopUpdate, isDesktopApp } from "@/lib/desktop-bridge"
 import { CREDITS_MARKDOWN, CREDITS_MARKDOWN_COMPONENTS } from "./settings-dialog"
 
 /** Not a shared `Section` instance on purpose — that component carries
@@ -45,7 +45,7 @@ export const FooterSection: React.FC<{
 
 // The desktop app loads the bundle over its own scheme (views://), never
 // http(s): the same test as lib/online-asset-fallback.ts.
-const IS_DESKTOP = typeof location !== "undefined" && !/^https?:$/.test(location.protocol)
+const IS_DESKTOP = isDesktopApp
 
 // "Is this the latest?": one click asks GitHub for the newest commit on main
 // (what the website serves) and for the rolling desktop release (which names

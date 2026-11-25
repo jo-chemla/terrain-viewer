@@ -1,3 +1,18 @@
+# Changelog — Desktop App Runs the Tile Service for QGIS; Bundled Service Off by Default
+<!-- released: 2026-11-25 -->
+
+#### TL;DR
+
+- **The desktop app can serve tiles to QGIS**: **Settings > Desktop: local tile service** (desktop app only, never on the website) runs the tile service on this computer, on `http://localhost:3400` (port configurable), off by default, with its status shown. Turn it on, then in the QGIS plugin keep the address `http://localhost:3400` and press Connect. The service stays on this computer (`127.0.0.1`), starts again with the app while the setting is on, and stops with the app. Docs: [Desktop App, local tile service](/docs/features/advanced/desktop#local-tile-service).
+- **QGIS plugin 0.4.0**: the bundled tile service is **off by default** and only starts when you check **Local bundled tile service** and press Connect. If the tile service does not answer (at Connect, or later), the panel and QGIS's message bar say so, and for a local address suggest starting the desktop app with its tile service on (or the bundled one). Both variants stay: the 20 KB plain zip and the platform zips with the service inside, about 3 MB smaller now. Release: [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b).
+- **No browser for the plugin**: QGIS asks for flat, north-up tiles only, so the service inside the plugin and the desktop app ships without playwright-core and never looks for Chrome or Edge; a 3D, tilted or split view answers 501.
+
+#### Details
+
+- `desktop/src/bun/tile-service.ts` starts the shipped Node on `Resources/app/tile-service/server.mjs` as a child process (`TV_HOST=127.0.0.1`, `TV_EXIT_WITH_STDIN`, `TV_NO_BROWSER`, no `.env`), keeps the setting in `tile-service.json` and logs to `tile-service.log` next to `updater.log`; a port already answered by another tile service or program is reported, not fought over. Not inside the main process: Cottontail runs the service with sharp but drew a slope tile in 57 s where Node takes 5. `ci-bundle.sh` stages the service with `qgis-plugin/make_zip.py --server-dir <platform>`, `gen-config.mjs --tile-service=required` copies it, `desktop.yml` installs and builds tile-server first. The light build grows from about 37 to about 64 MB. The page's side: `lib/desktop-bridge.ts` (`tile-service-status`, `tile-service-set`, the `tv-desktop-tile-service` event), `components/TerrainControlPanel/desktop-tile-service-section.tsx`.
+- `tile-server/render.mjs`: `TV_NO_BROWSER=1`, or playwright-core missing, makes the browser engine a 501 with a message.
+- `qgis-plugin/test_service_paths.py` replaces `test_bundled.py`: the bundled service, or an external address, driven through the panel in headless QGIS (Connect, processes, a slope layer, a tile, a dead local address, the service going away while connected). Run on Windows in QGIS 4.2 and 3.44 LTR for the three paths: the bundled service, the packaged desktop app's service (light build made locally, started at launch with the setting on; the Node child exits by itself when the app is killed), and the plain plugin against `node tile-server/server.mjs` on another port.
+
 # Changelog — Live Shadows Reach Far: Far-Field Relief, Earth Curvature, Soft Edges
 
 <!-- released: 2026-11-25 -->

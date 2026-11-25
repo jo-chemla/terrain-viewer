@@ -4,7 +4,7 @@ QGIS (for the build machines of .github/workflows/qgis-plugins.yml):
 Unzips it into a temporary folder the way QGIS's installer does (no
 executable bits), loads terrain_viewer/local_server.py alone (the package
 itself imports QGIS), starts the service, asks /processes and a /terrain-tiles
-tile drawn with sharp, stops it and checks it is gone. test_bundled.py is the
+tile drawn with sharp, stops it and checks it is gone. test_service_paths.py is the
 same check through the panel, in QGIS."""
 import importlib.util
 import json

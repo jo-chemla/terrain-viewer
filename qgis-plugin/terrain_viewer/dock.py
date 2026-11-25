@@ -7,13 +7,14 @@ import math
 import time
 from urllib.parse import urlsplit, parse_qsl
 
-from qgis.PyQt.QtCore import Qt, QTimer
+from qgis.PyQt.QtCore import Qt, QTimer, QUrl
+from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
 from qgis.PyQt.QtWidgets import (
     QApplication, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox, QScrollArea, QToolButton, QFrame, QGroupBox, QSizePolicy,
 )
 from qgis.core import (
-    QgsSettings, QgsCoordinateReferenceSystem, QgsRectangle, QgsDataSourceUri, QgsCoordinateTransform, QgsProject,
+    Qgis, QgsNetworkAccessManager, QgsSettings, QgsCoordinateReferenceSystem, QgsRectangle, QgsDataSourceUri, QgsCoordinateTransform, QgsProject,
 )
 
 try:
@@ -25,13 +26,17 @@ try:
 except ImportError:  # pragma: no cover
     QgsOpacityWidget = None
 
-from .service import Catalog, ServiceError, tile_url, values_url, split_link, KEY_PARAMS, walk_modes
+from .service import Catalog, ServiceError, tile_url, values_url, split_link, KEY_PARAMS, walk_modes, unresponsive_message
 from .layers import LayerStack, PROP, tree_ranks
 from . import local_server
 
 SETTINGS = "terrain_viewer"
 DEFAULT_SERVICE = "http://localhost:3400"
 WORLD = 20037508.342789244
+# While connected, the service's /health is asked this often (in the
+# background), so a service that went away (the desktop app closed) is
+# reported instead of leaving empty layers.
+HEALTH_EVERY_MS = 15000
 
 
 def _label(key, mode_id):
@@ -234,10 +239,13 @@ class ModeRow:
 
 
 class TerrainViewerDock(QDockWidget):
-    def __init__(self, canvas=None, parent=None):
+    def __init__(self, canvas=None, parent=None, message_bar=None):
         super().__init__("Terrain Viewer", parent)
         self.setObjectName("TerrainViewerDock")
         self.canvas = canvas
+        self.message_bar = message_bar  # QGIS's message bar (iface.messageBar()), None in the tests
+        self.warnings = []  # what warn() said, for the tests
+        self.service_down = False
         self.catalog = None
         self.rows = {}
         self.stack = LayerStack()
@@ -248,6 +256,10 @@ class TerrainViewerDock(QDockWidget):
         self.timer.setSingleShot(True)
         self.timer.setInterval(500)
         self.timer.timeout.connect(self.flush)
+        self.health_timer = QTimer(self)
+        self.health_timer.setInterval(HEALTH_EVERY_MS)
+        self.health_timer.timeout.connect(self.check_health)
+        self.health_reply = None
 
         s = QgsSettings()
         body = QWidget()
@@ -262,19 +274,19 @@ class TerrainViewerDock(QDockWidget):
         line.addWidget(self.url, 1)
         line.addWidget(go)
         outer.addLayout(line)
-        # A platform zip carries a tile service (server/): "Local bundled"
-        # starts it on this machine when the panel connects. Picked by
-        # default while no other address was saved.
+        # A platform zip carries a tile service (server/). Off by default:
+        # checking "Local bundled tile service" enables it, and Connect
+        # starts it on this machine; it never starts on its own.
         self.bundled = None
         self.token = None
         if local_server.bundled():
-            saved = s.value(f"{SETTINGS}/service", "")
-            default_on = not saved or saved == DEFAULT_SERVICE
             self.bundled = QCheckBox("Local bundled tile service")
             info = local_server.bundle_info()
-            self.bundled.setToolTip(f"The tile service inside this plugin (Node {info.get('node', '?')}, {info.get('platform', '')}), "
-                                    "started on this machine (127.0.0.1) when the panel connects and stopped when QGIS quits")
-            self.bundled.setChecked(str(s.value(f"{SETTINGS}/bundled", "true" if default_on else "false")).lower() in ("1", "true"))
+            self.bundled.setToolTip(f"The tile service inside this plugin (Node {info.get('node', '?')}, {info.get('platform', '')}): "
+                                    "when checked, Connect starts it on this machine (127.0.0.1); unchecking it or quitting QGIS "
+                                    "stops it. Unchecked, the panel connects to the address above (e.g. the Terrain Viewer "
+                                    "desktop app's tile service, http://localhost:3400)")
+            self.bundled.setChecked(str(s.value(f"{SETTINGS}/bundled", "false")).lower() in ("1", "true"))
             self.bundled.toggled.connect(self.bundled_toggled)
             outer.addWidget(self.bundled)
             self.url.setEnabled(not self.bundled.isChecked())
@@ -365,12 +377,13 @@ class TerrainViewerDock(QDockWidget):
     def bundled_toggled(self, on):
         QgsSettings().setValue(f"{SETTINGS}/bundled", "true" if on else "false")
         self.url.setEnabled(not on)
+        self.health_timer.stop()
         if on:
-            self.connect_service()
+            self.status.setText("Bundled tile service enabled: press Connect to start it")
         else:
             local_server.stop_instance()
             self.url.setText(QgsSettings().value(f"{SETTINGS}/service", DEFAULT_SERVICE))
-            self.status.setText("Bundled tile service stopped: Connect to the address above")
+            self.status.setText("Bundled tile service stopped: press Connect to use the address above")
 
     def token_changed(self):
         s = QgsSettings()
@@ -397,16 +410,43 @@ class TerrainViewerDock(QDockWidget):
         self.url.setText(url)
         return url
 
-    def connect_service(self):
+    def warn(self, text):
+        """A warning in the panel's status line and in QGIS's message bar."""
+        self.warnings.append(text)
+        self.status.setText("⚠ " + text)
+        if self.message_bar is not None:
+            self.message_bar.pushMessage("Terrain Viewer", text, Qgis.MessageLevel.Warning, 15)
+
+    def unresponsive(self, base, error):
+        server = local_server.instance() if self.bundled is not None else None
+        return unresponsive_message(base, error, bundled_available=self.bundled is not None, bundled_on=self.use_bundled(),
+                                    bundled_status=server.status() if server is not None else "")
+
+    def connect_service(self, start_bundled=True):
+        """Connect to the service: the bundled one, started now (unless
+        start_bundled is False: the panel opening never starts it, only
+        Connect does), or the address typed."""
+        self.health_timer.stop()
         bundled = self.use_bundled()
-        if bundled and self.start_bundled() is None:
-            return False
+        if bundled and not local_server.instance().running():
+            if not start_bundled:
+                self.status.setText("Bundled tile service enabled: press Connect to start it")
+                return False
+            if self.start_bundled() is None:
+                self.warnings.append(self.status.text())
+                if self.message_bar is not None:
+                    self.message_bar.pushMessage("Terrain Viewer", self.status.text(), Qgis.MessageLevel.Warning, 15)
+                return False
+        elif bundled:
+            self.url.setText(local_server.instance().url)
         base = self.service_url()
         try:
             self.catalog = Catalog(base)
         except ServiceError as e:
-            self.status.setText(f"No tile service at {base}: {e}")
+            self.service_down = True
+            self.warn(self.unresponsive(base, e))
             return False
+        self.service_down = False
         if not bundled:
             QgsSettings().setValue(f"{SETTINGS}/service", base)
         self.stack.ranks = tree_ranks(self.catalog.tree)
@@ -418,7 +458,38 @@ class TerrainViewerDock(QDockWidget):
             # The bundled service may be on another port than when the project
             # was saved: the layers' addresses follow it.
             self.schedule_all()
+        self.health_timer.start()
         return True
+
+    # -- is it still there? ---------------------------------------------------
+    def check_health(self):
+        """Ask /health without blocking QGIS; a failure after a working
+        connection is warned about once, and its return said too."""
+        if self.health_reply is not None:
+            return
+        base = self.service_url()
+        request = QNetworkRequest(QUrl(f"{base}/health"))
+        request.setTransferTimeout(5000)
+        reply = QgsNetworkAccessManager.instance().get(request)
+        self.health_reply = reply
+
+        def done():
+            self.health_reply = None
+            ok = reply.error() == QNetworkReply.NetworkError.NoError
+            error = reply.errorString()
+            reply.deleteLater()
+            self.health_result(base, ok, error)
+        reply.finished.connect(done)
+
+    def health_result(self, base, ok, error=""):
+        if base != self.service_url():
+            return
+        if not ok and not self.service_down:
+            self.service_down = True
+            self.warn(self.unresponsive(base, error))
+        elif ok and self.service_down:
+            self.service_down = False
+            self.status.setText(f"The tile service at {base} answers again")
 
     def build(self):
         while self.groups_layout.count():

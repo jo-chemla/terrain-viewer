@@ -47,6 +47,10 @@ The GitHub workflow `.github/workflows/desktop.yml` runs the same steps on a mac
 
 On Windows run the build from PowerShell or cmd, not Git Bash: the release step shells out to `tar`, and Git Bash puts GNU tar first in PATH, which fails with `command failed: tar` / `ReleaseCommandFailed` after the bundle is already built; Windows' own bsdtar (`C:\Windows\System32	ar.exe`) works. `desktop/hutch.lock` is committed (CI runs `hutch run install` frozen, which fails without it); regenerate it with `hutch install` after changing `package.json`.
 
+## Local tile service
+
+`src/bun/tile-service.ts` runs the tile service (Settings > Desktop: local tile service, port 3400 by default, off by default) as a child Node process on `Resources/app/tile-service/`. `ci-bundle.sh` stages that folder with `python ../qgis-plugin/make_zip.py --server-dir <platform> tile-service` (needs `cd tile-server && pnpm install && node build.mjs` first, which `desktop.yml` does) and `gen-config.mjs --tile-service=required` adds a copy entry per file. A local build without the folder still works; the setting then says the service is missing.
+
 ## Known unknowns
 
 - Web Workers and the custom `views://` scheme: MapLibre and the COG reader run workers, and a custom scheme may not allow them in every system webview. If a build opens on a blank map, that is the first thing to check; the fallback is serving `dist/` from a local HTTP port in the main process instead of `views://`.

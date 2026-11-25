@@ -27,6 +27,7 @@ class TerrainViewerPlugin:
         # unload when it quits, and when the plugin is disabled or updated).
         local_server.stop_instance()
         if self.dock:
+            self.dock.health_timer.stop()
             self.iface.removeDockWidget(self.dock)
             self.dock.deleteLater()
             self.dock = None
@@ -37,8 +38,10 @@ class TerrainViewerPlugin:
 
     def toggle(self, on):
         if self.dock is None:
-            self.dock = TerrainViewerDock(self.iface.mapCanvas(), self.iface.mainWindow())
+            self.dock = TerrainViewerDock(self.iface.mapCanvas(), self.iface.mainWindow(), self.iface.messageBar())
             self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
             self.dock.visibilityChanged.connect(self.action.setChecked)
-            self.dock.connect_service()
+            # The panel opening connects to the address, but never starts the
+            # bundled service: only Connect does.
+            self.dock.connect_service(start_bundled=False)
         self.dock.setVisible(on)

@@ -43,6 +43,19 @@ launcher.exe "C:\Users\me\Documents\alps-project.zip"
 
 With both arguments, the project's own view wins where the two set the same parameter. There is no size limit: the page reads the file as bytes, as the Import button does. For the duration of the import the file is linked (or copied, when it sits on another drive) into the app's own folder, `Resources\app\views\app\open\` next to the web build, where the page can read it, and removed once read. A missing or unreadable file gets a toast saying so.
 
+## Local tile service
+
+The desktop app can run the [tile service](/dev/tile-service) on this computer, for the [QGIS plugin](/dev/qgis-plugin) and any other map client that reads XYZ tiles: **Settings > Desktop: local tile service** (a section shown in the desktop app only, never on the website). Off by default.
+
+- **Run the tile service on this computer** starts it, on `http://localhost:3400`; turning it off stops it. The setting is kept by the app (`tile-service.json` next to `updater.log`), so a service left on starts again at the next launch. **Port** (1024 to 65535, **Apply**) moves it, restarting it if it runs; **Default (3400)** brings it back.
+- The status line says starting, running (with the address and the process id), or why it stopped: a port already answered by another Terrain Viewer tile service (one started by hand: QGIS can use it as it is), a port taken by another program, or the service exiting (a toast too; its log, `tile-service.log` next to the setting, is named).
+- It listens on `127.0.0.1` only (nothing on the network, no firewall prompt), reads no `.env`, and stops with the app, even after a crash (it stops when its standard input, a pipe from the app, closes).
+- Flat, north-up tiles only (the direct engine: Node and sharp; no browser engine, so 3D, tilted or split views answer 501). The elevation still comes from the online sources.
+
+**With QGIS**: install the Terrain Viewer QGIS plugin (the plain zip is enough), turn the setting on here, then in QGIS open the Terrain Viewer panel (Web toolbar), keep the address `http://localhost:3400` (or the port picked here) and press **Connect**. If the app is closed or the setting off, the panel warns that the service does not answer and suggests starting the desktop app with its tile service on.
+
+How it runs: the build ships the service in `Resources/app/tile-service/` (Node 22, the service, its node_modules with the platform's sharp: the folder the QGIS plugin's platform zips carry, staged by `ci-bundle.sh` with `qgis-plugin/make_zip.py --server-dir`), about 30 MB more in the installers. The main process (`desktop/src/bun/tile-service.ts`) starts that Node as a child process. Not inside the main process: Cottontail loads sharp and runs the service, but drew a slope tile in 57 s where Node takes 5 (2026-11-25), and a crash there would take the window along.
+
 ## Updates
 
 Two rolling releases, one per build: `desktop-latest` holds the full build (installers, portable zips and its updater feed), `desktop-latest-light` the light build's. Electrobun names the feed after the channel (`stable-<platform>-update.json`), so the two builds cannot share one release. Both check their feed at every launch. The full build, in detail: `stable-<platform>-update.json` and the matching `.tar.zst` are uploaded next to the installers, and Electrobun's updater (`release.baseUrl` in the generated config) downloads a newer build in the background (a toast says so when the download starts: about 220 MB, a few minutes), shows a toast with **Restart now** once it is ready, and otherwise installs it at the following launch, quitting and relaunching through its update helper, which takes about half a minute. The About section shows the updater's state under the version line: checking, downloading with its percentage, downloaded and waiting for the next launch, installing, installed at this launch. Every step is also logged to `updater.log` next to the `app` folder (`%LOCALAPPDATA%\com.iconem.terrain-viewer\stable` on Windows). Builds made before 2026-10-02 have no feed address baked in and never update: install the current one once. The About section at the bottom of the sidebar shows the build day and commit; in the desktop app only (the website shows just the version), its **Is this the latest version?** link compares that commit with the newest commit on `main` and with the commit the `desktop-latest` bundles were built from, and links the release page. The light build has no feed and is replaced by downloading it again; so is the Portable folder, which the updater never touches (it only knows the installed copy).
@@ -84,6 +97,7 @@ Windows shows a SmartScreen warning for the same reason: More info, then Run any
 | **`launcher.exe`** | The small native bootstrap the shortcut points at. It locates the current app version (the updater can install a newer one next to it), starts Cottontail with the main script, and hosts the native window / webview through `ElectrobunCore.dll`. |
 | **`bspatch.exe`, `zig-zstd.exe`** | The updater's tools: apply delta patches, decompress `.tar.zst` update archives. |
 | `Resources/app/views/app/` | The Vite `dist/`, served to the webview under the `views://app/` scheme. |
+| `Resources/app/tile-service/` | The [local tile service](#local-tile-service): `bin/node(.exe)`, `server.mjs` and its node_modules, started on demand by the main process. |
 
 ## What a build writes
 

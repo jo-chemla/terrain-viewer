@@ -1,9 +1,13 @@
 """The bundled tile service: the platform zips of the plugin carry one in
 terrain_viewer/server/ (Node, the service, its node_modules with that
-platform's sharp; qgis-plugin/make_zip.py --bundled). It is started on this
-machine only (127.0.0.1), on a port of its own, when the panel connects to
-it, and stopped when the plugin unloads or QGIS quits. It also stops by
-itself when its standard input closes, i.e. if QGIS goes without stopping it.
+platform's sharp; qgis-plugin/make_zip.py --bundled). Off by default: it is
+started only when "Local bundled tile service" is checked in the panel and
+the panel connects, on this machine only (127.0.0.1), on a port of its own,
+and stopped when the box is unchecked, the plugin unloads or QGIS quits. It
+also stops by itself when its standard input closes, i.e. if QGIS goes
+without stopping it. It has no browser engine (no playwright-core, no Chrome
+or Edge looked for): QGIS asks for flat, north-up tiles, which the direct
+engine draws; anything else answers 501.
 
 No QGIS widget here: the panel shows `status()`; the test drives it as is."""
 import atexit
@@ -86,6 +90,8 @@ class LocalServer:
             return f"Bundled tile service running on {self.url} (process {self.proc.pid})"
         if self.error:
             return f"Bundled tile service stopped: {self.error}"
+        if self.proc is not None:  # started, then gone without stop()
+            return f"Bundled tile service stopped (exit code {self.proc.returncode}, log: {self.log_path})"
         return "Bundled tile service not started"
 
     def start(self, earthdata_token="", timeout=60):
@@ -108,6 +114,8 @@ class LocalServer:
             "PORT": str(self.port),
             "TV_HOST": "127.0.0.1",
             "TV_EXIT_WITH_STDIN": "1",
+            # Flat, north-up tiles only: never look for Chrome or Edge.
+            "TV_NO_BROWSER": "1",
             # No .env is read next to the service: the token, if any, is the
             # one set in the plugin's settings.
             "TV_ENV_FILE": os.path.join(self.server_dir, "no-such.env"),

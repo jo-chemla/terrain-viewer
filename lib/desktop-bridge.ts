@@ -129,6 +129,7 @@ export function initDesktopBridge(): void {
   setTimeout(ask, 3000)
   routeNewWindowsThroughHost()
   initOpenFile()
+  initTileService()
 }
 
 // A file on the desktop app's command line (launcher.exe C:\path\project.json,
@@ -216,4 +217,61 @@ function routeNewWindowsThroughHost(): void {
     if (!a || a.target !== "_blank") return
     if (openViaHost(a.href)) e.preventDefault()
   }, true)
+}
+
+/** Whether the page runs inside the desktop app: it loads the bundle over its
+ *  own scheme (views://), never http(s). */
+export const isDesktopApp = typeof location !== "undefined" && !/^https?:$/.test(location.protocol)
+
+// The desktop app's local tile service (desktop/src/bun/tile-service.ts):
+// the tile service shipped inside the app, run on this computer on a fixed
+// port (3400 by default) for the QGIS plugin and other clients. Off by
+// default; the setting lives in the main process (it starts the service at
+// launch when it was left on), which reports every change as a
+// "tv-desktop-tile-service" event. The page sends "tile-service-status" to
+// ask and "tile-service-set" to change it. Settings > Desktop: local tile
+// service shows it, in the desktop app only.
+export type DesktopTileServiceState = "stopped" | "starting" | "running" | "stopping" | "error"
+export interface DesktopTileService {
+  /** False until the main process answered, or when the build ships no tile service. */
+  available: boolean
+  enabled: boolean
+  port: number
+  state: DesktopTileServiceState
+  url?: string
+  message?: string
+  pid?: number
+  log?: string
+}
+export const DESKTOP_TILE_SERVICE_PORT = 3400
+let tileService: DesktopTileService = { available: false, enabled: false, port: DESKTOP_TILE_SERVICE_PORT, state: "stopped" }
+const tileServiceListeners = new Set<() => void>()
+const subscribeTileService = (l: () => void) => { tileServiceListeners.add(l); return () => { tileServiceListeners.delete(l) } }
+const getTileService = () => tileService
+let tileServiceAnswered = false
+
+export function useDesktopTileService(): DesktopTileService & { answered: boolean } {
+  const t = useSyncExternalStore(subscribeTileService, getTileService, getTileService)
+  return { ...t, answered: tileServiceAnswered }
+}
+
+/** Turns the service on or off, or moves it to another port (restarted if running). */
+export function setDesktopTileService(next: { enabled?: boolean; port?: number }): void {
+  hostSend()?.({ type: "tile-service-set", ...next })
+}
+
+function initTileService(): void {
+  window.addEventListener("tv-desktop-tile-service", (ev) => {
+    const detail = (ev as CustomEvent<Partial<DesktopTileService>>).detail ?? {}
+    const was = tileService
+    tileServiceAnswered = true
+    tileService = { ...tileService, ...detail, url: detail.url, message: detail.message, pid: detail.pid }
+    for (const l of tileServiceListeners) l()
+    if (was.state !== "error" && tileService.state === "error") {
+      pushToast({ key: "desktop-tile-service", tone: "alert", title: "Local tile service stopped", body: tileService.message ?? "", duration: 10000 })
+    }
+  })
+  const ask = () => hostSend()?.({ type: "tile-service-status" })
+  ask()
+  setTimeout(ask, 3000)
 }

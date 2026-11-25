@@ -6,3 +6,5 @@ artifacts/
 # generated from ../dist by gen-config.mjs
 electrobun.config.ts
 .dmgvenv/
+# staged by ci-bundle.sh (qgis-plugin/make_zip.py --server-dir)
+tile-service/

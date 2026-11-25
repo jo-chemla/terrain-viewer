@@ -32,6 +32,31 @@ def get_json(url, timeout_ms=20000):
         raise ServiceError(f"{url}: not JSON ({e})")
 
 
+def is_local(url):
+    """Whether a service address is on this machine (localhost, 127.x, ::1)."""
+    host = (urlsplit(url if "//" in url else "http://" + url).hostname or "").lower()
+    return host in ("localhost", "::1", "0.0.0.0") or host.startswith("127.")
+
+
+def unresponsive_message(base, error, bundled_available=False, bundled_on=False, bundled_status=""):
+    """What the panel and the message bar say when the service at `base`
+    does not answer: the error, and for an address on this machine where a
+    service usually comes from (the bundled one, the desktop app, a local
+    start)."""
+    text = f"The tile service at {base} does not answer ({error})."
+    if bundled_on:
+        return text + f" {bundled_status or 'The bundled tile service is not running'}: press Connect to start it again."
+    if is_local(base):
+        port = urlsplit(base if "//" in base else "http://" + base).port
+        text += (" Start the Terrain Viewer desktop app with its tile service on (Settings > Desktop: local tile service"
+                 + (f", port {port}" if port else "") + "), or a tile service of your own (cd tile-server && pnpm start).")
+        if bundled_available:
+            text += " Or check \"Local bundled tile service\" to run the one inside this plugin."
+    else:
+        text += " Check the address, your network, or whether that service is up."
+    return text
+
+
 def walk_modes(groups, path=()):
     """Every mode of the panel tree (tree_of_processes), with the group names above it, top of the
     map first."""

@@ -22,12 +22,16 @@ API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25)
-(Terrain Viewer 0.3.0, Send2MapApp 0.5.1). Terrain Viewer comes plain (pure
-Python, a tile service to connect to) or bundled, one zip per platform
-(`-windows-x64`, `-macos-arm64`, `-macos-x64`, `-linux-x64`, 50 to 62 MB)
-with the tile service inside: "Local bundled tile service" in the panel starts
-it on 127.0.0.1 when it connects and stops it when QGIS quits; see
+The zips of each version are on a release: [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b)
+(Terrain Viewer 0.4.0, Send2MapApp 0.5.1). Terrain Viewer comes plain (pure
+Python, a tile service to connect to: the Terrain Viewer desktop app's, with
+Settings > Desktop: local tile service on, is `http://localhost:3400`) or
+bundled, one zip per platform (`-windows-x64`, `-macos-arm64`, `-macos-x64`,
+`-linux-x64`, 48 to 60 MB) with the tile service inside, off by default:
+checking "Local bundled tile service" in the panel enables it, Connect starts
+it on 127.0.0.1, unchecking it or quitting QGIS stops it. It has no browser
+engine (flat, north-up tiles only, what QGIS asks for). A service that does
+not answer is warned about in the panel and the message bar; see
 [the docs](../docs/content/docs/dev/qgis-plugin.mdx#the-bundled-tile-service).
 To build them:
 
@@ -106,7 +110,7 @@ own.
 | `send2map_app/` | The "Open in" plugin: `destinations.py` (the URL builders, no QGIS import), `send2map_apptool.py` (the canvas as a camera, the map tool, opening a URL or a KML), `send2map_app.py` (toolbar, Web menu, canvas right-click menu) |
 | `make_zip.py` | The installable zips, plain and `--bundled` per platform |
 | `test_plugin.py` | A headless check of `terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
-| `test_bundled.py` | A platform zip unzipped into a temporary folder, its service started through the panel, a tile asked, the plugin unloaded: `QT_QPA_PLATFORM=offscreen python-qgis test_bundled.py dist/terrain_viewer-<version>-windows-x64.zip` |
+| `test_service_paths.py` | A zip unzipped into a temporary plugins folder and driven through the panel in headless QGIS, for the bundled service or an external address (the desktop app's): Connect, processes, a slope layer, a tile, the unresponsive warnings: `QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py bundled dist/terrain_viewer-<version>-windows-x64.zip`, or `... external dist/terrain_viewer-<version>.zip http://localhost:3400 [--stop "<command>"]` |
 | `smoke_bundled.py` | The same without QGIS (the build runners): `python -I smoke_bundled.py <zip>` |
 | `test_send2map.py` | A headless check of `send2map_app`, no network: `QT_QPA_PLATFORM=offscreen python-qgis test_send2map.py` |
 | `test_open_in.py`, `open_in_reference.mjs` | `send2map_app`'s destinations against the web app's (`open-in-links.tsx`, evaluated by Node): `python test_open_in.py`, no QGIS |

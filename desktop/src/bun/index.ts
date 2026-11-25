@@ -7,6 +7,7 @@ import { BrowserWindow, Utils, Updater } from "electrobun/main";
 import { dlopen, FFIType, ptr } from "bun:ffi";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, statSync, linkSync, copyFileSync, rmSync } from "node:fs";
+import { createTileService, type TileServiceStatus } from "./tile-service";
 
 // Windows groups and pins windows by AppUserModelID. The window belongs to
 // the runtime process (cottontail.exe, the process that owns the HWND), so
@@ -375,12 +376,29 @@ mainWindow.webview.on("host-message", (event: unknown) => {
   // page's "open-file-done" was lost in that reload.
   if (msg?.type === "open-file-request") { if (openFileServed) removeOpenFile(); sendOpenFile(); }
   if (msg?.type === "open-file-done") removeOpenFile();
+  // Settings > Desktop: local tile service (lib/desktop-bridge.ts).
+  if (msg?.type === "tile-service-status") reportTileService(tileService.status());
+  if (msg?.type === "tile-service-set") void tileService.update(msg as { enabled?: unknown; port?: unknown });
   // The page has loaded (or wants a refresh): replay the latest state.
   if (msg?.type === "update-status" && lastUpdateDetail) {
     const { status, version, message, progress } = lastUpdateDetail;
     announceUpdate(status, version, { message, progress });
   }
 });
+
+// The local tile service (tile-service.ts): off by default, started here at
+// launch when the user left it on, its state sent to the page as a
+// "tv-desktop-tile-service" event at every change and when the page asks.
+function reportTileService(status: TileServiceStatus) {
+  try {
+    mainWindow.webview.executeJavascript(`window.dispatchEvent(new CustomEvent("tv-desktop-tile-service", { detail: ${JSON.stringify(status)} }))`);
+  } catch (e) {
+    console.warn("tile service status:", e);
+  }
+}
+const tileService = createTileService({ stateDir, report: reportTileService });
+tileService.init();
+process.on("exit", () => tileService.shutdown());
 
 // The file from the command line, offered once the page asks for it
 // (host-message "open-file-request", lib/desktop-bridge.ts, at every load):
