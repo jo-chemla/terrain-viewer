@@ -181,7 +181,9 @@ The live renderer follows each shadow ray past the edge of the view. **Beyond th
 
   So the soft edge shows on long shadows (a low sun, deep valleys, a range seen from a plain) or when zoomed in close. With a higher sun, most terrain shadows are a few hundred metres long and their penumbra is under a pixel. On the benchmark, 0.8 to 1.4 % of the pixels sit in a penumbra in the Alps at zoom 13, against 22 % for the Alps' 60–100 km shadow over the Po plain. The soft edge costs almost nothing: under 0.1 ms per frame in the mountains, and about 0.4 ms (10 %) on the Po plain, where much of the view is penumbra.
 
-{/* TODO screenshot: the Alps' shadow over the Po plain at a 1.5° sunset (zoom 11, lat 45.1, lng 8.05, illuminationDir=255, illuminationAlt=1.5, Live renderer, Soft edge), with the shadow reaching about 87 km east of the range. It needs a real browser (MapLibre does not render in the agent browser); then pnpm docs:media:push and commit docs/media.lock. */}
+![The Alps' shadow over the Po plain at a 1.5° sunset, live renderer with the far field and the Earth's curvature: the western Alps on the left, Turin's plain in their shadow, the sunlit plain to the east beyond the tip of the shadow, the streaks of penumbra where single peaks cast it](/screenshots/viz-modes/shadow-po-plain-sunset.jpg)
+
+The view above: [Alps and Po plain, sun at 255° and 1.5°](https://terrain-viewer.iconem.com/?lat=45.05&lng=7.85&zoom=8.6&pitch=0&bearing=0&viewMode=2d&showHillshade=true&hillshadeOpacity=0.35&showLightingEffects=true&showPhong=false&showShadows=true&shadowOpacity=0.7&shadowRenderer=live&shadowSoft=true&illuminationDir=255&illuminationAlt=1.5) (zoom 8.6, hillshade at 35 %, shadows at 70 %).
 
 Measurements, method and code: [Shadow Renderers, far field and curvature](/dev/shadow-renderers#far-field-and-curvature). Other maps and tools that compute terrain or building sun shadows (ShadeMap, Shadowmap, SunCalc, PeakFinder, Google Earth, Cesium, F4map, ArcGIS, GRASS r.sun, WhiteboxTools) and the papers behind horizon maps and shadow sweeps: [Shadow Renderers, related work](/dev/shadow-renderers#related-work-and-references).
 

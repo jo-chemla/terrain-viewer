@@ -1,13 +1,16 @@
 ---
-title: QGIS Plugin (plan)
-description: A QGIS plugin with the app's sidebar, in two steps - a panel that writes tile service layers, then the modes computed in Python with numpy - and Send2MapApp, the app's "Open in" list in QGIS.
+title: QGIS Plugins
+description: Two released QGIS plugins - Terrain Viewer 0.5.x, the app's sidebar as a QGIS panel whose modes are tile service layers, with an Install button for a local tile service and an experimental local compute of 14 modes in numpy - and Send2MapApp 0.5.1, the app's "Open in" list in QGIS.
 ---
 
-Today QGIS gets the app's modes through the [tile service](/dev/tile-service): `/qgis.qgz` is a project with every mode as an XYZ layer, configured as a view was. A layer's settings live in its address, and QGIS has no control bound to an XYZ address's parameters: changing a ramp or a radius means editing the layer's source URL. A plugin is the way to have controls. Two steps, the first cheap.
+Two QGIS plugins are released, both in [`qgis-plugin/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin), their zips on the repository's `qgis-plugins-*` releases ([install](#install)):
 
-## Step 1: a panel that writes tile service layers (done)
+- **Terrain Viewer** (0.5.0, MIT, QGIS 3.28 to 4.x): a dock panel laid out as the app's sidebar. Each checked mode is a layer of a [tile service](/dev/tile-service), with its settings in the layer's address; the panel's **Install** button downloads a local tile service for this platform (pinned, sha256 checked, off until enabled), and an experimental box at its top computes 14 modes in QGIS itself with numpy, no service at all ([QGIS Live Compute](/dev/qgis-live-compute)).
+- **Send2MapApp** (0.5.1, GPL v2 or later, QGIS 3.22 to 4.x): "Open in", the place shown or clicked in QGIS opened in another viewer at the same place and scale ([below](#send2mapapp-open-in)).
 
-Written on 2026-11-23, in [`qgis-plugin/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin). Checked headless in QGIS 4.2 and 3.44 LTR against a local tile service: the panel builds, a share link opens, the layers are valid and draw.
+Both are checked headless in QGIS 4.2 and 3.44 LTR (`qgis-plugin/test_*.py`). Neither is on plugins.qgis.org yet. How they came about: [design history](#design-history).
+
+## Terrain Viewer: the panel
 
 A dock panel laid out as the app's sidebar: the same groups (Elevation Hypso, Terrain Analysis, Relief Visualization, Hillshade, Lighting Effects, Overlays), each mode a checkbox with its opacity and settings (ramp, range, radius, method) behind a gear button, a terrain source picker, the keys, and the address of a tile service.
 
@@ -29,9 +32,9 @@ The zips are on the [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terra
 | Asset | Size | What it is |
 |---|---|---|
 | `terrain_viewer-0.5.0.zip` | 50 KB | The plugin, pure Python. Install it in QGIS |
-| `terrain-viewer-tile-service-windows-x64.zip`, `-macos-arm64`, `-macos-x64`, `-linux-x64` | about 48 MB each | The local tile service of one platform (Node 22, the service, its node_modules with that platform's sharp binaries). Not installed by hand: the plugin's **Install** button downloads the one it pins |
+| `terrain-viewer-tile-service-windows-x64.zip`, `-macos-arm64`, `-macos-x64`, `-linux-x64` | 48 to 59 MB each | The local tile service of one platform (Node 22, the service, its node_modules with that platform's sharp binaries). Not installed by hand: the plugin's **Install** button downloads the one it pins |
 | `service_pins.json`, `SHA256SUMS` | | The bundles' names, sizes and sha256, as the plugin pins them |
-| `send2map_app-0.5.1.zip` | 30 KB | Pure Python, no service |
+| `send2map_app-0.5.1.zip` | 27 KB | Pure Python, no service |
 
 In QGIS: **Plugins > Manage and Install Plugins > Install from ZIP**, pick the zip, **Install Plugin**. The Terrain Viewer button is on the Web toolbar (or **Web > Terrain Viewer**). Not yet on plugins.qgis.org (its `metadata.txt` needs an `email` first). A small pure-Python zip is also the form plugins.qgis.org is built around (one zip for every platform, reviewed as source); the 0.3 and 0.4 platform zips, 48 to 60 MB with a Node executable inside, were for the release only.
 
@@ -93,9 +96,16 @@ A second plugin in the same folder, [`qgis-plugin/send2map_app/`](https://github
 - **One list**: the app's destinations are a Python port of `OPEN_IN_DESTINATIONS` (`components/TerrainControlPanel/open-in-links.tsx`). `python qgis-plugin/test_open_in.py` evaluates the TypeScript builders under Node and compares ids, labels, coverage and URLs for a set of cameras, so a destination added to the app fails the test until the plugin has it.
 - **Lineage and licence**: it began as [Send2GE (`send2google_earth`)](https://plugins.qgis.org/plugins/send2google_earth/) by Maxim Dubinin and NextGIS ([source](https://github.com/nextgis/qgis_send2google_earth)), a map tool that sends the point clicked to Google Earth through a KML file. Iconem's additions in 2025 (as Send2MapApp: web destinations in a toolbar dropdown) and 2026 (the app's whole list, the right-click menu, the current view, QGIS 4) keep its licence, the GNU GPL v2 or later, and its copyright lines; that is why it is a plugin of its own rather than part of the MIT `terrain_viewer`.
 
-## Step 2: the modes computed in QGIS
+## Design history
 
-The same panel with no tile service: the modes computed in Python, on the elevation the plugin reads.
+Before the plugins, QGIS got the app's modes only through the tile service's `/qgis.qgz`: a project with every mode as an XYZ layer, configured as a view was. A layer's settings lived in its address, and QGIS has no control bound to an XYZ address's parameters, so changing a ramp or a radius meant editing the layer's source URL. A plugin was the way to have controls. The plan (2026-11-23) had two steps, the first cheap:
+
+1. **A panel that writes tile service layers**: written on 2026-11-23; Freeze came in 0.2.0, the "Terrain Viewer (live)" group in 0.2.1, and 0.2.2, the first release (2026-11-24), requires `/processes`. 0.3.0 (2026-11-25) shipped the tile service inside four platform zips of 48 to 60 MB, 0.4.0 made it off by default and dropped the browser engine, and 0.5.0 (the same day) went back to one plain 50 KB zip with the service downloaded by the **Install** button.
+2. **The modes computed in QGIS**, with no tile service: the experimental local compute of 0.5.0, 14 modes, below.
+
+### Step 2 as planned
+
+The plan for step 2, kept for reference; what was built and measured is on [QGIS Live Compute](/dev/qgis-live-compute).
 
 - **Reading:** GDAL reads the tiles and nothing else. A Terrarium or Terrain-RGB pyramid through GDAL's WMS/TMS driver (the XML of `gdalTileSource` in `lib/terrain-tile-spec.ts`), a COG or VRT directly, a raw WMS through GDAL's WMS driver. Decoding the RGB packing into metres is numpy (the formulas of `lib/elevation-encoding.ts`). The sources only the app's protocols read (LERC, quantized mesh, GEM-15's cells, a difference) need their own reader or stay on step 1.
 - **Computing:** numpy, not `gdaldem`: the app's modes are its own (LRM, sky view factor, openness, matcap, Phong, the mound detector, the eigen-based ones), and the point is that QGIS shows what the app shows. Each `lib/*-protocol.ts` is a kernel over an elevation grid with a margin, which ports to numpy array code: slope, aspect, curvature, TPI, TRI and roughness in a few lines each; sky view factor and openness as the app's ray sweeps (vectorised per direction); matcap and Phong as the shaders' formulas per pixel; the colour ramps from `lib/color-ramps.ts`.
@@ -103,6 +113,4 @@ The same panel with no tile service: the modes computed in Python, on the elevat
 - **Checking:** the port is checked against the app tile by tile, as `tile-server/compare-engines.mjs` checks the direct engine against the browser: same tiles, a table of differences.
 - **Keeping in step:** two implementations of each mode drift. The comparison above runs in CI on a fixed set of tiles, so a change to a protocol that the Python port does not follow fails a check.
 
-A first experiment (2026-11-25) ported hillshade, sky view factor and the shadow sweep to numpy and timed them in QGIS; a second the same day brought it to 14 modes checked against the tile service and gdaldem, served as Float32 values GDAL reads so QGIS's own colour ramps apply, and a parallel server: [QGIS Live Compute](/dev/qgis-live-compute).
-
-Weeks of work, mode by mode; step 1 stays useful as the fallback for any mode not ported yet.
+Where it stands (0.5.0): reading through GDAL, the numpy kernels, delivery as Float32 values GDAL reads (so QGIS's own colour ramps apply) and the tile-by-tile check are done for 14 modes (`qgis-plugin/test_live.py`, against the app's kernels in Node, the tile service and gdaldem). Not done: the comparison in CI, the Processing provider, and the modes that need a GPU or a whole view (matcap, Phong, the mound detector, local dominance); for those, the tile service layers stay the way in.

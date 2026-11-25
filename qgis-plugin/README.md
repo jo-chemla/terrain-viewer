@@ -15,7 +15,7 @@ both (see Files).
 
 ## Terrain Viewer
 
-Step 1 of the [plugin plan](../docs/content/docs/dev/qgis-plugin.mdx): a dock
+Released (0.5.0; [the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock
 panel with the groups of the app's sidebar, whose checked modes are XYZ
 layers of a [tile service](../tile-server/README.md). Pure Python on QGIS's
 API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.

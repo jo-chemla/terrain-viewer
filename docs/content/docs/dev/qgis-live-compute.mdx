@@ -3,7 +3,7 @@ title: QGIS Live Compute (experiment)
 description: Terrain modes computed inside QGIS with numpy, no tile service - 14 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, TPI, TRI, roughness, LRM, sky view factor, openness, shadows, contours, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; served as Float32 values GDAL reads so QGIS's own colour ramps apply; parallel tiles timed before and after; numpy, numba, cupy and the tile service compared.
 ---
 
-Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-the-modes-computed-in-qgis) asks whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that is off by default (**Experimental: compute locally**).
+Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-as-planned) asked whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that is off by default (**Experimental: compute locally**).
 
 ## Second round: 14 modes, values, parallel tiles
 
