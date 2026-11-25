@@ -8,12 +8,18 @@ importers:
 
   .:
     dependencies:
+      '@mapbox/martini':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@mapbox/vector-tile':
         specifier: ^3.0.0
         version: 3.0.0
       '@maplibre/maplibre-gl-style-spec':
         specifier: 26.4.4
         version: 26.4.4
+      delatin:
+        specifier: ^0.2.0
+        version: 0.2.0
       geotiff:
         specifier: ^3.0.5
         version: 3.0.5
@@ -30,6 +36,9 @@ importers:
         specifier: ^0.35.5
         version: 0.35.5
     devDependencies:
+      '@here/quantized-mesh-decoder':
+        specifier: ^1.2.8
+        version: 1.2.8
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -195,6 +204,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@here/quantized-mesh-decoder@1.2.8':
+    resolution: {integrity: sha512-fYOgpANVVMT38cHlCAIqzUun0cvhWGjpTI+jCbFtdfWgE24+sHtoCqPFvue6UhC9LA64j//lrdMKtryUvskqiA==}
+
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
     engines: {node: '>=18'}
@@ -345,6 +357,9 @@ packages:
     resolution: {integrity: sha512-0SElaV0uMxEnxzBhhX9WTuPyUeMsAN/SS0i16tjuba4/mio63MG9khjC1a0JAiPGXAwvwm4UfHJURCN7nyudQg==}
     engines: {node: '>= 22'}
 
+  '@mapbox/martini@0.2.0':
+    resolution: {integrity: sha512-7hFhtkb0KTLEls+TRw/rWayq5EeHtTaErgm/NskVoXmtgAQu/9D299aeyj6mzAR/6XUnYRp2lU+4IcrYRFjVsQ==}
+
   '@mapbox/point-geometry@1.1.0':
     resolution: {integrity: sha512-YGcBz1cg4ATXDCM/71L9xveh4dynfGmcLDqufR+nQQy3fKwsAZsWd/x4621/6uJaeB9mwOHE6hPeDgXz9uViUQ==}
 
@@ -363,6 +378,9 @@ packages:
 
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
+
+  delatin@0.2.0:
+    resolution: {integrity: sha512-HvDx6I5Jju/mqFp58/qeSL1wx6rYxsLWpWVSCQvL1Ps8MhVlttwm+Ohl38dUSTN439uxag//vXJm09PqFz+/Og==}
 
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
@@ -528,6 +546,8 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
+  '@here/quantized-mesh-decoder@1.2.8': {}
+
   '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.35.5':
@@ -636,6 +656,8 @@ snapshots:
 
   '@mapbox/jsonlint-lines-primitives@2.0.3': {}
 
+  '@mapbox/martini@0.2.0': {}
+
   '@mapbox/point-geometry@1.1.0': {}
 
   '@mapbox/unitbezier@1.0.0': {}
@@ -658,6 +680,8 @@ snapshots:
   '@petamoriken/float16@3.9.3': {}
 
   '@types/geojson@7946.0.16': {}
+
+  delatin@0.2.0: {}
 
   detect-libc@2.1.2: {}
 

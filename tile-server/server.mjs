@@ -13,6 +13,10 @@
 //                                      imageryDate, imageryUrl, basemap parameters
 //   GET /render.png|jpg                a viewport, like a WMS GetMap: lat, lng,
 //                                      zoom or bbox=w,s,e,n, width, height
+//   GET /bbox/{w},{s},{e},{n}/{width}x{height}.png|jpg|tif   the same, the box in the path
+//   GET /quantized-mesh/{source}/layer.json, /quantized-mesh/{source}/{z}/{x}/{y}.terrain
+//                                      the source as Cesium terrain (quantized-mesh-1.0,
+//                                      geographic TMS; quantized-mesh.mjs)
 //   GET <any of these>.stac.json       the export's STAC Item (Processing extension,
 //                                      stac.mjs), also named by its Link header
 //   GET /openapi.json, /docs           the description, and a page to try it
@@ -31,8 +35,8 @@
 // titiler's parameter names are read too: `url` for the source,
 // `algorithm` for one mode and `tilesize`; its rescale, colormap, bidx and
 // expression are not (the app's own parameters set the ramps). Its
-// addresses (/tiles/WebMercatorQuad/..., /WebMercatorQuad/tilejson.json,
-// /bbox/...) were removed on 2026-11-25 and answer 404 naming ours.
+// tile addresses (/tiles/WebMercatorQuad/..., /WebMercatorQuad/tilejson.json)
+// were removed on 2026-11-25 and answer 404 naming ours; its /bbox/... stays.
 //
 // Two engines draw. `direct` computes the tile in Node from elevation tiles
 // with the app's own code (direct.mjs): every 2D terrain mode and overlay
@@ -80,7 +84,9 @@ import { buildViewUrl, queryToView, DEFAULT_BASE_URL, MODE_NAMES } from "./url.m
 import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./openapi.mjs"
 import { processCatalog, processList, withLinks, landingPage, BASEMAP_PROCESS, CONFORMANCE } from "./processes.mjs"
-import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers } from "./direct.mjs"
+import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers, meshLevel } from "./direct.mjs"
+import { layerJson, requestedExtensions, CONTENT_TYPE as QM_TYPE, EXTENSIONS as QM_EXTENSIONS } from "./quantized-mesh.mjs"
+import { gzipSync } from "node:zlib"
 import { runDirect, poolStats, closePool, POOL_SIZE } from "./direct-pool.mjs"
 import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 import { handleProxy } from "./proxy.mjs"
@@ -421,6 +427,55 @@ async function valuesFor(format, query, at) {
   }
   return { bytes, unit, mode, scale, type: format === "tif" ? "image/tiff" : "image/png" }
 }
+// ── Quantized mesh: a source as Cesium terrain ────────────────────────────
+
+const MESHERS = ["martini", "delatin"]
+/** /quantized-mesh/{source}/layer.json (`tile` null) or one .terrain tile
+ *  (`tile` [z, x, y]): `{ json }` or `{ bytes, type }`. Read with the same
+ *  source lookup and keys as /terrain-tiles; `error` scales Cesium's
+ *  geometric error of the level into the mesh's error (0.5), `mesher` is
+ *  delatin (the default) or martini, `extensions` (or the Accept header) asks for the
+ *  vertex normals. */
+async function quantizedMesh(source, tile, search, headers) {
+  const q = new URLSearchParams(search)
+  if (source !== "custom") { q.delete("url"); q.delete("terrainSourceA"); q.set("terrainSource", source) }
+  const { view, take } = viewOf(q)
+  const keys = keysFrom(take)
+  const raw = take("error")
+  const errorScale = raw === undefined ? 0.5 : Number(raw)
+  if (!(errorScale > 0) || errorScale > 16) throw status(400, "error is a positive number (at most 16): the share of Cesium's geometric error of the level allowed in the mesh, 0.5 by default")
+  const mesher = take("mesher") ?? "delatin"
+  if (!MESHERS.includes(mesher)) throw status(400, `mesher is ${MESHERS.join(" or ")}`)
+  const how = await plan({ terrainSource: view.terrainSource }, new URLSearchParams(), keys)
+  if (how.engine !== "direct") throw status(400, `This source cannot be read here: ${how.why}`)
+  const maxzoom = meshLevel(how.dem)
+  if (!tile) {
+    const entry = library().terrain.find((s) => s.id === how.dem.id)
+    const qs = new URLSearchParams(search).toString()
+    return {
+      json: layerJson({
+        name: how.dem.name ?? how.dem.id, description: `${how.dem.name ?? how.dem.id}, from the Terrain Viewer tile service`,
+        attribution: entry?.attribution ?? how.dem.name ?? "", tiles: [`{z}/{x}/{y}.terrain${qs ? "?" + qs : ""}`],
+        maxzoom, bounds: how.dem.bounds, extensions: QM_EXTENSIONS,
+      }),
+    }
+  }
+  const [z, x, y] = tile
+  if (z > 21 || x >= 2 ** (z + 1) || y >= 2 ** z) throw status(404, "No such tile: level z has 2^(z+1) x 2^z tiles (geographic TMS)")
+  const normals = requestedExtensions(headers.accept, take("extensions")).includes("octvertexnormals")
+  const key = `mesh|${how.dem.tiles}|${errorScale}|${mesher}|${normals ? "n" : ""}|${z}/${x}/${y}`
+  let bytes = await cached(key, "terrain")
+  if (!bytes) {
+    bytes = Buffer.from(await directRun("mesh", { view: { terrainSource: view.terrainSource }, rest: new URLSearchParams(), keys }, { z, x, y, errorScale, mesher, normals }))
+    // A tile with no data (two triangles at 0 m) is not kept: outside the
+    // source it costs nothing to make again, and a source that failed for a
+    // moment would otherwise leave a hole for a week.
+    const empty = bytes.length < 256 && bytes.readFloatLE(24) === 0 && bytes.readFloatLE(28) === 0
+    if (!empty) store(key, "terrain", bytes)
+  }
+  return { bytes, type: normals ? `${QM_TYPE};extensions=octvertexnormals` : QM_TYPE }
+}
+
 const valueHeaders = (made) => ({
   "cache-control": "public, max-age=86400", "x-tv-engine": "direct", "x-tv-value-mode": made.mode, "x-tv-value-unit": made.unit, "x-tv-value-scale": String(made.scale),
   "access-control-expose-headers": "x-tv-engine, x-tv-value-mode, x-tv-value-unit, x-tv-value-scale, link",
@@ -490,6 +545,9 @@ async function handle(req, res) {
         const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
         return send(501, "application/json", JSON.stringify({ type: "about:blank", title: "Not implemented: run a process by asking for its tiles", status: 501, detail: "This service has no jobs and no POST execution. Each process links its tile endpoints (rel http://www.opengis.net/def/rel/ogc/1.0/execute, templated).", links: withLinks(self, p).links }))
       }
+      // A CORS preflight (a web client that sets a header, such as Cesium's
+      // Accept for the quantized-mesh extensions, on some browsers).
+      if (req.method === "OPTIONS") return send(204, "text/plain", "", { "access-control-allow-methods": "GET, HEAD", "access-control-allow-headers": req.headers["access-control-request-headers"] || "*", "access-control-max-age": "86400" })
       if (req.method !== "GET" && req.method !== "HEAD") return send(405, "text/plain", "GET only")
       // QGIS's vector tile layer sends the query's "?" percent-encoded when
       // its source has it so (projects written before 2026-11-23): read it
@@ -590,6 +648,21 @@ async function handle(req, res) {
         if (!bytes) { bytes = await directRun("vector", input, { modes, z, x, y, baseUrl: BASE_URL }); store(key, "pbf", bytes) }
         return send(200, "application/vnd.mapbox-vector-tile", bytes, { "cache-control": "public, max-age=86400" })
       }
+      // The source as Cesium terrain (quantized-mesh-1.0, geographic TMS):
+      // its layer.json and its .terrain tiles, meshed in a worker
+      // (quantized-mesh.mjs). {source} is a library id, or "custom" with the
+      // source as terrainSource (or url) in the query.
+      const qm = u.pathname.match(/^\/quantized-mesh\/([^/]+)\/(?:layer\.json|(\d+)\/(\d+)\/(\d+)\.terrain)$/)
+      if (qm) {
+        const made = await quantizedMesh(decodeURIComponent(qm[1]), qm[2] === undefined ? null : qm.slice(2, 5).map(Number), u.search, req.headers)
+        if (made.json) return send(200, "application/json", JSON.stringify(made.json, null, 2), { "cache-control": "public, max-age=3600" })
+        const gzip = /\bgzip\b/.test(req.headers["accept-encoding"] || "")
+        return send(200, made.type, gzip ? gzipSync(made.bytes, { level: 6 }) : made.bytes, {
+          "cache-control": "public, max-age=86400", vary: "Accept, Accept-Encoding", ...(gzip ? { "content-encoding": "gzip" } : {}),
+          "x-tv-engine": "direct", "access-control-expose-headers": EXPOSED,
+        })
+      }
+      if (/^\/quantized-mesh\//.test(u.pathname)) return send(404, "text/plain", "Quantized mesh is /quantized-mesh/{source}/layer.json and /quantized-mesh/{source}/{z}/{x}/{y}.terrain")
       const bt = u.pathname.match(/^\/basemap-tiles\/(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
       if (bt) {
         const [z, x, y] = bt.slice(1, 4).map(Number)
@@ -640,10 +713,16 @@ async function handle(req, res) {
           tiles: [`${self}/${basemap ? "basemap-tiles" : "terrain-tiles"}/{z}/{x}/{y}${scale}.${fmt}${qs ? "?" + qs : ""}`],
         }))
       }
+      // A viewport: /render centred (lat, lng, zoom) or on a bbox, and
+      // /bbox/{w},{s},{e},{n}/{width}x{height}.{format}, the same answer
+      // with the box and the size in the path.
       const r = u.pathname.match(/^\/render\.(png|jpg|jpeg|tif|tiff)$/)
-      if (r) {
+      const bb = !r && u.pathname.match(/^\/bbox\/([^/]+)\/(\d+)x(\d+)\.(png|jpg|jpeg|tif|tiff)$/)
+      if (/^\/bbox\//.test(u.pathname) && !bb) return send(404, "text/plain", "A box is /bbox/{west},{south},{east},{north}/{width}x{height}.png|jpg|tif")
+      if (r || bb) {
         const q = new URLSearchParams(u.search)
-        const asked = r[1]
+        if (bb) { q.set("bbox", decodeURIComponent(bb[1])); q.set("width", bb[2]); q.set("height", bb[3]); for (const k of ["lat", "lng", "zoom"]) q.delete(k) }
+        const asked = r ? r[1] : bb[4]
         if (asked.startsWith("tif") || q.get("encoding")) {
           const format = asked.startsWith("tif") ? "tif" : q.get("encoding")
           if (!VALUE_FORMATS.includes(format) || (format === "tif") !== asked.startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?encoding=terrarium or terrainrgb")
@@ -657,10 +736,9 @@ async function handle(req, res) {
       // Removed on 2026-11-24 (deprecated the same day): say where they went.
       if (/^\/tiles\/\d/.test(u.pathname)) return send(404, "text/plain", "/tiles/{z}/{x}/{y} is removed: ask /terrain-tiles/{z}/{x}/{y} for the elevation modes and /basemap-tiles/{z}/{x}/{y} for the imagery")
       if (u.pathname === "/modes") return send(404, "text/plain", "/modes is removed: see /processes (each mode and its settings) and /view?<share query>")
-      // titiler's addresses, removed on 2026-11-25.
+      // titiler's tile addresses, removed on 2026-11-25 (its /bbox stays, above).
       if (/^\/tiles\/WebMercatorQuad\//.test(u.pathname)) return send(404, "text/plain", "titiler's /tiles/WebMercatorQuad/{z}/{x}/{y} is removed: ask /terrain-tiles/{z}/{x}/{y}")
       if (u.pathname === "/WebMercatorQuad/tilejson.json") return send(404, "text/plain", "/WebMercatorQuad/tilejson.json is removed: ask /tilejson.json")
-      if (/^\/bbox\//.test(u.pathname)) return send(404, "text/plain", "/bbox/{w},{s},{e},{n}/{width}x{height}.{format} is removed: ask /render.{format}?bbox={w},{s},{e},{n}&width={width}&height={height}")
       send(404, "text/plain", "Not found: see /")
     } catch (e) {
       if (e?.status === 499) return // the client went away: nobody to answer

@@ -68,6 +68,7 @@ const VALUE_PARAMS = [
 ]
 const VALUE_HEADERS = { "x-tv-value-unit": { schema: { type: "string" }, description: "The unit of the values (m, degree, 1/m, 1/m^2, 1; ASCII)" }, "x-tv-value-scale": { schema: { type: "number" }, description: "The factor a PNG packing multiplied them by" } }
 const COMPRESSION = q("compression", { type: "string", enum: ["deflate", "none"], default: "deflate" }, "Deflate with the floating-point predictor (GDAL's PREDICTOR=3), lossless: about a quarter of the size for elevation, half for slope, two thirds for curvature or svf, for 2 to 6 ms a tile. `none` for a reader without deflate.")
+const MESHER_NOTE = "`delatin` (the default): Delaunay refinement, about half the triangles of martini for the same error, 17 to 40 ms a tile. `martini`: a right-triangulated irregular network on the 257 x 257 grid, three times faster, twice the triangles."
 const TIFF_NOTE = " Browsers do not display TIFF: Scalar's test request answers \"Preview unavailable\" and offers the file to download."
 const tiff = (description) => ({
   200: { description, headers: { ...VALUE_HEADERS, ...LINK_HEADER }, content: { "image/tiff": { schema: { type: "string", format: "binary" } } } },
@@ -89,7 +90,7 @@ export function openapi(server = "http://localhost:3400") {
     // the modes), then the tiles they run as, then the rest.
     tags: [
       { name: "OGC API - Processes", description: "The modes as OGC API - Processes processes (OGC 18-062r2), with OGC API Common's landing page and conformance. `/processes` lists every mode with its settings; a process is run by asking for its tiles: its description links them." },
-      { name: "Terrain tiles", description: "`/terrain-tiles`: the elevation modes as XYZ raster tiles, the overlays as vector tiles, a TileJSON and a QGIS project of them." },
+      { name: "Terrain tiles", description: "`/terrain-tiles`: the elevation modes as XYZ raster tiles, the overlays as vector tiles, a TileJSON and a QGIS project of them. `/quantized-mesh`: the elevation as Cesium terrain (quantized-mesh-1.0)." },
       { name: "Basemap tiles", description: "`/basemap-tiles`: the imagery as XYZ tiles." },
       { name: "Catalogs", description: "What can be named by id: sources, colour ramps, modes, and what a share link switches on." },
       { name: "Viewport", description: "A picture of a viewport or a box, like a WMS GetMap." },
@@ -117,7 +118,7 @@ export function openapi(server = "http://localhost:3400") {
       "/render.tif": {
         get: {
           tags: ["Values"], operationId: "valueRender", summary: "A mode's values over an area, as a Float32 GeoTIFF",
-          description: "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `.png` with `encoding` packs them as for the tiles." + TIFF_NOTE + STAC_NOTE,
+          description: "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `/bbox/{w},{s},{e},{n}/{width}x{height}.tif` is the same with a box. `.png` with `encoding` packs them as for the tiles." + TIFF_NOTE + STAC_NOTE,
           parameters: [
             q("bbox", { type: "string" }, "west,south,east,north in degrees.", { example: "7.6,45.95,7.7,46.0" }),
             q("width", { type: "integer", minimum: 16, maximum: 4096, default: 1024 }, "Width in pixels."),
@@ -164,7 +165,7 @@ export function openapi(server = "http://localhost:3400") {
       "/terrain-tiles/{z}/{x}/{y}.{format}.stac.json": {
         get: {
           tags: ["Terrain tiles"], operationId: "stacItem", summary: "The STAC Item of an export",
-          description: "Any raster export's address plus `.stac.json`, with the same query: `/terrain-tiles/{z}/{x}/{y}.png|jpg|tif.stac.json`, `/basemap-tiles/{z}/{x}/{y}.jpg.stac.json`, `/render.png|tif.stac.json`. A STAC 1.1.0 Item with the Processing extension (v1.2.0): `bbox` and `geometry` of the export, `datetime` and `processing:datetime` the time of the answer, `processing:lineage` (a sentence: the source, the modes, their parameters), `processing:software` (`terrain-viewer tile-server` and its version), `processing:level` (`L3` for a map derived from the elevation), `processing:expression` (`format: x-tv-process`, the process ids and their inputs as executed), links `derived_from` the terrain source (its `/sources/{id}` entry and its tile template, or its address) or the imagery, `related` to each `/processes/{id}`, and the export as asset `data`. Computed from the address: nothing is drawn, and the caller's API keys are left out.",
+          description: "Any raster export's address plus `.stac.json`, with the same query: `/terrain-tiles/{z}/{x}/{y}.png|jpg|tif.stac.json`, `/basemap-tiles/{z}/{x}/{y}.jpg.stac.json`, `/render.png|tif.stac.json`, `/bbox/{w},{s},{e},{n}/{width}x{height}.tif.stac.json`. A STAC 1.1.0 Item with the Processing extension (v1.2.0): `bbox` and `geometry` of the export, `datetime` and `processing:datetime` the time of the answer, `processing:lineage` (a sentence: the source, the modes, their parameters), `processing:software` (`terrain-viewer tile-server` and its version), `processing:level` (`L3` for a map derived from the elevation), `processing:expression` (`format: x-tv-process`, the process ids and their inputs as executed), links `derived_from` the terrain source (its `/sources/{id}` entry and its tile template, or its address) or the imagery, `related` to each `/processes/{id}`, and the export as asset `data`. Computed from the address: nothing is drawn, and the caller's API keys are left out.",
           parameters: [...tileXYZ(13, 4270, 2911), { ...FORMAT, schema: { type: "string", enum: ["png", "jpg", "tif"], default: "tif" } }, ...VIEW_PARAMS],
           responses: { 200: { description: "The STAC Item", content: { "application/geo+json": { schema: { type: "object" } } } }, 404: { description: "Not the address of a raster export" } },
         },
@@ -172,7 +173,7 @@ export function openapi(server = "http://localhost:3400") {
       "/render.{format}": {
         get: {
           tags: ["Viewport"], operationId: "render", summary: "A picture of a viewport",
-          description: "Like a WMS GetMap: a picture of a given size, placed by its centre and zoom or by a bounding box. Unlike a tile it keeps the scale bar and the credits, and it can be tilted or split. titiler's `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` was removed on 2026-11-25 (404): ask `/render.{format}?bbox={w},{s},{e},{n}&width={width}&height={height}`." + STAC_NOTE,
+          description: "Like a WMS GetMap: a picture of a given size, placed by its centre and zoom or by a bounding box. Unlike a tile it keeps the scale bar and the credits, and it can be tilted or split. `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` is the same with the box and the size in the address." + STAC_NOTE,
           parameters: [
             FORMAT,
             q("lat", { type: "number", minimum: -85, maximum: 85 }, "Latitude of the centre. Required unless `bbox` is given.", { example: 45.83 }),
@@ -189,6 +190,58 @@ export function openapi(server = "http://localhost:3400") {
             ...ALL_PARAMS,
           ],
           responses: image("The picture"),
+        },
+      },
+      "/bbox/{bbox}/{width}x{height}.{format}": {
+        get: {
+          tags: ["Viewport"], operationId: "bbox", summary: "A picture (or values) of a box",
+          description: "The answer of `/render.{format}?bbox={bbox}&width={width}&height={height}`, with the box and the size in the address (titiler's form): the whole box inside the picture, more shown on two sides when the shapes differ. `.tif` (or `.png` with `encoding`) gives one mode's values over the box, exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator. Every other parameter of `/render` is read the same; `lat`, `lng` and `zoom` are not." + STAC_NOTE,
+          parameters: [
+            { name: "bbox", in: "path", required: true, schema: { type: "string", pattern: "^-?[\\d.]+,-?[\\d.]+,-?[\\d.]+,-?[\\d.]+$" }, description: "west,south,east,north in degrees.", example: "7.6,45.95,7.7,46" },
+            { name: "width", in: "path", required: true, schema: { type: "integer", minimum: 64, maximum: 4096 }, example: 800 },
+            { name: "height", in: "path", required: true, schema: { type: "integer", minimum: 64, maximum: 4096 }, example: 600 },
+            { ...FORMAT, schema: { type: "string", enum: ["png", "jpg", "tif"], default: "png" } },
+            ...ALL_PARAMS,
+          ],
+          responses: image("The picture"),
+        },
+      },
+      "/quantized-mesh/{source}/layer.json": {
+        get: {
+          tags: ["Terrain tiles"], operationId: "quantizedMeshLayer", summary: "A source as Cesium terrain: its layer.json",
+          description: "The layer.json a Cesium terrain client reads first (CesiumJS `CesiumTerrainProvider.fromUrl`, Cesium for Unreal or Unity, Blender add-ons that read Cesium terrain): TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326` (two tiles at level 0), `available` level by level (whole at level 0, the source's bounds below), down to the level as fine as the source (its deepest 256 px Web Mercator zoom, less one), `extensions: [octvertexnormals]` and the source's attribution. The tile template keeps the query given. Any source the direct engine reads (`/sources`, engine `direct`): Terrarium and Terrain-RGB pyramids, COG, VRT, WMS, LERC, PMTiles, with the same API keys as `/terrain-tiles`.",
+          parameters: [
+            { name: "source", in: "path", required: true, schema: { type: "string" }, description: "An id from `/sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration).", example: "mapterhorn" },
+            q("terrainSource", { type: "string" }, "With `custom`: the source's address or configuration, as for `/terrain-tiles`."),
+            q("error", { type: "number", exclusiveMinimum: 0, maximum: 16, default: 0.5 }, "The mesh's vertical error, as a share of Cesium's geometric error of the level (77 km at level 0, halved each level: 4.7 m at level 14, times 0.5 is 2.35 m). Smaller for a finer mesh (more triangles), larger for a lighter one."),
+            q("mesher", { type: "string", enum: ["delatin", "martini"], default: "delatin" }, MESHER_NOTE),
+            q("extensions", { type: "string", enum: ["octvertexnormals"] }, "The extensions to write, for a client that sets no `Accept: application/vnd.quantized-mesh;extensions=octvertexnormals` header (CesiumJS sets it when asked for vertex normals)."),
+            ...VIEW_PARAMS.filter((p) => /Key$/.test(p.name)),
+          ],
+          responses: { 200: { description: "layer.json", content: { "application/json": { schema: { type: "object" } } } }, 400: { description: "A source the direct engine cannot read, or a wrong parameter" } },
+        },
+      },
+      "/quantized-mesh/{source}/{z}/{x}/{y}.terrain": {
+        get: {
+          tags: ["Terrain tiles"], operationId: "quantizedMeshTile", summary: "One quantized-mesh-1.0 terrain tile",
+          description: "One tile of the geographic TMS grid (level z: 2^(z+1) x 2^z tiles, y from the south) as quantized-mesh-1.0: the source's Web Mercator pixels of the matching zoom resampled (bilinear) to a 257 x 257 grid over the tile, meshed within the error asked, encoded with the header (centre, heights, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices and the four edge lists; skirts are the client's. With `octvertexnormals` asked (Accept header or `extensions`), the oct-encoded vertex normals. Gzipped when the client accepts it. A tile with no data is flat at 0 m.",
+          parameters: [
+            { name: "source", in: "path", required: true, schema: { type: "string" }, example: "mapterhorn" },
+            { name: "z", in: "path", required: true, schema: { type: "integer", minimum: 0, maximum: 21 }, example: 12 },
+            { name: "x", in: "path", required: true, schema: { type: "integer", minimum: 0 }, example: 4291 },
+            { name: "y", in: "path", required: true, schema: { type: "integer", minimum: 0 }, example: 3139 },
+            q("terrainSource", { type: "string" }, "With `custom`: the source."),
+            q("error", { type: "number", exclusiveMinimum: 0, maximum: 16, default: 0.5 }, "As for layer.json."),
+            q("mesher", { type: "string", enum: ["delatin", "martini"], default: "delatin" }, "As for layer.json."),
+            q("extensions", { type: "string", enum: ["octvertexnormals"] }, "As for layer.json."),
+            ...VIEW_PARAMS.filter((p) => /Key$/.test(p.name)),
+          ],
+          responses: {
+            200: { description: "The tile", content: { "application/vnd.quantized-mesh": { schema: { type: "string", format: "binary" } } } },
+            400: { description: "A source the direct engine cannot read, or a wrong parameter" },
+            404: { description: "Not a tile of the grid" },
+            502: { description: "The source refused the request (an API key)" },
+          },
         },
       },
       "/tilejson.json": {

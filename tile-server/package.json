@@ -14,8 +14,10 @@
     "qgis": "node qgis-project.mjs"
   },
   "dependencies": {
+    "@mapbox/martini": "^0.2.0",
     "@mapbox/vector-tile": "^3.0.0",
     "@maplibre/maplibre-gl-style-spec": "26.4.4",
+    "delatin": "^0.2.0",
     "geotiff": "^3.0.5",
     "maplibre-contour": "0.1.1",
     "pbf": "^5.2.0",
@@ -23,6 +25,7 @@
     "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@here/quantized-mesh-decoder": "^1.2.8",
     "esbuild": "^0.28.2"
   }
 }

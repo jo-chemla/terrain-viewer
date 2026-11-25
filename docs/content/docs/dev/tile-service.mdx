@@ -30,6 +30,8 @@ Then `http://localhost:3400/docs` is the reference below with a working **Test r
 | `/terrain-tiles/{z}/{x}/{y}.png` or `.jpg` | One Web Mercator tile of the modes computed from the elevation, by its index. 256 px; `{y}@2x` or `tilesize=512` for 512 px | An XYZ tile layer, titiler's `/tiles` |
 | `/basemap-tiles/{z}/{x}/{y}.jpg` or `.png` | One tile of the imagery: `imagerySource` and `imageryDate`, `imageryUrl`, or the app's basemap parameters (`basemapSource`, `overlayBasemapIds`) | An XYZ basemap |
 | `/render.png` or `.jpg` | A picture of a viewport: `lat`, `lng`, `zoom`, or `bbox=west,south,east,north`, with `width` and `height`. Can be tilted (`viewMode=3d`, `pitch`, `bearing`) or split, and can mix imagery and terrain modes | A WMS GetMap |
+| `/bbox/{w},{s},{e},{n}/{width}x{height}.png`, `.jpg` or `.tif` | The same answer as `/render` with `bbox`, `width` and `height`, the box and the size in the address (titiler's form); its `.stac.json` Item and `Link` header like `/render` | titiler's `/bbox` |
+| `/quantized-mesh/{source}/layer.json` and `/{z}/{x}/{y}.terrain` | The elevation as Cesium terrain, see [Quantized mesh](#quantized-mesh) | Cesium ion terrain |
 
 A tile is the map alone. A viewport keeps the scale bar and the credits. The terrain tiles refuse `basemap` and the basemap tiles refuse terrain modes: ask both and stack them in the client.
 
@@ -57,7 +59,7 @@ Refused together: `basemap` with `/terrain-tiles`, a terrain mode with `/basemap
 
 ### Removed addresses
 
-`/tiles/{z}/{x}/{y}` (every extension) and `/modes` were removed on 2026-11-24 and answer 404 with the address to use: `/terrain-tiles/...` for the elevation modes, `/basemap-tiles/...` for the imagery, `/processes` and `/view` for `/modes`. titiler's addresses were removed on 2026-11-25 and answer 404 the same way: `/tiles/WebMercatorQuad/{z}/{x}/{y}` (ask `/terrain-tiles/{z}/{x}/{y}`), `/WebMercatorQuad/tilejson.json` (ask `/tilejson.json`) and `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` (ask `/render.{format}?bbox={w},{s},{e},{n}&width={width}&height={height}`, which draws the same).
+`/tiles/{z}/{x}/{y}` (every extension) and `/modes` were removed on 2026-11-24 and answer 404 with the address to use: `/terrain-tiles/...` for the elevation modes, `/basemap-tiles/...` for the imagery, `/processes` and `/view` for `/modes`. titiler's tile addresses were removed on 2026-11-25 and answer 404 the same way: `/tiles/WebMercatorQuad/{z}/{x}/{y}` (ask `/terrain-tiles/{z}/{x}/{y}`) and `/WebMercatorQuad/tilejson.json` (ask `/tilejson.json`). `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}`, removed the same day, came back on 2026-11-25 as a documented address: it answers what `/render.{format}?bbox=…&width=…&height=…` answers, and `/render` stays for centred viewports.
 
 ## Names, not addresses
 
@@ -137,6 +139,39 @@ One mode at a time; its own parameters count (`curvatureMode`, `lrmRadius`, `svf
 
 Some of the app's sliders read these in other units, where its protocols scale a value to fit their RGB packing or their ramp: the sky view factor and the eigenvalue ratio as percentages (×100), openness re-centred on flat ground (minus 90), blobness ×100, curvature ×100 (det-hessian ×10 000). The values here undo those factors. The values are read before that packing, so they are neither clamped (the app's curvature stops at ±0.33 1/m, which steep ground at high zoom exceeds on most pixels) nor rounded to its step.
 
+## Quantized mesh
+
+Any source the direct engine reads (every `/sources` entry whose engine is `direct`: Terrarium and Terrain-RGB pyramids such as Mapterhorn, AWS, Mapbox and MapTiler, Esri's LERC, COGs, VRTs such as GEM-15, WMS and WCS, PMTiles, differences) also comes as Cesium terrain, [quantized-mesh-1.0](https://github.com/CesiumGS/quantized-mesh), the format of Cesium ion's terrain. A 3D client loads it as a globe:
+
+| Address | Answers |
+|---|---|
+| `/quantized-mesh/{source}/layer.json` | The layer.json a Cesium client reads first: TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326`, `available` level by level (level 0 whole, the source's bounds below), `maxzoom` the level as fine as the source (its deepest 256 px Web Mercator zoom less one: 17 for Mapterhorn), `extensions: [octvertexnormals]`, the source's attribution. The tile template keeps the query given |
+| `/quantized-mesh/{source}/{z}/{x}/{y}.terrain` | One tile, `application/vnd.quantized-mesh`, gzipped when the client accepts it, cached a week |
+
+`{source}` is an id from `/sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration, as for `/terrain-tiles`). The API keys are the same as for the other tiles (`mapboxKey`, `maptilerKey`, `cesiumIonKey`, or the operator's). Parameters: `error` (0.5) the mesh's vertical error as a share of Cesium's geometric error of the level (77 km at level 0, halved each level: 4.7 m at level 14, so 2.35 m by default; smaller for a finer mesh); `mesher`, `delatin` (the default) or `martini`; `extensions=octvertexnormals` for a client that does not send Cesium's `Accept: application/vnd.quantized-mesh;extensions=octvertexnormals`.
+
+How a tile is made: the grid is geographic TMS (EPSG:4326, two tiles at level 0, `y` from the south). The source's Web Mercator pixels of the zoom as wide as the tile (level `z` reads 256 px zoom `z + 1`, capped at the source's deepest) are read with a two-pixel border and resampled, bilinear, to a 257 × 257 grid over the tile; holes are grown from the data around them. The grid is meshed within the error, then encoded with the header (centre, minimum and maximum height, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices, the west, south, east and north edge lists and, when asked, the oct-encoded vertex normals (smooth shading). Skirts are the client's, as the spec says. A tile with no data is flat at 0 m (and not cached). The meshing is `tile-server/quantized-mesh.mjs`, a module with no server in it: it takes a height grid and gives the tile, so another app can use it with its own reader.
+
+| Mapterhorn, Matterhorn, per 257 × 257 tile | delatin | martini |
+|---|---|---|
+| Level 12, error × 0.5 (9.4 m) | 6,600 triangles, 65 KB, 16 ms | 12,600 triangles, 124 KB, 6 ms |
+| Level 14, error × 0.5 (2.35 m) | 9,900 triangles, 98 KB, 24 ms | 18,000 triangles, 177 KB, 7 ms |
+| Level 14, error × 0.25 (1.2 m) | 19,600 triangles, 192 KB, 39 ms | 32,200 triangles, 316 KB, 12 ms |
+
+Delatin (Delaunay refinement) makes about 45 % fewer triangles than martini (a right-triangulated irregular network) for the same error, in about three times the time; with tiles cached, the smaller tile wins. Reading and resampling the source adds 20 to 35 ms (network); gzip takes off another quarter. Measured on levels 10 to 14, 3 × 3 tiles each.
+
+```js
+// CesiumJS
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  terrainProvider: await Cesium.CesiumTerrainProvider.fromUrl(
+    "http://localhost:3400/quantized-mesh/mapterhorn/",
+    { requestVertexNormals: true },
+  ),
+})
+```
+
+**Blender.** A Blender add-on that reads Cesium terrain or quantized mesh takes the layer.json address as its terrain URL: `http://localhost:3400/quantized-mesh/mapterhorn/layer.json` (another source: its id in place of `mapterhorn`; a keyed one: `?maptilerKey=…`). For the OGC 3D Tiles add-on, give that address where it asks for a terrain (quantized mesh) layer, not a `tileset.json`: this service does not write 3D Tiles. If the add-on sends no `Accept` header with the extensions, add `?extensions=octvertexnormals` to get the normals. Not yet tried with the add-on here; CesiumJS, HERE's decoder and the tests' own decoder read the tiles.
+
 ## A QGIS project
 
 `/qgis.qgz?<a view>` is a QGIS project of that view. Every layer of the app is an XYZ layer, stacked as the map stacks them, top of the tree drawn on top, and grouped as the app's panel where that order allows:
@@ -207,7 +242,7 @@ What the standard has no slot for is an `x-tv-` property: the panel group (`x-tv
 
 ## titiler's parameters
 
-A client written for [titiler](https://developmentseed.org/titiler/) keeps a few of its parameter names, for Web Mercator only. Its addresses are not answered (removed on 2026-11-25, see [Removed addresses](#removed-addresses)): ask `/terrain-tiles/{z}/{x}/{y}` for `/tiles/WebMercatorQuad/{z}/{x}/{y}`, `/tilejson.json` for `/WebMercatorQuad/tilejson.json` and `/render` with `bbox`, `width` and `height` for `/bbox/{w},{s},{e},{n}/{width}x{height}`.
+A client written for [titiler](https://developmentseed.org/titiler/) keeps a few of its parameter names, for Web Mercator only. Its tile addresses are not answered (removed on 2026-11-25, see [Removed addresses](#removed-addresses)): ask `/terrain-tiles/{z}/{x}/{y}` for `/tiles/WebMercatorQuad/{z}/{x}/{y}` and `/tilejson.json` for `/WebMercatorQuad/tilejson.json`. Its `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` is answered, as `/render` with that box and size.
 
 | titiler | Here |
 |---|---|

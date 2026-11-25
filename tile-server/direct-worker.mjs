@@ -4,7 +4,7 @@
 // holds functions, which do not cross threads), and the picture is sent
 // back as a transferred buffer.
 import { parentPort } from "node:worker_threads"
-import { plan, draw, drawViewport, vectorTile, valueTile, warmUp } from "./direct.mjs"
+import { plan, draw, drawViewport, vectorTile, valueTile, quantizedMeshTile, warmUp } from "./direct.mjs"
 
 // The app's code is loaded as the worker starts, before its first tile.
 warmUp().catch(() => {})
@@ -17,6 +17,7 @@ parentPort.on("message", async ({ id, op, view, rest, keys, args }) => {
       : op === "viewport" ? await drawViewport(how, args)
       : op === "vector" ? await vectorTile(how, args.modes, args.z, args.x, args.y, args.baseUrl)
       : op === "values" ? await valueTile(how, args.mode, args)
+      : op === "mesh" ? await quantizedMeshTile(how, args)
       : null
     if (!out) throw new Error(`unknown operation ${op}`)
     // A copy of its own: a Buffer can be a view on a shared pool, which

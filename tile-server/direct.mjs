@@ -35,6 +35,7 @@ import { resolveDemOrWhy, refusalOf, window as demWindow } from "./dem.mjs"
 import { buildViewUrl, DEFAULT_BASE_URL } from "./url.mjs"
 import { float32GeoTiff } from "./tiff.mjs"
 import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
+import { encodeTile, tileBounds, levelGeometricError } from "./quantized-mesh.mjs"
 
 let appPromise
 const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs").then((A) => { A.registerDerivedProtocols(); return A })))
@@ -477,6 +478,60 @@ export async function encodeValues(values, { world, x0, y0, width, height, forma
 /** A rectangle's values, encoded (valuesOf, then encodeValues). */
 export async function valueTile(how, mode, args) {
   return encodeValues(await valuesOf(how, mode, args), args)
+}
+
+// ── Quantized mesh: the source as Cesium terrain ────────────────────────────
+
+/** The deepest geographic level worth serving for a source: its deepest
+ *  level in 256 px Web Mercator tiles, less one (a geographic tile of level
+ *  z is as wide as a Mercator tile of level z + 1). */
+export const meshLevel = (dem) => Math.max(0, Math.min(21, dem.maxzoom + Math.max(0, Math.round(Math.log2(dem.tileSize / 256)))) - 1)
+
+/** The heights of a geographic tile (TMS, EPSG:4326) on a `size` x `size`
+ *  grid, row 0 the north edge: the source's Web Mercator pixels of the
+ *  level as wide as the grid, bilinear, read with a border of two pixels so
+ *  the edges are interpolated like the inside. NaN where there is no data. */
+export async function geographicGrid(dem, z, x, y, size = 257) {
+  const b = tileBounds(z, x, y)
+  const side = dem.tileSize
+  const zd = Math.max(dem.minzoom ?? 0, Math.min(dem.maxzoom, Math.round(z + 1 + Math.log2(256 / side))))
+  const W = side * 2 ** zd
+  const LAT = 85.0511287798
+  const px = (lon) => ((lon + 180) / 360) * W - 0.5
+  const py = (lat) => { const l = Math.max(-LAT, Math.min(LAT, lat)) * (PI / 180); return (1 - Math.asinh(Math.tan(l)) / PI) / 2 * W - 0.5 }
+  const gx0 = Math.floor(px(b.west)) - 2, gx1 = Math.ceil(px(b.east)) + 2
+  const gy0 = Math.max(-2, Math.floor(py(b.north)) - 2), gy1 = Math.min(W + 1, Math.ceil(py(b.south)) + 2)
+  const gw = gx1 - gx0 + 1, gh = gy1 - gy0 + 1
+  const G = await demWindow(dem, zd, side, gx0, gy0, gw, gh)
+  const at = (i, j) => G[Math.min(gh - 1, Math.max(0, j)) * gw + Math.min(gw - 1, Math.max(0, i))]
+  const out = new Float32Array(size * size)
+  const last = size - 1
+  const fxs = new Float64Array(size)
+  for (let i = 0; i < size; i++) fxs[i] = px(b.west + (i / last) * (b.east - b.west)) - gx0
+  for (let j = 0; j < size; j++) {
+    const fy = py(b.north - (j / last) * (b.north - b.south)) - gy0
+    const jj = Math.floor(fy), ty = fy - jj
+    for (let i = 0; i < size; i++) {
+      const fx = fxs[i], ii = Math.floor(fx), tx = fx - ii
+      const v = (at(ii, jj) * (1 - tx) + at(ii + 1, jj) * tx) * (1 - ty) + (at(ii, jj + 1) * (1 - tx) + at(ii + 1, jj + 1) * tx) * ty
+      // A hole beside data: the nearest pixel, as valuesOf would leave it NaN.
+      out[j * size + i] = Number.isNaN(v) ? at(Math.round(fx), Math.round(fy)) : v
+    }
+  }
+  return out
+}
+
+/** One quantized-mesh-1.0 tile of the source (quantized-mesh.mjs): the
+ *  geographic grid, meshed within `errorScale` times Cesium's geometric
+ *  error of the level (at least 5 cm). A tile with no data is flat at 0, a
+ *  source that refused the request (401, 403) is an error. */
+export async function quantizedMeshTile({ dem }, { z, x, y, size = 257, errorScale = 0.5, normals = false, mesher = "delatin" }) {
+  const heights = await geographicGrid(dem, z, x, y, size)
+  if (heights.every(Number.isNaN)) {
+    const refused = refusalOf(dem)
+    if (refused) throw Object.assign(new Error(`The source refused the request (HTTP ${refused}): check the API key or its allowed origins`), { status: 502 })
+  }
+  return encodeTile({ heights, size, bounds: tileBounds(z, x, y), maxError: Math.max(0.05, levelGeometricError(z) * errorScale), mesher, normals })
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────────

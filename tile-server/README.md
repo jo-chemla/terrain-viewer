@@ -12,6 +12,8 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 | `/basemap-tiles/{z}/{x}/{y}.jpg\|png` | One tile of the imagery (`imagerySource`, `imageryDate`, `imageryUrl`, the app's basemap parameters) |
 | `/terrain-tiles/{z}/{x}/{y}.pbf\|mvt` | The overlays as a vector tile: contours, iso-line, mound detector, plane slicer, graticule |
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
+| `/bbox/{w},{s},{e},{n}/{width}x{height}.png\|jpg\|tif` | The same as `/render` with `bbox`, `width`, `height` (one handler) |
+| `/quantized-mesh/{source}/layer.json`, `.../{z}/{x}/{y}.terrain` | Any direct source as Cesium terrain (quantized-mesh-1.0, geographic TMS, octvertexnormals); meshing in `quantized-mesh.mjs`, standalone |
 | `/terrain-tiles/{z}/{x}/{y}.tif`, `/render.tif`, `/gdal.xml` | One mode's values before its ramp, in natural units: Float32 GeoTIFF tiles, an area (like a WCS), one GDAL raster; deflate-compressed (`compression=none` to skip); `.png?encoding=terrarium\|terrainrgb` packs them in a PNG |
 | `/qgis.qgz` | A QGIS project of a view (the app's share query works as is): every layer, the view's checked |
 | `<raster export>.stac.json` | The export's STAC Item (Processing extension, `stac.mjs`), also named by the answer's `Link: <…>; rel="describedby"` header |
@@ -19,9 +21,9 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 | `/openapi.json`, `/docs`, `/health` | `/` redirects to `/docs` (JSON index with `Accept: application/json`); `/health`: queues and workers |
 
 Removed, answering 404 with the address to use: `/tiles/{z}/{x}/{y}` and
-`/modes` (2026-11-24), and titiler's addresses `/tiles/WebMercatorQuad/...`,
-`/WebMercatorQuad/tilejson.json` and `/bbox/...` (2026-11-25; use
-`/terrain-tiles`, `/tilejson.json`, `/render?bbox=…&width=…&height=…`).
+`/modes` (2026-11-24), and titiler's tile addresses `/tiles/WebMercatorQuad/...`
+and `/WebMercatorQuad/tilejson.json` (2026-11-25; use `/terrain-tiles`,
+`/tilejson.json`). titiler's `/bbox/...`, removed the same day, is back.
 titiler's parameter names `url`, `algorithm` and `tilesize` are still read.
 
 A standalone pnpm root, like `video/` and `mcp/`: it is not part of the root

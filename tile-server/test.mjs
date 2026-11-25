@@ -311,9 +311,142 @@ function assertStacItem(item) {
   assert.equal([...project.matchAll(/<provider>gdal<\/provider>/g)].length, 15)
 }
 
+// Quantized mesh, offline: a synthetic DEM (an analytic surface) served as
+// Terrarium tiles by a stubbed fetch, read as any tile address, meshed and
+// encoded; decoded twice (quantized-mesh.mjs and HERE's
+// @here/quantized-mesh-decoder, written from the spec by others) and
+// checked against the surface, the spec's invariants and each other.
+{
+  const sharp = (await import("sharp")).default
+  const here = (await import("@here/quantized-mesh-decoder")).default.default
+  const { encodeTile, decodeTile, tileBounds, levelGeometricError, layerJson, availableRanges, requestedExtensions } = await import("./quantized-mesh.mjs")
+  const { quantizedMeshTile, meshLevel } = await import("./direct.mjs")
+  const RAD = Math.PI / 180
+  const surface = (lon, lat) => 1000 + 300 * Math.sin(lon * 2000 * RAD) * Math.cos(lat * 1500 * RAD)
+  const realFetch = globalThis.fetch
+  let stubbed = 0
+  globalThis.fetch = async (url, init) => {
+    const m = String(url).match(/^https:\/\/qm-stub\.test\/(\d+)\/(\d+)\/(\d+)\.png$/)
+    if (!m) return realFetch(url, init)
+    stubbed++
+    const [z, x, y] = m.slice(1).map(Number), W = 256 * 2 ** z
+    const rgba = Buffer.alloc(256 * 256 * 4)
+    for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) {
+      const lon = ((x * 256 + i + 0.5) / W) * 360 - 180, lat = Math.atan(Math.sinh(Math.PI * (1 - (2 * (y * 256 + j + 0.5)) / W))) / RAD
+      const t = surface(lon, lat) + 32768, whole = Math.floor(t), o = (j * 256 + i) * 4
+      rgba[o] = whole >> 8; rgba[o + 1] = whole & 255; rgba[o + 2] = Math.floor((t - whole) * 256); rgba[o + 3] = 255
+    }
+    return new Response(await sharp(rgba, { raw: { width: 256, height: 256, channels: 4 } }).png().toBuffer(), { headers: { "content-type": "image/png" } })
+  }
+  try {
+    const how = await plan({ terrainSource: "https://qm-stub.test/{z}/{x}/{y}.png" }, new URLSearchParams(), {})
+    assert.equal(how.engine, "direct", how.why)
+    assert.equal(meshLevel(how.dem), 13, "a tile address keeps z14: geographic level 13")
+    const [z, x, y] = [10, 1066, 773]
+    const b = tileBounds(z, x, y)
+    assert.deepEqual(tileBounds(0, 1, 0), { west: 0, south: -90, east: 180, north: 90 })
+    assert.ok(b.west < 7.5 && b.east > 7.5 && b.south < 46 && b.north > 46)
+    const maxError = levelGeometricError(z) * 0.25
+    assert.ok(Math.abs(levelGeometricError(0) - 77067.34) < 0.01, "Cesium's level-0 error for 65 samples, 2 root tiles")
+    for (const mesher of ["martini", "delatin"]) {
+      const bytes = await quantizedMeshTile(how, { z, x, y, normals: true, mesher, errorScale: 0.25 })
+      const d = decodeTile(bytes)
+      const r = here(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+      const n = d.vertexCount
+      // The two decoders agree on every field.
+      assert.equal(r.vertexData.length, 3 * n)
+      assert.deepEqual([...r.vertexData.subarray(0, n)], [...d.u]); assert.deepEqual([...r.vertexData.subarray(n, 2 * n)], [...d.v]); assert.deepEqual([...r.vertexData.subarray(2 * n)], [...d.height])
+      assert.deepEqual([...r.triangleIndices], [...d.indices])
+      assert.deepEqual([...r.westIndices], [...d.edges.west]); assert.deepEqual([...r.southIndices], [...d.edges.south])
+      assert.deepEqual([...r.eastIndices], [...d.edges.east]); assert.deepEqual([...r.northIndices], [...d.edges.north])
+      assert.deepEqual([...r.extensions.vertexNormals], [...d.extensions.vertexNormals])
+      assert.equal(r.header.minHeight, d.header.minHeight); assert.equal(r.header.boundingSphereRadius, d.header.boundingSphere.radius)
+      assert.equal(r.header.horizonOcclusionPointZ, d.header.horizonOcclusionPoint[2])
+      // The spec's invariants: indices in range and first named in order
+      // (high-water mark), counter-clockwise triangles, the edge lists the
+      // vertices on each edge, the heights within the header's range.
+      assert.ok(d.triangleCount > 100 && d.indices.every((i) => i < n))
+      let hw = 0
+      for (const i of d.indices) { assert.ok(i <= hw); if (i === hw) hw++ }
+      assert.equal(hw, n, "every vertex used")
+      for (let t = 0; t < d.indices.length; t += 3) {
+        const [a, bb, c] = [d.indices[t], d.indices[t + 1], d.indices[t + 2]]
+        assert.ok((d.u[bb] - d.u[a]) * (d.v[c] - d.v[a]) - (d.v[bb] - d.v[a]) * (d.u[c] - d.u[a]) > 0, "counter-clockwise")
+      }
+      const on = (test) => [...d.u.keys()].filter(test).sort((p, q2) => p - q2)
+      assert.deepEqual([...d.edges.west].sort((p, q2) => p - q2), on((k) => d.u[k] === 0))
+      assert.deepEqual([...d.edges.south].sort((p, q2) => p - q2), on((k) => d.v[k] === 0))
+      assert.deepEqual([...d.edges.east].sort((p, q2) => p - q2), on((k) => d.u[k] === 32767))
+      assert.deepEqual([...d.edges.north].sort((p, q2) => p - q2), on((k) => d.v[k] === 32767))
+      assert.ok(on((k) => d.u[k] === 0 && d.v[k] === 0).length === 1 && d.edges.west.length >= 2, "the corners are vertices")
+      const { minHeight: lo, maxHeight: hi } = d.header
+      assert.ok(lo > 690 && lo < 710 && hi > 1290 && hi < 1310, `heights ${lo}..${hi}`)
+      const hOf = (k) => lo + (d.height[k] / 32767) * (hi - lo)
+      const lonOf = (k) => b.west + (d.u[k] / 32767) * (b.east - b.west), latOf = (k) => b.south + (d.v[k] / 32767) * (b.north - b.south)
+      // Each vertex on the surface (resampling and quantization only).
+      for (let k = 0; k < n; k++) assert.ok(Math.abs(hOf(k) - surface(lonOf(k), latOf(k))) < 0.5, `vertex ${k}`)
+      // Anywhere inside: the mesh within its error of the surface.
+      let worst = 0
+      for (let s = 0; s < 1500; s++) {
+        const pu = ((s * 7919) % 1500) / 1500 * 32767, pv = ((s * 104729) % 1499) / 1499 * 32767
+        for (let t = 0; t < d.indices.length; t += 3) {
+          const [a, bb, c] = [d.indices[t], d.indices[t + 1], d.indices[t + 2]]
+          const det = (d.v[bb] - d.v[c]) * (d.u[a] - d.u[c]) + (d.u[c] - d.u[bb]) * (d.v[a] - d.v[c])
+          const l1 = ((d.v[bb] - d.v[c]) * (pu - d.u[c]) + (d.u[c] - d.u[bb]) * (pv - d.v[c])) / det
+          const l2 = ((d.v[c] - d.v[a]) * (pu - d.u[c]) + (d.u[a] - d.u[c]) * (pv - d.v[c])) / det
+          if (l1 < -1e-9 || l2 < -1e-9 || 1 - l1 - l2 < -1e-9) continue
+          const h = l1 * hOf(a) + l2 * hOf(bb) + (1 - l1 - l2) * hOf(c)
+          worst = Math.max(worst, Math.abs(h - surface(b.west + (pu / 32767) * (b.east - b.west), b.south + (pv / 32767) * (b.north - b.south))))
+          break
+        }
+      }
+      assert.ok(worst < maxError + 1, `${mesher}: mesh within ${maxError.toFixed(1)} m of the surface (worst ${worst.toFixed(2)} m)`)
+      // The bounding sphere holds every vertex; normals point up, outwards.
+      const A = 6378137, E2 = 0.0066943799901413165
+      const ecef = (lon, lat, h) => { const N = A / Math.sqrt(1 - E2 * Math.sin(lat * RAD) ** 2); return [(N + h) * Math.cos(lat * RAD) * Math.cos(lon * RAD), (N + h) * Math.cos(lat * RAD) * Math.sin(lon * RAD), (N * (1 - E2) + h) * Math.sin(lat * RAD)] }
+      const { center, radius } = d.header.boundingSphere
+      for (let k = 0; k < n; k++) { const p = ecef(lonOf(k), latOf(k), hOf(k)); assert.ok(Math.hypot(p[0] - center[0], p[1] - center[1], p[2] - center[2]) <= radius + 1e-6) }
+      const oct = (bx, by) => { let nx = (bx / 255) * 2 - 1, ny = (by / 255) * 2 - 1; const nz = 1 - Math.abs(nx) - Math.abs(ny); if (nz < 0) { const ox = nx; nx = (1 - Math.abs(ny)) * Math.sign(ox); ny = (1 - Math.abs(ox)) * Math.sign(ny) } const l = Math.hypot(nx, ny, nz); return [nx / l, ny / l, nz / l] }
+      const up = ecef(7.5, 46, 0).map((c) => c / A)
+      for (let k = 0; k < n; k += 7) { const nn = oct(d.extensions.vertexNormals[2 * k], d.extensions.vertexNormals[2 * k + 1]); assert.ok(nn[0] * up[0] + nn[1] * up[1] + nn[2] * up[2] > 0.5, "normal outwards") }
+      // The horizon occlusion point lies beyond the ellipsoid, towards the tile.
+      const hop = d.header.horizonOcclusionPoint
+      assert.ok(Math.hypot(...hop) > 1 && hop[0] * up[0] + hop[1] * up[1] + hop[2] * up[2] > 0)
+    }
+    assert.ok(stubbed > 0, "the synthetic source was read")
+    // Without normals asked, no extension.
+    assert.deepEqual(decodeTile(await quantizedMeshTile(how, { z, x, y })).extensions, {})
+    // Holes are grown from the data around, not pits at 0; no data at all is flat.
+    const holey = new Float32Array(65 * 65).fill(500); holey[32 * 65 + 32] = NaN
+    const flatHole = decodeTile(encodeTile({ heights: holey, size: 65, bounds: tileBounds(5, 3, 3), maxError: 1 }))
+    assert.equal(flatHole.header.minHeight, 500); assert.equal(flatHole.triangleCount, 2)
+    const none = decodeTile(encodeTile({ heights: new Float32Array(65 * 65).fill(NaN), size: 65, bounds: tileBounds(5, 3, 3), maxError: 1 }))
+    assert.equal(none.header.maxHeight, 0)
+    // More than 65536 vertices: 32-bit indices, aligned.
+    let seed = 7
+    const noisy = Float32Array.from({ length: 257 * 257 }, () => (seed = (seed * 16807) % 2147483647) / 2147483647 * 100)
+    const wide = encodeTile({ heights: noisy, size: 257, bounds: tileBounds(12, 100, 100), maxError: 0 })
+    const wd = decodeTile(wide)
+    assert.ok(wd.vertexCount > 65536, `${wd.vertexCount} vertices`)
+    assert.deepEqual([...here(wide.buffer).triangleIndices.subarray(0, 300)], [...wd.indices.subarray(0, 300)])
+    // layer.json, availability, the extensions asked.
+    const lj = layerJson({ name: "x", tiles: ["{z}/{x}/{y}.terrain"], maxzoom: 3, bounds: [5, 45, 10, 48] })
+    assert.equal(lj.format, "quantized-mesh-1.0"); assert.equal(lj.scheme, "tms"); assert.equal(lj.projection, "EPSG:4326"); assert.equal(lj.tilejson, "2.1.0")
+    assert.equal(lj.available.length, 4)
+    assert.deepEqual(availableRanges(1)[1], [{ startX: 0, startY: 0, endX: 3, endY: 1 }])
+    assert.deepEqual(lj.available[0], [{ startX: 0, startY: 0, endX: 1, endY: 0 }], "level 0 whole")
+    assert.deepEqual(lj.available[3], [{ startX: 8, startY: 6, endX: 8, endY: 6 }])
+    assert.deepEqual(requestedExtensions("application/vnd.quantized-mesh;extensions=octvertexnormals-watermask,application/octet-stream;q=0.9"), ["octvertexnormals"])
+    assert.deepEqual(requestedExtensions("application/vnd.quantized-mesh", "watermask"), [])
+    assert.deepEqual(requestedExtensions("", "octvertexnormals"), ["octvertexnormals"])
+  } finally {
+    globalThis.fetch = realFetch
+  }
+}
+
 // Over HTTP: /terrain-tiles and /basemap-tiles, the old /tiles and /modes
-// and titiler's addresses gone (404), the OGC API landing page,
-// conformance and process descriptions.
+// and titiler's tile addresses gone (404), /bbox, quantized mesh, the OGC
+// API landing page, conformance and process descriptions.
 {
   const { start } = await import("./server.mjs")
   const { activeLayers } = await import("./direct.mjs")
@@ -402,7 +535,7 @@ function assertStacItem(item) {
     const view = await json("/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainAnalysisOpacity=0.4&terrainSourceA=x")
     assert.ok(view.active.includes("slope")); assert.ok(Math.abs(view.opacity.slope - 0.2) < 1e-9); assert.equal(view.params.terrainSource, "x")
 
-    // Tiles: the address, the old /tiles/{z}/{x}/{y} and titiler's
+    // Tiles: the address, the old /tiles/{z}/{x}/{y} and titiler's tile
     // addresses gone, and the modes refused on each.
     const tilePath = "/2/2/1.png?modes=slope&background=none"
     const fresh = await get(`/terrain-tiles${tilePath}`)
@@ -416,9 +549,42 @@ function assertStacItem(item) {
     assert.equal((await get("/tiles/WebMercatorQuad/2/2/1.png.stac.json?modes=slope")).status, 404)
     const wmqTj = await get("/WebMercatorQuad/tilejson.json?modes=slope")
     assert.equal(wmqTj.status, 404); assert.match(await wmqTj.text(), /\/tilejson\.json/)
-    const bboxRes = await get("/bbox/7.6,45.95,7.7,46/800x600.png?modes=slope")
-    assert.equal(bboxRes.status, 404); assert.match(await bboxRes.text(), /\/render\.\{format\}\?bbox=/)
-    assert.equal((await get("/bbox/7.6,45.95,7.7,46/800x600.tif.stac.json?modes=slope")).status, 404)
+    // /bbox: the answer of /render with bbox, width and height, its STAC
+    // Item and Link header.
+    const bboxRes = await get("/bbox/7.6,45.95,7.7,46/300x200.png?modes=slope")
+    assert.equal(bboxRes.status, 200, await bboxRes.clone().text()); assert.equal(bboxRes.headers.get("content-type"), "image/png")
+    const viaRender = await get("/render.png?modes=slope&bbox=7.6,45.95,7.7,46&width=300&height=200")
+    assert.deepEqual(Buffer.from(await bboxRes.arrayBuffer()), Buffer.from(await viaRender.arrayBuffer()), "/bbox draws what /render?bbox draws")
+    assert.match(bboxRes.headers.get("link"), /\/bbox\/7\.6,45\.95,7\.7,46\/300x200\.png\.stac\.json\?modes=slope>; rel="describedby"/)
+    const bboxTif = await get("/bbox/7.6,45.95,7.7,46/200x200.tif?modes=slope")
+    assert.equal(bboxTif.status, 200); assert.equal(bboxTif.headers.get("x-tv-value-unit"), "degree")
+    const bboxItem = await get("/bbox/7.6,45.95,7.7,46/200x200.tif.stac.json?modes=slope")
+    assert.equal(bboxItem.status, 200)
+    const bi = await bboxItem.json(); assertStacItem(bi); assert.deepEqual(bi.bbox, [7.6, 45.95, 7.7, 46])
+    assert.equal((await get("/bbox/7.6,45.95/300x200.png")).status, 400, "a box is four numbers")
+    assert.equal((await get("/bbox/7.6,45.95,7.7,46/300.png")).status, 404)
+
+    // Quantized mesh: layer.json and a tile of Mapterhorn, gzipped on
+    // request, normals by the Accept header, the bounds of the grid.
+    const layer = await json("/quantized-mesh/mapterhorn/layer.json?error=0.5")
+    assert.equal(layer.format, "quantized-mesh-1.0"); assert.equal(layer.scheme, "tms"); assert.deepEqual(layer.extensions, ["octvertexnormals"])
+    assert.equal(layer.maxzoom, 17, "512 px tiles to z17: level 17"); assert.equal(layer.available.length, 18)
+    assert.equal(layer.tiles[0], "{z}/{x}/{y}.terrain?error=0.5")
+    const qmTile = await get("/quantized-mesh/mapterhorn/9/533/386.terrain", { headers: { accept: "application/vnd.quantized-mesh;extensions=octvertexnormals,application/octet-stream;q=0.9", "accept-encoding": "gzip" } })
+    assert.equal(qmTile.status, 200, await qmTile.clone().text())
+    assert.match(qmTile.headers.get("content-type"), /^application\/vnd\.quantized-mesh/); assert.equal(qmTile.headers.get("access-control-allow-origin"), "*")
+    assert.match(qmTile.headers.get("cache-control"), /max-age/)
+    const { decodeTile } = await import("./quantized-mesh.mjs")
+    const alps = decodeTile(new Uint8Array(await qmTile.arrayBuffer())) // fetch has gunzipped it
+    assert.ok(alps.vertexCount > 100 && alps.extensions.vertexNormals?.length === 2 * alps.vertexCount)
+    assert.ok(alps.header.maxHeight > 3000 && alps.header.minHeight < 2000, `Alps ${alps.header.minHeight}..${alps.header.maxHeight}`)
+    const raw = await new Promise((ok, fail) => import("node:http").then((h) => h.get(`${base}/quantized-mesh/mapterhorn/9/533/386.terrain`, { headers: { "accept-encoding": "gzip" } }, (res) => { res.resume(); ok(res) }).on("error", fail)))
+    assert.equal(raw.headers["content-encoding"], "gzip"); assert.match(raw.headers.vary, /Accept-Encoding/)
+    assert.equal((await get("/quantized-mesh/mapterhorn/1/4/0.terrain")).status, 404, "level 1 has 4 x 2 tiles")
+    assert.equal((await get("/quantized-mesh/mapterhorn/0/0/0.terrain?mesher=nope")).status, 400)
+    assert.equal((await get("/quantized-mesh/mapbox/layer.json")).status, process.env.TV_MAPBOX_KEY ? 200 : 400, "a keyed source needs its key")
+    assert.equal((await get("/quantized-mesh/custom/layer.json?terrainSource=https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png")).status, 200)
+    assert.equal((await get("/quantized-mesh/mapterhorn/9/533/386.terrain", { method: "OPTIONS", headers: { origin: "http://x", "access-control-request-method": "GET", "access-control-request-headers": "accept" } })).status, 204)
     // titiler's parameter names are still read.
     assert.equal((await get("/terrain-tiles/2/2/1.png?algorithm=slope")).status, 200)
     const vec = await get("/terrain-tiles/2/2/1.pbf?modes=contours")

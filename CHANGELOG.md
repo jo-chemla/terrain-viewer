@@ -29,6 +29,21 @@
 - `historical-catalog-tree.tsx`: `compact` (the coverage section) hides the tree's own search box; the section's top search passes its matches down as `filter`.
 - Changelog: the entries of 2026-11-24 and 2026-11-25 got their `<!-- released -->` markers (time suffixes from their commits) and TL;DRs for end users, with the former TL;DRs moved under Details. The two shadow entries are one, and three tile-service and dependency entries have no TL;DR (developer notes, left out of the app). `lib/changelog.test.ts` (`node scripts/test-lib.mjs lib/changelog.test.ts`) fails when an entry has no marker, two share one, or the file is not newest first.
 
+# Changelog — Cesium Terrain From Any Source, Box Pictures by Address
+
+<!-- released: 2026-11-25T11:03 -->
+
+#### TL;DR
+
+- **Any terrain source as a 3D globe in Cesium and Blender**: the tile service now serves every terrain it reads (Mapterhorn, AWS, Mapbox, MapTiler, Esri, national lidar, GEM-15...) in Cesium's terrain format, so CesiumJS, Cesium for Unreal or Unity and Blender add-ons that read Cesium terrain load it as a globe, with smooth shading. Docs: [Tile service, Quantized mesh](/docs/dev/tile-service#quantized-mesh).
+- **Pictures of a box by address again**: a picture or the values of a box can be asked with the box and the size in the address, as before yesterday, now documented.
+
+#### Details
+
+- Endpoints: `/quantized-mesh/{source}/layer.json` and `/quantized-mesh/{source}/{z}/{x}/{y}.terrain` (quantized-mesh-1.0, geographic TMS, octvertexnormals, gzip, CORS, cached a week except empty tiles), for every source whose `/sources` engine is `direct`, with the same keys as `/terrain-tiles`; `error` (0.5, a share of Cesium's level geometric error), `mesher` (`delatin` or `martini`), `extensions`. An `OPTIONS` preflight now answers 204. `/bbox/{w},{s},{e},{n}/{width}x{height}.png|jpg|tif` answers what `/render` with `bbox`, `width` and `height` answers (one handler), with its `.stac.json` Item and `Link` header, in OpenAPI under Viewport; titiler's `/tiles/WebMercatorQuad/...` and `/WebMercatorQuad/tilejson.json` stay removed.
+- `tile-server/quantized-mesh.mjs` is standalone (a height grid in, a tile out, no server). Delatin by default: on Mapterhorn around the Matterhorn, levels 10 to 14, it makes about 45 % fewer triangles than martini for the same error in about three times the time (16 to 24 ms a tile at the default error, against 6 to 7). `direct.mjs` `geographicGrid` resamples the source's Web Mercator pixels of the matching zoom to a 257 × 257 geographic grid with a two-pixel border; the meshing runs in the direct engine's workers.
+- Tests: a synthetic surface served by a stubbed fetch, decoded by the module's decoder and by HERE's `@here/quantized-mesh-decoder` field by field, checked against the surface and the spec's invariants (index order, winding, edge lists, bounding sphere, normals); over HTTP, a Mapterhorn tile in the Alps, and `/bbox` drawing byte for byte what `/render?bbox` draws. Next: a water mask, the metadata extension for sparse sources, a STAC Item for `.terrain`.
+
 # Changelog — Desktop App Runs the Tile Service for QGIS; Bundled Service Off by Default
 <!-- released: 2026-11-25T10:58 -->
 
