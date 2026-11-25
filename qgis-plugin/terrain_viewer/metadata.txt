@@ -21,6 +21,7 @@ changelog=0.8.0
     * Labels: contours (major lines), iso-lines, plane slicer and graticule carry their values as QGIS labels, on by default, black text in a white buffer, placed by QGIS; no point symbols on the overlays' vector tiles (kept for the mound detector's tells)
     * A pointing hand (and a light background on a mode's line) over what takes a click: rows, boxes, cogs, group titles, folds, buttons
     * Color, not Colour, everywhere in the panel
+    * Switching backend could drop a checked mode's layer (a row of the tree before the switch, still scheduled, removed it)
   0.7.0
     * Three backends picked at the top of the panel, each with its options: Local service (installed on first Connect, then started), Remote service (an address), Python (experimental). Connect works for each (0.6.0's Connect did nothing while "Local tile service" was checked: the button's checked argument read as "do not start")
     * One modes tree for every backend: under Python, the modes it does not compute are greyed out with a note, the settings it ignores too, and Values shows only for modes that have values. The tree is there before connecting (a snapshot packaged with the plugin)
