@@ -4,7 +4,7 @@
 // OpenAPI description. `pnpm test` (builds generated/ first).
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { blockOf, viewOf, sources } from "./server.mjs"
+import { blockOf, viewOf, sources, viewQuery } from "./server.mjs"
 import { DOCS_COPY, docsCopyText } from "./openapi.mjs"
 import { viewToQuery, queryToView } from "./url.mjs"
 import { plan } from "./direct.mjs"
@@ -96,6 +96,30 @@ function assertStacItem(item) {
   assert.equal(stacItem("http://h", "/terrain-tiles/2/2/1.pbf", ""), null, "a vector tile has none")
 }
 
+// /view reads a share link in every form: the params, `url` as the whole
+// link, `url` as its query (with or without `?`), the link pasted unencoded.
+{
+  const want = { zoom: "12", lat: "45.5", terrainSourceA: "mapterhorn", showTerrainAnalysis: "true" }
+  const qs = "zoom=12&lat=45.5&terrainSourceA=mapterhorn&showTerrainAnalysis=true"
+  const link = "https://terrain-viewer.iconem.com/?" + qs + "#frag"
+  const read = (search) => Object.fromEntries(viewQuery(search))
+  for (const search of [
+    "?" + qs,
+    qs,
+    "?url=" + encodeURIComponent(link),
+    "?url=" + encodeURIComponent("?" + qs),
+    "?url=" + encodeURIComponent(qs),
+    "?url=" + encodeURIComponent("  " + link + "  "),
+    "?" + link.replace("#frag", ""),
+    "?" + encodeURIComponent(link.replace("#frag", "").split("&")[0]) + "&" + qs.split("&").slice(1).join("&"),
+    "?url=" + encodeURIComponent("http://localhost:5173/terrain-viewer/?" + qs),
+  ]) assert.deepEqual(read(search), want, search)
+  // The link's own values win over parameters beside it; others are added.
+  assert.deepEqual(read("?zoom=3&theme=dark&url=" + encodeURIComponent(link)), { ...want, theme: "dark" })
+  // A link without a query: nothing switched on, and `url` is not taken as a source.
+  assert.deepEqual(read("?url=" + encodeURIComponent("https://terrain-viewer.iconem.com/")), {})
+}
+
 // The API reference lists the processes first, then the tiles; no titiler group.
 {
   const { openapi } = await import("./openapi.mjs")
@@ -104,6 +128,17 @@ function assertStacItem(item) {
   const used = new Set(Object.values(doc.paths).flatMap((p) => Object.values(p).flatMap((op) => op.tags)))
   assert.deepEqual([...used].sort(), doc.tags.map((t) => t.name).sort(), "every tag used, every used tag listed")
   assert.ok(!Object.keys(doc.paths).some((p) => p.startsWith("/tiles/")), "no /tiles path documented")
+  // /basemaps opens the Basemap tiles group; {source} takes any string and offers the ids.
+  const { sourceIds } = await import("./openapi.mjs")
+  const full = openapi(undefined, await sourceIds())
+  const ops = Object.entries(full.paths).flatMap(([p, o]) => Object.values(o).map((op) => [p, op]))
+  assert.equal(ops.find(([, op]) => op.tags.includes("Basemap tiles"))[0], "/basemaps")
+  for (const [path, first, also] of [["/terrain-tiles/{source}/{z}/{x}/{y}.{format}", "mapterhorn", "custom"], ["/basemap-tiles/{source}/{z}/{x}/{y}.{format}", "wayback", "google"]]) {
+    const p = full.paths[path].get.parameters.find((x) => x.name === "source")
+    assert.equal(p.schema.type, "string"); assert.equal(p.schema.enum, undefined, "any id is accepted")
+    assert.equal(p.schema.examples[0], first)
+    assert.ok(p.schema.examples.includes(also) && p.schema.examples.length > 5, path + " offers the ids")
+  }
   // martini and ellipsoidal heights by default; the source-in-path forms documented.
   assert.equal(doc.paths["/quantized-mesh/{source}/layer.json"].get.parameters.find((x) => x.name === "mesher").schema.default, "martini")
   assert.equal(doc.paths["/quantized-mesh/{source}/layer.json"].get.parameters.find((x) => x.name === "heights").schema.default, "ellipsoidal")
@@ -249,7 +284,7 @@ function assertStacItem(item) {
   assert.match((await plan({ modes: ["hillshade"], viewMode: "3d" }, new URLSearchParams())).why, /3D/)
   assert.match((await plan({ modes: ["basemap"] }, new URLSearchParams())).why, /imagery/)
   assert.equal((await plan({ terrainSource: '{"url":"https://x/{z}/{x}/{y}.png","type":"terrainrgb"}' }, new URLSearchParams())).dem.encoding, "mapbox")
-  assert.equal(readFileSync(DOCS_COPY, "utf8").replaceAll(String.fromCharCode(13), ""), docsCopyText(), "docs/public/tile-service-openapi.json is stale: run `node openapi.mjs` in tile-server/")
+  assert.equal(readFileSync(DOCS_COPY, "utf8").replaceAll(String.fromCharCode(13), ""), await docsCopyText(), "docs/public/tile-service-openapi.json is stale: run `node openapi.mjs` in tile-server/")
 }
 
 // Building shadows are drawn here now; the QGIS project of a share link.

@@ -833,7 +833,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "An id from `/sources`, or `custom` with `terrainSource` in the query.",
+            "description": "An id from `/sources`, or `custom` with `terrainSource` in the query. The list offers the ids; any other text is sent as written.",
             "example": "mapterhorn"
           },
           {
@@ -1058,6 +1058,28 @@
         }
       }
     },
+    "/basemaps": {
+      "get": {
+        "tags": [
+          "Basemap tiles"
+        ],
+        "operationId": "basemaps",
+        "summary": "The basemaps, by id",
+        "description": "What `/basemap-tiles/{source}/...` takes: the dated imagery (`kind: dated`, read with `imageryDate`) and the built-in basemaps with a fixed address (`kind: static`), each with the query parameter it stands for (`imagerySource` or `basemapSource`) and the API key it needs.",
+        "responses": {
+          "200": {
+            "description": "The list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/basemap-tiles/{source}/{z}/{x}/{y}.{format}": {
       "get": {
         "tags": [
@@ -1074,7 +1096,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "An id from `/basemaps`, or `custom`.",
+            "description": "An id from `/basemaps`, or `custom`. The list offers the ids; any other text is sent as written.",
             "example": "wayback"
           },
           {
@@ -1210,28 +1232,6 @@
               "text/plain": {
                 "schema": {
                   "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/basemaps": {
-      "get": {
-        "tags": [
-          "Catalogs"
-        ],
-        "operationId": "basemaps",
-        "summary": "The basemaps, by id",
-        "description": "What `/basemap-tiles/{source}/...` takes: the dated imagery (`kind: dated`, read with `imageryDate`) and the built-in basemaps with a fixed address (`kind: static`), each with the query parameter it stands for (`imagerySource` or `basemapSource`) and the API key it needs.",
-        "responses": {
-          "200": {
-            "description": "The list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
                 }
               }
             }
@@ -3355,7 +3355,7 @@
         ],
         "operationId": "view",
         "summary": "Read a Terrain Viewer share link: which modes it shows",
-        "description": "Turns a link of the app (the address the Share dialog copies, `https://terrain-viewer.iconem.com/?...`) into what this service needs to draw the same view: the modes it switches on (`active`), every mode's opacity (`opacity`: its own times its group's), the parameters every layer keeps (`params`: the terrain source, ramps, light...), the camera (`camera`: lat, lng, zoom, when the link has them) and the tile addresses that draw it (`tiles.terrain`, an XYZ template of the active modes; `tiles.basemap` when the link shows imagery). The QGIS plugin's *Open link* reads it to add the view's layers.\n\n**Two ways to ask.** Give the whole link as `url` (URL-encoded): `/view?url=https%3A%2F%2Fterrain-viewer.iconem.com%2F%3FshowTerrainAnalysis%3Dtrue%26slopeOpacity%3D0.5%26terrainSourceA%3Dmapterhorn`. Or paste the link's query (what follows `?`) after `/view?`: `/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn`.\n\n**What comes back** for that link (shortened): `{\"active\": [\"slope\", \"hillshade\"], \"opacity\": {\"slope\": 0.5, \"hillshade\": 1, ...}, \"params\": {\"terrainSource\": \"mapterhorn\"}, \"camera\": {}, \"tiles\": {\"terrain\": \"http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope,hillshade\"}}`. Each active mode is a process (`/processes/{id}`) with its settings.",
+        "description": "Turns a link of the app (the address the Share dialog copies, `https://terrain-viewer.iconem.com/?...`) into what this service needs to draw the same view: the modes it switches on (`active`), every mode's opacity (`opacity`: its own times its group's), the parameters every layer keeps (`params`: the terrain source, ramps, light...), the camera (`camera`: lat, lng, zoom, when the link has them) and the tile addresses that draw it (`tiles.terrain`, an XYZ template of the active modes; `tiles.basemap` when the link shows imagery). The QGIS plugin's *Open link* reads it to add the view's layers.\n\n**Ways to ask.** Give the whole link as `url` (URL-encoded): `/view?url=https%3A%2F%2Fterrain-viewer.iconem.com%2F%3FshowTerrainAnalysis%3Dtrue%26slopeOpacity%3D0.5%26terrainSourceA%3Dmapterhorn`; `url` can also be only the link's query, with or without its `?`. Or paste the link's query (what follows `?`) after `/view?`: `/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn`. Or paste the whole link after `/view?`, unencoded: `/view?https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5`. A `#...` is ignored; the link's values win over parameters given beside it.\n\n**What comes back** for that link (shortened): `{\"active\": [\"slope\", \"hillshade\"], \"opacity\": {\"slope\": 0.5, \"hillshade\": 1, ...}, \"params\": {\"terrainSource\": \"mapterhorn\"}, \"camera\": {}, \"tiles\": {\"terrain\": \"http://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope,hillshade\"}}`. Each active mode is a process (`/processes/{id}`) with its settings.",
         "parameters": [
           {
             "name": "url",
@@ -3364,7 +3364,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "A whole share link of the app; its query is read (other parameters given beside it are added).",
+            "description": "A whole share link of the app, or only its query (`?zoom=...` or `zoom=...`); its query is read (other parameters given beside it are added).",
             "example": "https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn"
           },
           {
