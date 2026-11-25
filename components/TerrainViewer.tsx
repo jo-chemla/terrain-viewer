@@ -621,6 +621,10 @@ export const QUERY_STATE_PARSERS = {
     // Iso-line, and the fallback where the live layer cannot draw
     // (shadowLiveUnsupportedAtom). Lighting Effects, Shadows, Renderer.
     shadowRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("live"),
+    // Live renderer only: a soft shadow edge from the sun's 0.53° disc (the
+    // fraction of the disc above the horizon); false draws it hard, as the
+    // tiles. Lighting Effects, Shadows, Soft Edge.
+    shadowSoft: parseAsBoolean.withDefault(true),
     // Shadows cast by OSM buildings on flat ground at their foot
     // (components/LayersAndSources/BuildingShadowLayer.tsx): heights from
     // OpenFreeMap's building layer, same light as the other shadows.
@@ -4311,6 +4315,7 @@ export function TerrainViewer() {
             enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && shadowLive && !isHistoricalMode}
             lightDir={state.illuminationDir}
             lightAlt={state.illuminationAlt}
+            soft={state.shadowSoft}
             opacity={state.lightingEffectsOpacity * state.shadowOpacity}
             terrainSource={source}
             customTerrainSources={customTerrainSources}

@@ -1,37 +1,43 @@
 // Live GPU terrain shadows: the "live" renderer of Hard Shadows, next to the
 // shadow:// tiles (lib/shadow-protocol.ts, kept for exports, the Iso-line and
-// as the fallback). Idea 1 of docs/content/docs/dev/shadow-benchmark.mdx.
+// as the fallback). Measured in docs/content/docs/dev/shadow-renderers.mdx.
 //
 // What it does, once per frame on the GPU:
 //  - The view's DEM tiles (the upstream the shadow:// tiles read, through the
 //    same shared decoded-tile cache) are stitched into ONE Float32 texture,
-//    the mosaic: about one DEM texel per CSS pixel, the view plus one tile on
-//    every side, at most SHADOW_MOSAIC_MAX_TILES tiles (a coarser zoom when
-//    the view is wider). Tiles go in with texSubImage2D as they arrive; a pan
-//    inside the mosaic changes nothing, a pan out of it lays out a new one.
-//  - Each fragment marches its own ray toward the sun across the mosaic:
-//    exact bilinear samples of the R32F texels (texelFetch, no half floats,
-//    no filtering extension), one-texel steps for 40 texels then steps
-//    growing with the distance (lib/shadow-live-math.ts), until the ground
-//    rises above the ray (shadow, no tolerance: low plateau edges are kept),
-//    the ray leaves the mosaic, or the ray is above the mosaic's highest
-//    point (lit). A sun change is two uniforms and a redraw.
+//    the view mosaic: about one DEM texel per CSS pixel, the view plus one
+//    tile on every side, at most SHADOW_MOSAIC_MAX_TILES tiles (a coarser
+//    zoom when the view is wider). Tiles go in with texSubImage2D as they
+//    arrive; a pan inside the mosaic changes nothing, a pan out of it lays
+//    out a new one.
+//  - A second texture, the far-field mosaic, holds the same DEM FAR_LEVELS
+//    (3) zooms coarser around it, up to 36 tiles: tens of kilometres of relief
+//    beyond the view for a few more megabytes, so a low sun's long shadows
+//    cast from far off screen come in (chooseFarLayout).
+//  - Each fragment marches its own ray toward the sun: across the view mosaic
+//    first (exact bilinear samples of the R32F texels, texelFetch, one-texel
+//    steps for 40 texels then steps growing with the distance), then on over
+//    the far mosaic from where the ray leaves the view mosaic. It keeps the
+//    highest horizon angle, with the ground lowered by the Earth's curvature
+//    (less refraction), until the horizon is above the sun's disc (shadow),
+//    the ray leaves the far mosaic, or it is above everything (lit). The sun
+//    disc's 0.53° gives the soft edge (fraction of the disc above the
+//    horizon), or a hard edge with radius 0. A sun change is uniforms and a
+//    redraw. The shader is lib/shadow-live-math.ts's shadowFragmentShader,
+//    whose CPU twin, sunVisibilityCpu, the tests and the benchmark run.
 //
-// Drawn like lib/live-dem-gl-layer.ts's layers: with terrain off, the
+// Drawn like lib/live-dem-gl-layer.ts's layers: with terrain off, the view
 // mosaic's tiles as flat meshes through MapLibre's projection prelude
 // (mercator and globe); with terrain on, through renderToTerrainTile, one
 // quad per terrain tile, MapLibre draping the result over the relief. The
 // fragment shader gets the mosaic uv in both cases, so it is one shader.
-//
-// Written for this repository; Mapricot's shader (which the benchmark reads)
-// carries no licence and none of it is used here.
 import type { CustomLayerInterface, CustomRenderMethodInput, CustomTerrainRenderInput, Map as MapLibreMap } from "maplibre-gl"
 import { createTileMesh } from "maplibre-gl"
 import { compileProgram, mapTileVertexShader, TERRAIN_TILE_VERT } from "./live-dem-gl-layer"
 import { fetchPaddedElevationGrid, sharedTileCache, type UpstreamEncoding } from "./normal-derived-protocol"
 import {
-  chooseMosaicLayout, layoutContains, lngLatToMercator, sunStepVector, sunTanAltitude,
-  SHADOW_MAX_STEPS, SHADOW_MOSAIC_MAX_SIDE, SHADOW_STEP_GROWTH, type MosaicLayout,
+  chooseFarLayout, chooseMosaicLayout, farTransform, layoutContains, lngLatToMercator, shadowFragmentShader, sunStepVector,
+  CURVATURE_PER_M2, FAR_MAX_TILES, SHADOW_MAX_STEPS, SHADOW_MOSAIC_MAX_SIDE, SHADOW_MOSAIC_MAX_TILES, SUN_RADIUS_DEG, type MosaicLayout,
 } from "./shadow-live-math"
 
 export type ShadowLiveOptions = {
@@ -46,78 +52,113 @@ export type ShadowLiveOptions = {
   altitudeDeg: number
   /** Shadow darkness, 0..1 (the raster layer's opacity in the tile renderer). */
   opacity: number
+  /** Soft edge from the sun's disc (state.shadowSoft); hard when false. */
+  soft?: boolean
+  /** The far-field mosaic (on unless a test turns it off). */
+  farField?: boolean
 }
 
 // Elevation written for texels with no data yet (a tile still loading, a hole
 // in the DEM): far below any ground, so it never blocks a ray, and fragments
 // whose own elevation blends it are not drawn.
 const NODATA = -1e7
-// Decoded tiles kept on the CPU to rebuild a moved mosaic without refetching.
-const MAX_CACHED_GRIDS = 72
+// Decoded tiles kept on the CPU to rebuild a moved mosaic without refetching:
+// both mosaics plus a border's worth (1 MB a tile at 512 px).
+const MAX_CACHED_GRIDS = SHADOW_MOSAIC_MAX_TILES + FAR_MAX_TILES + 16
 const MESH_GRANULARITY = 64
-const EARTH_CIRCUMFERENCE_M = 2 * Math.PI * 6378137
 
-const FRAGMENT_SHADER = `#version 300 es
-precision highp float;
-precision highp int;
-uniform highp sampler2D u_mosaic; // R32F, metres, row 0 = north
-uniform vec2 u_size;              // mosaic size in texels
-uniform float u_mercY0;           // Web Mercator y (0..1) of the mosaic's north edge
-uniform float u_mercPerTexel;     // 1 / (tileSize * 2^z)
-uniform vec2 u_sunStep;           // unit step toward the sun, texels (east, south)
-uniform float u_tanAlt;           // tan(sun altitude); negative at night
-uniform float u_maxElev;          // highest elevation in the mosaic
-uniform float u_opacity;
-in vec2 v_uv;                     // mosaic uv
-out vec4 fragColor;
-
-const float NODATA_BELOW = ${(NODATA / 10).toFixed(1)};
-const float GROWTH = ${SHADOW_STEP_GROWTH.toFixed(8)};
-const int MAX_STEPS = ${SHADOW_MAX_STEPS};
-const float PI = 3.141592653589793;
-
-float texel(ivec2 c) {
-  return texelFetch(u_mosaic, clamp(c, ivec2(0), ivec2(u_size) - 1), 0).r;
-}
-
-// Bilinear elevation at continuous texel coords (centres at i + 0.5), in full
-// float precision: four texelFetches, no hardware filtering.
-float elevAt(vec2 p) {
-  vec2 b = p - 0.5;
-  ivec2 i = ivec2(floor(b));
-  vec2 f = b - vec2(i);
-  return mix(mix(texel(i), texel(i + ivec2(1, 0)), f.x), mix(texel(i + ivec2(0, 1)), texel(i + ivec2(1, 1)), f.x), f.y);
-}
-
-void main() {
-  vec2 p = v_uv * u_size;
-  if (p.x < 0.0 || p.y < 0.0 || p.x > u_size.x || p.y > u_size.y) discard;
-  float h0 = elevAt(p);
-  if (h0 < NODATA_BELOW) discard;
-  bool shadow = u_tanAlt < 0.0;
-  if (!shadow) {
-    // Ground size of a texel at this fragment's latitude.
-    float lat = atan(sinh(PI * (1.0 - 2.0 * (u_mercY0 + p.y * u_mercPerTexel))));
-    float rise = u_tanAlt * ${EARTH_CIRCUMFERENCE_M.toFixed(3)} * cos(lat) * u_mercPerTexel;
-    float d = 0.0;
-    for (int i = 0; i < MAX_STEPS; i++) {
-      d += max(1.0, d * GROWTH);
-      float ray = h0 + d * rise;
-      if (ray > u_maxElev) break;
-      vec2 q = p + u_sunStep * d;
-      if (q.x < 0.5 || q.y < 0.5 || q.x > u_size.x - 0.5 || q.y > u_size.y - 0.5) break;
-      if (elevAt(q) > ray) { shadow = true; break; }
-    }
-  }
-  if (!shadow) discard;
-  fragColor = vec4(0.0, 0.0, 0.0, u_opacity);
-}
-`
+const FRAGMENT_SHADER = shadowFragmentShader(NODATA)
 
 interface Grid { data: Float32Array; max: number }
 
 const keyOf = (z: number, x: number, y: number) => `${z}/${x}/${y}`
 const wrapX = (x: number, z: number) => ((x % 2 ** z) + 2 ** z) % 2 ** z
+
+/** One R32F texture holding a rectangle of DEM tiles at one zoom (the view
+ *  mosaic or the far-field one), filled slot by slot as tiles arrive. */
+class MosaicTexture {
+  layout: MosaicLayout | null = null
+  texture: WebGLTexture | null = null
+  /** Per slot (row-major): whether its tile is in the texture. */
+  uploaded: boolean[] = []
+  maxElev = -Infinity
+  private readonly tileSize: number
+  constructor(tileSize: number) { this.tileSize = tileSize }
+
+  slotKeys(): string[] {
+    const l = this.layout
+    if (!l) return []
+    const keys: string[] = []
+    for (let j = 0; j < l.ny; j++) for (let i = 0; i < l.nx; i++) keys.push(keyOf(l.z, wrapX(l.x0 + i, l.z), l.y0 + j))
+    return keys
+  }
+
+  get ready(): boolean { return !!this.texture && !!this.layout && this.maxElev > -Infinity }
+  get width(): number { return this.layout ? this.layout.nx * this.tileSize : 0 }
+  get height(): number { return this.layout ? this.layout.ny * this.tileSize : 0 }
+
+  private uploadSlot(gl: WebGL2RenderingContext, i: number, j: number, data: Float32Array) {
+    const n = this.tileSize
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, i * n, j * n, n, n, gl.RED, gl.FLOAT, data)
+  }
+
+  /** A new rectangle: the texture is kept when the size matches; slots whose
+   *  tile is not decoded yet start as no data (update() fills the others
+   *  right after). */
+  setLayout(gl: WebGL2RenderingContext, layout: MosaicLayout, nodataTile: Float32Array, hasGrid: (key: string) => boolean) {
+    const n = this.tileSize
+    const prev = this.layout
+    const sameSize = prev && prev.nx === layout.nx && prev.ny === layout.ny
+    this.layout = layout
+    this.uploaded = new Array(layout.nx * layout.ny).fill(false)
+    if (!this.texture || !sameSize) {
+      if (this.texture) gl.deleteTexture(this.texture)
+      this.texture = gl.createTexture()
+      gl.bindTexture(gl.TEXTURE_2D, this.texture)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.R32F, layout.nx * n, layout.ny * n)
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.texture)
+    for (let j = 0; j < layout.ny; j++) {
+      for (let i = 0; i < layout.nx; i++) {
+        if (!hasGrid(keyOf(layout.z, wrapX(layout.x0 + i, layout.z), layout.y0 + j))) this.uploadSlot(gl, i, j, nodataTile)
+      }
+    }
+    this.maxElev = -Infinity
+  }
+
+  /** Uploads the decoded tiles not in the texture yet; asks for the missing
+   *  ones. Whether anything was uploaded. */
+  update(gl: WebGL2RenderingContext, grids: Map<string, Grid>, fetch: (z: number, x: number, y: number) => void): boolean {
+    const l = this.layout
+    if (!l || !this.texture) return false
+    let any = false
+    gl.bindTexture(gl.TEXTURE_2D, this.texture)
+    for (let j = 0; j < l.ny; j++) {
+      for (let i = 0; i < l.nx; i++) {
+        const slot = j * l.nx + i
+        if (this.uploaded[slot]) continue
+        const x = wrapX(l.x0 + i, l.z), y = l.y0 + j
+        const grid = grids.get(keyOf(l.z, x, y))
+        if (!grid) { fetch(l.z, x, y); continue }
+        this.uploadSlot(gl, i, j, grid.data)
+        this.uploaded[slot] = true
+        if (grid.max > this.maxElev) this.maxElev = grid.max
+        any = true
+      }
+    }
+    return any
+  }
+
+  dispose(gl: WebGL2RenderingContext) {
+    if (this.texture) gl.deleteTexture(this.texture)
+    this.texture = null
+    this.layout = null
+  }
+}
 
 export class ShadowLiveLayer implements CustomLayerInterface {
   id: string
@@ -145,11 +186,8 @@ export class ShadowLiveLayer implements CustomLayerInterface {
 
   private grids = new Map<string, Grid>()
   private pending = new Set<string>()
-  private mosaic: WebGLTexture | null = null
-  private layout: MosaicLayout | null = null
-  /** Per mosaic slot (row-major): whether its tile is in the texture. */
-  private uploaded: boolean[] = []
-  private maxElev = -Infinity
+  private view: MosaicTexture
+  private far: MosaicTexture
   private nodataTile: Float32Array | null = null
   private revision = 0
   private loggedFetchError = false
@@ -157,6 +195,8 @@ export class ShadowLiveLayer implements CustomLayerInterface {
   constructor(id: string, options: ShadowLiveOptions) {
     this.id = id
     this.options = options
+    this.view = new MosaicTexture(options.tileSize)
+    this.far = new MosaicTexture(options.tileSize)
   }
 
   /** Read by MapLibre once per frame: the draped terrain tiles are redrawn when it moves. */
@@ -169,7 +209,7 @@ export class ShadowLiveLayer implements CustomLayerInterface {
     this.map?.triggerRepaint()
   }
 
-  /** Sun and opacity: uniforms only. A new DEM needs a new instance (the wrapper remounts). */
+  /** Sun, opacity, soft edge: uniforms only. A new DEM needs a new instance (the wrapper remounts). */
   updateOptions(patch: Partial<ShadowLiveOptions>) {
     this.options = { ...this.options, ...patch }
     this.changed()
@@ -177,8 +217,11 @@ export class ShadowLiveLayer implements CustomLayerInterface {
 
   /** For the dev console and tests: what the layer currently holds. */
   debugState() {
-    const loaded = this.uploaded.filter(Boolean).length
-    return { layout: this.layout, loadedTiles: loaded, maxElev: this.maxElev, failed: this.failed, maxSteps: SHADOW_MAX_STEPS }
+    return {
+      layout: this.view.layout, loadedTiles: this.view.uploaded.filter(Boolean).length, maxElev: this.view.maxElev,
+      farLayout: this.far.layout, farLoadedTiles: this.far.uploaded.filter(Boolean).length, farMaxElev: this.far.maxElev,
+      failed: this.failed, maxSteps: SHADOW_MAX_STEPS,
+    }
   }
 
   private uniform(gl: WebGL2RenderingContext, program: WebGLProgram, name: string): WebGLUniformLocation | null {
@@ -225,8 +268,8 @@ export class ShadowLiveLayer implements CustomLayerInterface {
   onRemove(_map: MapLibreMap, gl: WebGL2RenderingContext) {
     this.disposed = true
     this.abort.abort()
-    if (this.mosaic) gl.deleteTexture(this.mosaic)
-    this.mosaic = null
+    this.view.dispose(gl)
+    this.far.dispose(gl)
     for (const program of this.mapPrograms.values()) gl.deleteProgram(program)
     this.mapPrograms.clear()
     if (this.terrainProgram) gl.deleteProgram(this.terrainProgram)
@@ -243,9 +286,9 @@ export class ShadowLiveLayer implements CustomLayerInterface {
     this.map = null
   }
 
-  // ─── Mosaic ───────────────────────────────────────────────────────────────
+  // ─── Mosaics ──────────────────────────────────────────────────────────────
 
-  private fetchGrid(z: number, x: number, y: number) {
+  private fetchGrid = (z: number, x: number, y: number) => {
     const key = keyOf(z, x, y)
     if (this.pending.has(key) || this.grids.has(key)) return
     this.pending.add(key)
@@ -274,61 +317,22 @@ export class ShadowLiveLayer implements CustomLayerInterface {
       })
   }
 
-  /** Drops the oldest decoded tiles outside the current mosaic. */
+  private hasGrid = (key: string) => this.grids.has(key)
+
+  /** Drops the oldest decoded tiles outside both mosaics. */
   private pruneGrids() {
     if (this.grids.size <= MAX_CACHED_GRIDS) return
-    const keep = new Set(this.slotKeys())
+    const keep = new Set([...this.view.slotKeys(), ...this.far.slotKeys()])
     for (const key of this.grids.keys()) {
       if (this.grids.size <= MAX_CACHED_GRIDS) break
       if (!keep.has(key)) this.grids.delete(key)
     }
   }
 
-  private slotKeys(): string[] {
-    const l = this.layout
-    if (!l) return []
-    const keys: string[] = []
-    for (let j = 0; j < l.ny; j++) for (let i = 0; i < l.nx; i++) keys.push(keyOf(l.z, wrapX(l.x0 + i, l.z), l.y0 + j))
-    return keys
-  }
-
-  /** Uploads one tile's grid (or the no-data fill) into its mosaic slot. */
-  private uploadSlot(gl: WebGL2RenderingContext, i: number, j: number, data: Float32Array) {
-    const n = this.options.tileSize
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, i * n, j * n, n, n, gl.RED, gl.FLOAT, data)
-  }
-
-  private setLayout(gl: WebGL2RenderingContext, layout: MosaicLayout) {
-    const n = this.options.tileSize
-    const prev = this.layout
-    const sameSize = prev && prev.nx === layout.nx && prev.ny === layout.ny
-    this.layout = layout
-    this.uploaded = new Array(layout.nx * layout.ny).fill(false)
-    if (!this.mosaic || !sameSize) {
-      if (this.mosaic) gl.deleteTexture(this.mosaic)
-      this.mosaic = gl.createTexture()
-      gl.bindTexture(gl.TEXTURE_2D, this.mosaic)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.R32F, layout.nx * n, layout.ny * n)
-    }
-    // Slots whose tile is not decoded yet start as no data; the others are
-    // filled by updateMosaic's pass right after this.
-    if (!this.nodataTile || this.nodataTile.length !== n * n) this.nodataTile = new Float32Array(n * n).fill(NODATA)
-    gl.bindTexture(gl.TEXTURE_2D, this.mosaic)
-    for (let j = 0; j < layout.ny; j++) {
-      for (let i = 0; i < layout.nx; i++) {
-        if (!this.grids.has(keyOf(layout.z, wrapX(layout.x0 + i, layout.z), layout.y0 + j))) this.uploadSlot(gl, i, j, this.nodataTile)
-      }
-    }
-    this.maxElev = -Infinity
-  }
-
-  /** Once per frame, before any draw: picks the mosaic for the view, fetches
-   *  its missing tiles and uploads the ones that arrived. */
-  private updateMosaic(gl: WebGL2RenderingContext) {
+  /** Once per frame, before any draw: picks the mosaics for the view, fetches
+   *  their missing tiles and uploads the ones that arrived. The view mosaic
+   *  first: its tiles are asked for before the far field's. */
+  private updateMosaics(gl: WebGL2RenderingContext) {
     const map = this.map
     if (!map) return
     const b = map.getBounds()
@@ -337,31 +341,34 @@ export class ShadowLiveLayer implements CustomLayerInterface {
     const bounds = { x0, y0, x1, y1 }
     const { tileSize, minzoom, maxzoom } = this.options
     const opts = { minzoom, maxzoom, maxSide: this.maxSide }
-    const needed = chooseMosaicLayout(bounds, map.getZoom(), tileSize, { ...opts, margin: 1, preferZ: this.layout?.z })
+    const needed = chooseMosaicLayout(bounds, map.getZoom(), tileSize, { ...opts, margin: 1, preferZ: this.view.layout?.z })
     if (!needed) return
+    const n = tileSize
+    if (!this.nodataTile || this.nodataTile.length !== n * n) this.nodataTile = new Float32Array(n * n).fill(NODATA)
     const pixelStore = this.saveUnpackState(gl)
     let uploadedAny = false
     try {
-      if (!this.layout || !layoutContains(this.layout, needed)) {
+      if (!this.view.layout || !layoutContains(this.view.layout, needed)) {
         // A second tile of slack where it fits, so small pans keep the mosaic.
         const roomy = chooseMosaicLayout(bounds, map.getZoom(), tileSize, { ...opts, margin: 2, preferZ: needed.z })
-        this.setLayout(gl, roomy && roomy.z === needed.z ? roomy : needed)
+        this.view.setLayout(gl, roomy && roomy.z === needed.z ? roomy : needed, this.nodataTile, this.hasGrid)
         this.revision++
       }
-      const l = this.layout!
-      gl.bindTexture(gl.TEXTURE_2D, this.mosaic)
-      for (let j = 0; j < l.ny; j++) {
-        for (let i = 0; i < l.nx; i++) {
-          const slot = j * l.nx + i
-          if (this.uploaded[slot]) continue
-          const x = wrapX(l.x0 + i, l.z), y = l.y0 + j
-          const grid = this.grids.get(keyOf(l.z, x, y))
-          if (!grid) { this.fetchGrid(l.z, x, y); continue }
-          this.uploadSlot(gl, i, j, grid.data)
-          this.uploaded[slot] = true
-          if (grid.max > this.maxElev) this.maxElev = grid.max
-          uploadedAny = true
+      uploadedAny = this.view.update(gl, this.grids, this.fetchGrid)
+      // The far field, around the view mosaic as laid out: kept while it
+      // still holds a one-tile margin around it, else laid out anew with the
+      // full margin.
+      const farOpts = { minzoom, maxSide: this.maxSide }
+      const farNeeded = this.options.farField === false ? null : chooseFarLayout(this.view.layout!, tileSize, farOpts)
+      if (!farNeeded) {
+        if (this.far.layout) { this.far.dispose(gl); this.revision++ }
+      } else {
+        const farMin = chooseFarLayout(this.view.layout!, tileSize, { ...farOpts, margin: 1 })
+        if (!this.far.layout || !farMin || !layoutContains(this.far.layout, farMin)) {
+          this.far.setLayout(gl, farNeeded, this.nodataTile, this.hasGrid)
+          this.revision++
         }
+        if (this.far.update(gl, this.grids, this.fetchGrid)) uploadedAny = true
       }
     } finally {
       this.restoreUnpackState(gl, pixelStore)
@@ -389,9 +396,9 @@ export class ShadowLiveLayer implements CustomLayerInterface {
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, s.alignment)
   }
 
-  /** Mosaic uv of the NW and SE corners of tile (z, x unwrapped, y). */
+  /** View-mosaic uv of the NW and SE corners of tile (z, x unwrapped, y). */
   private uvRect(z: number, x: number, y: number): [number, number, number, number] {
-    const l = this.layout!
+    const l = this.view.layout!
     const k = 2 ** (l.z - z)
     let gx = x * k
     // A whole-world mosaic: bring the tile into the mosaic's own world copy.
@@ -404,32 +411,58 @@ export class ShadowLiveLayer implements CustomLayerInterface {
   // ─── Drawing ──────────────────────────────────────────────────────────────
 
   private ready(): boolean {
-    return !this.failed && !!this.mosaic && !!this.layout && this.maxElev > -Infinity
+    return !this.failed && this.view.ready
   }
 
   private setShadingUniforms(gl: WebGL2RenderingContext, program: WebGLProgram) {
-    const l = this.layout!
+    const l = this.view.layout!
     const n = this.options.tileSize
     const u = (name: string) => this.uniform(gl, program, name)
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, this.mosaic)
+    gl.bindTexture(gl.TEXTURE_2D, this.view.texture)
     gl.uniform1i(u("u_mosaic"), 0)
-    gl.uniform2f(u("u_size"), l.nx * n, l.ny * n)
+    gl.uniform2f(u("u_size"), this.view.width, this.view.height)
     gl.uniform1f(u("u_mercY0"), l.y0 / 2 ** l.z)
     gl.uniform1f(u("u_mercPerTexel"), 1 / (n * 2 ** l.z))
+    gl.uniform1f(u("u_fineMax"), this.view.maxElev)
+    const hasFar = this.far.ready
+    const fl = this.far.layout
+    gl.activeTexture(gl.TEXTURE1)
+    // Something R32F is bound either way; the shader reads it only with u_hasFar.
+    gl.bindTexture(gl.TEXTURE_2D, hasFar ? this.far.texture : this.view.texture)
+    gl.uniform1i(u("u_far"), 1)
+    gl.uniform1i(u("u_hasFar"), hasFar ? 1 : 0)
+    if (hasFar && fl) {
+      const t = farTransform(l, fl, n)
+      gl.uniform2f(u("u_farSize"), this.far.width, this.far.height)
+      gl.uniform1f(u("u_farScale"), t.scale)
+      gl.uniform2f(u("u_farOffset"), t.offsetX, t.offsetY)
+      gl.uniform1f(u("u_farMercY0"), fl.y0 / 2 ** fl.z)
+      gl.uniform1f(u("u_farMercPerTexel"), 1 / (n * 2 ** fl.z))
+    }
+    gl.uniform1f(u("u_allMax"), Math.max(this.view.maxElev, hasFar ? this.far.maxElev : -Infinity))
+    gl.activeTexture(gl.TEXTURE0)
     const [sx, sy] = sunStepVector(this.options.azimuthDeg)
     gl.uniform2f(u("u_sunStep"), sx, sy)
-    gl.uniform1f(u("u_tanAlt"), sunTanAltitude(this.options.altitudeDeg))
-    gl.uniform1f(u("u_maxElev"), this.maxElev)
+    gl.uniform1f(u("u_alt"), (this.options.altitudeDeg * Math.PI) / 180)
+    gl.uniform1f(u("u_sunRadius"), this.options.soft === false ? 0 : (SUN_RADIUS_DEG * Math.PI) / 180)
+    gl.uniform1f(u("u_curv"), CURVATURE_PER_M2)
     gl.uniform1f(u("u_opacity"), Math.max(0, Math.min(1, this.options.opacity)))
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
   }
 
+  private unbindTextures(gl: WebGL2RenderingContext) {
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+  }
+
   prerender(gl: WebGL2RenderingContext) {
     if (this.failed || !this.map) return
     try {
-      this.updateMosaic(gl)
+      this.updateMosaics(gl)
     } catch (err) {
       this.fail("prerender()", err)
     }
@@ -453,12 +486,12 @@ export class ShadowLiveLayer implements CustomLayerInterface {
     } finally {
       gl.bindVertexArray(null)
       gl.useProgram(null)
-      gl.bindTexture(gl.TEXTURE_2D, null)
+      this.unbindTextures(gl)
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     }
   }
 
-  /** Terrain off (mercator or globe): the mosaic's loaded tiles, flat. */
+  /** Terrain off (mercator or globe): the view mosaic's loaded tiles, flat. */
   render(glArg: WebGLRenderingContext | WebGL2RenderingContext, args: CustomRenderMethodInput) {
     const gl = glArg as WebGL2RenderingContext
     if (!this.meshVao || !this.ready()) return
@@ -468,7 +501,7 @@ export class ShadowLiveLayer implements CustomLayerInterface {
         program = compileProgram(gl, mapTileVertexShader(args.shaderData.vertexShaderPrelude, args.shaderData.define), FRAGMENT_SHADER, "shadow-live-gl-layer")
         this.mapPrograms.set(args.shaderData.variantName, program)
       }
-      const l = this.layout!
+      const l = this.view.layout!
       const s = 2 ** l.z
       // A whole-world mosaic (x0 = 0) is drawn on the world copy under the view's centre.
       const wrapShift = l.nx === s && this.map ? Math.floor(lngLatToMercator(this.map.getCenter().lng, 0)[0]) : 0
@@ -480,7 +513,7 @@ export class ShadowLiveLayer implements CustomLayerInterface {
       const u = (name: string) => this.uniform(gl, program!, name)
       for (let j = 0; j < l.ny; j++) {
         for (let i = 0; i < l.nx; i++) {
-          if (!this.uploaded[j * l.nx + i]) continue
+          if (!this.view.uploaded[j * l.nx + i]) continue
           const ux = l.x0 + i
           const canonical = { z: l.z, x: wrapX(ux, l.z), y: l.y0 + j }
           const p = args.getProjectionData({ tileID: { canonical, wrap: Math.floor(ux / s) + wrapShift }, applyGlobeMatrix: true })
@@ -498,7 +531,7 @@ export class ShadowLiveLayer implements CustomLayerInterface {
     } finally {
       gl.bindVertexArray(null)
       gl.useProgram(null)
-      gl.bindTexture(gl.TEXTURE_2D, null)
+      this.unbindTextures(gl)
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     }
   }

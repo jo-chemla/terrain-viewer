@@ -10,7 +10,7 @@
 //    default radius went from 32 to 256 px for about the old cost.
 //  - computeShadowRowsMarch, the per-pixel ray march it replaced, kept as the
 //    reference (test, benchmark).
-// Measured against each other in docs/content/docs/dev/shadow-benchmark.mdx.
+// Measured against each other in docs/content/docs/dev/shadow-renderers.mdx.
 
 export interface ShadowKernelInput {
   /** Elevations padded by `radiusPx` on every side. */

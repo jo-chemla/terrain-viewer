@@ -13,7 +13,7 @@
 // (cost independent of the radius) instead of one ray march per pixel, so the
 // default radius is 256 px (it was 32) and the cap 512: a halo above one tile
 // comes from a second ring of same-zoom neighbours (fetchPaddedElevationGrid).
-// Why not a lower zoom for the far part: docs/content/docs/dev/shadow-benchmark.mdx.
+// Why not a lower zoom for the far part: docs/content/docs/dev/shadow-renderers.mdx.
 import { sharedTileCache, fetchPaddedElevationGrid, tileRowToLatRad, groundResolutionM, buildProtocolUrl, formatUrlNumber, type UpstreamEncoding } from "./normal-derived-protocol"
 import { toTileImage, type TileImage } from "./tile-image"
 import { computeShadowTile, type ShadowKernelInput } from "./shadow-kernel"
@@ -28,7 +28,7 @@ const SHADOW_URL_RE = /^shadow:\/\/(-?[\d.]+)\/(-?[\d.]+)\/(\d+)\/(terrarium|map
  *  pixels are marched toward the sun looking for an obstruction — same
  *  "Search Radius" convention SVF/Openness use. */
 /** Hard Shadows' Search Radius: default and slider maximum, in tile pixels
- *  (measured in docs/content/docs/dev/shadow-benchmark.mdx). */
+ *  (measured in docs/content/docs/dev/shadow-renderers.mdx). */
 export const SHADOW_RADIUS_DEFAULT_PX = 256
 export const SHADOW_RADIUS_MAX_PX = 512
 

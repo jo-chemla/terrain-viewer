@@ -283,8 +283,8 @@ export const LightingEffectsOptionsSection: React.FC<{
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Shadows</div>
           <CheckboxWithSlider perView={perViewFor("showShadows")}
             id="lighting-shadows"
-            label="Terrain"
-            tooltip="Hard cast shadows — darkens a pixel wherever terrain between it and the sun rises above the sun's own angle in the sky. Live (default) marches every pixel's ray on the GPU, so the sun moves in real time and shadows reach the edge of the view; Tiles computes them per tile on the CPU, within the Search Radius (256 px by default). Shares Phong/Hillshade's light direction (same pad below)."
+            label="Terrain (+ buildings if DSM)"
+            tooltip="Cast shadows of the elevation source: the bare ground with a terrain model (DTM, e.g. Mapterhorn), buildings and trees too with a surface model (DSM). Darkens a pixel wherever the ground between it and the sun rises above the sun's own angle in the sky. Live (GPU, default) marches every pixel's ray over the view and tens of kilometres beyond, Earth's curvature included, so the sun moves in real time; Tiles (CPU) computes them per tile within the Search Radius (256 px by default). Shares Phong/Hillshade's light direction (same pad below). On real relief most slopes are under 30°, so long shadows need a low sun: the outer rim of the pad."
             checked={state.showShadows}
             onCheckedChange={(checked) => setState({ showShadows: checked })}
             sliderValue={state.shadowOpacity}
@@ -303,11 +303,25 @@ export const LightingEffectsOptionsSection: React.FC<{
                   disabled={!!shadowLiveUnsupported}
                   onChange={(value) => setState({ shadowRenderer: value as "live" | "raster" })}
                   options={[
-                    { value: "live", label: "Live", tooltip: shadowLiveUnsupported ? `The GPU renderer could not run here (${shadowLiveUnsupported}); using tiles.` : "Rays marched per pixel on the GPU over the whole view: the sun moves in real time, shadows reach the edge of the view plus a tile, no radius." },
-                    { value: "raster", label: "Tiles", tooltip: "Computed per tile on the CPU within the Search Radius: the same pixels exports and the Iso-line use." },
+                    { value: "live", label: "Live (GPU)", tooltip: shadowLiveUnsupported ? `The GPU renderer could not run here (${shadowLiveUnsupported}); using tiles.` : "Rays marched per pixel on the GPU over the view, then over a coarser mosaic reaching tens of kilometres beyond it, Earth's curvature included: the sun moves in real time, no radius." },
+                    { value: "raster", label: "Tiles (CPU)", tooltip: "Computed per tile on the CPU within the Search Radius: the same pixels exports and the Iso-line use." },
                   ]}
                 />
               </div>
+              {state.shadowRenderer === "live" && !shadowLiveUnsupported && (
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <Label className="text-sm font-medium">Edge</Label>
+                  <SegmentedToggle
+                    className={SEG_WIDTH}
+                    value={state.shadowSoft ? "soft" : "hard"}
+                    onChange={(value) => setState({ shadowSoft: value === "soft" })}
+                    options={[
+                      { value: "soft", label: "Soft", tooltip: "Penumbra from the sun's 0.53° disc: the share of the disc above the horizon, so an edge widens with its distance from the ridge casting it (about 90 m at 10 km)." },
+                      { value: "hard", label: "Hard", tooltip: "In or out of shadow at the sun's centre, as the tiles and exports." },
+                    ]}
+                  />
+                </div>
+              )}
               {(state.shadowRenderer === "raster" || shadowLiveUnsupported) && (
                 <SliderControl
                   label="Search Radius (px)"

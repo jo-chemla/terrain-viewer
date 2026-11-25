@@ -73,3 +73,4 @@
 - [MapLibre symbol and circle rendering](maplibre-symbol-and-circle-rendering.md) — line symbols placed per tile (clip, offsets, bend check), circle strokes anti-aliased inward; what the tile service's direct engine reproduces
 - [Pre-rendered relief library survey](relief-library-survey.md) — 2026-11-24: the relief Library group, ArcGIS baked half alpha (forceOpaque), underzoom via tiletx://, rejected relief services
 - [G-LiHT KMZs are elevation](gliht-kmz-elevation.md) — KMZ PNGs = stretched DTM, gliht:// reader, CORS/Earthdata proxy
+- [Shadow sun conventions](shadow-sun-conventions.md) — Hard Shadows az/alt/scale verified 2026-11-25; low-sun-only shadows = cos(alt) pad + DTM slopes, not a bug; shader and CPU twin in lib/shadow-live-math.ts

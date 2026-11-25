@@ -24,7 +24,7 @@
     "custom-protocols",
     "terrain-analysis-pipeline",
     "performance",
-    "shadow-benchmark",
+    "shadow-renderers",
     "lrm",
     "lighting-effects",
     "wms-float32-protocol",

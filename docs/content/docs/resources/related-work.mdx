@@ -1,6 +1,6 @@
 ---
 title: Related Work
-description: Datasets, viewers and papers close to Terrain Viewer (MERRA-2, ShadeMap, Mapricot shadows, LiDAR Lens, CutSheetRX, Aguacero, OpenGlobus), what each is and why it matters here, with a comparison of shadow techniques and the open status of the Petén lidar surveys
+description: Datasets, viewers and papers close to Terrain Viewer (MERRA-2, ShadeMap, LiDAR Lens, CutSheetRX, Aguacero, OpenGlobus), what each is and why it matters here, with a comparison of shadow techniques and the open status of the Petén lidar surveys
 ---
 
 Projects seen in the wild that do something close to this app, feed it data, or show where it could go next. Each entry says what it is and why it matters here. The post that brought each one up is linked next to it.
@@ -12,23 +12,19 @@ Projects seen in the wild that do something close to this app, feed it data, or 
 ## Sun and shadows
 
 - **[ShadeMap](https://shademap.app/)** ([post](https://x.com/simongerman600/status/2124012473623679463)). Ted Piotrowski's map of terrain, building and tree shadows at any date and hour worldwide, with sun-exposure hours over a date range. Why it matters: the reference for the question our Shadows mode and [Sun Position](/features/sun-position) answer for one moment. It is now an [Open In](/features/advanced/open-in) destination, carrying the position, zoom, bearing and pitch (`shademap.app/@lat,lng,{zoom}z,{time}t,{bearing}b,{pitch}p,0m`).
-- **[Mapricot shadows](https://mapricot.com/gallery/shadows/)** (same post, by Brad Simantel). A MapLibre gallery page with terrain and building shadows and a day and hour slider, hillshade and 3D light tied to the same sun. Why it matters: the closest thing to our shadow modes on the same map library, and a different way to compute them. See the comparison below.
 
 ### Shadow techniques compared
 
-How each draws shadows, from reading Mapricot's page script (`/scripts/gallery/shadows.js`, unminified) and ShadeMap's npm bundle (`mapbox-gl-shadow-simulator` 0.68), against `lib/shadow-protocol.ts`, `lib/shadow-kernel.ts` and the building shadow layer here.
+How each draws shadows, from ShadeMap's npm bundle (`mapbox-gl-shadow-simulator` 0.68) and our own code (`lib/shadow-live-gl-layer.ts`, `lib/shadow-kernel.ts`, the building shadow layer). Our two renderers and their measurements: [Shadow Renderers](/dev/shadow-renderers).
 
-| | Terrain Viewer | Mapricot | ShadeMap |
-|---|---|---|---|
-| Terrain shadows | Per tile, on the CPU (or a worker pool): a shadow-height sweep toward the sun's azimuth (a sliding maximum along sheared lines, one look-up per pixel whatever the length), up to the Search Radius in same-zoom pixels (256 by default, 512 at most), over the tile padded by that radius; a `shadow://` raster tile draped like every other mode | Per view, on the GPU: the visible Terrarium tiles (zoom + 1, up to 48 tiles) stitched into one `R16F` texture, a WebGL2 full-screen shader marching up to 320 steps that grow 2 % each, stopping once the ray clears the highest point; drawn into a canvas source | Per view, on the GPU, as a MapLibre custom layer: fixed-step march with Earth curvature correction, DSM and canopy maps as input |
-| Shadow length | Bounded by the radius (a long low-sun shadow is cut off) | Bounded only by the view and the step budget | Bounded by the view |
-| Buildings | GPU: OSM footprints (OpenFreeMap) swept away from the sun by height / tan(altitude) into a mask, flat ground, from zoom 13 | GPU: each wall extruded as two triangles moved by height / tan(altitude), flat ground, from zoom 14 (Protomaps OSM buildings) | Building heights added to the height map, so they fall on slopes too |
-| Moving the sun | Terrain: re-marches every tile (elevation is cached); buildings: a repaint | A uniform change and one draw: real time, "play the day" animation | Real time |
-| Moving the map | Tiles stream as usual | Recomputed after the map settles (moveend, idle) | Recomputed per view |
-| Any DEM | Yes: every terrain source, DSMs included, at its own resolution | Terrarium only, in the code as published | Pluggable DEM, DSM upload |
-| Licence | This repo | Readable source with no licence (all rights reserved by default) | Closed, API key required, paid above a free tier (`UNLICENSED` on npm) |
-
-**Could it replace or complement ours?** Not replace: our tiles work on any terrain source, export, feed the iso-line engine, and stay correct in split views, none of which a single view canvas does. Complement, yes, and worth doing: a GPU view-wide march would remove the radius cut-off for long evening shadows and make the sun slider live for terrain as it already is for buildings. Two ideas to borrow: the early exit once the ray clears the view's highest point (cheap and exact, and our tile kernel could use it with the tile's padded maximum), and growing steps for distant samples. Mapricot's code has no licence, so any of this would be our own implementation of a published idea, not a port. Not an Open In destination either: its page starts on a preset place (Manhattan) and reads no location from the URL (no hash, no query).
+| | Terrain Viewer | ShadeMap |
+|---|---|---|
+| Terrain shadows | Live (default): per view, on the GPU, as a MapLibre custom layer: a ray marched per fragment over an `R32F` mosaic of the view's DEM tiles, then over a mosaic three zooms coarser reaching tens of kilometres beyond, Earth curvature and refraction included, soft edge from the sun's disc. Tiles: per tile, on the CPU, a shadow-height sweep up to the Search Radius (256 px by default, 512 at most), a `shadow://` raster tile for exports and the Iso-line | Per view, on the GPU, as a MapLibre custom layer: fixed-step march with Earth curvature correction, DSM and canopy maps as input |
+| Shadow length | Live: the view plus the far mosaic (50 to 300 km); Tiles: the radius | Bounded by the view |
+| Buildings | GPU: OSM footprints (OpenFreeMap) swept away from the sun by height / tan(altitude) into a mask, flat ground, from zoom 13; and any DSM source in the terrain renderers | Building heights added to the height map, so they fall on slopes too |
+| Moving the sun | Live: uniforms and one draw, real time; Tiles: every tile recomputed (elevation is cached); buildings: a repaint | Real time |
+| Any DEM | Yes: every terrain source, DSMs included, at its own resolution | Pluggable DEM, DSM upload |
+| Licence | This repo | Closed, API key required, paid above a free tier (`UNLICENSED` on npm) |
 
 ## Viewers and tools
 

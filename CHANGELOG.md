@@ -1,3 +1,23 @@
+# Changelog — Live Shadows Reach Far: Far-Field Relief, Earth Curvature, Soft Edges
+
+<!-- released: 2026-11-25 -->
+
+#### TL;DR
+
+- **Long shadows from far away**: live terrain shadows now also come from relief tens of kilometres beyond the view (a second, coarser elevation mosaic around it), with the ground lowered by the Earth's curvature on long rays. At sunrise over Mont Blanc (sun 2°) the match with a long-reach reference goes from 0.96 to 0.999 (IoU); over the Po plain east of Turin at a 1.5° sunset, where the Alps' shadow comes from 60 to 100 km away, from 0.86 to 0.98. A frame costs 2 to 4 ms per megapixel on a laptop GPU.
+- **Soft shadow edges**: the penumbra of the sun's disc, wider the farther the ridge casting it (Lighting Effects, Shadows, **Edge: Soft / Hard**, advanced; `shadowSoft`, on by default).
+- **Clearer names**: the shadow toggle is **Terrain (+ buildings if DSM)**: a terrain model such as Mapterhorn has no buildings, and its slopes cast long shadows only under a low sun (the outer rim of the light pad). The renderer switch reads **Live (GPU) / Tiles (CPU)**.
+- **[Shadow Renderers](/docs/dev/shadow-renderers)** replaces the Shadow Benchmark page: our two renderers, their sun conventions checked on a synthetic cliff (no direction bug), accuracy and timings, and what each export uses (per-mode exports and the Iso-line read the tiles, the Snapshot captures the live shadows as drawn).
+
+#### Details
+
+- `lib/shadow-live-math.ts`: the fragment shader is now generated there (`shadowFragmentShader`) next to its line-by-line CPU twin `sunVisibilityCpu`: highest horizon angle over the view mosaic, then over the far mosaic from where the ray leaves the view mosaic; ground drop `d² (1 − k) / 2R` with k = 0.13 (`curvatureDrop`, `CURVATURE_PER_M2`); metres per texel from the Mercator scale (`texelGroundMeters`); soft edge as a smoothstep of the angular margin over the sun's 0.2665° radius. `chooseFarLayout` (three zooms coarser, up to three coarse tiles a side, at most 36 tiles), `farTransform`, `boxExitDistance`.
+- `lib/shadow-live-gl-layer.ts`: a `MosaicTexture` per mosaic (view and far field) sharing the decoded-tile cache; the far mosaic is kept while it holds a one-tile margin around the view mosaic.
+- `lib/shadow-live-math.test.ts`: synthetic cliffs through the shader's math: shadow length h / tan(alt) in metres for 5 azimuths × 4 altitudes, the Mercator scale, 115 km flat vs 86 km curved for a 2 000 m ridge under a 1° sun, a ridge beyond the view mosaic found through the far field at the right distance, the soft edge, and the tile kernel on the same cliff (same conventions).
+- `scripts/bench-shadow.mjs`: the live renderer's accuracy (CPU twin against a reference reaching up to 170 km toward the sun) and the shader's draw time in headless Chrome (same pixels as the twin); the third-party comparison is gone. `--tiles-only`, `--live-only`.
+- The tile kernel is unchanged: its sliding maximum needs a ray rising linearly with the distance, so no curvature (under 1 m within its radius at z13 and finer) and no far field.
+- Live shadows draw in every view of a split, as live Phong.
+
 # Changelog — QGIS Plugin With the Tile Service Inside
 
 #### TL;DR
@@ -11,12 +31,11 @@
 - `qgis-plugin/make_zip.py --bundled [platform]` builds any platform from any host: Node from nodejs.org checked against `SHASUMS256.txt`, tile-server's production dependencies installed flat (`node-linker=hoisted`) with pnpm's `supportedArchitectures`, source maps and type declarations left out. `.github/workflows/qgis-plugins.yml` (on demand) builds each platform on its own runner, starts its service there (`qgis-plugin/smoke_bundled.py`), and with `release_tag` attaches the zips to a release.
 - `qgis-plugin/terrain_viewer/local_server.py`: port 3410, or a free one when it is taken (a saved project's layers follow the port on Connect); `CREATE_NO_WINDOW` on Windows; the executable bit set again on macOS and Linux (QGIS's zip installer drops it); no `.env` read. `qgis-plugin/test_bundled.py` unzips a platform zip into a temporary folder and drives it through the panel in headless QGIS (3.44 LTR and 4.2 on Windows: started in about 4 s, `/processes` and a slope tile answered, gone after unload).
 
-
 # Changelog — Live GPU Terrain Shadows
 
 #### TL;DR
 
-- **Hard Shadows draw live on the GPU** (idea 1 of the [Shadow Benchmark](/docs/dev/shadow-benchmark#live-gpu-renderer)): every pixel marches its own ray toward the sun over a Float32 mosaic of the view's DEM tiles. The sun pad, the Datetime hours and the Sun Shadow Calculator now move terrain shadows in real time, and shadows reach the edge of the view plus a tile, with no Search Radius and no height tolerance (low plateau edges are kept). Mercator, globe and 3D terrain.
+- **Hard Shadows draw live on the GPU** ([Shadow Renderers](/docs/dev/shadow-renderers#live-renderer)): every pixel marches its own ray toward the sun over a Float32 mosaic of the view's DEM tiles. The sun pad, the Datetime hours and the Sun Shadow Calculator now move terrain shadows in real time, and shadows reach the edge of the view plus a tile, with no Search Radius and no height tolerance (low plateau edges are kept). Mercator, globe and 3D terrain.
 - **Renderer: Live / Tiles** under Lighting Effects, Shadows (advanced; `shadowRenderer`, default `live`). Tiles is the `shadow://` pipeline with its Search Radius; exports and the Iso-line always use it, and it takes over by itself when the GPU layer cannot run on the device.
 
 #### Details
@@ -30,12 +49,12 @@
 
 - **Terrain shadows reach eight times farther for about the same cost**: the Search Radius defaults to 256 px (it was 32) and goes up to 512 (it was 64). In the Alps under a 15° sun the old default found half the mountain shadows a long reference finds (IoU 0.55); 256 finds 0.75, 512 finds 0.90. On gentle relief (Seine cliffs, z15) 256 is exact where 32 missed 6 %. Same for the tiles, exports, split views and the Iso-line's hard-shadow measure. Links that set `shadowRadiusPx` keep their value.
 - **How**: the per-pixel ray march became a shadow-height sweep, a sliding maximum along the lines toward the sun whose work per sample does not depend on the radius. Radius 256 takes 4.6 ms a tile in Chamonix against 4.0 for the old march at 32, and 3.0 against 5.4 at Les Andelys; at equal radius it gives the march's pixels, faster. Every pixel reaches the same distance, so tiles agree at their seams, and the reach stops, exactly, where nothing ahead can be high enough.
-- **[Shadow Benchmark](/docs/dev/shadow-benchmark)** (new page, from the previous commit): how Mapricot's GPU shadows work, ours against them point by point and timed on the same tiles, view and sun, and five improvements ranked by expected gain. Ideas 2 to 4 are this change; a live GPU shadow layer (idea 1) is in progress separately.
+- **[Shadow Renderers](/docs/dev/shadow-renderers)** (new page): the tile kernel's timings on real tiles against a long-radius reference, and the improvements that led to the sweep; a live GPU shadow layer is in progress separately.
 
 #### Details
 
 - `lib/shadow-kernel.ts`: `computeShadowTile` (the sweep: the grid sheared along the sun's minor axis, van Herk / Gil-Werman over windows of `radius / hypot(1, b)` steps, two row-by-row passes, the window maximum interpolated between the pixel's two lines); the march stays as `computeShadowRowsMarch`, with the exact per-ray early exit, as the reference. `SHADOW_RADIUS_DEFAULT_PX` / `SHADOW_RADIUS_MAX_PX` in `lib/shadow-protocol.ts`, which caps the radius at two tiles.
-- `fetchPaddedElevationGrid` (`lib/normal-derived-protocol.ts`) takes as many rings of same-zoom neighbours as the halo needs (one up to a tile, as before; two above, 25 tiles). Why not a lower zoom for the far part: [the benchmark page](/docs/dev/shadow-benchmark#the-sweep-2026-11-25).
+- `fetchPaddedElevationGrid` (`lib/normal-derived-protocol.ts`) takes as many rings of same-zoom neighbours as the halo needs (one up to a tile, as before; two above, 25 tiles). Why not a lower zoom for the far part: [Shadow Renderers](/docs/dev/shadow-renderers#tiles-the-shadow-height-sweep).
 - `lib/shadow-kernel.test.ts` (offline, `node --test lib/shadow-kernel.test.ts`): a cone and a cliff under eight suns against a continuous ray (sweep IoU 0.989 to 1, the old march 0.807 to 1: its nearest-pixel steps shadowed lit flanks at oblique azimuths), the cliff's shadow length, the same cut for every column, sun overhead, flat ground, sun below the horizon.
 - `scripts/bench-shadow.mjs`: the old march (radius 32, 64) against the sweep (32 to 768), best of `REPS` runs per tile; numbers in the benchmark page.
 
@@ -80,7 +99,7 @@
 - **Search the catalogs**: the historical catalogs list (the timeline's Catalogs picker and the Sources Coverage panel) has a filter box: name, description, provider (the STAC host), group and country, with the Library's typo-tolerant matcher. Groups with a match open, the others hide.
 - **Library**: the Terrain / Basemap tabs a little smaller; **Load all** and **Clear all** removed (per-row and per-section add and remove stay).
 - **Attribution (i)**: no focus ring after a click; with the keyboard the ring goes around the whole box, with its radius.
-- **Open In**: Mapricot shadows removed (it opens at its own place, so it was no hand-off). Same in the QGIS plugin.
+- **Open In**: a shadow gallery that opens at its own place removed (it was no hand-off). Same in the QGIS plugin.
 
 #### Details
 
@@ -128,7 +147,7 @@
 - **Hidden means no requests**: unchecking an overlay with the Basemap section off no longer switches the section back on (which reloaded every other overlay and the basemap); overlays are not mounted in a split view that hides the basemap (an image overlay downloaded its picture there); an Allmaps overlay at opacity 0 is removed (its warped layer kept fetching); the minimized minimap loads no imagery; the Wayback, Esri, Bing and Google Earth date lookups run only where a shown view or the open timeline needs them (they ran on every move whatever basemap was picked).
 - **NASA MERRA-2 month by month on the timeline**: the five MERRA-2 climate fields (2 m air temperature, wind speed, dust, aerosol optical thickness, ozone at 50 hPa) are timeline catalogs, one map a month from January 1980 to two months ago, from NASA GIBS. The Library overlays stay at GIBS's latest month.
 - **Featured bookmark**: the Cévennes on the Ardèche–Lozère border in a black-and-white slope.
-- **Open In**: Mapricot shadows (opens at its own place: its URL takes no location); LiDAR Lens moves to the end of the list (Britain and Ireland only: its terrain is fixed at build time, no URL takes another DEM).
+- **Open In**: LiDAR Lens moves to the end of the list (Britain and Ireland only: its terrain is fixed at build time, no URL takes another DEM).
 
 #### Details
 
@@ -194,7 +213,7 @@
 #### Details
 
 - Tile loading: MapLibre requests tiles for every source a visible layer uses, whatever the layer's opacity (`StyleLayer.isHidden` reads only zoom range and visibility; `TileManager.update` asks for no tile when the source is unused). Switched off, unchecked, and views outside the layout were already free: a switched-off basemap's layer is `visibility: none`, an unchecked overlay and the overlays of a switched-off basemap are unmounted, and only the views of the current layout are mounted.
-- Open In: Aguacero WX, Senter Farms' CutSheetRX and Mapricot shadows read no location from their URL (saved-item ids, local storage, a preset place), so none can be a destination; [Related Work](/docs/resources/related-work) says so for each.
+- Open In: Aguacero WX and Senter Farms' CutSheetRX read no location from their URL (saved-item ids, local storage, a preset place), so neither can be a destination; [Related Work](/docs/resources/related-work) says so for each.
 
 # Changelog — Tile Service, Terrain Viewer in Claude, Land Cover
 

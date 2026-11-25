@@ -1,0 +1,145 @@
+---
+title: Shadow Renderers
+description: The two renderers of Hard Shadows, the live GPU march with its far-field mosaic, Earth curvature and soft edge, and the shadow:// tile kernel's shadow-height sweep; their sun conventions, checked on a synthetic cliff; accuracy against long-reach references and timings on real tiles; what each export uses
+---
+
+Hard Shadows has two renderers (Lighting Effects, Shadows, **Renderer**):
+
+| | Live (GPU), the default | Tiles (CPU) |
+|---|---|---|
+| Code | `lib/shadow-live-gl-layer.ts`, shader and CPU twin in `lib/shadow-live-math.ts` | `lib/shadow-protocol.ts` (`shadow://`), kernel in `lib/shadow-kernel.ts` |
+| Unit of work | every fragment of the view, once per frame | a 256 or 512 px tile, on the CPU (main thread or the raster worker pool) |
+| Elevation | the view's DEM tiles in one `R32F` mosaic, plus a mosaic three zooms coarser around it | the tile padded by the Search Radius from same-zoom neighbours |
+| Reach | the view plus a tile or two, then the far mosaic: 50 to 300 km depending on the zoom | the Search Radius, 256 px by default, 512 at most (1.7 km and 3.4 km at z14 in the Alps) |
+| Earth curvature | yes, with refraction | no (below 1 m within the radius at z13 and finer) |
+| Edge | soft (the sun's disc) or hard | hard |
+| Moving the sun | uniforms and one draw | every tile recomputed |
+| Used by | the map, in every view of a split | the map when Tiles is picked or the GPU layer cannot run, every export, the Iso-line |
+
+Both read the same light: `illuminationDir` and `illuminationAlt`, written by the light pad, the Datetime sun and the Sun Shadow Calculator.
+
+## Sun direction, scale and units
+
+Checked on 2026-11-25 after a report that "only very low lights produce meaningful shadows": there is no bug in the sun direction. Every step from the pad to the shader:
+
+- **Pad to state.** The pad (`SphericalXYPad`, and the `L`-drag overlay) is an orthographic view of the sky: up is north, right is east, the azimuth is the compass bearing of the light (where the sun is, clockwise from north), and the radius is cos(altitude). So the centre is 90°, half the radius is 60°, and everything at 30° or below sits in the outer 13 % of the radius (15° and below: the outer 3.4 %). The Datetime sun and the Sun Shadow Calculator write the same compass azimuth and degrees (`solarPosition`, `inverseSunPosition`).
+- **State to march.** Both renderers step toward the sun with (east, south) = (sin az, −cos az), Web Mercator being conformal; the altitude goes in as degrees and becomes radians once (`u_alt`, `altitudeRad`).
+- **Scale.** Metres per texel = equator length / (tileSize · 2^z) · cos(lat), the Mercator scale factor 1 / cos(lat) taken at the fragment's latitude (`texelGroundMeters`, the same as `groundResolutionM` the tiles use). Heights are metres (Terrarium, Mapbox RGB and the float sources decode to metres).
+- **Test.** `lib/shadow-live-math.test.ts` builds a synthetic cliff across the sun direction and checks that the shadow ends h / tan(alt) metres from it, through the shader's own math, for 5 azimuths × 4 altitudes at 46° N (within 2 texels or 3 %); then the tile kernel on the same cliff for 5 suns (within 2.5 px); then a 2 000 m ridge under a 1° sun: 115 km on a flat Earth, 86 km with the curvature, both within 3 %.
+
+Why low suns then: a terrain model has few slopes steeper than 30°, and a slope casts a shadow only when it is steeper than the sun is high. With a DTM such as Mapterhorn, ground under a 45° sun is lit almost everywhere; a surface model (DSM) adds buildings and trees, whose walls cast shadows at any altitude. Hence the toggle's name, **Terrain (+ buildings if DSM)**.
+
+## Live renderer
+
+How it draws (mosaic, march, drawing, fallback) is on [Lighting Effects, live renderer](/dev/lighting-effects#live-gpu-renderer). In short: one fragment, one ray toward the sun; one-texel steps for 40 texels, then 1/40 of the distance covered; across the view mosaic, then over the far mosaic; the highest horizon angle with the ground lowered by `d² (1 − k) / 2R`; stop above the sun's disc (shadow), at the far mosaic's edge, or above everything (lit).
+
+### Far field and curvature
+
+Before 2026-11-25 the march stopped at the view mosaic's edge, so relief beyond the view plus a tile or two cast nothing. The far-field mosaic is the same DEM three zooms coarser (`FAR_LEVELS`; a coarse tile covers 8 × 8 view tiles), the view mosaic's footprint plus up to three coarse tiles a side, at most 36 tiles: tens of kilometres at map zoom 13 (81 × 81 km in the Alps), hundreds at zoom 11. The ray enters it where it leaves the view mosaic, never earlier: under the view mosaic the coarse ground's smoothing would fill narrow valleys and shade their floors. Over tens of kilometres the Earth's curvature matters: the ground d metres away is d² / 2R below the tangent plane, flattened by refraction to d² (1 − k) / 2R with k = 0.13 (7 m at 10 km, 170 m at 50 km, 690 m at 100 km), and the march subtracts it from every sample.
+
+**Measured** (`node scripts/bench-shadow.mjs --live-only`, 2026-11-25). Same Terrarium tiles, a 1280 × 800 view (DPR 1, pitch 0), the layer's own mosaic rules on 256 px tiles. Accuracy from the CPU twin on every 4th texel of the view (64 000 pixels), as IoU of the shadow against a reference: the same march with steps five times denser, the view mosaic and then a grid two zooms coarser (not three) reaching far enough toward the sun for every shadow, curvature on.
+
+| Case | View mosaic only, flat (until 2026-11-25) | View only, curvature | View + far, flat | **View + far, curvature (shipped)** | Far field four zooms down |
+|---|---|---|---|---|---|
+| Chamonix, zoom 13, sun 15° from 135° (reference 25 km) | 0.979 | 0.979 | 0.999 | **0.999** | 0.998 |
+| Mont Blanc, zoom 13, sunrise 4° from 110° (80 km) | 0.979 | 0.979 | 0.999 | **0.999** | 0.999 |
+| Mont Blanc, zoom 13, sunrise 2° from 110° (120 km) | 0.959 | 0.959 | 0.999 | **0.999** | 0.998 |
+| Po plain east of Turin, zoom 11, sunset 1.5° from 255° (170 km) | 0.857 | 0.854 | 0.909 | **0.978** | 0.976 |
+
+- **In the mountains the view mosaic already holds most occluders,** and the far field takes the rest: 2 % of the shadow at Chamonix under 15° and 4 % at Mont Blanc under 2°, cast from relief off screen to the south-east. At these distances the curvature changes a handful of pixels.
+- **Long shadows over a plain need both.** East of Turin under a 1.5° setting sun, the Alps' shadow comes from 60 to 100 km away: the view mosaic alone finds 72 % shadow where the reference finds 84 %; the far field on a flat Earth overshoots to 93 % (the Alps' shadow is 107 km long on a flat Earth); with the curvature, 87 km, 82 %, IoU 0.978.
+- **Three zooms down is enough.** Four reach farther (135 km instead of 81 at zoom 13) but are no better in these cases and slightly coarser.
+- **The tile renderer's 0.75 at Chamonix** (radius 256, below) is its radius, not the live renderer: on the same view the live renderer's view mosaic reaches 0.979.
+
+**Cost on the GPU** (the very shader string, `shadowFragmentShader`, in headless Chrome on an NVIDIA RTX A1000 Laptop through ANGLE D3D11; one fragment per texel of the whole 2048 × 1536 view mosaic, 3.1 Mpx, so about three times the fragments of the 1280 × 800 view the layer actually draws; median of 20 draws timed to completion with a 1-pixel `readPixels`):
+
+| Case | View only, flat, hard | View + far, curvature, hard | View + far, curvature, soft |
+|---|---|---|---|
+| Chamonix 15° | 8.0 ms | 7.3 ms | 7.7 ms |
+| Mont Blanc 4° | 6.4 ms | 8.1 ms | 7.9 ms |
+| Mont Blanc 2° | 5.6 ms | 8.6 ms | 8.5 ms |
+| Po plain 1.5° | 9.2 ms | 11.9 ms | 13.3 ms |
+
+So 2 to 4 ms per megapixel, the far field adding up to 50 % where long rays run on past the view mosaic and nothing where rays stop early; the soft edge costs little (rays continue until the horizon clears the top of the disc instead of its centre). Uploading both mosaics (`R32F`, 48 + 36 tiles of 256 px) took 17 to 44 ms, once per mosaic layout, tile by tile in the app. The shader and the CPU twin give the same pixels (100.00 % of the lattice in all four cases).
+
+### Soft edge
+
+The sun is a disc 0.53° across, so a shadow edge is a penumbra whose width grows with the distance to the ridge casting it: about d · 0.0093, 9 m at 1 km, 90 m at 10 km. With **Edge → Soft** (`shadowSoft`, the default) the march keeps the highest horizon angle instead of stopping at the first hit, and the visible share of the sun is a smoothstep of (sun altitude − horizon angle) over ± 0.27° (a smoothstep, close to the exact share of a disc under a straight horizon). It stops early once the horizon is above the top of the disc (fully hidden) or the ray from the bottom of the disc clears everything (fully visible). Near the horizon it also does what the sky does: a sun half under a flat horizon is half visible.
+
+### Mask or light term
+
+The live layer is a **subtractive mask**: black at the shadow opacity times the hidden share of the sun, drawn over whatever is below (basemap, hillshade, colour relief). The alternative, an **additive light term**, multiplies the direct light of a shading model by the sun's visibility: `ambient + visibility · max(0, N · L)`. That gives the cleaner silhouette: the cast shadow joins the slopes turned away from the sun (where N · L reaches zero) without a seam, and a shadow over a slope already in hillshade shade is not darkened twice. It needs a lighting pass to multiply, though, and Hard Shadows is an overlay usable on any basemap, alone or over Hillshade. So: a mask here, and the soft edge makes the mask's silhouette read as a light falloff. Phong could take the visibility as a light term later (its live layer would read the same mosaic).
+
+
+## Exports and the Iso-line
+
+| Output | Phong | Matcap | Hard Shadows | Building shadows |
+|---|---|---|---|---|
+| Export dialog, per-mode item | `phong://` tiles, whatever the renderer | `matcap://` tiles, whatever the renderer | `shadow://` tiles, whatever the renderer | no item |
+| Export dialog, Snapshot | the canvas as drawn (live layer included) | the canvas as drawn | the canvas as drawn (live layer included) | the canvas as drawn |
+| Iso-line | `phong://` through `luma://` | `matcap://` through `luma://` | `shadow://` through `luma://` | none |
+
+The per-mode items read tiles (`readRgbaRegion` over `lightingTemplate` in `export-layers-dialog.tsx`), not the canvas: any size and extent, any pitch or bearing, no need for the view to be 2D and north-up as a canvas render requires. Live Phong and Matcap export that way too, so Hard Shadows does the same and keeps it: an exported shadow is hard-edged, flat-Earth and limited to the Search Radius. The Snapshot captures the canvas, so it carries the live shadows as drawn. The Iso-line needs a raster of values it can contour per tile at any zoom (`luma://` over the tiles); the live layer is a picture of the current frame, so the Iso-line stays on the tiles.
+
+## Tiles: the shadow-height sweep
+
+`computeShadowTile` in `lib/shadow-kernel.ts` is what the tiles, the exports and the Iso-line's hard-shadow measure run since 2026-11-25. The per-pixel ray march it replaced stays next to it as `computeShadowRowsMarch`, the reference for the test and the benchmark.
+
+**How it works.** The sun direction's dominant axis (rows or columns) is the "major" one; one step toward the sun is one major pixel and `b` minor pixels (|b| ≤ 1). Shearing the grid along the minor axis turns the lines toward the sun into columns (each sample linear between the two pixels it falls between). Along a line, pixel `u` is in shadow when some sample `t` in `(u, u + J]` has `hs(t) − (t − u)·drop > h(u)`, `drop` being the sun's rise over one step: so when the maximum of `hs(t) − t·drop` over that window, plus `u·drop`, is above `h(u)`. That is a sliding maximum of fixed width, computed for every pixel at once with van Herk / Gil-Werman (a prefix and a suffix maximum per block of `J`): constant work per sample, whatever the radius. Each tile pixel takes the window maximum interpolated between its two sheared columns (exact on planes, so sunlit slopes never shadow themselves) and compares it with its own elevation.
+
+- **Same reach for every pixel.** `J = radius / hypot(1, b)` steps, the same Euclidean radius as the march: tiles agree at their seams.
+- **Exact early exit.** `J` never exceeds (highest point the samples can reach − lowest pixel of the tile) / `drop`: few steps at a high sun or on gentle relief, none on flat ground.
+- **Versus the march.** Linear samples instead of the nearest pixel, and the window maximum interpolated between two lines, so a shadow edge can move by about a pixel. The march's rounding was the bigger error: at azimuth 30° its first step looks due north, and it shadowed cone flanks the sun lights.
+- **No curvature, no far field.** The sliding maximum needs the ray to rise linearly with the distance: a term in (t − u)² has a cross term in t·u and no longer splits into a maximum over the window plus a per-pixel offset. Within the radius it is small anyway: 512 px is 3.4 km at z14 (0.8 m of drop) and 13.6 km at z12 (12 m). A far field would need a second pass on a coarser grid per tile; the exports that want long shadows can use the Snapshot of the live layer.
+
+**Test.** `node scripts/test-lib.mjs lib/shadow-kernel.test.ts`, offline: a cone and a step (a cliff) under eight suns each, against a continuous ray (bilinear samples every half pixel). The sweep scores an IoU of 0.989 to 1 on the cone, the march 0.807 to 1; both are exact on the cliff when the sun shines over it. Plus the cliff's shadow length against the formula, the same cut for every column at a given radius, the sun overhead, flat ground and the sun below the horizon.
+
+**Timings** (`REPS=15 node scripts/bench-shadow.mjs --tiles-only`, 2026-11-25, best of 15 runs per tile in Node 22 on one thread, padded grid already built; same 1280 × 800 view, sun at azimuth 135° and altitude 15°; IoU against the march at radius 768, long enough for every shadow in these views). The laptop was busy with other work, so compare rows with each other.
+
+**Chamonix, map zoom 13** (24 tiles at z14):
+
+| | Per tile (ms) | Slowest tile (ms) | Shadow | IoU |
+|---|---|---|---|---|
+| Old march, radius 32 (old default) | 4.0 | 7.1 | 43 % | 0.55 |
+| Old march, radius 64 (old maximum) | 6.1 | 10.8 | 46 % | 0.58 |
+| Sweep, radius 32 | 2.7 | 3.6 | 43 % | 0.55 |
+| Sweep, radius 64 | 2.7 | 3.1 | 46 % | 0.58 |
+| Sweep, radius 128 | 3.4 | 4.6 | 52 % | 0.64 |
+| **Sweep, radius 256 (default)** | **4.6** | 6.8 | 62 % | **0.75** |
+| Sweep, radius 384 | 5.3 | 7.7 | 68 % | 0.83 |
+| **Sweep, radius 512 (maximum)** | **8.4** | 9.9 | 71 % | **0.90** |
+| Sweep, radius 768 | 7.1 | 10.6 | 75 % | 1.000 |
+| March, radius 768 (the reference, with the early exit) | 59 | 157 | 75 % | 1 |
+
+**Les Andelys (Seine cliffs and chalk plateau), map zoom 15** (8 tiles at z15):
+
+| | Per tile (ms) | Slowest tile (ms) | Shadow | IoU |
+|---|---|---|---|---|
+| Old march, radius 32 (old default) | 5.4 | 5.9 | 7.4 % | 0.94 |
+| Old march, radius 64 (old maximum) | 9.0 | 9.8 | 8.3 % | 0.99 |
+| Sweep, radius 32 | 2.2 | 2.4 | 7.3 % | 0.93 |
+| Sweep, radius 64 | 2.5 | 2.5 | 8.3 % | 0.99 |
+| **Sweep, radius 256 (default)** | **3.0** | 3.6 | 8.6 % | **1.000** |
+| **Sweep, radius 512 (maximum)** | **3.2** | 3.5 | 8.6 % | **1.000** |
+| Sweep, radius 768 | 3.9 | 4.3 | 8.6 % | 1.000 |
+| March, radius 768 (the reference, with the early exit) | 18 | 29 | 8.6 % | 1 |
+
+- **The default costs about what the old one did, for shadows eight times longer.** Radius 256 takes 4.6 ms a tile in Chamonix against 4.0 for the old march at 32, and 3.0 against 5.4 at Les Andelys, where the early exit cuts the reach.
+- **Same pixels as the march at equal radius, faster at every radius**: at radius 768 the two give the same pixels in an eighth (Chamonix) and a fifth (Les Andelys) of the time.
+- **Cap 512.** The slowest Chamonix tile stays under 10 ms on a busy machine, and 512 keeps the fetch to two rings of neighbours.
+- **Long mountain shadows under a low sun** go past any radius: at 15° in the Alps 512 px reaches 0.90 of the reference. That is the live renderer's job.
+- **Per pixel, the GPU wins by about two orders of magnitude**: 59 ms a tile (65 536 px) for the long-reach march on the CPU, against about 2.5 ms per million pixels for the live shader.
+
+**The halo: same-zoom neighbours, not a lower zoom.** `fetchPaddedElevationGrid` (`lib/normal-derived-protocol.ts`) takes as many rings of same-zoom neighbours as the halo needs: one up to a tile (radius 256 on 256 px tiles, 512 on 512 px tiles), two beyond (25 tiles). A lower zoom for the far part would need a second sweep on a coarser grid, resampled onto the tile's pixels, with a step between the two resolutions where the near part ends. Same-zoom rings keep one grid and one sweep, and cost less than they look: tiles are cached and shared by neighbours, so for a whole view the extra fetch is a border one ring wider, once, whatever the sun does. What it does cost: a 1 280 px padded grid (6.5 MB of floats) per 256 px tile at radius 512, copied to the raster worker. The protocol caps the radius at two tiles and at 512.
+
+## Running it
+
+```bash
+node scripts/bench-shadow.mjs               # both renderers; Chrome runs the live shader
+node scripts/bench-shadow.mjs --no-chrome   # Node only (the live renderer through its CPU twin)
+node scripts/bench-shadow.mjs --tiles-only  # the tile kernel only
+node scripts/bench-shadow.mjs --live-only   # the live renderer only
+node scripts/bench-shadow.mjs --headed      # Chrome in a window
+```
+
+Needs Node 22.18 or later (it imports the `.ts` modules directly) and, for the shader's timings, Chrome; no `pnpm install`. Tiles (Terrarium, 256 px) are cached in `.cache/shadow-bench/tiles/`, results in `.cache/shadow-bench/results.json`. `REPS=15` sets the runs per tile for the kernel (the best is kept, default 9). The tile part takes two to three minutes, most of it the 768 px march references; the live part about a minute after the first download.

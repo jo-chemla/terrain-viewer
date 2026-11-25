@@ -16,7 +16,7 @@ import { LAYER_SLOTS } from "./MapLayers"
 const LIVE_LAYER_ID = "shadow-live"
 
 export function ShadowLiveGlLayer({
-  mapRef, enabled, lightDir, lightAlt, opacity,
+  mapRef, enabled, lightDir, lightAlt, soft, opacity,
   terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint,
 }: {
   mapRef: React.RefObject<MapRef | null>
@@ -24,6 +24,8 @@ export function ShadowLiveGlLayer({
   /** Sun azimuth (compass degrees) and altitude (degrees): state.illuminationDir / illuminationAlt, undebounced. */
   lightDir: number
   lightAlt: number
+  /** Soft edge from the sun's disc (state.shadowSoft). */
+  soft: boolean
   opacity: number
   terrainSource: TerrainSource | string
   customTerrainSources: CustomTerrainSource[]
@@ -45,7 +47,7 @@ export function ShadowLiveGlLayer({
       tileSize: clientUpstream.tileSize,
       minzoom: clientUpstream.minzoom,
       maxzoom: clientUpstream.maxzoom,
-      azimuthDeg: lightDir, altitudeDeg: lightAlt, opacity,
+      azimuthDeg: lightDir, altitudeDeg: lightAlt, opacity, soft,
     }
     const layer = new ShadowLiveLayer(LIVE_LAYER_ID, options)
     layer.onUnsupported = (reason) => setUnsupported(reason)
@@ -80,8 +82,8 @@ export function ShadowLiveGlLayer({
   }, [enabled, clientUpstream?.template, clientUpstream?.encoding, clientUpstream?.tileSize, clientUpstream?.minzoom, clientUpstream?.maxzoom, mapRef])
 
   useEffect(() => {
-    layerRef.current?.updateOptions({ azimuthDeg: lightDir, altitudeDeg: lightAlt, opacity })
-  }, [lightDir, lightAlt, opacity])
+    layerRef.current?.updateOptions({ azimuthDeg: lightDir, altitudeDeg: lightAlt, opacity, soft })
+  }, [lightDir, lightAlt, opacity, soft])
 
   return null
 }

@@ -1566,6 +1566,16 @@
             }
           },
           {
+            "name": "shadowSoft",
+            "in": "query",
+            "required": false,
+            "description": "State. Live renderer only: a soft shadow edge from the sun's 0.53° disc (the fraction of the disc above the horizon); false draws it hard, as the tiles.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
             "name": "showBuildingShadows",
             "in": "query",
             "required": false,

@@ -1215,6 +1215,16 @@
       "note": "\"live\" (default): lib/shadow-live-gl-layer.ts, rays marched per pixel on the GPU over a Float32 mosaic of the view's DEM tiles: the sun moves in real time and shadows reach the view's edge plus a til…"
     },
     {
+      "key": "shadowSoft",
+      "stateKey": "shadowSoft",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Live renderer only: a soft shadow edge from the sun's 0.53° disc (the fraction of the disc above the horizon); false draws it hard, as the tiles."
+    },
+    {
       "key": "showBuildingShadows",
       "stateKey": "showBuildingShadows",
       "type": "boolean",
