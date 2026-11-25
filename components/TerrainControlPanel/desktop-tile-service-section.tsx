@@ -4,7 +4,10 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
+import { Check, Copy, ExternalLink } from "lucide-react"
 import { useDesktopTileService, setDesktopTileService, DESKTOP_TILE_SERVICE_PORT } from "@/lib/desktop-bridge"
+import { tileServiceBase, tileServiceQuickstart } from "@/lib/tile-service-quickstart"
+import { cn } from "@/lib/utils"
 
 /** Settings > Desktop: local tile service. Rendered by the settings dialog in
  *  the desktop app only (isDesktopApp): the tile service shipped inside the
@@ -19,7 +22,8 @@ export const DesktopTileServiceSettings: React.FC = () => {
   const portNumber = Number(port)
   const portValid = Number.isInteger(portNumber) && portNumber >= 1024 && portNumber <= 65535
   const busy = t.state === "starting" || t.state === "stopping"
-  const address = `http://localhost:${t.port}`
+  const address = tileServiceBase(t.port)
+  const running = t.state === "running"
 
   if (t.answered && !t.available) {
     return (
@@ -72,11 +76,47 @@ export const DesktopTileServiceSettings: React.FC = () => {
         )}
       </div>
       {!portValid && port !== "" && <p className="text-xs text-destructive">A port between 1024 and 65535.</p>}
-      <p className="text-xs break-words" role="status">
-        <span className="font-semibold">Status: </span>
-        {!t.answered ? "asking the app…" : describe(t)}
+      <p className="text-xs break-words flex items-center gap-1.5 min-w-0" role="status">
+        <span
+          aria-hidden
+          className={cn(
+            "inline-block h-2 w-2 rounded-full shrink-0",
+            running ? "bg-green-500" : t.state === "error" ? "bg-red-500" : busy ? "bg-amber-500" : "bg-muted-foreground/50",
+          )}
+        />
+        <span className="min-w-0"><span className="font-semibold">Status: </span>{!t.answered ? "asking the app…" : describe(t)}</span>
       </p>
       {t.log && t.state === "error" && <p className="text-[11px] text-muted-foreground font-mono break-all">Log: {t.log}</p>}
+      <div className="space-y-1 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-semibold shrink-0">Endpoint</span>
+          <code className="text-xs font-mono truncate min-w-0" title={address}>{address}</code>
+          <CopyButton text={address} label="Copy the endpoint" />
+          <a
+            href={`${address}/docs`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn("inline-flex items-center gap-1 text-xs underline shrink-0", !running && "opacity-60")}
+            title={running ? "The service's API reference (Scalar)" : "The API reference opens once the service runs"}
+          >
+            API reference <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      </div>
+      <div className="space-y-1.5 min-w-0">
+        <p className="text-xs font-semibold">Quick start</p>
+        <ul className="space-y-1.5 min-w-0">
+          {tileServiceQuickstart(address).map((q) => (
+            <li key={q.url} className="min-w-0">
+              <p className="text-xs break-words">{q.label} <span className="text-muted-foreground">· {q.hint}</span></p>
+              <div className="flex items-center gap-1 min-w-0">
+                <code className="text-[11px] font-mono text-muted-foreground truncate min-w-0" title={q.url}>{q.url}</code>
+                <CopyButton text={q.url} label={`Copy: ${q.label}`} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
@@ -89,4 +129,50 @@ function describe(t: ReturnType<typeof useDesktopTileService>): string {
     case "error": return `stopped: ${t.message ?? "unknown error"}`
     default: return t.message ?? "stopped"
   }
+}
+
+/** Copies through the async Clipboard API, falling back to a hidden textarea
+ *  and execCommand: the desktop app's views:// page may not count as a secure
+ *  context for navigator.clipboard. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    try {
+      const ta = document.createElement("textarea")
+      ta.value = text
+      ta.setAttribute("readonly", "")
+      ta.style.position = "fixed"
+      ta.style.opacity = "0"
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand("copy")
+      ta.remove()
+      return ok
+    } catch {
+      return false
+    }
+  }
+}
+
+const CopyButton: React.FC<{ text: string; label: string }> = ({ text, label }) => {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const id = setTimeout(() => setCopied(false), 1500)
+    return () => clearTimeout(id)
+  }, [copied])
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-6 w-6 shrink-0 cursor-pointer"
+      title={label}
+      aria-label={label}
+      onClick={() => { void copyText(text).then((ok) => { if (ok) setCopied(true) }) }}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+    </Button>
+  )
 }

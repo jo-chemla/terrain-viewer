@@ -368,15 +368,20 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   const [isSaveProjectOpen, setIsSaveProjectOpen] = useAtom(isSettingsSaveProjectOpenAtom)
   const [isResourcesOpen, setIsResourcesOpen] = useAtom(isSettingsResourcesOpenAtom)
   const [isGeomorphometryOpen, setIsGeomorphometryOpen] = useAtom(isSettingsGeomorphometryOpenAtom)
+  // The desktop app's own section counts only where it renders, so on the
+  // web a hidden section's stored state never flips the button's label.
+  const [isDesktopTileServiceOpen, setIsDesktopTileServiceOpen] = useAtom(isSettingsDesktopTileServiceOpenAtom)
   const settingsSectionOpenStates = [
     isWhatsNewOpen, isAppearanceOpen, isKeyboardShortcutsOpen, isVisualizationModesOpen, isStreamingOpen,
     isStoragePersistenceOpen, isBetaOpen,
     isApiKeysOpen, isMapBoundsOpen, isSaveProjectOpen, isResourcesOpen, isGeomorphometryOpen,
+    ...(isDesktopApp ? [isDesktopTileServiceOpen] : []),
   ]
   const settingsSectionSetters = [
     setIsWhatsNewOpen, setIsAppearanceOpen, setIsKeyboardShortcutsOpen, setIsVisualizationModesOpen, setIsStreamingOpen,
     setIsStoragePersistenceOpen, setIsBetaOpen,
     setIsApiKeysOpen, setIsMapBoundsOpen, setIsSaveProjectOpen, setIsResourcesOpen, setIsGeomorphometryOpen,
+    ...(isDesktopApp ? [setIsDesktopTileServiceOpen] : []),
   ]
   const allSettingsFolded = settingsSectionOpenStates.every((open) => !open)
   const handleFoldExpandAllSettings = () => {

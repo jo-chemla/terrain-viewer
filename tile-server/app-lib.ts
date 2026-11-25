@@ -15,3 +15,6 @@ export { TIMELAPSE_FIRST_YEAR, TIMELAPSE_LAST_YEAR } from "../lib/google-timelap
 // (direct.mjs), which colours elevation and slope grids without a map.
 export { colorRampsFlat, remapColorRampStops } from "../lib/color-ramps"
 export { default as chroma } from "chroma-js"
+// The quick-start addresses (lib/tile-service-quickstart.ts), shared with the
+// desktop app's Settings > Desktop: local tile service.
+export { tileServiceQuickstart } from "../lib/tile-service-quickstart"

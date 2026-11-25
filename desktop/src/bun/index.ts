@@ -193,8 +193,19 @@ let openFilePath = (() => {
   }
   return "";
 })();
+// The bundle's own version.json (written by the build from
+// electrobun.config.ts): the identifier tells the light build (it ends in
+// "-light", desktop/gen-config.mjs; it ships no docs and views://app/docs/
+// holds only a stand-in), and displayName is the app's name per variant
+// ("Terrain Viewer" or "Terrain Viewer Light"), which the window title
+// repeats, as the installer and the shortcuts do.
+const bundleInfo = (() => {
+  try { return JSON.parse(readFileSync(join(dirname(process.execPath), "..", "Resources", "version.json"), "utf8")) as { identifier?: string; displayName?: string }; } catch { return {}; }
+})();
+const docsOnline = String(bundleInfo.identifier ?? "").endsWith("-light");
+const appTitle = bundleInfo.displayName || (docsOnline ? "Terrain Viewer Light" : "Terrain Viewer");
 const mainWindow = new BrowserWindow({
-  title: "Terrain Viewer",
+  title: appTitle,
   url: "views://app/index.html" + startQuery,
   frame: {
     width: 1400,
@@ -239,8 +250,8 @@ applyWindowIcon(mainWindow);
 // desktop.yml uploads stable-<platform>-update.json and the .tar.zst next
 // to the installers. A launch checks the feed; a newer build is downloaded
 // in the background and applied (the updater quits and relaunches) at the
-// following launch, so nothing interrupts a session. The light build has
-// no feed and skips this; the dev channel never reports updates.
+// following launch, so nothing interrupts a session. The light build reads
+// its own feed (desktop-latest-light); the dev channel never reports updates.
 // The launcher does not forward the main process's console, so updater
 // lines also go to <channel root>/updater.log, readable after a failed apply.
 const updaterLogPath = join(stateDir, "updater.log");
@@ -257,12 +268,6 @@ function ulog(...parts: unknown[]) {
 // "error" from the flow below. The last one is kept and replayed when the
 // page asks (host-message "update-status"): the "complete" of a freshly
 // applied update fires before the page has loaded.
-// The light build ships no docs: its identifier ends in "-light"
-// (desktop/gen-config.mjs), and views://app/docs/ holds only a stand-in.
-// Read once from the bundle's own version.json.
-const docsOnline = (() => {
-  try { return String(JSON.parse(readFileSync(join(dirname(process.execPath), "..", "Resources", "version.json"), "utf8")).identifier ?? "").endsWith("-light"); } catch { return false; }
-})();
 type UpdateDetail = { status: string; version?: string; progress?: number; message?: string; light?: boolean; platform?: string };
 let lastUpdateDetail: UpdateDetail | null = null;
 let feedVersion = "";
@@ -312,6 +317,46 @@ async function updateOnLaunch() {
     }
   } catch (e) {
     ulog("update check failed", String(e));
+    announceUpdate("error", String(e));
+  }
+}
+// About > Check for updates and Restart and install (lib/desktop-bridge.ts).
+// A check asked by the user never applies by itself: a newer build is
+// downloaded and announced "ready", and installing stays the user's click.
+let checking = false;
+async function checkNow() {
+  if (checking) return;
+  checking = true;
+  try {
+    const local = await Updater.getLocalInfo();
+    if (!local.baseUrl || local.channel === "dev") { announceUpdate("error", "this build has no update feed"); return; }
+    if (!selfUpdating) { announceUpdate("error", "installed outside the app's update folder (winget or portable): update it the way it was installed"); return; }
+    const info = await Updater.checkForUpdate();
+    ulog("manual check", info);
+    feedVersion = info.version ?? feedVersion;
+    if (info.error) { announceUpdate("error", info.error); return; }
+    if (info.updateReady) { announceUpdate("ready", info.version ?? ""); return; }
+    if (info.updateAvailable) {
+      await Updater.downloadUpdate();
+      if (Updater.updateInfo().updateReady) announceUpdate("ready", info.version ?? "");
+    }
+  } catch (e) {
+    ulog("manual update check failed", String(e));
+    announceUpdate("error", String(e));
+  } finally {
+    checking = false;
+  }
+}
+async function applyNow() {
+  try {
+    // A check first, so a page that only saw an old "ready" (the toast of a
+    // previous session, replayed) still applies the downloaded bundle.
+    if (!Updater.updateInfo()?.updateReady) await Updater.checkForUpdate();
+    if (!Updater.updateInfo()?.updateReady) { announceUpdate("error", "no downloaded update to install; use Check for updates"); return; }
+    ulog("applying on request", Updater.updateInfo().hash);
+    await Updater.applyUpdate();
+  } catch (e) {
+    ulog("apply failed", String(e));
     announceUpdate("error", String(e));
   }
 }
@@ -370,7 +415,8 @@ mainWindow.webview.on("host-message", (event: unknown) => {
   const msg = (event as { data?: { detail?: unknown } }).data?.detail as { type?: string; on?: boolean; url?: string } | undefined;
   if (msg?.type === "fullscreen") mainWindow.setFullScreen(!!msg.on);
   if (msg?.type === "open-external") openUrl(msg.url);
-  if (msg?.type === "apply-update") void Updater.applyUpdate();
+  if (msg?.type === "apply-update") void applyNow();
+  if (msg?.type === "check-update") void checkNow();
   // The page asks at every load; a request after the file was served is the
   // reload that follows the import, so the served copy can go even when the
   // page's "open-file-done" was lost in that reload.

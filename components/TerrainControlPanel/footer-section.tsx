@@ -1,11 +1,11 @@
 import type React from "react"
 import { useState, useCallback , useRef, useEffect } from "react"
-import { ChevronDown, Loader2, RefreshCw } from "lucide-react"
+import { ChevronDown, Download, Loader2, RefreshCw, RotateCw } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
-import { useDesktopUpdate, describeDesktopUpdate, isDesktopApp } from "@/lib/desktop-bridge"
+import { useDesktopUpdate, describeDesktopUpdate, isDesktopApp, checkDesktopUpdate, applyDesktopUpdate } from "@/lib/desktop-bridge"
 import { CREDITS_MARKDOWN, CREDITS_MARKDOWN_COMPONENTS } from "./settings-dialog"
 
 /** Not a shared `Section` instance on purpose — that component carries
@@ -57,6 +57,8 @@ type VersionCheckState =
   | { status: "error"; message: string }
 const VersionCheck: React.FC = () => {
   const [state, setState] = useState<VersionCheckState>({ status: "idle" })
+  // The light build updates from desktop-latest-light (desktop/gen-config.mjs).
+  const light = useDesktopUpdate().light
   // The answer lands below the fold of the sidebar: bring it into view.
   const answerRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (state.status === "done" || state.status === "error") answerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }) }, [state.status])
@@ -66,7 +68,7 @@ const VersionCheck: React.FC = () => {
       const api = "https://api.github.com/repos/Iconem/terrain-viewer"
       const [commitRes, releaseRes] = await Promise.all([
         fetch(`${api}/commits/main`, { headers: { Accept: "application/vnd.github+json" } }),
-        fetch(`${api}/releases/tags/desktop-latest`, { headers: { Accept: "application/vnd.github+json" } }),
+        fetch(`${api}/releases/tags/${light ? "desktop-latest-light" : "desktop-latest"}`, { headers: { Accept: "application/vnd.github+json" } }),
       ])
       if (!commitRes.ok) throw new Error(`GitHub answered ${commitRes.status}`)
       const commit = await commitRes.json()
@@ -81,15 +83,16 @@ const VersionCheck: React.FC = () => {
         const body = String(rel.body ?? "")
         const built = /from `([0-9a-f]{7,})`/.exec(body)?.[1]?.slice(0, 7) ?? ""
         const builtOn = /built on (\d{4}-\d{2}-\d{2})/.exec(body)?.[1] ?? String(rel.published_at ?? "").slice(0, 10)
-        desktop = { sha: built, date: builtOn, same: !!built && built === __BUILD_COMMIT__, url: String(rel.html_url ?? "https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest") }
+        desktop = { sha: built, date: builtOn, same: !!built && built === __BUILD_COMMIT__, url: String(rel.html_url ?? `https://github.com/Iconem/terrain-viewer/releases/tag/${light ? "desktop-latest-light" : "desktop-latest"}`) }
       }
       setState({ status: "done", web: { sha, date, same: sha === __BUILD_COMMIT__ }, desktop })
     } catch (e) {
       setState({ status: "error", message: e instanceof Error ? e.message : String(e) })
     }
-  }, [])
+  }, [light])
   return (
     <div className="font-mono text-[11px] space-y-0.5">
+      <DesktopUpdateActions />
       <button type="button" onClick={check} disabled={state.status === "loading"} className="inline-flex items-center gap-1 underline cursor-pointer disabled:opacity-60 disabled:cursor-default">
         {state.status === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
         Is this the latest version?
@@ -124,4 +127,27 @@ const DesktopUpdateLine: React.FC = () => {
   const line = describeDesktopUpdate(update)
   if (!line) return null
   return <p className="font-mono text-[11px]">{line}</p>
+}
+
+// Desktop app only: the updater's buttons. "Restart and install" while a
+// downloaded update waits (the toast's "Restart now" is gone after 20 s, and
+// otherwise it installs at the next launch); "Check for updates" asks the
+// feed now, downloading a newer build without installing it.
+const DesktopUpdateActions: React.FC = () => {
+  const update = useDesktopUpdate()
+  const busy = update.status === "checking" || update.status === "available" || update.status === "downloading" || update.status === "applying"
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+      {update.status === "ready" && (
+        <button type="button" onClick={applyDesktopUpdate} className="inline-flex items-center gap-1 underline cursor-pointer font-semibold text-foreground">
+          <RotateCw className="h-3 w-3" />
+          Restart and install{update.version ? ` ${update.version}` : ""}
+        </button>
+      )}
+      <button type="button" onClick={checkDesktopUpdate} disabled={busy} className="inline-flex items-center gap-1 underline cursor-pointer disabled:opacity-60 disabled:cursor-default">
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+        Check for updates
+      </button>
+    </div>
+  )
 }

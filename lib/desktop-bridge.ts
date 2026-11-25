@@ -21,6 +21,8 @@ export interface DesktopUpdate {
   /** 0-100 while downloading. */
   progress?: number
   message?: string
+  /** The light build (docs online), whose feed is desktop-latest-light. */
+  light?: boolean
 }
 
 let current: DesktopUpdate = { status: "idle" }
@@ -36,6 +38,21 @@ const getServerSnapshot = () => IDLE
 
 export function useDesktopUpdate(): DesktopUpdate {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
+
+/** Asks the main process to check the feed now (desktop/src/bun/index.ts,
+ *  host-message "check-update"): a newer build is downloaded and reported as
+ *  "ready"; one already downloaded is reported as "ready" at once. */
+let manualCheck = false
+export function checkDesktopUpdate(): void {
+  manualCheck = true
+  hostSend()?.({ type: "check-update" })
+}
+
+/** Installs the downloaded update: the app quits, the updater swaps the
+ *  bundle and starts it again (about half a minute). */
+export function applyDesktopUpdate(): void {
+  hostSend()?.({ type: "apply-update" })
 }
 
 /** One line for the About section, or null outside the desktop app. */
@@ -59,8 +76,10 @@ export function describeDesktopUpdate(u: DesktopUpdate): string | null {
 function fold(detail: { status?: string; version?: string; progress?: number; message?: string }): DesktopUpdate | null {
   const { status, version, progress, message } = detail
   switch (status) {
-    case "checking": return current.status === "installed" ? null : { status: "checking", version }
-    case "no-update": return current.status === "installed" ? null : { status: "up-to-date", version }
+    // "installed" (this launch applied an update) stays shown over the
+    // launch's own re-check, but not over one asked from About.
+    case "checking": return current.status === "installed" && !manualCheck ? null : { status: "checking", version }
+    case "no-update": return current.status === "installed" && !manualCheck ? null : { status: "up-to-date", version }
     case "update-available": return { status: "available", version }
     case "download-starting": case "download-progress": case "checking-local-tar": case "local-tar-found":
     case "fetching-patch": case "patch-not-found": case "downloading-full-bundle": case "applying-patch":
@@ -95,8 +114,10 @@ async function exactSize(light: boolean | undefined, platform: string | undefine
 export function initDesktopBridge(): void {
   window.addEventListener("tv-desktop-update", (ev) => {
     const detail = (ev as CustomEvent<{ version?: string; status?: string; progress?: number; message?: string; light?: boolean; platform?: string }>).detail ?? {}
-    const next = fold(detail)
-    if (!next) return
+    const folded = fold(detail)
+    if (!folded) return
+    const next: DesktopUpdate = { ...folded, light: detail.light ?? current.light }
+    if (next.status === "up-to-date" || next.status === "ready" || next.status === "error") manualCheck = false
     const was = current.status
     set(next)
     if (next.status === was && next.status !== "error") return
@@ -111,9 +132,9 @@ export function initDesktopBridge(): void {
       pushToast({
         key: "desktop-update",
         title: "Update downloaded",
-        body: `${v} is ready. It installs at the next launch, or now; installing takes about half a minute, during which the app restarts itself.`,
+        body: `${v} is ready. It installs at the next launch, or now; installing takes about half a minute, during which the app restarts itself. Missed this? About > Restart and install.`,
         duration: 20000,
-        action: { label: "Restart now", onClick: () => hostSend()?.({ type: "apply-update" }) },
+        action: { label: "Restart now", onClick: applyDesktopUpdate },
       })
     } else if (next.status === "installed") {
       pushToast({ key: "desktop-update", title: "Updated", body: `${v} was installed at this launch.`, duration: 8000 })
