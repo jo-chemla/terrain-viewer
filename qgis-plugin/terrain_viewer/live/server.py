@@ -108,7 +108,9 @@ class _Handler(BaseHTTPRequestHandler):
             mode, z, x, y = parts[0], int(parts[1]), int(parts[2]), parts[3]
             y, ext = y.split(".") if "." in y else (y, "png")
             y = int(y)
-            if mode not in modes.MODES or ext not in ("png", "tif") or (ext == "tif" and modes.MODES[mode]["kind"] == "rgb"):
+            spec = modes.MODES.get(mode)
+            if (spec is None or not spec["python_supported"] or ext not in ("png", "tif")
+                    or ("values" if ext == "tif" else "colour") not in spec["outputs"]):
                 return self._send(404, b"unknown mode or format", "text/plain")
             if z < 0 or not (0 <= x < 1 << z) or not (0 <= y < 1 << z):
                 return self._send(404, b"no such tile", "text/plain")
@@ -218,13 +220,7 @@ class LiveServer:
         grid = dem.grid(z, x, y)
         # Fetch first, outside the compute slots: a slow network must not
         # hold a core.
-        if mode == "lrm":
-            k = min(modes.lrm_levels(float(opts["radius"])), z)
-            grid(0)
-            if k:
-                grid.ancestor(k)
-        else:
-            grid(modes.halo_of(mode, opts))
+        modes.prefetch(mode, grid, opts)
         t1 = time.perf_counter()
         with self.compute_slots:
             t2 = time.perf_counter()
