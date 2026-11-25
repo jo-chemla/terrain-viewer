@@ -74,12 +74,12 @@ function fold(detail: { status?: string; version?: string; progress?: number; me
   }
 }
 
-/** The update bundle's size: the variant's usual size at once ("about 37 MB"
- *  light, "about 220 MB" full), then the exact size of the platform's
+/** The update bundle's size: the variant's usual size at once ("about 67 MB"
+ *  light, "about 250 MB" full), then the exact size of the platform's
  *  .tar.zst on the rolling release (desktop-latest or desktop-latest-light,
  *  the feed the updater reads) once GitHub's API answers. */
 const RELEASES_API = "https://api.github.com/repos/Iconem/terrain-viewer/releases/tags/"
-function roughSize(light: boolean | undefined): string { return light ? "about 37 MB" : "about 220 MB" }
+function roughSize(light: boolean | undefined): string { return light ? "about 67 MB" : "about 250 MB" }
 async function exactSize(light: boolean | undefined, platform: string | undefined): Promise<string | null> {
   try {
     const res = await fetch(RELEASES_API + (light ? "desktop-latest-light" : "desktop-latest"), { headers: { accept: "application/vnd.github+json" } })

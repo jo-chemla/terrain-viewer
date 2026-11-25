@@ -268,7 +268,7 @@ let lastUpdateDetail: UpdateDetail | null = null;
 let feedVersion = "";
 function announceUpdate(status: string, version?: string, extra: Partial<UpdateDetail> = {}) {
   // light and platform let the page name the right release and asset for
-  // the download size (the light bundle is about 37 MB, the full one 220).
+  // the download size (the light bundle is about 67 MB, the full one 250).
   const detail: UpdateDetail = { status, version: version || feedVersion || undefined, light: docsOnline, platform: `${process.platform === "win32" ? "win" : process.platform === "darwin" ? "macos" : "linux"}-${process.arch === "arm64" ? "arm64" : "x64"}`, ...extra };
   lastUpdateDetail = detail;
   try {
