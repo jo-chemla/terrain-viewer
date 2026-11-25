@@ -18,6 +18,8 @@ Both are checked headless in QGIS 4.2 and 3.44 LTR (`qgis-plugin/test_*.py`). Ne
 
 ## Terrain Viewer: the panel
 
+![The Terrain Viewer panel in QGIS 4.2 over Mont Blanc: Packaged tile server picked, Mapterhorn as the source, the light pad, Elevation Hypso, Hillshade and labelled contours drawn](/screenshots/qgis/qgis-terrain-viewer-packaged-tile-server.jpg)
+
 A dock panel laid out as the app's sidebar. From the top:
 
 1. **The backend**: three radio buttons in a row, as QGIS lays out a choice: **Packaged tile server**, **Remote tile server**, **Python backend**, and under them the picked one's options (below).
@@ -43,6 +45,8 @@ A dock panel laid out as the app's sidebar. From the top:
 - The panel opening (the toolbar button, a saved project) connects a remote tile server or starts the Python backend (a thread of QGIS, nothing to download), but never starts the packaged tile server: it waits for **Connect**.
 - 0.6.0's bug, "with Local tile service checked, Connect does nothing": the button's `clicked(checked=False)` argument reached `connect_service(start_bundled)` as "do not start". Every button now drops it.
 - While connected to a service, its `/health` is asked every 15 s in the background; a service that went away is said once, and its return too.
+
+![The Python backend with the sun at a date and time (21 December, 09:30 UTC): the pad shows the sun's azimuth and elevation over the canvas centre](/screenshots/qgis/qgis-terrain-viewer-python-backend-sun.jpg)
 
 ### One modes tree for every backend
 
@@ -96,6 +100,8 @@ Every mode is drawn by a tile service, local or remote. The Python column is wha
 **Sources under the Python backend**: Terrarium and Terrain-RGB tile pyramids, decoded in numpy (Mapterhorn, the default; AWS Terrain; the library's other public ones; Mapbox and MapTiler with their keys; a typed `{z}/{x}/{y}` address), and **anything GDAL opens**: a QGIS raster layer of the project (its file through GDAL; a WMS or WCS layer of QGIS through its own provider), a local GeoTIFF, COG or VRT, a `/vsicurl/` address, an https GeoTIFF or VRT (the library's COG and VRT sources too), a `WCS:` or GDAL WMS description. Each tile is a window of a `gdal.Warp` to a VRT on the zoom's own Web Mercator grid (overviews picked by GDAL), no data as NaN, scale and offset applied, feet turned into metres, then the same kernels ([details and timings](/dev/qgis-live-compute#any-gdal-raster-as-the-source)). Not read: LERC (Esri), quantized mesh (Cesium), PMTiles and the differences of two sources; picking one says so once and draws Mapterhorn.
 
 **A QGIS raster layer with a tile service**: a service on this machine (the local one, the desktop app's) is handed the layer's GeoTIFF or VRT file once (`POST /files`, [local files](/dev/tile-service#local-files)) and every address then names it as `terrainSource=file:<id>`, never by its path (`terrain_viewer/local_files.py`). A service on another machine cannot read this machine's files: an https COG or VRT goes to it as its address, anything else is for the Python backend (said once).
+
+![Slope as Values (Float32), styled with QGIS's Magma ramp over the hillshade, with its legend](/screenshots/qgis/qgis-terrain-viewer-slope-values-styled.jpg)
 
 ### Open link, Freeze, saved projects
 

@@ -13,6 +13,7 @@ const byodDiff = shot('byod-difference-dsm-dtm.jpg');
 const contours = shot('viz-modes/contours.jpg');
 const buildingShadows = shot('viz-modes/building-shadows.jpg');
 const exportLayers = shot('export-share/export-layers-dialog.jpg');
+const qgisPanel = shot('qgis/qgis-terrain-viewer-packaged-tile-server.jpg');
 const downloadSection = shot('export-share/download-section.jpg');
 const embedHost = shot('ui/embedding-host-page.jpg');
 const openIn = shot('ui/open-in-launcher.jpg');
@@ -685,31 +686,18 @@ const P12Export: Page = () => (
 const P12bQgis: Page = () => (
   <Frame eyebrow="QGIS plugin" title="The app's sidebar, as a QGIS dock panel">
     <TwoCol
-      leftWidth={900}
+      leftWidth={820}
       left={
-        <Bullets size={25}>
+        <Bullets size={24}>
+          <Li k="Three backends">Packaged tile server (installed from the panel), Remote tile server, or the Python backend: all 25 modes in numpy, from any GDAL elevation.</Li>
           <Li k="The same panel">Elevation Hypso, Terrain Analysis, Relief Visualization, Hillshade, Lighting Effects, Overlays: a checkbox per mode, its opacity, its settings behind a gear.</Li>
           <Li k="Layers are addresses">each checked mode is an XYZ layer whose tile service address the panel writes; a changed setting rewrites it.</Li>
           <Li k="Built from /processes">a new mode or parameter in the app reaches the panel without a plugin release.</Li>
           <Li k="Values">a mode's Float32 values through /gdal.xml, for the raster calculator, zonal statistics, Identify.</Li>
           <Li k="Open from link">paste a share link, get its layers.</Li>
-          <Li k="Freeze">copies the layers drawn now into a group named with the date and the place, to compare settings side by side.</Li>
         </Bullets>
       }
-      right={
-        <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
-            <Box w={560} accent={teal}>Terrain Viewer panel in QGIS</Box>
-            <div style={{ color: ink.dim, fontSize: 32 }}>↓</div>
-            <Box w={560}>A tile service<br /><span style={{ color: dim, fontSize: 21 }}>the desktop app's, one installed from the panel, or a hosted one</span></Box>
-            <div style={{ color: ink.dim, fontSize: 32 }}>↓</div>
-            <Box w={560} accent={rose}>XYZ, vector tile and GDAL layers<br /><span style={{ color: dim, fontSize: 21 }}>opacity and blending stay QGIS settings</span></Box>
-          </div>
-          <div style={{ marginTop: 28 }}>
-            <Card title="Terrain Viewer 0.5.0" accent={teal}>One 50 KB pure-Python zip for every platform, QGIS 3.28 to 4.x. Release qgis-plugins-2026-11-25c, Install from ZIP; not on plugins.qgis.org yet.</Card>
-          </div>
-        </>
-      }
+      right={<Shot src={qgisPanel} caption="QGIS 4.2 over Mont Blanc: Packaged tile server, Mapterhorn, light pad, hypso, hillshade, labelled contours" width={900} height={620} />}
     />
   </Frame>
 );
@@ -721,7 +709,7 @@ const P12cQgisLocal: Page = () => (
       <Card title="Or the desktop app">Settings › Desktop: local tile service runs the same service on localhost:3400 while the app is open. The panel's default address points at it.</Card>
     </div>
     <div style={{ display: 'flex', gap: 24, marginTop: 24 }}>
-      <Card title="Experimental: compute locally" accent={rose}>14 modes in numpy, no tile service: hillshade, slope, aspect, curvature, TPI, TRI, roughness, LRM, sky view factor, openness, shadows, contours… Served as Float32 tiles GDAL reads, so QGIS's own ramps apply. 100 % within tolerance against the tile service and gdaldem.</Card>
+      <Card title="Python backend" accent={rose}>All 25 modes in numpy, no tile service, from any elevation GDAL opens (a QGIS raster layer, a local COG, /vsicurl/, WCS) or a tile pyramid. The app's ramps and settings apply; Float32 values for QGIS's own ramps. 99 to 100 % of pixels match the tile service.</Card>
       <Card title="Send2MapApp 0.5.1" accent="#a78bfa">The app's Open in list in QGIS: the canvas centre or a clicked point, at the same scale, in Terrain Viewer, its historical mode, Wayback, Google Earth, ShadeMap, LiDAR Lens… A test fails when the app gains a destination the plugin lacks.</Card>
     </div>
     <p style={{ fontSize: 22, color: dim, margin: '28px 0 0', lineHeight: 1.4 }}>Found on the way: the numpy port's comparison with gdaldem showed the app's aspect mirrored east-west. Fixed on 2026-11-25, with a test.</p>
