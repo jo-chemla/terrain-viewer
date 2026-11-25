@@ -1202,6 +1202,19 @@
       "note": "\"Search Radius\": how far toward the sun, in same-zoom pixels, an obstruction is looked for (2 to 512; SHADOW_RADIUS_DEFAULT_PX and SHADOW_RADIUS_MAX_PX in lib/shadow-protocol.ts; 32 before 2026-11-25…"
     },
     {
+      "key": "shadowRenderer",
+      "stateKey": "shadowRenderer",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "raster",
+        "live\" as const"
+      ],
+      "default": "live",
+      "defaultSource": "\"live\"",
+      "note": "\"live\" (default): lib/shadow-live-gl-layer.ts, rays marched per pixel on the GPU over a Float32 mosaic of the view's DEM tiles: the sun moves in real time and shadows reach the view's edge plus a til…"
+    },
+    {
       "key": "showBuildingShadows",
       "stateKey": "showBuildingShadows",
       "type": "boolean",

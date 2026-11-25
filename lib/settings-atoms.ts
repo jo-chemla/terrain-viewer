@@ -303,6 +303,10 @@ export const cacheVizTilesAtom = atomWithStorage("cacheVizTiles", true)
 // experimental MapLibre API, 6.13). Off falls back to the old hand-built drape
 // (lib/*-live-gl-layer-legacy.ts). Settings → Streaming. On by default.
 export const nativeTerrainDrapeAtom = atomWithStorage("nativeTerrainDrape", true)
+// Set when the live GPU shadow layer (lib/shadow-live-gl-layer.ts) could not
+// draw on this device (shader or float texture failure): Hard Shadows then
+// fall back to the shadow:// tiles for the rest of the session. Not stored.
+export const shadowLiveUnsupportedAtom = atom<string | null>(null)
 // Google Earth Historical tiles built from one Keyhole level finer into 512 px
 // images (Settings → Streaming): no vertical stretch away from the equator and
 // a 2x image for HiDPI screens, for four times the Keyhole fetches. Read by

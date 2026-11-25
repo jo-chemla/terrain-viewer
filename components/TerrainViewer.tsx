@@ -28,7 +28,7 @@ import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
-  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom, addTerrainSourceOpenAtom, dataLayersModalOpenAtom, timelineWindowRequestAtom } from "@/lib/settings-atoms"
+  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom, addTerrainSourceOpenAtom, dataLayersModalOpenAtom, timelineWindowRequestAtom, shadowLiveUnsupportedAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
@@ -118,6 +118,7 @@ import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
 import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource } from "./LayersAndSources/MapSources"
 import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
+import { ShadowLiveGlLayer } from "./LayersAndSources/ShadowLiveGlLayer"
 import { ProfileDock } from "./ProfileDock"
 import { MatcapLiveGlLayer } from "./LayersAndSources/MatcapLiveGlLayer"
 import {
@@ -613,6 +614,13 @@ export const QUERY_STATE_PARSERS = {
     // obstruction is looked for (2 to 512; SHADOW_RADIUS_DEFAULT_PX and
     // SHADOW_RADIUS_MAX_PX in lib/shadow-protocol.ts; 32 before 2026-11-25).
     shadowRadiusPx: parseAsFloat.withDefault(256),
+    // "live" (default): lib/shadow-live-gl-layer.ts, rays marched per pixel on
+    // the GPU over a Float32 mosaic of the view's DEM tiles: the sun moves in
+    // real time and shadows reach the view's edge plus a tile (no Search
+    // Radius). "raster": the shadow:// tiles, always used by exports and the
+    // Iso-line, and the fallback where the live layer cannot draw
+    // (shadowLiveUnsupportedAtom). Lighting Effects, Shadows, Renderer.
+    shadowRenderer: parseAsStringLiteral(["raster", "live"] as const).withDefault("live"),
     // Shadows cast by OSM buildings on flat ground at their foot
     // (components/LayersAndSources/BuildingShadowLayer.tsx): heights from
     // OpenFreeMap's building layer, same light as the other shadows.
@@ -3613,11 +3621,13 @@ export function TerrainViewer() {
   const phongRasterLightDebounceMs = state.phongRenderer === "raster" ? 150 : 0
   const phongLightDir = useDebouncedValue(state.illuminationDir, phongRasterLightDebounceMs)
   const phongLightAlt = useDebouncedValue(state.illuminationAlt, phongRasterLightDebounceMs)
-  // Shadows has no "live" renderer variant — always tile-based, so always
-  // debounced (same 150ms as Phong's own raster path), regardless of what
-  // phongRenderer happens to be set to.
+  // The shadow:// tiles (and building shadows, the Iso-line) read the light
+  // debounced 150 ms, as Phong's raster path; the live GPU shadow layer reads
+  // state.illuminationDir/Alt raw (a uniform write per slider frame).
   const shadowLightDir = useDebouncedValue(state.illuminationDir, 150)
   const shadowLightAlt = useDebouncedValue(state.illuminationAlt, 150)
+  const shadowLiveUnsupported = useAtomValue(shadowLiveUnsupportedAtom)
+  const shadowLive = state.shadowRenderer === "live" && !shadowLiveUnsupported
   // The Iso-line's measure tiles take the same settings as the mounted
   // derived and lighting sources (lib/isoline-measures.ts).
   const isolineDerivedParams = useMemo(() => ({
@@ -4184,7 +4194,7 @@ export function TerrainViewer() {
             titilerEndpoint={titilerEndpoint}
           />
           <ShadowSource
-            enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && !isHistoricalMode}
+            enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && !shadowLive && !isHistoricalMode}
             lightDir={shadowLightDir}
             lightAlt={shadowLightAlt}
             radiusPx={state.shadowRadiusPx}
@@ -4293,8 +4303,20 @@ export function TerrainViewer() {
             opacity={state.lightingEffectsOpacity * state.phongOpacity}
           />
           <ShadowRasterLayer
-            enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && !isHistoricalMode}
+            enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && !shadowLive && !isHistoricalMode}
             opacity={state.lightingEffectsOpacity * state.shadowOpacity}
+          />
+          <ShadowLiveGlLayer
+            mapRef={mapRefs[side]}
+            enabled={state.showLightingEffects && vm("showLightingEffects") && state.showShadows && vm("showShadows") && shadowLive && !isHistoricalMode}
+            lightDir={state.illuminationDir}
+            lightAlt={state.illuminationAlt}
+            opacity={state.lightingEffectsOpacity * state.shadowOpacity}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
           />
           <BuildingShadowLayer
             enabled={state.showLightingEffects && vm("showLightingEffects") && state.showBuildingShadows && vm("showBuildingShadows") && !isHistoricalMode}
@@ -4459,6 +4481,7 @@ export function TerrainViewer() {
       state.showPhong, state.phongOpacity, state.phongDiffuseStrength, state.phongSpecularStrength, state.phongLightRelativeToCamera, state.phongRenderer,
       phongLightDir, phongLightAlt,
       state.showShadows, state.shadowOpacity, state.shadowRadiusPx, shadowLightDir, shadowLightAlt,
+      shadowLive, state.illuminationDir, state.illuminationAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness,
       state.showShapeIndex, state.showBlobness, state.showEigenRatio, state.showOrientation,

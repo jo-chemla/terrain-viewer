@@ -49,7 +49,7 @@ A local 2D PCA of the window's gradient vectors, via the Förstner/Harris struct
 
 - **Matcap (material capture):** looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light
 - **Phong:** real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; the "Live" renderer is a per-fragment GPU shader draped on the terrain mesh, "Legacy" the raster-tile pipeline (still the globe-capable one) — see the Lighting Effects panel ([Phong 1975](https://doi.org/10.1145/360825.360839))
-- **Shadows:** hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light (a single-ray horizon-angle march toward the sun's azimuth); shares Phong/Hillshade's light direction, no separate control of its own beyond opacity and search radius
+- **Shadows:** hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light (a single-ray horizon-angle march toward the sun's azimuth); shares Phong/Hillshade's light direction; the "Live" renderer marches every pixel on the GPU over the whole view (real-time sun, no radius), "Tiles" the `shadow://` raster tiles within a search radius (exports, Iso-line, fallback)
 
 *Neighborhood usually refers to a 3×3 kernel centered on the pixel.*
 

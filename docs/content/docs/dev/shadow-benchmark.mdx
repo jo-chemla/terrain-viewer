@@ -73,7 +73,7 @@ What the numbers say:
 
 ## What to improve, by expected gain
 
-1. **A GPU shadow pass for the view (about 100× on the march, real-time sun).** We already draw Phong live on the GPU (`lib/phong-live-gl-layer.ts`); a live shadow layer marching a stitched elevation texture would make the sun slider and Sun Position's hour slider live for terrain, as they are for buildings, and remove the radius cap. Keep the `shadow://` tiles for export, split views and iso-lines. Use a float32 texture (or two R16F halves) rather than plain `R16F`, and no tolerance, to keep the low shadows Mapricot loses. Our own implementation: Mapricot's code is not licensed.
+1. **A GPU shadow pass for the view (about 100× on the march, real-time sun).** *Done 2026-11-25, see [Live GPU renderer](#live-gpu-renderer).* We already draw Phong live on the GPU (`lib/phong-live-gl-layer.ts`); a live shadow layer marching a stitched elevation texture would make the sun slider and Sun Position's hour slider live for terrain, as they are for buildings, and remove the radius cap. Keep the `shadow://` tiles for export, split views and iso-lines. Use a float32 texture (or two R16F halves) rather than plain `R16F`, and no tolerance, to keep the low shadows Mapricot loses. Our own implementation: Mapricot's code is not licensed.
 2. **Replace the per-pixel ray by a shadow-height sweep in the tile kernel (3 to 7× at the same halo, any length).** *Done 2026-11-25, see [below](#the-sweep-2026-11-25).* Walk the padded grid from the sun's side, carrying a shadow height that drops by step × tan(altitude); one interpolated look-up per pixel instead of up to `radius` (the classic terrain shadow-map method, sketched as `runSweep` in the benchmark). At halo 64: 1.0 ms/tile against 5.2 (Chamonix) and 1.1 against 7.6 (Les Andelys, identical pixels). It reaches further than the march for the same halo (diagonal steps, slight softening), so its output is not bit-identical to today's: check it visually before switching.
 3. **Raise the radius cap, then the default (correctness more than speed).** *Done 2026-11-25: default 256, cap 512.* With idea 2, a 256 px halo (the full nine-tile fetch) would cost about 4 ms a tile (the sweep scales with the padded area, 768² against 384² at halo 64), close to the 2.8 ms of radius 32 today, for shadows four to eight times longer (not measured at 256). A per-view or metatile pass (one sweep over the view plus a 768 px halo: 204 ms single-threaded, IoU 0.94) is the CPU way to reach Mapricot's quality.
 4. **Early exit with a local maximum (exact, 1.3 to 5× on gentle terrain).** *Done 2026-11-25 in the sweep's form: the reach stops at (highest point ahead − lowest pixel of the tile) / rise per step; the reference march has the per-ray form.* Stop a ray once its line to the sun is above anything ahead. With the padded grid's maximum (what Mapricot does with the view's) it helps only away from high peaks; a coarse max pyramid (per 16 × 16 block) would carry it into mountains. Cheap to add to the current kernel, same pixels.
@@ -129,6 +129,23 @@ What they say:
 - **Mountain shadows under a very low sun still need more.** At 15° in the Alps 512 px reaches 0.90 of the reference; the rest is shadows longer than 3.4 km at z14. That is the live GPU layer's job (idea 1).
 
 **The halo: same-zoom neighbours, not a lower zoom.** `fetchPaddedElevationGrid` (`lib/normal-derived-protocol.ts`) now takes as many rings of same-zoom neighbours as the halo needs: one up to a tile (radius 256 on 256 px tiles, 512 on 512 px tiles, as before), two beyond (25 tiles). A lower zoom for the far part would have cut the fetch, but it needs a second sweep on a coarser grid, resampled onto the tile's pixels, with a step between the two resolutions where the near part ends. Same-zoom rings keep one grid and one sweep, and cost less than they look: tiles are cached and shared by neighbours, so for a whole view the extra fetch is a border one ring wider (a 5 × 4 view fetches 9 × 8 tiles instead of 7 × 6), once, whatever the sun does. What it does cost: a 1 280 px padded grid (6.5 MB of floats) per 256 px tile at radius 512, copied to the raster worker. A WMS source still gets the tile and its halo in one GetMap while that fits `WMS_MAX_GETMAP_PX`. The protocol caps the radius at two tiles and at 512.
+
+## Live GPU renderer
+
+Idea 1 is in the app since 2026-11-25: `lib/shadow-live-gl-layer.ts`, the default renderer of Hard Shadows (`shadowRenderer=live`; the tiles stay for exports, the Iso-line and as the fallback). Our own code, written from the description above, not from Mapricot's script. Against Mapricot, point by point:
+
+| | Live renderer | Mapricot |
+|---|---|---|
+| Elevation | any terrain source the tiles accept (DSMs, WMS), the shared decoded-tile cache | Terrarium from AWS only |
+| Texture | one `R32F` mosaic, exact metres, `texelFetch` and our own bilinear | `R16F` (2 to 4 m steps in mountains), hardware filtering |
+| Extent | view + one tile a side (two when it fits), at most 48 tiles, about one texel per CSS pixel | view + one tile, 48 tiles, map zoom + 1 |
+| March | one-texel steps for 40 texels, then 1/40 of the distance; stops on the first hit, at the edge, or above the mosaic's top | its own growth rule, same three stops |
+| Test | ground above the ray, no tolerance (the 0.5 m plateau edge test in `lib/shadow-live-math.test.ts`) | 1 m tolerance |
+| Drawn | directly in the map's frame: mercator, globe, and 3D terrain through `renderToTerrainTile` | a separate canvas, copied into a `canvas` source |
+| Rebuild | tiles uploaded as they arrive; a pan within the mosaic uploads nothing | the whole mosaic after `moveend` + `idle` |
+| Sun | the app's light (pad, Datetime, Sun Shadow Calculator), every slider frame | its own day and hour sliders |
+
+Not timed yet in `bench-shadow.mjs` (it runs Mapricot's shader, not a MapLibre page); the march does the same work per pixel as Mapricot's with four `texelFetch`es per sample instead of one filtered fetch, so expect the same order (a few ms per draw at 1280 × 800 on the laptop above). With 3D terrain the cost is per terrain tile, redrawn only when the sun, the opacity or the mosaic change.
 
 ## Running it
 

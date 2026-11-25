@@ -1,7 +1,7 @@
 import type React from "react"
 import { perViewProps, modeOnVisibleView } from "@/lib/viz-views"
 import { useState, useCallback } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Section, CheckboxWithSlider, SliderControl, SegmentedToggle, AdvancedModeToggle } from "./controls-components"
 import { LightDirectionControl } from "./light-direction-control"
 import { useDebouncedState } from "./use-debounced-state"
-import { activeProjectConfigAtom, lightingEffectsAdvancedAtom } from "@/lib/settings-atoms"
+import { activeProjectConfigAtom, lightingEffectsAdvancedAtom, shadowLiveUnsupportedAtom } from "@/lib/settings-atoms"
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
 import { SHADOW_RADIUS_MAX_PX } from "@/lib/shadow-protocol"
 
@@ -61,6 +61,7 @@ export const LightingEffectsOptionsSection: React.FC<{
   // surfaced here too so turning Shadows on alone doesn't require opening
   // Phong to move the light. Default closed (Phong's stays the primary).
   const [isShadowLightDirOpen, setIsShadowLightDirOpen] = useState(false)
+  const shadowLiveUnsupported = useAtomValue(shadowLiveUnsupportedAtom)
 
   // Same live-vs-raster debounce split as Phong below — "live" is a GPU
   // uniform with zero tile refetch (0ms), "raster" re-fetches a tile per
@@ -100,6 +101,9 @@ export const LightingEffectsOptionsSection: React.FC<{
   const [phongFresnelPower, setPhongFresnelPower] = useDebouncedState(
     state.phongFresnelPower, useCallback((v: number) => setState({ phongFresnelPower: v }), [setState]), phongDebounceMs,
   )
+  // Live terrain shadows take every slider frame (uniforms); tiles and
+  // building shadows keep the 150 ms debounce.
+  const shadowLiveDraws = state.showShadows && state.shadowRenderer === "live" && !shadowLiveUnsupported
   if (!state.showLightingEffects) return null
 
   return (
@@ -280,7 +284,7 @@ export const LightingEffectsOptionsSection: React.FC<{
           <CheckboxWithSlider perView={perViewFor("showShadows")}
             id="lighting-shadows"
             label="Terrain"
-            tooltip="Hard cast shadows — darkens a pixel wherever terrain within the Search Radius (256 px by default) rises above the sun's own angle in the sky, blocking direct light. Every light/radius change recomputes visible tiles. Shares Phong/Hillshade's light direction (same pad below)."
+            tooltip="Hard cast shadows — darkens a pixel wherever terrain between it and the sun rises above the sun's own angle in the sky. Live (default) marches every pixel's ray on the GPU, so the sun moves in real time and shadows reach the edge of the view; Tiles computes them per tile on the CPU, within the Search Radius (256 px by default). Shares Phong/Hillshade's light direction (same pad below)."
             checked={state.showShadows}
             onCheckedChange={(checked) => setState({ showShadows: checked })}
             sliderValue={state.shadowOpacity}
@@ -288,13 +292,31 @@ export const LightingEffectsOptionsSection: React.FC<{
           />
           {modeOnVisibleView(state, "showShadows") && advanced && (
             <div className="space-y-3 pl-1">
-              <SliderControl
-                label="Search Radius (px)"
-                value={state.shadowRadiusPx}
-                onChange={(v) => setState({ shadowRadiusPx: v })}
-                min={2} max={SHADOW_RADIUS_MAX_PX} step={1}
-                sliderId="shadow-radius"
-              />
+              {/* Live: lib/shadow-live-gl-layer.ts (GPU, whole view); Tiles:
+                  the shadow:// tiles, what exports and the Iso-line use, and
+                  the fallback when the live layer cannot draw here. */}
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <Label className="text-sm font-medium">Renderer</Label>
+                <SegmentedToggle
+                  className={SEG_WIDTH}
+                  value={shadowLiveUnsupported ? "raster" : state.shadowRenderer}
+                  disabled={!!shadowLiveUnsupported}
+                  onChange={(value) => setState({ shadowRenderer: value as "live" | "raster" })}
+                  options={[
+                    { value: "live", label: "Live", tooltip: shadowLiveUnsupported ? `The GPU renderer could not run here (${shadowLiveUnsupported}); using tiles.` : "Rays marched per pixel on the GPU over the whole view: the sun moves in real time, shadows reach the edge of the view plus a tile, no radius." },
+                    { value: "raster", label: "Tiles", tooltip: "Computed per tile on the CPU within the Search Radius: the same pixels exports and the Iso-line use." },
+                  ]}
+                />
+              </div>
+              {(state.shadowRenderer === "raster" || shadowLiveUnsupported) && (
+                <SliderControl
+                  label="Search Radius (px)"
+                  value={state.shadowRadiusPx}
+                  onChange={(v) => setState({ shadowRadiusPx: v })}
+                  min={2} max={SHADOW_RADIUS_MAX_PX} step={1}
+                  sliderId="shadow-radius"
+                />
+              )}
             </div>
           )}
           <CheckboxWithSlider perView={perViewFor("showBuildingShadows")}
@@ -319,7 +341,7 @@ export const LightingEffectsOptionsSection: React.FC<{
                   state={state}
                   setState={setState}
                   sliderId="shadow-light"
-                  debounceMs={150}
+                  debounceMs={shadowLiveDraws ? 0 : 150}
                 />
               </CollapsibleContent>
             </Collapsible>

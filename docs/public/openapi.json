@@ -1552,6 +1552,20 @@
             }
           },
           {
+            "name": "shadowRenderer",
+            "in": "query",
+            "required": false,
+            "description": "State. \"live\" (default): lib/shadow-live-gl-layer.ts, rays marched per pixel on the GPU over a Float32 mosaic of the view's DEM tiles: the sun moves in real time and shadows reach the view's edge plus a til…",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "raster",
+                "live\" as const"
+              ],
+              "default": "live"
+            }
+          },
+          {
             "name": "showBuildingShadows",
             "in": "query",
             "required": false,

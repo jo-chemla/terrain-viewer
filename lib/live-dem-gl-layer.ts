@@ -129,7 +129,7 @@ vec3 demNormal(vec2 uv, float exaggeration) {
 // 2D: the tile's mesh through MapLibre's projection prelude. u_uvRect maps
 // the tile onto the DEM texture actually bound (itself, or the matching
 // sub-rectangle of a loaded ancestor).
-function mapTileVertexShader(prelude: string, define: string): string {
+export function mapTileVertexShader(prelude: string, define: string): string {
   return `#version 300 es
 ${prelude}
 ${define}
@@ -145,7 +145,7 @@ void main() {
 
 // Terrain tile: one attribute-less quad (TRIANGLE_STRIP of 4) in the terrain
 // tile's clip space; corner (0,0) is the north-west one, (1,1) the south-east.
-const TERRAIN_TILE_VERT = `#version 300 es
+export const TERRAIN_TILE_VERT = `#version 300 es
 uniform vec4 u_rect;   // clip x, y of the north-west then the south-east corner
 uniform vec4 u_uvRect; // the same corners in the DEM texture (v grows south)
 out vec2 v_uv;
@@ -182,7 +182,7 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string,
   return shader
 }
 
-function compileProgram(gl: WebGL2RenderingContext, vertexSrc: string, fragmentSrc: string, tag: string): WebGLProgram {
+export function compileProgram(gl: WebGL2RenderingContext, vertexSrc: string, fragmentSrc: string, tag: string): WebGLProgram {
   const program = gl.createProgram()!
   gl.attachShader(program, compileShader(gl, gl.VERTEX_SHADER, vertexSrc, tag))
   gl.attachShader(program, compileShader(gl, gl.FRAGMENT_SHADER, fragmentSrc, tag))

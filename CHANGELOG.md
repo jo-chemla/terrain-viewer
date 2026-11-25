@@ -1,3 +1,15 @@
+# Changelog — Live GPU Terrain Shadows
+
+#### TL;DR
+
+- **Hard Shadows draw live on the GPU** (idea 1 of the [Shadow Benchmark](/docs/dev/shadow-benchmark#live-gpu-renderer)): every pixel marches its own ray toward the sun over a Float32 mosaic of the view's DEM tiles. The sun pad, the Datetime hours and the Sun Shadow Calculator now move terrain shadows in real time, and shadows reach the edge of the view plus a tile, with no Search Radius and no height tolerance (low plateau edges are kept). Mercator, globe and 3D terrain.
+- **Renderer: Live / Tiles** under Lighting Effects, Shadows (advanced; `shadowRenderer`, default `live`). Tiles is the `shadow://` pipeline with its Search Radius; exports and the Iso-line always use it, and it takes over by itself when the GPU layer cannot run on the device.
+
+#### Details
+
+- `lib/shadow-live-gl-layer.ts` (custom layer: R32F mosaic of up to 48 tiles from the shared decoded-tile cache, tiles uploaded as they arrive, `render` through MapLibre's projection prelude, `renderToTerrainTile` with terrain on), `lib/shadow-live-math.ts` (sun step vector, step schedule: one texel for 40 then 1/40 of the distance, mosaic layout, a CPU twin of the march), `lib/shadow-live-math.test.ts` (`node scripts/test-lib.mjs lib/shadow-live-math.test.ts`), `components/LayersAndSources/ShadowLiveGlLayer.tsx`, `shadowLiveUnsupportedAtom` for the fallback. `lib/live-dem-gl-layer.ts` exports its program helpers. The CPU kernel is untouched.
+- Limits: a wide or strongly pitched view gets a coarser mosaic; a shadow cast from beyond the one-tile margin is missed; no exaggeration (as the tiles).
+
 # Changelog — Hard Shadows: a Shadow-Height Sweep, Radius 256 by Default; the Shadow Benchmark
 
 #### TL;DR
