@@ -1,3 +1,17 @@
+# Changelog — QGIS Plugin Experiment: Terrain Modes Computed in QGIS, No Tile Service
+<!-- released: 2026-11-25 -->
+
+#### TL;DR
+
+- **Experiment: the QGIS plugin can compute hillshade, sky view factor and terrain shadows itself**, in QGIS's Python with numpy, from Mapterhorn elevation tiles, with no tile service. It is off by default: check **Experimental: compute locally** in the Terrain Viewer panel and a "Terrain Viewer (local compute)" group appears; uncheck it and the group goes away. The shadows match the app's pixel for pixel, the sky view factor to 0.004 %.
+- **Fast enough**: 1 to 15 ms a tile on one CPU core, 5 to 100 times faster end to end than the same tiles from the tile service. The GPU (cupy) is slower than the CPU for tiles this small. Timings, the four ways to plug it into QGIS and next steps: [QGIS Live Compute](/docs/dev/qgis-live-compute).
+
+#### Details
+
+- `qgis-plugin/terrain_viewer/live/`: `dem.py` (Terrarium WebP/PNG through `QImage`, 256 px tiles from 512 px sources, padded 3×3 grid, LRU cache with in-flight de-duplication), `kernels.py` (Horn hillshade and slope, the "precise" sky view factor of `lib/horizon-kernel.ts`, the shadow-height sweep of `lib/shadow-kernel.ts` vectorised as one gather and two block-wise cumulative maxima; numpy or cupy), `kernels_numba.py` (the same kernels as loops, used only if numba imports), `server.py` (a `ThreadingHTTPServer` on 127.0.0.1 serving `/{mode}/{z}/{x}/{y}.png`), `layers.py` (the group of XYZ layers). `dock.py` only gains the checkbox.
+- `qgis-plugin/test_live.py` compares the numpy kernels with the TypeScript ones (`live_reference.mjs`, Node with `--experimental-strip-types`), compares numba with numpy, renders each mode through `QgsMapRendererParallelJob` and checks the checkbox. It passes in QGIS 4.2 and 3.44. `bench_live.py` times numpy (1 and 8 threads), numba, cupy, Node and the tile service.
+- A Python `QgsRasterDataProvider` was probed and works in 3.44 and 4.2, provided `capabilities()` returns `Qgis.RasterInterfaceCapability` flags (otherwise 3.44 exits without a traceback). It is the planned way to serve Float32 values with no service.
+
 # Changelog — Lighter Imagery Footprints, Every Entry Dated
 
 <!-- released: 2026-11-25T11:10 -->

@@ -88,4 +88,6 @@ The same panel with no tile service: the modes computed in Python, on the elevat
 - **Checking:** the port is checked against the app tile by tile, as `tile-server/compare-engines.mjs` checks the direct engine against the browser: same tiles, a table of differences.
 - **Keeping in step:** two implementations of each mode drift. The comparison above runs in CI on a fixed set of tiles, so a change to a protocol that the Python port does not follow fails a check.
 
+A first experiment (2026-11-25) ported hillshade, sky view factor and the shadow sweep to numpy and timed them in QGIS: [QGIS Live Compute](/dev/qgis-live-compute).
+
 Weeks of work, mode by mode; step 1 stays useful as the fallback for any mode not ported yet.

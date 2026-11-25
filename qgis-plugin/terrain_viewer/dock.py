@@ -340,6 +340,13 @@ class TerrainViewerDock(QDockWidget):
         outer.addLayout(freeze)
         self.freeze_btn = freeze_btn
 
+        # Experimental, off by default: modes computed here with numpy (live/), no tile service.
+        self.local = QCheckBox("Experimental: compute locally")
+        self.local.setToolTip("Hillshade, sky view factor and shadows computed in QGIS's Python from Mapterhorn "
+                              "elevation tiles, served to XYZ layers from a localhost thread")
+        self.local.toggled.connect(self.toggle_local)
+        outer.addWidget(self.local)
+
         self.groups_host = QWidget()
         self.groups_layout = QVBoxLayout(self.groups_host)
         self.groups_layout.setContentsMargins(0, 0, 0, 0)
@@ -350,6 +357,13 @@ class TerrainViewerDock(QDockWidget):
         scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         outer.addWidget(scroll, 1)
         self.setWidget(body)
+
+    def toggle_local(self, on):
+        from .live import layers as live_layers  # numpy is only imported when asked
+        if on:
+            live_layers.add_local_layers()
+        else:
+            live_layers.remove_local_layers()
 
     # -- the service ------------------------------------------------------
     def service_url(self):

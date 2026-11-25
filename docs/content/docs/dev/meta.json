@@ -10,6 +10,7 @@
     "tile-service",
     "source-schema",
     "qgis-plugin",
+    "qgis-live-compute",
     "ux-flows",
     "non-geo-relief-visualization",
     "fumadocs-customization",
