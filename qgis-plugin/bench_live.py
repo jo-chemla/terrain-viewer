@@ -7,7 +7,13 @@ JavaScript kernel in Node (one thread, JIT warmed). Then whole tiles over HTTP w
 elevation already cached: the localhost server of live/ and, with --service, the
 tile service, one at a time (latency) and 8 at a time (throughput).
 numba and cupy are optional: QGIS ships neither; TV_EXTRA_PYTHONPATH may name a
-folder where they were pip-installed with --target (never QGIS's own)."""
+folder where they were pip-installed with --target (never QGIS's own).
+
+  python-qgis bench_live.py --per-mode
+only times every mode of live/modes.py (values and colour tile, numpy, one
+thread), median ms per 256 px tile and per 512 px tile, then stops: the
+terrain modes on the same Mont Blanc tiles, the building shadows on
+Manhattan (z16 and z17, the building tiles already fetched)."""
 import argparse
 import json
 import math
@@ -36,6 +42,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--service", default=None)
 ap.add_argument("--json", default=None)
 ap.add_argument("--source", default="mapterhorn")
+ap.add_argument("--per-mode", action="store_true")
 args = ap.parse_args()
 
 from qgis.core import Qgis, QgsApplication  # noqa: E402
@@ -68,6 +75,67 @@ CASES = [
 ]
 dem = Dem(args.source)
 print(f"QGIS {Qgis.version()}, Qt {QT_VERSION_STR}, numpy {np.__version__}, {os.cpu_count()} logical cores")
+
+
+class Grid512:
+    """A 512 px tile (z - 1 of the 256 px scheme) from four 256 px tiles and
+    their ring: grid(halo) as modes.values() reads it. Its ancestors (LRM,
+    local dominance) are the 256 px ones scaled x2: right shapes, for timing."""
+
+    def __init__(self, z, x, y):
+        self.z, self.x, self.y = z - 1, x // 2, y // 2
+        x0, y0 = self.x * 2, self.y * 2
+        m = np.empty((4 * TILE, 4 * TILE), np.float32)
+        for j in range(4):
+            for i in range(4):
+                m[j * TILE:(j + 1) * TILE, i * TILE:(i + 1) * TILE] = dem.tile(z, x0 - 1 + i, y0 - 1 + j)
+        self.m, self.zz, self.x0, self.y0 = m, z, x0, y0
+
+    def __call__(self, halo):
+        return self.m[TILE - halo:3 * TILE + halo, TILE - halo:3 * TILE + halo]
+
+    def ancestor(self, k):
+        a = dem.padded(self.zz - k, self.x0 >> k, self.y0 >> k, 0)
+        return np.pad(np.repeat(np.repeat(a, 2, 0), 2, 1), 1, mode="edge")
+
+
+def per_mode():
+    """Every mode of the registry, values and colour tile, numpy in one
+    thread: median ms per tile over the 16 tiles, at 256 and 512 px."""
+    from terrain_viewer.live import buildings
+    city = [(16, 19298 + i, 24628 + j) for j in range(2) for i in range(2)] + \
+           [(17, 38597 + i, 49257 + j) for j in range(2) for i in range(2)]  # Manhattan
+    out = []
+    for mode in modes.PYTHON_MODES:
+        o = modes.parse_opts(mode, {})
+        tiles = city if mode == "buildingShadows" else TILES
+        row = {"mode": mode}
+        for n in (256, 512):
+            times = []
+            for t in tiles[:4] if mode in ("buildingShadows",) else tiles[:8]:
+                g = dem.grid(*t) if n == 256 else Grid512(*t)
+                modes.prefetch(mode, g, o)
+                if mode == "buildingShadows":
+                    buildings.lit(g.z, g.x, g.y, n)  # the building tiles fetched
+                res = ground_resolution_m(g.z, g.y, n)
+                t0 = time.perf_counter()
+                v = modes.values(mode, g, res, o, n)
+                modes.colour(mode, v, o)
+                times.append((time.perf_counter() - t0) * 1000)
+            row[f"ms_{n}"] = round(statistics.median(times), 1)
+        out.append(row)
+        print(f"  {mode:<16} {row['ms_256']:7.1f} ms / 256 px   {row['ms_512']:7.1f} ms / 512 px", flush=True)
+    return out
+
+
+if args.per_mode:
+    print("per mode (values + colour, numpy, one thread):")
+    res = per_mode()
+    if args.json:
+        with open(args.json, "w") as f:
+            json.dump(res, f, indent=1)
+    app.exitQgis()
+    sys.exit(0)
 print("prefetching", len(TILES), "tiles and their neighbours ...")
 grids = {}
 for halo in (1, 8, 32, 256):

@@ -202,3 +202,152 @@ def shadow(padded, n, halo, d_row, d_col, res_m, altitude_rad, xp=np):
     return shade if row_major else shade.T
 
 
+# ---------------------------------------------------------------- structure tensor
+def _box3(a):
+    """The 3x3 sum of every inner pixel: (m + 2)^2 -> (m, m), separable."""
+    r = a[:-2] + a[1:-1] + a[2:]
+    return r[:, :-2] + r[:, 1:-1] + r[:, 2:]
+
+
+def structure_tensor(padded, res_m, xp=np):
+    """lib/blobness-protocol.ts: the Horn gradient (x = west - east,
+    y = south - north, not / 8) at every pixel of the tile and its one-pixel
+    ring, computed once into two grids, then the 3x3-box means of gx^2,
+    gy^2 and gx gy. Float64, as the app keeps its gradient grids.
+    (n + 4)^2 -> three (n, n)."""
+    p = padded.astype(xp.float64)
+    inv = 1.0 / res_m
+    l, c, r = p[:, :-2], p[:, 1:-1], p[:, 2:]
+    gx = ((l[:-2] + 2 * l[1:-1] + l[2:]) - (r[:-2] + 2 * r[1:-1] + r[2:])) * inv
+    gy = ((l[2:] + 2 * c[2:] + r[2:]) - (l[:-2] + 2 * c[:-2] + r[:-2])) * inv
+    return _box3(gx * gx) / 9, _box3(gy * gy) / 9, _box3(gx * gy) / 9
+
+
+BLOBNESS_SCALE = 100 / 64  # lib/blobness-protocol.ts: undoes Horn's x8 on a degree-2 quantity, then x100
+
+
+def blobness(ixx, iyy, ixy, xp=np):
+    """det(J) / trace(J) x BLOBNESS_SCALE (the app's units: its ramp's
+    0-50), 0 where the trace is under 1e-9."""
+    tr = ixx + iyy
+    flat = tr < 1e-9
+    v = (ixx * iyy - ixy * ixy) / xp.where(flat, 1.0, tr) * BLOBNESS_SCALE
+    return xp.where(flat, 0.0, v)
+
+
+def eigen_ratio(ixx, iyy, ixy, xp=np):
+    """lambda_min / lambda_max x 100 (0 an edge, 100 isotropic), 0 on flat ground."""
+    tr = ixx + iyy
+    disc = xp.sqrt((ixx - iyy) * (ixx - iyy) + 4 * ixy * ixy)
+    lmax, lmin = (tr + disc) / 2, (tr - disc) / 2
+    ok = (tr >= 1e-9) & (lmax > 1e-12)
+    return xp.where(ok, lmin / xp.where(ok, lmax, 1.0) * 100, 0.0)
+
+
+def orientation(ixx, iyy, ixy, xp=np):
+    """The dominant eigenvector's axis as a compass bearing folded to 0-180:
+    the axis along which the elevation changes most (across a ridge, not
+    along it). Horn's x and y are both the opposite of east and north and
+    the tensor is quadratic in them, so nothing is mirrored: 90 minus the
+    math angle is the bearing (lib/blobness-protocol.test.ts)."""
+    tr = ixx + iyy
+    math_deg = 0.5 * xp.degrees(xp.arctan2(2 * ixy, ixx - iyy))
+    v = xp.mod(xp.mod(90.0 - math_deg, 180.0) + 180.0, 180.0)
+    return xp.where(tr < 1e-9, 0.0, v)
+
+
+# ---------------------------------------------------------------- local dominance
+OBSERVER_HEIGHT_M = 1.6
+_LD_DIRS = [(math.sin(2 * math.pi * i / 8), math.cos(2 * math.pi * i / 8)) for i in range(8)]
+
+
+def octave_of(radius_px):
+    """lib/local-dominance-protocol.ts radiusToOctave."""
+    return min(6, max(1, round(math.log2(max(2.0, radius_px)))))
+
+
+def _taps(g, last):
+    """Bilinear taps of fractional grid positions: the two clamped indices
+    and the weight, clamped as lib/local-dominance-kernel.ts does."""
+    i0 = np.floor(g).astype(np.int64)
+    return np.clip(i0, 0, last), np.clip(i0 + 1, 0, last), g - i0
+
+
+def local_dominance(centre, levels, n, x, y, res_m, xp=np):
+    """lib/local-dominance-kernel.ts: the mean, over 8 directions and one ring
+    per octave, of the angle down from an observer 1.6 m above the pixel to
+    the terrain one coarse pixel away on the ancestor tile k levels up
+    (bilinear, LRM's half-pixel recentring), in degrees. centre (n, n), the
+    tile's own elevations; levels [(padded (n + 2)^2, k)]. The weights of a
+    column (a row) are the same down the tile, so the bilinear read is
+    separable: across, on the whole ancestor once per distinct column step
+    (five of the eight directions' steps differ), then down. Same weights
+    and clamps as the app's; the sum is ordered differently (1e-12 m). The
+    arctangent stays in float64: numpy's float32 one measured twice as slow."""
+    obs = centre.astype(xp.float64) + OBSERVER_HEIGHT_M
+    acc = xp.zeros((n, n), xp.float64)
+    tmp = xp.empty((n, n), xp.float64)
+    idx = np.arange(n)
+    for a, k in levels:
+        scale = 1 << k
+        xo, yo = x - ((x >> k) << k), y - ((y >> k) << k)
+        pcx = (xo * n + idx + 0.5) / scale - 0.5
+        pcy = (yo * n + idx + 0.5) / scale - 0.5
+        inv = 1.0 / (scale * res_m)
+        a = a.astype(xp.float64)
+        last = a.shape[0] - 1
+        across = {}
+        for d_row, d_col in _LD_DIRS:
+            key = round(d_col, 12)
+            ax = across.get(key)
+            if ax is None:
+                x0, x1, fx = _taps(pcx + d_col + 1, last)
+                if xp is not np:
+                    x0, x1, fx = map(xp.asarray, (x0, x1, fx))
+                ax = across[key] = a[:, x0] * (1 - fx) + a[:, x1] * fx  # (n + 2, n)
+            y0, y1, fy = _taps(pcy + d_row + 1, last)
+            if xp is not np:
+                y0, y1, fy = map(xp.asarray, (y0, y1, fy))
+            fy = fy[:, None]
+            # obs - (top (1 - fy) + bottom fy), in place
+            xp.multiply(ax[y0], 1 - fy, out=tmp)
+            tmp += ax[y1] * fy
+            xp.subtract(obs, tmp, out=tmp)
+            tmp *= inv
+            acc += xp.arctan(tmp, out=tmp)
+    count = len(levels) * len(_LD_DIRS)
+    return (xp.degrees(acc / count) if count else acc).astype(xp.float32)
+
+
+# ---------------------------------------------------------------- lines and blur
+def box_blur(a, r, xp=np):
+    """Separable mean over (2 r + 1)^2, the window cut at the grid's edges
+    (lib/isoband-protocol.ts boxBlur; running sums here as cumulative sums)."""
+    if r <= 0:
+        return a
+    out = a.astype(xp.float64)
+    for axis in (0, 1):
+        m = out.shape[axis]
+        c = xp.cumsum(out, axis=axis)
+        c = xp.concatenate([xp.zeros_like(xp.take(c, [0], axis=axis)), c], axis=axis)
+        hi = np.minimum(np.arange(m) + r + 1, m)
+        lo = np.maximum(np.arange(m) - r, 0)
+        s = xp.take(c, hi, axis=axis) - xp.take(c, lo, axis=axis)
+        cnt = (hi - lo).astype(np.float64)
+        out = s / (cnt[:, None] if axis == 0 else cnt[None, :])
+    return out
+
+
+def crossing_mask(k, both_sides=False, xp=np):
+    """Where the band index k changes between a pixel and one of its four
+    neighbours: the pixel on the upper side (both_sides: the lower one too,
+    a line two pixels wide). k (m + 2)^2 -> (m, m) bool."""
+    c = k[1:-1, 1:-1]
+    on = xp.zeros(c.shape, bool)
+    for nb in (k[:-2, 1:-1], k[2:, 1:-1], k[1:-1, :-2], k[1:-1, 2:]):
+        on |= nb < c
+        if both_sides:
+            on |= nb > c
+    return on
+
+

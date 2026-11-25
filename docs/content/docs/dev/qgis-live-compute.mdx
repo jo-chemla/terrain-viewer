@@ -1,7 +1,7 @@
 ---
 title: QGIS Live Compute (experiment)
 icon: Cpu
-description: Terrain modes computed inside QGIS with numpy, no tile service - 16 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, TPI, TRI, roughness, LRM, sky view factor, openness, shadows, Phong, matcap, contours as a mask and as lines, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; Colour and Values per mode; how QGIS picks tile zooms and resamples; parallel tiles timed; numpy, numba, cupy and the tile service compared.
+description: Terrain modes computed inside QGIS with numpy, no tile service - 25 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, shape index, blobness, eigenvalue ratio, orientation, TPI, TRI, roughness, LRM, sky view factor, openness, local dominance, terrain and building shadows, Phong, matcap, contours, iso-line, graticule, plane slicer, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; Colour and Values per mode; how QGIS picks tile zooms and resamples; parallel tiles timed; numpy, numba, cupy and the tile service compared.
 ---
 
 Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-as-planned) asked whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel, a third gave every mode row its Colour and Values boxes, added Phong, matcap and contour lines, and measured how QGIS picks tile zooms and resamples. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that was off by default (**Experimental: compute locally**) until 0.7.0, where it became the panel's **Python** backend, beside the local and remote tile services, under the same modes tree.
@@ -15,6 +15,68 @@ Plugin 0.7.0 dropped the separate box and its own flat list of modes. **Python**
 - Its layers go in the panel's "Terrain Viewer (live)" tree, keyed as the service's (`slope`, `slope:values`, `contours:vector`), so picking another backend re-points them, Freeze copies them and a saved project reads them back. 0.6.0's "Terrain Viewer (local compute)" group is removed on connect.
 - **Sources**: it follows the source picked. It reads Terrarium and Terrain-RGB pyramids: Mapterhorn, AWS, the library's others with a public address, Mapbox and MapTiler with their keys, or a typed `{z}/{x}/{y}` address (its tile size read from one tile). A COG, VRT, LERC, WMS, quantized mesh, PMTiles or difference source says so once and draws Mapterhorn. Contour lines and the elevation prefetch follow the source too.
 - The hypsometric tint's range follows the view (2nd to 98th percentile) while the panel's minimum and maximum are the app's defaults (0 to 8100 m).
+
+## Fourth round: the remaining modes, a registry the panel can grey out
+
+After 0.6.0, the same day: every terrain mode of the app and the tile service has a Python port except the mound detector. The new code is in `live/kernels.py` (structure tensor, local dominance, box blur, line masks), `live/overlays.py` (graticule, app colour ramps), `live/buildings.py` (building shadows) and `live/contours.py` (`view_values`, `view_vector`: the vector forms); `live/modes.py` registers them.
+
+### What was added and how well it matches
+
+| Mode | Port of | Against | Match |
+|---|---|---|---|
+| Shape index | `lib/curvature-protocol.ts` shape-index, as its own mode | tile service values, z12 to z14 | 100 % within 0.01 (median 1e-8) |
+| Blobness | `lib/blobness-protocol.ts`: Horn gradients once into two grids, 3x3 box means of gx², gy², gx·gy, det/trace; values in natural units (the app's / 100, as the service's) | tile service values | 100 % within 2e-4 + 1 % (median 2e-5; blobness goes as 1/L², the service's ground size is its 512 px tile's) |
+| Eigenvalue ratio | same tensor, λmin/λmax, 0-1 | tile service values | 100 % within 1e-4 |
+| Dominant orientation | same tensor, 0-180° | tile service values; planes and ridges offline | 100 % within 0.01° (period 180) |
+| Local dominance (RVT) | `lib/local-dominance-kernel.ts`: one ring per octave of [minRadius, maxRadius] on the ancestor tiles, 8 directions, observer 1.6 m; the bilinear read made separable | tile service values | 100 % within 0.02° (median 0.002) |
+| Building shadows | the app's sweep of OpenFreeMap's z14 footprints (`buildingShadowSvg`), done as the terrain shadow sweep on flat ground: footprints burnt with their `render_height` (GDAL's MVT driver and `RasterizeLayer`, lowest first, the highest kept across tiles, capped at 600 m), `kernels.shadow` toward the sun, roofs lit | the service's picture, Manhattan z16 and z17 | 99.4 % and 98.9 % within 1 px off the footprints (below) |
+| Plane slicer | `computePlaneSlicerPaint`: below or above a value of the elevation or of its LRM, one colour at an opacity; polygons by `ContourGenerateEx` (POLYGONIZE, levels MIN, value, MAX) | the service's picture; its own raster | 99.9-100 % within 1 px; polygons on the same pixels 99.97-100 % |
+| Graticule | `graticuleSvg` and `niceGraticuleDensity`: meridians and parallels, the stroke's coverage per pixel (the lines nest with the tiles and half-cover the pixels beside them, as the antialiased SVG); lines with `kind` and `deg` | the service's picture | 100 % |
+| Iso-line | `IsolineLayers.tsx`: a measure (elevation, slope, aspect, TRI, TPI, roughness, curvature, shape index, blobness, eigen ratio, orientation, LRM, hillshades, Phong, shadows) blurred by `smooth` (the isoband box blur), traced at a value (fill optional) or every interval, in the measure's own units; lines by GDAL over the view's mosaic of the measure | the service's picture; its own raster | 99.2-100 % within 1 px; lines 100 % within 1 px |
+
+Phong and matcap were already in 0.6.0 and still match the service (100 % within 3 levels, median 0). The terrain shadows (`kernels.shadow`) still match `lib/shadow-kernel.ts` with 0 pixels different.
+
+**Orientation is not mirrored.** Aspect was (fixed 2026-11-25) because Horn's dx is west minus east and only it was negated. The structure tensor's gx and gy are both negated slopes and the tensor is quadratic in them, so its axis is the true one: a plane rising to the north-east reads 45°, to the north-west 135° (`lib/blobness-protocol.test.ts`, and section 0 of `test_live.py` on the Python port). It is the axis of the dominant **gradient**, across a ridge, not along it: a ridge running north-south reads 90°. The mode description used to say "which way a linear feature runs"; it now says what the code computes (no change to the values).
+
+**Building shadows on roofs.** Off the footprints the two agree within a pixel. On them they differ: the service cuts the footprints out with one even-odd path over every building, so where two building parts overlap (a tower on its podium) the overlap is counted twice and the roof stays shaded (45 % of the footprint pixels in midtown Manhattan); here every roof is lit, as the app's description says.
+
+### Registry metadata for the panel
+
+Every entry of `MODES` now has `outputs` (of `colour`, `values`, `vector`; `forms_of` reads it), `python_supported` (False for the mound detector, listed so the panel can grey it out), `service` (its `/processes` id: elevation is `colorRelief`, the multidirectional hillshade `hillshade` with `service_query`), and where it applies `opacity` (the colour layer's default), `stops` (the app's ramp from `lib/color-ramps.ts`, used for the colour tiles of the new ramp modes, so they match the app), `vector_layer` (geometry and fields of the vector form). `ORDER` is the app's stacking order, top first; `PYTHON_MODES` the computed ones. `prefetch(mode, grid, opts)` fetches what a mode reads (the server calls it), `contours.view_vector(dem, extent, width_px, mode, opts)` returns any vector form as `[(wkb, attributes)]`.
+
+### Timings
+
+`python-qgis bench_live.py --per-mode`: values and colour tile, numpy in one thread, median over the Mont Blanc z12 tiles (Manhattan z16-z17 for the building shadows, the building tiles already fetched), 20-thread laptop, other work running (medians move ±30 % and more between runs):
+
+| Mode | ms / 256 px | ms / 512 px |
+|---|---|---|
+| Shape index | 3.4 | 28 |
+| Blobness | 4.2 | 43 |
+| Eigenvalue ratio | 5.5 | 49 |
+| Dominant orientation | 8.2 | 60 |
+| Local dominance (8-32 px, 3 octaves) | 29 | 188 |
+| Building shadows (midtown Manhattan) | 51 | 116 |
+| Plane slicer | 0.1 | 0.7 |
+| Graticule | 0.8 | 6 |
+| Iso-line (slope at 30°) | 3.8 | 22 |
+| Terrain shadows (r 256) | 10 | 58 |
+| Phong / matcap | 2.9 / 17 | 32 / 90 |
+| SVF r 8 / openness r 8 | 4.1 / 8.0 | 41 / 44 |
+| 3x3 family (slope, aspect, TRI, TPI, roughness, curvature) | 0.5-1.8 | 6-17 |
+
+Local dominance is the arctangent: 24 per pixel (numpy's float32 arctangent measured twice as slow as float64 here). The building shadows are the footprint burn (GDAL) and the sweep over a halo as long as the tallest building's shadow (up to 1024 px). The vector forms over a view one tile wide: iso-line 30-70 ms, iso-line on LRM 170 ms, plane slicer 15 ms (absolute) to 230 ms (LRM), graticule under 1 ms.
+
+### Remaining gaps
+
+- **Mound detector** (`moundDetector`, beta): tile service only.
+- **Hillshade methods** other than standard and multidirectional: combined, igor, basic, multidir-colors, duotone-nw-ne, aspect-multidir.
+- **Colours of the older modes**: QGIS ramps over the plugin's own ranges (slope 0-60 against the app's 0-55, TPI ±5 against ±20, ...), not the app's ramps; the new modes use the app's (`stops`). Per-mode ramp, min/max and invert settings are not in the registry; elevation uses the plugin's hypsometric ramp, not the app's colour relief ramps.
+- **Shadows**: the live renderer's soft edge (`shadowSoft`), the 512 px radius (256 here), the app's default sun altitude 45° (30° here).
+- **Iso-line**: the cliff teeth, the fill as vector polygons (the plane slicer gives them for the elevation and LRM), matcap as a measure, the app's units for the lights (luma 0-255) and the eigen ratio (%).
+- **Graticule labels**, contour labels.
+- **SVF and openness "fast" precision**: only "precise" is ported.
+- **Vector forms in the panel**: `live/layers.py` makes only the contour line layer; the others are in `contours.view_vector`, waiting for the panel.
+- numba: no port for local dominance or the structure tensor (numpy is fast enough).
 
 ## Third round: Colour and Values per mode, Phong, matcap, contour lines, resampling
 

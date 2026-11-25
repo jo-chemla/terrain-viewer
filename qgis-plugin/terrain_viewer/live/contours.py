@@ -18,6 +18,7 @@ import math
 import numpy as np
 
 from .dem import TILE
+from .overlays import vector_mem
 from .server import WORLD
 
 MAX_TILES = 64
@@ -56,7 +57,7 @@ def contour_lines(grid, geotransform, minor=50.0, major=200.0):
     src = gdal.GetDriverByName("MEM").Create("", grid.shape[1], grid.shape[0], 1, gdal.GDT_Float32)
     src.SetGeoTransform(geotransform)
     src.GetRasterBand(1).WriteArray(grid)
-    vds = ogr.GetDriverByName("Memory").CreateDataSource("contours")
+    vds = vector_mem("contours")
     lyr = vds.CreateLayer("contours", geom_type=ogr.wkbLineString)
     lyr.CreateField(ogr.FieldDefn("elev", ogr.OFTReal))
     gdal.ContourGenerate(src.GetRasterBand(1), float(minor), 0.0, [], 0, 0, lyr, -1, 0)
@@ -75,6 +76,116 @@ def view_contours(dem, extent3857, width_px, minor=50.0, major=200.0):
     """The contour lines over a view, and the zoom of the elevation read."""
     grid, gt, z = view_grid(dem, extent3857, width_px)
     return contour_lines(grid, gt, minor, major), z
+
+
+def view_values(dem, extent3857, width_px, mode, opts, max_tiles=MAX_TILES):
+    """A mode's values over a view, mosaicked from its tiles (each computed
+    with its own halo and ancestors, as the server's: no seams):
+    (array, geotransform, z)."""
+    from . import modes
+    from .dem import ground_resolution_m
+    from .layers import tile_zoom
+    z = tile_zoom(extent3857, width_px, dem.spec["maxzoom"] + (1 if dem.spec["size"] == 512 else 0))
+    while True:
+        n = 1 << z
+        size = 2 * WORLD / n
+        x0 = int(math.floor((extent3857.xMinimum() + WORLD) / size))
+        x1 = int(math.floor((extent3857.xMaximum() + WORLD) / size))
+        y0 = max(int(math.floor((WORLD - extent3857.yMaximum()) / size)), 0)
+        y1 = min(int(math.floor((WORLD - extent3857.yMinimum()) / size)), n - 1)
+        if (x1 - x0 + 1) * (y1 - y0 + 1) <= max_tiles or z == 0:
+            break
+        z -= 1
+
+    def one(tx, ty):
+        g = dem.grid(z, tx % (1 << z), ty)
+        return modes.values(mode, g, ground_resolution_m(z, ty), opts, TILE)
+
+    futs = {(ty, tx): dem.pool.submit(one, tx, ty) for ty in range(y0, y1 + 1) for tx in range(x0, x1 + 1)}
+    out = np.empty(((y1 - y0 + 1) * TILE, (x1 - x0 + 1) * TILE), np.float32)
+    for (ty, tx), f in futs.items():
+        out[(ty - y0) * TILE:(ty - y0 + 1) * TILE, (tx - x0) * TILE:(tx - x0 + 1) * TILE] = f.result()
+    px = size / TILE
+    return out, (-WORLD + x0 * size, px, 0.0, WORLD - y0 * size, 0.0, -px), z
+
+
+def _mem(grid, geotransform):
+    from osgeo import gdal
+    src = gdal.GetDriverByName("MEM").Create("", grid.shape[1], grid.shape[0], 1, gdal.GDT_Float32)
+    src.SetGeoTransform(geotransform)
+    band = src.GetRasterBand(1)
+    band.WriteArray(grid)
+    band.SetNoDataValue(float("nan"))
+    return src
+
+
+def level_lines(grid, geotransform, levels=None, interval=None):
+    """GDAL's lines of a grid at fixed levels or every interval: [(wkb, level)]."""
+    from osgeo import gdal, ogr
+    src = _mem(grid, geotransform)
+    vds = vector_mem("lines")
+    lyr = vds.CreateLayer("lines", geom_type=ogr.wkbLineString)
+    lyr.CreateField(ogr.FieldDefn("v", ogr.OFTReal))
+    opts = ["ELEV_FIELD=0"] +([f"FIXED_LEVELS={','.join(repr(float(v)) for v in levels)}"] if levels is not None
+                               else [f"LEVEL_INTERVAL={float(interval)!r}"])
+    gdal.ContourGenerateEx(src.GetRasterBand(1), lyr, options=opts)
+    return [(bytes(f.GetGeometryRef().ExportToWkb()), float(f.GetField(0))) for f in lyr if f.GetGeometryRef() is not None]
+
+
+def side_polygons(grid, geotransform, value, side="below"):
+    """GDAL's polygons of the area of a grid below or above a value:
+    [wkb] (multipolygons)."""
+    from osgeo import gdal, ogr
+    src = _mem(grid, geotransform)
+    vds = vector_mem("bands")
+    lyr = vds.CreateLayer("bands", geom_type=ogr.wkbMultiPolygon)
+    lyr.CreateField(ogr.FieldDefn("lo", ogr.OFTReal))
+    lyr.CreateField(ogr.FieldDefn("hi", ogr.OFTReal))
+    # Polygons come between pairs of levels (MIN and MAX: the grid's own);
+    # the ELEV_FIELD options are field indexes, not names.
+    gdal.ContourGenerateEx(src.GetRasterBand(1), lyr, options=[
+        "POLYGONIZE=YES", f"FIXED_LEVELS=MIN,{float(value)!r},MAX", "ELEV_FIELD_MIN=0", "ELEV_FIELD_MAX=1"])
+    out = []
+    for f in lyr:
+        g = f.GetGeometryRef()
+        if g is None or g.IsEmpty():
+            continue
+        hi = f.GetField(1)
+        below = hi is not None and hi <= value + 1e-9
+        if below == (side == "below"):
+            out.append(bytes(g.ExportToWkb()))
+    return out
+
+
+def view_vector(dem, extent3857, width_px, mode, opts):
+    """The vector form of a mode over a view: ([(wkb, [attributes])], z),
+    the attributes in the order of MODES[mode]["vector_layer"]["fields"]."""
+    from . import modes
+    from .overlays import graticule_lines
+    o = modes.parse_opts(mode, opts)
+    if mode == "contours":
+        lines, z = view_contours(dem, extent3857, width_px, o["minor"], o["major"])
+        return [(w, [e, 1 if m else 0]) for w, e, m in lines], z
+    if mode == "graticules":
+        return [(w, [k, d]) for w, k, d in graticule_lines(extent3857, width_px, o["density"])], None
+    if mode == "isoline":
+        m, mo, s, _e = modes._iso(o)
+        grid, gt, z = view_values(dem, extent3857, width_px, m, mo)
+        if s:
+            from .kernels import box_blur
+            grid = box_blur(grid, s).astype(np.float32)
+        if o["at"] == "value":
+            lines = level_lines(grid, gt, levels=[o["value"]])
+        else:
+            lines = level_lines(grid, gt, interval=max(o["interval"], 1e-9))
+        return [(w, [v]) for w, v in lines], z
+    if mode == "planeSlicer":
+        lrm = o["reference"] == "lrm"
+        grid, gt, z = view_values(dem, extent3857, width_px, "lrm" if lrm else "elevation",
+                                  {"radius": o["lrmRadius"]} if lrm else {})
+        value = o["valueLrm"] if lrm else o["value"]
+        return [(w, [value, o["side"]]) for w in side_polygons(grid, gt, value, o["side"])], z
+    raise ValueError(f"{mode} has no vector form here")
 
 
 def style(layer, colour="#7a3b00"):

@@ -9,7 +9,11 @@
    mask against GDAL's own gdaldem and contour generator.
 4. numba's port against numpy, when numba imports.
    Phong and matcap against the service's pictures (no values); the contour
-   lines (vector form) against the mask.
+   lines (vector form) against the mask. The overlays (plane slicer,
+   graticule, iso-line) and the building shadows against the service's
+   pictures (within a pixel); their vector forms against their rasters.
+   0. (offline) the structure tensor's orientation on planes and ridges:
+   not mirrored (lib/blobness-protocol.test.ts's cases).
 5. End to end: the localhost server, each mode's forms (colour XYZ tiles,
    values read by GDAL with QGIS's renderers, contour lines) drawn by QGIS's
    parallel renderer; a new setting keeps a layer's own style.
@@ -89,10 +93,12 @@ def reference(kind, padded, halo, **kw):
 
 def score(mode, ref_name, mine, ref, tol, circular=False, mask=None, need=99.0, rel=0.0):
     """The share of pixels where |mine - ref| <= tol + rel |ref| (circular:
-    angles in degrees), NaN in both counted as equal."""
+    angles in degrees, of period 360, or the number given), NaN in both
+    counted as equal."""
     d = np.abs(mine.astype(np.float64) - ref.astype(np.float64))
     if circular:
-        d = np.minimum(d, 360 - d)
+        period = 360 if circular is True else circular
+        d = np.minimum(d, period - d)
     raw = d.copy()
     if rel:
         d = d - rel * np.abs(ref.astype(np.float64))
@@ -110,6 +116,18 @@ def score(mode, ref_name, mine, ref, tol, circular=False, mask=None, need=99.0, 
     if ok < need:
         failures.append(f"{mode} vs {ref_name}: {ok:.2f}% within {tol} (need {need}%)")
 
+
+# 0. The structure tensor's orientation, offline: a compass axis of the
+# dominant gradient, not mirrored (lib/blobness-protocol.test.ts's cases).
+print("0. orientation on planes and ridges")
+_e, _n = np.meshgrid(np.arange(-2.0, 3.0), np.arange(2.0, -3.0, -1.0))  # 5x5, row 0 north
+for label, zz, want in [("plane rising NE", _e + _n, 45), ("plane rising NW", -_e + _n, 135),
+                        ("east-west slope", 3 * _e, 90), ("north-south slope", 2 * _n, 0),
+                        ("ridge running N-S", -10 * np.abs(_e), 90), ("ridge running E-W", -10 * np.abs(_n), 0)]:
+    got = float(kernels.orientation(*kernels.structure_tensor(zz, 1.0))[0, 0])
+    print(f"  {label:<18} {got:6.2f} (want {want})")
+    if min(abs(got - want), 180 - abs(got - want)) > 1e-6:
+        failures.append(f"orientation {label}: {got} != {want}")
 
 # 1. numpy against the app's kernels.
 print("1. against the app's kernels (Node)")
@@ -153,6 +171,13 @@ REF = [
     ("svf", {"radius": 8}, "modes=svf&svfRadius=8&svfPrecision=precise", 0.001, False),
     ("openness", {"radius": 8, "mode": "positive"}, "modes=openness&opennessRadius=8&opennessMode=positive&opennessPrecision=precise", 0.05, False),
     ("openness", {"radius": 8, "mode": "negative"}, "modes=openness&opennessRadius=8&opennessMode=negative&opennessPrecision=precise", 0.05, False),
+    # The structure tensor and local dominance: the service packs them as
+    # Terrarium (1/256 of the app's units; blobness and eigenRatio are x100 there).
+    ("shapeIndex", {}, "modes=shapeIndex", 0.01, False),
+    ("blobness", {}, "modes=blobness", 2e-4, False),
+    ("eigenRatio", {}, "modes=eigenRatio", 1e-4, False),
+    ("orientation", {}, "modes=orientation", 0.01, 180),
+    ("localDominance", {}, "modes=localDominance", 0.02, False),
 ] + [("curvature", {"mode": m}, f"modes=curvature&curvatureMode={m}", tol, False) for m, tol in
      [("combined", 1e-4), ("profile", 1e-4), ("plan", 1e-3), ("det-hessian", 1e-6), ("casorati", 1e-4), ("shape-index", 0.01)]]
 
@@ -189,7 +214,9 @@ if service:
             clip = 32767 / {"det-hessian": 1e7, "shape-index": 1e3}.get(opts["mode"], 1e5)
             mask = np.abs(ref) < 0.999 * clip
         label = mode + (f":{opts['mode']}" if "mode" in opts else "")
-        score(label, ref_name, mine, ref, tol, circ, mask, rel=0.005 if mode in ("slope", "curvature") else 0.0)
+        # blobness goes as 1/L^2: twice the relative gap of the ground sizes.
+        rel = {"slope": 0.005, "curvature": 0.005, "blobness": 0.01}.get(mode, 0.0)
+        score(label, ref_name, mine, ref, tol, circ, mask, rel=rel)
 
     # Phong and matcap have no values: the service's picture (its default
     # renderer, the app's live layers) against the plugin's colour tile.
@@ -227,6 +254,61 @@ if service:
                 ref.append(r[..., :3])
         label = mode + "".join(f" {k}={v}" for k, v in opts.items())
         score(label, "tile service", np.stack(mine), np.stack(ref), 3.0, need=97.0)
+
+    # The overlays and the building shadows have no values: where the
+    # service's picture (background none) is drawn against the plugin's
+    # colour tile (its alpha), each within a pixel of the other (lines are
+    # antialiased there: recall and precision, not equality).
+    from terrain_viewer.live import buildings as live_buildings  # noqa: E402
+
+    def grow1(m):
+        g = m.copy()
+        g[1:] |= m[:-1]
+        g[:-1] |= m[1:]
+        g[:, 1:] |= m[:, :-1]
+        g[:, :-1] |= m[:, 1:]
+        return g
+
+    MB, NYC = (45.8326, 6.8652), (40.758, -73.9855)
+    MASKS = [
+        ("planeSlicer", {"value": 3000.0}, "modes=planeSlicer&planeSlicerValue=3000", MB, 13),
+        ("planeSlicer", {"reference": "lrm", "valueLrm": 5.0, "side": "above"},
+         "modes=planeSlicer&planeSlicerReferenceMode=lrm&planeSlicerValueLrm=5&planeSlicerSide=above", MB, 14),
+        ("graticules", {"density": 0.01}, "modes=graticules&graticuleDensity=0.01", MB, 14),
+        ("graticules", {}, "modes=graticules", (45.5, 6.5), 9),
+        ("isoline", {"fill": True}, "modes=isoline&isolineFill=true", MB, 14),
+        ("isoline", {"smooth": 4}, "modes=isoline&isolineSmooth=4", MB, 14),
+        ("isoline", {"at": "interval", "measure": "elevation", "interval": 100.0},
+         "modes=isoline&isolineMode=interval&isolineMeasure=elevation&isolineInterval=100", MB, 14),
+        ("buildingShadows", {}, "modes=buildingShadows", NYC, 16),
+        ("buildingShadows", {"azimuth": 120.0, "altitude": 20.0},
+         "modes=buildingShadows&illuminationDir=120&illuminationAlt=20", NYC, 17),
+    ]
+    for mode, opts, query, (lat, lng), zt in MASKS:
+        t = (zt, *tile_of(lat, lng, zt))
+        o = modes.parse_opts(mode, opts)
+        v = modes.values(mode, dem.grid(*t), ground_resolution_m(t[0], t[2]), o)
+        r = service_png(t, query + "&background=none")[..., 3] > 20
+        if mode == "buildingShadows":
+            # Off the footprints: the service cuts the footprints out with one
+            # even-odd path over every building, so where two parts overlap
+            # (a tower on its podium) the roof stays shaded; here roofs are lit.
+            off = live_buildings.shadows(*t, 256, o["azimuth"], o["altitude"])[1] == 0
+            m, r = (v < 0.5) & off, r & off
+        else:
+            m = modes.colour(mode, v, o)[..., 3] > 0
+        inner = np.zeros_like(m)
+        inner[2:-2, 2:-2] = True
+        recall = float(grow1(m)[r & inner].mean() * 100) if (r & inner).any() else 100.0
+        precision = float(grow1(r)[m & inner].mean() * 100) if (m & inner).any() else 100.0
+        sc = min(recall, precision)
+        label = mode + "".join(f" {k}={v}" for k, v in opts.items()) + f" z{zt}"
+        scores.append((label, "tile service", sc, f"recall {recall:.2f}%, precision {precision:.2f}% (within 1 px); "
+                                                 f"{m.mean() * 100:.1f}% drawn here, {r.mean() * 100:.1f}% there"))
+        print(f"  {label:<44} vs tile service {sc:6.2f}% (recall {recall:.2f}%, precision {precision:.2f}%, "
+              f"{m.mean() * 100:.1f}% / {r.mean() * 100:.1f}% drawn)")
+        if sc < 97 or (m.any() != r.any()):
+            failures.append(f"{label}: recall {recall:.1f}%, precision {precision:.1f}%")
 else:
     print("2. SKIP the tile service comparison: no --service")
 
@@ -335,6 +417,61 @@ for t in TILES[:2]:
     if sc < 98 or bad or zl != zt:
         failures.append(f"contour lines z{zt}: {sc:.1f}%, {len(bad)} off-level lines, zoom {zl}")
 
+# The other vector forms (contours.view_vector) over a view one tile wide,
+# burnt into the tile's grid, against their own colour tiles: the iso-line's
+# lines (one pixel, upper side) within a pixel of its raster, the plane
+# slicer's polygons on the same pixels as its raster, the graticule's lines
+# at its spacing.
+for t in TILES[1:2]:
+    zt, xt, yt = t
+    size = 2 * _W / (1 << zt)
+    ext_t = _R(-_W + xt * size, _W - (yt + 1) * size, -_W + (xt + 1) * size, _W - yt * size)
+
+    def burn(feats, polygons=False):
+        ds = gdal.GetDriverByName("MEM").Create("", 256, 256, 1, gdal.GDT_Byte)
+        ds.SetGeoTransform((ext_t.xMinimum(), size / 256, 0, ext_t.yMaximum(), 0, -size / 256))
+        vds = ogr.GetDriverByName("MEM" if int(gdal.VersionInfo()) >= 3110000 else "Memory").CreateDataSource("b")
+        lyr = vds.CreateLayer("b", geom_type=ogr.wkbMultiPolygon if polygons else ogr.wkbLineString)
+        for w, _a in feats:
+            f = ogr.Feature(lyr.GetLayerDefn())
+            f.SetGeometry(ogr.CreateGeometryFromWkb(w))
+            lyr.CreateFeature(f)
+        gdal.RasterizeLayer(ds, [1], lyr, burn_values=[1], options=[] if polygons else ["ALL_TOUCHED=TRUE"])
+        return ds.ReadAsArray() > 0
+
+    inner = np.zeros((256, 256), bool)
+    inner[2:-2, 2:-2] = True
+    for mode, opts in [("isoline", {"weight": 1.0}), ("isoline", {"at": "interval", "measure": "elevation", "interval": 100.0, "weight": 1.0}),
+                       ("isoline", {"measure": "lrm", "value": 0.0, "weight": 1.0})]:
+        o = modes.parse_opts(mode, opts)
+        feats, _zv = live_contours.view_vector(dem, ext_t, 256, mode, o)
+        lines_px = burn(feats)
+        mask_px = modes.values(mode, dem.grid(*t), ground_resolution_m(zt, yt), o) == 2
+        recall = float(grow2(mask_px)[lines_px & inner].mean() * 100)
+        precision = float(grow2(lines_px)[mask_px & inner].mean() * 100)
+        sc = min(recall, precision)
+        label = f"{mode} lines" + "".join(f" {k}={v}" for k, v in opts.items() if k != "weight") + f" z{zt}"
+        scores.append((label, "its raster", sc, f"{len(feats)} lines; recall {recall:.2f}%, precision {precision:.2f}% (within 1 px)"))
+        print(f"  {label:<44} {len(feats):5d} lines, vs its raster {sc:6.2f}% (recall {recall:.2f}%, precision {precision:.2f}%)")
+        if sc < 97:
+            failures.append(f"{label}: {sc:.1f}%")
+    for opts in [{"value": 2500.0}, {"value": 2500.0, "side": "above"}, {"reference": "lrm", "valueLrm": 2.0, "side": "above"}]:
+        o = modes.parse_opts("planeSlicer", opts)
+        feats, _zv = live_contours.view_vector(dem, ext_t, 256, "planeSlicer", o)
+        poly_px = burn(feats, polygons=True)
+        mask_px = modes.colour("planeSlicer", modes.values("planeSlicer", dem.grid(*t), ground_resolution_m(zt, yt), o), o)[..., 3] > 0
+        agree = float((poly_px == mask_px)[inner].mean() * 100)
+        label = "planeSlicer polygons" + "".join(f" {k}={v}" for k, v in opts.items()) + f" z{zt}"
+        scores.append((label, "its raster", agree, f"{len(feats)} polygons; {poly_px.mean() * 100:.1f}% vs {mask_px.mean() * 100:.1f}% of the tile"))
+        print(f"  {label:<44} {len(feats):5d} polygons, same pixels as its raster: {agree:6.2f}%")
+        if agree < 98:
+            failures.append(f"{label}: {agree:.1f}%")
+    feats, _zv = live_contours.view_vector(dem, ext_t, 256, "graticules", {"density": 0.01})
+    kinds = sorted({a[0] for _w, a in feats})
+    print(f"  graticule lines density 0.01: {len(feats)} lines {kinds}")
+    if len(feats) < 4 or kinds != ["meridian", "parallel"] or any(abs(round(a[1] / 0.01) * 0.01 - a[1]) > 1e-9 for _w, a in feats):
+        failures.append(f"graticule lines: {len(feats)} {kinds}")
+
 # 4. numba against numpy.
 if kernels_numba.available:
     padded = dem.padded(z, x, y, 256)
@@ -384,8 +521,18 @@ def draw(layer, name):
     return wall, int(px.max() - px.min()), len(np.unique(px[::37] @ np.array([65536, 256, 1])))
 
 
+from terrain_viewer.live import layers as live_layers  # noqa: E402
+
 for mode in modes.MODES:
+    # The modes and vector forms the panel's layers know (live/layers.py
+    # ORDER, its contour-only vector layer); the others are checked above
+    # until the panel adds them.
+    if not modes.MODES[mode]["python_supported"] or mode not in live_layers.ORDER:
+        print(f"  {mode:<15} skipped: not in live/layers.py yet")
+        continue
     for form in modes.forms_of(mode):
+        if form == "vector" and mode != "contours":
+            continue
         opts = {"min": 1000.0, "max": 4800.0} if mode == "elevation" else {}
         layer = ll.set_form(mode, form, True, opts, ext, 1024)
         if form == "vector" and layer is not None:

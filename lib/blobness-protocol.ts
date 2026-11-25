@@ -25,12 +25,17 @@
 //    100 where it's perfectly isotropic (a blob — peak/pit/saddle). Two patches
 //    with the same blobness score but different steepness will still read
 //    differently here; two with different steepness but the same *shape* won't.
-//  - "orientation": the dominant eigenvector's axis, 0-180° (a ridge/valley LINE
-//    has no inherent direction, only an orientation — 0° and 180° are the same
-//    axis, unlike Aspect's full 0-360° compass bearing) — which way a linear
-//    feature (fault line, ridge, valley) runs, most meaningful where eigen-ratio
-//    is low (a coherent edge) and closer to noise where it's high (an isotropic
-//    blob has no dominant axis).
+//  - "orientation": the dominant eigenvector's axis, 0-180° (an axis has no
+//    inherent direction — 0° and 180° are the same axis, unlike Aspect's full
+//    0-360° compass bearing). The dominant eigenvector is the dominant
+//    GRADIENT direction, so this is the axis ACROSS a linear feature: a
+//    ridge, valley or fault line running north-south reads 90°, one running
+//    east-west 0° (the feature itself runs at this value ± 90°). Not
+//    mirrored, unlike Aspect was: Horn's dx (west - east) and dy (south -
+//    north) are both negated, and the tensor is quadratic in them, so a
+//    plane rising to the north-east reads 45° (blobness-protocol.test.ts).
+//    Most meaningful where eigen-ratio is low (a coherent edge) and closer
+//    to noise where it's high (an isotropic blob has no dominant axis).
 
 import {
   sharedTileCache, fetchPaddedElevationGrid, tileGroundResolutionM, buildProtocolUrl, RAD_TO_DEG, type UpstreamEncoding,
@@ -72,7 +77,7 @@ function hornGradientAt(
 /** The 2x2 structure tensor J = [[Ixx,Ixy],[Ixy,Iyy]] (each entry the 3x3-box
  *  average of gx²/gy²/gx·gy over the window's 9 sub-cells) plus its trace, shared
  *  by all three modes below. */
-function computeStructureTensor(
+export function computeStructureTensor(
   sample: (dr: number, dc: number) => number, groundResolutionM: number,
 ): { Ixx: number; Iyy: number; Ixy: number; trace: number } {
   const invGroundResolutionM = 1 / groundResolutionM
@@ -115,7 +120,7 @@ function blobnessFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
 // Ixx/Iyy/Ixy cancels out in this ratio (both eigenvalues scale by the same
 // factor), so — unlike computeBlobness — no BLOBNESS_SCALE-style correction is
 // needed here.
-function eigenRatioFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
+export function eigenRatioFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
   const trace = Ixx + Iyy
   if (trace < 1e-9) return 0 // flat ground — undefined shape, treat as maximally linear/0
   const disc = Math.sqrt((Ixx - Iyy) * (Ixx - Iyy) + 4 * Ixy * Ixy)
@@ -129,11 +134,13 @@ function eigenRatioFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
 // axis, unlike Aspect's compass bearing where opposite directions mean opposite
 // slope-facing. Standard 2D-tensor principal-axis formula: the eigenvector angle
 // (in the gx/gy "math" space Ixx/Iyy/Ixy were built from) is
-// 0.5*atan2(2*Ixy, Ixx-Iyy); reused aspect-protocol.ts's math-angle -> compass
-// transform (mathDeg -> 90-mathDeg) purely for convention consistency with the
-// rest of this app's directional modes, then folded mod 180 (not 360) since only
-// the axis, not which end of it, is meaningful here.
-function orientationFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
+// 0.5*atan2(2*Ixy, Ixx-Iyy), counterclockwise from the gx axis. gx = west - east
+// and gy = south - north are minus the east and north slopes, and an axis is its
+// own opposite, so that is also the angle from east toward north: the compass
+// bearing is 90 - mathDeg, folded mod 180 (not 360) since only the axis, not
+// which end of it, is meaningful here. (Aspect's mirroring, fixed 2026-11-25,
+// came from negating only dx; nothing here is negated alone.)
+export function orientationFromTensor(Ixx: number, Iyy: number, Ixy: number): number {
   const trace = Ixx + Iyy
   if (trace < 1e-9) return 0 // flat ground — no dominant axis
   const mathDeg = 0.5 * Math.atan2(2 * Ixy, Ixx - Iyy) * RAD_TO_DEG
