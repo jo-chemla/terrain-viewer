@@ -112,44 +112,157 @@ class SettingWidget:
         self.widget = w
 
 
-class ModeRow:
-    """A mode: its checkbox, its opacity, its settings (folded)."""
+FORM_LABELS = {"colour": "Colour", "values": "Values", "vector": "Vector"}
+DRAWN_FORMS = ("colour", "vector")  # the forms whose look the settings change
 
-    def __init__(self, dock, path, mode):
-        self.dock, self.path, self.mode = dock, path, mode
+
+def _retain_hidden(w):
+    """A hidden widget keeps its room in the layout."""
+    sp = w.sizePolicy()
+    sp.setRetainSizeWhenHidden(True)
+    w.setSizePolicy(sp)
+
+
+class FormsRow:
+    """A mode's row: its checkbox on the left, its forms on the right
+    (Colour: the coloured layer; Values: the numbers, a Float32 raster;
+    Vector: the overlay's features), each a layer of the project, and a
+    settings cog shown while a drawn form (Colour, Vector) is on; the
+    settings fold under the row.
+
+    Checking the mode turns on the forms it had (Colour the first time);
+    unchecking it turns them all off (each layer removed) and remembers
+    them. Checking a form checks the mode; unchecking the last one
+    unchecks it. `on_change()` is called after every change by the user;
+    set_forms() changes the boxes without calling it (a layer removed from
+    the project, a saved project read back)."""
+
+    def __init__(self, label, forms, on_change, tooltips=None):
+        self.on_change = on_change
         self.box = QWidget()
         lay = QVBoxLayout(self.box)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
         head = QHBoxLayout()
-        self.check = QCheckBox(mode["name"])
-        self.check.toggled.connect(self.on_toggle)
+        head.setSpacing(4)
+        self.check = QCheckBox(label)
+        self.check.setMinimumWidth(40)  # long names elide rather than widen the panel
+        self.check.toggled.connect(self._mode_toggled)
         head.addWidget(self.check, 1)
-        self.vector = None
-        if mode.get("form") in ("vector", "both") and mode.get("vector"):
-            self.vector = QCheckBox("vector")
-            self.vector.setToolTip("Also as vector tiles (the same features, styled in QGIS)")
-            self.vector.toggled.connect(self.on_toggle)
-            head.addWidget(self.vector)
-        self.numbers = None
-        if mode.get("values"):
-            self.numbers = QCheckBox("values")
-            self.numbers.setToolTip(f"Also the values before the colour ramp, a Float32 raster for analysis ({mode['values'].get('unit')}): {mode['values'].get('description', '')}")
-            self.numbers.toggled.connect(self.on_toggle)
-            head.addWidget(self.numbers)
+        self.forms = {}
+        # Two columns at least, Colour in the first, so the boxes line up
+        # from row to row (an empty slot keeps its width); the cog keeps its
+        # place when hidden.
+        slots = list(forms) if len(forms) >= 2 or "colour" not in forms else ["colour", None]
+        if "colour" not in forms and len(forms) == 1:
+            slots = [None] + list(forms)
+        for f in slots:
+            cb = QCheckBox(FORM_LABELS[f] if f else FORM_LABELS["values"])
+            if f is None:
+                _retain_hidden(cb)
+                cb.setVisible(False)
+                head.addWidget(cb)
+                continue
+            if tooltips and tooltips.get(f):
+                cb.setToolTip(tooltips[f])
+            cb.toggled.connect(lambda on, f=f: self._form_toggled(f, on))
+            head.addWidget(cb)
+            self.forms[f] = cb
         self.more = QToolButton()
         self.more.setText("⚙")
         self.more.setCheckable(True)
         self.more.setAutoRaise(True)
         self.more.setToolTip("Settings")
+        _retain_hidden(self.more)
         head.addWidget(self.more)
         lay.addLayout(head)
-
         self.panel = QFrame()
-        self.panel.setVisible(False)
-        form = QFormLayout(self.panel)
-        form.setContentsMargins(18, 0, 0, 6)
-        self.more.toggled.connect(self.panel.setVisible)
+        self.form_layout = QFormLayout(self.panel)
+        self.form_layout.setContentsMargins(18, 0, 0, 6)
+        lay.addWidget(self.panel)
+        self.more.toggled.connect(lambda _on: self._sync())
+        self.remembered = set()
+        self._sync()
+
+    def default_form(self):
+        return next((f for f in ("colour", "vector", "values") if f in self.forms), None)
+
+    def on(self, form):
+        """Is this form wanted (its box checked)?"""
+        return form in self.forms and self.forms[form].isChecked()
+
+    def checked_forms(self):
+        return {f for f, cb in self.forms.items() if cb.isChecked()}
+
+    def _set_boxes(self, forms_on, mode_on):
+        for w in [self.check] + list(self.forms.values()):
+            w.blockSignals(True)
+        try:
+            for f, cb in self.forms.items():
+                cb.setChecked(f in forms_on)
+            self.check.setChecked(mode_on)
+        finally:
+            for w in [self.check] + list(self.forms.values()):
+                w.blockSignals(False)
+        self._sync()
+
+    def _mode_toggled(self, on):
+        if on:
+            self._set_boxes(self.remembered or {self.default_form()}, True)
+        else:
+            self.remembered = self.checked_forms()
+            self._set_boxes(set(), False)
+        self.on_change()
+
+    def _form_toggled(self, form, on):
+        forms_on = self.checked_forms()
+        if not forms_on:
+            self.remembered = set()
+        self._set_boxes(forms_on, bool(forms_on))
+        self.on_change()
+
+    def set_forms(self, forms_on):
+        """The boxes set to `forms_on`, without on_change (the layers are
+        already so)."""
+        forms_on = set(forms_on) & set(self.forms)
+        self._set_boxes(forms_on, bool(forms_on))
+
+    def form_removed(self, form):
+        """A form's layer was removed from the project (by hand)."""
+        if self.on(form):
+            self.set_forms(self.checked_forms() - {form})
+
+    def _sync(self):
+        drawn = any(self.on(f) for f in DRAWN_FORMS)
+        self.more.setVisible(drawn and self.form_layout.rowCount() > 0)
+        self.panel.setVisible(drawn and self.more.isChecked())
+
+
+class ModeRow:
+    """A mode of the tile service: its forms (FormsRow), its opacity and
+    settings under the cog."""
+
+    def __init__(self, dock, path, mode):
+        self.dock, self.path, self.mode = dock, path, mode
+        forms = []
+        tips = {}
+        if mode.get("form") != "vector":
+            forms.append("colour")
+            tips["colour"] = "The mode as the app draws it: an XYZ layer of the service's tiles"
+        if mode.get("values"):
+            forms.append("values")
+            tips["values"] = (f"The values before the colour ramp, a Float32 raster read by GDAL, for analysis "
+                              f"({mode['values'].get('unit')}): {mode['values'].get('description', '')}")
+        if mode.get("vector"):
+            forms.append("vector")
+            tips["vector"] = "The same features as vector tiles, styled in QGIS"
+        self.row = FormsRow(mode["name"], forms, self.update, tips)
+        self.box, self.check, self.more = self.row.box, self.row.check, self.row.more
+        # The boxes by their 0.5.0 names (tests, scripts).
+        self.numbers = self.row.forms.get("values")
+        self.vector = self.row.forms.get("vector")
+        self.colour = self.row.forms.get("colour")
+        form = self.row.form_layout
         self.opacity = None
         if mode.get("opacityKey") or mode.get("form") != "vector":
             if QgsOpacityWidget is not None:
@@ -168,7 +281,7 @@ class ModeRow:
             sw = SettingWidget(spec, dock.catalog.colorramps, self.changed)
             self.settings[spec["key"]] = sw
             form.addRow(_label(spec["key"], mode["id"]), sw.widget)
-        lay.addWidget(self.panel)
+        self.row._sync()
 
     # values ---------------------------------------------------------------
     def values(self):
@@ -196,6 +309,10 @@ class ModeRow:
     def on_toggle(self, *_):
         self.update()
 
+    @staticmethod
+    def form_of(key):
+        return "values" if key.endswith(":values") else "vector" if key.endswith(":vector") else "colour"
+
     def urls(self):
         base, common = self.dock.service_url(), self.dock.common_params()
         values = self.values()
@@ -209,26 +326,30 @@ class ModeRow:
         return out
 
     def update(self):
+        """Each form's layer added (checked), re-pointed (a setting changed)
+        or removed (unchecked). A new layer gets the panel's opacity and
+        blending; an existing one keeps what its properties say."""
         stack = self.dock.stack
         for key, (url, vector) in self.urls().items():
-            want = self.check.isChecked() if not key.endswith(":vector") else bool(self.vector and self.vector.isChecked() and self.check.isChecked())
-            if self.mode.get("form") == "vector" and key.endswith(":vector"):
-                want = self.check.isChecked()
+            want = self.row.on(self.form_of(key))
             layer = stack.find(key)
+            if not want:
+                if layer is not None:
+                    self.dock.removing.add(layer.id())
+                    stack.remove(key)
+                continue
             if vector == "values":
-                want = bool(self.numbers and self.numbers.isChecked() and self.check.isChecked())
-                if want or layer is not None:
-                    unit = self.mode["values"].get("unit")
-                    layer = stack.ensure_values(key, f"{self.mode['name']} (values{', ' + unit if unit and unit != '1' else ''})", self.path, url, self.mode["values"].get("range"))
-                    stack.set_visible(layer, want)
-                continue
-            if not want and layer is None:
-                continue
-            if want or layer is not None:
+                unit = self.mode["values"].get("unit")
+                new = layer is None
+                layer = stack.ensure_values(key, f"{self.mode['name']} (values{', ' + unit if unit and unit != '1' else ''})", self.path, url, self.mode["values"].get("range"))
+            else:
+                new = layer is None
                 name = self.mode["name"] + (" (vector tiles)" if vector and self.mode.get("form") != "vector" else "")
                 layer = stack.ensure(key, name, self.path, url, vector, self.mode["id"], self.values())
-                stack.style(layer, self.opacity_value(), self.mode.get("shading") and not vector)
-                stack.set_visible(layer, want)
+                if new:
+                    stack.style(layer, self.opacity_value(), self.mode.get("shading") and not vector)
+            if new:
+                stack.set_visible(layer, True)
 
     def apply_style(self):
         for key in self.urls():
@@ -241,7 +362,9 @@ class ModeRow:
 class LocalSection:
     """The panel's "Experimental: compute locally" box, at its top: modes
     computed in QGIS's Python (live/), no tile service. Off by default; its
-    rows are built the first time it is checked (numpy is imported then)."""
+    rows are built the first time it is checked (numpy is imported then).
+    Each row is a FormsRow: Colour (the server's coloured tiles), Values
+    (Float32, QGIS's colour ramps, Identify), Vector (contour lines)."""
 
     def __init__(self, dock):
         self.dock = dock
@@ -254,15 +377,15 @@ class LocalSection:
         f.setBold(True)
         self.check.setFont(f)
         self.check.setToolTip("Terrain modes computed in QGIS's Python with numpy from Mapterhorn elevation tiles, served "
-                              "from a thread of QGIS on 127.0.0.1: no tile service, no Node. Drawn as values (QGIS's colour "
-                              "ramps, Identify, raster calculator) or as grey tiles.")
+                              "from a thread of QGIS on 127.0.0.1: no tile service, no Node. Per mode: Colour (coloured "
+                              "tiles), Values (Float32 numbers, QGIS's colour ramps, Identify), Vector (contour lines).")
         self.check.toggled.connect(dock.toggle_local)
         lay.addWidget(self.check)
         self.body = QWidget()
         self.body.setVisible(False)
         lay.addWidget(self.body)
-        self.rows = {}
-        self.form = None
+        self.rows = {}  # mode -> (FormsRow, {setting: getter})
+        self.setters = {}  # mode -> {setting: setter}
         self.built = False
         self.timer = QTimer(dock)
         self.timer.setSingleShot(True)
@@ -272,12 +395,19 @@ class LocalSection:
         self.prefetch_timer.setSingleShot(True)
         self.prefetch_timer.setInterval(150)
         self.prefetch_timer.timeout.connect(self.prefetch)
+        # Contour lines: recomputed once the canvas stops.
+        self.vector_timer = QTimer(dock)
+        self.vector_timer.setSingleShot(True)
+        self.vector_timer.setInterval(400)
+        self.vector_timer.timeout.connect(self.refresh_vectors)
         if dock.canvas is not None:
             dock.canvas.extentsChanged.connect(self.extent_changed)
 
     def extent_changed(self):
         if self.check.isChecked():
             self.prefetch_timer.start()
+            if any(r.on("vector") for r, _ in self.rows.values()):
+                self.vector_timer.start()
 
     def build(self):
         from .live import modes  # numpy is only imported when asked
@@ -285,81 +415,55 @@ class LocalSection:
         lay = QVBoxLayout(self.body)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
-        out = QHBoxLayout()
-        out.addWidget(QLabel("Draw as"))
-        self.form = QComboBox()
-        self.form.addItem("Values (QGIS colour ramps, Identify)", True)
-        self.form.addItem("Grey image tiles (XYZ)", False)
-        self.form.setToolTip("Values: Float32 rasters read by GDAL, drawn by QGIS's own renderers (another ramp or "
-                             "classification from the layer's Symbology). Grey tiles: 8-bit pictures, shown tile by tile")
-        self.form.setMinimumWidth(60)
-        self.form.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self.form.currentIndexChanged.connect(lambda _i: self.apply_all())
-        out.addWidget(self.form, 1)
-        lay.addLayout(out)
+        tips = {"colour": "Coloured tiles computed here (XYZ), shown tile by tile",
+                "values": "The numbers, a Float32 raster read by GDAL: QGIS's colour ramps, Identify, raster calculator",
+                "vector": "Contour lines for the view, a vector layer, recomputed after each pan or zoom"}
         for mode in reversed(ORDER):  # the base first, as the panel's groups read
             spec = modes.MODES[mode]
-            row = QWidget()
-            rl = QVBoxLayout(row)
-            rl.setContentsMargins(0, 0, 0, 0)
-            rl.setSpacing(0)
-            head = QHBoxLayout()
-            check = QCheckBox(spec["label"])
-            check.setChecked(mode in DEFAULT_ON)
-            check.setToolTip(f"Values in {spec['unit']}")
-            check.toggled.connect(lambda _on, m=mode: self.apply(m))
-            head.addWidget(check, 1)
-            panel = QFrame()
-            panel.setVisible(False)
-            form = QFormLayout(panel)
-            form.setContentsMargins(18, 0, 0, 4)
-            widgets = {}
+            row = FormsRow(spec["label"], modes.forms_of(mode), lambda m=mode: self.apply(m), tips)
+            row.check.setToolTip(f"Values in {spec['unit']}" if spec["unit"] else spec["label"])
+            widgets, setters = {}, {}
             for key, default in spec["defaults"].items():
                 if key in spec.get("enums", {}):
                     w = QComboBox()
                     w.addItems(list(spec["enums"][key]))
                     w.setCurrentText(str(default))
                     w.currentTextChanged.connect(lambda _v: self.timer.start())
-                    get = w.currentText
+                    w.setMinimumWidth(60)
+                    w.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+                    get, put = w.currentText, w.setCurrentText
                 elif isinstance(default, int):
                     w = QSpinBox()
                     w.setRange(1, 256)
                     w.setValue(default)
                     w.setKeyboardTracking(False)
                     w.valueChanged.connect(lambda _v: self.timer.start())
-                    get = w.value
+                    get, put = w.value, lambda v, w=w: w.setValue(int(v))
                 else:
                     w = QDoubleSpinBox()
                     w.setRange(-1e6, 1e6)
-                    w.setDecimals(1)
+                    w.setDecimals(2 if abs(default) < 10 else 1)
+                    w.setSingleStep(0.1 if abs(default) < 10 else 1)
                     w.setValue(float(default))
                     w.setKeyboardTracking(False)
                     w.valueChanged.connect(lambda _v: self.timer.start())
-                    get = w.value
-                widgets[key] = get
-                form.addRow(_label(key, mode), w)
-            if widgets:
-                more = QToolButton()
-                more.setText("⚙")
-                more.setCheckable(True)
-                more.setAutoRaise(True)
-                more.setToolTip("Settings")
-                more.toggled.connect(panel.setVisible)
-                head.addWidget(more)
-            rl.addLayout(head)
-            rl.addWidget(panel)
-            lay.addWidget(row)
-            self.rows[mode] = (check, widgets)
+                    get, put = w.value, lambda v, w=w: w.setValue(float(v))
+                widgets[key], setters[key] = get, put
+                row.form_layout.addRow(_label(key, mode), w)
+            row._sync()
+            lay.addWidget(row.box)
+            self.rows[mode] = (row, widgets)
+            self.setters[mode] = setters
         self.built = True
+        # The defaults, the first time: their colour layers.
+        for mode in DEFAULT_ON:
+            self.rows[mode][0].set_forms({"colour"})
 
     def opts(self, mode):
         from .live import modes
         defaults = modes.MODES[mode]["defaults"]
         # Only what differs from the defaults goes into the address.
         return {k: get() for k, get in self.rows[mode][1].items() if str(get()) != str(defaults[k])}
-
-    def as_values(self):
-        return self.form is None or bool(self.form.currentData())
 
     def canvas_extent(self):
         c = self.dock.canvas
@@ -372,22 +476,56 @@ class LocalSection:
         except Exception:  # noqa: BLE001 - an extent outside Web Mercator
             return None, 0
 
+    def auto_elevation_range(self):
+        """The hypsometric tint over the view's elevations (2nd to 98th
+        percentile), the first time it is drawn with its default range."""
+        from .live import modes
+        from .live.layers import elevation_range
+        ext, width = self.canvas_extent()
+        if ext is None or self.opts("elevation"):
+            return
+        lo, hi = elevation_range(ext, width)
+        d = modes.MODES["elevation"]["defaults"]
+        if (lo, hi) != (d["min"], d["max"]):
+            self.setters["elevation"]["min"](round(lo))
+            self.setters["elevation"]["max"](round(hi))
+            self.timer.stop()  # applied now, by the caller
+
     def apply(self, mode):
         from .live.layers import LocalLayers
         if not self.check.isChecked():
             return
+        row = self.rows[mode][0]
+        ll = LocalLayers()
+        if mode == "elevation" and row.checked_forms() and ll.find("elevation", "colour") is None and ll.find("elevation", "values") is None:
+            self.auto_elevation_range()
         ext, width = self.canvas_extent()
-        LocalLayers().set_mode(mode, self.rows[mode][0].isChecked(), self.opts(mode), self.as_values(), ext, width)
+        for form in row.forms:
+            want = row.on(form)
+            layer = ll.find(mode, form)
+            if not want and layer is not None:
+                self.dock.removing.add(layer.id())
+            ll.set_form(mode, form, want, self.opts(mode), ext, width)
 
     def apply_all(self):
         for mode in self.rows:
             self.apply(mode)
+
+    def refresh_vectors(self):
+        from .live.layers import LocalLayers
+        ext, width = self.canvas_extent()
+        if ext is not None and self.check.isChecked():
+            LocalLayers().refresh_vectors(self.opts, ext, width)
 
     def prefetch(self):
         from .live.layers import LocalLayers
         ext, width = self.canvas_extent()
         if ext is not None and self.check.isChecked():
             LocalLayers().prefetch(ext, width)
+
+    def form_removed(self, mode, form):
+        if mode in self.rows:
+            self.rows[mode][0].form_removed(form)
 
     def toggle(self, on):
         from .live.layers import LocalLayers
@@ -398,7 +536,14 @@ class LocalSection:
             self.prefetch()
             self.apply_all()
         else:
-            LocalLayers().remove_all()
+            # The rows keep their boxes: checking the box again brings the
+            # same layers back.
+            ll = LocalLayers()
+            g = ll.group()
+            if g is not None:
+                self.dock.removing.update(n.layerId() for n in g.findLayers())
+            ll.remove_all()
+
 
 class TerrainViewerDock(QDockWidget):
     def __init__(self, canvas=None, parent=None, message_bar=None):
@@ -422,8 +567,16 @@ class TerrainViewerDock(QDockWidget):
         self.health_timer.setInterval(HEALTH_EVERY_MS)
         self.health_timer.timeout.connect(self.check_health)
         self.health_reply = None
+        # Layers this panel removes itself; any other removal (by hand in the
+        # layer tree, a new project) unchecks the form it drew.
+        self.removing = set()
+        QgsProject.instance().layersWillBeRemoved.connect(self.layers_removed)
 
         s = QgsSettings()
+        # 0.5.0 kept an Earthdata token for the local service here; a token
+        # now lives in the service's environment only (EARTHDATA_TOKEN).
+        if s.contains(f"{SETTINGS}/earthdataToken"):
+            s.remove(f"{SETTINGS}/earthdataToken")
         body = QWidget()
         outer = QVBoxLayout(body)
 
@@ -446,7 +599,6 @@ class TerrainViewerDock(QDockWidget):
         # default: checking "Local tile service" enables it, and Connect
         # starts it on this machine; it never starts on its own.
         self.bundled = None
-        self.token = None
         self.install_btn = None
         self.install_task = None
         if local_server.bundled() or local_server.installable():
@@ -478,16 +630,6 @@ class TerrainViewerDock(QDockWidget):
             e.editingFinished.connect(self.keys_changed)
             self.keys[k] = e
             src.addRow(k, e)
-        if self.bundled is not None:
-            # Only for the local service, only from here: never shipped,
-            # never in a layer's address. Read when the service starts.
-            self.token = QLineEdit(s.value(f"{SETTINGS}/earthdataToken", ""))
-            self.token.setEchoMode(QLineEdit.EchoMode.Password)
-            self.token.setPlaceholderText("optional, for G-LiHT's protected files")
-            self.token.setToolTip("A NASA Earthdata token (https://urs.earthdata.nasa.gov, Generate Token), given to the "
-                                  "local tile service as EARTHDATA_TOKEN when it starts; changing it restarts the service")
-            self.token.editingFinished.connect(self.token_changed)
-            src.addRow("Earthdata token", self.token)
         outer.addLayout(src)
 
         link = QHBoxLayout()
@@ -523,6 +665,33 @@ class TerrainViewerDock(QDockWidget):
 
     def toggle_local(self, on):
         self.local_section.toggle(on)
+
+    def layers_removed(self, ids):
+        """Layers about to leave the project: the panel's own removals are
+        expected; any other unchecks the form whose layer it was."""
+        project = QgsProject.instance()
+        for lid in ids:
+            if lid in self.removing:
+                self.removing.discard(lid)
+                continue
+            layer = project.mapLayer(lid)
+            if layer is None:
+                continue
+            key = layer.customProperty(PROP)
+            if key and key.split(":")[0] in self.rows:
+                self.rows[key.split(":")[0]].row.form_removed(ModeRow.form_of(key))
+            local = layer.customProperty("terrain_viewer/local_mode")
+            if local and self.local_section.built:
+                from .live.layers import _mode_form
+                self.local_section.form_removed(*_mode_form(layer))
+
+    def cleanup(self):
+        """Disconnected from the project (the plugin unloading)."""
+        try:
+            QgsProject.instance().layersWillBeRemoved.disconnect(self.layers_removed)
+        except (TypeError, RuntimeError):
+            pass
+        self.health_timer.stop()
 
     # -- the service ------------------------------------------------------
     def service_url(self):
@@ -642,16 +811,6 @@ class TerrainViewerDock(QDockWidget):
             self.url.setText(QgsSettings().value(f"{SETTINGS}/service", DEFAULT_SERVICE))
             self.status.setText("Local tile service stopped: press Connect to use the address above")
 
-    def token_changed(self):
-        s = QgsSettings()
-        token = self.token.text().strip()
-        if token == (s.value(f"{SETTINGS}/earthdataToken", "") or ""):
-            return
-        s.setValue(f"{SETTINGS}/earthdataToken", token)
-        if self.use_bundled() and local_server.instance().running():
-            local_server.stop_instance()
-            self.connect_service()
-
     def start_bundled(self):
         """The bundled service's address, started if needed; None (and the
         reason in the status line) when it does not start."""
@@ -660,7 +819,7 @@ class TerrainViewerDock(QDockWidget):
             self.status.setText("Starting the local tile service...")
             QApplication.processEvents()
         try:
-            url = server.start(earthdata_token=self.token.text().strip() if self.token is not None else "")
+            url = server.start()
         except RuntimeError as e:
             self.status.setText(f"The local tile service did not start: {e} (log: {server.log_path})")
             return None
@@ -790,6 +949,7 @@ class TerrainViewerDock(QDockWidget):
         """The layers this panel wrote earlier (a saved project): their
         checkboxes and settings read back from their addresses."""
         for key, row in self.rows.items():
+            present = set()
             for k in (key, key + ":vector", key + ":values"):
                 layer = self.stack.find(k)
                 if layer is None:
@@ -801,13 +961,9 @@ class TerrainViewerDock(QDockWidget):
                     uri.setEncodedUri(layer.source())
                     q = dict(parse_qsl(urlsplit(uri.param("url")).query))
                 row.set_values(q)
-                node = self.stack.node(layer)
-                visible = bool(node and node.itemVisibilityChecked())
-                extra = (row.vector,) if k.endswith(":vector") and row.vector else (row.numbers,) if k.endswith(":values") and row.numbers else ()
-                for w in (row.check,) + extra:
-                    w.blockSignals(True)
-                    w.setChecked(w.isChecked() or visible)
-                    w.blockSignals(False)
+                # A layer in the project is a checked form (hidden or not:
+                # its visibility is the layer tree's).
+                present.add(ModeRow.form_of(k))
                 if q.get("terrainSource"):
                     i = self.source.findData(q["terrainSource"])
                     self.source.blockSignals(True)
@@ -816,6 +972,7 @@ class TerrainViewerDock(QDockWidget):
                     else:
                         self.source.setEditText(q["terrainSource"])
                     self.source.blockSignals(False)
+            row.row.set_forms(present)
 
     # -- updates, debounced -------------------------------------------------
     def schedule(self, row):
@@ -863,9 +1020,7 @@ class TerrainViewerDock(QDockWidget):
         for mode_id, row in self.rows.items():
             if mode_id in view.get("opacity", {}):
                 row.set_opacity(view["opacity"][mode_id])
-            row.check.blockSignals(True)
-            row.check.setChecked(mode_id in active)
-            row.check.blockSignals(False)
+            row.row.set_forms((row.row.checked_forms() or {row.row.default_form()}) if mode_id in active else set())
         for row in self.rows.values():
             row.update()
         cam = view.get("camera") or {}

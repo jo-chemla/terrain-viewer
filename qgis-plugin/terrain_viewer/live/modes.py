@@ -179,13 +179,90 @@ def lrm_levels(radius_px):
     return min(6, max(1, round(math.log2(max(2.0, radius_px)))))
 
 
+
+# ---------------------------------------------------------------- lighting
+def normals(p, res_m, exaggeration=1.0, xp=np):
+    """The surface normal of every pixel, as the app's live Phong and matcap
+    layers take it (DEM_NORMAL_GLSL, tile-server/direct.mjs liveLighting):
+    Horn's sums over the ground size with no /8 (lib/normal-derived-
+    protocol.ts hornGradient), times the exaggeration; x east, y south, z up.
+    (n + 2)^2 -> three (n, n)."""
+    gx, gy = _horn(p, res_m)  # west - east, south - north
+    nx, ny = -gx * exaggeration, -gy * exaggeration
+    inv = 1.0 / xp.sqrt(nx * nx + ny * ny + 1.0)
+    return nx * inv, ny * inv, inv
+
+
+PHONG_AMBIENT, PHONG_SHININESS = 0.35, 32
+
+
+def phong(p, res_m, azimuth=315.0, altitude=45.0, diffuse=0.8, specular=0.2, fresnel=0.0, fresnel_power=3.0,
+          exaggeration=1.0, xp=np):
+    """The app's live Phong layer (lib/phong-live-gl-layer.ts, as the tile
+    service's liveLighting draws it on a light map, one white light, the
+    view north-up): the multiply factor (ambient plus diffuse over its
+    maximum, darkened by the Fresnel rim) plus the specular highlight. Over
+    a white background this is the picture's grey; 0-1, highlights above 1.
+    (n + 2)^2 -> (n, n)."""
+    nx, ny, nz = normals(p, res_m, exaggeration, xp)
+    az, el = math.radians(azimuth), math.radians(altitude)
+    lx, ly, lz = -math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)
+    hx, hy, hz = lx, ly, lz + 1.0
+    hl = math.sqrt(hx * hx + hy * hy + hz * hz)
+    hx, hy, hz = hx / hl, hy / hl, hz / hl
+    d = xp.maximum(nx * lx + ny * ly + nz * lz, 0.0)
+    spec = xp.maximum(nx * hx + ny * hy + nz * hz, 0.0) ** PHONG_SHININESS
+    rim = fresnel * (1.0 - xp.clip(nz, 0.0, 1.0)) ** fresnel_power
+    intensity = xp.clip((PHONG_AMBIENT + diffuse * d) / (PHONG_AMBIENT + diffuse), 0.0, 1.0)
+    shade = intensity * (1.0 - xp.clip(rim, 0.0, 1.0))  # a light map: the rim darkens
+    add = xp.clip(specular * spec, 0.0, 1.0) if specular > 0 else 0.0
+    return (shade + add).astype(xp.float32)
+
+
+def matcap(p, res_m, texture, rotation=0.0, exaggeration=1.0, xp=np):
+    """The app's live matcap layer (lib/matcap-live-gl-layer.ts, as the tile
+    service's liveLighting draws it, the view north-up, the light relative
+    to the camera, its default): the normal rotated, read as a UV into the
+    matcap picture, bilinear. texture: (h, w, 3) float32 0-1.
+    (n + 2)^2 -> (n, n, 3) float32 0-1."""
+    nx, ny, _ = normals(p, res_m, exaggeration, xp)
+    r = math.radians(rotation)
+    cb, sb = math.cos(r), math.sin(r)
+    rx, ry = nx * cb + ny * sb, -nx * sb + ny * cb
+    h, w = texture.shape[:2]
+    px, py = (0.5 - 0.5 * rx) * w - 0.5, (0.5 + 0.5 * ry) * h - 0.5
+    x0, y0 = xp.floor(px), xp.floor(py)
+    tx, ty = (px - x0)[..., None], (py - y0)[..., None]
+    x0, y0 = x0.astype(np.int64), y0.astype(np.int64)
+    cx0, cx1 = xp.clip(x0, 0, w - 1), xp.clip(x0 + 1, 0, w - 1)
+    cy0, cy1 = xp.clip(y0, 0, h - 1), xp.clip(y0 + 1, 0, h - 1)
+    t = texture
+    top = t[cy0, cx0] * (1 - tx) + t[cy0, cx1] * tx
+    bot = t[cy1, cx0] * (1 - tx) + t[cy1, cx1] * tx
+    return (top * (1 - ty) + bot * ty).astype(xp.float32)
+
+
 # ---------------------------------------------------------------- the modes
+# The app's matcap pictures (lib/matcap-textures.ts): its two own, served by
+# the app, and Potree's (CC0), as the tile service reads them.
+APP_URL = "https://terrain-viewer.iconem.com/"
+POTREE_MATCAPS = "https://raw.githubusercontent.com/potree/potree/develop/resources/textures/matcap/"
+MATCAP_TEXTURES = {"normal_sphere": APP_URL + "matcap-normal-sphere.png", "duotone_sphere": APP_URL + "matcap-duotone-sphere.png"}
+MATCAP_TEXTURES.update({k: f"{POTREE_MATCAPS}{k}.jpg" for k in (
+    "basic_1", "basic_2", "basic_dark", "basic_side", "ceramic_dark", "ceramic_lightbulb", "clay_brown", "clay_muddy",
+    "clay_studio", "jade", "metal_anisotropic", "metal_carpaint", "metal_lead", "metal_shiny", "pearl", "resin", "skin",
+    "toon")})
+
 # kind: "shade" grey and multiplied, "ramp" a QGIS colour ramp over `range`
-# (`invert`: the ramp reversed), "mask" fixed colours. `ramp`: a ramp of
-# QGIS's default style ("hypso": the plugin's own hypsometric ramp).
+# (`invert`: the ramp reversed), "mask" fixed colours, "rgb" a picture (no
+# values). `ramp`: a ramp of QGIS's default style ("hypso": the plugin's own
+# hypsometric ramp). Forms: every mode has a colour form (an XYZ layer of the
+# server's PNG tiles), a values form unless `values` is False (Float32 read
+# by GDAL), a vector form when `vector` (contour lines, live/contours.py).
+# `colour_only`: settings of the colours alone (the values ignore them).
 MODES = {
     "elevation": {"label": "Elevation (hypsometric tint)", "unit": "m", "kind": "ramp", "ramp": "hypso", "range": None,
-                  "defaults": {}},
+                  "defaults": {"min": 0.0, "max": 4000.0}, "colour_only": ("min", "max")},
     "hillshade": {"label": "Hillshade", "unit": "0-1", "kind": "shade", "range": (0, 1),
                   "defaults": {"azimuth": 315.0, "altitude": 45.0, "exaggeration": 1.0}},
     "multihillshade": {"label": "Multidirectional hillshade", "unit": "0-1", "kind": "shade", "range": (0, 1),
@@ -206,10 +283,22 @@ MODES = {
                  "defaults": {"radius": 8, "mode": "positive"}, "enums": {"mode": ("positive", "negative")}},
     "shadows": {"label": "Shadows", "unit": "1 lit, 0 in shadow", "kind": "shade", "range": (0, 1),
                 "defaults": {"azimuth": 315.0, "altitude": 30.0, "radius": 256}},
-    "contours": {"label": "Contours (raster mask)", "unit": "1 minor, 2 major", "kind": "mask", "range": (1, 2),
-                 "defaults": {"minor": 50.0, "major": 200.0}},
+    "contours": {"label": "Contours", "unit": "1 minor, 2 major", "kind": "mask", "range": (1, 2),
+                 "defaults": {"minor": 50.0, "major": 200.0}, "values": False, "vector": True},
+    "phong": {"label": "Phong", "unit": "0-1, highlights above", "kind": "shade", "range": (0, 1),
+              "defaults": {"azimuth": 315.0, "altitude": 45.0, "diffuse": 0.8, "specular": 0.2, "fresnel": 0.0,
+                           "fresnelPower": 3.0, "exaggeration": 1.0}},
+    "matcap": {"label": "Matcap", "unit": "", "kind": "rgb", "range": None, "values": False,
+               "defaults": {"texture": "clay_studio", "rotation": 0.0, "exaggeration": 1.0},
+               "enums": {"texture": tuple(MATCAP_TEXTURES)}},
 }
 DEFAULTS = {m: d["defaults"] for m, d in MODES.items()}
+
+
+def forms_of(mode):
+    """The forms a mode offers, in the panel's order."""
+    spec = MODES[mode]
+    return ("colour",) + (("values",) if spec.get("values", True) else ()) + (("vector",) if spec.get("vector") else ())
 
 
 def halo_of(mode, opts):
@@ -281,21 +370,53 @@ def values(mode, grid, res_m, opts, n=256, xp=np):
         return xp.where(s, 0.0, 1.0).astype(xp.float32)
     if mode == "contours":
         return contour_mask(p, float(opts["minor"]), float(opts["major"]), xp)
+    if mode == "phong":
+        return phong(p, res_m, opts["azimuth"], opts["altitude"], opts["diffuse"], opts["specular"], opts["fresnel"],
+                     opts["fresnelPower"], opts["exaggeration"], xp)
+    if mode == "matcap":
+        from .textures import matcap_texture
+        return matcap(p, res_m, matcap_texture(opts["texture"]), opts["rotation"], opts["exaggeration"], xp)
     raise ValueError(f"unknown mode {mode}")
 
 
 def grey(mode, v, xp=np):
-    """Values -> (n, n) uint8 grey, for the image tiles: shading as is, the
-    others stretched over the mode's range (reversed where the ramp is), the
-    contour mask dark on white."""
+    """Values -> (n, n) uint8 grey: shading as is, the others stretched over
+    the mode's range (reversed where the ramp is), the contour mask dark on
+    white."""
     spec = MODES[mode]
     if mode == "contours":
         return xp.where(xp.isnan(v), 255, xp.where(v >= 2, 60, 140)).astype(xp.uint8)
+    if spec["kind"] == "rgb":
+        return (xp.clip(v.mean(axis=-1), 0, 1) * 255 + 0.5).astype(xp.uint8)
     lo, hi = spec["range"] or (float(xp.nanmin(v)), float(xp.nanmax(v)))
     g = xp.clip((v - lo) * (255.0 / max(hi - lo, 1e-9)), 0, 255)
     if spec.get("invert") and spec.get("ramp") != "Greys":
         g = 255 - g
     return xp.nan_to_num(g, nan=255).astype(xp.uint8)
+
+
+MASK_COLOURS = {1.0: (120, 72, 40), 2.0: (70, 40, 20)}  # minor, major: the values layer's palette
+
+
+def colour(mode, v, opts, lut=None, xp=np):
+    """Values -> the colour tile: (n, n) uint8 grey for the shades (drawn
+    multiplied), (n, n, 3) uint8 RGB through `lut` ((256, 3) uint8, the
+    mode's QGIS colour ramp sampled; grey when None) over the mode's range,
+    (n, n, 4) RGBA for the contour mask (clear off the lines), the picture
+    itself for matcap."""
+    spec = MODES[mode]
+    if spec["kind"] in ("rgb", "shade"):
+        return (xp.clip(v, 0, 1) * 255 + 0.5).astype(xp.uint8)
+    if spec["kind"] == "mask":
+        out = xp.zeros(v.shape + (4,), xp.uint8)
+        for value, rgb in MASK_COLOURS.items():
+            out[v == value] = rgb + (255,)
+        return out
+    lo, hi = (opts["min"], opts["max"]) if mode == "elevation" else spec["range"]
+    g = xp.nan_to_num(xp.clip((v - lo) * (255.0 / max(hi - lo, 1e-9)), 0, 255), nan=0)
+    if lut is None:
+        return g.astype(xp.uint8)
+    return lut[g.astype(xp.intp)]
 
 
 class PaddedGrid:

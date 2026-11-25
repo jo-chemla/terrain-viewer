@@ -7,7 +7,7 @@ from qgis.core import (
     QgsDataSourceUri, QgsProject, QgsRasterLayer, QgsVectorTileLayer, QgsLayerTreeGroup,
     QgsVectorTileBasicRenderer, QgsVectorTileBasicRendererStyle,
     QgsLineSymbol, QgsFillSymbol, QgsMarkerSymbol, QgsDataProvider,
-    QgsSingleBandGrayRenderer, QgsContrastEnhancement,
+    QgsSingleBandGrayRenderer, QgsContrastEnhancement, QgsRasterPipe, Qgis,
 )
 
 try:  # QGIS 3.30+
@@ -39,6 +39,38 @@ def xyz_uri(url, zmax):
     uri.setParam("zmin", "0")
     uri.setParam("zmax", str(zmax))
     return bytes(uri.encodedUri()).decode("utf-8")
+
+
+def values_resampling(layer, continuous=True):
+    """How a values layer (GDAL over Float32 tiles) is resampled when the
+    canvas is between two tile zooms, set once when the layer is made (a
+    change in the layer's properties is kept: an address rewrite,
+    setDataSource, keeps the resampling and the renderer).
+
+    GDAL reads the level just finer than the canvas (a canvas at zoom 12.3
+    reads z13 tiles), so the picture is mostly scaled down. QGIS's default
+    is nearest neighbour after the renderer: pixels dropped or doubled. Early
+    resampling (GDAL resampling the values, before the colour ramp) bilinear
+    both ways is one resampling, of the numbers; a palette (the contour mask)
+    stays nearest. Identify reads the provider, never the resampled picture.
+
+    The XYZ (colour) layers get nothing: QGIS's XYZ provider already scales
+    its tiles smoothly into the canvas (it rounds the canvas zoom to the
+    nearest tile zoom), so a resampler there only resamples a second time,
+    and early resampling, which that provider cannot do, draws nothing."""
+    if not continuous or not layer.isValid():
+        return
+    from qgis.core import QgsRasterDataProvider
+    try:
+        stage = Qgis.RasterResamplingStage.Provider
+    except AttributeError:  # QGIS < 3.30
+        stage = QgsRasterPipe.ResamplingStage.Provider
+    method = QgsRasterDataProvider.ResamplingMethod.Bilinear
+    provider = layer.dataProvider()
+    layer.setResamplingStage(stage)
+    provider.enableProviderResampling(True)
+    provider.setZoomedInResamplingMethod(method)
+    provider.setZoomedOutResamplingMethod(method)
 
 
 def _colour(value, fallback):
@@ -182,11 +214,13 @@ class LayerStack:
         """A mode's values: a Float32 raster read by GDAL from the service's
         /gdal.xml (GeoTIFF tiles), created or with its address replaced,
         drawn as a grey stretch over the mode's typical range (QGIS's own
-        estimate reads the coarsest overview, far too narrow)."""
+        estimate reads the coarsest overview, far too narrow), resampled
+        early (values_resampling)."""
         layer = self.find(key)
         if layer is None:
             layer = QgsRasterLayer(url, name, "gdal")
             layer.setCustomProperty(PROP, key)
+            values_resampling(layer)
             if value_range and layer.isValid():
                 gray = QgsSingleBandGrayRenderer(layer.dataProvider(), 1)
                 ce = QgsContrastEnhancement(layer.dataProvider().dataType(1))
@@ -200,6 +234,12 @@ class LayerStack:
             layer.setDataSource(url, layer.name(), "gdal", QgsDataProvider.ProviderOptions())
             layer.triggerRepaint()
         return layer
+
+    def remove(self, key):
+        """Removes the layer of `key` from the project, if there."""
+        layer = self.find(key)
+        if layer is not None:
+            self.project.removeMapLayer(layer.id())
 
     def style(self, layer, opacity, shading):
         if layer is None:

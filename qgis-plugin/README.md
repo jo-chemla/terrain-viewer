@@ -22,8 +22,8 @@ API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c)
-(Terrain Viewer 0.5.0, Send2MapApp 0.5.1). Terrain Viewer is one plain zip,
+The zips of each version are on a release: [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d)
+(Terrain Viewer 0.6.0, Send2MapApp 0.5.1). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this
@@ -53,7 +53,7 @@ uses `QGIS4`), then enable it in the plugin manager. `send2map_app` installs
 the same way, and replaces an earlier Send2MapApp in place (same folder name).
 
 Without any tile service, the experimental **compute locally** box at the
-top of the panel draws 14 modes computed in QGIS with numpy.
+top of the panel draws 16 modes computed in QGIS with numpy.
 
 ## Use
 
@@ -63,10 +63,17 @@ top of the panel draws 14 modes computed in QGIS with numpy.
   panel group; a service older than 2026-11-24 has none: update it) and
   `/colorramps`. Layers ask `/terrain-tiles`. A mode or a setting added to the
   app reaches the panel when the service is updated, with no plugin release.
-- **Check a mode**: a layer is added to the "Terrain Viewer (live)" group, in a
-  subgroup named as the app's panel group, stacked as the map stacks them.
-  The gear button shows its opacity and settings; a changed setting rewrites
-  the layer's address (half a second after the last change).
+- **A mode's row**: its checkbox on the left; on the right its forms,
+  **Colour** (the mode as the app draws it, an XYZ layer), **Values** (the
+  numbers, below) and, for the overlays, **Vector**. Checking the mode turns
+  on its Colour layer (the first time; afterwards the forms it had); either
+  form or both can be checked, and checking one checks the mode. Each form
+  is a layer of the "Terrain Viewer (live)" group, in a subgroup named as the
+  app's panel group, stacked as the map stacks them; unchecking removes it,
+  and a layer removed by hand unchecks its form. The gear, shown while Colour
+  (or Vector) is on, folds out the opacity and settings; a changed setting
+  rewrites the layer's address (half a second after the last change),
+  keeping the style, opacity and resampling set in its properties.
 - **Opacity and blending are QGIS layer settings**: the tiles are asked opaque
   (QGIS draws neighbouring tiles a pixel over each other, so half transparent
   tiles show lines along their edges); the shading modes (hillshade, Phong,
@@ -76,10 +83,12 @@ top of the panel draws 14 modes computed in QGIS with numpy.
   as vector tiles, styled in QGIS.
 - **Values**: the modes computed as numbers (elevation, slope, aspect,
   curvature, TRI, TPI, roughness, LRM, sky view factor, openness, ...) have a
-  "values" box: it adds the mode's values before the colour ramp, in natural
-  units (degrees, metres, ...), as a Float32 raster that GDAL reads from the
+  Values box: the mode's values before the colour ramp, in natural units
+  (degrees, metres, ...), as a Float32 raster that GDAL reads from the
   service's `/gdal.xml`, for the raster calculator, zonal statistics or
-  Identify. It follows the mode's settings like the coloured layer.
+  Identify. It follows the mode's settings like the coloured layer. It is
+  resampled early (by GDAL, bilinear) between zoom levels; see
+  [resampling](../docs/content/docs/dev/qgis-live-compute.mdx#resampling-and-tile-zoom).
 - **Open from link**: paste a share link; its modes are checked, their settings
   and opacities set, the terrain source picked, the canvas moved to its camera.
   The link's other parameters are kept in every layer's address.
@@ -115,7 +124,7 @@ top of the panel draws 14 modes computed in QGIS with numpy.
 | `test_plugin.py` | A headless check of `terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
 | `test_service_paths.py` | The plain zip unzipped into a temporary plugins folder and driven through the panel in headless QGIS: `installed` (Install from a bundle served locally, or the real pinned download; a tampered download refused; Connect, a slope tile, the unresponsive warnings, Remove) or `external` (an address, the desktop app's): `QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-<version>.zip [dist/terrain-viewer-tile-service-windows-x64.zip]`, or `... external dist/terrain_viewer-<version>.zip http://localhost:3400 [--stop "<command>"]` |
 | `smoke_bundled.py` | A service bundle started without QGIS (the build runners): `python -I smoke_bundled.py dist/terrain-viewer-tile-service-<platform>.zip` |
-| `terrain_viewer/live/`, `test_live.py`, `bench_live.py`, `bench_canvas.py`, `live_reference.mjs` | Experimental, off by default (the **Experimental: compute locally** box at the top of the panel): 14 modes computed with numpy in QGIS (`live/modes.py`), served from a localhost thread as Float32 tiles GDAL reads (QGIS's colour ramps, Identify) or grey XYZ tiles. `test_live.py [--service <url>]` scores each mode against the app's kernels in Node, the tile service and gdaldem, and draws them; `bench_live.py` times the kernels, `bench_canvas.py` a 1920x1080 canvas. Findings: [QGIS Live Compute](../docs/content/docs/dev/qgis-live-compute.mdx) |
+| `terrain_viewer/live/`, `test_live.py`, `bench_live.py`, `bench_canvas.py`, `live_reference.mjs` | Experimental, off by default (the **Experimental: compute locally** box at the top of the panel): 16 modes computed with numpy in QGIS (`live/modes.py`; the matcap pictures `live/textures.py`), served from a localhost thread as coloured XYZ tiles (Colour) and Float32 tiles GDAL reads (Values: QGIS's colour ramps, Identify); contour lines as a vector layer for the view (`live/contours.py`). `test_live.py [--service <url>]` scores each mode against the app's kernels in Node, the tile service and gdaldem, and draws every form; `bench_live.py` times the kernels, `bench_canvas.py` a 1920x1080 canvas. Findings: [QGIS Live Compute](../docs/content/docs/dev/qgis-live-compute.mdx) |
 | `test_send2map.py` | A headless check of `send2map_app`, no network: `QT_QPA_PLATFORM=offscreen python-qgis test_send2map.py` |
 | `test_open_in.py`, `open_in_reference.mjs` | `send2map_app`'s destinations against the web app's (`open-in-links.tsx`, evaluated by Node): `python test_open_in.py`, no QGIS |
 

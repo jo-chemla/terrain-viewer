@@ -33,7 +33,7 @@ class TerrainViewerPlugin:
         if live is not None:
             live.LiveServer.shutdown()
         if self.dock:
-            self.dock.health_timer.stop()
+            self.dock.cleanup()
             self.iface.removeDockWidget(self.dock)
             self.dock.deleteLater()
             self.dock = None

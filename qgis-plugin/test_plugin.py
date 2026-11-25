@@ -210,6 +210,34 @@ print("legacy group adopted:", adopted is not None and adopted.name(), adopted i
 if adopted is not live_group or adopted.name() != ROOT_NAME or not adopted.customProperty(ROOT_PROP):
     failures.append("legacy live group not adopted")
 
+# 2d. A mode's forms: Colour and Values each add and remove their layer;
+# the mode's box turns them on (Colour the first time) and off; the cog shows
+# while Colour is on; a layer removed by hand unchecks its form.
+row = dock.rows["curvature"]
+
+
+def curvature_layers():
+    return sorted(k for k in ("curvature", "curvature:values") if dock.stack.find(k) is not None)
+
+
+for label, act, want in [
+    ("values only", lambda: row.numbers.setChecked(True), ["curvature:values"]),
+    ("+ colour", lambda: row.colour.setChecked(True), ["curvature", "curvature:values"]),
+    ("mode off", lambda: row.check.setChecked(False), []),
+    ("mode on: both back", lambda: row.check.setChecked(True), ["curvature", "curvature:values"]),
+    ("colour off", lambda: row.colour.setChecked(False), ["curvature:values"]),
+    ("values off", lambda: row.numbers.setChecked(False), []),
+    ("mode on: colour", lambda: row.check.setChecked(True), ["curvature"]),
+]:
+    act()
+    got, cog = curvature_layers(), row.more.isVisibleTo(row.box)
+    print(f"curvature {label:<20} -> {got}, mode {row.check.isChecked()}, cog {cog}")
+    if got != want or cog != row.colour.isChecked() or row.check.isChecked() != bool(want):
+        failures.append(f"forms: curvature {label}: {got}, cog {cog}")
+QgsProject.instance().removeMapLayer(dock.stack.find("curvature").id())
+if row.check.isChecked() or row.colour.isChecked():
+    failures.append("forms: a layer removed by hand left its form checked")
+
 # 3. A saved project read back: the checkboxes come back from the layers.
 path = os.path.join(out, "plugin-test.qgz")
 QgsProject.instance().write(path)

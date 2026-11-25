@@ -1,9 +1,76 @@
 ---
 title: QGIS Live Compute (experiment)
-description: Terrain modes computed inside QGIS with numpy, no tile service - 14 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, TPI, TRI, roughness, LRM, sky view factor, openness, shadows, contours, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; served as Float32 values GDAL reads so QGIS's own colour ramps apply; parallel tiles timed before and after; numpy, numba, cupy and the tile service compared.
+description: Terrain modes computed inside QGIS with numpy, no tile service - 16 modes (hillshade, multidirectional hillshade, slope, aspect, curvature, TPI, TRI, roughness, LRM, sky view factor, openness, shadows, Phong, matcap, contours as a mask and as lines, hypsometric tint) checked against the app's kernels, the tile service and gdaldem; Colour and Values per mode; how QGIS picks tile zooms and resamples; parallel tiles timed; numpy, numba, cupy and the tile service compared.
 ---
 
-Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-as-planned) asked whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that is off by default (**Experimental: compute locally**).
+Step 2 of the [QGIS plugin plan](/dev/qgis-plugin#step-2-as-planned) asked whether the plugin can draw the app's modes without a tile service, in QGIS's own Python. This experiment (2026-11-25) answers yes: a first round ported three modes of increasing cost and measured them, a second ported eleven more, gave QGIS the values and made the server parallel, a third gave every mode row its Colour and Values boxes, added Phong, matcap and contour lines, and measured how QGIS picks tile zooms and resamples. The code is in [`qgis-plugin/terrain_viewer/live/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin/terrain_viewer/live), behind a panel checkbox that is off by default (**Experimental: compute locally**).
+
+## Third round: Colour and Values per mode, Phong, matcap, contour lines, resampling
+
+Plugin 0.6.0, the same day, after a first try in QGIS 4.2 by the user: checking only "values" next to curvature drew nothing, toggling did not add or remove layers reliably, and QGIS 4 showed no local compute at all. The last one was an old install: both QGIS profiles still had 0.2.2.
+
+### A mode's row
+
+Every mode row, of the tile service's groups and of the local compute box alike, is the same widget (`FormsRow` in `dock.py`): the mode's checkbox on the left, its forms on the right, **Colour**, **Values** and, where there is one, **Vector**, then the settings cog.
+
+- Checking the mode turns its Colour layer on (the first time; afterwards the forms it had). Each form can be checked alone or with the others; checking a form checks the mode, unchecking the last one unchecks it.
+- Each form is one layer, **added when checked and removed when unchecked**. 0.5.0 created the values layer only when the mode was also checked, and unchecking only hid layers, so a box and the layer tree could disagree.
+- A layer removed by hand (or by **File > New**) unchecks its form: the panel listens to the project's `layersWillBeRemoved` and tells its own removals apart.
+- The cog shows while Colour (or Vector) is on, with a fixed place so that the boxes line up from row to row.
+- In the local box, **Colour** is the server's PNG tiles, now coloured with the mode's ramp: QGIS's own ramp sampled at 256 steps on the main thread, so the same colours as the values layer's default renderer; grey and multiplied for the shades, RGB for matcap, the two browns of the mask on a clear background for contours. **Values** is the Float32 layer GDAL reads, as before. The **Draw as** choice is gone. A `c=2` parameter in the colour tiles' address keeps QGIS's disk cache from serving 0.5.0's grey tiles, which had the same address.
+
+Checked in QGIS 4.2 and 3.44: `test_plugin.py` (section 2d) and `test_live.py` (section 6) walk curvature through values only, both, mode off, mode on (both back), Colour off, Values off, mode on (Colour back), and a layer removed by hand, comparing the layers in the project and the cog after each step.
+
+### Phong, matcap, contour lines
+
+| Mode | Port of | Against | Match |
+|---|---|---|---|
+| Phong (defaults; light 120°/25° with specular 0.6; Fresnel rim 0.6) | the app's live Phong layer as the tile service draws it (`tile-server/direct.mjs` `liveLighting`, `lib/phong-live-gl-layer.ts`): the normal from Horn's sums with no /8, ambient 0.35, shininess 32, one white light, a light map | the tile service's picture over its white background | 100 % within 3 grey levels, median 0, p99 0 to 1 |
+| Matcap (Clay Studio; Normal Sphere rotated 40°) | the live matcap layer, light relative to the camera (its default), bilinear lookup into the app's matcap pictures (`lib/matcap-textures.ts`: the app's two from terrain-viewer.iconem.com, Potree's from GitHub, fetched once) | the tile service's picture | 100 % within 3 levels per channel, median 0, p99 0 |
+| Contour lines (vector) | GDAL's `ContourGenerate` over the elevation of the view | the contour mask, rasterized | 100 % (recall and precision within 1 px), z12 and z13 |
+
+Phong's values are the multiply factor plus the highlight (0 to 1, highlights above). The colour layer is their grey, multiplied over the layers under it: the same as the tile service's Phong layer in QGIS (its picture is the shading over white, also multiplied), so a highlight brighter than the layer under it is not drawn in either. Matcap is a picture, with no values form.
+
+**Contour lines as a vector layer, not vector tiles.** For each view, once the canvas stops (400 ms), a `QgsTask` mosaics the elevation tiles over the view (the zoom whose pixel is the canvas pixel, coarser until 64 tiles or fewer cover it), runs `gdal.ContourGenerate` at the minor interval, and replaces the features of a memory layer (`elev`, `major`). A later view's result wins over an older one still running. QGIS redraws a memory layer at once on pan and zoom, the lines run whole across the view (no tile seams or clipping), and Identify, the attribute table and Save As work. A vector tile path would mean a tile server writing MVT, with lines cut at every tile edge. The trade-off: the layer holds the lines of the last view only (a frozen copy keeps them).
+
+### Resampling and tile zoom
+
+Measured headless in QGIS 4.2 and 3.44 (same results in both) with `QgsMapRendererParallelJob`, a 1024×768 canvas whose pixel is the pixel of 256 px tiles at zoom 12.0, 12.3, 12.5 and 12.7, the localhost server logging the zoom of each tile asked for (`LiveServer.seen`):
+
+| Canvas zoom | XYZ (colour) layers ask | GDAL (values) layers ask |
+|---|---|---|
+| 12.0 | z12, 20 tiles | z12, 20 tiles |
+| 12.3 | z12, 16 tiles (scaled up 1.23×) | z13, 48 tiles (scaled down) |
+| 12.5 | z13, 35 tiles | z13, 35 tiles |
+| 12.7 | z13, 24 tiles | z13, 24 tiles |
+| 12.0, device pixel ratio 2 | z13, 63 tiles | z13, 63 tiles |
+| 12.3, device pixel ratio 2 | z13, 48 tiles | z14, 154 tiles |
+
+- **The XYZ provider rounds** the canvas zoom to the nearest tile zoom; **GDAL takes the level just finer** (an overview is used only when at least as fine as the request). So between zooms x.0 and x.5, a values layer reads up to three times the tiles of the colour layer: right for numbers (never scaled up), and only on that half of the range.
+- **The device pixel ratio is honoured**: at a ratio of 2 both ask one zoom deeper (four times the tiles, sharp on a HiDPI screen). No double fetching, no tiles of the wrong zoom.
+- **Default resampling** of every raster layer: nearest neighbour zoomed in and out, late (after the renderer), maximum oversampling 2.
+
+What resampling changes, measured by drawing the contour mask (two colours) at zooms 12.3 and 12.7 and counting the colours:
+
+| Layer, setting | Colours | What happens |
+|---|---|---|
+| XYZ, default | 5532 / 2759 | the provider already scales its tiles smoothly into the canvas |
+| XYZ, bilinear (late) | 4881 / 2535 | a second resampling of the already scaled picture: slightly blurrier |
+| XYZ, early resampling | 1 / 1 | nothing drawn: the XYZ provider cannot resample (`ProviderHintCanPerformProviderResampling` is false) |
+| GDAL values, default | 3 / 3 | nearest: pixels dropped or doubled between zooms |
+| GDAL values, bilinear late | 2362 / 2269 | the rendered colours blended |
+| GDAL values, bilinear early | 3 / 3 for the mask's palette | GDAL resamples the values before the renderer: one resampling, of the numbers (a palette still shows only its classes) |
+
+What the plugin does since 0.6.0:
+
+- **Colour (XYZ) layers: nothing.** The provider's own smooth scaling is the single resampling; a resampler would add a second one, and early resampling blanks the layer (worth knowing before ticking it in the layer's properties).
+- **Values (GDAL) layers: early resampling, bilinear zoomed in and out**, set once when the layer is made (`values_resampling` in `layers.py`), for the tile service's values and the local ones alike; the contour mask (a palette) stays nearest. Identify reads the provider at the point, never the resampled picture.
+- **A user's choice is kept.** A changed setting re-points the layer with `setDataSource`, which keeps the resampling, renderer, opacity and blending (checked in both versions). The local layers used to be removed and made again on every change, losing all of them; they now use `setDataSource` too, and the panel's opacity is applied to a new layer only.
+- The local colour tiles now go to z18 (Mapterhorn's 512 px z17), the depth the values layers already read.
+
+`test_live.py` checks that a values layer gets early bilinear resampling and that a new setting keeps a layer's own opacity and resampler.
+
+**A trap when comparing against a tile service**: every service on a machine keeps its tiles in the same disk cache by default (`%TEMP%/terrain-viewer-tiles`, keyed by address), so a service of a newer commit serves the tiles an older one wrote. Aspect scored 0.4 % against a same-commit service until it was started with its own `TILE_CACHE_DIR`: the tiles were from before the aspect fix. With its own cache, every mode scores 100 % in QGIS 4.2 and 3.44, Phong and matcap included (median difference 0 grey levels).
 
 ## Second round: 14 modes, values, parallel tiles
 
@@ -34,7 +101,7 @@ The same day, a second round (plugin 0.5.0) answered three questions the first o
 ² **The app's aspect was mirrored east-west until 2026-11-25**: `lib/aspect-protocol.ts` computed `atan2(dy, -dx)` with `dx` = west minus east, so an east-facing slope read 270° (gdaldem: 90°). Found by this comparison (they agreed to 3e-5° once mirrored back), fixed in the app (`atan2(dy, dx)`, `lib/aspect-protocol.test.ts`); the test now compares unmirrored.
 ³ The service packs curvature as Terrarium times 1000 over the app's own scale, so values past ±0.33 1/m (±3.3e-3 1/m² for det-hessian) are clipped there; those pixels (steep summits at z14) are left out of the comparison.
 
-Not ported: the modes that need a GPU or a whole view (matcap, Phong, the mound detector, the eigen-based ones, local dominance, the fast sky view factor with far rings), and colour relief by the app's own ramps (QGIS's ramps take that role, below).
+Not ported: the modes that need a whole view (the mound detector, the eigen-based ones, local dominance, the fast sky view factor with far rings), and colour relief by the app's own ramps (QGIS's ramps take that role, below). Phong and matcap came in the third round (above).
 
 ### Values and colour ramps: a GDAL source, not a Python provider
 
@@ -166,7 +233,7 @@ In QGIS itself, a 1024×768 canvas of each mode (24 tiles, Mapterhorn not yet ca
 
 ## Limits of the prototype
 
-- Fourteen modes; the GPU and whole-view modes stay on the tile service (above).
+- Sixteen modes; the whole-view modes stay on the tile service (above).
 - Elevation from Mapterhorn (or AWS) only. The halo is at most one tile (256 px), which is enough for the sweep's default radius but not for its 512 px cap.
 - A project saved with the local layers points at the server's port: it asks 3420 first, so the layers work again once the box is checked after reopening (not when that port was taken and another was given).
 - Elevation is fetched with `urllib`, which ignores QGIS's proxy and authentication settings. `QgsBlockingNetworkRequest` would respect them (the tile service installer uses it).

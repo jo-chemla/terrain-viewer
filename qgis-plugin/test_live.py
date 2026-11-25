@@ -8,10 +8,14 @@
 3. The 3x3 family, hillshade (single and multidirectional) and the contour
    mask against GDAL's own gdaldem and contour generator.
 4. numba's port against numpy, when numba imports.
-5. End to end: the localhost server, values layers (GDAL over Float32 tiles,
-   QGIS's renderers) and grey XYZ layers drawn by QGIS's parallel renderer.
-6. The panel's box: off by default, at the top, a group of layers when
-   checked, gone with the server when unchecked.
+   Phong and matcap against the service's pictures (no values); the contour
+   lines (vector form) against the mask.
+5. End to end: the localhost server, each mode's forms (colour XYZ tiles,
+   values read by GDAL with QGIS's renderers, contour lines) drawn by QGIS's
+   parallel renderer; a new setting keeps a layer's own style.
+6. The panel's box: off by default, at the top, the default colour layers
+   when checked; Colour and Values add and remove their layers; gone with
+   the server when unchecked.
 Network: tiles.mapterhorn.com (and the tile service)."""
 import json
 import math
@@ -21,13 +25,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 if os.environ.get("TV_EXTRA_PYTHONPATH"):  # numba installed with pip --target elsewhere (python-qgis resets PYTHONPATH)
     sys.path.append(os.environ["TV_EXTRA_PYTHONPATH"])
-from qgis.core import (QgsApplication, QgsCoordinateReferenceSystem, QgsMapRendererParallelJob, QgsMapSettings,  # noqa: E402
+from qgis.core import (Qgis, QgsApplication, QgsCoordinateReferenceSystem, QgsMapRendererParallelJob, QgsMapSettings,  # noqa: E402
                        QgsProject, QgsRasterLayer, QgsRectangle)
 from qgis.PyQt.QtCore import QEventLoop, QSize  # noqa: E402
 
@@ -185,6 +190,43 @@ if service:
             mask = np.abs(ref) < 0.999 * clip
         label = mode + (f":{opts['mode']}" if "mode" in opts else "")
         score(label, ref_name, mine, ref, tol, circ, mask, rel=0.005 if mode in ("slope", "curvature") else 0.0)
+
+    # Phong and matcap have no values: the service's picture (its default
+    # renderer, the app's live layers) against the plugin's colour tile.
+    # Phong over the service's white background is min(shade + highlight,
+    # 1) in grey; matcap is RGB. 8-bit levels.
+    def service_png(t, query):
+        url = f"{service}/terrain-tiles/{t[0]}/{t[1]}/{t[2]}.png?terrainSource=mapterhorn&{query}"
+        with urllib.request.urlopen(url, timeout=300) as r:
+            data = r.read()
+        name = f"/vsimem/ref-{t[0]}-{t[1]}-{t[2]}.png"
+        gdal.FileFromMemBuffer(name, data)
+        a = gdal.Open(name).ReadAsArray().astype(np.float32)
+        gdal.Unlink(name)
+        return np.moveaxis(a, 0, -1)  # (n, n, bands)
+
+    LIGHTING = [
+        ("phong", {}, "modes=phong"),
+        ("phong", {"azimuth": 120.0, "altitude": 25.0, "specular": 0.6}, "modes=phong&illuminationDir=120&illuminationAlt=25&phongSpecularStrength=0.6"),
+        ("phong", {"fresnel": 0.6}, "modes=phong&phongFresnelStrength=0.6"),
+        ("matcap", {}, "modes=matcap&background=none"),
+        ("matcap", {"texture": "normal_sphere", "rotation": 40.0}, "modes=matcap&background=none&matcapTextureId=normal_sphere&matcapRotationDeg=40"),
+    ]
+    for mode, opts, query in LIGHTING:
+        o = modes.parse_opts(mode, opts)
+        mine, ref = [], []
+        for t in TILES:
+            v = modes.values(mode, dem.grid(*t), ground_resolution_m(t[0], t[2]), o)
+            c = modes.colour(mode, v, o).astype(np.float32)
+            r = service_png(t, query)
+            if mode == "phong":
+                mine.append(c)
+                ref.append(r[..., 0])
+            else:
+                mine.append(c)
+                ref.append(r[..., :3])
+        label = mode + "".join(f" {k}={v}" for k, v in opts.items())
+        score(label, "tile service", np.stack(mine), np.stack(ref), 3.0, need=97.0)
 else:
     print("2. SKIP the tile service comparison: no --service")
 
@@ -251,6 +293,48 @@ for t in TILES[:2]:
     if s < 98:
         failures.append(f"contours {tag}: recall {recall:.1f}%, precision {precision:.1f}%")
 
+# Contour lines (the vector form): the lines of a view one tile wide are
+# GDAL's over the same grid; rasterized, within a pixel of the contour mask.
+from qgis.core import QgsRectangle as _R  # noqa: E402
+from terrain_viewer.live import contours as live_contours  # noqa: E402
+from terrain_viewer.live.server import WORLD as _W  # noqa: E402
+for t in TILES[:2]:
+    zt, xt, yt = t
+    size = 2 * _W / (1 << zt)
+    ext_t = _R(-_W + xt * size, _W - (yt + 1) * size, -_W + (xt + 1) * size, _W - yt * size)
+    lines, zl = live_contours.view_contours(dem, ext_t, 256, 50, 200)
+    bad = [e for _w, e, _m in lines if abs(math.remainder(e, 50)) > 1e-6]
+    majors = sum(1 for _w, e, m in lines if m)
+    burn = gdal.GetDriverByName("MEM").Create("", 256, 256, 1, gdal.GDT_Byte)
+    burn.SetGeoTransform((ext_t.xMinimum(), size / 256, 0, ext_t.yMaximum(), 0, -size / 256))
+    vds = ogr.GetDriverByName("Memory").CreateDataSource("l")
+    lyr = vds.CreateLayer("l", geom_type=ogr.wkbLineString)
+    for w, _e, _m in lines:
+        f = ogr.Feature(lyr.GetLayerDefn())
+        f.SetGeometry(ogr.CreateGeometryFromWkb(w))
+        lyr.CreateFeature(f)
+    gdal.RasterizeLayer(burn, [1], lyr, burn_values=[1], options=["ALL_TOUCHED=TRUE"])
+    lines_px = burn.ReadAsArray() > 0
+    mask_px = ~np.isnan(modes.contour_mask(dem.padded(*t, 1), 50, 0))
+
+    def grow2(m):
+        g = m.copy()
+        g[1:] |= m[:-1]
+        g[:-1] |= m[1:]
+        g[:, 1:] |= m[:, :-1]
+        g[:, :-1] |= m[:, 1:]
+        return g
+    inner = np.zeros_like(mask_px)
+    inner[2:-2, 2:-2] = True
+    recall = float(grow2(mask_px)[lines_px & inner].mean() * 100)
+    precision = float(grow2(lines_px)[mask_px & inner].mean() * 100)
+    sc = min(recall, precision)
+    scores.append((f"contour lines z{zt}", "contour mask", sc, f"{len(lines)} lines, {majors} major, read at z{zl}; recall {recall:.2f}%, precision {precision:.2f}% (within 1 px)"))
+    print(f"  contour lines z{zt}: {len(lines)} lines ({majors} major, elevation read at z{zl}), vs the mask {sc:.2f}% "
+          f"(recall {recall:.2f}%, precision {precision:.2f}%)")
+    if sc < 98 or bad or zl != zt:
+        failures.append(f"contour lines z{zt}: {sc:.1f}%, {len(bad)} off-level lines, zoom {zl}")
+
 # 4. numba against numpy.
 if kernels_numba.available:
     padded = dem.padded(z, x, y, 256)
@@ -264,7 +348,8 @@ if kernels_numba.available:
 else:
     print("4. SKIP numba: not importable")
 
-# 5. End to end in QGIS: values (gdal) and grey XYZ layers on the localhost server.
+# 5. End to end in QGIS: each mode's forms (colour XYZ, values GDAL, contour
+# lines) on the localhost server, drawn by QGIS's parallel renderer.
 print("5. drawn by QGIS")
 from terrain_viewer.live.layers import LocalLayers  # noqa: E402
 
@@ -299,35 +384,58 @@ def draw(layer, name):
     return wall, int(px.max() - px.min()), len(np.unique(px[::37] @ np.array([65536, 256, 1])))
 
 
-for as_values in (True, False):
-    for mode in modes.MODES:
-        layer = ll.set_mode(mode, True, {}, as_values, ext, 1024)
-        if layer is None:
-            failures.append(f"{mode} ({'values' if as_values else 'xyz'}): layer invalid")
+for mode in modes.MODES:
+    for form in modes.forms_of(mode):
+        opts = {"min": 1000.0, "max": 4800.0} if mode == "elevation" else {}
+        layer = ll.set_form(mode, form, True, opts, ext, 1024)
+        if form == "vector" and layer is not None:
+            ll.refresh_vector(layer, opts, ext, 1024, wait=True)
+        if layer is None or not layer.isValid():
+            failures.append(f"{mode} ({form}): layer invalid")
             continue
         before = srv.stats.get(mode, {}).get("tiles", 0)
-        wall, spread, colours = draw(layer, f"{mode}-{'values' if as_values else 'xyz'}")
+        wall, spread, colours = draw(layer, f"{mode}-{form}")
         tiles = srv.stats.get(mode, {}).get("tiles", 0) - before
-        kind = "values" if as_values else "grey xyz"
-        print(f"  {mode:<15} {kind:<8} {wall:6.0f} ms, {tiles:3d} tiles, spread {spread}, {colours} colours")
+        extra = f", {layer.featureCount()} lines" if form == "vector" else ""
+        print(f"  {mode:<15} {form:<7} {wall:6.0f} ms, {tiles:3d} tiles, spread {spread}, {colours} colours{extra}")
         if spread < 20:
-            failures.append(f"{mode} ({kind}): rendered image empty or flat")
-        if as_values and modes.MODES[mode]["kind"] == "ramp" and colours < 8:
-            failures.append(f"{mode} (values): {colours} colours, the ramp did not apply")
-        ll.set_mode(mode, False)
+            failures.append(f"{mode} ({form}): rendered image empty or flat")
+        if modes.MODES[mode]["kind"] in ("ramp", "rgb") and form != "vector" and colours < 8:
+            failures.append(f"{mode} ({form}): {colours} colours, the ramp did not apply")
+        if form == "vector" and layer.featureCount() < 10:
+            failures.append(f"{mode} (vector): {layer.featureCount()} lines")
+        ll.set_form(mode, form, False)
     srv.clear_results()
+
+# A changed setting keeps the layer, its style and its resampling.
+from qgis.core import QgsBilinearRasterResampler, QgsRasterDataProvider  # noqa: E402
+v = ll.set_form("slope", "values", True, {}, ext, 1024)
+early = v.resamplingStage() == getattr(getattr(Qgis, "RasterResamplingStage", None), "Provider", 1) and \
+    v.dataProvider().zoomedOutResamplingMethod() == QgsRasterDataProvider.ResamplingMethod.Bilinear
+c = ll.set_form("hillshade", "colour", True, {}, ext, 1024)
+c.resampleFilter().setZoomedInResampler(QgsBilinearRasterResampler())
+c.renderer().setOpacity(0.42)
+c2 = ll.set_form("hillshade", "colour", True, {"altitude": 30.0}, ext, 1024)
+kept = c2 is c and "altitude=30" in urllib.parse.unquote(c2.source()) and abs(c2.renderer().opacity() - 0.42) < 1e-6 and \
+    isinstance(c2.resampleFilter().zoomedInResampler(), QgsBilinearRasterResampler)
+print(f"  values layer resampled early, bilinear: {early}; a new setting keeps the layer, opacity and resampling: {kept}")
+if not early:
+    failures.append("values layer: early bilinear resampling not set")
+if not kept:
+    failures.append("colour layer: a new setting lost the layer's own opacity or resampling")
+ll.set_form("hillshade", "colour", False)
 # Identify reads the numbers.
-slope = ll.set_mode("slope", True, {}, True)
 from qgis.core import QgsPointXY, QgsRaster  # noqa: E402
-ident = slope.dataProvider().identify(QgsPointXY(cx, cy), QgsRaster.IdentifyFormat.IdentifyFormatValue
-                                      if hasattr(QgsRaster, "IdentifyFormat") else QgsRaster.IdentifyFormatValue).results()
-v = list(ident.values())[0] if ident else None
-print(f"  identify slope at Mont Blanc: {v}")
-if v is None or not (0 <= float(v) <= 90):
-    failures.append(f"identify slope: {v}")
+ident = v.dataProvider().identify(QgsPointXY(cx, cy), QgsRaster.IdentifyFormat.IdentifyFormatValue
+                                  if hasattr(QgsRaster, "IdentifyFormat") else QgsRaster.IdentifyFormatValue).results()
+val = list(ident.values())[0] if ident else None
+print(f"  identify slope at Mont Blanc: {val}")
+if val is None or not (0 <= float(val) <= 90):
+    failures.append(f"identify slope: {val}")
 ll.remove_all()
 
-# 6. The panel's box: off by default, at the top, the default modes when checked.
+# 6. The panel's box: off by default, at the top; checked, the default modes'
+# colour layers; per mode, Colour and Values add and remove their layers.
 from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
 from terrain_viewer.live.layers import DEFAULT_ON, GROUP_PROP  # noqa: E402
 
@@ -338,26 +446,54 @@ def local_groups():
     return [g for g in QgsProject.instance().layerTreeRoot().findGroups(True) if g.customProperty(GROUP_PROP)]
 
 
+def local_keys():
+    g = local_groups()
+    return sorted(n.layer().customProperty("terrain_viewer/local_mode") for n in g[0].findLayers()) if g else []
+
+
 body = dock.widget().layout()
 if body.itemAt(0).widget() is not dock.local_section.box:
     failures.append("dock: the local compute box is not at the top of the panel")
 if dock.local.isChecked() or local_groups():
     failures.append("dock: local compute must be off by default")
 dock.local.setChecked(True)
-g = local_groups()
-names = [n.layer().name() for n in g[0].findLayers()] if g else []
-print("dock local group:", names)
-if len(g) != 1 or len(names) != len(DEFAULT_ON) or not all(n.layer().isValid() for n in g[0].findLayers()):
-    failures.append(f"dock: local group {names}")
-dock.local_section.rows["slope"][0].setChecked(True)
-if len(local_groups()[0].findLayers()) != len(DEFAULT_ON) + 1:
-    failures.append("dock: checking slope added no layer")
-dock.local_section.form.setCurrentIndex(1)  # grey tiles
-if not all(n.layer().providerType() == "wms" for n in local_groups()[0].findLayers()):
-    failures.append("dock: grey tiles did not replace the values layers")
+print("dock local group:", local_keys())
+if local_keys() != sorted(f"{m}:colour" for m in DEFAULT_ON):
+    failures.append(f"dock: default local layers {local_keys()}")
+row = dock.local_section.rows["curvature"][0]
+steps = [
+    ("values only", lambda: row.forms["values"].setChecked(True), ["curvature:values"]),
+    ("+ colour", lambda: row.forms["colour"].setChecked(True), ["curvature:colour", "curvature:values"]),
+    ("mode off", lambda: row.check.setChecked(False), []),
+    ("mode on: both back", lambda: row.check.setChecked(True), ["curvature:colour", "curvature:values"]),
+    ("colour off", lambda: row.forms["colour"].setChecked(False), ["curvature:values"]),
+    ("values off", lambda: row.forms["values"].setChecked(False), []),
+    ("mode on: colour", lambda: row.check.setChecked(True), ["curvature:colour"]),
+]
+for label, act, want in steps:
+    act()
+    got = [k for k in local_keys() if k.startswith("curvature")]
+    cog = row.more.isVisibleTo(row.box)
+    print(f"  curvature {label:<20} -> {got}, mode {row.check.isChecked()}, cog {cog}")
+    if got != want:
+        failures.append(f"dock curvature {label}: {got} != {want}")
+    if cog != row.on("colour"):
+        failures.append(f"dock curvature {label}: cog shown {cog} with colour {row.on('colour')}")
+# A layer removed by hand unchecks its form.
+from terrain_viewer.live.layers import LocalLayers as _LL  # noqa: E402
+QgsProject.instance().removeMapLayer(_LL().find("curvature", "colour").id())
+if row.check.isChecked():
+    failures.append("dock: removing the layer by hand left the row checked")
+# Contours: the lines too.
+crow = dock.local_section.rows["contours"][0]
+crow.forms["vector"].setChecked(True)
+if "contours:vector" not in local_keys():
+    failures.append("dock: contour lines layer missing")
 dock.local.setChecked(False)
 if local_groups() or LiveServer._instance is not None:
     failures.append("dock: unchecking leaves the group or the server")
+if not crow.on("vector"):
+    failures.append("dock: unchecking the box forgot the rows")
 
 print("\nmatch scores:")
 for m, ref, s, d in scores:

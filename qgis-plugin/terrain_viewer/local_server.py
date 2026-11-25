@@ -165,7 +165,7 @@ class LocalServer:
             return f"Local tile service stopped (exit code {self.proc.returncode}, log: {self.log_path})"
         return "Local tile service not started"
 
-    def start(self, earthdata_token="", timeout=60):
+    def start(self, timeout=60):
         """Start the service if it is not running, wait until it answers
         /health; returns its address. Raises RuntimeError with the reason
         (and the end of its log) otherwise."""
@@ -181,19 +181,19 @@ class LocalServer:
             if not mode & stat.S_IXUSR:
                 os.chmod(node, mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         self.port = PREFERRED_PORT if _port_free(PREFERRED_PORT) else _free_port()
-        env = {k: v for k, v in os.environ.items() if k not in ("EARTHDATA_TOKEN", "NODE_OPTIONS", "PORT")}
+        # QGIS's environment, EARTHDATA_TOKEN included when it is set there
+        # (the plugin has no token setting: a token lives in the service's
+        # environment only).
+        env = {k: v for k, v in os.environ.items() if k not in ("NODE_OPTIONS", "PORT")}
         env.update({
             "PORT": str(self.port),
             "TV_HOST": "127.0.0.1",
             "TV_EXIT_WITH_STDIN": "1",
             # Flat, north-up tiles only: never look for Chrome or Edge.
             "TV_NO_BROWSER": "1",
-            # No .env is read next to the service: the token, if any, is the
-            # one set in the plugin's settings.
+            # No .env is read next to the service.
             "TV_ENV_FILE": os.path.join(server_dir, "no-such.env"),
         })
-        if earthdata_token:
-            env["EARTHDATA_TOKEN"] = earthdata_token
         kwargs = {}
         if sys.platform == "win32":
             kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW: no console window

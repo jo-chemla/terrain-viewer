@@ -5,7 +5,9 @@ numpy. Two forms of the same tiles:
                                        GDAL's WMS driver (gdal_xml(): QGIS's
                                        gdal provider, so QGIS's own colour
                                        ramps, Identify, raster calculator)
-  /{mode}/{z}/{x}/{y}.png?<settings>   a grey picture, for a plain XYZ layer
+  /{mode}/{z}/{x}/{y}.png?<settings>   the colour picture, for a plain XYZ
+                                       layer: the mode's colour ramp (QGIS's,
+                                       sampled), grey for the shades
 
   srv = LiveServer.instance()          # 127.0.0.1:3420, or a free port
   srv.gdal_xml("slope", {})            # a GDAL dataset: <GDAL_WMS>...</GDAL_WMS>
@@ -24,7 +26,7 @@ import struct
 import threading
 import time
 import zlib
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -36,22 +38,28 @@ from .dem import SOURCES, TILE, Dem, ground_resolution_m
 # The port asked first, so a saved project's layers find the server again
 # next session (once the box is checked); another free one when taken.
 PREFERRED_PORT = 3420
+COLOUR_VERSION = 2  # bumped when the colour tiles change for the same settings
 WORLD = 20037508.342789244
 
 
-def png_grey(a):
-    """(h, w) uint8 -> greyscale PNG bytes (zlib level 1: fast, the tiles are
-    smooth shades)."""
-    h, w = a.shape
-    raw = np.empty((h, w + 1), np.uint8)
+def png(a):
+    """(h, w) grey, (h, w, 3) RGB or (h, w, 4) RGBA uint8 -> PNG bytes (zlib
+    level 1: fast, the tiles are smooth shades)."""
+    h, w = a.shape[:2]
+    channels = 1 if a.ndim == 2 else a.shape[2]
+    raw = np.empty((h, w * channels + 1), np.uint8)
     raw[:, 0] = 0
-    raw[:, 1:] = a
+    raw[:, 1:] = a.reshape(h, w * channels)
 
     def chunk(tag, data):
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
-    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 0, 0, 0, 0))
+    colour_type = {1: 0, 3: 2, 4: 6}[channels]
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, colour_type, 0, 0, 0))
             + chunk(b"IDAT", zlib.compress(raw.tobytes(), 1)) + chunk(b"IEND", b""))
+
+
+png_grey = png
 
 
 def tiff_float32(a):
@@ -100,7 +108,7 @@ class _Handler(BaseHTTPRequestHandler):
             mode, z, x, y = parts[0], int(parts[1]), int(parts[2]), parts[3]
             y, ext = y.split(".") if "." in y else (y, "png")
             y = int(y)
-            if mode not in modes.MODES or ext not in ("png", "tif"):
+            if mode not in modes.MODES or ext not in ("png", "tif") or (ext == "tif" and modes.MODES[mode]["kind"] == "rgb"):
                 return self._send(404, b"unknown mode or format", "text/plain")
             if z < 0 or not (0 <= x < 1 << z) or not (0 <= y < 1 << z):
                 return self._send(404, b"no such tile", "text/plain")
@@ -109,6 +117,7 @@ class _Handler(BaseHTTPRequestHandler):
             if source not in SOURCES:
                 return self._send(404, b"unknown source", "text/plain")
             srv.requests += 1
+            srv.seen.append((mode, z, x, y, ext))
             body, t = srv.tile(source, mode, z, x, y, modes.parse_opts(mode, q), ext)
             self._send(200, body, "image/tiff" if ext == "tif" else "image/png", {
                 "Cache-Control": "max-age=86400",
@@ -185,6 +194,11 @@ class LiveServer:
         self.peak_inflight = 0
         self.requests = 0
         self.errors = []
+        self.seen = deque(maxlen=4000)  # (mode, z, x, y, ext) of each request: which zoom QGIS asks (tests)
+        # The colour ramps of the colour tiles, (256, 3) uint8 per mode,
+        # sampled from QGIS's style on the main thread (live/layers.py
+        # ramp_luts); grey until then.
+        self.luts = {}
         self._stats_lock = threading.Lock()
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="tv-live-http", daemon=True)
         self.thread.start()
@@ -229,7 +243,7 @@ class LiveServer:
             self.peak_inflight = max(self.peak_inflight, self.inflight)
         try:
             v, t = self.values(source, mode, z, x, y, opts)
-            body = tiff_float32(v) if ext == "tif" else png_grey(modes.grey(mode, v))
+            body = tiff_float32(v) if ext == "tif" else png(modes.colour(mode, v, opts, self.luts.get(mode)))
         finally:
             with self._stats_lock:
                 self.inflight -= 1
@@ -257,7 +271,10 @@ class LiveServer:
         return urlencode(q)
 
     def xyz_url(self, mode, opts=None, source="mapterhorn"):
-        q = self._query(opts, source)
+        # c: the colour tiles' version. QGIS keeps XYZ tiles in its disk cache
+        # (max-age a day) by address, and the port is the same each session:
+        # without it, the grey tiles of 0.5.0 would be shown for a day.
+        q = self._query(dict(opts or {}, c=COLOUR_VERSION), source)
         return f"http://127.0.0.1:{self.port}/{mode}/{{z}}/{{x}}/{{y}}.png" + (f"?{q}" if q else "")
 
     def gdal_xml(self, mode, opts=None, source="mapterhorn"):

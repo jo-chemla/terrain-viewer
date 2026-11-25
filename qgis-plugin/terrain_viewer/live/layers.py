@@ -1,26 +1,32 @@
 """The locally computed modes in the project: a "Terrain Viewer (local
-compute)" group, one layer per checked mode, served by live/server.py.
+compute)" group, served by live/server.py. Per mode, the forms checked in
+the panel (Colour, Values, and Vector for contours), each a layer:
 
-Two forms, picked in the panel:
-- values (the default): a layer of QGIS's gdal provider over the server's
-  Float32 tiles (server.gdal_xml), drawn by QGIS's own renderers: a colour
-  ramp of QGIS's style over the mode's range (the coloured default, any
-  other ramp or classification from the layer's properties), grey and
-  multiplied for the shades, two colours for the contour mask. Identify,
-  the raster calculator and Processing read the numbers.
-- grey tiles: a plain XYZ layer of the server's PNG pictures (faster to
-  appear, tile by tile, but 8-bit pictures, no values).
+- colour: a plain XYZ layer of the server's PNG tiles, coloured by the
+  server with the mode's colour ramp (QGIS's, sampled: ramp_luts), grey and
+  multiplied for the shades, RGB for matcap. Shown tile by tile.
+- values: a layer of QGIS's gdal provider over the server's Float32 tiles
+  (server.gdal_xml), drawn by QGIS's own renderers (the same ramp as the
+  coloured default; any other from the layer's properties). Identify, the
+  raster calculator and Processing read the numbers.
+- vector: contour lines in a memory layer, recomputed for the view
+  (live/contours.py).
+
+A changed setting re-points the layer (setDataSource): its style,
+opacity, blending and resampling, as set in its properties, stay.
 
 Behind the panel's "Experimental: compute locally" box; nothing here runs
 unless it is checked."""
 import math
 
 from qgis.core import (
-    QgsColorRampShader, QgsContrastEnhancement, QgsDataSourceUri, QgsGradientColorRamp, QgsGradientStop, QgsPalettedRasterRenderer,
-    QgsProject, QgsRasterLayer, QgsRasterShader, QgsSingleBandGrayRenderer, QgsSingleBandPseudoColorRenderer, QgsStyle,
+    QgsApplication, QgsColorRampShader, QgsContrastEnhancement, QgsDataProvider, QgsDataSourceUri, QgsGradientColorRamp,
+    QgsGradientStop, QgsPalettedRasterRenderer, QgsProject, QgsRasterLayer, QgsRasterShader, QgsRectangle,
+    QgsSingleBandGrayRenderer, QgsSingleBandPseudoColorRenderer, QgsStyle, QgsTask, QgsVectorLayer,
 )
 from qgis.PyQt.QtGui import QColor, QPainter
 
+from ..layers import values_resampling
 from . import modes
 from .server import WORLD, LiveServer
 
@@ -32,8 +38,11 @@ NORMAL = QPainter.CompositionMode.CompositionMode_SourceOver
 # factor and the shadows, as the first experiment had them.
 DEFAULT_ON = ("shadows", "hillshade", "svf")
 # Top of the map first: masks and shades over the colours.
-ORDER = ["contours", "shadows", "hillshade", "multihillshade", "svf", "openness", "lrm", "curvature", "tpi", "tri", "roughness",
-         "aspect", "slope", "elevation"]
+ORDER = ["contours", "shadows", "phong", "hillshade", "multihillshade", "svf", "openness", "matcap", "lrm", "curvature", "tpi",
+         "tri", "roughness", "aspect", "slope", "elevation"]
+# The deepest zoom of the colour tiles: Mapterhorn's 512 px tiles go to z17,
+# so 256 px tiles to z18, the level the values (GDAL) read too.
+XYZ_ZMAX = 18
 DEFAULT_OPACITY = {"shadows": 0.6, "svf": 0.8, "openness": 0.8}
 
 
@@ -153,11 +162,52 @@ def elevation_range(extent3857, width_px, source="mapterhorn"):
     return (float(lo), float(max(hi, lo + 1)))
 
 
+def ramp_luts():
+    """Each ramp mode's colour ramp sampled at 256 steps, (256, 3) uint8: the
+    colours of the colour tiles, the same as the values layers' default
+    renderer. Read from QGIS's style, so on the main thread."""
+    import numpy as np
+    out = {}
+    for mode, spec in modes.MODES.items():
+        if spec["kind"] != "ramp":
+            continue
+        ramp = color_ramp(spec["ramp"], spec.get("invert", False))
+        if ramp is None:
+            continue
+        cols = [ramp.color(i / 255.0) for i in range(256)]
+        out[mode] = np.array([[c.red(), c.green(), c.blue()] for c in cols], np.uint8)
+    return out
+
+
+def _key(mode, form):
+    return f"{mode}:{form}"
+
+
+def _mode_form(layer):
+    """(mode, form) of one of the group's layers; a layer of 0.5.0 (the
+    mode alone) is a values layer (gdal) or a grey tile layer (colour)."""
+    v = layer.customProperty(LAYER_PROP)
+    if not v:
+        return None, None
+    if ":" in v:
+        mode, form = v.split(":", 1)
+        return mode, form
+    return v, "values" if layer.providerType() == "gdal" else "colour"
+
+
+FORM_ORDER = ("vector", "colour", "values")  # within a mode, top first
+
+
 class LocalLayers:
-    """The group and its layers: one per mode, values or grey tiles."""
+    """The group and its layers: per mode, a colour layer (XYZ of the
+    server's PNG tiles), a values layer (GDAL over its Float32 tiles), and
+    for contours a vector layer (live/contours.py)."""
 
     def __init__(self, project=None):
         self.project = project or QgsProject.instance()
+        srv = self.server
+        if not srv.luts:
+            srv.luts = ramp_luts()
 
     @property
     def server(self):
@@ -166,62 +216,138 @@ class LocalLayers:
     def group(self, create=False):
         return _group(self.project, create)
 
-    def find(self, mode):
+    def find(self, mode, form):
         g = self.group()
         if g is None:
             return None
         for n in g.findLayers():
-            if n.layer() is not None and n.layer().customProperty(LAYER_PROP) == mode:
-                return n.layer()
+            layer = n.layer()
+            if layer is not None and _mode_form(layer) == (mode, form):
+                return layer
         return None
 
-    def source_of(self, mode, opts, as_values):
+    def source_of(self, mode, form, opts):
         s = self.server
-        if as_values:
+        if form == "values":
+            # The values ignore the settings of the colours alone.
+            opts = {k: v for k, v in opts.items() if k not in modes.MODES[mode].get("colour_only", ())}
             return s.gdal_xml(mode, opts), "gdal"
-        return xyz_source(s.xyz_url(mode, opts)), "wms"
+        return xyz_source(s.xyz_url(mode, opts), zmax=XYZ_ZMAX), "wms"
 
-    def set_mode(self, mode, on, opts=None, as_values=True, extent=None, width_px=0):
-        """Adds, re-points or removes one mode's layer; returns it (None
-        when removed or invalid)."""
-        layer = self.find(mode)
+    def _place(self, layer, mode, form):
+        """Into the group, kept in ORDER (then vector, colour, values),
+        whatever order they are checked in."""
+        g = self.group(create=True)
+        self.project.addMapLayer(layer, False)
+        rank = (ORDER.index(mode), FORM_ORDER.index(form))
+        at = 0
+        for i, n in enumerate(g.children()):
+            other = getattr(n, "layer", lambda: None)()
+            if other is None:
+                continue
+            m, f = _mode_form(other)
+            if m in ORDER and f in FORM_ORDER and (ORDER.index(m), FORM_ORDER.index(f)) < rank:
+                at = i + 1
+        g.insertLayer(at, layer)
+
+    def set_form(self, mode, form, on, opts=None, extent=None, width_px=0):
+        """Adds, re-points or removes one form of one mode; returns the
+        layer (None when removed or invalid). A new address keeps the
+        layer, its style and resampling (setDataSource), so what was changed
+        in its properties stays."""
+        layer = self.find(mode, form)
         if not on:
             if layer is not None:
                 self.project.removeMapLayer(layer.id())
             return None
-        source, provider = self.source_of(mode, opts or {}, as_values)
-        if layer is not None and layer.source() == source:
+        opts = dict(opts or {})
+        if form == "vector":
+            return self._vector(mode, layer, opts, extent, width_px)
+        source, provider = self.source_of(mode, form, opts)
+        if layer is not None:
+            if layer.source() != source:
+                layer.setDataSource(source, layer.name(), provider, QgsDataProvider.ProviderOptions())
+                layer.triggerRepaint()
             return layer
-        if layer is not None:  # another form or other settings: a new layer in its place
-            self.project.removeMapLayer(layer.id())
         spec = modes.MODES[mode]
         unit = spec["unit"]
-        name = f"{spec['label']} (local{', ' + unit if as_values and unit else ''})"
+        name = f"{spec['label']} (local{', values, ' + unit if form == 'values' and unit else ''})"
         layer = QgsRasterLayer(source, name, provider)
         if not layer.isValid():
             return None
-        layer.setCustomProperty(LAYER_PROP, mode)
-        if as_values:
-            rng = None
-            if mode == "elevation" and extent is not None:
-                rng = elevation_range(extent, width_px)
+        layer.setCustomProperty(LAYER_PROP, _key(mode, form))
+        if form == "values":
+            rng = (opts.get("min", 0.0), opts.get("max", 4000.0)) if mode == "elevation" else None
             apply_renderer(layer, mode, rng)
+            values_resampling(layer, spec["kind"] != "mask")
         else:
             if layer.renderer():
                 layer.renderer().setOpacity(DEFAULT_OPACITY.get(mode, 1.0))
             layer.setBlendMode(MULTIPLY if spec["kind"] == "shade" else NORMAL)
-        g = self.group(create=True)
-        self.project.addMapLayer(layer, False)
-        # Kept in ORDER, whatever order they are checked in.
-        rank = ORDER.index(mode)
-        at = 0
-        for i, n in enumerate(g.children()):
-            other = getattr(n, "layer", lambda: None)()
-            if other is not None and other.customProperty(LAYER_PROP) in ORDER and ORDER.index(other.customProperty(LAYER_PROP)) < rank:
-                at = i + 1
-        g.insertLayer(at, layer)
+        self._place(layer, mode, form)
         return layer
 
+    # -- contour lines --------------------------------------------------------
+    def _vector(self, mode, layer, opts, extent, width_px):
+        from . import contours
+        if layer is None:
+            layer = QgsVectorLayer("LineString?crs=EPSG:3857&field=elev:double&field=major:integer",
+                                   f"{modes.MODES[mode]['label']} (local, lines)", "memory")
+            layer.setCustomProperty(LAYER_PROP, _key(mode, "vector"))
+            contours.style(layer)
+            self._place(layer, mode, "vector")
+        self.refresh_vector(layer, opts, extent, width_px)
+        return layer
+
+    def refresh_vector(self, layer, opts, extent, width_px, wait=False):
+        """The contour lines of the view computed in a QgsTask and put into
+        the layer when done (a later view's result wins); wait: here, now
+        (tests)."""
+        from . import contours
+        if extent is None or width_px <= 0:
+            return
+        o = modes.parse_opts("contours", opts)
+        key = (extent.toString(), width_px, o["minor"], o["major"])
+        if layer.customProperty("terrain_viewer/local_view") == str(key) and not wait:
+            return
+        layer.setCustomProperty("terrain_viewer/local_view", str(key))
+        dem = self.server.dem("mapterhorn")
+        ext = QgsRectangle(extent)
+        if wait:
+            lines, _z = contours.view_contours(dem, ext, width_px, o["minor"], o["major"])
+            contours.replace_features(layer, lines)
+            return
+        global _contour_generation
+        _contour_generation += 1
+        gen = _contour_generation
+        layer_id = layer.id()
+        project = self.project
+
+        def run(task):
+            return contours.view_contours(dem, ext, width_px, o["minor"], o["major"])
+
+        def finished(exception, result=None):
+            lyr = project.mapLayer(layer_id)
+            if exception is not None or result is None or lyr is None or gen != _contour_generation:
+                return
+            contours.replace_features(lyr, result[0])
+        task = QgsTask.fromFunction("Terrain Viewer: contour lines", run, on_finished=finished,
+                                    flags=QgsTask.Flag.Silent if hasattr(QgsTask, "Flag") else QgsTask.Silent)
+        _tasks.append(task)
+        del _tasks[:-8]
+        QgsApplication.taskManager().addTask(task)
+
+    def refresh_vectors(self, opts_of, extent, width_px):
+        """Every contour line layer of the group, for a new view."""
+        g = self.group()
+        if g is None:
+            return
+        for n in g.findLayers():
+            layer = n.layer()
+            if layer is not None and _mode_form(layer)[1] == "vector":
+                self.refresh_vector(layer, opts_of(_mode_form(layer)[0]), extent, width_px)
+
+    # -- the rest ---------------------------------------------------------------
     def prefetch(self, extent3857, width_px):
         """The canvas's elevation tiles (and a ring around) fetched now, in
         parallel, before QGIS asks for them."""
@@ -237,12 +363,16 @@ class LocalLayers:
         LiveServer.shutdown()
 
 
-def add_local_layers(project=None, as_values=True):
-    """The default set (DEFAULT_ON), added once; returns the group's layers."""
+_contour_generation = 0
+_tasks = []  # QgsTask.fromFunction tasks kept referenced while they run
+
+
+def add_local_layers(project=None):
+    """The default set (DEFAULT_ON, colour), added once; returns the group's layers."""
     ll = LocalLayers(project)
     for mode in DEFAULT_ON:
-        if ll.find(mode) is None:
-            ll.set_mode(mode, True, {}, as_values)
+        if ll.find(mode, "colour") is None:
+            ll.set_form(mode, "colour", True, {})
     return [n.layer() for n in ll.group(True).findLayers()]
 
 
