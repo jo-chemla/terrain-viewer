@@ -795,6 +795,32 @@ function assertStacItem(item) {
   console.log(`sky view factor r = 32: ${Math.round(first)} ms, the neighbour ${Math.round(neighbour)} ms`)
 }
 
+// Building shadows: a tower on its podium (two overlapping parts, as
+// OpenFreeMap has them) keeps both roofs lit. The roofs were cut out with
+// one even-odd path, so the tower's roof, covered twice, stayed shaded.
+{
+  const { buildingShadowSvg } = await import("./direct.mjs")
+  const sharp = (await import("sharp")).default
+  const Z = 14, n = 2 ** Z, tx = 4825, ty = 6156
+  // Outer rings wound as lib/building-tiles.ts keeps them (MVT: clockwise, y down).
+  const box = (a, b, c, d) => [[[(tx + a) / n, (ty + b) / n], [(tx + c) / n, (ty + b) / n], [(tx + c) / n, (ty + d) / n], [(tx + a) / n, (ty + d) / n], [(tx + a) / n, (ty + b) / n]]]
+  const tile = [{ rings: box(0.3, 0.3, 0.7, 0.7), height: 20 }, { rings: box(0.45, 0.45, 0.55, 0.55), height: 200 }]
+  const A = { BUILDING_TILE_ZOOM: Z, BUILDING_TILE_BUFFER: 64 / 4096, requestBuildingTile: async (x, y) => (x === tx && y === ty ? tile : []) }
+  // The z14 tile as 512 px (map zoom 14), the sun in the south-east, low.
+  const size = 512, world = size * n
+  const svg = await buildingShadowSvg(A, { illuminationDir: 135, illuminationAlt: 30, buildingShadowOpacity: 1 }, { world, x0: tx * size, y0: ty * size, width: size, height: size })
+  const alpha = await sharp(Buffer.from(svg)).ensureAlpha().extractChannel(3).raw().toBuffer()
+  const at = (u, v) => alpha[Math.floor(v * size) * size + Math.floor(u * size)]
+  assert.equal(at(0.5, 0.5), 0, "the tower's roof is lit")
+  assert.equal(at(0.4, 0.4), 0, "the podium's roof in the tower's shadow is lit (flat ground, as the map and the QGIS port)")
+  assert.equal(at(0.65, 0.65), 0, "the podium's roof is lit")
+  assert.equal(at(0.29, 0.29), 255, "the ground north-west of the podium is shaded")
+  assert.equal(at(0.8, 0.8), 0, "the ground south-east of it is lit")
+  let lit = 0, foot = 0
+  for (let v = 0.3; v < 0.7; v += 1 / size) for (let u = 0.3; u < 0.7; u += 1 / size) { foot++; if (at(u + 0.5 / size, v + 0.5 / size) === 0) lit++ }
+  assert.ok(lit / foot > 0.99, `${((100 * lit) / foot).toFixed(1)} % of the roofs lit`)
+}
+
 console.log("ok")
 // The bundled app code (colour ramps) keeps a handle open.
 process.exit(0)

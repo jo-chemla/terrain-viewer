@@ -34,6 +34,23 @@ def _cummax(xp, a, axis):
     return xp.moveaxis(a, 0, axis)
 
 
+def _band_rows(n, xp, floats=1 << 15):
+    """Rows of an n-wide band whose arrays stay in the CPU cache (`floats`
+    values each); the whole tile on a GPU (cupy), where bands only add
+    launches."""
+    return n if xp is not np else max(1, min(n, floats // n))
+
+
+def _take_rows(xp, a, rows, out):
+    """out[:] = a[rows] without a temporary. numpy's take buffers `out`
+    unless mode is "clip" (the rows are clamped already, so the same rows);
+    cupy's take has no mode."""
+    if xp is np:
+        np.take(a, rows, axis=0, out=out, mode="clip")
+    else:
+        out[...] = a[rows]
+
+
 # ---------------------------------------------------------------- hillshade
 def hillshade(padded, res_m, azimuth_deg=315.0, altitude_deg=45.0, exaggeration=1.0, xp=np):
     """padded: (n + 2)^2 -> (n, n) float32 in [0, 1]."""
@@ -72,28 +89,48 @@ def horizon(padded, n, radius_px, res_m, sign=1.0, aggregate="svf", xp=np):
     "openness": the mean signed horizon angle, in degrees (openness is 90
     minus it). sign -1: the terrain flipped (negative openness)."""
     r0 = radius_px
-    centre = padded[r0:r0 + n, r0:r0 + n]
-    acc = xp.zeros((n, n), xp.float32)
-    tmp = xp.empty((n, n), xp.float32)
+    # Each direction's steps once: (row, col) offset and sign / distance.
+    rays = []
     for d_row, d_col in _DIRS:
-        best = xp.full((n, n), -xp.inf, xp.float32)
-        seen = set()
+        steps, seen = [], set()
         for r in range(1, radius_px + 1):
             rr, rc = round(r * d_row), round(r * d_col)
             if (rr, rc) in seen or (rr == 0 and rc == 0):
                 continue  # same pixel, same tangent: the max cannot change
             seen.add((rr, rc))
-            inv = sign / (math.sqrt(rr * rr + rc * rc) * res_m)
-            view = padded[r0 + rr:r0 + rr + n, r0 + rc:r0 + rc + n]
-            xp.subtract(view, centre, out=tmp)
-            tmp *= inv
-            xp.maximum(best, tmp, out=best)
-        if aggregate == "svf":
-            # sin(atan(t)) = t / sqrt(1 + t^2), with t clamped at 0 (horizon below).
-            t = xp.maximum(best, 0.0)
-            acc += t / xp.sqrt(1.0 + t * t)
-        else:
-            acc += xp.arctan(best)
+            steps.append((rr, rc, sign / (math.sqrt(rr * rr + rc * rc) * res_m)))
+        rays.append(steps)
+    acc = xp.zeros((n, n), xp.float32)
+    # A band of rows at a time, every direction and step over it before the
+    # next band: the band's scratch stays in the CPU cache (at 512 px the
+    # whole-tile arrays, 1 MB each, did not, and a 512 px tile cost 12 times
+    # a 256 px one). The scratch is reused and the aggregate made in place:
+    # the same operations in the same order per pixel, so the same bits.
+    band = _band_rows(n, xp)
+    tmp = xp.empty((band, n), xp.float32)
+    best = xp.empty((band, n), xp.float32)
+    for b0 in range(0, n, band):
+        b1 = min(n, b0 + band)
+        h = b1 - b0
+        centre = padded[r0 + b0:r0 + b1, r0:r0 + n]
+        t_, best_, acc_ = tmp[:h], best[:h], acc[b0:b1]
+        for steps in rays:
+            best_.fill(-xp.inf)
+            for rr, rc, inv in steps:
+                view = padded[r0 + rr + b0:r0 + rr + b1, r0 + rc:r0 + rc + n]
+                xp.subtract(view, centre, out=t_)
+                t_ *= inv
+                xp.maximum(best_, t_, out=best_)
+            if aggregate == "svf":
+                # sin(atan(t)) = t / sqrt(1 + t^2), with t clamped at 0 (horizon below).
+                t = xp.maximum(best_, 0.0, out=best_)
+                xp.multiply(t, t, out=t_)
+                t_ += 1.0
+                xp.sqrt(t_, out=t_)
+                xp.divide(t, t_, out=t_)
+                acc_ += t_
+            else:
+                acc_ += xp.arctan(best_, out=best_)
     if aggregate == "svf":
         return ((1.0 - acc / DIRECTIONS) * 100.0).astype(xp.float32)
     return (xp.degrees(acc / DIRECTIONS)).astype(xp.float32)
@@ -203,10 +240,26 @@ def shadow(padded, n, halo, d_row, d_col, res_m, altitude_rad, xp=np):
 
 
 # ---------------------------------------------------------------- structure tensor
+# ---------------------------------------------------------------- structure tensor
+# The structure tensor modes run in place where the expressions allowed it:
+# the same operations in the same order (a + b as b + a where only the
+# first sum turns around, exact), so the same bits, with half the (n, n)
+# float64 temporaries (2026-11-25).
 def _box3(a):
     """The 3x3 sum of every inner pixel: (m + 2)^2 -> (m, m), separable."""
-    r = a[:-2] + a[1:-1] + a[2:]
-    return r[:, :-2] + r[:, 1:-1] + r[:, 2:]
+    r = a[:-2] + a[1:-1]
+    r += a[2:]
+    out = r[:, :-2] + r[:, 1:-1]
+    out += r[:, 2:]
+    return out
+
+
+def _horn_sum(a0, a1, a2):
+    """a0 + 2 a1 + a2, as (2 a1 + a0) + a2: the same bits."""
+    s = 2 * a1
+    s += a0
+    s += a2
+    return s
 
 
 def structure_tensor(padded, res_m, xp=np):
@@ -218,9 +271,18 @@ def structure_tensor(padded, res_m, xp=np):
     p = padded.astype(xp.float64)
     inv = 1.0 / res_m
     l, c, r = p[:, :-2], p[:, 1:-1], p[:, 2:]
-    gx = ((l[:-2] + 2 * l[1:-1] + l[2:]) - (r[:-2] + 2 * r[1:-1] + r[2:])) * inv
-    gy = ((l[2:] + 2 * c[2:] + r[2:]) - (l[:-2] + 2 * c[:-2] + r[:-2])) * inv
-    return _box3(gx * gx) / 9, _box3(gy * gy) / 9, _box3(gx * gy) / 9
+    gx = _horn_sum(l[:-2], l[1:-1], l[2:])
+    gx -= _horn_sum(r[:-2], r[1:-1], r[2:])
+    gx *= inv
+    gy = _horn_sum(l[2:], c[2:], r[2:])
+    gy -= _horn_sum(l[:-2], c[:-2], r[:-2])
+    gy *= inv
+    out = []
+    for a, b in ((gx, gx), (gy, gy), (gx, gy)):
+        s = _box3(a * b)
+        s /= 9
+        out.append(s)
+    return tuple(out)
 
 
 BLOBNESS_SCALE = 100 / 64  # lib/blobness-protocol.ts: undoes Horn's x8 on a degree-2 quantity, then x100
@@ -231,17 +293,34 @@ def blobness(ixx, iyy, ixy, xp=np):
     0-50), 0 where the trace is under 1e-9."""
     tr = ixx + iyy
     flat = tr < 1e-9
-    v = (ixx * iyy - ixy * ixy) / xp.where(flat, 1.0, tr) * BLOBNESS_SCALE
-    return xp.where(flat, 0.0, v)
+    tr[flat] = 1.0
+    v = ixx * iyy
+    v -= ixy * ixy
+    v /= tr
+    v *= BLOBNESS_SCALE
+    v[flat] = 0.0
+    return v
 
 
 def eigen_ratio(ixx, iyy, ixy, xp=np):
     """lambda_min / lambda_max x 100 (0 an edge, 100 isotropic), 0 on flat ground."""
     tr = ixx + iyy
-    disc = xp.sqrt((ixx - iyy) * (ixx - iyy) + 4 * ixy * ixy)
-    lmax, lmin = (tr + disc) / 2, (tr - disc) / 2
+    disc = ixx - iyy
+    disc *= disc
+    q = 4 * ixy
+    q *= ixy
+    disc += q
+    xp.sqrt(disc, out=disc)
+    lmax = tr + disc
+    lmax /= 2
+    lmin = xp.subtract(tr, disc, out=disc)
+    lmin /= 2
     ok = (tr >= 1e-9) & (lmax > 1e-12)
-    return xp.where(ok, lmin / xp.where(ok, lmax, 1.0) * 100, 0.0)
+    lmax[~ok] = 1.0
+    lmin /= lmax
+    lmin *= 100
+    lmin[~ok] = 0.0
+    return lmin
 
 
 def orientation(ixx, iyy, ixy, xp=np):
@@ -250,10 +329,20 @@ def orientation(ixx, iyy, ixy, xp=np):
     along it). Horn's x and y are both the opposite of east and north and
     the tensor is quadratic in them, so nothing is mirrored: 90 minus the
     math angle is the bearing (lib/blobness-protocol.test.ts)."""
-    tr = ixx + iyy
-    math_deg = 0.5 * xp.degrees(xp.arctan2(2 * ixy, ixx - iyy))
-    v = xp.mod(xp.mod(90.0 - math_deg, 180.0) + 180.0, 180.0)
-    return xp.where(tr < 1e-9, 0.0, v)
+    a = 2 * ixy
+    b = ixx - iyy
+    xp.arctan2(a, b, out=a)
+    xp.degrees(a, out=a)
+    a *= 0.5
+    v = xp.subtract(90.0, a, out=a)
+    xp.mod(v, 180.0, out=v)
+    v += 180.0
+    xp.mod(v, 180.0, out=v)
+    xp.add(ixx, iyy, out=b)
+    v[b < 1e-9] = 0.0
+    return v
+
+
 
 
 # ---------------------------------------------------------------- local dominance
@@ -286,7 +375,13 @@ def local_dominance(centre, levels, n, x, y, res_m, xp=np):
     arctangent stays in float64: numpy's float32 one measured twice as slow."""
     obs = centre.astype(xp.float64) + OBSERVER_HEIGHT_M
     acc = xp.zeros((n, n), xp.float64)
-    tmp = xp.empty((n, n), xp.float64)
+    # A band of rows at a time (its scratch stays in the CPU cache, see
+    # horizon()), the rows gathered into scratch reused direction after
+    # direction (take with out=): the same products and sums in the same
+    # order as `ax[y0] * (1 - fy) + ax[y1] * fy` (bit-identical).
+    band = _band_rows(n, xp)
+    tmp = xp.empty((band, n), xp.float64)
+    bot = xp.empty((band, n), xp.float64)
     idx = np.arange(n)
     for a, k in levels:
         scale = 1 << k
@@ -296,7 +391,7 @@ def local_dominance(centre, levels, n, x, y, res_m, xp=np):
         inv = 1.0 / (scale * res_m)
         a = a.astype(xp.float64)
         last = a.shape[0] - 1
-        across = {}
+        across, reads = {}, []
         for d_row, d_col in _LD_DIRS:
             key = round(d_col, 12)
             ax = across.get(key)
@@ -304,17 +399,32 @@ def local_dominance(centre, levels, n, x, y, res_m, xp=np):
                 x0, x1, fx = _taps(pcx + d_col + 1, last)
                 if xp is not np:
                     x0, x1, fx = map(xp.asarray, (x0, x1, fx))
-                ax = across[key] = a[:, x0] * (1 - fx) + a[:, x1] * fx  # (n + 2, n)
+                # (n + 2, n): a[:, x0] (1 - fx) + a[:, x1] fx. take, not a[:, x0]:
+                # C-ordered, so the row gathers below are a block copy (a[:, x0]
+                # is not, and numpy took 30 times longer gathering its rows).
+                ax = across[key] = xp.take(a, x0, axis=1)
+                ax *= 1 - fx
+                right = a[:, x1]
+                right *= fx
+                ax += right
             y0, y1, fy = _taps(pcy + d_row + 1, last)
             if xp is not np:
                 y0, y1, fy = map(xp.asarray, (y0, y1, fy))
-            fy = fy[:, None]
-            # obs - (top (1 - fy) + bottom fy), in place
-            xp.multiply(ax[y0], 1 - fy, out=tmp)
-            tmp += ax[y1] * fy
-            xp.subtract(obs, tmp, out=tmp)
-            tmp *= inv
-            acc += xp.arctan(tmp, out=tmp)
+            reads.append((ax, y0, y1, 1 - fy[:, None], fy[:, None]))
+        for b0 in range(0, n, band):
+            b1 = min(n, b0 + band)
+            h = b1 - b0
+            t_, u_, obs_, acc_ = tmp[:h], bot[:h], obs[b0:b1], acc[b0:b1]
+            for ax, y0, y1, gy, fy in reads:
+                # obs - (top (1 - fy) + bottom fy), in place
+                _take_rows(xp, ax, y0[b0:b1], t_)
+                t_ *= gy[b0:b1]
+                _take_rows(xp, ax, y1[b0:b1], u_)
+                u_ *= fy[b0:b1]
+                t_ += u_
+                xp.subtract(obs_, t_, out=t_)
+                t_ *= inv
+                acc_ += xp.arctan(t_, out=t_)
     count = len(levels) * len(_LD_DIRS)
     return (xp.degrees(acc / count) if count else acc).astype(xp.float32)
 
