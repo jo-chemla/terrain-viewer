@@ -1,4 +1,4 @@
-"""The tile service, as the panel reads it: its catalogs (/sources, /processes,
+"""The tile service, as the panel reads it: its catalogs (/terrain-sources, /processes,
 /colorramps) and the addresses of a mode's tiles. No QGIS widget here, so
 the address building can be tested on its own."""
 import json
@@ -171,7 +171,12 @@ class Catalog:
             self.inputs = set(snapshot.get("inputs", []))
         else:
             self.snapshot = False
-            self.sources = get_json(f"{self.base}/sources").get("sources", [])
+            # /terrain-sources since 2026-11-25; a service from before only
+            # has the old address, /sources (still answered as an alias).
+            try:
+                self.sources = get_json(f"{self.base}/terrain-sources").get("sources", [])
+            except ServiceError:
+                self.sources = get_json(f"{self.base}/sources").get("sources", [])
             try:
                 listing = get_json(f"{self.base}/processes?expand=true")
             except ServiceError as e:

@@ -22,7 +22,7 @@ A dock panel laid out as the app's sidebar. From the top:
 
 1. **The backend**: three buttons, **Local service**, **Remote service**, **Python**, and under them the picked one's options (below).
 2. **The status line**: what is connected, or why not.
-3. **Source**: the terrain source (from the service's `/sources`), and a **zoom to** button that moves the map canvas to the source's bounds (the whole world for a global source such as Mapterhorn).
+3. **Source**: the terrain source (from the service's `/terrain-sources`), and a **zoom to** button that moves the map canvas to the source's bounds (the whole world for a global source such as Mapterhorn).
 4. **API keys**, folded behind a key icon: Mapbox, MapTiler, HERE, Google, Cesium ion. They are kept in QGIS's settings (`terrain_viewer/mapboxKey`, `maptilerKey`, `hereKey`, `googleKey`, `cesiumIonKey`). The three a tile service reads (`mapboxKey`, `maptilerKey`, `cesiumIonKey`) go into the address of every layer, so a project saved with a keyed source holds the key; the Python backend uses the Mapbox and MapTiler keys for those two sources. HERE and Google are the app's basemap keys: kept, sent nowhere yet.
 5. **Open link**: a share link, whole or just its query.
 6. **Freeze**.

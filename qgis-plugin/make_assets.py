@@ -11,7 +11,7 @@ all, for the Python backend):
   column.
 - catalog.json: the panel tree of /processes?expand=true (each mode's
   forms, settings, defaults; as service.mode_of_process reads it), the ramp
-  ids and names, every parameter name the modes take, and /sources (id,
+  ids and names, every parameter name the modes take, and /terrain-sources (id,
   name, type, address, zoom, bounds, key), trimmed.
 
 Needs a running tile service (cd tile-server && pnpm start, or the desktop
@@ -101,7 +101,7 @@ def catalog(base):
     inputs = sorted({spec.get("x-tv-url-param", k) for p in listing.get("processes", []) for k, spec in (p.get("inputs") or {}).items()})
     ramps = get_json(f"{base}/colorramps").get("colorramps", [])
     keep = ("id", "name", "type", "url", "maxzoom", "bounds", "key", "resolutionM")
-    sources = [{k: s[k] for k in keep if k in s} for s in get_json(f"{base}/sources").get("sources", [])]
+    sources = [{k: s[k] for k in keep if k in s} for s in get_json(f"{base}/terrain-sources").get("sources", [])]
     return {"tree": tree_of(listing.get("x-tv-groups", []), modes), "inputs": inputs,
             "colorramps": [{"id": r["id"], "name": r.get("name", r["id"])} for r in ramps], "sources": sources}, ramps
 

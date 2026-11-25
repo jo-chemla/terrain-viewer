@@ -84,6 +84,12 @@ The STAC Item of a tile (any raster export's address plus `.stac.json`):
 http://localhost:3400/terrain-tiles/mapterhorn/12/2133/1449.png.stac.json?modes=slope
 ```
 
+The terrain sources, by id (what `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take; one with its description: `/terrain-sources/{id}`; the old address `/sources` still answers):
+
+```text
+http://localhost:3400/terrain-sources
+```
+
 The modes, as OGC API - Processes (each mode's settings: `/processes/{id}`):
 
 ```text
@@ -110,7 +116,7 @@ The source can be named in the path, as `/quantized-mesh/{source}/…` always di
 | `/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01` | `/basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=<XYZ or COG address>` |
 | `/quantized-mesh/mapterhorn/layer.json` | `/quantized-mesh/custom/layer.json?terrainSource=<…>` |
 
-An id goes in the path because it is short and cannot be lost from a copied template; an address cannot (it holds slashes and its own `{z}/{x}/{y}`). `custom` in the path means "the source is in the query" on all three. An unknown id answers 404 naming the list to look in (`/sources`, `/basemaps`). The same holds for `.tif`, `.pbf`, `.mvt` and `.stac.json`.
+An id goes in the path because it is short and cannot be lost from a copied template; an address cannot (it holds slashes and its own `{z}/{x}/{y}`). `custom` in the path means "the source is in the query" on all three. An unknown id answers 404 naming the list to look in (`/terrain-sources`, `/basemaps`). The same holds for `.tif`, `.pbf`, `.mvt` and `.stac.json`.
 
 `/basemap-tiles` is not only the historical imagery: it draws the basemap as the app does, so it serves the dated sources (`wayback`, `ge-historical`, `bing`, `hls`, `eox-s2`, each with `imageryDate`), the app's built-in basemaps with a fixed address (`google`, `googlesat`, `bing`, `esri`, `mapbox`, `maptiler`, `here`), any XYZ or COG address (`imageryUrl`), and the app's basemap parameters (`basemapSource`, `overlayBasemapIds`). `bing` is in both lists: dated with an `imageryDate`, Bing Aerial without. It keeps its name for that reason. `/basemaps` lists the ids.
 
@@ -120,7 +126,7 @@ Both take the view as query parameters, the same words the [MCP server](/feature
 
 | Parameter | Meaning |
 |---|---|
-| `terrainSource` | An id from `/sources` (the built-in sources and the [library](/features/terrain-sources#the-library)), the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry: `{"url": "…/{z}/{x}/{y}.png", "type": "terrainrgb", "maxzoom": 15}` (types `terrarium`, `terrainrgb`, `cog`, `vrt`, `wms-raw`, `lerc`, `quantized-mesh`, `tilejson`) |
+| `terrainSource` | An id from `/terrain-sources` (the built-in sources and the [library](/features/terrain-sources#the-library)), the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry: `{"url": "…/{z}/{x}/{y}.png", "type": "terrainrgb", "maxzoom": 15}` (types `terrarium`, `terrainrgb`, `cog`, `vrt`, `wms-raw`, `lerc`, `quantized-mesh`, `tilejson`) |
 | `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `moundDetector`, `isoline`, `graticules`, `planeSlicer`, `basemap` (also `tri`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`) |
 | `imageryUrl`, `imagerySource`, `imageryDate` | The imagery of `/basemap-tiles` (and of a viewport, under the terrain, with the mode `basemap`) |
 | `engine` | `auto` (the default: direct when it can), `direct` (an error when it cannot), `browser` |
@@ -148,7 +154,7 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 
 | Address | Lists |
 |---|---|
-| `/sources`, `/sources/{id}` | The 141 terrain sources: built-in and library, with type, tile address, zoom range, extent, and the engine that can draw each |
+| `/terrain-sources`, `/terrain-sources/{id}` | The 141 terrain sources: built-in and library, with type, tile address, zoom range, extent, and the engine that can draw each. First in the Terrain tiles group of the API reference, as `/basemaps` opens Basemap tiles. The old address, `/sources` (until 2026-11-25), still answers as a deprecated alias |
 | `/colorramps`, `/colorramps/{id}` | The app's 268 colour ramps, to name as `colorRamp` (colour relief) or `slopeColorRamp` (slope); one ramp gives its stops |
 | `/colorramps/{id}.png` or `.jpg` | A ramp as a picture, coloured as the map colours it (MapLibre's colour relief: linear between the stops): `width` and `height` (256 × 16 by default, 16 × 256 vertical), `orientation=vertical` (the lowest value at the bottom; horizontal: on the left), `reverse=true`. PNG keeps the ramp's transparency, JPEG is on white. For a legend or a ramp picker |
 | `/basemaps` | What `/basemap-tiles/{source}/…` takes: the dated imagery and the built-in basemaps, each with the parameter it stands for and its API key |
@@ -231,7 +237,7 @@ Any source the direct engine reads also comes as Cesium terrain, [quantized-mesh
 | `/quantized-mesh/{source}/layer.json` | The layer.json a Cesium client reads first: TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326`, `available` level by level (level 0 whole, the source's bounds below), `maxzoom` the level as fine as the source (its deepest 256 px Web Mercator zoom less one: 17 for Mapterhorn), `extensions: [octvertexnormals]`, the source's attribution. The tile template keeps the query given, so `?mesher=delatin`, `?heights=orthometric` or a key on the layer.json's address reaches every tile |
 | `/quantized-mesh/{source}/{z}/{x}/{y}.terrain` | One tile, `application/vnd.quantized-mesh`, gzipped when the client accepts it, cached a week |
 
-`{source}` is an id from `/sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration, as for `/terrain-tiles`). The API keys are the same as for the other tiles (`mapboxKey`, `maptilerKey`, `cesiumIonKey`, or the operator's). Parameters:
+`{source}` is an id from `/terrain-sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration, as for `/terrain-tiles`). The API keys are the same as for the other tiles (`mapboxKey`, `maptilerKey`, `cesiumIonKey`, or the operator's). Parameters:
 
 | Parameter | Default | What it does |
 |---|---|---|
@@ -287,7 +293,7 @@ viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
 
 ### Which sources
 
-Every `/sources` entry whose engine is `direct`, by type:
+Every `/terrain-sources` entry whose engine is `direct`, by type:
 
 | Type | Checked |
 |---|---|
@@ -429,7 +435,7 @@ The item is STAC 1.1.0 with the [Processing extension](https://github.com/stac-e
 | `processing:software` | `{"terrain-viewer tile-server": "<version of tile-server/package.json>"}` |
 | `processing:level` | `L3` for a map derived from the elevation; left out for the imagery |
 | `processing:expression` | `{"format": "x-tv-process", "expression": {"process", "processes", "endpoint", "inputs"}}`: the process ids (as in `/processes`) and their inputs as executed |
-| `links` | `derived_from` the source (its `/sources/{id}` entry and its tile template, or its address; for the imagery, its address or `/processes/basemap`), `related` to each `/processes/{id}` |
+| `links` | `derived_from` the source (its `/terrain-sources/{id}` entry and its tile template, or its address; for the imagery, its address or `/processes/basemap`), `related` to each `/processes/{id}` |
 | `assets.data` | The export itself, role `data` (values) or `visual` (a picture) |
 
 ```json
@@ -446,7 +452,7 @@ The item is STAC 1.1.0 with the [Processing extension](https://github.com/stac-e
     "processing:datetime": "2026-11-25T09:00:00Z",
     "processing:expression": { "format": "x-tv-process", "expression": { "process": "slope", "processes": ["slope"], "endpoint": "terrain-tiles", "inputs": { "terrainSource": "mapterhorn", "slopeMaxDegrees": "45" } } }
   },
-  "links": [{ "rel": "derived_from", "href": "http://localhost:3400/sources/mapterhorn" }, { "rel": "related", "href": "http://localhost:3400/processes/slope" }],
+  "links": [{ "rel": "derived_from", "href": "http://localhost:3400/terrain-sources/mapterhorn" }, { "rel": "related", "href": "http://localhost:3400/processes/slope" }],
   "assets": { "data": { "href": "http://localhost:3400/terrain-tiles/13/4270/2911.tif?modes=slope&slopeMaxDegrees=45", "type": "image/tiff; application=geotiff", "roles": ["data"] } }
 }
 ```

@@ -725,7 +725,7 @@ class TerrainViewerDock(QDockWidget):
         self.source.setMinimumWidth(60)
         self.source.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.source.setMinimumContentsLength(10)
-        self.source.setToolTip("An id from the service's /sources, or the address of Terrarium tiles, a COG or a VRT")
+        self.source.setToolTip("An id from the service's /terrain-sources, or the address of Terrarium tiles, a COG or a VRT")
         self.source.currentTextChanged.connect(lambda _t: self.source_changed())
         src.addWidget(self.source, 1)
         self.zoom_btn = QToolButton()

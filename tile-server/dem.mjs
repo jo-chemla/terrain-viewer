@@ -58,9 +58,9 @@ export function needsKey(entry) {
 }
 
 /** Why a source, by its entry, cannot be read here; null when it can. Read
- *  from the entry alone (no request), for listings (/sources). */
+ *  from the entry alone (no request), for listings (/terrain-sources). */
 export function whyNotDirect(entry, keys = keysOf()) {
-  if (!entry) return "unknown terrain source: see /sources"
+  if (!entry) return "unknown terrain source: see /terrain-sources"
   const need = needsKey(entry)
   if (need && !keys[need[1]]) return `${need[0]} needs an API key: give yours as ${need[1]}`
   if (entry.type === "stac" || entry.type === "mosaicjson") return "STAC and MosaicJSON sources are read by the app alone"
@@ -93,7 +93,7 @@ function entryOf(source) {
  *  the fields of a library entry. */
 export async function resolveDemOrWhy(source, settings = {}) {
   const entry = entryOf(source)
-  if (!entry) return { why: `unknown terrain source "${String(source).slice(0, 80)}": see /sources` }
+  if (!entry) return { why: `unknown terrain source "${String(source).slice(0, 80)}": see /terrain-sources` }
   settings = { ...settings, ...keysOf(settings) }
   const why = whyNotDirect(entry, settings)
   if (why) return { why }

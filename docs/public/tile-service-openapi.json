@@ -3,7 +3,7 @@
   "info": {
     "title": "Terrain Viewer tile service",
     "version": "0.1.0",
-    "description": "## Quick start\n\nCopy an address into QGIS (XYZ Tiles), MapLibre, CesiumJS or Blender. `{z}/{x}/{y}` stay as they are: the client fills them.\n\n**Slope, Mapterhorn, XYZ tiles** (any mode of `/processes`, several comma-separated; the source id is the path segment after `/terrain-tiles/` (`/sources` lists them))\n\n```text\nhttp://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope\n```\n\n**Sky-view factor, IGN RGE ALTI (France), XYZ tiles** (zoom 12 and finer; the first tiles of an area take a second or two)\n\n```text\nhttp://localhost:3400/terrain-tiles/custom-fr-ign-rgealti-highres/{z}/{x}/{y}.png?modes=svf\n```\n\n**A source given by its address (Terrarium tiles, a COG, a VRT, JSON)** (the query form, for anything that is not a library id)\n\n```text\nhttp://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=hillshade&terrainSource=https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\n```\n\n**Cesium terrain (quantized mesh), Mapterhorn: the layer.json** (CesiumJS, Blender's OGC 3D Tiles add-on as a *Quantized-mesh terrain* entry; martini mesher, heights above the ellipsoid (geoid added))\n\n```text\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json\n```\n\n**The same, meshed by delatin** (half the triangles, three times slower to make)\n\n```text\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json?mesher=delatin\n```\n\n**Imagery: Esri Wayback of 2020, XYZ tiles** (dated imagery and the built-in basemaps by id: `/basemaps`)\n\n```text\nhttp://localhost:3400/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01\n```\n\n**A picture of a box** (west,south,east,north; `.tif` with one mode for its values)\n\n```text\nhttp://localhost:3400/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours\n```\n\n**A colour ramp as a picture** (a legend; `orientation=vertical`; the ids: `/colorramps`)\n\n```text\nhttp://localhost:3400/colorramps/slope-plantopo.png?width=256&height=16\n```\n\n**The STAC Item of a tile** (any raster export's address plus `.stac.json`)\n\n```text\nhttp://localhost:3400/terrain-tiles/mapterhorn/12/2133/1449.png.stac.json?modes=slope\n```\n\n**The modes, as OGC API - Processes** (each mode's settings: `/processes/{id}`)\n\n```text\nhttp://localhost:3400/processes\n```\n\n**Addresses.** A library id goes in the path, as `{source}`: `/terrain-tiles/{source}/{z}/{x}/{y}.png`, `/basemap-tiles/{source}/{z}/{x}/{y}.jpg`, `/quantized-mesh/{source}/layer.json`. Anything else (a tile address, a COG, a VRT, a JSON configuration) goes in the query: `/terrain-tiles/{z}/{x}/{y}.png?terrainSource=...`, `/basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=...`, `/quantized-mesh/custom/layer.json?terrainSource=...` (`custom` in the path means the same everywhere). Both forms answer the same tile.\n\n## About\n\nWhat Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`, the terrain as Cesium meshes at `/quantized-mesh`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+    "description": "## Quick start\n\nCopy an address into QGIS (XYZ Tiles), MapLibre, CesiumJS or Blender. `{z}/{x}/{y}` stay as they are: the client fills them.\n\n**Slope, Mapterhorn, XYZ tiles** (any mode of `/processes`, several comma-separated; the source id is the path segment after `/terrain-tiles/` (`/terrain-sources` lists them))\n\n```text\nhttp://localhost:3400/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope\n```\n\n**Sky-view factor, IGN RGE ALTI (France), XYZ tiles** (zoom 12 and finer; the first tiles of an area take a second or two)\n\n```text\nhttp://localhost:3400/terrain-tiles/custom-fr-ign-rgealti-highres/{z}/{x}/{y}.png?modes=svf\n```\n\n**A source given by its address (Terrarium tiles, a COG, a VRT, JSON)** (the query form, for anything that is not a library id)\n\n```text\nhttp://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=hillshade&terrainSource=https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\n```\n\n**Cesium terrain (quantized mesh), Mapterhorn: the layer.json** (CesiumJS, Blender's OGC 3D Tiles add-on as a *Quantized-mesh terrain* entry; martini mesher, heights above the ellipsoid (geoid added))\n\n```text\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json\n```\n\n**The same, meshed by delatin** (half the triangles, three times slower to make)\n\n```text\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json?mesher=delatin\n```\n\n**Imagery: Esri Wayback of 2020, XYZ tiles** (dated imagery and the built-in basemaps by id: `/basemaps`)\n\n```text\nhttp://localhost:3400/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01\n```\n\n**A picture of a box** (west,south,east,north; `.tif` with one mode for its values)\n\n```text\nhttp://localhost:3400/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours\n```\n\n**A colour ramp as a picture** (a legend; `orientation=vertical`; the ids: `/colorramps`)\n\n```text\nhttp://localhost:3400/colorramps/slope-plantopo.png?width=256&height=16\n```\n\n**The STAC Item of a tile** (any raster export's address plus `.stac.json`)\n\n```text\nhttp://localhost:3400/terrain-tiles/mapterhorn/12/2133/1449.png.stac.json?modes=slope\n```\n\n**The terrain sources, by id** (what `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take; one with its description: `/terrain-sources/{id}`)\n\n```text\nhttp://localhost:3400/terrain-sources\n```\n\n**The modes, as OGC API - Processes** (each mode's settings: `/processes/{id}`)\n\n```text\nhttp://localhost:3400/processes\n```\n\n**Addresses.** A library id goes in the path, as `{source}`: `/terrain-tiles/{source}/{z}/{x}/{y}.png`, `/basemap-tiles/{source}/{z}/{x}/{y}.jpg`, `/quantized-mesh/{source}/layer.json`. Anything else (a tile address, a COG, a VRT, a JSON configuration) goes in the query: `/terrain-tiles/{z}/{x}/{y}.png?terrainSource=...`, `/basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=...`, `/quantized-mesh/custom/layer.json?terrainSource=...` (`custom` in the path means the same everywhere). Both forms answer the same tile.\n\n## About\n\nWhat Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`, the terrain as Cesium meshes at `/quantized-mesh`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/Iconem/terrain-viewer"
@@ -25,7 +25,7 @@
     },
     {
       "name": "Terrain tiles",
-      "description": "`/terrain-tiles`: the elevation modes as XYZ raster tiles, the overlays as vector tiles, a TileJSON and a QGIS project of them."
+      "description": "`/terrain-tiles`: the elevation modes as XYZ raster tiles (`/terrain-sources` lists the sources by id), the overlays as vector tiles, a TileJSON and a QGIS project of them."
     },
     {
       "name": "Quantized mesh",
@@ -37,7 +37,7 @@
     },
     {
       "name": "Catalogs",
-      "description": "What can be named by id: terrain sources, basemaps, colour ramps (and pictures of them), modes, and what a share link switches on."
+      "description": "What can be named by id: colour ramps (and pictures of them), modes, and what a share link switches on."
     },
     {
       "name": "Viewport",
@@ -150,7 +150,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The elevation source: an id from `/sources`, a tile address or a JSON configuration."
+            "description": "The elevation source: an id from `/terrain-sources`, a tile address or a JSON configuration."
           },
           {
             "name": "modes",
@@ -357,7 +357,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The elevation source: an id from `/sources`, a tile address or a JSON configuration."
+            "description": "The elevation source: an id from `/terrain-sources`, a tile address or a JSON configuration."
           },
           {
             "name": "modes",
@@ -488,7 +488,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The elevation source: an id from `/sources`, a tile address or a JSON configuration."
+            "description": "The elevation source: an id from `/terrain-sources`, a tile address or a JSON configuration."
           },
           {
             "name": "modes",
@@ -575,6 +575,64 @@
         }
       }
     },
+    "/terrain-sources": {
+      "get": {
+        "tags": [
+          "Terrain tiles"
+        ],
+        "operationId": "terrainSources",
+        "summary": "The terrain sources, by id",
+        "description": "What `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take: every elevation source the app knows, the built-in ones and the library. Each with its type, its tile address when it is a plain pyramid, its zoom range and extent, and the engine that can draw it. Its old address, `/sources`, still answers.",
+        "responses": {
+          "200": {
+            "description": "The list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/terrain-sources/{id}": {
+      "get": {
+        "tags": [
+          "Terrain tiles"
+        ],
+        "operationId": "terrainSource",
+        "summary": "One terrain source",
+        "description": "One entry of `/terrain-sources`, with its description. Its old address, `/sources/{id}`, still answers.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "custom-jp-gsj-terrainrgb"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The source, with its description",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such source"
+          }
+        }
+      }
+    },
     "/terrain-tiles/{z}/{x}/{y}.{format}": {
       "get": {
         "tags": [
@@ -654,7 +712,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/terrain-sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -668,7 +726,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/terrain-sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "background",
@@ -833,7 +891,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "An id from `/sources`, or `custom` with `terrainSource` in the query. The list offers the ids; any other text is sent as written.",
+            "description": "An id from `/terrain-sources`, or `custom` with `terrainSource` in the query. The list offers the ids; any other text is sent as written.",
             "example": "mapterhorn"
           },
           {
@@ -906,7 +964,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/terrain-sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "background",
@@ -1439,7 +1497,7 @@
         ],
         "operationId": "stacItem",
         "summary": "The STAC Item of an export",
-        "description": "Any raster export's address plus `.stac.json`, with the same query: `/terrain-tiles/{z}/{x}/{y}.png|jpg|tif.stac.json`, `/basemap-tiles/{z}/{x}/{y}.jpg.stac.json`, `/render.png|tif.stac.json`, `/bbox/{w},{s},{e},{n}/{width}x{height}.tif.stac.json`. A STAC 1.1.0 Item with the Processing extension (v1.2.0): `bbox` and `geometry` of the export, `datetime` and `processing:datetime` the time of the answer, `processing:lineage` (a sentence: the source, the modes, their parameters), `processing:software` (`terrain-viewer tile-server` and its version), `processing:level` (`L3` for a map derived from the elevation), `processing:expression` (`format: x-tv-process`, the process ids and their inputs as executed), links `derived_from` the terrain source (its `/sources/{id}` entry and its tile template, or its address) or the imagery, `related` to each `/processes/{id}`, and the export as asset `data`. Computed from the address: nothing is drawn, and the caller's API keys are left out.",
+        "description": "Any raster export's address plus `.stac.json`, with the same query: `/terrain-tiles/{z}/{x}/{y}.png|jpg|tif.stac.json`, `/basemap-tiles/{z}/{x}/{y}.jpg.stac.json`, `/render.png|tif.stac.json`, `/bbox/{w},{s},{e},{n}/{width}x{height}.tif.stac.json`. A STAC 1.1.0 Item with the Processing extension (v1.2.0): `bbox` and `geometry` of the export, `datetime` and `processing:datetime` the time of the answer, `processing:lineage` (a sentence: the source, the modes, their parameters), `processing:software` (`terrain-viewer tile-server` and its version), `processing:level` (`L3` for a map derived from the elevation), `processing:expression` (`format: x-tv-process`, the process ids and their inputs as executed), links `derived_from` the terrain source (its `/terrain-sources/{id}` entry and its tile template, or its address) or the imagery, `related` to each `/processes/{id}`, and the export as asset `data`. Computed from the address: nothing is drawn, and the caller's API keys are left out.",
         "parameters": [
           {
             "name": "z",
@@ -1498,7 +1556,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/terrain-sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -1512,7 +1570,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/terrain-sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "background",
@@ -1791,7 +1849,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/terrain-sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -1805,7 +1863,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/terrain-sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "background",
@@ -2057,7 +2115,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/terrain-sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -2071,7 +2129,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/terrain-sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "background",
@@ -2262,7 +2320,7 @@
         ],
         "operationId": "quantizedMeshLayer",
         "summary": "A source as Cesium terrain: its layer.json",
-        "description": "The layer.json a Cesium terrain client reads first (CesiumJS `CesiumTerrainProvider.fromUrl`, Cesium for Unreal or Unity, Blender add-ons that read Cesium terrain): TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326` (two tiles at level 0), `available` level by level (whole at level 0, the source's bounds below), down to the level as fine as the source (its deepest 256 px Web Mercator zoom, less one), `extensions: [octvertexnormals]` and the source's attribution. The tile template keeps the query given (`mesher`, `heights`, ...). Heights are above the WGS84 ellipsoid by default, as quantized-mesh expects (see `heights`). Any source the direct engine reads (`/sources`, engine `direct`): Terrarium and Terrain-RGB pyramids, COG, VRT, WMS, LERC, PMTiles, with the same API keys as `/terrain-tiles`.",
+        "description": "The layer.json a Cesium terrain client reads first (CesiumJS `CesiumTerrainProvider.fromUrl`, Cesium for Unreal or Unity, Blender add-ons that read Cesium terrain): TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326` (two tiles at level 0), `available` level by level (whole at level 0, the source's bounds below), down to the level as fine as the source (its deepest 256 px Web Mercator zoom, less one), `extensions: [octvertexnormals]` and the source's attribution. The tile template keeps the query given (`mesher`, `heights`, ...). Heights are above the WGS84 ellipsoid by default, as quantized-mesh expects (see `heights`). Any source the direct engine reads (`/terrain-sources`, engine `direct`): Terrarium and Terrain-RGB pyramids, COG, VRT, WMS, LERC, PMTiles, with the same API keys as `/terrain-tiles`.",
         "parameters": [
           {
             "name": "source",
@@ -2271,7 +2329,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "An id from `/sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration).",
+            "description": "An id from `/terrain-sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration).",
             "example": "mapterhorn"
           },
           {
@@ -2617,7 +2675,7 @@
                 "{\"url\":\"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png\",\"type\":\"terrarium\",\"maxzoom\":15}"
               ]
             },
-            "description": "The elevation source: an id from `/sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
+            "description": "The elevation source: an id from `/terrain-sources`, the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry, `{\"url\": ..., \"type\": \"terrarium\" | \"terrainrgb\" | \"cog\" | \"vrt\" | \"wms-raw\" | \"lerc\" | \"quantized-mesh\" | \"tilejson\", \"maxzoom\": ...}`. Unset: Mapterhorn. `url` is read as the same parameter."
           },
           {
             "name": "engine",
@@ -2631,7 +2689,7 @@
                 "browser"
               ]
             },
-            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
+            "description": "Who draws. `direct`: computed in the server from elevation tiles, in a fraction of a second, for the modes and parameters `/algorithms` lists as direct on a source `/terrain-sources` lists as direct. `browser`: the app in a headless browser, every source and mode, seconds. `auto` (the default) takes direct when it can. The answer's `x-tv-engine` header says which drew it, `x-tv-engine-why` why not direct."
           },
           {
             "name": "background",
@@ -2783,11 +2841,12 @@
     "/sources": {
       "get": {
         "tags": [
-          "Catalogs"
+          "Terrain tiles"
         ],
         "operationId": "sources",
-        "summary": "The terrain sources, by id",
-        "description": "Every elevation source the app knows: the built-in ones and the library. Each with its type, its tile address when it is a plain pyramid, its zoom range and extent, and the engine that can draw it.",
+        "deprecated": true,
+        "summary": "The terrain sources (old address)",
+        "description": "The old address of `/terrain-sources`, kept for older QGIS plugins, desktop builds and scripts: the same answer.",
         "responses": {
           "200": {
             "description": "The list",
@@ -2805,10 +2864,12 @@
     "/sources/{id}": {
       "get": {
         "tags": [
-          "Catalogs"
+          "Terrain tiles"
         ],
         "operationId": "source",
-        "summary": "One terrain source",
+        "deprecated": true,
+        "summary": "One terrain source (old address)",
+        "description": "The old address of `/terrain-sources/{id}`: the same answer.",
         "parameters": [
           {
             "name": "id",
@@ -3059,7 +3120,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The elevation source: an id from `/sources`, a tile address or a JSON configuration."
+            "description": "The elevation source: an id from `/terrain-sources`, a tile address or a JSON configuration."
           },
           {
             "name": "modes",

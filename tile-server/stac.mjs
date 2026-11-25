@@ -93,7 +93,7 @@ export function stacItem(self, pathname, search, { sources = () => [], now = new
   const queryText = q.toString()
   const href = `${self}${pathname}${queryText ? "?" + queryText : ""}`
 
-  // What it was made from: the source's tile template where /sources has
+  // What it was made from: the source's tile template where /terrain-sources has
   // one, its catalog entry, or its address; for the imagery, its address
   // or the dated source.
   const from = []
@@ -106,10 +106,10 @@ export function stacItem(self, pathname, search, { sources = () => [], now = new
   } else if (source.trim().startsWith("{")) {
     let url = null
     try { url = JSON.parse(source).url } catch {}
-    from.push({ rel: "derived_from", href: isUrl(url ?? "") ? url : `${self}/sources`, title: "The elevation source (a configuration)" })
+    from.push({ rel: "derived_from", href: isUrl(url ?? "") ? url : `${self}/terrain-sources`, title: "The elevation source (a configuration)" })
   } else {
     const known = sources().find((x) => x.id === source)
-    from.push({ rel: "derived_from", href: `${self}/sources/${encodeURIComponent(source)}`, type: "application/json", title: `Terrain source ${source}` })
+    from.push({ rel: "derived_from", href: `${self}/terrain-sources/${encodeURIComponent(source)}`, type: "application/json", title: `Terrain source ${source}` })
     if (known?.url) from.push({ rel: "derived_from", href: known.url, title: `Terrain source ${source}: its tiles` })
   }
 

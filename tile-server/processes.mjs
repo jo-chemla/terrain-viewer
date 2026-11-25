@@ -55,7 +55,7 @@ function input(setting, role) {
 
 /** The inputs every terrain process takes besides its settings. */
 const COMMON_INPUTS = {
-  terrainSource: { title: "Elevation source", description: "An id from /sources, a tile address (a .tif is read as a COG, a .vrt as a VRT) or a JSON configuration {\"url\", \"type\", \"maxzoom\"}. Unset: Mapterhorn.", minOccurs: 0, maxOccurs: 1, schema: { type: "string", default: "mapterhorn" }, "x-tv-url-param": "terrainSource", "x-tv-role": "common" },
+  terrainSource: { title: "Elevation source", description: "An id from /terrain-sources, a tile address (a .tif is read as a COG, a .vrt as a VRT) or a JSON configuration {\"url\", \"type\", \"maxzoom\"}. Unset: Mapterhorn.", minOccurs: 0, maxOccurs: 1, schema: { type: "string", default: "mapterhorn" }, "x-tv-url-param": "terrainSource", "x-tv-role": "common" },
   background: { title: "Map background", description: "`none`: transparent where nothing is drawn, to stack layers in a GIS (direct engine only).", minOccurs: 0, maxOccurs: 1, schema: { type: "string", enum: ["map", "none"], default: "map" }, "x-tv-url-param": "background", "x-tv-role": "common" },
   engine: { title: "Engine", description: "Who draws: `direct` (in the server, fast), `browser` (the app, every source and mode) or `auto`.", minOccurs: 0, maxOccurs: 1, schema: { type: "string", enum: ["auto", "direct", "browser"], default: "auto" }, "x-tv-url-param": "engine", "x-tv-role": "common" },
 }

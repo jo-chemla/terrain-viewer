@@ -199,7 +199,7 @@ def source_spec(source, sources, keys):
     """(live/ source id, None) for a source live/ reads, registered into
     live.dem.SOURCES; (None, reason) otherwise. `source`: a library id or a
     tile address ({z}/{x}/{y}, Terrarium unless it says terrain-rgb);
-    `sources`: the service's /sources (or the packaged snapshot); `keys`:
+    `sources`: the service's /terrain-sources (or the packaged snapshot); `keys`:
     {mapboxKey: ...}."""
     from .live import dem
     if not source or source == "mapterhorn":

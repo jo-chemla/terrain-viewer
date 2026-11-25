@@ -50,7 +50,8 @@
 // `engine=browser` forces one. A viewport too: drawn directly it carries
 // the source's credit but no scale bar.
 //
-//   GET /sources, /sources/{id}        the terrain sources, by id
+//   GET /terrain-sources, /terrain-sources/{id}
+//                                      the terrain sources, by id (old address /sources, kept)
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id; /colorramps/{id}.png|jpg
 //                                      a picture of one (width, height, orientation)
 //   GET /basemaps                      what /basemap-tiles/{source}/... takes
@@ -572,7 +573,7 @@ export async function sourceInPath(pathname, search) {
   const q = new URLSearchParams(search)
   if (id !== "custom") {
     if (endpoint === "terrain-tiles") {
-      if (!sources().some((s) => s.id === id)) throw status(404, `No terrain source "${id}": see /sources (an address, a COG or a JSON configuration goes in the query: /terrain-tiles/{z}/{x}/{y}.png?terrainSource=...)`)
+      if (!sources().some((s) => s.id === id)) throw status(404, `No terrain source "${id}": see /terrain-sources (an address, a COG or a JSON configuration goes in the query: /terrain-tiles/{z}/{x}/{y}.png?terrainSource=...)`)
       for (const k of ["url", "terrainSourceA", "sourceA"]) q.delete(k)
       q.set("terrainSource", id)
     } else {
@@ -704,7 +705,7 @@ async function handle(req, res) {
       }
       if (u.pathname === "/" && !wantsJson) return send(302, "text/plain", "See /docs", { location: "/docs" })
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify(landingPage(self, {
-        docs: "/docs", quickStart: "/docs#description/quick-start", openapi: "/openapi.json", conformance: "/conformance", processes: "/processes", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
+        docs: "/docs", quickStart: "/docs#description/quick-start", openapi: "/openapi.json", conformance: "/conformance", processes: "/processes", sources: "/terrain-sources", colorramps: "/colorramps", algorithms: "/algorithms",
         terrainTiles: "/terrain-tiles/{source}/{z}/{x}/{y}.png?modes=slope",
         terrainTilesByQuery: "/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id, URL or JSON>",
         vectorTiles: "/terrain-tiles/{z}/{x}/{y}.pbf?modes=contours,moundDetector",
@@ -750,12 +751,14 @@ async function handle(req, res) {
       }
       if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self, await (idsPromise ??= sourceIds())), null, 2))
       if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
-      if (u.pathname === "/sources") return send(200, "application/json", JSON.stringify({ sources: sources(), note: SOURCES_NOTE }))
-      const one = u.pathname.match(/^\/sources\/([^/]+)$/)
+      // /sources is the old address (QGIS plugin up to 0.7.0, desktop builds
+      // of 2026-11): kept as an alias.
+      if (u.pathname === "/terrain-sources" || u.pathname === "/sources") return send(200, "application/json", JSON.stringify({ sources: sources(), note: SOURCES_NOTE }))
+      const one = u.pathname.match(/^\/(?:terrain-)?sources\/([^/]+)$/)
       if (one) {
         const id = decodeURIComponent(one[1])
         const found = sources().find((x) => x.id === id)
-        if (!found) return send(404, "text/plain", "No such source: see /sources")
+        if (!found) return send(404, "text/plain", "No such source: see /terrain-sources")
         return send(200, "application/json", JSON.stringify({ ...found, description: library().terrain.find((x) => x.id === id)?.description }))
       }
       if (u.pathname === "/basemaps") return send(200, "application/json", JSON.stringify({ basemaps: await basemaps(), note: "Give an id in the path: /basemap-tiles/{id}/{z}/{x}/{y}.jpg (a dated one with imageryDate). An XYZ or COG address: /basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=..." }))
@@ -786,7 +789,7 @@ async function handle(req, res) {
       }
       if (u.pathname === "/algorithms") return send(200, "application/json", JSON.stringify({
         algorithms: MODE_NAMES.map((id) => ({ id, engine: DIRECT_MODES.includes(id) ? "direct" : "browser" })),
-        note: "A tile is computed directly when every mode asked for is `direct` and the source can be read in the server (see /sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, tilted and split views, imagery and basemaps, the sky background and the historical mode go to the browser.",
+        note: "A tile is computed directly when every mode asked for is `direct` and the source can be read in the server (see /terrain-sources): the app's own code, run in the server, reads the same URL parameters as the app. 3D, tilted and split views, imagery and basemaps, the sky background and the historical mode go to the browser.",
       }))
       // Vector tiles: the same address, .pbf or .mvt, with modes among
       // direct.mjs VECTOR_MODES (unset: contours).
