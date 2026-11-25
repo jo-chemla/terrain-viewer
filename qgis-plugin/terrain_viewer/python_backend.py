@@ -218,9 +218,10 @@ def elevation_opts(values, opts, auto_range=None):
 
 # -- elevation sources ---------------------------------------------------------
 # The library's Terrarium and Terrain-RGB pyramids with a public address are
-# read as they are; Mapbox and MapTiler with the user's key. Anything else
-# (COG, VRT, LERC, WMS, quantized mesh, a difference of two) needs the tile
-# service.
+# read as they are; Mapbox and MapTiler with the user's key; COGs, VRTs and
+# raw WMS, WCS and ArcGIS services through GDAL (their `address` in
+# /terrain-sources). LERC, quantized mesh, PMTiles and differences of two need
+# a tile service.
 KEYED = {
     "mapbox": ("mapboxKey", "https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token={key}", "terrainrgb", 15, 256),
     "maptiler": ("maptilerKey", "https://api.maptiler.com/tiles/terrain-rgb-v2/{z}/{x}/{y}.webp?key={key}", "terrainrgb", 12, 512),
@@ -274,11 +275,15 @@ def source_spec(source, sources, keys):
     entry = next((s for s in sources or [] if s.get("id") == source), None)
     if entry is not None:
         url, encoding = entry.get("url"), entry.get("type")
-        if encoding in ("cog", "vrt") and url and str(url).startswith("https://") and "{z}" not in url:
-            return gdal_source_spec(url)  # GDAL reads the library's COGs and VRTs over /vsicurl/
+        if encoding in ("cog", "vrt", "wms-raw"):
+            # The raw elevation through GDAL: a COG or VRT over /vsicurl/, a
+            # WMS GetMap by a GDAL WMS description, a WCS or ArcGIS template
+            # tile by tile (live/gdal_source.py library_spec).
+            return library_source_spec(entry)
         if encoding not in ("terrarium", "terrainrgb") or not url or "{z}" not in url:
             return None, (f"{entry.get('name', source)} is a {encoding} source: the Python backend reads Terrarium and "
-                          "Terrain-RGB tiles, COGs, VRTs, QGIS raster layers and what GDAL opens (use a tile service for it)")
+                          "Terrain-RGB tiles, COGs, VRTs, raw WMS and WCS, QGIS raster layers and what GDAL opens, "
+                          "not this one (pick a tile server for it)")
         maxzoom = int(entry.get("maxzoom") or 15)
     elif "{z}" in source and source.startswith(("http://", "https://")):
         url = source
@@ -362,6 +367,49 @@ def gdal_source_spec(source):
     return sid, None
 
 
+def library_source_spec(entry):
+    """(live/ source id, None) for a library COG, VRT or raw service read
+    through GDAL, registered into live.dem.SOURCES; (None, reason) when it
+    has no address GDAL takes (a service from before 2026-11-26 lists none)
+    or GDAL cannot open it."""
+    import hashlib
+    from .live import dem, gdal_source
+    name = entry.get("name") or entry.get("id")
+    try:
+        spec = gdal_source.library_spec(entry)
+    except Exception as e:  # noqa: BLE001 - GDAL's own message
+        return None, f"{name}: GDAL could not open it ({e})"
+    if spec is None:
+        return None, (f"{name} ({entry.get('type')}): no address GDAL can open (a tile service from before 2026-11-26 "
+                      "lists none; or the source needs a key)")
+    key = spec.get("gdal") or spec.get("template") or entry.get("id")
+    sid = "gdal-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    dem.SOURCES[sid] = spec
+    return sid, None
+
+
+def raw_input_address(entry):
+    """What a QGIS raster layer of a library source's raw elevation opens
+    with GDAL (the very address the Python backend reads): /vsicurl/ for a
+    COG or VRT, a GDAL WMS description for a raw WMS; None otherwise."""
+    from .live.gdal_source import library_address
+    return library_address(entry or {})
+
+
+def plausible_elevation(layer):
+    """A raster layer that can be elevation: one band of floats or 16-bit
+    integers (a picture, RGB or a palette, is not)."""
+    from qgis.core import Qgis
+    try:
+        if layer.bandCount() != 1:
+            return False
+        dt = layer.dataProvider().dataType(1)
+    except Exception:  # noqa: BLE001 - a provider that cannot say
+        return False
+    return dt in (Qgis.DataType.Float32, Qgis.DataType.Float64, Qgis.DataType.Int16, Qgis.DataType.Int32,
+                  Qgis.DataType.UInt16)
+
+
 def layer_sources(project):
     """The project's raster layers the backends can read as elevation, as the
     source picker lists them: [(label, "layer:<id>")]. The panel's own
@@ -376,8 +424,8 @@ def layer_sources(project):
         prov = layer.providerType()
         if prov == "wms" and "type=xyz" in layer.source():
             continue  # picture tiles, not elevation
-        if prov not in ("gdal", "wcs", "wms", "arcgismapserver", "arcgisfeatureserver") or layer.bandCount() < 1:
-            continue
+        if prov not in ("gdal", "wcs", "wms", "arcgismapserver", "arcgisfeatureserver") or not plausible_elevation(layer):
+            continue  # only plausible elevation: one band of floats or 16-bit integers
         out.append((f"QGIS layer: {layer.name()}", LAYER_PREFIX + layer.id()))
     return sorted(out)
 
@@ -387,7 +435,7 @@ def supported_sources(sources):
     out = ["mapterhorn"]
     for s in sources or []:
         if s.get("id") in KEYED or (s.get("type") in ("terrarium", "terrainrgb") and s.get("url") and "{z}" in s["url"]) \
-                or (s.get("type") in ("cog", "vrt") and str(s.get("url") or "").startswith("https://")):
+                or (s.get("type") in ("cog", "vrt", "wms-raw") and str(s.get("address") or s.get("url") or "").startswith("https://")):
             if s["id"] not in out:
                 out.append(s["id"])
     return out

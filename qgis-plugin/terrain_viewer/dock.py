@@ -32,17 +32,13 @@ try:
 except ImportError:  # pragma: no cover
     GroupBox = QGroupBox
 try:
-    from qgis.gui import QgsOpacityWidget
-except ImportError:  # pragma: no cover
-    QgsOpacityWidget = None
-try:
     from qgis.gui import QgsColorButton
 except ImportError:  # pragma: no cover
     QgsColorButton = None
 
 from .service import (
     Catalog, ServiceError, tile_url, values_url, split_link, query_dict, KEY_PARAMS, ALL_KEYS, unresponsive_message,
-    health, health_request, link_params,
+    health, health_request, link_params, panel_tree,
 )
 from .layers import LayerStack, PROP, BACKEND_PROP, tree_ranks
 from . import local_server, assets
@@ -51,7 +47,7 @@ from .settings_ui import (
     LIGHT_KEYS, LIGHT_DEFAULT, LIGHT_MODES, slider_range, symmetric_pairs, is_ramp_key, is_matcap_key, is_color_key,
     clean_enum,
 )
-from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, RadioRow, hand, hand_title
+from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, RadioRow, CompactOpacity, hand, hand_title
 from . import solar
 
 SETTINGS = "terrain_viewer"
@@ -64,17 +60,43 @@ HEALTH_EVERY_MS = 15000
 # The deepest zoom of the Python backend's color tiles (Mapterhorn's 512 px
 # tiles go to z17, so 256 px tiles to z18).
 PY_XYZ_ZMAX = 18
+# While the light is dragged, the shaded modes' layers are rewritten as soon
+# as the canvas has drawn the previous light, and at most this often (ms);
+# after LIGHT_MAX_WAIT_MS without a finished draw, anyway. Measured on a
+# 1920x1080 canvas of hillshade at z13 (elevation cached): a light change
+# redraws in about 1.0 to 1.3 s from the Python backend (its server computes
+# the 40 tiles in about 0.3 s; the rest is QGIS's XYZ provider), 2 to 2.5 s
+# from a tile service.
+LIGHT_THROTTLE_MS = {"python": 100, "service": 200}
+LIGHT_MAX_WAIT_MS = 2500
+# In the panel's order: Python first (nothing to install or run), then the
+# packaged tile server, then a remote one.
 BACKENDS = (
+    ("python", "Python backend",
+     "The modes computed in QGIS's own Python with numpy, no tile service at all; it starts when picked. Every mode, "
+     "from Terrarium and Terrain-RGB tiles, COGs, VRTs, WMS, QGIS raster layers and anything GDAL opens."),
     ("local", "Packaged tile server",
      "The Terrain Viewer tile service packaged for QGIS (Node and the service, about 50 MB): installed from the panel "
      "the first time, started on this machine (127.0.0.1) when you connect, stopped when QGIS quits. Every mode and source."),
     ("remote", "Remote tile server",
      "A tile service at an address: the Terrain Viewer desktop app's (http://localhost:3400), one you run yourself "
      "(cd tile-server && pnpm start), or a hosted one. Every mode and source."),
-    ("python", "Python backend",
-     "Experimental: the modes computed in QGIS's own Python with numpy, no tile service at all; it starts when picked. "
-     "Fast, but not every mode, setting or source (Terrarium and Terrain-RGB tiles only)."),
 )
+
+
+def initial_backend(s):
+    """The backend the panel opens with: the one picked last; for a new user
+    the Python backend (nothing to download or run, every mode), unless
+    QGIS's Python lacks numpy. Users of 0.6.0 and earlier keep theirs: the
+    "Local tile service" box, or a service address typed."""
+    backend = s.value(f"{SETTINGS}/backend", "")
+    if backend in ("local", "remote", "python"):
+        return backend
+    if str(s.value(f"{SETTINGS}/bundled", "false")).lower() in ("1", "true"):
+        return "local"
+    if s.contains(f"{SETTINGS}/service"):
+        return "remote"
+    return "remote" if pyb.numpy_missing() else "python"
 
 
 def _label(key, mode_id):
@@ -245,6 +267,7 @@ class FormsRow:
         lay.setSpacing(2)
         self.header = _RowHeader(self._clicked)
         head = QHBoxLayout(self.header)
+        self.head = head
         head.setContentsMargins(0, 0, 0, 0)
         head.setSpacing(4)
         self.check = QCheckBox(label)
@@ -294,6 +317,14 @@ class FormsRow:
 
     def _clicked(self):
         self.check.toggle()
+
+    def add_inline(self, widget):
+        """A small control between the mode's name and its forms (the
+        opacity), its room kept when hidden so the boxes line up."""
+        _retain_hidden(widget)
+        self.head.insertWidget(1, widget)
+        self.inline = widget
+        self._sync()
 
     def default_form(self):
         return next((f for f in ("vector", "colour", "values") if f in self.available), None)
@@ -365,6 +396,9 @@ class FormsRow:
 
     def _sync(self):
         drawn = any(self.on(f) for f in DRAWN_FORMS)
+        inline = getattr(self, "inline", None)
+        if inline is not None:
+            inline.setVisible(drawn and self.header.isEnabled())
         self.more.setVisible(drawn and self.form_layout.rowCount() > 0)
         self.panel.setVisible(drawn and self.more.isChecked() and self.header.isEnabled())
 
@@ -398,14 +432,11 @@ class ModeRow:
         form = self.row.form_layout
         self.opacity = None
         if mode.get("opacityKey") or mode.get("form") != "vector":
-            if QgsOpacityWidget is not None:
-                self.opacity = QgsOpacityWidget()  # a slider and a % box
-                self.opacity.setOpacity(1.0)
-                self.opacity.opacityChanged.connect(lambda _v: self.apply_style())
-            else:
-                self.opacity = SliderSpin(0, 1, 0.05, 1.0, hard=(0, 1))
-                self.opacity.valueChanged.connect(lambda _v: self.apply_style())
-            form.addRow("Opacity", self.opacity)
+            # In the row, between the name and the forms (0.9.0; it was
+            # under the cog): shown while a drawn form is on.
+            self.opacity = CompactOpacity(1.0)
+            self.opacity.opacityChanged.connect(lambda _v: self.apply_style())
+            self.row.add_inline(self.opacity)
         self.settings = {}
         for spec in mode.get("settings", []):
             if spec["key"] in LIGHT_KEYS:
@@ -559,6 +590,10 @@ class ModeRow:
             return
         spec = reg[py]
         sid = dock.python_source()
+        if sid is None:  # a source it cannot read: nothing drawn (said once)
+            for key in keys.values():
+                dock.remove_layers(key)
+            return
         srv = dock.live_server()
         ext, width = dock.canvas_extent()
         if py == "elevation" and values.get("hypsoAutoRange") in (True, "true"):
@@ -634,6 +669,12 @@ class TerrainViewerDock(QDockWidget):
         # world for tiles; keep_extent stops it for the panel's layers.
         self.bridge = bridge
         self.stack.before_insert = self.keep_extent
+        # A fresh, empty project (QGIS just started, or File > New): the
+        # panel's first layer there sets the project up (keep_extent).
+        project = QgsProject.instance()
+        self.project_fresh = not project.mapLayers() and not project.fileName()
+        project.cleared.connect(self._project_cleared)
+        project.readProject.connect(self._project_read)
         self.extra = {}  # a share link's other parameters, kept in every address
         self.camera = None  # the last share link's (lat, lng, zoom), when there is no canvas
         self.pending = set()
@@ -644,6 +685,21 @@ class TerrainViewerDock(QDockWidget):
         self.timer.setSingleShot(True)
         self.timer.setInterval(500)
         self.timer.timeout.connect(self.flush)
+        # The light, throttled while dragged (light_changed).
+        self.light_pending = set()
+        self.light_late = False
+        self.light_wait = False
+        self.light_min_done = self.light_drawn = self.light_render_seen = False
+        self.light_rewrites = 0  # how many times the shaded layers were rewritten (tests, measures)
+        self.light_timer = QTimer(self)
+        self.light_timer.setSingleShot(True)
+        self.light_timer.timeout.connect(self._light_tick)
+        self.light_guard = QTimer(self)
+        self.light_guard.setSingleShot(True)
+        self.light_guard.timeout.connect(lambda: self._light_next(force=True))
+        if canvas is not None:
+            canvas.renderStarting.connect(self._canvas_render_starting)
+            canvas.mapCanvasRefreshed.connect(self._canvas_refreshed)
         self.health_timer = QTimer(self)
         self.health_timer.setInterval(HEALTH_EVERY_MS)
         self.health_timer.timeout.connect(self.check_health)
@@ -673,14 +729,27 @@ class TerrainViewerDock(QDockWidget):
         # now lives in the service's environment only (EARTHDATA_TOKEN).
         if s.contains(f"{SETTINGS}/earthdataToken"):
             s.remove(f"{SETTINGS}/earthdataToken")
-        backend = s.value(f"{SETTINGS}/backend", "")
-        if backend not in ("local", "remote", "python"):
-            # 0.6.0 had a "Local tile service" box.
-            backend = "local" if str(s.value(f"{SETTINGS}/bundled", "false")).lower() in ("1", "true") else "remote"
-        self.backend = backend
+        self.backend = backend = initial_backend(s)
 
         body = QWidget()
         outer = QVBoxLayout(body)
+
+        # -- a newer version, when there is one (updates.py) ----------------
+        self.update_box = QFrame()
+        self.update_box.setFrameShape(QFrame.Shape.StyledPanel)
+        ub = QHBoxLayout(self.update_box)
+        ub.setContentsMargins(6, 3, 3, 3)
+        self.update_label = QLabel()
+        self.update_label.setWordWrap(True)
+        ub.addWidget(self.update_label, 1)
+        self.update_btn = QPushButton("Update")
+        self.update_btn.clicked.connect(lambda _checked=False: self.install_update())
+        ub.addWidget(self.update_btn)
+        hand(self.update_btn)
+        self.update_box.setVisible(False)
+        self.update_info = None
+        self.update_reply = None
+        outer.addWidget(self.update_box)
 
         # -- the backend, and its options -----------------------------------
         self.backend_picker = RadioRow(BACKENDS, backend)
@@ -704,7 +773,7 @@ class TerrainViewerDock(QDockWidget):
         self.local_connect.clicked.connect(lambda _checked=False: self.connect_service())
         row.addWidget(self.local_connect)
         ll.addLayout(row)
-        self.pages.addWidget(local)
+        self.page_of = {"local": local}
         # Remote tile server
         remote = QWidget()
         rl = QHBoxLayout(remote)
@@ -718,17 +787,19 @@ class TerrainViewerDock(QDockWidget):
         go.clicked.connect(lambda _checked=False: self.connect_service())
         rl.addWidget(self.url, 1)
         rl.addWidget(go)
-        self.pages.addWidget(remote)
+        self.page_of["remote"] = remote
         # Python: no Connect, it starts when picked (a server thread of QGIS
         # on 127.0.0.1, nothing to install or wait for).
         python = QWidget()
         pl = QHBoxLayout(python)
         pl.setContentsMargins(0, 0, 0, 0)
-        self.python_info = QLabel("Computed in QGIS with numpy, from Terrarium or Terrain-RGB tiles. The modes it does "
-                                  "not compute are greyed out.")
+        self.python_info = QLabel("Computed in QGIS with numpy: every mode, from tile pyramids, COGs, VRTs, WMS, "
+                                  "QGIS raster layers and anything GDAL opens.")
         self.python_info.setWordWrap(True)
         pl.addWidget(self.python_info, 1)
-        self.pages.addWidget(python)
+        self.page_of["python"] = python
+        for b in BACKENDS:  # the pages in the radio buttons' order
+            self.pages.addWidget(self.page_of[b[0]])
         hand(self.install_btn, self.local_connect, go)
         outer.addWidget(self.pages)
         self.backend_picker.changed.connect(self.set_backend)
@@ -758,6 +829,17 @@ class TerrainViewerDock(QDockWidget):
         self.zoom_btn.clicked.connect(lambda _checked=False: self.zoom_to_source())
         hand(self.zoom_btn)
         src.addWidget(self.zoom_btn)
+        # The raw elevation of a library COG, VRT or WMS as a QGIS layer (the
+        # address the Python backend reads), in a "Raw elevation inputs" group.
+        self.raw_btn = QToolButton()
+        icon = _theme_icon("/mActionAddRasterLayer.svg", "/mIconRaster.svg")
+        if icon is not None:
+            self.raw_btn.setIcon(icon)
+        else:
+            self.raw_btn.setText("Raw")
+        self.raw_btn.clicked.connect(lambda _checked=False: self.add_raw_input())
+        hand(self.raw_btn)
+        src.addWidget(self.raw_btn)
         outer.addLayout(src)
 
         # -- the keys, folded behind a key ------------------------------------
@@ -825,6 +907,9 @@ class TerrainViewerDock(QDockWidget):
         lrow.addLayout(lform, 1)
         self.light_section.body_layout.addLayout(lrow)
         self.light_pad.changed.connect(self._light_from_pad)
+        self.light_pad.released.connect(self._light_released)
+        for w in (self.light_az, self.light_el):
+            w.slider.sliderReleased.connect(self._light_released)
         self.light_az.valueChanged.connect(self._light_from_sliders)
         self.light_el.valueChanged.connect(self._light_from_sliders)
         self.sun_box = QWidget()
@@ -876,10 +961,117 @@ class TerrainViewerDock(QDockWidget):
             self.catalog = Catalog(None, snapshot=snap)
             self.build()
         self.show_backend(backend)
+        # A newer release, looked for a few seconds after the panel opens (at
+        # most once a day; terrain_viewer/checkUpdates false turns it off).
+        if str(s.value(f"{SETTINGS}/checkUpdates", "true")).lower() in ("1", "true"):
+            QTimer.singleShot(4000, lambda: self.check_updates())
+
+    # -- updates ---------------------------------------------------------------
+    def check_updates(self, force=False, xml_url=None):
+        """Reads the repository's plugins.xml in the background (at most once
+        a day unless `force`) and shows "Update to x.y.z" when it lists a
+        newer version than this one. Returns False when not asked."""
+        from . import updates
+        s = QgsSettings()
+        now = time.time()
+        try:
+            last = float(s.value(f"{SETTINGS}/updateCheckedAt", 0) or 0)
+        except (TypeError, ValueError):
+            last = 0
+        if not force and now - last < updates.CHECK_EVERY_S:
+            cached = s.value(f"{SETTINGS}/updateAvailable", "")
+            if cached:
+                self._update_found(str(cached), s.value(f"{SETTINGS}/updateXml", ""))
+            return False
+        if self.update_reply is not None:
+            return False
+        reply = QgsNetworkAccessManager.instance().get(updates.request(xml_url or updates.REPOSITORY_XML))
+        self.update_reply = reply
+
+        def done():
+            self.update_reply = None
+            ok = reply.error() == QNetworkReply.NetworkError.NoError
+            data = bytes(reply.readAll()) if ok else b""
+            reply.deleteLater()
+            if ok:
+                self.updates_answered(data, xml_url or updates.REPOSITORY_XML)
+        reply.finished.connect(done)
+        return True
+
+    def updates_answered(self, data, xml_url=""):
+        """plugins.xml read: a newer version shown, or nothing."""
+        from . import updates
+        s = QgsSettings()
+        s.setValue(f"{SETTINGS}/updateCheckedAt", time.time())
+        try:
+            info = updates.parse_plugins_xml(data)
+        except updates.UpdateError:
+            return None
+        if info is None or not updates.newer(info["version"], updates.installed_version()):
+            s.setValue(f"{SETTINGS}/updateAvailable", "")
+            self.update_box.setVisible(False)
+            return None
+        s.setValue(f"{SETTINGS}/updateAvailable", info["version"])
+        s.setValue(f"{SETTINGS}/updateXml", xml_url)
+        self.update_info = info
+        self._update_found(info["version"], xml_url)
+        return info
+
+    def _update_found(self, version, xml_url=""):
+        from . import updates
+        if not updates.newer(version, updates.installed_version()):
+            return
+        ok, why = updates.can_update()
+        self.update_label.setText(f"Terrain Viewer {version} is available (this is {updates.installed_version()})."
+                                  + ("" if ok else f" {why}."))
+        self.update_btn.setText(f"Update to {version}")
+        self.update_btn.setEnabled(ok)
+        self.update_btn.setToolTip("Download it from the project's GitHub release, check its sha256, install it over "
+                                   "this version, then reload the plugin" if ok else why)
+        self.update_box.setVisible(True)
+        if self.update_info is None:
+            self.update_info = {"version": version, "xml": xml_url}
+
+    def install_update(self, reload=True):
+        """The newer version downloaded, its sha256 checked against plugins.xml,
+        unpacked over this plugin's folder; then the plugin reloaded (or QGIS
+        to restart). Returns the version installed, or None."""
+        from . import updates
+        info = self.update_info or {}
+        try:
+            if not info.get("download_url"):  # known from the daily check: read plugins.xml again
+                info = updates.parse_plugins_xml(updates.fetch(info.get("xml") or updates.REPOSITORY_XML)) or {}
+            if not info.get("download_url"):
+                raise updates.UpdateError("plugins.xml lists no download")
+            self.status.setText(f"Downloading Terrain Viewer {info['version']}...")
+            QApplication.processEvents()
+            version = updates.install_zip(updates.fetch(info["download_url"]), info.get("sha256", ""))
+        except updates.UpdateError as e:
+            self.warn(f"Terrain Viewer was not updated: {e}")
+            return None
+        QgsSettings().setValue(f"{SETTINGS}/updateAvailable", "")
+        self.update_box.setVisible(False)
+        text = f"Terrain Viewer {version} installed: the plugin reloads now (restart QGIS if anything looks off)"
+        self.status.setText(text)
+        if self.message_bar is not None:
+            self.message_bar.pushMessage("Terrain Viewer", text, Qgis.MessageLevel.Success, 10)
+        if reload:
+            # From the event loop, not from this button's click: reloading
+            # deletes this panel.
+            def again():
+                try:
+                    from qgis.utils import reloadPlugin
+                    reloadPlugin(updates.PLUGIN)
+                except Exception as e:  # noqa: BLE001 - restart then
+                    if self.message_bar is not None:
+                        self.message_bar.pushMessage("Terrain Viewer", f"Restart QGIS to use {version} ({e})",
+                                                     Qgis.MessageLevel.Info, 0)
+            QTimer.singleShot(0, again)
+        return version
 
     # -- the backend --------------------------------------------------------
     def show_backend(self, backend):
-        self.pages.setCurrentIndex([b[0] for b in BACKENDS].index(backend))
+        self.pages.setCurrentWidget(self.page_of[backend])
         self.refresh_service_row()
         for row in self.rows.values():
             row.apply_backend(backend)
@@ -1115,7 +1307,8 @@ class TerrainViewerDock(QDockWidget):
         n = sum(1 for r in self.rows.values() if r.row.header.isEnabled())
         self._py_sources.clear()
         sid = self.python_source()
-        self.status.setText(f"Python backend: {n} of {len(self.rows)} modes, elevation from {sid}")
+        if sid is not None:
+            self.status.setText(f"Python backend: {n} of {len(self.rows)} modes, elevation from {self.current_source() or sid}")
         self.schedule_all()
         self.prefetch()
         return True
@@ -1141,17 +1334,24 @@ class TerrainViewerDock(QDockWidget):
                 break
 
     def python_source(self):
-        """live/'s id of the source picked, registered; Mapterhorn (and one
-        warning) when live/ cannot read it."""
+        """live/'s id of the source picked, registered; None (and one
+        warning) when live/ cannot read it: the Python backend then draws
+        nothing, never another source in its place (0.8.0 drew Mapterhorn,
+        so a COG it refused showed the whole world's hillshade)."""
         src = self.current_source() or "mapterhorn"
         keys = self.key_values()
         cache_key = (src, tuple(sorted(keys.items())))
         if cache_key not in self._py_sources:
             sources = self.catalog.sources if self.catalog is not None else assets.catalog().get("sources", [])
+            # A source the catalog does not list with its address (an older
+            # service) is looked up in the packaged snapshot too.
+            snap = assets.catalog().get("sources", [])
+            listed = next((s for s in sources if s.get("id") == src), None)
+            if listed is not None and listed.get("type") in ("cog", "vrt", "wms-raw") and not listed.get("address"):
+                sources = snap
             sid, why = pyb.source_spec(src, sources, keys)
             if sid is None:
-                self.warn(f"{why}. The Python backend draws Mapterhorn instead.")
-                sid = "mapterhorn"
+                self.warn(f"{why}. The Python backend draws nothing from it: pick another source, or a tile server.")
             self._py_sources[cache_key] = sid
         return self._py_sources[cache_key]
 
@@ -1199,36 +1399,31 @@ class TerrainViewerDock(QDockWidget):
             if w:
                 w.deleteLater()
         self.rows = {}
-        self.source.blockSignals(True)
-        current = self.current_source()
-        self.source.clear()
-        for s in self.catalog.sources:
-            label = s["name"] + (f"  ({s['key']})" if s.get("key") else "")
-            self.source.addItem(label, s["id"])
-        self.source.blockSignals(False)
-        self.set_source(current or "mapterhorn", quiet=True)
-        self.refresh_layer_sources()
+        self.fill_sources()
 
         def add_group(g, parent_layout, path):
+            # `group` is the layer tree's name (the layers' path), `title`
+            # the panel's ("Vector overlays").
             here = path + ((g["group"],) if g.get("group") else ())
             if g.get("group"):
-                box = GroupBox(g["group"])
+                box = GroupBox(g.get("title") or g["group"])
                 hand_title(box)
                 inner = QVBoxLayout(box)
                 parent_layout.addWidget(box)
             else:
                 inner = parent_layout
-            for sub in reversed(g.get("groups", [])):
+            for sub in g.get("groups", []):
                 add_group(sub, inner, here)
-            for item in reversed(g.get("items", [])):
+            for item in g.get("items", []):
                 row = ModeRow(self, here, item)
                 self.rows[item["id"]] = row
                 inner.addWidget(row.box)
 
-        # The app's panel reads from the base up (color relief, analysis,
-        # relief, lighting, overlays); /processes is top of the map first, so
-        # the panel lists it reversed (the layer tree keeps the map's order).
-        for g in reversed(self.catalog.tree):
+        # The panel reads from the base up with hillshade first (Hillshade,
+        # Elevation Hypso, analysis, relief, lighting, vector overlays);
+        # /processes is top of the map first, and the layer tree keeps the
+        # map's order (service.panel_tree).
+        for g in panel_tree(self.catalog.tree):
             add_group(g, self.groups_layout, ())
         self.groups_layout.addStretch(1)
         for mid, (forms, remembered, values, opacity) in state.items():
@@ -1305,22 +1500,59 @@ class TerrainViewerDock(QDockWidget):
         self.source.setCurrentIndex(i)
         if quiet:
             self.source.blockSignals(False)
+        self.refresh_raw_button()
+
+    SOURCE_GROUPS = ("QGIS elevation layers", "Worldwide defaults", "Terrain library")
+
+    def _source_header(self, text):
+        """A group title in the source list: bold, not selectable."""
+        if self.source.count():
+            self.source.insertSeparator(self.source.count())
+        self.source.addItem(text, None)
+        item = self.source.model().item(self.source.count() - 1) if hasattr(self.source.model(), "item") else None
+        if item is not None:
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsSelectable & ~Qt.ItemFlag.ItemIsEnabled)
+            f = item.font()
+            f.setBold(True)
+            item.setFont(f)
+
+    def fill_sources(self):
+        """The source list in three groups: the project's plausible elevation
+        layers (one band of floats or 16-bit integers, layer:<id>, kept in
+        step with the project), the Worldwide defaults, the terrain library
+        (the service's /terrain-sources, or the packaged snapshot). Any of
+        the layers can be the elevation: read by GDAL under the Python
+        backend, registered with a tile service on this machine
+        (local_files.py)."""
+        current = self.current_source()
+        sources = self.catalog.sources if self.catalog is not None else assets.catalog().get("sources", [])
+        snap_defaults = {s["id"] for s in assets.catalog().get("sources", []) if s.get("section") == "defaults"}
+
+        def default(s):
+            return s.get("section") == "defaults" or ("section" not in s and s.get("id") in snap_defaults)
+        self.source.blockSignals(True)
+        self.source.clear()
+        layers = pyb.layer_sources(QgsProject.instance())
+        groups = ((self.SOURCE_GROUPS[0], layers),
+                  (self.SOURCE_GROUPS[1], [(self._source_label(s), s["id"]) for s in sources if default(s)]),
+                  (self.SOURCE_GROUPS[2], [(self._source_label(s), s["id"]) for s in sources if not default(s)]))
+        for title, items in groups:
+            if not items:
+                continue
+            self._source_header(title)
+            for label, data in items:
+                self.source.addItem(label, data)
+        self.source.blockSignals(False)
+        self.set_source(current or "mapterhorn", quiet=True)
+
+    @staticmethod
+    def _source_label(s):
+        return s["name"] + (f"  ({s['key']})" if s.get("key") else "")
 
     def refresh_layer_sources(self, *_):
-        """The project's raster layers in the source list (layer:<id>), kept
-        in step with the project: any of them can be the elevation, read by
-        GDAL under the Python backend, registered with a tile service on
-        this machine (local_files.py)."""
-        current = self.current_source()
-        self.source.blockSignals(True)
-        for i in reversed(range(self.source.count())):
-            if str(self.source.itemData(i) or "").startswith(pyb.LAYER_PREFIX):
-                self.source.removeItem(i)
-        for label, data in pyb.layer_sources(QgsProject.instance()):
-            self.source.addItem(label, data)
-        self.source.blockSignals(False)
-        if current:
-            self.set_source(current, quiet=True)
+        """The project's layers changed: the source list again (its first
+        group), the source picked kept."""
+        self.fill_sources()
 
     def service_source(self, src):
         """The source as the tile service takes it: a QGIS raster layer or a
@@ -1338,7 +1570,65 @@ class TerrainViewerDock(QDockWidget):
             self._service_sources[key] = sid
         return self._service_sources[key]
 
+    RAW_ROOT = "Raw elevation inputs"
+    RAW_PROP = "terrain_viewer/raw_input"  # on a raw input layer: the library id it shows
+
+    def source_entry(self, src=None):
+        """The catalog entry of a library source (the packaged snapshot's when
+        the service lists no address for it), or None."""
+        src = src or self.current_source()
+        entry = self.catalog.source(src) if self.catalog is not None else None
+        if entry is None or (entry.get("type") in ("cog", "vrt", "wms-raw") and not entry.get("address")):
+            entry = next((s for s in assets.catalog().get("sources", []) if s.get("id") == src), entry)
+        return entry
+
+    def refresh_raw_button(self):
+        if not hasattr(self, "raw_btn"):
+            return
+        entry = self.source_entry()
+        ok = entry is not None and pyb.raw_input_address(entry) is not None
+        self.raw_btn.setEnabled(ok)
+        self.raw_btn.setToolTip(
+            f"Add {entry.get('name')}'s raw elevation to the project as a raster layer (in \"{self.RAW_ROOT}\"): "
+            "the very GDAL source the Python backend reads (/vsicurl/ for a COG or VRT, a GDAL WMS description for "
+            "a WMS), to see, identify or style the raw values" if ok else
+            "Add a library source's raw elevation as a QGIS layer: for COG, VRT and raw WMS sources")
+
+    def add_raw_input(self):
+        """The source picked (a library COG, VRT or raw WMS) as a raster
+        layer of the project, in the "Raw elevation inputs" group (made at
+        the top of the tree when missing); the one there already when it was
+        added before. Returns the layer, or None."""
+        from qgis.core import QgsRasterLayer
+        src = self.current_source()
+        entry = self.source_entry(src)
+        address = pyb.raw_input_address(entry) if entry else None
+        if address is None:
+            self.warn(f"{src}: no raw elevation GDAL opens (COG, VRT and raw WMS sources only)")
+            return None
+        project = QgsProject.instance()
+        for layer in project.mapLayers().values():
+            if layer.customProperty(self.RAW_PROP) == src:
+                self.status.setText(f"{layer.name()} is in the project already")
+                return layer
+        layer = QgsRasterLayer(address, f"{entry.get('name', src)} (raw elevation)", "gdal")
+        if not layer.isValid():
+            self.warn(f"{entry.get('name', src)}: GDAL did not open its raw elevation ({layer.error().summary()})")
+            return None
+        layer.setCustomProperty(self.RAW_PROP, src)
+        self.keep_extent()
+        root = project.layerTreeRoot()
+        group = next((g for g in root.findGroups() if g.customProperty("terrain_viewer/raw_root")), None)
+        if group is None:
+            group = root.insertGroup(0, self.RAW_ROOT)
+            group.setCustomProperty("terrain_viewer/raw_root", True)
+        project.addMapLayer(layer, False)
+        group.addLayer(layer)
+        self.status.setText(f"{layer.name()} added to \"{self.RAW_ROOT}\": the GDAL source the Python backend reads")
+        return layer
+
     def source_changed(self):
+        self.refresh_raw_button()
         self._py_sources.clear()
         self._service_sources.clear()
         for row in self.rows.values():
@@ -1486,9 +1776,77 @@ class TerrainViewerDock(QDockWidget):
         return az, alt
 
     def light_changed(self):
+        """The light moved: the shaded modes' layers follow while it is
+        dragged, throttled (a rewrite at most every LIGHT_THROTTLE_MS, the
+        first at once), not debounced to half a second after the last move
+        as the other settings are; the pad's release applies the last one."""
         for mid in LIGHT_MODES:
-            if mid in self.rows:
-                self.schedule(self.rows[mid])
+            row = self.rows.get(mid)
+            if row is not None and any(row.row.on(f) for f in row.all_forms):
+                self.light_pending.add(row)
+                self.pending.discard(row)
+        if not self.light_pending:
+            return
+        if self.light_wait:
+            self.light_late = True  # applied when the canvas has drawn the last one
+            return
+        self.flush_light()  # the first move at once
+        self._light_wait_start()
+
+    def _light_wait_start(self):
+        """Paced by the canvas: the next light is written once the canvas has
+        drawn the last one (renderStarting then mapCanvasRefreshed) and at
+        least LIGHT_THROTTLE_MS later, or after LIGHT_MAX_WAIT_MS whatever
+        happens. Rewriting faster than the canvas draws only cancels its
+        renders and queues tiles nobody sees."""
+        self.light_wait = True
+        self.light_min_done = False
+        self.light_render_seen = False
+        self.light_drawn = self.canvas is None  # no canvas (tests): the minimum interval alone
+        self.light_timer.start(LIGHT_THROTTLE_MS["python" if self.connected == "python" else "service"])
+        self.light_guard.start(LIGHT_MAX_WAIT_MS)
+
+    def _light_tick(self):
+        self.light_min_done = True
+        self._light_next()
+
+    def _canvas_render_starting(self):
+        if self.light_wait:
+            self.light_render_seen = True
+
+    def _canvas_refreshed(self):
+        if self.light_wait and self.light_render_seen:
+            self.light_drawn = True
+            self._light_next()
+
+    def _light_next(self, force=False):
+        if not self.light_wait or not (force or (self.light_min_done and self.light_drawn)):
+            return
+        self.light_guard.stop()
+        self.light_timer.stop()
+        self.light_wait = False
+        if self.light_late:
+            self.light_late = False
+            self.flush_light()
+            self._light_wait_start()
+
+    def flush_light(self):
+        rows, self.light_pending = self.light_pending, set()
+        if not rows:
+            return
+        self.light_rewrites += 1
+        for row in rows:
+            if self.rows.get(row.mode["id"]) is row:
+                row.update()
+
+    def _light_released(self):
+        """The drag ended: the last light written now, whatever the pace."""
+        if self.light_late or self.light_pending:
+            self.light_guard.stop()
+            self.light_timer.stop()
+            self.light_wait = False
+            self.light_late = False
+            self.flush_light()
 
     def common_params(self, mode_id=None):
         """The parameters of every layer: a share link's others, the source,
@@ -1537,7 +1895,9 @@ class TerrainViewerDock(QDockWidget):
         """Disconnected from the project (the plugin unloading)."""
         for signal, slot in ((QgsProject.instance().layersWillBeRemoved, self.layers_removed),
                              (QgsProject.instance().layersAdded, self.refresh_layer_sources),
-                             (QgsProject.instance().layersRemoved, self.refresh_layer_sources)):
+                             (QgsProject.instance().layersRemoved, self.refresh_layer_sources),
+                             (QgsProject.instance().cleared, self._project_cleared),
+                             (QgsProject.instance().readProject, self._project_read)):
             try:
                 signal.disconnect(slot)
             except (TypeError, RuntimeError):
@@ -1549,15 +1909,40 @@ class TerrainViewerDock(QDockWidget):
                 pass
         self.health_timer.stop()
 
+    def _project_cleared(self):
+        self.project_fresh = True
+
+    def _project_read(self, *_):
+        self.project_fresh = False
+
+    def first_layer_setup(self):
+        """QGIS's own setup for a first layer, done by the panel: the project
+        in EPSG:3857 (the tiles' CRS), the canvas on the whole world."""
+        crs = QgsCoordinateReferenceSystem("EPSG:3857")
+        QgsProject.instance().setCrs(crs)
+        if self.canvas is not None:
+            if self.canvas.mapSettings().destinationCrs() != crs:
+                self.canvas.setDestinationCrs(crs)
+            self.canvas.setExtent(QgsRectangle(-WORLD, -WORLD, WORLD, WORLD))
+            self.canvas.refresh()
+
     def keep_extent(self):
         """A layer is about to join the project. In a project with no spatial
         layer left (every mode unchecked, no other layer), QGIS's bridge would
         zoom the canvas to it, the whole world for tiles, and take its CRS:
-        that setup is off until the bridge has seen the new layer."""
+        that setup is off until the bridge has seen the new layer, and the
+        canvas stays where it is. Except for the panel's first layer in a
+        fresh, empty project (a new project, or QGIS just started): there the
+        panel does QGIS's setup itself (EPSG:3857, the whole world), whatever
+        the bridge's state."""
+        if any(lyr.isSpatial() for lyr in QgsProject.instance().mapLayers().values()):
+            self.project_fresh = False
+            return
+        first, self.project_fresh = self.project_fresh, False
+        if first:
+            self.first_layer_setup()
         b = self.bridge
         if b is None or not b.autoSetupOnFirstLayer():
-            return
-        if any(lyr.isSpatial() for lyr in QgsProject.instance().mapLayers().values()):
             return
         b.setAutoSetupOnFirstLayer(False)
 
@@ -1595,8 +1980,9 @@ class TerrainViewerDock(QDockWidget):
             return
         from .live.layers import LocalLayers
         ext, width = self.canvas_extent()
-        if ext is not None:
-            LocalLayers(self.stack.project).prefetch(ext, width, self.python_source())
+        sid = self.python_source()
+        if ext is not None and sid is not None:
+            LocalLayers(self.stack.project).prefetch(ext, width, sid)
         # A hypsometric range that follows the view, read again for the new one.
         relief = self.rows.get("colorRelief")
         if relief is not None and relief.values().get("hypsoAutoRange") in (True, "true"):

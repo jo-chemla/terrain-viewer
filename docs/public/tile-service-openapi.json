@@ -582,7 +582,7 @@
         ],
         "operationId": "terrainSources",
         "summary": "The terrain sources, by id",
-        "description": "What `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take: every elevation source the app knows, the built-in ones and the library. Each with its type, its tile address when it is a plain pyramid, its zoom range and extent, and the engine that can draw it. Its old address, `/sources`, still answers.",
+        "description": "What `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take: every elevation source the app knows, the built-in ones and the library. Each with its type, its tile address when it is a plain pyramid (`url`), the raw elevation's address of a COG, VRT or raw WMS, WCS or ArcGIS image service (`address`, what GDAL can open), its zoom range and extent, and the engine that can draw it.",
         "responses": {
           "200": {
             "description": "The list",
@@ -604,7 +604,7 @@
         ],
         "operationId": "terrainSource",
         "summary": "One terrain source",
-        "description": "One entry of `/terrain-sources`, with its description. Its old address, `/sources/{id}`, still answers.",
+        "description": "One entry of `/terrain-sources`, with its description.",
         "parameters": [
           {
             "name": "id",
@@ -2834,66 +2834,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/sources": {
-      "get": {
-        "tags": [
-          "Terrain tiles"
-        ],
-        "operationId": "sources",
-        "deprecated": true,
-        "summary": "The terrain sources (old address)",
-        "description": "The old address of `/terrain-sources`, kept for older QGIS plugins, desktop builds and scripts: the same answer.",
-        "responses": {
-          "200": {
-            "description": "The list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/sources/{id}": {
-      "get": {
-        "tags": [
-          "Terrain tiles"
-        ],
-        "operationId": "source",
-        "deprecated": true,
-        "summary": "One terrain source (old address)",
-        "description": "The old address of `/terrain-sources/{id}`: the same answer.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "example": "custom-jp-gsj-terrainrgb"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The source, with its description",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such source"
           }
         }
       }

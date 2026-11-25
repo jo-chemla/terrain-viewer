@@ -103,8 +103,10 @@ def _mod(a, n):
 def shade(u, dx, dy):
     """The fragment shader on arrays: premultiplied RGBA 0-1, (n, n, 4)."""
     ex = u["exaggeration"]
-    S, H = u["shadows"], u["highlights"]
-    out = np.zeros(dx.shape + (4,), np.float64)
+    dt = dx.dtype  # float32 from picture() (half the time of float64, the same 8-bit picture)
+    S = [np.array(c, dt) for c in u["shadows"]]
+    H = [np.array(c, dt) for c in u["highlights"]]
+    out = np.zeros(dx.shape + (4,), dt)
     if u["method"] == "standard":
         azimuth = u["azimuths"][0] + PI
         slope = np.arctan(0.625 * np.hypot(dx, dy))
@@ -113,7 +115,7 @@ def shade(u, dx, dy):
         k = min(1.0, max(0.0, ex * 2))
         sh = np.abs(_mod((_aspect(dx, dy) + azimuth) / PI + 0.5, 2) - 1)
         s = np.sin(scaled) * k
-        S0, H0, A = np.array(S[0]), np.array(H[0]), np.array(u["accent"])
+        S0, H0, A = S[0], H[0], np.array(u["accent"], dt)
         col = (S0 + (H0 - S0) * sh[..., None]) * s[..., None]
         ak = (1 - np.cos(scaled)) * k * (1 - col[..., 3])
         return A * ak[..., None] + col
@@ -123,8 +125,8 @@ def shade(u, dx, dy):
         azimuth = u["azimuths"][0] + PI
         slope_strength = np.arctan(length) * 2 / PI
         aspect_strength = 1 - np.abs(_mod((_aspect(dx, dy) + azimuth) / PI + 0.5, 2) - 1)
-        out += np.array(S[0]) * (slope_strength * aspect_strength)[..., None]
-        out += np.array(H[0]) * (slope_strength * (1 - aspect_strength))[..., None]
+        out += S[0] * (slope_strength * aspect_strength)[..., None]
+        out += H[0] * (slope_strength * (1 - aspect_strength))[..., None]
     elif u["method"] == "multidirectional":
         n = len(u["azimuths"])
         for i in range(n):
@@ -132,8 +134,7 @@ def shade(u, dx, dy):
             cz, sz = -math.cos(u["azimuths"][i]), -math.sin(u["azimuths"][i])
             s = np.clip((sa - (dy * cz * ca - dx * sz * ca)) / np.sqrt(1 + length * length), 0, 1)
             hi = s > 0.5
-            out += np.where(hi[..., None], np.array(H[i]) * ((2 * s - 1) / n)[..., None],
-                            np.array(S[i]) * ((1 - 2 * s) / n)[..., None])
+            out += np.where(hi[..., None], H[i] * ((2 * s - 1) / n)[..., None], S[i] * ((1 - 2 * s) / n)[..., None])
     else:
         azimuth = u["azimuths"][0] + PI
         cz, sz = math.cos(azimuth), math.sin(azimuth)
@@ -142,12 +143,12 @@ def shade(u, dx, dy):
         if u["method"] == "basic":
             s = np.clip(c, 0, 1)
             hi = s > 0.5
-            out += np.where(hi[..., None], np.array(H[0]) * (2 * s - 1)[..., None], np.array(S[0]) * (1 - 2 * s)[..., None])
+            out += np.where(hi[..., None], H[0] * (2 * s - 1)[..., None], S[0] * (1 - 2 * s)[..., None])
         else:  # combined
             cang = np.clip(np.arccos(np.clip(c, -1, 1)), 0, PI / 2)
             k = np.arctan(length) * 4 / PI / PI
-            out += np.array(S[0]) * (cang * k)[..., None]
-            out += np.array(H[0]) * ((PI / 2 - cang) * k)[..., None]
+            out += S[0] * (cang * k)[..., None]
+            out += H[0] * ((PI / 2 - cang) * k)[..., None]
     return out
 
 
@@ -159,13 +160,16 @@ def picture(padded, z, y, n, native_size=256, opts=None, background=(1.0, 1.0, 1
     u = paint(o.get("method", "combined"), o.get("azimuth", 315.0), o.get("altitude", 45.0), o.get("shadowColor", "#000000"),
               o.get("highlightColor", "#FFFFFF"), o.get("accentColor", "#808080"), o.get("exaggeration", 1.0))
     zd = z - round(math.log2(max(native_size, 256) / 256))
-    dx, dy = prepare(padded, zd, native_size)
+    dx, dy = prepare(padded, zd, native_size)  # float64: its 8-bit quantisation exactly as MapLibre's
     world = n * (1 << z)
     rows = y * n + np.arange(n) + 0.5
     cos_lat = np.cos(np.arctan(np.sinh(PI * (1 - 2 * rows / world))))[:, None]
-    px = shade(u, dx / cos_lat, dy / cos_lat)
+    # The shading in float32: about half the time (it is most of a hillshade
+    # tile, which the light pad redraws), the same 8-bit picture but for a
+    # rare rounding at a half level.
+    px = shade(u, (dx / cos_lat).astype(np.float32), (dy / cos_lat).astype(np.float32))
     bad = np.isnan(dx) | np.isnan(dy)
     px[bad] = 0
     a = px[..., 3:4]
-    rgb = px[..., :3] + np.array(background) * (1 - a)
+    rgb = px[..., :3] + np.array(background, np.float32) * (1 - a)
     return _round(np.clip(rgb, 0, 1) * 255).astype(np.uint8)

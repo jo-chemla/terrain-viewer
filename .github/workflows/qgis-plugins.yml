@@ -85,7 +85,20 @@ jobs:
           find bundles -name 'terrain-viewer-tile-service-*.zip' -exec cp {} assets/ \;
           python3 qgis-plugin/make_zip.py --pins "${{ inputs.release_tag }}" assets
           python3 qgis-plugin/make_zip.py
-          cp qgis-plugin/dist/*.zip qgis-plugin/terrain_viewer/service_pins.json assets/
+          python3 qgis-plugin/make_zip.py --plugins-xml "${{ inputs.release_tag }}"
+          cp qgis-plugin/dist/*.zip qgis-plugin/dist/plugins.xml qgis-plugin/terrain_viewer/service_pins.json assets/
           (cd assets && sha256sum *.zip > SHA256SUMS)
           ls -la assets
           gh release upload "${{ inputs.release_tag }}" assets/* --clobber
+      - name: The QGIS plugin repository (plugins.xml at a fixed address)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # QGIS (Plugins > Manage and Install Plugins > Settings > Add) and the
+        # panel's update check read
+        # https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml:
+        # this release's plugins.xml, which points at this release's zips.
+        run: |
+          gh release view qgis-plugins-repository >/dev/null 2>&1 || gh release create qgis-plugins-repository \
+            --prerelease --latest=false --target main --title "QGIS plugin repository" \
+            --notes "plugins.xml, the QGIS plugin repository of Terrain Viewer and Send2MapApp: add https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml in QGIS (Plugins > Manage and Install Plugins > Settings > Add). Rewritten by each qgis-plugins-* release; the zips stay on their own release."
+          gh release upload qgis-plugins-repository assets/plugins.xml --clobber

@@ -841,7 +841,7 @@ const P12bTileService: Page = () => (
       <Code size={22}>{`/terrain-tiles/{z}/{x}/{y}.png?terrainSource=mapterhorn&modes=slope,hillshade
 /basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback&imageryDate=2020-01-01
 /bbox/7.6,45.95,7.7,46/800x600.png      /render.png?lat=…&lng=…&zoom=…&viewMode=3d
-/processes   /processes/slope   /sources   /colorramps   /qgis.qgz?<a share link's query>`}</Code>
+/processes   /processes/slope   /terrain-sources   /colorramps   /qgis.qgz?<a share link's query>`}</Code>
     </div>
     <div style={{ display: 'flex', gap: 24, marginTop: 32 }}>
       <Card title="Every mode is a process" accent={teal}>OGC API – Processes, Part 1: each mode's settings as inputs with a JSON Schema. A process runs by asking for its tiles; POST execution answers 501 with the tile links.</Card>
@@ -914,7 +914,7 @@ Link: <….stac.json>; rel="describedby"`}</Code>
       </div>
     </div>
     <div style={{ display: 'flex', gap: 32, marginTop: 40 }}>
-      <Stat n="141" label="terrain sources at /sources, built-in and library" />
+      <Stat n="141" label="terrain sources at /terrain-sources, built-in and library" />
       <Stat n="268" label="colour ramps at /colorramps" />
       <Stat n="2–6 ms" label="to compress a 256 px value tile, beside 10–20 ms of slope" />
       <Stat n="~1,000/s" label="cached mesh tiles served, kept gzipped" />

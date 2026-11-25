@@ -534,6 +534,20 @@ function assertStacItem(item) {
   try {
     // Landing page and conformance (OGC API Common).
     const landing = await json("/")
+    // /terrain-sources: the raw address of the COGs, VRTs and raw services
+    // (what GDAL opens: the QGIS plugin's Python backend); the old /sources
+    // and /sources/{id} are gone (2026-11-26).
+    {
+      const ts = await json("/terrain-sources")
+      const mrdem = ts.sources.find((s) => s.id === "custom-ca-nrcan-mrdem30")
+      assert.match(mrdem.address, /^https:\/\/canelevation-dem\..*mrdem-30-dtm\.tif$/)
+      const ign = ts.sources.find((s) => s.id === "custom-ign-lidarhd-dsm-wms-raw")
+      assert.match(ign.address, /^https:\/\/data\.geopf\.fr\/wms-r\?.*\{bbox-epsg-3857\}/)
+      assert.equal(ign.tileSize, 1024)
+      assert.equal(ts.sources.find((s) => s.id === "mapterhorn").address, undefined, "a pyramid keeps url, no address")
+      assert.equal((await json("/terrain-sources/custom-ca-nrcan-mrdem30")).address, mrdem.address)
+      for (const old of ["/sources", "/sources/mapterhorn"]) assert.equal((await get(old)).status, 404, old)
+    }
     for (const rel of ["self", "service-desc", "service-doc", "conformance", "http://www.opengis.net/def/rel/ogc/1.0/processes"]) assert.ok(landing.links.some((l) => l.rel === rel && l.href), rel)
     assert.equal((await get("/", { redirect: "manual" })).status, 302, "a browser goes to /docs")
     assert.ok(landing.links.some((l) => l.rel === "help" && /quick-start/.test(l.href)), "the landing page links the quick start")

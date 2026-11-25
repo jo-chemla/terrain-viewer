@@ -153,6 +153,39 @@ def tree_of_processes(groups, modes):
     return out
 
 
+# The panel's order, which is not the map's: /processes lists the tree top
+# of the map first (the layer tree keeps that stacking), the panel reads it
+# from the base up, with hillshade first (above Elevation Hypso) and the
+# overlays in this order, renamed.
+PANEL_FIRST = ("hillshade",)
+PANEL_ITEM_ORDER = {"Overlays": ("contours", "isoline", "planeSlicer", "graticules", "moundDetector")}
+PANEL_TITLES = {"Overlays": "Vector overlays"}
+
+
+def panel_tree(tree):
+    """The tree as the panel lists it: /processes' tree (top of the map
+    first) reversed at every level, PANEL_FIRST's ungrouped modes moved to
+    the top, the items of the groups in PANEL_ITEM_ORDER sorted so (unknown
+    ones after, in the reversed order), each group with its panel title
+    (`title`; `group` stays the layer tree's name)."""
+    def order(g):
+        node = dict(g)
+        if g.get("group"):
+            node["title"] = PANEL_TITLES.get(g["group"], g["group"])
+        node["groups"] = [order(s) for s in reversed(g.get("groups", []))]
+        items = list(reversed(g.get("items", [])))
+        rank = PANEL_ITEM_ORDER.get(g.get("group"))
+        if rank:
+            items.sort(key=lambda it: rank.index(it["id"]) if it["id"] in rank else len(rank))
+        node["items"] = items
+        return node
+    nodes = [order(g) for g in reversed(tree)]
+
+    def first(n):
+        return not n.get("group") and any(it["id"] in PANEL_FIRST for it in n.get("items", []))
+    return [n for n in nodes if first(n)] + [n for n in nodes if not first(n)]
+
+
 class Catalog:
     """What the service answers: its sources, its modes and their settings
     (/processes, OGC API - Processes), its color ramps. A service from
@@ -171,12 +204,8 @@ class Catalog:
             self.inputs = set(snapshot.get("inputs", []))
         else:
             self.snapshot = False
-            # /terrain-sources since 2026-11-25; a service from before only
-            # has the old address, /sources (still answered as an alias).
-            try:
-                self.sources = get_json(f"{self.base}/terrain-sources").get("sources", [])
-            except ServiceError:
-                self.sources = get_json(f"{self.base}/sources").get("sources", [])
+            # /terrain-sources since 2026-11-25 (the old /sources is gone).
+            self.sources = get_json(f"{self.base}/terrain-sources").get("sources", [])
             try:
                 listing = get_json(f"{self.base}/processes?expand=true")
             except ServiceError as e:

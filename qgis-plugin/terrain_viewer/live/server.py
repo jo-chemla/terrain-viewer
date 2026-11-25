@@ -94,6 +94,9 @@ def tiff_float32(a):
 
 class _Handler(BaseHTTPRequestHandler):
     server_version = "TerrainViewerLive/0.2"
+    # HTTP/1.0, a connection per tile: measured against keep-alive (HTTP/1.1,
+    # Nagle off), QGIS's XYZ provider redraws a 1920x1080 canvas of fresh
+    # hillshade tiles in about 1.0 s either way (1.1 to 1.9 s with keep-alive).
     protocol_version = "HTTP/1.0"
 
     def log_message(self, *_):  # quiet
@@ -153,6 +156,17 @@ class _Server(ThreadingHTTPServer):
     # against 360 at 6, until this was raised).
     request_queue_size = 128
     daemon_threads = True
+    # On Windows, SO_REUSEADDR (HTTPServer's default) lets a second QGIS bind
+    # the port the first one listens on, and its tiles were then answered by
+    # the other QGIS ("unknown source"): an exclusive bind instead, so the
+    # second one takes another port.
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        import socket
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class LiveServer:

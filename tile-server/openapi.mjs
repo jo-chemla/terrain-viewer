@@ -194,10 +194,10 @@ export function openapi(server = "http://localhost:3400", ids = {}) {
         },
       },
       "/terrain-sources": {
-        get: { tags: ["Terrain tiles"], operationId: "terrainSources", summary: "The terrain sources, by id", description: "What `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take: every elevation source the app knows, the built-in ones and the library. Each with its type, its tile address when it is a plain pyramid, its zoom range and extent, and the engine that can draw it. Its old address, `/sources`, still answers.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
+        get: { tags: ["Terrain tiles"], operationId: "terrainSources", summary: "The terrain sources, by id", description: "What `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take: every elevation source the app knows, the built-in ones and the library. Each with its type, its tile address when it is a plain pyramid (`url`), the raw elevation's address of a COG, VRT or raw WMS, WCS or ArcGIS image service (`address`, what GDAL can open), its zoom range and extent, and the engine that can draw it.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
       },
       "/terrain-sources/{id}": {
-        get: { tags: ["Terrain tiles"], operationId: "terrainSource", summary: "One terrain source", description: "One entry of `/terrain-sources`, with its description. Its old address, `/sources/{id}`, still answers.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, example: "custom-jp-gsj-terrainrgb" }], responses: { 200: { description: "The source, with its description", content: { "application/json": { schema: { type: "object" } } } }, 404: { description: "No such source" } } },
+        get: { tags: ["Terrain tiles"], operationId: "terrainSource", summary: "One terrain source", description: "One entry of `/terrain-sources`, with its description.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, example: "custom-jp-gsj-terrainrgb" }], responses: { 200: { description: "The source, with its description", content: { "application/json": { schema: { type: "object" } } } }, 404: { description: "No such source" } } },
       },
       "/terrain-tiles/{z}/{x}/{y}.{format}": {
         get: {
@@ -345,12 +345,6 @@ export function openapi(server = "http://localhost:3400", ids = {}) {
           parameters: [q("tile_format", { type: "string", enum: ["png", "jpg", "pbf", "mvt"], default: "png" }, "Tile format."), q("tile_scale", { type: "integer", enum: [1, 2], default: 1 }, "2 for 512 px tiles."), ...ALL_PARAMS],
           responses: { 200: { description: "TileJSON 2.2.0", content: { "application/json": { schema: { type: "object" } } } } },
         },
-      },
-      "/sources": {
-        get: { tags: ["Terrain tiles"], operationId: "sources", deprecated: true, summary: "The terrain sources (old address)", description: "The old address of `/terrain-sources`, kept for older QGIS plugins, desktop builds and scripts: the same answer.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
-      },
-      "/sources/{id}": {
-        get: { tags: ["Terrain tiles"], operationId: "source", deprecated: true, summary: "One terrain source (old address)", description: "The old address of `/terrain-sources/{id}`: the same answer.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, example: "custom-jp-gsj-terrainrgb" }], responses: { 200: { description: "The source, with its description", content: { "application/json": { schema: { type: "object" } } } }, 404: { description: "No such source" } } },
       },
       "/colorramps": {
         get: { tags: ["Catalogs"], operationId: "colorramps", summary: "The colour ramps, by id", description: "The app's ramps, to name as `colorRamp` (colour relief) or `slopeColorRamp` (slope).", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },

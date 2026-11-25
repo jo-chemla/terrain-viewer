@@ -20,6 +20,8 @@ thread-safe). A tile outside the raster's extent is NaN, warped not at all.
 """
 import math
 import threading
+import urllib.error
+from urllib.parse import parse_qsl, urlsplit, unquote
 
 import numpy as np
 
@@ -34,6 +36,12 @@ MAX_ZOOM = 22
 def _gdal():
     from osgeo import gdal, osr
     gdal.UseExceptions()
+    # /vsicurl/ on a bucket: no directory listing on open (one request
+    # instead of a listing of the whole bucket), as GDAL's cloud docs advise.
+    for k, v in (("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR"), ("GDAL_HTTP_MULTIRANGE", "YES"),
+                 ("GDAL_HTTP_MERGE_CONSECUTIVE_RANGES", "YES")):
+        if gdal.GetConfigOption(k) is None:
+            gdal.SetConfigOption(k, v)
     return gdal, osr
 
 
@@ -191,6 +199,9 @@ class GdalDem(Dem):
         a = vrt.GetRasterBand(1).ReadAsArray((x - x0) * TILE, (y - y0) * TILE, TILE, TILE).astype(np.float32)
         if nd is not None and not (isinstance(nd, float) and math.isnan(nd)):
             a[a == np.float32(nd)] = np.nan
+        floor = self.spec.get("nodata_floor")
+        if floor is not None:  # the library's nodataFloor: a service's own no data value, below it
+            a[a < np.float32(floor)] = np.nan
         sc, off, vs = self.spec.get("scale", 1.0), self.spec.get("offset", 0.0), self.spec.get("vertical_scale", 1.0)
         if sc != 1.0 or off != 0.0 or vs != 1.0:
             a = ((a * sc + off) * vs).astype(np.float32)
@@ -255,8 +266,76 @@ class QgsProviderDem(Dem):
         return self._native(z, x % n, min(max(y, 0), n - 1))
 
 
+class TemplateDem(Dem):
+    """A raw elevation service asked by bounding box, as the app asks it
+    (the library's wms-raw entries that GDAL has no dataset form for: WCS
+    GetCoverage, ArcGIS exportImage): each source tile's {bbox-epsg-3857}
+    filled, with the pixel of margin the template asks for (WIDTH=514 for a
+    512 px tile), the answer (a GeoTIFF) decoded by GDAL and warped onto the
+    tile's own grid (a server that answers a slightly larger extent, or no
+    margin, lands right), its no data and the values under nodataFloor as
+    NaN. Past the source's depth, the parent's quarter (as the pyramids)."""
+
+    def _load_native(self, z, x, y):
+        import time
+        import uuid
+        import urllib.request
+        size = self.spec["size"]
+        if z > self.spec["maxzoom"]:
+            from .dem import upsample2
+            parent = self._native(z - 1, x >> 1, y >> 1)
+            h = size // 2
+            return upsample2(parent[(y & 1) * h:(y & 1) * h + h, (x & 1) * h:(x & 1) * h + h])
+        t0 = time.perf_counter()
+        gdal, _osr = _gdal()
+        b = tile_bounds(z, x, y)
+        e = self.spec.get("bounds3857")
+        if e and (b[2] <= e[0] or b[0] >= e[2] or b[3] <= e[1] or b[1] >= e[3]):
+            self.skipped = getattr(self, "skipped", 0) + 1
+            return np.full((size, size), np.nan, np.float32)
+        px = (b[2] - b[0]) / size
+        m = self.spec.get("margin_px", 0) * px
+        req = (b[0] - m, b[1] - m, b[2] + m, b[3] + m)
+        url = self.spec["template"].replace("{bbox-epsg-3857}", ",".join(f"{v:.6f}" for v in req))
+        r = urllib.request.Request(url, headers={"User-Agent": "terrain-viewer-qgis-live/0.9"})
+        try:
+            with urllib.request.urlopen(r, timeout=60) as resp:
+                data = resp.read()
+        except urllib.error.HTTPError as err:
+            if err.code in (204, 404):
+                return np.full((size, size), np.nan, np.float32)
+            raise
+        name = f"/vsimem/tv-template-{uuid.uuid4().hex}.tif"
+        gdal.FileFromMemBuffer(name, data)
+        try:
+            try:
+                src = gdal.Open(name)
+            except RuntimeError:
+                src = None
+            if src is None:
+                raise ValueError(f"not a raster: {data[:160]!r}")
+            if not src.GetProjection():  # no georeferencing: the bbox asked
+                src = gdal.Translate("", src, format="MEM", outputSRS="EPSG:3857", outputBounds=[req[0], req[3], req[2], req[1]])
+            nd = src.GetRasterBand(1).GetNoDataValue()
+            out = gdal.Warp("", src, format="MEM", outputBounds=b, width=size, height=size, dstSRS="EPSG:3857",
+                            resampleAlg="bilinear", outputType=gdal.GDT_Float32, srcBands=[1],
+                            srcNodata=nd, dstNodata=float("nan"))
+            a = out.GetRasterBand(1).ReadAsArray().astype(np.float32)
+        finally:
+            gdal.Unlink(name)
+        floor = self.spec.get("nodata_floor")
+        if floor is not None:
+            a[a < np.float32(floor)] = np.nan
+        self.fetch_ms += (time.perf_counter() - t0) * 1000
+        self.fetches += 1
+        return a
+
+
 def make_dem(spec):
-    """The Dem for a source spec: GDAL's, a QGIS provider's, or a tile pyramid's."""
+    """The Dem for a source spec: GDAL's, a QGIS provider's, a bounding box
+    template's, or a tile pyramid's."""
+    if spec.get("template"):
+        return TemplateDem(spec)
     if spec.get("gdal"):
         return GdalDem(spec)
     if spec.get("qgis_provider"):
@@ -325,3 +404,145 @@ def layer_spec(layer):
             "encoding": "float", "bounds3857": (m.xMinimum(), m.yMinimum(), m.xMaximum(), m.yMaximum()),
             "bounds": [ll.xMinimum(), ll.yMinimum(), ll.xMaximum(), ll.yMaximum()], "vertical_scale": 1.0,
             "name": layer.name(), "layer": layer.id()}
+
+
+# -- the library's raw elevation services ---------------------------------------
+def _query(address):
+    """(base address with its ?, {lower-case key: (key, value)}) of a
+    template address (the {bbox-epsg-3857} placeholder kept as it is)."""
+    parts = urlsplit(address.replace("{bbox-epsg-3857}", "BBOXPLACEHOLDER"))
+    q = {}
+    for k, v in parse_qsl(parts.query, keep_blank_values=True):
+        q[k.lower()] = (k, v.replace("BBOXPLACEHOLDER", "{bbox-epsg-3857}"))
+    return f"{parts.scheme}://{parts.netloc}{parts.path}?", q
+
+
+def request_px(address):
+    """The pixel size the template asks for (WIDTH=1026, size=514,514), or None."""
+    _base, q = _query(address)
+    for k in ("width", "size"):
+        if k in q:
+            try:
+                return int(q[k][1].split(",")[0])
+            except ValueError:
+                return None
+    return None
+
+
+def is_wms_getmap(address):
+    """A WMS GetMap address (SERVICE=WMS, REQUEST=GetMap)."""
+    _base, q = _query(address or "")
+    return q.get("service", ("", ""))[1].upper() == "WMS" and q.get("request", ("", ""))[1].lower() == "getmap"
+
+
+def _merc(lon, lat):
+    lat = max(min(lat, 85.0511), -85.0511)
+    return lon * WORLD / 180, math.log(math.tan((90 + lat) * math.pi / 360)) * WORLD / math.pi
+
+
+def bounds3857(bounds):
+    """Lon/lat bounds in EPSG:3857 (the world without any)."""
+    if not bounds:
+        return (-WORLD, -WORLD, WORLD, WORLD)
+    x0, y0 = _merc(bounds[0], bounds[1])
+    x1, y1 = _merc(bounds[2], bounds[3])
+    return (max(x0, -WORLD), max(y0, -WORLD), min(x1, WORLD), min(y1, WORLD))
+
+
+def tile_px(entry):
+    """A raw service's tile size, as the app asks it: the library's tileSize,
+    else the size its template asks less the two pixels of margin (514 ->
+    512), else 512."""
+    if entry.get("tileSize"):
+        return int(entry["tileSize"])
+    n = request_px(entry.get("address") or "")
+    if n and n - 2 in (256, 512, 1024, 2048):
+        return n - 2
+    return n or 512
+
+
+def wms_xml(entry, block=512):
+    """A GDAL WMS description (WMS minidriver) of a library entry whose
+    address is a WMS GetMap of a raw elevation format (a Float32 GeoTIFF):
+    the service's base address, layer, version, CRS and format, a data
+    window over the entry's bounds in EPSG:3857 at its finest resolution
+    (the library's maxzoom in its own tile size), one Float32 band, empty
+    blocks for 204 and 404 and for a service exception. GDAL makes the
+    overviews (a zoomed-out view asks the service for coarser pictures).
+    None when the address is not a WMS GetMap."""
+    address = entry.get("address") or ""
+    if not is_wms_getmap(address):
+        return None
+    base, q = _query(address)
+    taken = {"service", "request", "version", "layers", "styles", "format", "crs", "srs", "bbox", "width", "height",
+             "transparent"}
+    extra = "&".join(f"{k}={v}" for k, v in (q[x] for x in q if x not in taken))
+    version = q.get("version", ("", "1.3.0"))[1]
+    crs = (q.get("crs") or q.get("srs") or ("", "EPSG:3857"))[1]
+    fmt = unquote(q.get("format", ("", "image/geotiff"))[1])
+    e = bounds3857(entry.get("bounds"))
+    size = tile_px(entry)
+    res = 2 * WORLD / (size * (1 << int(entry.get("maxzoom") or 16)))
+    nx, ny = max(1, int(math.ceil((e[2] - e[0]) / res))), max(1, int(math.ceil((e[3] - e[1]) / res)))
+
+    def esc(t):
+        return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    crs_tag = "CRS" if version.startswith("1.3") else "SRS"
+    return (f"<GDAL_WMS><Service name=\"WMS\"><Version>{esc(version)}</Version>"
+            f"<ServerUrl>{esc(base + extra)}</ServerUrl><{crs_tag}>{esc(crs)}</{crs_tag}>"
+            f"<ImageFormat>{esc(fmt)}</ImageFormat><Layers>{esc(q.get('layers', ('', ''))[1])}</Layers>"
+            f"<Styles>{esc(q.get('styles', ('', ''))[1])}</Styles><Transparent>FALSE</Transparent></Service>"
+            f"<DataWindow><UpperLeftX>{e[0]:.4f}</UpperLeftX><UpperLeftY>{e[3]:.4f}</UpperLeftY>"
+            f"<LowerRightX>{e[0] + nx * res:.4f}</LowerRightX><LowerRightY>{e[3] - ny * res:.4f}</LowerRightY>"
+            f"<SizeX>{nx}</SizeX><SizeY>{ny}</SizeY></DataWindow>"
+            f"<Projection>EPSG:3857</Projection><BandsCount>1</BandsCount><DataType>Float32</DataType>"
+            f"<BlockSizeX>{block}</BlockSizeX><BlockSizeY>{block}</BlockSizeY><MaxConnections>4</MaxConnections>"
+            f"<Timeout>60</Timeout><ZeroBlockHttpCodes>204,404</ZeroBlockHttpCodes>"
+            f"<ZeroBlockOnServerException>true</ZeroBlockOnServerException></GDAL_WMS>")
+
+
+def library_address(entry):
+    """The address GDAL opens for a library entry: /vsicurl/ for a COG or
+    VRT, the GDAL WMS description for a raw WMS GetMap; None for anything
+    else (a pyramid, a WCS or ArcGIS template, no address)."""
+    address, kind = entry.get("address"), entry.get("type")
+    if not address and kind in ("cog", "vrt") and str(entry.get("url") or "").startswith("https://") and "{z}" not in entry["url"]:
+        address = entry["url"]
+    if not address:
+        return None
+    if kind in ("cog", "vrt"):
+        return gdal_path(address)
+    return wms_xml(entry)
+
+
+def library_spec(entry):
+    """A library entry the Python backend reads through GDAL, as a source
+    spec: a COG or VRT by /vsicurl/, a raw WMS by its GDAL WMS description,
+    any other raw service (WCS, ArcGIS exportImage) by its template. None
+    when it has no such address (an older service's listing, a keyed
+    entry). Raises when GDAL cannot open it."""
+    name = entry.get("name") or entry.get("id")
+    path = library_address(entry)
+    if path is not None:
+        spec = probe(path, name=name)
+        if entry.get("type") == "wms-raw":
+            spec["bounds"] = entry.get("bounds") or spec["bounds"]
+    elif entry.get("type") == "wms-raw" and entry.get("address"):
+        address = entry["address"]
+        n = request_px(address)
+        size = tile_px(entry)
+        if size not in (256, 512):  # live/dem.py's tiles are 256 or 512 px: ask 512 (and its margin)
+            import re
+            margin = max(0, ((n or size) - size) // 2)
+            address = re.sub(r"(?i)\b(width|height)=\d+", lambda m: f"{m.group(1)}={512 + 2 * margin}", address)
+            address = re.sub(r"(?i)\bsize=\d+,\d+", f"size={512 + 2 * margin},{512 + 2 * margin}", address)
+            size, n = 512, 512 + 2 * margin
+        spec = {"template": address, "size": size, "margin_px": max(0, ((n or size) - size) // 2),
+                "maxzoom": int(entry.get("maxzoom") or 16), "encoding": "float",
+                "bounds3857": bounds3857(entry.get("bounds")), "bounds": entry.get("bounds") or [-180, -85, 180, 85],
+                "name": name}
+    else:
+        return None
+    if entry.get("nodataFloor") is not None:
+        spec["nodata_floor"] = float(entry["nodataFloor"])
+    return spec

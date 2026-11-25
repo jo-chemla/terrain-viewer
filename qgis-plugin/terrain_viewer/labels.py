@@ -1,8 +1,9 @@
-"""Labels for the overlays' lines, with QGIS's own labelling: on by default
-in each layer's style, black text in a white buffer, placed by QGIS along
-the lines (curved) or around the areas. The app labels its contours and
-iso-lines with symbols of its own; in QGIS there are no label points, the
-lines carry their values.
+"""Labels for the contour lines, with QGIS's own labelling: on by default in
+the layer's style, small black text in a thin white buffer, placed by QGIS
+along the major lines (curved). The app labels its contours with symbols of
+its own; in QGIS there are no label points, the lines carry their values.
+Only the contours are labelled (0.9.0): the iso-line, plane slicer and
+graticule labels of 0.8.0 are gone.
 
 Two kinds of layers: the tile service's vector tiles (a QgsVectorTileLayer,
 one labelling style per tile layer, as tile-server/direct.mjs names them) and
@@ -28,19 +29,17 @@ except AttributeError:  # pragma: no cover
 # backend's memory layers. Contours: the major lines only (as the app).
 TILE_LABELS = {
     "contours": [("contours", LINE, 'round("ele", 2)', '"level" = 1')],
-    "isoline": [("isoline", LINE, 'round("ele", 2)', "")],
-    "planeSlicer": [("plane-slicer", POLYGON, 'round("value", 2)', "")],
-    "graticules": [("graticule", LINE, "round(\"deg\", 4) || '°'", "")],
 }
 MEMORY_LABELS = {
     "contours": ('if("major" = 1, round("elev", 2), NULL)', LINE),
-    "isoline": ('round("value", 2)', LINE),
-    "planeSlicer": ('round("value", 2)', POLYGON),
-    "graticules": ("round(\"deg\", 4) || '°'", LINE),
 }
+# Half of 0.8.0's 8.5 pt text and 1 mm buffer, which the user found at
+# least twice too large.
+LABEL_SIZE_PT = 4.25
+BUFFER_MM = 0.5
 
 
-def text_format(size=8.5):
+def text_format(size=LABEL_SIZE_PT):
     """Black text in a white buffer, readable over any relief."""
     fmt = QgsTextFormat()
     font = QFont()
@@ -51,7 +50,7 @@ def text_format(size=8.5):
     fmt.setColor(QColor("#000000"))
     buf = QgsTextBufferSettings()
     buf.setEnabled(True)
-    buf.setSize(1.0)
+    buf.setSize(BUFFER_MM)
     buf.setSizeUnit(MM)
     buf.setColor(QColor("#ffffff"))
     fmt.setBuffer(buf)

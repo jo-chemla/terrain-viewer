@@ -315,11 +315,27 @@ canvas.setExtent(here)
 spin()
 kept = canvas.extent()
 dock.stack.ranks = {}
+canvas.setDestinationCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+check(dock.project_fresh, "a new project is fresh")
+dock.stack.ensure("hillshade", "Hillshade", ("Lighting",), "http://127.0.0.1:9/{z}/{x}/{y}.png", False)
+spin(400)
+ext = canvas.extent()
+check(QgsProject.instance().crs().authid() == "EPSG:3857" and canvas.mapSettings().destinationCrs().authid() == "EPSG:3857",
+      f"the panel's first layer in a fresh project: the project in EPSG:3857 ({QgsProject.instance().crs().authid()})")
+check(ext.width() >= 2 * 20037508 - 1 or ext.height() >= 2 * 20037508 - 1,
+      f"and the canvas on the whole world, as QGIS does ({ext.toString(0)})")
+check(bridge.autoSetupOnFirstLayer(), "and QGIS's first-layer setup is on again afterwards")
+dock.remove_layers("hillshade")
+spin()
+canvas.setExtent(here)
+spin()
+kept = canvas.extent()
 dock.stack.ensure("hillshade", "Hillshade", ("Lighting",), "http://127.0.0.1:9/{z}/{x}/{y}.png", False)
 spin(400)
 ext = canvas.extent()
 check(abs(ext.center().x() - kept.center().x()) < 1 and abs(ext.width() - kept.width()) < 1,
-      f"the first layer in an empty project leaves the canvas where it was ({ext.toString(0)})")
+      f"every mode unchecked, then one checked again: the canvas stays where it was ({ext.toString(0)})")
 check(bridge.autoSetupOnFirstLayer(), "and QGIS's first-layer setup is on again afterwards")
 dock.remove_layers("hillshade")
 spin()
@@ -348,13 +364,210 @@ fmt = st.labelSettings().format()
 check(st.layerName() == "contours" and '"level" = 1' in st.filterExpression() and fmt.color().name() == "#000000"
       and fmt.buffer().enabled() and fmt.buffer().color().name() == "#ffffff",
       "contour labels: the major lines, black text in a white buffer")
-check(labels.tile_labeling("isoline").styles()[0].layerName() == "isoline"
-      and labels.tile_labeling("planeSlicer").styles()[0].layerName() == "plane-slicer", "iso-line and plane slicer tiles: labelled")
+check(abs(fmt.size() - 4.25) < 1e-6 and abs(fmt.buffer().size() - 0.5) < 1e-6,
+      f"contour labels: half of 0.8.0's size, 4.25 pt in a 0.5 mm buffer ({fmt.size()}, {fmt.buffer().size()})")
+check(all(labels.tile_labeling(m) is None for m in ("isoline", "planeSlicer", "graticules")),
+      "iso-line, plane slicer and graticule tiles: no labels (only the contours keep theirs)")
 from qgis.core import QgsVectorLayer  # noqa: E402
 mem = QgsVectorLayer("LineString?crs=EPSG:3857&field=value:double", "iso", "memory")
-check(labels.label_memory_layer(mem, "isoline") and mem.labelsEnabled(), "iso-line lines (Python backend): labelled")
-mem2 = QgsVectorLayer("Polygon?crs=EPSG:3857&field=value:double&field=side:string", "slicer", "memory")
-check(labels.label_memory_layer(mem2, "planeSlicer") and mem2.labelsEnabled(), "plane slicer areas (Python backend): labelled")
+check(not labels.label_memory_layer(mem, "isoline") and not mem.labelsEnabled(), "iso-line lines (Python backend): no labels")
+mem2 = QgsVectorLayer("LineString?crs=EPSG:3857&field=elev:double&field=major:integer", "contours", "memory")
+check(labels.label_memory_layer(mem2, "contours") and mem2.labelsEnabled(), "contour lines (Python backend): labelled")
+
+# 0.9.0: the panel's order (hillshade first, the vector overlays), the
+# backends' order and default, the opacity in the row, the plane slicer's
+# reference, the source groups, no other source drawn in place of one the
+# Python backend cannot read, the raw inputs, the light while dragged, updates.
+from terrain_viewer.service import panel_tree  # noqa: E402
+ids = list(dock.rows)
+check(ids[:2] == ["hillshade", "colorRelief"], f"the panel: Hillshade above Elevation Hypso ({ids[:3]})")
+check(ids[-5:] == ["contours", "isoline", "planeSlicer", "graticules", "moundDetector"],
+      f"the panel: the overlays as Contours, Iso-line, Plane slicer, Graticule, Mound candidates ({ids[-5:]})")
+pt = panel_tree(dock.catalog.tree)
+ov = next(g for g in pt if g.get("group") == "Overlays")
+check(ov["title"] == "Vector overlays" and dock.rows["contours"].path == ("Overlays",),
+      "the overlays' group reads \"Vector overlays\" (the layer tree keeps \"Overlays\")")
+from qgis.gui import QgsCollapsibleGroupBox  # noqa: E402
+titles = [b.title() for b in dock.groups_host.findChildren(QgsCollapsibleGroupBox)]
+check("Vector overlays" in titles and "Overlays" not in titles, f"the group boxes' titles ({titles})")
+check(list(dock.backend_picker.buttons) == ["python", "local", "remote"], f"backends: Python first ({list(dock.backend_picker.buttons)})")
+from terrain_viewer.dock import initial_backend  # noqa: E402
+
+
+class FakeSettings(dict):
+    def value(self, k, d=None):
+        return self.get(k, d)
+
+    def contains(self, k):
+        return k in self
+
+
+check(initial_backend(FakeSettings()) == "python", "a new user starts on the Python backend")
+check(initial_backend(FakeSettings({"terrain_viewer/backend": "remote"})) == "remote", "a backend picked before is kept")
+check(initial_backend(FakeSettings({"terrain_viewer/service": "http://localhost:3400"})) == "remote",
+      "a user of 0.6.0 with an address keeps the remote tile server")
+row = dock.rows["slope"]
+labels_in_cog = [row.row.form_layout.itemAt(i, row.row.form_layout.ItemRole.LabelRole).widget().text()
+                 for i in range(row.row.form_layout.rowCount())
+                 if row.row.form_layout.itemAt(i, row.row.form_layout.ItemRole.LabelRole) is not None]
+check(row.row.head.indexOf(row.opacity) == 1 and "Opacity" not in labels_in_cog,
+      "the opacity sits in the row, between the name and the forms, no longer under the cog")
+hidden_off = row.opacity.isHidden()
+row.row.set_forms({"colour"})
+check(hidden_off and not row.opacity.isHidden(), "the opacity shows while a drawn form is on, hidden (its room kept) otherwise")
+row.set_opacity(0.4)
+check(abs(row.opacity_value() - 0.4) < 1e-9 and row.opacity.label.text() == "40%", "the opacity reads and writes 0 to 1")
+row.row.set_forms(set())
+check(dock.rows["planeSlicer"].settings["planeSlicerReferenceMode"].get() == "absolute", "plane slicer: reference Absolute by default")
+texts = [dock.source.itemText(i) for i in range(dock.source.count())]
+check(texts.index("Worldwide defaults") < texts.index("Mapterhorn - Terrarium") < texts.index("Terrain library"),
+      "sources: Worldwide defaults, then the terrain library")
+hdr = dock.source.model().item(texts.index("Terrain library"))
+check(not (hdr.flags() & Qt.ItemFlag.ItemIsSelectable), "a group title cannot be picked")
+# A QGIS layer: plausible elevation only (one band of floats or Int16).
+import tempfile  # noqa: E402
+from osgeo import gdal  # noqa: E402
+from qgis.core import QgsRasterLayer  # noqa: E402
+tmpdir = tempfile.mkdtemp()
+for fname, dt, bands in (("dem.tif", gdal.GDT_Float32, 1), ("rgb.tif", gdal.GDT_Byte, 3)):
+    ds = gdal.GetDriverByName("GTiff").Create(os.path.join(tmpdir, fname), 8, 8, bands, dt)
+    ds.SetGeoTransform((700000, 10, 0, 5800000, 0, -10))
+    ds.SetProjection(QgsCoordinateReferenceSystem("EPSG:3857").toWkt())
+    ds = None
+dem_layer = QgsRasterLayer(os.path.join(tmpdir, "dem.tif"), "my dem")
+rgb_layer = QgsRasterLayer(os.path.join(tmpdir, "rgb.tif"), "a photo")
+QgsProject.instance().addMapLayers([dem_layer, rgb_layer])
+spin()
+texts = [dock.source.itemText(i) for i in range(dock.source.count())]
+check(texts[0] == "QGIS elevation layers" and "QGIS layer: my dem" in texts and "QGIS layer: a photo" not in texts
+      and texts.index("QGIS layer: my dem") < texts.index("Worldwide defaults"),
+      "sources: the project's elevation layers first (a picture left out)")
+QgsProject.instance().removeMapLayers([dem_layer.id(), rgb_layer.id()])
+spin()
+# The raw inputs: what GDAL opens for a library COG and a raw WMS.
+ign = next(s for s in cat["sources"] if s["id"] == "custom-ign-lidarhd-dsm-wms-raw")
+mrdem = next(s for s in cat["sources"] if s["id"] == "custom-ca-nrcan-mrdem30")
+check(str(pyb.raw_input_address(mrdem)).startswith("/vsicurl/https://canelevation-dem.")
+      and str(pyb.raw_input_address(ign)).startswith("<GDAL_WMS>") and "image/geotiff" in pyb.raw_input_address(ign)
+      and "<DataType>Float32</DataType>" in pyb.raw_input_address(ign), "raw inputs: a COG by /vsicurl/, a WMS by a GDAL WMS description")
+check(pyb.raw_input_address(next(s for s in cat["sources"] if s["id"] == "custom-nl-ahn-dtm")) is None
+      and pyb.raw_input_address(next(s for s in cat["sources"] if s["id"] == "mapterhorn")) is None,
+      "raw inputs: none for a WCS template or a pyramid")
+dock.set_source("custom-ign-lidarhd-dsm-wms-raw")
+check(dock.raw_btn.isEnabled(), "the raw input button: on for a raw WMS")
+dock.set_source("mapterhorn")
+check(not dock.raw_btn.isEnabled(), "and off for a pyramid")
+# A source the Python backend cannot read: nothing drawn, never Mapterhorn.
+dock.set_source("esri")
+dock._py_sources.clear()
+check(dock.python_source() is None and "draws nothing" in dock.warnings[-1], f"a LERC source under Python: nothing drawn ({dock.warnings[-1][:90]})")
+dock.set_source("mapterhorn")
+
+# The light while dragged: the shaded layers follow, throttled, instead of
+# once half a second after the last move.
+hill = dock.rows["hillshade"]
+hill.row.set_forms({"colour"})
+updates_seen = []
+
+
+def fake_update():  # the layer rewritten, the canvas drawing it for 60 ms
+    updates_seen.append(time.perf_counter())
+    QTimer.singleShot(0, canvas.renderStarting.emit)
+    QTimer.singleShot(60, canvas.mapCanvasRefreshed.emit)
+
+
+hill.update = fake_update
+dock.connected = "python"
+import time  # noqa: E402
+t0 = time.perf_counter()
+for i in range(60):  # a one second drag at 60 moves a second
+    dock.light_pad.changed.emit(float(200 + i), 40.0)
+    spin(16)
+during = len(updates_seen)
+first = (updates_seen[0] - t0) * 1000 if updates_seen else None
+dock.light_pad.released.emit()
+spin(50)
+check(during >= 5 and first is not None and first < 20,
+      f"the light dragged for {1000 * (time.perf_counter() - t0):.0f} ms, the canvas drawing in 60 ms: {during} rewrites while "
+      f"dragging, each once the last was drawn (the first after {first:.0f} ms; 0.8.0: none until 500 ms after the last "
+      f"move), {len(updates_seen)} with the release")
+check(dock.light_value() == (259.0, 40.0), "the last position applied")
+dock.connected = None
+del hill.update
+hill.row.set_forms(set())
+
+# Updates: plugins.xml as make_zip.py writes it, read as QGIS reads it (the
+# key before the first dot of file_name), a zip installed over a copy of
+# the plugin, a tampered one refused.
+import importlib.util  # noqa: E402
+import shutil as _sh  # noqa: E402
+import zipfile  # noqa: E402
+from terrain_viewer import updates  # noqa: E402
+spec_mz = importlib.util.spec_from_file_location("make_zip", os.path.join(os.path.dirname(os.path.abspath(__file__)), "make_zip.py"))
+mz = importlib.util.module_from_spec(spec_mz)
+spec_mz.loader.exec_module(mz)
+up = tempfile.mkdtemp()
+plugins_dir = os.path.join(up, "plugins")
+_sh.copytree(os.path.join(os.path.dirname(os.path.abspath(__file__)), "terrain_viewer"), os.path.join(plugins_dir, "terrain_viewer"),
+             ignore=_sh.ignore_patterns("__pycache__", "server"))
+here_v = updates.installed_version(os.path.join(plugins_dir, "terrain_viewer"))
+staged = os.path.join(up, "stage", "terrain_viewer")
+_sh.copytree(os.path.join(plugins_dir, "terrain_viewer"), staged)
+with open(os.path.join(staged, "metadata.txt"), encoding="utf-8") as f:
+    meta = f.read().replace(f"version={here_v}", "version=9.9.9")
+with open(os.path.join(staged, "metadata.txt"), "w", encoding="utf-8") as f:
+    f.write(meta)
+os.remove(os.path.join(staged, "solar.py"))  # a file the new version no longer has
+dist = os.path.join(up, "dist")
+os.makedirs(dist)
+for name in mz.PLUGINS:
+    zpath = os.path.join(dist, f"{name}-{mz.version_of(name) if name != 'terrain_viewer' else '9.9.9'}.zip")
+    with zipfile.ZipFile(zpath, "w") as z:
+        mz.add_tree(z, staged if name == "terrain_viewer" else os.path.join(mz.here, name), name)
+orig_version_of = mz.version_of
+mz.version_of = lambda n: "9.9.9" if n == "terrain_viewer" else orig_version_of(n)
+real_read = mz.configparser.ConfigParser.read
+
+
+def read_bumped(self, path, encoding=None):
+    out = real_read(self, path, encoding=encoding)
+    if "terrain_viewer" in str(path) and self.has_section("general"):
+        self["general"]["version"] = "9.9.9"
+    return out
+
+
+mz.configparser.ConfigParser.read = read_bumped
+xml_path = mz.plugins_xml("qgis-plugins-test", dist)
+mz.configparser.ConfigParser.read = real_read
+xml = open(xml_path, "rb").read()
+info = updates.parse_plugins_xml(xml)
+check(info and info["version"] == "9.9.9" and info["file_name"] == "terrain_viewer.9.9.9.zip"
+      and info["download_url"].endswith("/releases/download/qgis-plugins-test/terrain_viewer-9.9.9.zip") and len(info["sha256"]) == 64,
+      f"plugins.xml: the plugin keyed terrain_viewer, its zip on the release, its sha256 ({info and info['file_name']})")
+check(b"@" not in xml.replace(b"https://", b""), "plugins.xml: no email anywhere")
+check(updates.parse_plugins_xml(xml, "send2map_app") is not None, "plugins.xml: Send2MapApp listed too")
+data = open(os.path.join(dist, "terrain_viewer-9.9.9.zip"), "rb").read()
+target = os.path.join(plugins_dir, "terrain_viewer")
+os.makedirs(os.path.join(target, "server"))
+open(os.path.join(target, "server", "keep.txt"), "w").close()
+try:
+    updates.install_zip(data, "0" * 64, target)
+    check(False, "a tampered zip is refused")
+except updates.UpdateError as e:
+    check("sha256" in str(e) and updates.installed_version(target) == here_v, "a tampered zip is refused, nothing changed")
+got_v = updates.install_zip(data, info["sha256"], target)
+check(got_v == "9.9.9" and updates.installed_version(target) == "9.9.9" and not os.path.exists(os.path.join(target, "solar.py"))
+      and os.path.exists(os.path.join(target, "server", "keep.txt")),
+      "the update unpacked over the plugin: new version, a dropped file removed, server/ kept")
+check(not updates.can_update(os.path.join(os.path.dirname(os.path.abspath(__file__)), "terrain_viewer"))[0],
+      "a development copy (in a git checkout) is never overwritten")
+check(updates.newer("0.10.0", "0.9.0") and not updates.newer("0.9.0", "0.9.0") and updates.newer("1.0", "0.99.9"), "versions compared as numbers")
+dock.updates_answered(xml, "file:///plugins.xml")
+check(not dock.update_box.isHidden() and "9.9.9" in dock.update_btn.text(), f"the panel offers the update ({dock.update_btn.text()})")
+QgsSettings_ = __import__("qgis.core", fromlist=["QgsSettings"]).QgsSettings
+QgsSettings_().remove("terrain_viewer/updateAvailable")
+QgsSettings_().remove("terrain_viewer/updateCheckedAt")
+_sh.rmtree(up, ignore_errors=True)
 dock.cleanup()
 
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ")

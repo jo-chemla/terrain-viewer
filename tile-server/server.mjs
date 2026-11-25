@@ -51,7 +51,7 @@
 // the source's credit but no scale bar.
 //
 //   GET /terrain-sources, /terrain-sources/{id}
-//                                      the terrain sources, by id (old address /sources, kept)
+//                                      the terrain sources, by id
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id; /colorramps/{id}.png|jpg
 //                                      a picture of one (width, height, orientation)
 //   GET /basemaps                      what /basemap-tiles/{source}/... takes
@@ -278,8 +278,19 @@ export function sources() {
   return [
     // The Worldwide Defaults first (section "defaults"), then the library:
     // one list of entries (lib/source-schema.ts).
-    ...library().terrain.map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.section ? { section: s.section } : {}), ...(s.tiles ? { url: s.tiles } : {}), ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.bounds ? { bounds: s.bounds } : {}), ...(s.resolutionM != null ? { resolutionM: s.resolutionM } : {}), ...engine(s) })),
+    ...library().terrain.map((s) => ({ id: s.id, name: s.name, type: s.type, ...(s.section ? { section: s.section } : {}), ...(s.tiles ? { url: s.tiles } : {}), ...rawAddress(s), ...(s.maxzoom != null ? { maxzoom: s.maxzoom } : {}), ...(s.bounds ? { bounds: s.bounds } : {}), ...(s.resolutionM != null ? { resolutionM: s.resolutionM } : {}), ...engine(s) })),
   ]
+}
+/** `address`: the raw elevation behind a keyless COG, VRT or raw WMS / WCS /
+ *  ArcGIS entry (https added where the library leaves it out), with the
+ *  fields a reader needs (`tileSize`, `nodataFloor`): what GDAL opens itself
+ *  (the QGIS plugin's Python backend: /vsicurl/ for a COG or VRT, a GDAL WMS
+ *  description for a WMS GetMap). Pyramids keep `url`, their tile template. */
+function rawAddress(s) {
+  if (!["cog", "vrt", "wms-raw"].includes(s.type) || s.apiKey || !s.url) return {}
+  const u = /^[a-z][a-z0-9+.-]*:\/\//i.test(s.url) ? s.url : `https://${s.url}`
+  if (!/^https:\/\//i.test(u)) return {}
+  return { address: u, ...(s.tileSize ? { tileSize: s.tileSize } : {}), ...(s.nodataFloor != null ? { nodataFloor: s.nodataFloor } : {}) }
 }
 let idsPromise // the ids /openapi.json offers for {source}, read once
 const SOURCES_NOTE = 'Give an id as terrainSource (or url). A source that is not listed: its tile address (a .tif is read as a COG, a .vrt as a VRT), or a configuration as JSON with the fields of a library entry, {"url": "...", "type": "terrarium" | "terrainrgb" | "cog" | "vrt" | "wms-raw" | "lerc" | "quantized-mesh" | "tilejson", ...}.'
@@ -756,10 +767,8 @@ async function handle(req, res) {
       }
       if (u.pathname === "/openapi.json") return send(200, "application/json", JSON.stringify(openapi(self, await (idsPromise ??= sourceIds())), null, 2))
       if (u.pathname === "/docs") return send(200, "text/html; charset=utf-8", DOCS_HTML)
-      // /sources is the old address (QGIS plugin up to 0.7.0, desktop builds
-      // of 2026-11): kept as an alias.
-      if (u.pathname === "/terrain-sources" || u.pathname === "/sources") return send(200, "application/json", JSON.stringify({ sources: sources(), note: SOURCES_NOTE }))
-      const one = u.pathname.match(/^\/(?:terrain-)?sources\/([^/]+)$/)
+      if (u.pathname === "/terrain-sources") return send(200, "application/json", JSON.stringify({ sources: sources(), note: SOURCES_NOTE }))
+      const one = u.pathname.match(/^\/terrain-sources\/([^/]+)$/)
       if (one) {
         const id = decodeURIComponent(one[1])
         const found = sources().find((x) => x.id === id)

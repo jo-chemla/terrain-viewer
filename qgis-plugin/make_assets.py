@@ -102,7 +102,7 @@ def catalog(base):
     modes = {p["id"]: mode_of_process(p) for p in listing.get("processes", [])}
     inputs = sorted({spec.get("x-tv-url-param", k) for p in listing.get("processes", []) for k, spec in (p.get("inputs") or {}).items()})
     ramps = get_json(f"{base}/colorramps").get("colorramps", [])
-    keep = ("id", "name", "type", "url", "maxzoom", "bounds", "key", "resolutionM")
+    keep = ("id", "name", "type", "section", "url", "address", "tileSize", "nodataFloor", "maxzoom", "bounds", "key", "resolutionM")
     sources = [{k: s[k] for k in keep if k in s} for s in get_json(f"{base}/terrain-sources").get("sources", [])]
     return {"tree": tree_of(listing.get("x-tv-groups", []), modes), "inputs": inputs,
             "colorramps": [{"id": r["id"], "name": r.get("name", r["id"])} for r in ramps], "sources": sources}, ramps

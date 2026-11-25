@@ -7,7 +7,7 @@ from qgis.PyQt.QtCore import Qt, QPointF, QRectF, QSize, QObject, QEvent, pyqtSi
 from qgis.PyQt.QtGui import QColor, QPainter, QPen, QBrush, QPalette
 from qgis.PyQt.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QSlider, QDoubleSpinBox, QSpinBox, QComboBox, QToolButton, QButtonGroup,
-    QSizePolicy, QFrame, QRadioButton,
+    QSizePolicy, QFrame, QRadioButton, QLabel,
 )
 
 
@@ -100,9 +100,11 @@ class LightPad(QWidget):
     """The light source as a point in a disc, north up: its angle from north,
     clockwise, is the azimuth; its distance from the centre the elevation
     (the centre is the zenith, 90 degrees; the rim the horizon, 0), as the
-    app's light direction pad. `changed(azimuth, elevation)` while dragged."""
+    app's light direction pad. `changed(azimuth, elevation)` while dragged
+    (once per whole degree moved), `released()` when the drag ends."""
 
     changed = pyqtSignal(float, float)
+    released = pyqtSignal()
 
     def __init__(self, azimuth=315.0, elevation=45.0, parent=None):
         super().__init__(parent)
@@ -157,9 +159,12 @@ class LightPad(QWidget):
         d = min(math.hypot(dx, dy) / r, 1.0) if r > 0 else 0
         az = (math.degrees(math.atan2(dx, -dy)) + 360) % 360
         el = 90.0 * (1 - d)
-        self.azimuth, self.elevation = round(az), round(el)
+        new = (float(round(az) % 360), float(round(el)))
+        if new == (self.azimuth, self.elevation):
+            return
+        self.azimuth, self.elevation = new
         self.update()
-        self.changed.emit(float(self.azimuth), float(self.elevation))
+        self.changed.emit(*new)
 
     def mousePressEvent(self, e):
         self._from_mouse(e.position() if hasattr(e, "position") else e.pos())
@@ -167,6 +172,61 @@ class LightPad(QWidget):
     def mouseMoveEvent(self, e):
         if e.buttons() & Qt.MouseButton.LeftButton:
             self._from_mouse(e.position() if hasattr(e, "position") else e.pos())
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.released.emit()
+
+
+class CompactOpacity(QWidget):
+    """A mode's opacity in its row: a short slider (0 to 100 %), its value in
+    the tooltip and a small label, as QgsOpacityWidget's opacity() and
+    setOpacity() and its opacityChanged(float) signal."""
+
+    opacityChanged = pyqtSignal(float)
+
+    def __init__(self, value=1.0, parent=None):
+        super().__init__(parent)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, 100)
+        self.slider.setSingleStep(5)
+        self.slider.setPageStep(10)
+        self.slider.setFixedWidth(52)
+        self.label = QLabel()
+        self.label.setMinimumWidth(28)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        f = self.label.font()
+        f.setPointSizeF(max(6.5, f.pointSizeF() * 0.85))
+        self.label.setFont(f)
+        lay.addWidget(self.slider)
+        lay.addWidget(self.label)
+        self.slider.valueChanged.connect(self._moved)
+        self.setOpacity(value)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+    def _show(self, v):
+        self.label.setText(f"{v}%")
+        self.setToolTip(f"Opacity: {v} % (the QGIS layer's)")
+
+    def _moved(self, v):
+        self._show(v)
+        self.opacityChanged.emit(v / 100.0)
+
+    def opacity(self):
+        return self.slider.value() / 100.0
+
+    def setOpacity(self, v):
+        try:
+            v = int(round(min(max(float(v), 0.0), 1.0) * 100))
+        except (TypeError, ValueError):
+            return
+        if v == self.slider.value():
+            self._show(v)
+            return
+        self.slider.setValue(v)  # emits, as QgsOpacityWidget does
 
 
 class IconCombo(QComboBox):

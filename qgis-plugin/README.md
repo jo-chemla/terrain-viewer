@@ -15,18 +15,20 @@ both (see Files).
 
 ## Terrain Viewer
 
-0.8.0 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel
+0.9.0 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel
 with the groups of the app's sidebar as one modes tree, drawn by the backend
-picked at its top (radio buttons): the **Packaged tile server** (a [tile service](../tile-server/README.md)
-packaged for QGIS, installed and started from the panel), a **Remote tile
-server** (any tile service's address), or the **Python backend** (experimental: numpy in
-QGIS, no service, started when picked; the modes it does not compute greyed out). Pure Python on
-QGIS's API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
+picked at its top (radio buttons): the **Python backend** (numpy in QGIS, no
+service, started when picked; every mode, from tile pyramids, COGs, VRTs, raw
+WMS and WCS, QGIS raster layers and anything GDAL opens; the default for a new
+user), the **Packaged tile server** (a [tile service](../tile-server/README.md)
+packaged for QGIS, installed and started from the panel), or a **Remote tile
+server** (any tile service's address). Pure Python on QGIS's API, no
+dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-25f`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25f)
-(Terrain Viewer 0.8.0, Send2MapApp 0.5.1, and the tile service bundles it pins). Terrain Viewer is one plain zip,
+The zips of each version are on a release: [`qgis-plugins-2026-11-26`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26)
+(Terrain Viewer 0.9.0, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this
@@ -42,12 +44,31 @@ To build them:
 python make_zip.py                              # dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
 python make_zip.py --service-bundle [platform]  # dist/terrain-viewer-tile-service-<platform>.zip, all four when none is named
 python make_zip.py --pins <release-tag> dist    # terrain_viewer/service_pins.json from those bundles
+python make_zip.py --plugins-xml <release-tag>  # dist/plugins.xml, the QGIS plugin repository of that release (after the zips)
 ```
 
 `.github/workflows/qgis-plugins.yml` builds the bundles on demand, starts
 each platform's service on its own runner, and with a release tag attaches
 them, pins their hashes into the plain zip it then builds, and attaches that
-too, with `service_pins.json` (commit it back).
+too, with `service_pins.json` (commit it back) and `plugins.xml`, which it also
+copies to the fixed release `qgis-plugins-repository`.
+
+## Updates
+
+No plugins.qgis.org (it requires an email in `metadata.txt`, which the project
+does not publish): two ways from the GitHub releases instead.
+
+- **Plugin repository**: in Plugins > Manage and Install Plugins > Settings,
+  Add `https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml`
+  and tick "Show also experimental plugins". QGIS then lists both plugins and
+  offers their updates. `plugins.xml` keys each plugin by `file_name` up to the
+  first dot (`terrain_viewer.0.9.0.zip`), downloads `download_url` (the dated
+  release's zip), and carries a `sha256` element of ours.
+- **The panel**: once a day it reads the same `plugins.xml` in the background
+  (`terrain_viewer/updates.py`); a newer version shows "Update to x.y.z":
+  downloaded, sha256 checked, unpacked over the plugin's folder, the plugin
+  reloaded. Never over a development copy (a link, a folder in a git
+  checkout). Off with the QGIS setting `terrain_viewer/checkUpdates=false`.
 
 In QGIS: Plugins > Manage and Install Plugins > Install from ZIP. Or, while
 working on it, link the folder into the profile's plugins folder (Windows:
@@ -55,13 +76,13 @@ working on it, link the folder into the profile's plugins folder (Windows:
 uses `QGIS4`), then enable it in the plugin manager. `send2map_app` installs
 the same way, and replaces an earlier Send2MapApp in place (same folder name).
 
-Without any tile service, the experimental **Python** backend draws 24 of
-the tree's 25 modes computed in QGIS with numpy.
+Without any tile service, the **Python** backend draws all 25 of the tree's
+modes computed in QGIS with numpy.
 
 ## Use
 
-- **Backend** (top of the panel): Packaged tile server, Remote tile server or
-  Python backend, each with its options; **Connect** (the two tile servers; the
+- **Backend** (top of the panel): Python backend (the default for a new
+  user), Packaged tile server or Remote tile server, each with its options; **Connect** (the two tile servers; the
   Python backend starts when picked) asks `/health` first (one message when
   nothing answers, no layer made). Picking another backend re-points the
   checked modes' layers to it.
@@ -73,15 +94,17 @@ the tree's 25 modes computed in QGIS with numpy.
 - **A mode's row**: a click anywhere on it toggles the mode; its forms on the
   right, **Color** (an XYZ layer), **Values** (a Float32 raster from
   `/gdal.xml`, for analysis) and, for the overlays, **Vector** (the default)
-  then **Raster**. Unchecking the last form removes the layers (every layer
-  of the mode's key) and the groups left empty. The cog folds out the opacity
-  and settings: sliders with number boxes, ramp and matcap selects with
+  then **Raster**, and its opacity (a short slider between the name and the
+  forms). Unchecking the last form removes the layers (every layer of the
+  mode's key) and the groups left empty. The cog folds out the settings: sliders with number boxes, ramp and matcap selects with
   previews (`assets/colorramps.png`, `assets/matcaps.png`), symmetric ramps
   whose minimum mirrors the maximum. A changed setting rewrites the layer's
   address (half a second after the last change), keeping its style.
 - **Light** (folded): a pad and two sliders for the light of hillshade,
   Phong, terrain and building shadows (`illuminationDir`, `illuminationAlt`).
-- **Source**, with a zoom to its bounds; **API keys** behind a key icon
+- **Source**, in groups (QGIS elevation layers, Worldwide defaults, Terrain
+  library), with a zoom to its bounds and a button that adds a library COG,
+  VRT or raw WMS as a QGIS layer ("Raw elevation inputs"); **API keys** behind a key icon
   (Mapbox, MapTiler, HERE, Google, Cesium ion, in QGIS's settings
   `terrain_viewer/<key>`): the three the service reads go into every layer's
   address, Mapbox and MapTiler serve the Python backend.
@@ -103,12 +126,14 @@ the tree's 25 modes computed in QGIS with numpy.
 | `terrain_viewer/widgets.py`, `settings_ui.py` | The slider with its box, the light pad, the selects with previews, the foldable section, the backend buttons; the slider ranges and symmetric pairs by parameter name |
 | `terrain_viewer/python_backend.py` | The Python backend under the tree: the service's modes, settings and sources mapped onto `live/` |
 | `terrain_viewer/assets.py`, `assets/`, `make_assets.py` | The ramp and matcap previews (sprite sheets) and the catalog snapshot, made from a running tile service: `python make_assets.py [http://localhost:3400]` |
-| `test_panel_units.py` | No service, no network: slider ranges, links, the Python mapping, the assets, the light pad: `QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py` |
+| `test_panel_units.py` | No service, no network: slider ranges, links, the Python mapping, the assets, the light pad, the panel's order and backends, the source groups, the labels, plugins.xml and an update installed: `QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py` |
+| `test_sources.py` | Network: the library's raw elevation read by the Python backend (NRCan's COG, IGN's raw WMS, a WCS, an ArcGIS image service), the panel drawing them and never Mapterhorn in their place, the raw inputs as QGIS layers: `QT_QPA_PLATFORM=offscreen python-qgis test_sources.py` |
+| `terrain_viewer/updates.py` | Updates: `plugins.xml` read, a zip checked and unpacked over the plugin (the panel's Update button) |
 | `terrain_viewer/local_server.py` | The local tile service (installed, or a `server/` folder): started on 127.0.0.1, stopped on unload or when QGIS goes |
 | `terrain_viewer/service_install.py`, `service_pins.json` | The **Install** button: the pinned bundle downloaded through QGIS's network manager, its sha256 checked, unpacked into the plugin's data folder; **Remove** |
 | `terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.svg` | The QGIS plugin around it |
 | `send2map_app/` | The "Open in" plugin: `destinations.py` (the URL builders, no QGIS import), `send2map_apptool.py` (the canvas as a camera, the map tool, opening a URL or a KML), `send2map_app.py` (toolbar, Web menu, canvas right-click menu) |
-| `make_zip.py` | The installable zips, the tile service bundles (`--service-bundle`) and their pins (`--pins`) |
+| `make_zip.py` | The installable zips, the tile service bundles (`--service-bundle`), their pins (`--pins`) and the plugin repository (`--plugins-xml`) |
 | `test_plugin.py` | A headless check of `terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
 | `test_service_paths.py` | The plain zip unzipped into a temporary plugins folder and driven through the panel in headless QGIS: `installed` (Install from a bundle served locally, or the real pinned download; a tampered download refused; Connect, a slope tile, the unresponsive warnings, Remove) or `external` (an address, the desktop app's): `QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-<version>.zip [dist/terrain-viewer-tile-service-windows-x64.zip]`, or `... external dist/terrain_viewer-<version>.zip http://localhost:3400 [--stop "<command>"]` |
 | `smoke_bundled.py` | A service bundle started without QGIS (the build runners): `python -I smoke_bundled.py dist/terrain-viewer-tile-service-<platform>.zip` |
@@ -116,4 +141,4 @@ the tree's 25 modes computed in QGIS with numpy.
 | `test_send2map.py` | A headless check of `send2map_app`, no network: `QT_QPA_PLATFORM=offscreen python-qgis test_send2map.py` |
 | `test_open_in.py`, `open_in_reference.mjs` | `send2map_app`'s destinations against the web app's (`open-in-links.tsx`, evaluated by Node): `python test_open_in.py`, no QGIS |
 
-Before publishing on plugins.qgis.org, `metadata.txt` needs an `email`.
+Not published on plugins.qgis.org, which requires an `email` in `metadata.txt`: updates come from the project's own plugin repository (above).

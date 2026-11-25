@@ -19,6 +19,12 @@ downloads:
       -> terrain_viewer/service_pins.json: that release's address and, per
          platform, the bundle in <folder>, its sha256 and size (the plugin
          downloads nothing else). Written before the plain zip is built.
+  python make_zip.py --plugins-xml <release-tag> [folder]
+      -> <folder>/plugins.xml (dist/ by default): a QGIS plugin repository
+         listing both plugins, their zips (already built in that folder) at
+         that release, with their sha256. The release workflow attaches it
+         to the release and to the fixed release qgis-plugins-repository,
+         whose plugins.xml QGIS and the panel's update check read.
   python make_zip.py --server-dir <platform> <folder>
       -> that folder holds the same tile service unzipped (bin/node,
          server.mjs, node_modules...): what the desktop app ships
@@ -263,9 +269,79 @@ def write_pins(release, folder):
     return pins
 
 
+REPOSITORY_TAG = "qgis-plugins-repository"  # the fixed release whose plugins.xml QGIS is pointed at
+
+
+def plugins_xml(release, folder=None):
+    """dist/plugins.xml: a QGIS plugin repository listing both plugins of
+    `release`, their zips in `folder` (dist/ by default) downloaded from that
+    release. QGIS keys a plugin by <file_name> before its first dot, so it is
+    "<folder name>.<version>.zip" (the plugin's folder: terrain_viewer),
+    whatever the asset is called. <sha256> is ours (QGIS ignores it): the
+    panel checks a download against it. No email: the author is Iconem."""
+    from xml.sax.saxutils import escape
+    folder = folder or os.path.join(here, "dist")
+    today = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    entries = []
+    for name in PLUGINS:
+        meta = configparser.ConfigParser(interpolation=None)
+        meta.read(os.path.join(here, name, "metadata.txt"), encoding="utf-8")
+        g = meta["general"]
+        version = g["version"]
+        zip_name = f"{name}-{version}.zip"
+        path = os.path.join(folder, zip_name)
+        if not os.path.exists(path):
+            sys.exit(f"{path} missing: build the zips first (python make_zip.py)")
+        with open(path, "rb") as f:
+            sha = hashlib.sha256(f.read()).hexdigest()
+        raw = f"https://raw.githubusercontent.com/{REPOSITORY}/main/qgis-plugin/{name}/{g.get('icon', 'icon.svg')}"
+
+        def t(tag, value):
+            return f"    <{tag}>{escape(str(value))}</{tag}>"
+        entries.append("\n".join([
+            f'  <pyqgis_plugin name="{escape(g["name"])}" version="{version}" plugin_id="{name}">',
+            f"    <description><![CDATA[{g.get('description', '')}]]></description>",
+            f"    <about><![CDATA[{g.get('about', '')}]]></about>",
+            t("version", version),
+            t("trusted", "False"),
+            t("qgis_minimum_version", g.get("qgisMinimumVersion", "3.0")),
+            t("qgis_maximum_version", g.get("qgisMaximumVersion", "3.99")),
+            t("homepage", g.get("homepage", "")),
+            t("file_name", f"{name}.{version}.zip"),
+            t("icon", raw),
+            t("author_name", g.get("author", "Iconem")),
+            t("download_url", f"https://github.com/{REPOSITORY}/releases/download/{release}/{zip_name}"),
+            t("sha256", sha),
+            t("uploaded_by", "Iconem"),
+            t("create_date", today),
+            t("update_date", today),
+            t("experimental", g.get("experimental", "False")),
+            t("deprecated", g.get("deprecated", "False")),
+            t("tracker", g.get("tracker", "")),
+            t("repository", g.get("repository", "")),
+            t("tags", g.get("tags", "")),
+            t("downloads", 0),
+            t("average_vote", 0),
+            t("rating_votes", 0),
+            t("external_dependencies", ""),
+            t("server", g.get("server", "False")),
+            t("supports_qt6", g.get("supportsQt6", "False")),
+            "  </pyqgis_plugin>"]))
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n<plugins>\n' + "\n".join(entries) + "\n</plugins>\n"
+    out = os.path.join(folder, "plugins.xml")
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(xml)
+    print(out)
+    return out
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
-    if args[:1] == ["--server-dir"]:
+    if args[:1] == ["--plugins-xml"]:
+        if len(args) not in (2, 3):
+            sys.exit("usage: make_zip.py --plugins-xml <release-tag> [folder]")
+        plugins_xml(args[1], os.path.abspath(args[2]) if len(args) == 3 else None)
+    elif args[:1] == ["--server-dir"]:
         if len(args) != 3:
             sys.exit("usage: make_zip.py --server-dir <platform> <folder>")
         stage_server(args[1], os.path.abspath(args[2]))

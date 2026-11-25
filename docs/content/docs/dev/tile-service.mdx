@@ -84,7 +84,7 @@ The STAC Item of a tile (any raster export's address plus `.stac.json`):
 http://localhost:3400/terrain-tiles/mapterhorn/12/2133/1449.png.stac.json?modes=slope
 ```
 
-The terrain sources, by id (what `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take; one with its description: `/terrain-sources/{id}`; the old address `/sources` still answers):
+The terrain sources, by id (what `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take; one with its description: `/terrain-sources/{id}`):
 
 ```text
 http://localhost:3400/terrain-sources
@@ -146,7 +146,7 @@ Refused together: `basemap` with `/terrain-tiles`, a terrain mode with `/basemap
 
 ### Removed addresses
 
-`/tiles/{z}/{x}/{y}` (every extension) and `/modes` were removed on 2026-11-24 and answer 404 with the address to use: `/terrain-tiles/...` for the elevation modes, `/basemap-tiles/...` for the imagery, `/processes` and `/view` for `/modes`. titiler's tile addresses were removed on 2026-11-25 and answer 404 the same way: `/tiles/WebMercatorQuad/{z}/{x}/{y}` (ask `/terrain-tiles/{z}/{x}/{y}`) and `/WebMercatorQuad/tilejson.json` (ask `/tilejson.json`). `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}`, removed the same day, came back on 2026-11-25 as a documented address: it answers what `/render.{format}?bbox=…&width=…&height=…` answers, and `/render` stays for centred viewports.
+`/tiles/{z}/{x}/{y}` (every extension) and `/modes` were removed on 2026-11-24 and answer 404 with the address to use: `/terrain-tiles/...` for the elevation modes, `/basemap-tiles/...` for the imagery, `/processes` and `/view` for `/modes`. titiler's tile addresses were removed on 2026-11-25 and answer 404 the same way: `/tiles/WebMercatorQuad/{z}/{x}/{y}` (ask `/terrain-tiles/{z}/{x}/{y}`) and `/WebMercatorQuad/tilejson.json` (ask `/tilejson.json`). `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}`, removed the same day, came back on 2026-11-25 as a documented address: it answers what `/render.{format}?bbox=…&width=…&height=…` answers, and `/render` stays for centred viewports. `/sources` and `/sources/{id}`, the old addresses of `/terrain-sources` (renamed on 2026-11-25, kept a day as a deprecated alias), were removed on 2026-11-26: they answer 404 (the QGIS plugin asks `/terrain-sources` since 0.8.0 and no longer falls back).
 
 ## Names, not addresses
 
@@ -154,7 +154,7 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 
 | Address | Lists |
 |---|---|
-| `/terrain-sources`, `/terrain-sources/{id}` | The 141 terrain sources: built-in and library, with type, tile address, zoom range, extent, and the engine that can draw each. First in the Terrain tiles group of the API reference, as `/basemaps` opens Basemap tiles. The old address, `/sources` (until 2026-11-25), still answers as a deprecated alias |
+| `/terrain-sources`, `/terrain-sources/{id}` | The terrain sources: built-in and library, with type, tile address (`url`, a plain pyramid's template), raw address (`address`, with `tileSize` and `nodataFloor`: a keyless COG's, VRT's or raw WMS, WCS or ArcGIS service's, what GDAL can open; the QGIS plugin's Python backend reads it), zoom range, extent, and the engine that can draw each. First in the Terrain tiles group of the API reference, as `/basemaps` opens Basemap tiles |
 | `/colorramps`, `/colorramps/{id}` | The app's 268 colour ramps, to name as `colorRamp` (colour relief) or `slopeColorRamp` (slope); one ramp gives its stops |
 | `/colorramps/{id}.png` or `.jpg` | A ramp as a picture, coloured as the map colours it (MapLibre's colour relief: linear between the stops): `width` and `height` (256 × 16 by default, 16 × 256 vertical), `orientation=vertical` (the lowest value at the bottom; horizontal: on the left), `reverse=true`. PNG keeps the ramp's transparency, JPEG is on white. For a legend or a ramp picker |
 | `/basemaps` | What `/basemap-tiles/{source}/…` takes: the dated imagery and the built-in basemaps, each with the parameter it stands for and its API key |
@@ -494,11 +494,30 @@ The direct engine reads every source type the app reads, with the app's own read
 | Difference (nDSM, change) | `demdiff://` over its two operands, each read as above |
 | TileJSON | The manifest's tile template |
 
-Mapbox, MapTiler and Cesium ion are read with your API key (`mapboxKey`, `maptilerKey`, `cesiumIonKey`); without one neither engine can draw them, and a key the provider refuses gives an error that says so. Not read in the server, so drawn by the browser: a file picked in the browser (`cog-local`), a source whose address is not https (one demo entry of the library), STAC and MosaicJSON entries (none among the terrain sources), and a COG or VRT that does not answer. `/sources` gives each source its engine, and the reason when it is the browser.
+Mapbox, MapTiler and Cesium ion are read with your API key (`mapboxKey`, `maptilerKey`, `cesiumIonKey`); without one neither engine can draw them, and a key the provider refuses gives an error that says so. Not read in the server, so drawn by the browser: a file picked in the browser (`cog-local`), a source whose address is not https (one demo entry of the library), STAC and MosaicJSON entries (none among the terrain sources), and a COG or VRT that does not answer. `/terrain-sources` gives each source its engine, and the reason when it is the browser.
+
+### Any elevation of your own
+
+`terrainSource` (or a source id in the path) takes, besides the ids of `/terrain-sources`:
+
+| What you have | Give it as | Read by |
+|---|---|---|
+| An https COG or VRT | its address: `terrainSource=https://example.org/dem.tif` (a `.tif` is read as a COG, a `.vrt` as a VRT) | `cog://`, `vrt://` (Range requests) |
+| Terrarium or Terrain-RGB tiles | the template: `terrainSource=https://example.org/{z}/{x}/{y}.png` | the tiles decoded in the server |
+| A raw WMS, WCS or ArcGIS image service (Float32 GeoTIFF answers) | a JSON configuration with the app's `{bbox-epsg-3857}` placeholder: `terrainSource={"url":"https://example.org/wms?SERVICE=WMS&REQUEST=GetMap&LAYERS=dem&FORMAT=image/geotiff&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=514&HEIGHT=514","type":"wms-raw"}` | `float32dem://`, one request per tile |
+| A GeoTIFF or VRT on the service's own machine | registered first (below), then `terrainSource=file:<id>` | the VRT reader, from the registered file |
+
+A file path is never accepted in an address. The QGIS plugin does this for you: a raster layer of the project picked as the source is registered with a service on the same machine, an https COG or VRT goes as its address ([QGIS Plugins](/dev/qgis-plugin#any-gdal-source)).
 
 ### Local files
 
 A GeoTIFF (COG or not) or a GDAL VRT on the service's own machine is a source once it is registered (`tile-server/files.mjs`, since 2026-11-25): the QGIS plugin hands over its raster layer's file this way.
+
+How to, in three steps:
+
+1. Register the file from the same machine (`POST /files` with its absolute path as JSON); the answer names its id and the source to give.
+2. Ask any tile, picture or values of it with `terrainSource=file:<id>` in the query.
+3. Forget it with `DELETE /files/<id>`, or let it be: the id stays valid while the file is unchanged (size and modification time), across restarts.
 
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{"path": "C:/data/lidar.tif"}' http://127.0.0.1:3400/files
