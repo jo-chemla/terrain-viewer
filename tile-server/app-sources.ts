@@ -14,6 +14,7 @@
 //   demdiff://         the difference of two sources (nDSM, change)
 //   pmtiles://         a PMTiles archive
 //   epsg3395://        tiles cut in World Mercator
+//   epsg4326://        tiles on the geographic WGS84 grid
 //
 // Plain https pyramids, titiler tiles and TileJSON manifests need no protocol.
 // geotiff.js decodes on the calling thread here: the app's own pools only
@@ -26,7 +27,7 @@ import { vrtProtocol, getVrtInfo } from "../lib/vrt-protocol"
 import { demDiffProtocol } from "../lib/demdiff-protocol"
 import { lercProtocol } from "../lib/lerc-protocol"
 import { quantizedMeshProtocol } from "../lib/quantized-mesh-protocol"
-import { epsg3395Protocol } from "../lib/epsg3395-protocol"
+import { epsg3395Protocol, epsg4326Protocol } from "../lib/epsg3395-protocol"
 import { loadTileBitmap } from "../lib/normal-derived-protocol"
 import { zoomRangeFromMetadata } from "../lib/cog-metadata"
 import { resolveNodata } from "../lib/nodata"
@@ -51,6 +52,7 @@ export function registerSourceProtocols(): void {
   registerProtocol("quantized-mesh", quantizedMeshProtocol)
   registerProtocol("pmtiles", new PmtilesProtocol().tile)
   registerProtocol("epsg3395", epsg3395Protocol)
+  registerProtocol("epsg4326", epsg4326Protocol)
   // A WMS GetMap per tile (lib/normal-derived-protocol.ts's pseudo-scheme,
   // which the app's decoders resolve before the registry): registered here
   // too, so that any template a spec returns can be dispatched (contours).

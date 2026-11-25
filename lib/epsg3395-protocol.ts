@@ -88,12 +88,59 @@ export async function epsg3395Protocol(params: { url: string }, abortController:
     const y3857 = HALF - (y * TILE + r + 0.5) * res
     rows[r] = (HALF - northing3395(latFrom3857(y3857))) / res - 0.5
   }
-  const first = Math.max(0, Math.floor(rows[0])), last = Math.min(n * TILE - 1, Math.ceil(rows[TILE - 1]))
+  return { data: await resampleRows(template, z, x, rows, n * TILE, abortController.signal) }
+}
+
+// Tiles cut in EPSG:4326 on the geographic tile grid ArcGIS uses for a
+// WGS84 cache (and WMTS's WorldCRS84Quad): origin (-180, 90), 256 px tiles,
+// level L spans 180 / 2^L degrees per tile, so level 0 is 2 x 1 tiles. A
+// hosted ArcGIS Online tile layer published in 4326 (TilesOnly: no export
+// endpoint to ask for 3857) is only readable this way. Registered as
+// `epsg4326://`:
+//
+//   epsg4326://<encoded template>/{z}/{x}/{y}
+//
+// The Web Mercator tile (z, x, y) reads level L = z - 1, where a 4326 tile is
+// exactly as wide as the Mercator tile and on the same column x (both grids
+// start at -180). Its longitude resolution matches; its latitude resolution
+// is the Mercator one at the equator, finer than needed elsewhere (by
+// cos(lat)), so the rows are resampled as for 3395: for each output row, the
+// 4326 pixel row of that latitude, interpolated between its two neighbours.
+const URL_4326_RE = /^epsg4326:\/\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)$/
+
+export function buildEpsg4326Url(template: string): string {
+  return `epsg4326://${encodeURIComponent(template)}/{z}/{x}/{y}`
+}
+
+export async function epsg4326Protocol(params: { url: string }, abortController: AbortController): Promise<{ data: TileImage }> {
+  const m = params.url.match(URL_4326_RE)
+  if (!m) throw new Error(`Invalid epsg4326 protocol URL: ${params.url}`)
+  const template = decodeURIComponent(m[1])
+  const z = +m[2], x = +m[3], y = +m[4]
+  if (z < 1) return { data: await toTileImage(new Uint8ClampedArray(TILE * TILE * 4), TILE) }
+  const level = z - 1
+  const n = 1 << z
+  const res = (2 * HALF) / (TILE * n)
+  const degPerPx = 180 / (TILE * (1 << level))
+  const rows = new Float64Array(TILE)
+  for (let r = 0; r < TILE; r++) {
+    const lat = (latFrom3857(HALF - (y * TILE + r + 0.5) * res) * 180) / Math.PI
+    rows[r] = (90 - lat) / degPerPx - 0.5
+  }
+  return { data: await resampleRows(template, level, x, rows, (1 << level) * TILE, abortController.signal) }
+}
+
+/** One output tile from the source tiles of column `x` at source level
+ *  `zSrc`: output row r is source pixel row rows[r] (global, fractional),
+ *  interpolated between its two neighbours. `nRows` is the source grid's
+ *  height in pixels at that level. */
+async function resampleRows(template: string, zSrc: number, x: number, rows: Float64Array, nRows: number, signal: AbortSignal): Promise<TileImage> {
+  const first = Math.max(0, Math.floor(rows[0])), last = Math.min(nRows - 1, Math.ceil(rows[TILE - 1]))
   const tyFirst = Math.floor(first / TILE), tyLast = Math.floor(last / TILE)
 
   const tiles = new Map<number, Pixels | null>()
-  await Promise.all(Array.from({ length: tyLast - tyFirst + 1 }, (_, i) => tyFirst + i).map(async (ty) => {
-    tiles.set(ty, await fetchSourceTile(tileUrl(template, z, x, ty), abortController.signal).catch(() => null))
+  await Promise.all(Array.from({ length: Math.max(0, tyLast - tyFirst + 1) }, (_, i) => tyFirst + i).map(async (ty) => {
+    tiles.set(ty, await fetchSourceTile(tileUrl(template, zSrc, x, ty), signal).catch(() => null))
   }))
 
   const out = new Uint8ClampedArray(TILE * TILE * 4) as Pixels
@@ -104,8 +151,8 @@ export async function epsg3395Protocol(params: { url: string }, abortController:
   }
   for (let r = 0; r < TILE; r++) {
     const py = rows[r]
-    const p0 = Math.max(0, Math.min(n * TILE - 1, Math.floor(py)))
-    const p1 = Math.min(n * TILE - 1, p0 + 1)
+    const p0 = Math.max(0, Math.min(nRows - 1, Math.floor(py)))
+    const p1 = Math.min(nRows - 1, p0 + 1)
     const t = Math.max(0, Math.min(1, py - p0))
     const a = rowOf(p0), b = rowOf(p1)
     const o = r * TILE * 4
@@ -117,5 +164,5 @@ export async function epsg3395Protocol(params: { url: string }, abortController:
     }
     for (let i = 0; i < TILE * 4; i++) out[o + i] = a.px[a.off + i] + (b.px[b.off + i] - a.px[a.off + i]) * t
   }
-  return { data: await toTileImage(out, TILE) }
+  return toTileImage(out, TILE)
 }

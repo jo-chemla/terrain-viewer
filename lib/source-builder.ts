@@ -4,7 +4,7 @@
 // COG-vs-titiler branch duplicated in RasterBasemapSource.
 import { appendNodataMarkers, type NodataConfig } from "./nodata"
 import { buildVrtUrl, isCellRoutedUrl } from "./vrt-protocol"
-import { buildEpsg3395Url } from "./epsg3395-protocol"
+import { buildEpsg3395Url, buildEpsg4326Url } from "./epsg3395-protocol"
 import { fillKeyPlaceholders } from "./key-placeholders"
 import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 
@@ -153,9 +153,11 @@ export function buildRasterTileSource(params: {
     // template — nothing to route through titiler or a custom protocol. One
     // exception: an `epsg3395://` template (Yandex: tiles cut in World
     // Mercator) is wrapped for the protocol that resamples its rows onto
-    // Web Mercator (lib/epsg3395-protocol.ts).
+    // Web Mercator (lib/epsg3395-protocol.ts); likewise `epsg4326://`, tiles
+    // on the geographic WGS84 grid (an ArcGIS Online cache in 4326).
     default:
       if (/^epsg3395:\/\//.test(url)) return { tiles: [buildEpsg3395Url(url.replace(/^epsg3395:\/\//, ""))] }
+      if (/^epsg4326:\/\//.test(url)) return { tiles: [buildEpsg4326Url(url.replace(/^epsg4326:\/\//, ""))] }
       return { tiles: [url], ...(scheme === "tms" ? { scheme } : {}) }
   }
 }

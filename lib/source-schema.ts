@@ -62,7 +62,7 @@ export interface SourceEntryBase {
   order?: number
   /** The address: a tile template with {z}/{x}/{y} (or {bbox-epsg-3857}), a
    *  COG / VRT / TileJSON / annotation URL, one of the app's prefixes
-   *  (pmtiles://, epsg3395://, gem15://...), or, for type "cog-local" /
+   *  (pmtiles://, epsg3395://, epsg4326://, gem15://...), or, for type "cog-local" /
    *  "image-local", a `local://<id>` placeholder (lib/local-file-store.ts):
    *  the File itself only lives in this session. */
   url: string
