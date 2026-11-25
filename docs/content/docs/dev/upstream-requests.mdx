@@ -41,6 +41,11 @@ What we need from projects we depend on, written once, kept here, and linked whe
 | GeoJSON export applying the GeoTIFF geotransform; tiled rendering of large COGs with a compare image | labelme, a comment on [issue 2209](https://github.com/wkentaro/labelme/issues/2209#issuecomment-6143351751) and [discussion 2763](https://github.com/wkentaro/labelme/discussions/2763) | Posted 2026-10-13 and 2026-10-15 |
 | A generic change detection mode: pair table, second COG layer with flicker and swipe, configurable classes | GeoLabel, [deadtrees-frontend issue 158](https://github.com/Deadwood-ai/deadtrees-frontend/issues/158) | Posted 2026-10-16 |
 
+## maplibre-cog-protocol: the pictures of issue 56
+
+The two pictures posted on [issue 56](https://github.com/geomatico/maplibre-cog-protocol/issues/56), side by side: the same 10 cm DSM at z22.5, past its finest level (z20). On the left the source declares `maxzoom` 24, so the protocol fills each tile from the finest level by nearest neighbour and the contours and hillshade break into blocks; on the right the source ends at z20 and MapLibre overzooms the last tile itself, smoothly. The fix we kept is the right one: no explicit `maxzoom` on a source declared by `url`.
+
+![maplibre-cog-protocol 0.10.0 with source maxzoom 24 (left): z22.5 tiles filled from the COG's finest level by nearest neighbour, blocky contours and hillshade; source maxzoom 20 (right): MapLibre 6.13 overzooms the last tile, a smooth hillshade](/screenshots/upstream/cog-upsampling-comparison.png)
 ## MapLibre GL JS: a reply on issue 48
 
 [Posted 2026-11-15](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6894105178) under [birkskyum's mask example](https://github.com/maplibre/maplibre-gl-js/issues/48#issuecomment-6867399179) on [issue 48](https://github.com/maplibre/maplibre-gl-js/issues/48), after layer blending shipped in 6.18. The draft:

@@ -11,7 +11,7 @@ description: What glihtdata.gsfc.nasa.gov and LP DAAC serve, what the KMZ pictur
 
 - **The KMZ pictures are elevation, not a hillshade.** Each DTM KMZ is a GDAL super-overlay of PNG tiles whose grey is the 1 m bare earth, linearly stretched: black at (or just above) the raster's minimum, white at its 99.9th percentile. Measured on 2026-11-25 against the Float32 GeoTIFFs of eight campaigns (below), the grey decodes back to the GeoTIFF at the 8-bit step: 0.01 to 0.2 m RMS, 0.9 m on a 750 m mountain. The stretch is per KMZ (every tile of a KMZ gives the same fit) and written nowhere in it, and its low end is not a fixed percentile, so heights need the two numbers measured once against the GeoTIFF; without them the grey is still the relief's shape, up to a scale.
 - **The app reads the KMZs in place** (`gliht://`, `lib/gliht-kmz.ts`): the zip's central directory by HTTP Range, then only the PNG tiles of the level a map tile needs, warped from their lon/lat quads to Web Mercator. Any campaign as a greyscale overlay from the coverage popup (**Use as overlay**), and the three Kiuic blocks as **terrain** (heights decoded with their measured stretch) and overlays in the library.
-- **CORS**: the host still sends none. By default (since 2026-11-25) the app reads through the tile service's allow-listed proxy on the same computer, `http://localhost:3400/proxy/gliht` (**Settings > G-LiHT address**, see [Tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)); when it does not answer, a message says so and NASA's host is read directly, which works with a CORS-unblocking browser extension. Until 2026-11-25 the extension route showed nothing: the reader's first request was a suffix Range, which needs a preflight the extensions do not approve ([below](#cors-why-an-unblocking-extension-showed-nothing)).
+- **CORS**: the host still sends none. By default (since 2026-11-25) the app reads through the tile service's allow-listed proxy on the same computer, `http://localhost:3400/proxy/gliht` (**Settings > G-LiHT address**, see [Tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)); when it does not answer, a message says so and NASA's host is read directly, which works with a CORS-unblocking browser extension. Until 2026-11-25 the extension route showed nothing: the reader's first request was a suffix Range, which needs a preflight the extensions do not approve ([below](#cors-why-an-unblocking-extension-showed-nothing)). Set the extension up for this one host, not for every site, and keep it off otherwise: [a CORS extension, one host at a time](#a-cors-extension-one-host-at-a-time).
 - **Raw Float32 through Earthdata**: LP DAAC's cloud copy (`GLDTMT`, 22 093 DTM granules) is the same GeoTIFFs as NASA's gzipped files, uncompressed, so they are range-readable, but only with an Earthdata login and with no CORS. The tile service's `/proxy/earthdata` holds the token (`EARTHDATA_TOKEN`, never in the browser) and writes a VRT over a granule for the app's `vrt://` reader. Not a COG: no overviews, so usable from about z16.
 - **Canopy height** is in the same packaging (KMZ, gzip, `GLCHMT`), not wired: not asked for.
 
@@ -83,6 +83,24 @@ Checked in Chrome 158 (headless) against a local server answering like the exten
 
 So since 2026-11-25, on NASA's host itself, `openZip` asks a `HEAD` (`Content-Length` is a safelisted response header) and then the tail as `bytes=<length − 65557>-<length − 1>`; every later read was already `bytes=start-end`; and nothing reads `Content-Range` any more (where the tail sits in the file follows from the end record: it starts at the directory's offset plus its size, minus the record's place in the tail). With only `Access-Control-Allow-Origin` added, every request is now a simple one. Through a proxy (which allows `Range`) the single suffix request stays. Tested against the real host with the browser's rules applied to the answers (no suffix range, no `Content-Range`): a Kiuic 1 tile at z14 over 20.09, -89.56 in 5 requests, 39 197 pixels, 82.8 to 153.4 m; `lib/gliht-kmz.test.ts` replays the same rules offline. Not tried with the extension itself in a real browser.
 
+### A CORS extension, one host at a time
+
+A CORS-unblocking extension is a blunt tool. Switched on with its defaults, it adds `Access-Control-Allow-Origin: *` to the answers of every site, and that already breaks sites that send cookies or other credentials across origins: the browser refuses a credentialed answer whose allowed origin is `*`, so logins, embedded widgets and APIs on unrelated sites can fail for as long as it is on. Three habits keep it harmless:
+
+- **One rule per host, not a global switch.** Use an extension that adds response headers for a URL filter (a CORS extension that takes a list of sites, or a header editor such as Requestly or ModHeader), and add a rule for `glihtdata.gsfc.nasa.gov` only:
+
+  ```text
+  URL filter:  https://glihtdata.gsfc.nasa.gov/*
+  Response headers:
+    Access-Control-Allow-Origin: *
+    Access-Control-Allow-Headers: range
+    Access-Control-Expose-Headers: content-range, content-length
+  ```
+
+  `Access-Control-Allow-Origin` is what lets the page read the answer. `Access-Control-Allow-Headers: range` lets a `Range` request through its preflight: since 2026-11-25 the reader sends only simple ranges, which need none, but a suffix range or another reader would ([above](#cors-why-an-unblocking-extension-showed-nothing)). Exposing `Content-Range` costs nothing. NASA's host sets no cookies, so `*` is safe there.
+- **Another host gets its own rule** when another source needs one, rather than widening the first rule to every site.
+- **Keep the extension off when you do not need it.** The tile service's proxy (**Settings > G-LiHT address**, [Tile service](/dev/tile-service#cors-proxy-for-nasa-g-liht)) needs no extension at all, and LP DAAC's Earthdata copy cannot be read through an extension anyway: it wants a token, which only the proxy adds.
+
 ### The tiles KMZ
 
 `<campaign>_tiles.kmz` (2.7 kB) is one KML of `Placemark`s, one per cell (`l0s397`, `c0r0`…): its centre point and its footprint polygon. The protocol reads it for the per-cell campaigns, to open only the cell KMZs a tile touches.
@@ -113,7 +131,7 @@ Measured through the proxy: a first Kiuic 1 tile at z16 takes 9 requests and 0.9
 
 - **By default, `http://localhost:3400/proxy/gliht`**, the tile service on the same computer (`cd tile-server && pnpm start`). The deployed app is `https`, but `http://localhost` is a potentially trustworthy origin (Secure Contexts), so Chrome, Edge and Firefox do not block it as mixed content. Chrome 142+ asks once for **local network access** (a public site reaching the computer itself); refused, the requests fail like a stopped service. The proxy's preflight answer also carries `Access-Control-Allow-Private-Network: true`, for browsers still on Private Network Access. Safari was not checked. This follows the standards; it was not tried on the deployed site from here (the agent browser draws no map).
 - **When the proxy does not answer** (not started, access refused): a message says so once, and the tiles are read from NASA's host directly, the proxy being tried again 30 s later. With a CORS-unblocking extension the map then fills; without one a second message says to start the service or turn on an extension. No silent empty tiles.
-- **Empty** (the field cleared, or its **clear** link): NASA's host only, which needs a CORS-unblocking extension.
+- **Empty** (the field cleared, or its **clear** link): NASA's host only, which needs a CORS-unblocking extension, set up for that host only ([how](#a-cors-extension-one-host-at-a-time)).
 - Another tile service's `<server>/proxy/gliht` (a link fills it from the Tile Service field), or any CORS proxy written as a template with `{url}` (`https://proxy.example/?url={url}`, the full glihtdata address goes in, encoded).
 
 **In the app**:
