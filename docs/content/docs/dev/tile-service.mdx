@@ -57,7 +57,7 @@ Refused together: `basemap` with `/terrain-tiles`, a terrain mode with `/basemap
 
 ### Removed addresses
 
-`/tiles/{z}/{x}/{y}` (every extension) and `/modes` were removed on 2026-11-24 and answer 404 with the address to use: `/terrain-tiles/...` for the elevation modes, `/basemap-tiles/...` for the imagery, `/processes` and `/view` for `/modes`. titiler's `/tiles/WebMercatorQuad/...` is a different address and still answers, as `/terrain-tiles`.
+`/tiles/{z}/{x}/{y}` (every extension) and `/modes` were removed on 2026-11-24 and answer 404 with the address to use: `/terrain-tiles/...` for the elevation modes, `/basemap-tiles/...` for the imagery, `/processes` and `/view` for `/modes`. titiler's addresses were removed on 2026-11-25 and answer 404 the same way: `/tiles/WebMercatorQuad/{z}/{x}/{y}` (ask `/terrain-tiles/{z}/{x}/{y}`), `/WebMercatorQuad/tilejson.json` (ask `/tilejson.json`) and `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` (ask `/render.{format}?bbox={w},{s},{e},{n}&width={width}&height={height}`, which draws the same).
 
 ## Names, not addresses
 
@@ -205,21 +205,18 @@ What the standard has no slot for is an `x-tv-` property: the panel group (`x-tv
 
 **Execution.** A mode is run by asking for its tiles, not by the standard's `POST /processes/{id}/execution` and its jobs: a tile is a few milliseconds of work that a map asks hundreds of times, which a job queue would only slow down, and every GIS already reads XYZ tiles. So each description links its tile endpoints with rel `http://www.opengis.net/def/rel/ogc/1.0/execute`, templated, the inputs going into the query; the execution path answers 501 with the same links; and `/conformance` claims the process description class, not the Processes core class.
 
-## titiler's addresses
+## titiler's parameters
 
-A client written for [titiler](https://developmentseed.org/titiler/) needs few changes: the service answers at the same addresses, for Web Mercator only.
+A client written for [titiler](https://developmentseed.org/titiler/) keeps a few of its parameter names, for Web Mercator only. Its addresses are not answered (removed on 2026-11-25, see [Removed addresses](#removed-addresses)): ask `/terrain-tiles/{z}/{x}/{y}` for `/tiles/WebMercatorQuad/{z}/{x}/{y}`, `/tilejson.json` for `/WebMercatorQuad/tilejson.json` and `/render` with `bbox`, `width` and `height` for `/bbox/{w},{s},{e},{n}/{width}x{height}`.
 
 | titiler | Here |
 |---|---|
-| `/tiles/WebMercatorQuad/{z}/{x}/{y}@2x.png` | The same tile as `/terrain-tiles/{z}/{x}/{y}@2x.png` |
-| `/WebMercatorQuad/tilejson.json` | A TileJSON whose tile address keeps the parameters given; `tile_format`, `tile_scale` |
-| `/bbox/{w},{s},{e},{n}/{width}x{height}.png` | `/render` with `bbox`, `width`, `height` |
 | `url` | Read as `terrainSource` |
 | `algorithm` | Read as one name of `modes` |
 | `tilesize` | 256 or 512 |
 | `rescale`, `colormap_name`, `bidx`, `expression`, `nodata`, other tile matrix sets | Not read. The app's own parameters set the ramps |
 
-These are aliases kept for titiler clients. The API reference (`/docs`) does not list them as a group of their own: it names them in the description of `/terrain-tiles`, `/tilejson.json` and `/render`, the addresses to use.
+The API reference (`/docs`) names these in the description of `/terrain-tiles`.
 
 ## Provenance: a STAC Item for each export
 

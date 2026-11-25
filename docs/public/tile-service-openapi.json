@@ -268,7 +268,7 @@
         ],
         "operationId": "valueRender",
         "summary": "A mode's values over an area, as a Float32 GeoTIFF",
-        "description": "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `/bbox/{bbox}/{width}x{height}.tif` is the same with a box. `.png` with `encoding` packs them as for the tiles. Browsers do not display TIFF: Scalar's test request answers \"Preview unavailable\" and offers the file to download. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
+        "description": "Like a WCS GetCoverage: the values over a bounding box (exactly: `width` pixels across it, the height that keeps the pixels square in Web Mercator, at most 4096 a side) or around a centre (`lat`, `lng`, MapLibre `zoom`, `width`, `height`). `.png` with `encoding` packs them as for the tiles. Browsers do not display TIFF: Scalar's test request answers \"Preview unavailable\" and offers the file to download. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
         "parameters": [
           {
             "name": "bbox",
@@ -578,7 +578,7 @@
         ],
         "operationId": "terrainTile",
         "summary": "One XYZ tile of the elevation modes",
-        "description": "A 256 px Web Mercator tile of the modes computed from the elevation (every mode but `basemap`), stacked as described under `modes`. For 512 px write `{y}@2x` in the address or add `tilesize=512`. The camera is the tile's: `lat`, `lng`, `zoom`, `pitch` and `bearing` are not read. The imagery is at `/basemap-tiles`. titiler's `/tiles/WebMercatorQuad/{z}/{x}/{y}.{format}` (with `url` for the source and `algorithm` for one mode) answers the same tile. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
+        "description": "A 256 px Web Mercator tile of the modes computed from the elevation (every mode but `basemap`), stacked as described under `modes`. For 512 px write `{y}@2x` in the address or add `tilesize=512`. The camera is the tile's: `lat`, `lng`, `zoom`, `pitch` and `bearing` are not read. The imagery is at `/basemap-tiles`. titiler's `url` (the source) and `algorithm` (one mode) are read; its address `/tiles/WebMercatorQuad/...` was removed on 2026-11-25 (404). **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
         "parameters": [
           {
             "name": "z",
@@ -1013,7 +1013,7 @@
         ],
         "operationId": "stacItem",
         "summary": "The STAC Item of an export",
-        "description": "Any raster export's address plus `.stac.json`, with the same query: `/terrain-tiles/{z}/{x}/{y}.png|jpg|tif.stac.json`, `/basemap-tiles/{z}/{x}/{y}.jpg.stac.json`, `/render.png|tif.stac.json`, `/bbox/{w},{s},{e},{n}/{width}x{height}.tif.stac.json`. A STAC 1.1.0 Item with the Processing extension (v1.2.0): `bbox` and `geometry` of the export, `datetime` and `processing:datetime` the time of the answer, `processing:lineage` (a sentence: the source, the modes, their parameters), `processing:software` (`terrain-viewer tile-server` and its version), `processing:level` (`L3` for a map derived from the elevation), `processing:expression` (`format: x-tv-process`, the process ids and their inputs as executed), links `derived_from` the terrain source (its `/sources/{id}` entry and its tile template, or its address) or the imagery, `related` to each `/processes/{id}`, and the export as asset `data`. Computed from the address: nothing is drawn, and the caller's API keys are left out.",
+        "description": "Any raster export's address plus `.stac.json`, with the same query: `/terrain-tiles/{z}/{x}/{y}.png|jpg|tif.stac.json`, `/basemap-tiles/{z}/{x}/{y}.jpg.stac.json`, `/render.png|tif.stac.json`. A STAC 1.1.0 Item with the Processing extension (v1.2.0): `bbox` and `geometry` of the export, `datetime` and `processing:datetime` the time of the answer, `processing:lineage` (a sentence: the source, the modes, their parameters), `processing:software` (`terrain-viewer tile-server` and its version), `processing:level` (`L3` for a map derived from the elevation), `processing:expression` (`format: x-tv-process`, the process ids and their inputs as executed), links `derived_from` the terrain source (its `/sources/{id}` entry and its tile template, or its address) or the imagery, `related` to each `/processes/{id}`, and the export as asset `data`. Computed from the address: nothing is drawn, and the caller's API keys are left out.",
         "parameters": [
           {
             "name": "z",
@@ -1210,7 +1210,7 @@
         ],
         "operationId": "render",
         "summary": "A picture of a viewport",
-        "description": "Like a WMS GetMap: a picture of a given size, placed by its centre and zoom or by a bounding box. Unlike a tile it keeps the scale bar and the credits, and it can be tilted or split. titiler's `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` is the same with a box. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
+        "description": "Like a WMS GetMap: a picture of a given size, placed by its centre and zoom or by a bounding box. Unlike a tile it keeps the scale bar and the credits, and it can be tilted or split. titiler's `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` was removed on 2026-11-25 (404): ask `/render.{format}?bbox={w},{s},{e},{n}&width={width}&height={height}`. **Provenance:** the same address plus `.stac.json` (same query) answers a STAC Item of this export (STAC 1.1.0, Processing extension v1.2.0: its footprint, the source it was derived from, the process and parameters as executed, the software version), and the answer names it in a `Link: <...>; rel=\"describedby\"` header.",
         "parameters": [
           {
             "name": "format",
@@ -1570,7 +1570,7 @@
         ],
         "operationId": "tilejson",
         "summary": "A TileJSON for a view",
-        "description": "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg; pbf or mvt for the vector tiles, then TileJSON 3.0 with the `vector_layers` of the modes) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address, `/terrain-tiles` (`/basemap-tiles` for `modes=basemap`). `/WebMercatorQuad/tilejson.json` (titiler's address) is the same.",
+        "description": "The tile address for the given parameters, as a TileJSON document a map library can load. `tile_format` (png, jpg; pbf or mvt for the vector tiles, then TileJSON 3.0 with the `vector_layers` of the modes) and `tile_scale` (1, 2) choose the tiles; every other parameter is kept in the tile address, `/terrain-tiles` (`/basemap-tiles` for `modes=basemap`). titiler's `/WebMercatorQuad/tilejson.json` was removed on 2026-11-25 (404).",
         "parameters": [
           {
             "name": "tile_format",

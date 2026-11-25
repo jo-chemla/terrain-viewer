@@ -81,7 +81,7 @@ function assertStacItem(item) {
   assert.ok(tile.links.some((l) => l.rel === "derived_from" && l.href === "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"))
   assert.equal(tile.assets.data.type, "image/tiff; application=geotiff")
   assert.deepEqual(tile.assets.data.roles, ["data"])
-  const box = stacItem("http://h", "/bbox/7.6,45.95,7.7,46/800x600.tif", "?modes=svf&terrainSource=https://example.com/{z}/{x}/{y}.png", { now })
+  const box = stacItem("http://h", "/render.tif", "?modes=svf&terrainSource=https://example.com/{z}/{x}/{y}.png&bbox=7.6,45.95,7.7,46&width=800&height=600", { now })
   assertStacItem(box); assert.deepEqual(box.bbox, [7.6, 45.95, 7.7, 46])
   assert.ok(box.links.some((l) => l.rel === "derived_from" && l.href === "https://example.com/{z}/{x}/{y}.png"))
   // A picture of a box shows more than the box when the shapes differ.
@@ -311,8 +311,8 @@ function assertStacItem(item) {
   assert.equal([...project.matchAll(/<provider>gdal<\/provider>/g)].length, 15)
 }
 
-// Over HTTP: /terrain-tiles and /basemap-tiles, titiler's address, the old
-// /tiles and /modes gone (404), the OGC API landing page,
+// Over HTTP: /terrain-tiles and /basemap-tiles, the old /tiles and /modes
+// and titiler's addresses gone (404), the OGC API landing page,
 // conformance and process descriptions.
 {
   const { start } = await import("./server.mjs")
@@ -402,8 +402,8 @@ function assertStacItem(item) {
     const view = await json("/view?showTerrainAnalysis=true&slopeOpacity=0.5&terrainAnalysisOpacity=0.4&terrainSourceA=x")
     assert.ok(view.active.includes("slope")); assert.ok(Math.abs(view.opacity.slope - 0.2) < 1e-9); assert.equal(view.params.terrainSource, "x")
 
-    // Tiles: the address, titiler's, the old /tiles/{z}/{x}/{y} gone, and
-    // the modes refused on each.
+    // Tiles: the address, the old /tiles/{z}/{x}/{y} and titiler's
+    // addresses gone, and the modes refused on each.
     const tilePath = "/2/2/1.png?modes=slope&background=none"
     const fresh = await get(`/terrain-tiles${tilePath}`)
     assert.equal(fresh.status, 200, await fresh.clone().text().catch(() => ""))
@@ -411,10 +411,16 @@ function assertStacItem(item) {
     assert.equal(fresh.headers.get("deprecation"), null)
     assert.equal((await get(`/tiles${tilePath}`)).status, 404, "the old /tiles/{z}/{x}/{y} is removed")
     const titiler = await get(`/tiles/WebMercatorQuad${tilePath}`)
-    assert.equal(titiler.status, 200); assert.equal(titiler.headers.get("deprecation"), null)
-    assert.deepEqual(Buffer.from(await titiler.arrayBuffer()), Buffer.from(await fresh.arrayBuffer()), "titiler's address draws the same tile")
-    assert.equal((await get("/tiles/WebMercatorQuad/2/2/1.png?algorithm=slope")).status, 200)
-    assert.equal((await get("/tiles/WebMercatorQuad/2/2/1.pbf?modes=contours")).status, 200)
+    assert.equal(titiler.status, 404, "titiler's /tiles/WebMercatorQuad is removed"); assert.match(await titiler.text(), /\/terrain-tiles\//)
+    assert.equal((await get("/tiles/WebMercatorQuad/2/2/1.pbf?modes=contours")).status, 404)
+    assert.equal((await get("/tiles/WebMercatorQuad/2/2/1.png.stac.json?modes=slope")).status, 404)
+    const wmqTj = await get("/WebMercatorQuad/tilejson.json?modes=slope")
+    assert.equal(wmqTj.status, 404); assert.match(await wmqTj.text(), /\/tilejson\.json/)
+    const bboxRes = await get("/bbox/7.6,45.95,7.7,46/800x600.png?modes=slope")
+    assert.equal(bboxRes.status, 404); assert.match(await bboxRes.text(), /\/render\.\{format\}\?bbox=/)
+    assert.equal((await get("/bbox/7.6,45.95,7.7,46/800x600.tif.stac.json?modes=slope")).status, 404)
+    // titiler's parameter names are still read.
+    assert.equal((await get("/terrain-tiles/2/2/1.png?algorithm=slope")).status, 200)
     const vec = await get("/terrain-tiles/2/2/1.pbf?modes=contours")
     assert.equal(vec.status, 200); assert.equal(vec.headers.get("content-type"), "application/vnd.mapbox-vector-tile")
     assert.equal((await get("/tiles/2/2/1.pbf?modes=contours")).status, 404)

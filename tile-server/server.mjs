@@ -28,12 +28,11 @@
 //   anything else   passed to the app as a URL parameter, as is
 // /render also takes viewMode, pitch, bearing, split, terrainSourceB.
 //
-// The addresses of titiler are answered too, so a client written for it
-// needs few changes: /tiles/WebMercatorQuad/{z}/{x}/{y}[@2x].png,
-// /WebMercatorQuad/tilejson.json, /bbox/{w},{s},{e},{n}/{width}x{height}.png,
-// with `url` for the source, `algorithm` for one mode and `tilesize`. Only
-// Web Mercator; titiler's rescale, colormap, bidx and expression are not
-// read (the app's own parameters set the ramps).
+// titiler's parameter names are read too: `url` for the source,
+// `algorithm` for one mode and `tilesize`; its rescale, colormap, bidx and
+// expression are not (the app's own parameters set the ramps). Its
+// addresses (/tiles/WebMercatorQuad/..., /WebMercatorQuad/tilejson.json,
+// /bbox/...) were removed on 2026-11-25 and answer 404 naming ours.
 //
 // Two engines draw. `direct` computes the tile in Node from elevation tiles
 // with the app's own code (direct.mjs): every 2D terrain mode and overlay
@@ -500,7 +499,7 @@ async function handle(req, res) {
       // .stac.json, the same query. Computed from the address, nothing drawn.
       if (u.pathname.endsWith(STAC_SUFFIX)) {
         const item = stacItem(self, u.pathname.slice(0, -STAC_SUFFIX.length), u.search, { sources })
-        if (!item) return send(404, "text/plain", "A STAC Item describes a raster export: /terrain-tiles/{z}/{x}/{y}.png|jpg|tif, /basemap-tiles/..., /render.*, /bbox/..., plus .stac.json")
+        if (!item) return send(404, "text/plain", "A STAC Item describes a raster export: /terrain-tiles/{z}/{x}/{y}.png|jpg|tif, /basemap-tiles/..., /render.*, plus .stac.json")
         return send(200, "application/geo+json", JSON.stringify(item, null, 2), { "cache-control": "no-store" })
       }
       if (u.pathname === "/" && !wantsJson) return send(302, "text/plain", "See /docs", { location: "/docs" })
@@ -568,8 +567,7 @@ async function handle(req, res) {
       }))
       // Vector tiles: the same address, .pbf or .mvt, with modes among
       // direct.mjs VECTOR_MODES (unset: contours).
-      // titiler's /tiles/WebMercatorQuad/... is the same as /terrain-tiles.
-      const v = u.pathname.match(/^\/(?:tiles\/WebMercatorQuad\/|terrain-tiles\/)(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
+      const v = u.pathname.match(/^\/terrain-tiles\/(\d+)\/(\d+)\/(\d+)\.(pbf|mvt)$/)
       if (v) {
         const [z, x, y] = v.slice(1, 4).map(Number)
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
@@ -594,7 +592,7 @@ async function handle(req, res) {
         return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": EXPOSED, ...describedBy(self, u) })
       }
       if (/^\/basemap-tiles\//.test(u.pathname)) return send(404, "text/plain", "Basemap tiles are /basemap-tiles/{z}/{x}/{y}.jpg or .png (imagery has neither values nor vector tiles)")
-      const t = u.pathname.match(/^\/(?:tiles\/WebMercatorQuad\/|terrain-tiles\/)(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
+      const t = u.pathname.match(/^\/terrain-tiles\/(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
       if (t) {
         const [z, x, y] = t.slice(1, 4).map(Number)
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
@@ -613,7 +611,7 @@ async function handle(req, res) {
         const made = await tile(z, x, y, ext, u.search, t[4] === "@2x" ? 2 : 1)
         return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": EXPOSED, ...describedBy(self, u) })
       }
-      if (u.pathname === "/WebMercatorQuad/tilejson.json" || u.pathname === "/tilejson.json") {
+      if (u.pathname === "/tilejson.json") {
         const q = new URLSearchParams(u.search)
         const asked = q.get("tile_format"); q.delete("tile_format")
         const scale = q.get("tile_scale") === "2" ? "@2x" : ""; q.delete("tile_scale")
@@ -635,12 +633,10 @@ async function handle(req, res) {
           tiles: [`${self}/${basemap ? "basemap-tiles" : "terrain-tiles"}/{z}/{x}/{y}${scale}.${fmt}${qs ? "?" + qs : ""}`],
         }))
       }
-      const bb = u.pathname.match(/^\/bbox\/([-\d.,]+)\/(\d+)x(\d+)\.(png|jpg|jpeg|tif|tiff)$/)
       const r = u.pathname.match(/^\/render\.(png|jpg|jpeg|tif|tiff)$/)
-      if (bb || r) {
+      if (r) {
         const q = new URLSearchParams(u.search)
-        if (bb) { q.set("bbox", bb[1]); q.set("width", bb[2]); q.set("height", bb[3]) }
-        const asked = bb ? bb[4] : r[1]
+        const asked = r[1]
         if (asked.startsWith("tif") || q.get("encoding")) {
           const format = asked.startsWith("tif") ? "tif" : q.get("encoding")
           if (!VALUE_FORMATS.includes(format) || (format === "tif") !== asked.startsWith("tif")) return send(400, "text/plain", "Values come as .tif (Float32 GeoTIFF) or as .png?encoding=terrarium or terrainrgb")
@@ -654,6 +650,10 @@ async function handle(req, res) {
       // Removed on 2026-11-24 (deprecated the same day): say where they went.
       if (/^\/tiles\/\d/.test(u.pathname)) return send(404, "text/plain", "/tiles/{z}/{x}/{y} is removed: ask /terrain-tiles/{z}/{x}/{y} for the elevation modes and /basemap-tiles/{z}/{x}/{y} for the imagery")
       if (u.pathname === "/modes") return send(404, "text/plain", "/modes is removed: see /processes (each mode and its settings) and /view?<share query>")
+      // titiler's addresses, removed on 2026-11-25.
+      if (/^\/tiles\/WebMercatorQuad\//.test(u.pathname)) return send(404, "text/plain", "titiler's /tiles/WebMercatorQuad/{z}/{x}/{y} is removed: ask /terrain-tiles/{z}/{x}/{y}")
+      if (u.pathname === "/WebMercatorQuad/tilejson.json") return send(404, "text/plain", "/WebMercatorQuad/tilejson.json is removed: ask /tilejson.json")
+      if (/^\/bbox\//.test(u.pathname)) return send(404, "text/plain", "/bbox/{w},{s},{e},{n}/{width}x{height}.{format} is removed: ask /render.{format}?bbox={w},{s},{e},{n}&width={width}&height={height}")
       send(404, "text/plain", "Not found: see /")
     } catch (e) {
       if (e?.status === 499) return // the client went away: nobody to answer

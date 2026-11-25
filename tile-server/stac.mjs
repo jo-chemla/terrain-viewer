@@ -24,12 +24,10 @@ const round = (v) => Math.round(v * 1e7) / 1e7
 /** The raster export an address names, or null: which endpoint, its
  *  format, and its footprint where the path gives it. */
 export function exportOf(pathname) {
-  let m = pathname.match(/^\/(?:tiles\/WebMercatorQuad\/|terrain-tiles\/)(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
+  let m = pathname.match(/^\/terrain-tiles\/(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg|tif|tiff)$/)
   if (m) return { endpoint: "terrain-tiles", tile: m.slice(1, 4).map(Number), ext: m[5] }
   m = pathname.match(/^\/basemap-tiles\/(\d+)\/(\d+)\/(\d+)(@[12]x)?\.(png|jpg|jpeg)$/)
   if (m) return { endpoint: "basemap-tiles", tile: m.slice(1, 4).map(Number), ext: m[5] }
-  m = pathname.match(/^\/bbox\/([-\d.,]+)\/(\d+)x(\d+)\.(png|jpg|jpeg|tif|tiff)$/)
-  if (m) return { endpoint: "bbox", bbox: m[1], width: Number(m[2]), height: Number(m[3]), ext: m[4] }
   m = pathname.match(/^\/render\.(png|jpg|jpeg|tif|tiff)$/)
   if (m) return { endpoint: "render", ext: m[1] }
   return null
@@ -47,8 +45,8 @@ function footprint(ex, q, values) {
   const bad = (m) => Object.assign(new Error(m), { status: 400 })
   const num = (k, d) => { const v = q.get(k); if (v === null) return d; const n = Number(v); if (!Number.isFinite(n)) throw bad(`${k} is not a number`); return n }
   const min = values ? 16 : 64
-  const width = Math.min(4096, Math.max(min, Math.round(ex.width ?? num("width", 1024)))), height = Math.min(4096, Math.max(min, Math.round(ex.height ?? num("height", 640))))
-  const bbox = ex.bbox ?? q.get("bbox")
+  const width = Math.min(4096, Math.max(min, Math.round(num("width", 1024)))), height = Math.min(4096, Math.max(min, Math.round(num("height", 640))))
+  const bbox = q.get("bbox")
   let world, cx, cy
   if (bbox) {
     const b = bbox.split(",").map(Number)

@@ -1,3 +1,12 @@
+# Changelog — Tile Service Without titiler's Addresses
+
+#### TL;DR
+
+- **Tile service: titiler's addresses are removed**, like `/tiles/{z}/{x}/{y}` and `/modes` the day before: `/tiles/WebMercatorQuad/{z}/{x}/{y}`, `/WebMercatorQuad/tilejson.json` and `/bbox/{w},{s},{e},{n}/{width}x{height}.{format}` answer 404 naming `/terrain-tiles`, `/tilejson.json` and `/render.{format}?bbox=…&width=…&height=…` (which draws exactly what `/bbox` drew). Nothing in the repository called them (app, QGIS plugins, MCP server, scripts, desktop). titiler's parameter names `url`, `algorithm` and `tilesize` are still read.
+
+#### Details
+
+- `tile-server/server.mjs` and `stac.mjs`: the alias patterns are gone, so neither a `.stac.json` Item nor a `Link` header is made for them; `openapi.mjs` (and `docs/public/tile-service-openapi.json`), the tile-server README and [Tile service](/docs/dev/tile-service#removed-addresses) say so; `test.mjs` checks the three 404s.
 # Changelog — G-LiHT Through the Local Proxy by Default, CORS Extensions Fixed, Stretch Measured on Eight Campaigns
 
 #### TL;DR
