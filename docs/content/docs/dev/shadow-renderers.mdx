@@ -1,6 +1,6 @@
 ---
 title: Shadow Renderers
-description: The two renderers of Hard Shadows, the live GPU march with its far-field mosaic, Earth curvature and soft edge, and the shadow:// tile kernel's shadow-height sweep; their sun conventions, checked on a synthetic cliff; accuracy against long-reach references and timings on real tiles; what each export uses
+description: The two renderers of Hard Shadows, the live GPU march with its far-field mosaic, Earth curvature and soft edge, and the shadow:// tile kernel's shadow-height sweep; their sun conventions, checked on a synthetic cliff; accuracy against long-reach references and timings on real tiles; what each export uses; related maps, tools and papers
 ---
 
 Hard Shadows has two renderers (Lighting Effects, Shadows, **Renderer**):
@@ -65,6 +65,21 @@ So 2 to 4 ms per megapixel, the far field adding up to 50 % where long rays run 
 ### Soft edge
 
 The sun is a disc 0.53° across, so a shadow edge is a penumbra whose width grows with the distance to the ridge casting it: about d · 0.0093, 9 m at 1 km, 90 m at 10 km. With **Edge → Soft** (`shadowSoft`, the default) the march keeps the highest horizon angle instead of stopping at the first hit, and the visible share of the sun is a smoothstep of (sun altitude − horizon angle) over ± 0.27° (a smoothstep, close to the exact share of a disc under a straight horizon). It stops early once the horizon is above the top of the disc (fully hidden) or the ray from the bottom of the disc clears everything (fully visible). Near the horizon it also does what the sky does: a sun half under a flat horizon is half visible.
+
+**Switching Soft and Hard** is one uniform, `u_sunRadius` (0 for Hard): `updateOptions` stores it, bumps the layer's revision and calls `triggerRepaint`, so the next frame draws with the new edge. There is no shader recompile and no texture upload, and with 3D terrain the revision bump (`terrainTileRevision`) also redraws the draped terrain tiles, so no stale frame stays on screen.
+
+**When the penumbra shows.** Its width is d · 0.0093 for a shadow edge d metres from the ridge casting it, while one screen pixel at 46° N is 27 m at map zoom 11, 6.6 m at 13, 1.7 m at 15 and 0.4 m at 17. A penumbra spans 3 px once the shadow is 8.6 km, 2.1 km, 540 m and 130 m long at those zooms. Under a high sun most terrain shadows are a few hundred metres long, so their penumbra is under a pixel and Soft looks like Hard. It shows on long shadows (low sun, deep valleys, a range over a plain) or close up. The table for users is on [Visualization Modes](/features/visualization-modes#terrain-shadows-reach-earth-curvature-soft-edge).
+
+**Cost of the soft edge, measured** (`GPU_ROUNDS=10 GPU_REPS=20 node scripts/bench-shadow.mjs --live-only`, 2026-11-25, same GPU and mosaics as the table above, hard and soft interleaved over 10 rounds of 20 draws, so 200 draws per run; median and interquartile range, the 1-pixel `readPixels` round trip subtracted; penumbra = fragments neither fully lit nor fully hidden):
+
+| Case | Hard (far + curvature) | Soft | Soft − hard | Penumbra (fragments) |
+|---|---|---|---|---|
+| Chamonix 15° | 6.9 ms [6.8–7.0] | 7.0 ms [6.9–7.2] | +0.1 ms (+1 %) | 1.2 % |
+| Mont Blanc 4° | 7.8 ms [7.6–8.0] | 7.9 ms [7.8–8.1] | +0.1 ms (+1 %) | 0.8 % |
+| Mont Blanc 2° | 7.4 ms [7.3–7.6] | 7.6 ms [7.5–7.9] | +0.2 ms (+3 %) | 1.4 % |
+| Po plain 1.5° | 11.7 ms [11.5–12.2] | 12.9 ms [12.7–13.5] | +1.2 ms (+10 %) | 22 % |
+
+These figures are for the bench's 3.1 Mpx mosaic. A 1280 × 800 view draws about a third of those fragments, so the soft edge costs under 0.1 ms per frame in the mountains (inside the run-to-run spread) and about 0.4 ms on the Po plain. There, a fifth of the fragments are in the penumbra of the Alps' 60–100 km shadow, and their rays march on until the horizon clears the top of the disc. In the same run, the far field cost 0.7 ms (Chamonix), 2.6 and 2.8 ms (Mont Blanc) and 4.5 ms (Po plain) over the view mosaic alone (hard, 3.1 Mpx): 0.2 to 1.5 ms per 1280 × 800 frame.
 
 ### Mask or light term
 
@@ -132,6 +147,30 @@ The per-mode items read tiles (`readRgbaRegion` over `lightingTemplate` in `expo
 
 **The halo: same-zoom neighbours, not a lower zoom.** `fetchPaddedElevationGrid` (`lib/normal-derived-protocol.ts`) takes as many rings of same-zoom neighbours as the halo needs: one up to a tile (radius 256 on 256 px tiles, 512 on 512 px tiles), two beyond (25 tiles). A lower zoom for the far part would need a second sweep on a coarser grid, resampled onto the tile's pixels, with a step between the two resolutions where the near part ends. Same-zoom rings keep one grid and one sweep, and cost less than they look: tiles are cached and shared by neighbours, so for a whole view the extra fetch is a border one ring wider, once, whatever the sun does. What it does cost: a 1 280 px padded grid (6.5 MB of floats) per 256 px tile at radius 512, copied to the raster worker. The protocol caps the radius at two tiles and at 512.
 
+## Related work and references
+
+Other maps and tools that compute terrain or building sun shadows, and how they relate to these renderers (links checked 2026-11-25):
+
+- **[ShadeMap](https://shademap.app/)**: terrain, building and tree shadows at any date and time worldwide on a web map, plus hours of sun over a date range. Its technique against ours: [Related work, shadow techniques compared](/resources/related-work#shadow-techniques-compared).
+- **[Shadowmap](https://shadowmap.org/)**: 3D buildings and terrain lit by the sun at any date and time, with sunlight-hours analysis, for real estate and urban planning.
+- **[SunCalc](https://www.suncalc.org/)**: the sun's path, azimuth and altitude for a place and date on a map, and the shadow length of an object of given height. [mourner/suncalc](https://github.com/mourner/suncalc) is a JavaScript library for sun and moon positions. The app's own astronomy is on [Sun Position](/features/sun-position).
+- **[PeakFinder](https://www.peakfinder.com/)**: the mountain panorama computed from a DEM for any viewpoint, with the sun's and moon's paths drawn over the horizon line, so it shows when the sun rises above or sets behind a ridge.
+- **[Google Earth Pro, Sunlight](https://support.google.com/earth/answer/148093)**: the Sunlight button and time slider light the terrain (and 3D buildings) from the sun at a given time and animate it across the day.
+- **[CesiumJS shadows](https://cesium.com/learn/cesiumjs/ref-doc/ShadowMap.html)** (since [1.22](https://cesium.com/blog/2016/06/01/cesium-version-1.22-released/)): cascaded shadow maps from the sun for terrain, 3D tiles and models, soft shadows by filtering. A shadow map covers the rendered scene, so terrain outside it casts nothing ([issue #9641](https://github.com/CesiumGS/cesium/issues/9641)). That is the limit our far-field mosaic removes for a DEM.
+- **[F4map](https://demo.f4map.com/)**: a 3D OpenStreetMap viewer with sun-cast building shadows at a chosen date and time.
+- **ArcGIS**: [Hillshade](https://pro.arcgis.com/en/pro-app/latest/tool-reference/3d-analyst/hillshade.htm) with **Model shadows** adds cast shadows (a pixel in the shadow of farther terrain) to the shaded relief, and [Sun Shadow Volume](https://pro.arcgis.com/en/pro-app/latest/tool-reference/3d-analyst/sun-shadow-volume.htm) builds the volumes of shadow cast by 3D features for given dates and times.
+- **GRASS GIS**: [r.sun](https://grass.osgeo.org/grass-stable/manuals/r.sun.html) computes solar irradiance and insolation time with terrain shadowing (Hofierka and Šúri's model). [r.horizon](https://grass.osgeo.org/grass-stable/manuals/r.horizon.html) computes the horizon angle per direction, the quantity our march maximizes, and can precompute it for r.sun.
+- **WhiteboxTools**: [HorizonAngle](https://jblindsay.github.io/wbt_book/available_tools/geomorphometric_analysis.html#horizonangle) (the maximum slope toward a given azimuth, within a distance), [TimeInDaylight](https://jblindsay.github.io/wbt_book/available_tools/geomorphometric_analysis.html#timeindaylight) (the share of daytime a cell is in sun, from horizon angles) and [ShadowAnimation](https://jblindsay.github.io/wbt_book/available_tools/geomorphometric_analysis.html#shadowanimation) (cast shadows over a day, as an animated GIF).
+
+Papers:
+
+- N. L. Max, [Horizon mapping: shadows for bump-mapped surfaces](https://doi.org/10.1007/BF01905562), *The Visual Computer* 4, 1988. It stores the horizon angle per texel in a few directions and shadows a pixel when the light is below it. This is the horizon-angle test both renderers apply along the sun's direction.
+- J. Dozier, J. Bruno, P. Downey, [A faster solution to the horizon problem](https://doi.org/10.1016/0098-3004(81)90026-1), *Computers & Geosciences* 7, 1981. Horizons along a DEM profile in linear time by skipping over points that cannot be the horizon, the classic for terrain shading in remote sensing.
+- A. J. Stewart, [Fast horizon computation at all points of a terrain with visibility and shading applications](https://doi.org/10.1109/2945.675656), *IEEE TVCG* 4(1), 1998. Horizons in every direction at every point, in O(n log² n) per direction.
+- V. Timonen, J. Westerholm, [Scalable height field self-shadowing](https://doi.org/10.1111/j.1467-8659.2009.01642.x), *Computer Graphics Forum* 29(2), 2010 (Eurographics). It sweeps lines parallel to the light across a height field, keeping a convex hull of the profile, for exact per-texel horizons on the GPU. This is the same line-sweep idea as the tile kernel's shadow-height sweep.
+- J. Snyder, D. Nowrouzezahrai, [Fast soft self-shadowing on dynamic height fields](https://doi.org/10.1111/j.1467-8659.2008.01266.x), *Computer Graphics Forum* 27(4), 2008 (EGSR). Soft self-shadowing of height fields under area and environment lights, from horizon angles sampled at several resolutions: a relative of our sun-disc penumbra and of our coarser far-field mosaic.
+- M. van Herk, [A fast algorithm for local minimum and maximum filters on rectangular and octagonal kernels](https://doi.org/10.1016/0167-8655(92)90069-C), *Pattern Recognition Letters* 13, 1992; J. Gil, M. Werman, [Computing 2-D min, median, and max filters](https://doi.org/10.1109/34.211471), *IEEE TPAMI* 15(5), 1993. The sliding maximum in constant time per sample that the tile kernel's sweep runs.
+
 ## Running it
 
 ```bash
@@ -140,6 +179,7 @@ node scripts/bench-shadow.mjs --no-chrome   # Node only (the live renderer throu
 node scripts/bench-shadow.mjs --tiles-only  # the tile kernel only
 node scripts/bench-shadow.mjs --live-only   # the live renderer only
 node scripts/bench-shadow.mjs --headed      # Chrome in a window
+GPU_ROUNDS=10 GPU_REPS=20 node scripts/bench-shadow.mjs --live-only   # shader timings, runs interleaved over 10 rounds
 ```
 
 Needs Node 22.18 or later (it imports the `.ts` modules directly) and, for the shader's timings, Chrome; no `pnpm install`. Tiles (Terrarium, 256 px) are cached in `.cache/shadow-bench/tiles/`, results in `.cache/shadow-bench/results.json`. `REPS=15` sets the runs per tile for the kernel (the best is kept, default 9). The tile part takes two to three minutes, most of it the 768 px march references; the live part about a minute after the first download.

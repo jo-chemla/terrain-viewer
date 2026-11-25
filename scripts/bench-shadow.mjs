@@ -15,6 +15,7 @@
 //   node scripts/bench-shadow.mjs --tiles-only  # the tile kernel only
 //   node scripts/bench-shadow.mjs --live-only   # the live renderer only
 //   node scripts/bench-shadow.mjs --headed      # Chrome in a window
+//   GPU_ROUNDS=10 GPU_REPS=20 node scripts/bench-shadow.mjs --live-only   # shader timings: 10 interleaved rounds of 20 draws per run
 //
 // Tiles are cached in .cache/shadow-bench/. Needs Node 22.18+ (imports the
 // .ts modules directly).
@@ -450,25 +451,34 @@ void main() { vec2 c = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2.0 - 1.0; v_uv
   for (let r = 0; r < 10; r++) { const t = performance.now(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); sync.push(performance.now() - t) }
   const med = (a) => [...a].sort((p, q) => p - q)[a.length >> 1]
   const out = { renderer, tUpload, sync: med(sync), runs: {} }
-  for (const run of cfg.runs) {
-    gl.uniform1i(u("u_hasFar"), run.far ? 1 : 0)
-    gl.uniform1f(u("u_allMax"), run.far ? Math.max(cfg.fine.maxElev, cfg.far.maxElev) : cfg.fine.maxElev)
-    gl.uniform1f(u("u_curv"), run.curv)
-    gl.uniform1f(u("u_sunRadius"), run.sunRadius)
-    const draws = []
-    for (let r = 0; r < cfg.reps + 1; r++) {
-      gl.clearColor(0, 0, 0, 0)
-      gl.clear(gl.COLOR_BUFFER_BIT)
-      const t = performance.now()
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
-      draws.push(performance.now() - t)
+  // Runs interleaved over `rounds` (GPU_ROUNDS), so a clock or load change
+  // hits every run alike; the median is over all the rounds' draws.
+  const draws = {}
+  for (let round = 0; round < cfg.rounds; round++) {
+    for (const run of cfg.runs) {
+      gl.uniform1i(u("u_hasFar"), run.far ? 1 : 0)
+      gl.uniform1f(u("u_allMax"), run.far ? Math.max(cfg.fine.maxElev, cfg.far.maxElev) : cfg.fine.maxElev)
+      gl.uniform1f(u("u_curv"), run.curv)
+      gl.uniform1f(u("u_sunRadius"), run.sunRadius)
+      const d = (draws[run.label] ??= [])
+      for (let r = 0; r < cfg.reps + 1; r++) {
+        gl.clearColor(0, 0, 0, 0)
+        gl.clear(gl.COLOR_BUFFER_BIT)
+        const t = performance.now()
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+        if (r > 0) d.push(performance.now() - t)
+      }
+      if (round < cfg.rounds - 1) continue
+      const all = new Uint8Array(cfg.fine.w * cfg.fine.h * 4)
+      gl.readPixels(0, 0, cfg.fine.w, cfg.fine.h, gl.RGBA, gl.UNSIGNED_BYTE, all)
+      // Rows come back bottom-up; v_uv.y = 0 is the mosaic's north edge, at the top.
+      const mask = cfg.lattice.map(([x, y]) => all[((cfg.fine.h - 1 - Math.floor(y)) * cfg.fine.w + Math.floor(x)) * 4 + 3] > 127 ? 1 : 0)
+      // Share of fragments in a penumbra (neither fully lit nor fully hidden).
+      let partial = 0
+      for (let i = 3; i < all.length; i += 4) if (all[i] > 0 && all[i] < 255) partial++
+      out.runs[run.label] = { draw: med(d), q1: [...d].sort((p, q) => p - q)[d.length >> 2], q3: [...d].sort((p, q) => p - q)[(3 * d.length) >> 2], mask, partial: partial / (cfg.fine.w * cfg.fine.h) }
     }
-    const all = new Uint8Array(cfg.fine.w * cfg.fine.h * 4)
-    gl.readPixels(0, 0, cfg.fine.w, cfg.fine.h, gl.RGBA, gl.UNSIGNED_BYTE, all)
-    // Rows come back bottom-up; v_uv.y = 0 is the mosaic's north edge, at the top.
-    const mask = cfg.lattice.map(([x, y]) => all[((cfg.fine.h - 1 - Math.floor(y)) * cfg.fine.w + Math.floor(x)) * 4 + 3] > 127 ? 1 : 0)
-    out.runs[run.label] = { draw: med(draws.slice(1)), mask }
   }
   return out
 }
@@ -490,7 +500,7 @@ if (liveReport.length && !args.has("--no-chrome")) {
         { label: "view + far, curvature, hard", far: true, curv: CURVATURE_PER_M2, sunRadius: 0, cpu: "view + far 3 levels, curvature (shipped)" },
         { label: "view + far, curvature, soft", far: true, curv: CURVATURE_PER_M2, sunRadius: (SUN_RADIUS_DEG * Math.PI) / 180 },
       ]
-      const cfg = { fragment: shadowFragmentShader(-1e7), fine: grid(r.fineGrid, "fine"), far: grid(r.farGrid, "far"), xf: r.xf, sunStep: sunStepVector(r.c.azimuthDeg), alt: (r.c.altitudeDeg * Math.PI) / 180, lattice: r.lattice, runs, reps: 20 }
+      const cfg = { fragment: shadowFragmentShader(-1e7), fine: grid(r.fineGrid, "fine"), far: grid(r.farGrid, "far"), xf: r.xf, sunStep: sunStepVector(r.c.azimuthDeg), alt: (r.c.altitudeDeg * Math.PI) / 180, lattice: r.lattice, runs, reps: Number(process.env.GPU_REPS ?? 20), rounds: Number(process.env.GPU_ROUNDS ?? 1) }
       await evaluate(`window.__cfg = ${JSON.stringify(cfg)}; true`)
       await evaluate(`(${pageBench.toString()})(window.__cfg).then(() => true)`) // warm-up (compile, upload)
       const out = await evaluate(`(${pageBench.toString()})(window.__cfg)`)
@@ -507,7 +517,10 @@ if (liveReport.length && !args.has("--no-chrome")) {
           if (cpu && !!g.mask[i] === cpu[i]) agree++
         }
         r.row.gpu.runs[run.label] = { draw, perMpx: draw / mp, iou: either ? both / either : 1, cpuAgreement: cpu ? agree / g.mask.length : null }
-        console.log(`  ${run.label.padEnd(34)} draw ${fmt(draw).padStart(5)} ms (${(draw / mp).toFixed(2)} ms/Mpx)  IoU vs ref ${(either ? both / either : 1).toFixed(3)}${cpu ? `  same pixels as the CPU twin ${((100 * agree) / g.mask.length).toFixed(2)} %` : ""}`)
+        r.row.gpu.runs[run.label].q1 = Math.max(0, g.q1 - out.sync)
+        r.row.gpu.runs[run.label].q3 = Math.max(0, g.q3 - out.sync)
+        r.row.gpu.runs[run.label].penumbraShare = g.partial
+        console.log(`  ${run.label.padEnd(34)} draw ${fmt(draw).padStart(5)} ms [${fmt(Math.max(0, g.q1 - out.sync))}–${fmt(Math.max(0, g.q3 - out.sync))}] (${(draw / mp).toFixed(2)} ms/Mpx)  penumbra ${(100 * g.partial).toFixed(2)} %  IoU vs ref ${(either ? both / either : 1).toFixed(3)}${cpu ? `  same pixels as the CPU twin ${((100 * agree) / g.mask.length).toFixed(2)} %` : ""}`)
       }
     }
   })
