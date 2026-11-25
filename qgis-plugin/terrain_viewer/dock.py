@@ -1,20 +1,30 @@
-"""The panel: the app's sidebar groups, each mode a checkbox with its
-settings, built from what the tile service answers (/sources, /processes,
-/colorramps), so a mode or setting added to the app shows up here without a
+"""The panel: a backend picked at the top (the local tile service installed
+from the panel, a remote tile service, or the experimental Python compute),
+its options under it, then the terrain source, the keys, a share link, the
+light, and the app's sidebar groups as one modes tree for every backend.
+
+The tree comes from the tile service's /processes (or, before a service
+answers and for the Python backend, from the snapshot the plugin carries,
+assets/catalog.json), so a mode or setting added to the app shows up with no
 plugin release. Each checked mode is a layer of the project whose address
-the panel writes; a changed setting rewrites that address."""
+the panel writes; a changed setting rewrites that address. Under the Python
+backend, the modes it does not compute are greyed out, and so are the
+settings it ignores."""
 import math
 import time
 from urllib.parse import urlsplit, parse_qsl
 
-from qgis.PyQt.QtCore import Qt, QTimer, QUrl
+from qgis.PyQt.QtCore import Qt, QTimer, QUrl, QSize
+from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
 from qgis.PyQt.QtWidgets import (
     QApplication, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox, QScrollArea, QToolButton, QFrame, QGroupBox, QSizePolicy,
+    QStackedWidget,
 )
 from qgis.core import (
-    Qgis, QgsNetworkAccessManager, QgsSettings, QgsCoordinateReferenceSystem, QgsRectangle, QgsDataSourceUri, QgsCoordinateTransform, QgsProject,
+    Qgis, QgsApplication, QgsNetworkAccessManager, QgsSettings, QgsCoordinateReferenceSystem, QgsRectangle,
+    QgsDataSourceUri, QgsCoordinateTransform, QgsProject, QgsVectorLayer,
 )
 
 try:
@@ -25,10 +35,23 @@ try:
     from qgis.gui import QgsOpacityWidget
 except ImportError:  # pragma: no cover
     QgsOpacityWidget = None
+try:
+    from qgis.gui import QgsColorButton
+except ImportError:  # pragma: no cover
+    QgsColorButton = None
 
-from .service import Catalog, ServiceError, tile_url, values_url, split_link, KEY_PARAMS, walk_modes, unresponsive_message
-from .layers import LayerStack, PROP, tree_ranks
-from . import local_server
+from .service import (
+    Catalog, ServiceError, tile_url, values_url, split_link, query_dict, KEY_PARAMS, ALL_KEYS, unresponsive_message,
+    health, link_params,
+)
+from .layers import LayerStack, PROP, BACKEND_PROP, tree_ranks
+from . import local_server, assets
+from . import python_backend as pyb
+from .settings_ui import (
+    LIGHT_KEYS, LIGHT_DEFAULT, LIGHT_MODES, slider_range, symmetric_pairs, is_ramp_key, is_matcap_key, is_colour_key,
+    clean_enum,
+)
+from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, Segmented
 
 SETTINGS = "terrain_viewer"
 DEFAULT_SERVICE = "http://localhost:3400"
@@ -37,6 +60,20 @@ WORLD = 20037508.342789244
 # background), so a service that went away (the desktop app closed) is
 # reported instead of leaving empty layers.
 HEALTH_EVERY_MS = 15000
+# The deepest zoom of the Python backend's colour tiles (Mapterhorn's 512 px
+# tiles go to z17, so 256 px tiles to z18).
+PY_XYZ_ZMAX = 18
+BACKENDS = (
+    ("local", "Local service",
+     "The tile service packaged for QGIS (Node and the service, about 50 MB): installed from the panel the first time, "
+     "started on this machine (127.0.0.1) when you connect, stopped when QGIS quits. Every mode and source."),
+    ("remote", "Remote service",
+     "A tile service at an address: the Terrain Viewer desktop app's (http://localhost:3400), one you run yourself "
+     "(cd tile-server && pnpm start), or a hosted one. Every mode and source."),
+    ("python", "Python",
+     "Experimental: the modes computed in QGIS's own Python with numpy, no tile service at all. Fast, but not every "
+     "mode, setting or source (Terrarium and Terrain-RGB tiles only)."),
+)
 
 
 def _label(key, mode_id):
@@ -58,58 +95,94 @@ def _label(key, mode_id):
     return text[:1].upper() + text[1:]
 
 
-class SettingWidget:
-    """One setting: a widget chosen by its type, read and written as the
-    URL value."""
+def _theme_icon(*names):
+    for n in names:
+        icon = QgsApplication.getThemeIcon(n)
+        if icon is not None and not icon.isNull():
+            return icon
+    return None
 
-    def __init__(self, spec, colorramps, on_change):
+
+class SettingWidget:
+    """One setting: a widget chosen by its type and name (a slider with its
+    number box, a ramp or matcap select with previews, a colour button),
+    read and written as the URL value."""
+
+    def __init__(self, spec, dock, on_change):
         self.spec = spec
         t, key = spec["type"], spec["key"]
         d = spec.get("default")
+        self.tooltip = spec.get("note") or ""
         if t == "boolean":
             w = QCheckBox()
             w.setChecked(bool(d))
             w.toggled.connect(on_change)
             self.get, self.set = w.isChecked, lambda v: w.setChecked(str(v).lower() in ("1", "true", "yes"))
+        elif is_ramp_key(key):
+            w = IconCombo(dock.ramp_items(), d)
+            w.currentIndexChanged.connect(on_change)
+            self.get, self.set = w.get, w.set
+        elif is_matcap_key(key):
+            items, default = assets.matcaps()
+            w = IconCombo([(i, n, assets.matcap_icon(i)) for i, n in items], d or default, icon_size=QSize(22, 22))
+            w.currentIndexChanged.connect(on_change)
+            self.get, self.set = w.get, w.set
         elif t == "enum" or spec.get("enum"):
             w = QComboBox()
-            w.addItems([str(e) for e in spec.get("enum") or []])
+            items = clean_enum(spec.get("enum"))
+            if d is not None and str(d) not in items:
+                items.insert(0, str(d))
+            w.addItems(items)
             if d is not None:
                 w.setCurrentText(str(d))
             w.currentTextChanged.connect(on_change)
             self.get, self.set = w.currentText, lambda v: w.setCurrentText(str(v))
         elif t in ("number", "integer"):
             integer = t == "integer"
-            w = QSpinBox() if integer else QDoubleSpinBox()
-            w.setRange(-10 ** 6, 10 ** 6)
-            if not integer:
-                w.setDecimals(3 if isinstance(d, float) and not float(d).is_integer() else 2)
-                w.setSingleStep(0.1 if isinstance(d, float) and abs(d) <= 2 else 1)
-            if isinstance(d, (int, float)):
-                w.setValue(int(d) if integer else float(d))
-            w.valueChanged.connect(on_change)
-            w.setKeyboardTracking(False)
-            self.get = w.value
-            self.set = lambda v: w.setValue(int(float(v)) if integer else float(v))
-        elif key.lower().endswith("colorramp") and colorramps:
-            w = QComboBox()
-            w.setEditable(True)
-            w.addItems(colorramps)
-            w.setCurrentText(str(d or ""))
-            w.currentTextChanged.connect(on_change)
-            self.get, self.set = w.currentText, lambda v: w.setCurrentText(str(v))
+            r = slider_range(key, d, spec.get("minimum"), spec.get("maximum"))
+            if r is not None:
+                lo, hi, step, hard_lo, hard_hi = r
+                w = SliderSpin(lo, hi, 1 if integer else step, d if isinstance(d, (int, float)) else lo, integer,
+                               hard=(hard_lo, hard_hi))
+                w.valueChanged.connect(on_change)
+                # Set from a link or a script: the layer follows, as when typed.
+                self.get, self.set = w.value, lambda v: w.setValue(v, emit=True)
+            else:
+                w = QSpinBox() if integer else QDoubleSpinBox()
+                w.setRange(-10 ** 6, 10 ** 6)
+                if not integer:
+                    w.setDecimals(3 if isinstance(d, float) and not float(d).is_integer() else 2)
+                    w.setSingleStep(0.1 if isinstance(d, float) and abs(d) <= 2 else 1)
+                if isinstance(d, (int, float)):
+                    w.setValue(int(d) if integer else float(d))
+                w.valueChanged.connect(on_change)
+                w.setKeyboardTracking(False)
+                self.get = w.value
+                self.set = lambda v: w.setValue(int(float(v)) if integer else float(v))
+        elif is_colour_key(key, t) and QgsColorButton is not None:
+            w = QgsColorButton()
+            w.setColor(QColor(str(d or "#000000")))
+            w.colorChanged.connect(on_change)
+            # The default as written (#FFFFFF), so an unchanged colour stays
+            # out of the address.
+            self.get = lambda: str(d) if d and QColor(str(d)) == w.color() else w.color().name()
+            self.set = lambda v: w.setColor(QColor(str(v)))
         else:
             w = QLineEdit(str(d) if d is not None else "")
             w.editingFinished.connect(on_change)
             self.get, self.set = w.text, lambda v: w.setText(str(v))
-        if spec.get("note"):
-            w.setToolTip(spec["note"])
+        if self.tooltip:
+            w.setToolTip(self.tooltip)
         # The panel stays as narrow as the dock: long ramp names elide.
         w.setMinimumWidth(60)
-        if isinstance(w, QComboBox):
+        if isinstance(w, QComboBox) and not isinstance(w, IconCombo):
             w.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             w.setMinimumContentsLength(8)
         self.widget = w
+
+    def set_available(self, ok, why=""):
+        self.widget.setEnabled(ok)
+        self.widget.setToolTip(self.tooltip if ok else why)
 
 
 FORM_LABELS = {"colour": "Colour", "values": "Values", "vector": "Vector"}
@@ -123,6 +196,20 @@ def _retain_hidden(w):
     w.setSizePolicy(sp)
 
 
+class _RowHeader(QWidget):
+    """A mode's line: a click anywhere on it (not on one of its boxes or
+    buttons, which take their own clicks) toggles the mode."""
+
+    def __init__(self, on_click):
+        super().__init__()
+        self.on_click = on_click
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton and self.isEnabled():
+            self.on_click()
+        super().mouseReleaseEvent(e)
+
+
 class FormsRow:
     """A mode's row: its checkbox on the left, its forms on the right
     (Colour: the coloured layer; Values: the numbers, a Float32 raster;
@@ -130,12 +217,14 @@ class FormsRow:
     settings cog shown while a drawn form (Colour, Vector) is on; the
     settings fold under the row.
 
-    Checking the mode turns on the forms it had (Colour the first time);
-    unchecking it turns them all off (each layer removed) and remembers
-    them. Checking a form checks the mode; unchecking the last one
-    unchecks it. `on_change()` is called after every change by the user;
-    set_forms() changes the boxes without calling it (a layer removed from
-    the project, a saved project read back)."""
+    Checking the mode turns on the forms it had (the default form the first
+    time: Vector for the overlays that have one, else Colour); unchecking it
+    turns them all off (each layer removed) and remembers them. Checking a
+    form checks the mode; unchecking the last one unchecks it. A backend
+    that lacks a form hides its box (set_available). `on_change()` is called
+    after every change by the user; set_forms() changes the boxes without
+    calling it (a layer removed from the project, a saved project read
+    back)."""
 
     def __init__(self, label, forms, on_change, tooltips=None):
         self.on_change = on_change
@@ -143,23 +232,28 @@ class FormsRow:
         lay = QVBoxLayout(self.box)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
-        head = QHBoxLayout()
+        self.header = _RowHeader(self._clicked)
+        head = QHBoxLayout(self.header)
+        head.setContentsMargins(0, 0, 0, 0)
         head.setSpacing(4)
         self.check = QCheckBox(label)
         self.check.setMinimumWidth(40)  # long names elide rather than widen the panel
         self.check.toggled.connect(self._mode_toggled)
         head.addWidget(self.check, 1)
         self.forms = {}
-        # Two columns at least, Colour in the first, so the boxes line up
-        # from row to row (an empty slot keeps its width); the cog keeps its
-        # place when hidden.
-        slots = list(forms) if len(forms) >= 2 or "colour" not in forms else ["colour", None]
-        if "colour" not in forms and len(forms) == 1:
-            slots = [None] + list(forms)
+        # Two columns, so the boxes line up from row to row (an empty slot
+        # keeps its width): Vector then Raster for the overlays, Colour then
+        # Values for the others. The cog keeps its place when hidden.
+        slots = [f for f in (("vector", "colour") if "vector" in forms else ("colour", "values")) if f in forms]
+        while len(slots) < 2:
+            slots.append(None)
         for f in slots:
-            cb = QCheckBox(FORM_LABELS[f] if f else FORM_LABELS["values"])
+            text = FORM_LABELS[f] if f else FORM_LABELS["values"]
+            if f == "colour" and "vector" in forms:
+                text = "Raster"
+            cb = QCheckBox(text)
+            _retain_hidden(cb)
             if f is None:
-                _retain_hidden(cb)
                 cb.setVisible(False)
                 head.addWidget(cb)
                 continue
@@ -175,21 +269,25 @@ class FormsRow:
         self.more.setToolTip("Settings")
         _retain_hidden(self.more)
         head.addWidget(self.more)
-        lay.addLayout(head)
+        lay.addWidget(self.header)
         self.panel = QFrame()
         self.form_layout = QFormLayout(self.panel)
         self.form_layout.setContentsMargins(18, 0, 0, 6)
         lay.addWidget(self.panel)
         self.more.toggled.connect(lambda _on: self._sync())
         self.remembered = set()
+        self.available = set(self.forms)
         self._sync()
 
+    def _clicked(self):
+        self.check.toggle()
+
     def default_form(self):
-        return next((f for f in ("colour", "vector", "values") if f in self.forms), None)
+        return next((f for f in ("vector", "colour", "values") if f in self.available), None)
 
     def on(self, form):
-        """Is this form wanted (its box checked)?"""
-        return form in self.forms and self.forms[form].isChecked()
+        """Is this form wanted (its box checked, and offered by the backend)?"""
+        return form in self.available and self.forms[form].isChecked()
 
     def checked_forms(self):
         return {f for f, cb in self.forms.items() if cb.isChecked()}
@@ -208,7 +306,8 @@ class FormsRow:
 
     def _mode_toggled(self, on):
         if on:
-            self._set_boxes(self.remembered or {self.default_form()}, True)
+            wanted = (self.remembered & self.available) or {self.default_form()} - {None}
+            self._set_boxes(wanted, bool(wanted))
         else:
             self.remembered = self.checked_forms()
             self._set_boxes(set(), False)
@@ -229,18 +328,35 @@ class FormsRow:
 
     def form_removed(self, form):
         """A form's layer was removed from the project (by hand)."""
-        if self.on(form):
+        if form in self.forms and self.forms[form].isChecked():
             self.set_forms(self.checked_forms() - {form})
+
+    def set_available(self, forms):
+        """The forms a backend offers: the others' boxes hidden (their state
+        kept, for the backend that has them)."""
+        self.available = set(forms) & set(self.forms)
+        for f, cb in self.forms.items():
+            cb.setVisible(f in self.available)
+        self._sync()
+
+    def set_enabled(self, ok, why=""):
+        self.header.setEnabled(ok)
+        self.check.setToolTip("" if ok else why)
+        self.header.setToolTip("" if ok else why)
+        if not ok:
+            self.panel.setVisible(False)
+        else:
+            self._sync()
 
     def _sync(self):
         drawn = any(self.on(f) for f in DRAWN_FORMS)
         self.more.setVisible(drawn and self.form_layout.rowCount() > 0)
-        self.panel.setVisible(drawn and self.more.isChecked())
+        self.panel.setVisible(drawn and self.more.isChecked() and self.header.isEnabled())
 
 
 class ModeRow:
-    """A mode of the tile service: its forms (FormsRow), its opacity and
-    settings under the cog."""
+    """A mode of the tree: its forms (FormsRow), its opacity and settings
+    under the cog, its layers under the backend connected."""
 
     def __init__(self, dock, path, mode):
         self.dock, self.path, self.mode = dock, path, mode
@@ -248,14 +364,15 @@ class ModeRow:
         tips = {}
         if mode.get("form") != "vector":
             forms.append("colour")
-            tips["colour"] = "The mode as the app draws it: an XYZ layer of the service's tiles"
+            tips["colour"] = "The mode as the app draws it: an XYZ layer of raster tiles"
         if mode.get("values"):
             forms.append("values")
             tips["values"] = (f"The values before the colour ramp, a Float32 raster read by GDAL, for analysis "
                               f"({mode['values'].get('unit')}): {mode['values'].get('description', '')}")
         if mode.get("vector"):
             forms.append("vector")
-            tips["vector"] = "The same features as vector tiles, styled in QGIS"
+            tips["vector"] = "The features as vector tiles, styled in QGIS (sharp at every zoom, Identify)"
+        self.all_forms = set(forms)
         self.row = FormsRow(mode["name"], forms, self.update, tips)
         self.box, self.check, self.more = self.row.box, self.row.check, self.row.more
         # The boxes by their 0.5.0 names (tests, scripts).
@@ -266,24 +383,48 @@ class ModeRow:
         self.opacity = None
         if mode.get("opacityKey") or mode.get("form") != "vector":
             if QgsOpacityWidget is not None:
-                self.opacity = QgsOpacityWidget()
+                self.opacity = QgsOpacityWidget()  # a slider and a % box
                 self.opacity.setOpacity(1.0)
                 self.opacity.opacityChanged.connect(lambda _v: self.apply_style())
             else:
-                self.opacity = QDoubleSpinBox()
-                self.opacity.setRange(0, 1)
-                self.opacity.setSingleStep(0.05)
-                self.opacity.setValue(1)
+                self.opacity = SliderSpin(0, 1, 0.05, 1.0, hard=(0, 1))
                 self.opacity.valueChanged.connect(lambda _v: self.apply_style())
             form.addRow("Opacity", self.opacity)
         self.settings = {}
         for spec in mode.get("settings", []):
-            sw = SettingWidget(spec, dock.catalog.colorramps, self.changed)
+            if spec["key"] in LIGHT_KEYS:
+                continue  # the panel's Light, shared by every shaded mode
+            sw = SettingWidget(spec, dock, self.changed)
             self.settings[spec["key"]] = sw
             form.addRow(_label(spec["key"], mode["id"]), sw.widget)
+        self.symmetric = symmetric_pairs(self.settings)
+        for sym, (lo, hi) in self.symmetric.items():
+            self.settings[sym].widget.toggled.connect(lambda _on, s=sym: self.mirror(s))
+            w = self.settings[hi].widget
+            (w.valueChanged if hasattr(w, "valueChanged") else w.textChanged).connect(lambda _v, s=sym: self.mirror(s))
+            self.mirror(sym)
+        self.py_auto_range = None
         self.row._sync()
 
     # values ---------------------------------------------------------------
+    def mirror(self, sym):
+        """Symmetric on: the minimum follows the maximum (min = -max), live,
+        and is read only; off: both editable."""
+        lo, hi = self.symmetric[sym]
+        on = bool(self.settings[sym].get())
+        w = self.settings[lo].widget
+        if hasattr(w, "setReadOnly"):
+            w.setReadOnly(on)
+        if on:
+            try:
+                v = -abs(float(self.settings[hi].get()))
+            except (TypeError, ValueError):
+                return
+            if hasattr(w, "setValue"):
+                w.blockSignals(True)
+                w.setValue(v)
+                w.blockSignals(False)
+
     def values(self):
         return {k: sw.get() for k, sw in self.settings.items()}
 
@@ -301,20 +442,53 @@ class ModeRow:
         for k, v in params.items():
             if k in self.settings:
                 self.settings[k].set(v)
+        for sym in self.symmetric:
+            self.mirror(sym)
+
+    # the backend ------------------------------------------------------------
+    def apply_backend(self, backend):
+        """Greys out what the backend does not draw: under Python, the modes
+        live/ does not compute, the forms it lacks, the settings it ignores."""
+        if backend != "python":
+            self.row.set_enabled(True)
+            self.row.set_available(self.all_forms)
+            for sw in self.settings.values():
+                sw.set_available(True)
+            return
+        reg = pyb.registry()
+        py = pyb.py_mode(self.mode["id"], None, reg) if reg else None
+        if py is None:
+            self.row.set_enabled(False, "Not computed by the Python backend (yet): pick Local or Remote service at the "
+                                        "top of the panel for this mode")
+            return
+        self.row.set_enabled(True)
+        self.row.set_available(pyb.py_forms(self.mode["id"], self.all_forms, reg))
+        ignored = pyb.unsupported_settings(self.mode["id"], self.settings, reg)
+        for k, sw in self.settings.items():
+            sw.set_available(k not in ignored, "Not used by the Python backend")
 
     # layers ---------------------------------------------------------------
     def changed(self, *_):
+        self.py_auto_range = None
         self.dock.schedule(self)
-
-    def on_toggle(self, *_):
-        self.update()
 
     @staticmethod
     def form_of(key):
         return "values" if key.endswith(":values") else "vector" if key.endswith(":vector") else "colour"
 
+    def keys(self):
+        """The layer key of each form of this mode."""
+        out = {}
+        if "colour" in self.all_forms:
+            out["colour"] = self.mode["id"]
+        if "values" in self.all_forms:
+            out["values"] = self.mode["id"] + ":values"
+        if "vector" in self.all_forms:
+            out["vector"] = self.mode["id"] + ":vector"
+        return out
+
     def urls(self):
-        base, common = self.dock.service_url(), self.dock.common_params()
+        base, common = self.dock.service_url(), self.dock.common_params(self.mode["id"])
         values = self.values()
         out = {}
         if self.mode.get("form") != "vector":
@@ -327,222 +501,104 @@ class ModeRow:
 
     def update(self):
         """Each form's layer added (checked), re-pointed (a setting changed)
-        or removed (unchecked). A new layer gets the panel's opacity and
-        blending; an existing one keeps what its properties say."""
+        or removed (unchecked), under the backend connected; nothing while
+        none is (no layer asks a service that is not there)."""
+        if not self.dock.connected:
+            return
+        if self.dock.connected == "python":
+            self.update_python()
+        else:
+            self.update_service()
+
+    def update_service(self):
         stack = self.dock.stack
         for key, (url, vector) in self.urls().items():
             want = self.row.on(self.form_of(key))
-            layer = stack.find(key)
             if not want:
-                if layer is not None:
-                    self.dock.removing.add(layer.id())
-                    stack.remove(key)
+                self.dock.remove_layers(key)
                 continue
+            new = stack.find(key) is None
             if vector == "values":
                 unit = self.mode["values"].get("unit")
-                new = layer is None
-                layer = stack.ensure_values(key, f"{self.mode['name']} (values{', ' + unit if unit and unit != '1' else ''})", self.path, url, self.mode["values"].get("range"))
+                layer = stack.ensure_values(key, f"{self.mode['name']} (values{', ' + unit if unit and unit != '1' else ''})",
+                                            self.path, url, self.mode["values"].get("range"), backend="service")
             else:
-                new = layer is None
                 name = self.mode["name"] + (" (vector tiles)" if vector and self.mode.get("form") != "vector" else "")
-                layer = stack.ensure(key, name, self.path, url, vector, self.mode["id"], self.values())
+                layer = stack.ensure(key, name, self.path, url, vector, self.mode["id"], self.values(), backend="service")
                 if new:
                     stack.style(layer, self.opacity_value(), self.mode.get("shading") and not vector)
             if new:
                 stack.set_visible(layer, True)
 
+    def update_python(self):
+        from .live.layers import apply_renderer, LocalLayers, elevation_range
+        dock, stack = self.dock, self.dock.stack
+        reg = pyb.registry() or {}
+        values = self.values()
+        py, opts = pyb.py_opts(self.mode["id"], values, dock.light_value(), reg)
+        keys = self.keys()
+        if py is None or not self.row.header.isEnabled():
+            for key in keys.values():
+                dock.remove_layers(key)
+            return
+        spec = reg[py]
+        sid = dock.python_source()
+        srv = dock.live_server()
+        ext, width = dock.canvas_extent()
+        rng = None
+        if py == "elevation":
+            # The app's 0 to 8100 m default is far too wide for one view: the
+            # view's own range (2nd to 98th percentile), as hypsoAutoRange.
+            d = {s["key"]: s.get("default") for s in self.mode.get("settings", [])}
+            if values.get("minElevation") == d.get("minElevation") and values.get("maxElevation") == d.get("maxElevation"):
+                if self.py_auto_range is None and ext is not None:
+                    self.py_auto_range = elevation_range(ext, width, sid)
+                rng = self.py_auto_range
+            else:
+                rng = (float(values.get("minElevation", 0)), float(values.get("maxElevation", 4000)))
+            if rng:
+                opts.update({"min": float(rng[0]), "max": float(rng[1])})
+        for form, key in keys.items():
+            if not self.row.on(form):
+                dock.remove_layers(key)
+                continue
+            new = stack.find(key) is None
+            if form == "colour":
+                layer = stack.ensure(key, self.mode["name"], self.path, srv.xyz_url(py, opts, source=sid), False,
+                                     zmax=PY_XYZ_ZMAX, backend="python")
+                if new:
+                    stack.style(layer, self.opacity_value(), spec.get("kind") == "shade")
+            elif form == "values":
+                vopts = {k: v for k, v in opts.items() if k not in spec.get("colour_only", ())}
+                unit = spec.get("unit")
+                layer = stack.ensure_values(key, f"{self.mode['name']} (values{', ' + unit if unit else ''})", self.path,
+                                            srv.gdal_xml(py, vopts, source=sid), None, backend="python")
+                if new and layer is not None and layer.isValid():
+                    apply_renderer(layer, py, rng)
+            else:
+                layer = stack.find(key)
+                if layer is not None and layer.providerType() != "memory":
+                    dock.remove_layers(key, prune=False)
+                    layer = None
+                if layer is None:
+                    from .live import contours
+                    layer = QgsVectorLayer("LineString?crs=EPSG:3857&field=elev:double&field=major:integer",
+                                           f"{self.mode['name']} (lines)", "memory")
+                    contours.style(layer)
+                    stack.add_layer(layer, key, self.path, "python")
+                LocalLayers(stack.project).refresh_vector(layer, opts, ext, width, source=sid)
+            if new and layer is not None:
+                stack.set_visible(layer, True)
+
     def apply_style(self):
-        for key in self.urls():
-            if key.endswith(":values"):
+        for form, key in self.keys().items():
+            if form == "values":
                 continue
             layer = self.dock.stack.find(key)
-            self.dock.stack.style(layer, self.opacity_value(), self.mode.get("shading") and not key.endswith(":vector"))
-
-
-class LocalSection:
-    """The panel's "Experimental: compute locally" box, at its top: modes
-    computed in QGIS's Python (live/), no tile service. Off by default; its
-    rows are built the first time it is checked (numpy is imported then).
-    Each row is a FormsRow: Colour (the server's coloured tiles), Values
-    (Float32, QGIS's colour ramps, Identify), Vector (contour lines)."""
-
-    def __init__(self, dock):
-        self.dock = dock
-        self.box = QFrame()
-        self.box.setFrameShape(QFrame.Shape.StyledPanel)
-        lay = QVBoxLayout(self.box)
-        lay.setContentsMargins(6, 4, 6, 4)
-        self.check = QCheckBox("Experimental: compute locally (no tile service)")
-        f = self.check.font()
-        f.setBold(True)
-        self.check.setFont(f)
-        self.check.setToolTip("Terrain modes computed in QGIS's Python with numpy from Mapterhorn elevation tiles, served "
-                              "from a thread of QGIS on 127.0.0.1: no tile service, no Node. Per mode: Colour (coloured "
-                              "tiles), Values (Float32 numbers, QGIS's colour ramps, Identify), Vector (contour lines).")
-        self.check.toggled.connect(dock.toggle_local)
-        lay.addWidget(self.check)
-        self.body = QWidget()
-        self.body.setVisible(False)
-        lay.addWidget(self.body)
-        self.rows = {}  # mode -> (FormsRow, {setting: getter})
-        self.setters = {}  # mode -> {setting: setter}
-        self.built = False
-        self.timer = QTimer(dock)
-        self.timer.setSingleShot(True)
-        self.timer.setInterval(400)
-        self.timer.timeout.connect(self.apply_all)
-        self.prefetch_timer = QTimer(dock)
-        self.prefetch_timer.setSingleShot(True)
-        self.prefetch_timer.setInterval(150)
-        self.prefetch_timer.timeout.connect(self.prefetch)
-        # Contour lines: recomputed once the canvas stops.
-        self.vector_timer = QTimer(dock)
-        self.vector_timer.setSingleShot(True)
-        self.vector_timer.setInterval(400)
-        self.vector_timer.timeout.connect(self.refresh_vectors)
-        if dock.canvas is not None:
-            dock.canvas.extentsChanged.connect(self.extent_changed)
-
-    def extent_changed(self):
-        if self.check.isChecked():
-            self.prefetch_timer.start()
-            if any(r.on("vector") for r, _ in self.rows.values()):
-                self.vector_timer.start()
-
-    def build(self):
-        from .live import modes  # numpy is only imported when asked
-        from .live.layers import DEFAULT_ON, ORDER
-        lay = QVBoxLayout(self.body)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(2)
-        tips = {"colour": "Coloured tiles computed here (XYZ), shown tile by tile",
-                "values": "The numbers, a Float32 raster read by GDAL: QGIS's colour ramps, Identify, raster calculator",
-                "vector": "Contour lines for the view, a vector layer, recomputed after each pan or zoom"}
-        for mode in reversed(ORDER):  # the base first, as the panel's groups read
-            spec = modes.MODES[mode]
-            row = FormsRow(spec["label"], modes.forms_of(mode), lambda m=mode: self.apply(m), tips)
-            row.check.setToolTip(f"Values in {spec['unit']}" if spec["unit"] else spec["label"])
-            widgets, setters = {}, {}
-            for key, default in spec["defaults"].items():
-                if key in spec.get("enums", {}):
-                    w = QComboBox()
-                    w.addItems(list(spec["enums"][key]))
-                    w.setCurrentText(str(default))
-                    w.currentTextChanged.connect(lambda _v: self.timer.start())
-                    w.setMinimumWidth(60)
-                    w.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-                    get, put = w.currentText, w.setCurrentText
-                elif isinstance(default, int):
-                    w = QSpinBox()
-                    w.setRange(1, 256)
-                    w.setValue(default)
-                    w.setKeyboardTracking(False)
-                    w.valueChanged.connect(lambda _v: self.timer.start())
-                    get, put = w.value, lambda v, w=w: w.setValue(int(v))
-                else:
-                    w = QDoubleSpinBox()
-                    w.setRange(-1e6, 1e6)
-                    w.setDecimals(2 if abs(default) < 10 else 1)
-                    w.setSingleStep(0.1 if abs(default) < 10 else 1)
-                    w.setValue(float(default))
-                    w.setKeyboardTracking(False)
-                    w.valueChanged.connect(lambda _v: self.timer.start())
-                    get, put = w.value, lambda v, w=w: w.setValue(float(v))
-                widgets[key], setters[key] = get, put
-                row.form_layout.addRow(_label(key, mode), w)
-            row._sync()
-            lay.addWidget(row.box)
-            self.rows[mode] = (row, widgets)
-            self.setters[mode] = setters
-        self.built = True
-        # The defaults, the first time: their colour layers.
-        for mode in DEFAULT_ON:
-            self.rows[mode][0].set_forms({"colour"})
-
-    def opts(self, mode):
-        from .live import modes
-        defaults = modes.MODES[mode]["defaults"]
-        # Only what differs from the defaults goes into the address.
-        return {k: get() for k, get in self.rows[mode][1].items() if str(get()) != str(defaults[k])}
-
-    def canvas_extent(self):
-        c = self.dock.canvas
-        if c is None:
-            return None, 0
-        try:
-            to_merc = QgsCoordinateTransform(c.mapSettings().destinationCrs(), QgsCoordinateReferenceSystem("EPSG:3857"),
-                                             QgsProject.instance())
-            return to_merc.transformBoundingBox(c.extent()), c.width()
-        except Exception:  # noqa: BLE001 - an extent outside Web Mercator
-            return None, 0
-
-    def auto_elevation_range(self):
-        """The hypsometric tint over the view's elevations (2nd to 98th
-        percentile), the first time it is drawn with its default range."""
-        from .live import modes
-        from .live.layers import elevation_range
-        ext, width = self.canvas_extent()
-        if ext is None or self.opts("elevation"):
-            return
-        lo, hi = elevation_range(ext, width)
-        d = modes.MODES["elevation"]["defaults"]
-        if (lo, hi) != (d["min"], d["max"]):
-            self.setters["elevation"]["min"](round(lo))
-            self.setters["elevation"]["max"](round(hi))
-            self.timer.stop()  # applied now, by the caller
-
-    def apply(self, mode):
-        from .live.layers import LocalLayers
-        if not self.check.isChecked():
-            return
-        row = self.rows[mode][0]
-        ll = LocalLayers()
-        if mode == "elevation" and row.checked_forms() and ll.find("elevation", "colour") is None and ll.find("elevation", "values") is None:
-            self.auto_elevation_range()
-        ext, width = self.canvas_extent()
-        for form in row.forms:
-            want = row.on(form)
-            layer = ll.find(mode, form)
-            if not want and layer is not None:
-                self.dock.removing.add(layer.id())
-            ll.set_form(mode, form, want, self.opts(mode), ext, width)
-
-    def apply_all(self):
-        for mode in self.rows:
-            self.apply(mode)
-
-    def refresh_vectors(self):
-        from .live.layers import LocalLayers
-        ext, width = self.canvas_extent()
-        if ext is not None and self.check.isChecked():
-            LocalLayers().refresh_vectors(self.opts, ext, width)
-
-    def prefetch(self):
-        from .live.layers import LocalLayers
-        ext, width = self.canvas_extent()
-        if ext is not None and self.check.isChecked():
-            LocalLayers().prefetch(ext, width)
-
-    def form_removed(self, mode, form):
-        if mode in self.rows:
-            self.rows[mode][0].form_removed(form)
-
-    def toggle(self, on):
-        from .live.layers import LocalLayers
-        if on and not self.built:
-            self.build()
-        self.body.setVisible(on)
-        if on:
-            self.prefetch()
-            self.apply_all()
-        else:
-            # The rows keep their boxes: checking the box again brings the
-            # same layers back.
-            ll = LocalLayers()
-            g = ll.group()
-            if g is not None:
-                self.dock.removing.update(n.layerId() for n in g.findLayers())
-            ll.remove_all()
+            if layer is None:
+                continue
+            shading = self.mode.get("shading") and form != "vector"
+            self.dock.stack.style(layer, self.opacity_value(), shading)
 
 
 class TerrainViewerDock(QDockWidget):
@@ -554,11 +610,15 @@ class TerrainViewerDock(QDockWidget):
         self.warnings = []  # what warn() said, for the tests
         self.service_down = False
         self.catalog = None
+        self.connected = None  # None, "local", "remote" or "python"
+        self.base = None  # the service connected to
         self.rows = {}
         self.stack = LayerStack()
         self.extra = {}  # a share link's other parameters, kept in every address
         self.camera = None  # the last share link's (lat, lng, zoom), when there is no canvas
         self.pending = set()
+        self.adopted = False
+        self._py_sources = {}
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(500)
@@ -567,77 +627,145 @@ class TerrainViewerDock(QDockWidget):
         self.health_timer.setInterval(HEALTH_EVERY_MS)
         self.health_timer.timeout.connect(self.check_health)
         self.health_reply = None
+        # The Python backend: elevation fetched ahead, contour lines
+        # recomputed once the canvas stops.
+        self.prefetch_timer = QTimer(self)
+        self.prefetch_timer.setSingleShot(True)
+        self.prefetch_timer.setInterval(150)
+        self.prefetch_timer.timeout.connect(self.prefetch)
+        self.vector_timer = QTimer(self)
+        self.vector_timer.setSingleShot(True)
+        self.vector_timer.setInterval(400)
+        self.vector_timer.timeout.connect(self.refresh_vectors)
+        if canvas is not None:
+            canvas.extentsChanged.connect(self.extent_changed)
         # Layers this panel removes itself; any other removal (by hand in the
         # layer tree, a new project) unchecks the form it drew.
         self.removing = set()
         QgsProject.instance().layersWillBeRemoved.connect(self.layers_removed)
+        self.install_task = None
 
         s = QgsSettings()
         # 0.5.0 kept an Earthdata token for the local service here; a token
         # now lives in the service's environment only (EARTHDATA_TOKEN).
         if s.contains(f"{SETTINGS}/earthdataToken"):
             s.remove(f"{SETTINGS}/earthdataToken")
+        backend = s.value(f"{SETTINGS}/backend", "")
+        if backend not in ("local", "remote", "python"):
+            # 0.6.0 had a "Local tile service" box.
+            backend = "local" if str(s.value(f"{SETTINGS}/bundled", "false")).lower() in ("1", "true") else "remote"
+        self.backend = backend
+
         body = QWidget()
         outer = QVBoxLayout(body)
 
-        # Experimental, off by default, at the top: modes computed here with
-        # numpy (live/), no tile service.
-        self.local_section = LocalSection(self)
-        self.local = self.local_section.check
-        outer.addWidget(self.local_section.box)
-
-        line = QHBoxLayout()
+        # -- the backend, and its options -----------------------------------
+        self.backend_picker = Segmented([(i, label, tip) for i, label, tip in BACKENDS], backend)
+        outer.addWidget(self.backend_picker)
+        self.pages = QStackedWidget()
+        self.pages.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        # Local service
+        local = QWidget()
+        ll = QVBoxLayout(local)
+        ll.setContentsMargins(0, 0, 0, 0)
+        self.local_info = QLabel()
+        self.local_info.setWordWrap(True)
+        ll.addWidget(self.local_info)
+        row = QHBoxLayout()
+        self.install_btn = QPushButton()
+        self.install_btn.clicked.connect(lambda _checked=False: self.install_clicked())
+        row.addWidget(self.install_btn)
+        row.addStretch(1)
+        self.local_connect = QPushButton("Connect")
+        self.local_connect.setToolTip("Install the service if needed, start it on this machine, connect")
+        self.local_connect.clicked.connect(lambda _checked=False: self.connect_service())
+        row.addWidget(self.local_connect)
+        ll.addLayout(row)
+        self.pages.addWidget(local)
+        # Remote service
+        remote = QWidget()
+        rl = QHBoxLayout(remote)
+        rl.setContentsMargins(0, 0, 0, 0)
         self.url = QLineEdit(s.value(f"{SETTINGS}/service", DEFAULT_SERVICE))
         self.url.setPlaceholderText("Tile service, e.g. http://localhost:3400")
-        self.url.returnPressed.connect(self.connect_service)
+        self.url.setToolTip("The address of a tile service: the desktop app's (http://localhost:3400), one of your own "
+                            "on this machine or another, or a hosted one")
+        self.url.returnPressed.connect(lambda: self.connect_service())
         go = QPushButton("Connect")
-        go.clicked.connect(self.connect_service)
-        line.addWidget(self.url, 1)
-        line.addWidget(go)
-        outer.addLayout(line)
-        # The local tile service: downloaded on demand (Install), off by
-        # default: checking "Local tile service" enables it, and Connect
-        # starts it on this machine; it never starts on its own.
-        self.bundled = None
-        self.install_btn = None
-        self.install_task = None
-        if local_server.bundled() or local_server.installable():
-            row = QHBoxLayout()
-            self.bundled = QCheckBox("Local tile service")
-            self.bundled.setChecked(str(s.value(f"{SETTINGS}/bundled", "false")).lower() in ("1", "true"))
-            self.bundled.toggled.connect(self.bundled_toggled)
-            row.addWidget(self.bundled, 1)
-            self.install_btn = QPushButton()
-            self.install_btn.clicked.connect(self.install_clicked)
-            row.addWidget(self.install_btn)
-            outer.addLayout(row)
+        go.clicked.connect(lambda _checked=False: self.connect_service())
+        rl.addWidget(self.url, 1)
+        rl.addWidget(go)
+        self.pages.addWidget(remote)
+        # Python
+        python = QWidget()
+        pl = QHBoxLayout(python)
+        pl.setContentsMargins(0, 0, 0, 0)
+        self.python_info = QLabel("Computed in QGIS with numpy, from Terrarium or Terrain-RGB tiles. The modes it does "
+                                  "not compute are greyed out.")
+        self.python_info.setWordWrap(True)
+        pl.addWidget(self.python_info, 1)
+        py_go = QPushButton("Connect")
+        py_go.setToolTip("Start the Python backend (a server thread of QGIS on 127.0.0.1)")
+        py_go.clicked.connect(lambda _checked=False: self.connect_service())
+        pl.addWidget(py_go)
+        self.pages.addWidget(python)
+        outer.addWidget(self.pages)
+        self.backend_picker.changed.connect(self.set_backend)
+
         self.status = QLabel("Not connected")
         self.status.setWordWrap(True)
         outer.addWidget(self.status)
-        self.refresh_service_row()
 
-        src = QFormLayout()
+        # -- the source, with zoom-to -----------------------------------------
+        src = QHBoxLayout()
+        src.addWidget(QLabel("Source"))
         self.source = QComboBox()
         self.source.setEditable(True)
+        self.source.setMinimumWidth(60)
+        self.source.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.source.setMinimumContentsLength(10)
         self.source.setToolTip("An id from the service's /sources, or the address of Terrarium tiles, a COG or a VRT")
-        self.source.currentTextChanged.connect(lambda _t: self.schedule_all())
-        src.addRow("Terrain source", self.source)
-        self.keys = {}
-        for k in KEY_PARAMS:
-            e = QLineEdit(s.value(f"{SETTINGS}/{k}", ""))
-            e.setEchoMode(QLineEdit.EchoMode.Password)
-            e.setPlaceholderText("only for the sources that need it")
-            e.editingFinished.connect(self.keys_changed)
-            self.keys[k] = e
-            src.addRow(k, e)
+        self.source.currentTextChanged.connect(lambda _t: self.source_changed())
+        src.addWidget(self.source, 1)
+        self.zoom_btn = QToolButton()
+        icon = _theme_icon("/mActionZoomToLayer.svg", "/mActionZoomFullExtent.svg")
+        if icon is not None:
+            self.zoom_btn.setIcon(icon)
+        else:
+            self.zoom_btn.setText("Zoom")
+        self.zoom_btn.setToolTip("Zoom the map to the source's extent")
+        self.zoom_btn.clicked.connect(lambda _checked=False: self.zoom_to_source())
+        src.addWidget(self.zoom_btn)
         outer.addLayout(src)
 
+        # -- the keys, folded behind a key ------------------------------------
+        self.keys_section = FoldSection("API keys", _theme_icon("/locked.svg", "/mIconLock.svg", "/mActionLock.svg"))
+        kform = QFormLayout()
+        kform.setContentsMargins(0, 0, 0, 0)
+        self.keys = {}
+        for k, label in ALL_KEYS:
+            e = QLineEdit(s.value(f"{SETTINGS}/{k}", ""))
+            e.setEchoMode(QLineEdit.EchoMode.Password)
+            sent = k in KEY_PARAMS
+            e.setPlaceholderText("only for the sources that need it" if sent else "kept; no source needs it yet")
+            e.setToolTip(f"{label} key ({k}): " + ("sent to the tile service with each tile of a source that needs it, "
+                                                   "and used by the Python backend for that source" if sent else
+                                                   "stored in QGIS's settings for the app's sources that will need it"))
+            e.editingFinished.connect(self.keys_changed)
+            self.keys[k] = e
+            kform.addRow(label, e)
+        self.keys_section.body_layout.addLayout(kform)
+        outer.addWidget(self.keys_section)
+
+        # -- a share link, freeze ---------------------------------------------
         link = QHBoxLayout()
         self.link = QLineEdit()
-        self.link.setPlaceholderText("Paste a Terrain Viewer share link")
-        self.link.returnPressed.connect(self.open_link)
-        open_btn = QPushButton("Open from link")
-        open_btn.clicked.connect(self.open_link)
+        self.link.setPlaceholderText("Paste a share link, or its query")
+        self.link.setToolTip("A Terrain Viewer share link (https://terrain-viewer.iconem.com/?...) or just its query "
+                             "(zoom=12&lat=...): its modes, settings, source and camera")
+        self.link.returnPressed.connect(lambda: self.open_link())
+        open_btn = QPushButton("Open link")
+        open_btn.clicked.connect(lambda _checked=False: self.open_link())
         link.addWidget(self.link, 1)
         link.addWidget(open_btn)
         outer.addLayout(link)
@@ -646,12 +774,30 @@ class TerrainViewerDock(QDockWidget):
         freeze_btn = QPushButton("Freeze")
         freeze_btn.setToolTip("Copy the layers drawn now from the \"Terrain Viewer (live)\" group into a new dated "
                               "group under it, every setting kept in their addresses; the panel never changes the copies")
-        freeze_btn.clicked.connect(self.freeze)
+        freeze_btn.clicked.connect(lambda _checked=False: self.freeze())
         freeze.addStretch(1)
         freeze.addWidget(freeze_btn)
         outer.addLayout(freeze)
         self.freeze_btn = freeze_btn
 
+        # -- the light, shared by the shaded modes ----------------------------
+        self.light_section = FoldSection("Light (hillshade, Phong, shadows)", None, open_=False)
+        lrow = QHBoxLayout()
+        self.light_pad = LightPad(*LIGHT_DEFAULT)
+        lrow.addWidget(self.light_pad)
+        lform = QFormLayout()
+        self.light_az = SliderSpin(0, 360, 1, LIGHT_DEFAULT[0], hard=(0, 360))
+        self.light_el = SliderSpin(0, 90, 1, LIGHT_DEFAULT[1], hard=(0, 90))
+        lform.addRow("Azimuth", self.light_az)
+        lform.addRow("Elevation", self.light_el)
+        lrow.addLayout(lform, 1)
+        self.light_section.body_layout.addLayout(lrow)
+        self.light_pad.changed.connect(self._light_from_pad)
+        self.light_az.valueChanged.connect(self._light_from_sliders)
+        self.light_el.valueChanged.connect(self._light_from_sliders)
+        outer.addWidget(self.light_section)
+
+        # -- the modes ----------------------------------------------------------
         self.groups_host = QWidget()
         self.groups_layout = QVBoxLayout(self.groups_host)
         self.groups_layout.setContentsMargins(0, 0, 0, 0)
@@ -663,81 +809,56 @@ class TerrainViewerDock(QDockWidget):
         outer.addWidget(scroll, 1)
         self.setWidget(body)
 
-    def toggle_local(self, on):
-        self.local_section.toggle(on)
+        # The tree from the packaged snapshot until a service answers.
+        snap = assets.catalog()
+        if snap.get("tree"):
+            self.catalog = Catalog(None, snapshot=snap)
+            self.build()
+        self.show_backend(backend)
 
-    def layers_removed(self, ids):
-        """Layers about to leave the project: the panel's own removals are
-        expected; any other unchecks the form whose layer it was."""
-        project = QgsProject.instance()
-        for lid in ids:
-            if lid in self.removing:
-                self.removing.discard(lid)
-                continue
-            layer = project.mapLayer(lid)
-            if layer is None:
-                continue
-            key = layer.customProperty(PROP)
-            if key and key.split(":")[0] in self.rows:
-                self.rows[key.split(":")[0]].row.form_removed(ModeRow.form_of(key))
-            local = layer.customProperty("terrain_viewer/local_mode")
-            if local and self.local_section.built:
-                from .live.layers import _mode_form
-                self.local_section.form_removed(*_mode_form(layer))
+    # -- the backend --------------------------------------------------------
+    def show_backend(self, backend):
+        self.pages.setCurrentIndex([b[0] for b in BACKENDS].index(backend))
+        self.refresh_service_row()
+        for row in self.rows.values():
+            row.apply_backend(backend)
 
-    def cleanup(self):
-        """Disconnected from the project (the plugin unloading)."""
-        try:
-            QgsProject.instance().layersWillBeRemoved.disconnect(self.layers_removed)
-        except (TypeError, RuntimeError):
-            pass
-        self.health_timer.stop()
-
-    # -- the service ------------------------------------------------------
-    def service_url(self):
-        return self.url.text().strip().rstrip("/")
-
-    def common_params(self):
-        out = dict(self.extra)
-        src = self.source.currentData() or self.source.currentText().strip()
-        if src:
-            out["terrainSource"] = src
-        for k, e in self.keys.items():
-            if e.text().strip():
-                out[k] = e.text().strip()
-        return out
-
-    def keys_changed(self):
-        s = QgsSettings()
-        for k, e in self.keys.items():
-            s.setValue(f"{SETTINGS}/{k}", e.text().strip())
-        self.schedule_all()
-
-    def use_bundled(self):
-        return self.bundled is not None and self.bundled.isChecked() and local_server.bundled()
-
-    # -- installing the local service -------------------------------------
-    def refresh_service_row(self):
-        """The box enabled once a service is installed; the button installs it, or removes it."""
-        if self.bundled is None:
+    def set_backend(self, backend, connect=True):
+        """Another backend picked: the one before disconnected (the local
+        service stopped), the tree greyed for it, and connected (the layers
+        of the checked modes re-pointed to it)."""
+        if backend not in ("local", "remote", "python"):
             return
+        if self.backend_picker.current() != backend:
+            self.backend_picker.set(backend, emit=False)
+        previous, self.backend = self.backend, backend
+        QgsSettings().setValue(f"{SETTINGS}/backend", backend)
+        self.health_timer.stop()
+        if previous == "local" and backend != "local":
+            local_server.stop_instance()
+        if self.connected and self.connected != backend:
+            self.connected = None
+            self.status.setText("Not connected")
+        self.show_backend(backend)
+        if connect:
+            self.connect_service()
+
+    def refresh_service_row(self):
+        """The local page: what is installed, Install or Remove."""
         have = local_server.bundled()
         info = local_server.bundle_info() if have else {}
-        self.bundled.setEnabled(have)
-        self.url.setEnabled(not (have and self.bundled.isChecked()))
         legacy = have and local_server.current_dir() == local_server.LEGACY_DIR
+        self.install_btn.setVisible(not legacy and (have or local_server.installable()))
         if have:
-            self.bundled.setToolTip(f"The local tile service (Node {info.get('node', '?')}, {info.get('platform', '')}, built "
-                                    f"{info.get('built', '?')}, in {local_server.current_dir()}): when checked, Connect starts "
-                                    "it on this machine (127.0.0.1); unchecking it or quitting QGIS stops it. Unchecked, the "
-                                    "panel connects to the address above (e.g. the Terrain Viewer desktop app's tile service, "
-                                    "http://localhost:3400)")
-        else:
-            self.bundled.setToolTip("Install the local tile service first (the button on the right)")
-        self.install_btn.setVisible(not legacy)
-        if have:
+            self.local_info.setText(f"Installed: Node {info.get('node', '?')}, {info.get('platform', '')}, built "
+                                    f"{info.get('built', '?')}. Connect starts it on this machine; quitting QGIS stops it.")
+            self.local_info.setToolTip(local_server.current_dir() or "")
             self.install_btn.setText("Remove")
             self.install_btn.setToolTip("Delete the downloaded tile service")
+            return
+        if not local_server.installable():
+            self.local_info.setText(f"No tile service is packaged for this platform ({local_server.platform_label() or '?'}): "
+                                    "use Remote service")
             return
         try:
             from .service_install import asset
@@ -745,37 +866,46 @@ class TerrainViewerDock(QDockWidget):
         except Exception:  # noqa: BLE001 - nothing pinned for this platform
             size = 0
         p = local_server.pins()
+        self.local_info.setText("Not installed yet: Connect downloads it" + (f" ({size / 1e6:.0f} MB)" if size else "")
+                                + ", checks it and starts it.")
         self.install_btn.setText("Install" + (f" ({size / 1e6:.0f} MB)" if size else ""))
         self.install_btn.setToolTip(f"Install the local tile service: download it for {local_server.platform_label()} "
                                     f"(Node, the service, its image libraries) from the GitHub release "
                                     f"{p.get('release', '?')}, check its sha256, unpack it into {local_server.installed_dir()}")
 
+    # -- installing the local service -------------------------------------
     def install_clicked(self):
         if local_server.bundled():
             from .service_install import uninstall
-            self.bundled.setChecked(False)
+            if self.connected == "local":
+                self.connected = None
+            local_server.stop_instance()
             uninstall()
             self.status.setText("Local tile service removed")
             self.refresh_service_row()
         else:
             self.install_service()
 
-    def install_service(self, wait=False, fetch=None):
+    def install_service(self, wait=False, fetch=None, then=None):
         """Downloads and unpacks the pinned service, in a QgsTask (wait: in
-        this thread, for the tests). Returns True when installed (wait) or
-        started (no wait)."""
+        this thread, for the tests), then calls `then` when it worked.
+        Returns True when installed (wait) or started (no wait)."""
         from .service_install import InstallError, install
         self.install_btn.setEnabled(False)
+        self.local_connect.setEnabled(False)
         self.status.setText("Downloading the local tile service...")
 
         def done(error, where=None):
             self.install_btn.setEnabled(True)
+            self.local_connect.setEnabled(True)
             self.install_task = None
+            self.refresh_service_row()
             if error:
                 self.warn(f"The local tile service was not installed: {error}")
-            else:
-                self.status.setText(f"Local tile service installed in {where}: check Local tile service and press Connect")
-            self.refresh_service_row()
+                return
+            self.status.setText(f"Local tile service installed in {where}")
+            if then is not None:
+                then()
 
         if wait:
             try:
@@ -785,7 +915,7 @@ class TerrainViewerDock(QDockWidget):
                 return False
             done(None, where)
             return True
-        from qgis.core import QgsApplication, QgsTask
+        from qgis.core import QgsTask
 
         def run(task):
             def progress(n, total):
@@ -800,32 +930,20 @@ class TerrainViewerDock(QDockWidget):
         QgsApplication.taskManager().addTask(self.install_task)
         return True
 
-    def bundled_toggled(self, on):
-        QgsSettings().setValue(f"{SETTINGS}/bundled", "true" if on else "false")
-        self.url.setEnabled(not on)
-        self.health_timer.stop()
-        if on:
-            self.status.setText("Local tile service enabled: press Connect to start it")
-        else:
-            local_server.stop_instance()
-            self.url.setText(QgsSettings().value(f"{SETTINGS}/service", DEFAULT_SERVICE))
-            self.status.setText("Local tile service stopped: press Connect to use the address above")
-
     def start_bundled(self):
-        """The bundled service's address, started if needed; None (and the
+        """The local service's address, started if needed; None (and the
         reason in the status line) when it does not start."""
         server = local_server.instance()
         if not server.running():
             self.status.setText("Starting the local tile service...")
             QApplication.processEvents()
         try:
-            url = server.start()
+            return server.start()
         except RuntimeError as e:
             self.status.setText(f"The local tile service did not start: {e} (log: {server.log_path})")
             return None
-        self.url.setText(url)
-        return url
 
+    # -- messages -----------------------------------------------------------
     def warn(self, text):
         """A warning in the panel's status line and in QGIS's message bar."""
         self.warnings.append(text)
@@ -834,54 +952,150 @@ class TerrainViewerDock(QDockWidget):
             self.message_bar.pushMessage("Terrain Viewer", text, Qgis.MessageLevel.Warning, 15)
 
     def unresponsive(self, base, error):
-        server = local_server.instance() if self.bundled is not None else None
-        return unresponsive_message(base, error, bundled_available=self.bundled is not None, bundled_on=self.use_bundled(),
-                                    bundled_status=server.status() if server is not None else "")
+        server = local_server.instance()
+        return unresponsive_message(base, error, bundled_available=local_server.bundled() or local_server.installable(),
+                                    bundled_on=self.backend == "local", bundled_status=server.status())
+
+    # -- connecting -----------------------------------------------------------
+    def service_url(self):
+        if self.connected in ("local", "remote") and self.base:
+            return self.base
+        return self.url.text().strip().rstrip("/")
 
     def connect_service(self, start_bundled=True):
-        """Connect to the service: the bundled one, started now (unless
-        start_bundled is False: the panel opening never starts it, only
-        Connect does), or the address typed."""
+        """Connect to the backend picked: the local service (installed first
+        if needed, then started: unless start_bundled is False, the panel
+        opening, which never starts anything), the address typed, or the
+        Python backend. The service is asked /health first (3 s), so one
+        that is not there is one message, not a timeout per tile."""
         self.health_timer.stop()
-        bundled = self.use_bundled()
-        if bundled and not local_server.instance().running():
+        backend = self.backend
+        if backend == "python":
             if not start_bundled:
-                self.status.setText("Local tile service enabled: press Connect to start it")
+                self.status.setText("Python backend: press Connect to start it")
                 return False
-            if self.start_bundled() is None:
-                self.warnings.append(self.status.text())
-                if self.message_bar is not None:
-                    self.message_bar.pushMessage("Terrain Viewer", self.status.text(), Qgis.MessageLevel.Warning, 15)
+            return self.connect_python()
+        if backend == "local":
+            if not local_server.bundled():
+                if not start_bundled:
+                    self.status.setText("Local tile service not installed: Connect installs and starts it")
+                    return False
+                if not local_server.installable():
+                    self.warn(f"No local tile service for this platform ({local_server.platform_label()}): pick Remote service")
+                    return False
+                self.install_service(then=lambda: self.connect_service())
                 return False
-        elif bundled:
-            self.url.setText(local_server.instance().url)
-        base = self.service_url()
+            if not local_server.instance().running() and not start_bundled:
+                self.status.setText("Local tile service: press Connect to start it")
+                return False
+            base = self.start_bundled()
+            if base is None:
+                self.warn(self.status.text())
+                return False
+        else:
+            base = self.url.text().strip().rstrip("/")
+            if not base:
+                self.warn("Type the address of a tile service, e.g. http://localhost:3400")
+                return False
+        ok, error = health(base)
+        if not ok:
+            self.service_down = True
+            self.connected = None
+            self.warn(self.unresponsive(base, error))
+            return False
         try:
-            self.catalog = Catalog(base)
+            catalog = Catalog(base)
         except ServiceError as e:
             self.service_down = True
+            self.connected = None
             self.warn(self.unresponsive(base, e))
             return False
         self.service_down = False
-        if not bundled:
+        self.catalog = catalog
+        self.base = base
+        self.connected = backend
+        if backend == "remote":
             QgsSettings().setValue(f"{SETTINGS}/service", base)
+        self.remove_legacy_local()
         self.stack.ranks = tree_ranks(self.catalog.tree)
         self.build()
         counts = f"{len(self.catalog.sources)} sources, {len(self.catalog.modes)} modes"
-        self.status.setText(f"{counts}. {local_server.instance().status()}" if bundled else f"{counts} from {base}")
+        self.status.setText(f"{counts}. {local_server.instance().status()}" if backend == "local" else f"{counts} from {base}")
         self.adopt_existing()
-        if bundled:
-            # The bundled service may be on another port than when the project
-            # was saved: the layers' addresses follow it.
-            self.schedule_all()
+        # Every checked mode drawn by this service (the layers of another
+        # backend, or of a local service on another port, re-pointed).
+        self.schedule_all()
         self.health_timer.start()
         return True
+
+    def connect_python(self):
+        if pyb.numpy_missing():
+            self.warn("The Python backend needs numpy, which this QGIS's Python lacks: pick Local or Remote service")
+            return False
+        try:
+            self.live_server()
+        except Exception as e:  # noqa: BLE001 - a port, a missing module
+            self.warn(f"The Python backend did not start: {e}")
+            return False
+        if self.catalog is None:
+            self.catalog = Catalog(None, snapshot=assets.catalog())
+            self.build()
+        self.connected = "python"
+        self.base = None
+        self.service_down = False
+        self.remove_legacy_local()
+        self.stack.ranks = tree_ranks(self.catalog.tree)
+        for row in self.rows.values():
+            row.apply_backend("python")
+        self.adopt_existing()
+        n = sum(1 for r in self.rows.values() if r.row.header.isEnabled())
+        self._py_sources.clear()
+        sid = self.python_source()
+        self.status.setText(f"Python backend: {n} of {len(self.rows)} modes, elevation from {sid}")
+        self.schedule_all()
+        self.prefetch()
+        return True
+
+    def live_server(self):
+        from .live.server import LiveServer
+        from .live.layers import ramp_luts
+        srv = LiveServer.instance()
+        if not srv.luts:
+            srv.luts = ramp_luts()
+        return srv
+
+    def remove_legacy_local(self):
+        """0.6.0's "Terrain Viewer (local compute)" group: its layers drew
+        the Python modes apart from the tree; the tree draws them now."""
+        root = QgsProject.instance().layerTreeRoot()
+        for g in root.findGroups(True):
+            if g.customProperty("terrain_viewer/local_root"):
+                ids = [n.layerId() for n in g.findLayers()]
+                self.removing.update(ids)
+                QgsProject.instance().removeMapLayers(ids)
+                g.parent().removeChildNode(g)
+                break
+
+    def python_source(self):
+        """live/'s id of the source picked, registered; Mapterhorn (and one
+        warning) when live/ cannot read it."""
+        src = self.current_source() or "mapterhorn"
+        keys = self.key_values()
+        cache_key = (src, tuple(sorted(keys.items())))
+        if cache_key not in self._py_sources:
+            sources = self.catalog.sources if self.catalog is not None else assets.catalog().get("sources", [])
+            sid, why = pyb.source_spec(src, sources, keys)
+            if sid is None:
+                self.warn(f"{why}. The Python backend draws Mapterhorn instead.")
+                sid = "mapterhorn"
+            self._py_sources[cache_key] = sid
+        return self._py_sources[cache_key]
 
     # -- is it still there? ---------------------------------------------------
     def check_health(self):
         """Ask /health without blocking QGIS; a failure after a working
         connection is warned about once, and its return said too."""
-        if self.health_reply is not None:
+        if self.health_reply is not None or self.connected not in ("local", "remote"):
             return
         base = self.service_url()
         request = QNetworkRequest(QUrl(f"{base}/health"))
@@ -907,21 +1121,30 @@ class TerrainViewerDock(QDockWidget):
             self.service_down = False
             self.status.setText(f"The tile service at {base} answers again")
 
+    # -- the tree -------------------------------------------------------------
+    def ramp_items(self):
+        names = assets.ramp_names()
+        ids = list(self.catalog.colorramps) if self.catalog is not None and self.catalog.colorramps else list(names)
+        return [(i, names.get(i, i), assets.ramp_icon(i)) for i in ids]
+
     def build(self):
+        """The tree from the catalog, the panel's state (checked forms,
+        settings, opacities) kept across a rebuild."""
+        state = {mid: (r.row.checked_forms(), r.row.remembered, r.values(), r.opacity_value()) for mid, r in self.rows.items()}
         while self.groups_layout.count():
-            w = self.groups_layout.takeAt(0).widget()
+            item = self.groups_layout.takeAt(0)
+            w = item.widget()
             if w:
                 w.deleteLater()
         self.rows = {}
         self.source.blockSignals(True)
-        current = self.source.currentData() or self.source.currentText()
+        current = self.current_source()
         self.source.clear()
         for s in self.catalog.sources:
             label = s["name"] + (f"  ({s['key']})" if s.get("key") else "")
             self.source.addItem(label, s["id"])
-        i = self.source.findData(current) if current else 0
-        self.source.setCurrentIndex(max(i, 0))
         self.source.blockSignals(False)
+        self.set_source(current or "mapterhorn", quiet=True)
 
         def add_group(g, parent_layout, path):
             here = path + ((g["group"],) if g.get("group") else ())
@@ -944,35 +1167,237 @@ class TerrainViewerDock(QDockWidget):
         for g in reversed(self.catalog.tree):
             add_group(g, self.groups_layout, ())
         self.groups_layout.addStretch(1)
+        for mid, (forms, remembered, values, opacity) in state.items():
+            row = self.rows.get(mid)
+            if row is None:
+                continue
+            row.set_values(values)
+            row.set_opacity(opacity)
+            row.row.set_forms(forms)
+            row.row.remembered = remembered
+        for row in self.rows.values():
+            row.apply_backend(self.backend)
 
     def adopt_existing(self):
         """The layers this panel wrote earlier (a saved project): their
-        checkboxes and settings read back from their addresses."""
+        checkboxes and settings read back from their addresses. Rows with no
+        layer keep what the panel says (a mode checked before connecting)."""
+        light = None
         for key, row in self.rows.items():
             present = set()
             for k in (key, key + ":vector", key + ":values"):
                 layer = self.stack.find(k)
                 if layer is None:
                     continue
+                present.add(ModeRow.form_of(k))
+                if layer.customProperty(BACKEND_PROP) == "python" or layer.providerType() == "memory":
+                    continue  # the Python backend's addresses use live/'s names
                 if k.endswith(":values"):  # a GDAL source: the address itself
                     q = dict(parse_qsl(urlsplit(layer.source()).query))
                 else:
                     uri = QgsDataSourceUri()
                     uri.setEncodedUri(layer.source())
                     q = dict(parse_qsl(urlsplit(uri.param("url")).query))
+                if self.adopted:
+                    continue  # the panel's own state wins after the first connect
                 row.set_values(q)
-                # A layer in the project is a checked form (hidden or not:
-                # its visibility is the layer tree's).
-                present.add(ModeRow.form_of(k))
+                if q.get("illuminationDir") or q.get("illuminationAlt"):
+                    light = (float(q.get("illuminationDir", LIGHT_DEFAULT[0])), float(q.get("illuminationAlt", LIGHT_DEFAULT[1])))
                 if q.get("terrainSource"):
-                    i = self.source.findData(q["terrainSource"])
-                    self.source.blockSignals(True)
-                    if i >= 0:
-                        self.source.setCurrentIndex(i)
-                    else:
-                        self.source.setEditText(q["terrainSource"])
-                    self.source.blockSignals(False)
-            row.row.set_forms(present)
+                    self.set_source(q["terrainSource"], quiet=True)
+            if present:
+                row.row.set_forms(present)
+        if light is not None:
+            self.set_light(*light, schedule=False)
+        self.adopted = True
+
+    # -- the source -----------------------------------------------------------
+    def current_source(self):
+        """The source picked: the item's id, or what was typed (an id, a
+        name, an address) when the text is not the item's."""
+        text = self.source.currentText().strip()
+        i = self.source.currentIndex()
+        if i >= 0 and self.source.itemText(i) == text:
+            return self.source.itemData(i) or text
+        if not text:
+            return None
+        j = self.source.findData(text)
+        if j < 0:
+            j = self.source.findText(text)
+        return self.source.itemData(j) if j >= 0 else text
+
+    def set_source(self, source_id, quiet=False):
+        """Picks a source by id (an id the list lacks, a share link's or an
+        address, is added to it)."""
+        if not source_id:
+            return
+        if quiet:
+            self.source.blockSignals(True)
+        i = self.source.findData(source_id)
+        if i < 0:
+            self.source.addItem(str(source_id), source_id)
+            i = self.source.count() - 1
+        self.source.setCurrentIndex(i)
+        if quiet:
+            self.source.blockSignals(False)
+
+    def source_changed(self):
+        self._py_sources.clear()
+        for row in self.rows.values():
+            row.py_auto_range = None
+        self.schedule_all()
+        if self.connected == "python":
+            self.prefetch()
+
+    def zoom_to_source(self):
+        """The map canvas moved to the source's bounds (the world for a
+        global source). Returns the bounds (lon/lat) used."""
+        src = self.current_source()
+        entry = None
+        if self.catalog is not None:
+            entry = self.catalog.source(src)
+        if entry is None:
+            entry = next((s for s in assets.catalog().get("sources", []) if s.get("id") == src), None)
+        bounds = (entry or {}).get("bounds")
+        if not bounds:
+            self.status.setText(f"{src}: no bounds known (a global source): the whole world")
+            bounds = [-180.0, -85.0, 180.0, 85.0]
+        if self.canvas is not None:
+            rect = QgsRectangle(*[float(b) for b in bounds])
+            try:
+                tr = QgsCoordinateTransform(QgsCoordinateReferenceSystem("EPSG:4326"), self.canvas.mapSettings().destinationCrs(),
+                                            QgsProject.instance())
+                self.canvas.setExtent(tr.transformBoundingBox(rect))
+                self.canvas.refresh()
+            except Exception as e:  # noqa: BLE001 - bounds outside the project's CRS
+                self.warn(f"Cannot zoom to {src}: {e}")
+        return bounds
+
+    # -- keys and light -------------------------------------------------------
+    def key_values(self):
+        return {k: e.text().strip() for k, e in self.keys.items() if e.text().strip()}
+
+    def keys_changed(self):
+        s = QgsSettings()
+        for k, e in self.keys.items():
+            s.setValue(f"{SETTINGS}/{k}", e.text().strip())
+        self._py_sources.clear()
+        self.schedule_all()
+
+    def light_value(self):
+        return (float(self.light_az.value()), float(self.light_el.value()))
+
+    def set_light(self, azimuth, elevation, schedule=True):
+        for w in (self.light_az, self.light_el):
+            w.blockSignals(True)
+        self.light_az.setValue(azimuth)
+        self.light_el.setValue(elevation)
+        for w in (self.light_az, self.light_el):
+            w.blockSignals(False)
+        self.light_pad.setValue(azimuth, elevation)
+        if schedule:
+            self.light_changed()
+
+    def _light_from_pad(self, az, el):
+        self.set_light(az, el)
+
+    def _light_from_sliders(self, _v):
+        self.light_pad.setValue(*self.light_value())
+        self.light_changed()
+
+    def light_changed(self):
+        for mid in LIGHT_MODES:
+            if mid in self.rows:
+                self.schedule(self.rows[mid])
+
+    def common_params(self, mode_id=None):
+        """The parameters of every layer: a share link's others, the source,
+        the keys the service reads, and for the shaded modes the light."""
+        out = dict(self.extra)
+        src = self.current_source()
+        if src:
+            out["terrainSource"] = src
+        for k, v in self.key_values().items():
+            if k in KEY_PARAMS:
+                out[k] = v
+        if mode_id in LIGHT_MODES:
+            az, el = self.light_value()
+            if (az, el) != LIGHT_DEFAULT:
+                out["illuminationDir"] = f"{az:g}"
+                out["illuminationAlt"] = f"{el:g}"
+        return out
+
+    # -- layers -----------------------------------------------------------------
+    def remove_layers(self, key, prune=True):
+        ids = [layer.id() for layer in self.stack.find_all(key)]
+        self.removing.update(ids)
+        self.stack.remove(key, prune=prune)
+
+    def layers_removed(self, ids):
+        """Layers about to leave the project: the panel's own removals are
+        expected; any other unchecks the form whose layer it was, and the
+        groups it leaves empty go too."""
+        project = QgsProject.instance()
+        by_hand = False
+        for lid in ids:
+            if lid in self.removing:
+                self.removing.discard(lid)
+                continue
+            layer = project.mapLayer(lid)
+            if layer is None:
+                continue
+            key = layer.customProperty(PROP)
+            if key and key.split(":")[0] in self.rows:
+                by_hand = True
+                self.rows[key.split(":")[0]].row.form_removed(ModeRow.form_of(key))
+        if by_hand:
+            QTimer.singleShot(0, self.stack.prune)
+
+    def cleanup(self):
+        """Disconnected from the project (the plugin unloading)."""
+        try:
+            QgsProject.instance().layersWillBeRemoved.disconnect(self.layers_removed)
+        except (TypeError, RuntimeError):
+            pass
+        if self.canvas is not None:
+            try:
+                self.canvas.extentsChanged.disconnect(self.extent_changed)
+            except (TypeError, RuntimeError):
+                pass
+        self.health_timer.stop()
+
+    # -- the Python backend's view-dependent work -------------------------------
+    def canvas_extent(self):
+        c = self.canvas
+        if c is None:
+            return None, 0
+        try:
+            to_merc = QgsCoordinateTransform(c.mapSettings().destinationCrs(), QgsCoordinateReferenceSystem("EPSG:3857"),
+                                             QgsProject.instance())
+            return to_merc.transformBoundingBox(c.extent()), c.width()
+        except Exception:  # noqa: BLE001 - an extent outside Web Mercator
+            return None, 0
+
+    def extent_changed(self):
+        if self.connected == "python":
+            self.prefetch_timer.start()
+            if self.stack.find("contours:vector") is not None:
+                self.vector_timer.start()
+
+    def prefetch(self):
+        if self.connected != "python":
+            return
+        from .live.layers import LocalLayers
+        ext, width = self.canvas_extent()
+        if ext is not None:
+            LocalLayers(self.stack.project).prefetch(ext, width, self.python_source())
+
+    def refresh_vectors(self):
+        if self.connected != "python":
+            return
+        for row in self.rows.values():
+            if "vector" in row.keys() and row.row.on("vector"):
+                row.update()
 
     # -- updates, debounced -------------------------------------------------
     def schedule(self, row):
@@ -989,45 +1414,82 @@ class TerrainViewerDock(QDockWidget):
             row.update()
 
     # -- a share link -----------------------------------------------------
+    def local_view(self, query):
+        """A share link read without a service (the Python backend): the
+        modes whose switches it turns on, their opacities, the settings, the
+        camera."""
+        q = query_dict(query)
+        active, opacity = [], {}
+        for mid, row in self.rows.items():
+            sw = row.mode.get("switches") or {}
+            if sw and all(str(q.get(k, "")).lower() == "true" for k, v in sw.items() if v):
+                active.append(mid)
+            ok = row.mode.get("opacityKey")
+            if ok and ok in q:
+                opacity[mid] = q[ok]
+        camera = {k: q.get(k) for k in ("lat", "lng", "zoom") if q.get(k) is not None}
+        params = {k: v for k, v in q.items() if not k.startswith("show")}
+        return {"active": active, "opacity": opacity, "params": params, "camera": camera}
+
     def open_link(self, link=None):
+        """A share link (or its query): its modes checked, their settings and
+        opacities set, the source picked, the canvas moved to its camera. The
+        backend is asked first (one clear message if it is not there)."""
         link = link if isinstance(link, str) else self.link.text()
-        if self.catalog is None and not self.connect_service():
-            return
         query = split_link(link)
-        try:
-            view = self.catalog.view(query)
-        except ServiceError as e:
-            self.status.setText(f"Could not read the link: {e}")
-            return
+        if not query:
+            self.warn("Not a share link: paste the app's link (https://...?zoom=...&lat=...) or its query")
+            return False
+        if self.connected is None and not self.connect_service():
+            return False
+        if self.connected == "python":
+            view = self.local_view(query)
+        else:
+            ok, error = health(self.service_url())
+            if not ok:
+                self.service_down = True
+                self.warn(self.unresponsive(self.service_url(), error))
+                return False
+            try:
+                view = self.catalog.view(query)
+            except ServiceError as e:
+                self.warn(f"Could not read the link: {e}")
+                return False
         params = dict(view.get("params", {}))
-        src = params.pop("terrainSource", None)
+        src = params.pop("terrainSource", None) or params.pop("terrainSourceA", None)
         if src:
-            i = self.source.findData(src)
-            self.source.blockSignals(True)
-            if i >= 0:
-                self.source.setCurrentIndex(i)
-            else:
-                self.source.setEditText(src)
-            self.source.blockSignals(False)
+            self.set_source(src, quiet=True)
+            self._py_sources.clear()
+        if any(k in params for k in LIGHT_KEYS):
+            self.set_light(float(params.get("illuminationDir", LIGHT_DEFAULT[0])),
+                           float(params.get("illuminationAlt", LIGHT_DEFAULT[1])), schedule=False)
         # The opacities go to the QGIS layers (view["opacity"]), not into
         # the addresses.
-        settings_keys = {r.mode["opacityKey"] for r in self.rows.values() if r.mode.get("opacityKey")}
+        taken = {r.mode["opacityKey"] for r in self.rows.values() if r.mode.get("opacityKey")}
+        taken.update(LIGHT_KEYS)
+        taken.update(("terrainSource", "terrainSourceA"))
         for row in self.rows.values():
             row.set_values(params)
-            settings_keys.update(row.settings)
-        self.extra = {k: v for k, v in params.items() if k not in settings_keys and k not in KEY_PARAMS}
+            taken.update(row.settings)
+        self.extra = link_params(params, getattr(self.catalog, "inputs", set()), taken)
         active = set(view.get("active", []))
         for mode_id, row in self.rows.items():
             if mode_id in view.get("opacity", {}):
                 row.set_opacity(view["opacity"][mode_id])
-            row.row.set_forms((row.row.checked_forms() or {row.row.default_form()}) if mode_id in active else set())
+            if mode_id in active:
+                forms = (row.row.checked_forms() & row.row.available) or {row.row.default_form()} - {None}
+            else:
+                forms = set()
+            row.row.set_forms(forms)
+        self.pending.clear()
         for row in self.rows.values():
             row.update()
         cam = view.get("camera") or {}
         if cam.get("lat") is not None and cam.get("lng") is not None:
             self.camera = (float(cam["lat"]), float(cam["lng"]), float(cam.get("zoom") or 12))
-            self.zoom_to(float(cam["lat"]), float(cam["lng"]), float(cam.get("zoom") or 12))
+            self.zoom_to(*self.camera)
         self.status.setText(f"Opened: {len(active)} modes on" + (f", {len(self.extra)} other parameters kept" if self.extra else ""))
+        return True
 
     # -- freeze ---------------------------------------------------------------
     def place(self):

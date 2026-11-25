@@ -434,45 +434,51 @@ if val is None or not (0 <= float(val) <= 90):
     failures.append(f"identify slope: {val}")
 ll.remove_all()
 
-# 6. The panel's box: off by default, at the top; checked, the default modes'
-# colour layers; per mode, Colour and Values add and remove their layers.
+# 6. The panel's Python backend (0.7.0): the same modes tree as the tile
+# service's, the modes live/ does not compute greyed out, the forms it lacks
+# hidden; per mode, Colour and Values add and remove their layers in the
+# live group, marked as the Python backend's.
 from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
-from terrain_viewer.live.layers import DEFAULT_ON, GROUP_PROP  # noqa: E402
+from terrain_viewer.layers import PROP, BACKEND_PROP  # noqa: E402
+from terrain_viewer import python_backend as pyb  # noqa: E402
 
 dock = TerrainViewerDock(None)
+dock.set_backend("remote", connect=False)
+for r in dock.rows.values():
+    r.row.set_forms(set())
 
 
-def local_groups():
-    return [g for g in QgsProject.instance().layerTreeRoot().findGroups(True) if g.customProperty(GROUP_PROP)]
+def py_keys(prefix=""):
+    return sorted(lyr.customProperty(PROP) for lyr in QgsProject.instance().mapLayers().values()
+                  if lyr.customProperty(BACKEND_PROP) == "python" and (lyr.customProperty(PROP) or "").startswith(prefix))
 
 
-def local_keys():
-    g = local_groups()
-    return sorted(n.layer().customProperty("terrain_viewer/local_mode") for n in g[0].findLayers()) if g else []
-
-
-body = dock.widget().layout()
-if body.itemAt(0).widget() is not dock.local_section.box:
-    failures.append("dock: the local compute box is not at the top of the panel")
-if dock.local.isChecked() or local_groups():
-    failures.append("dock: local compute must be off by default")
-dock.local.setChecked(True)
-print("dock local group:", local_keys())
-if local_keys() != sorted(f"{m}:colour" for m in DEFAULT_ON):
-    failures.append(f"dock: default local layers {local_keys()}")
-row = dock.local_section.rows["curvature"][0]
+if len(dock.rows) < 20:
+    failures.append(f"dock: the modes tree has {len(dock.rows)} rows without a service")
+dock.set_backend("python")
+print("dock python:", dock.status.text())
+enabled = sorted(m for m, r in dock.rows.items() if r.row.header.isEnabled())
+print("  enabled:", enabled)
+for m in enabled:
+    if pyb.py_mode(m) is None:
+        failures.append(f"dock: {m} enabled but live/ does not compute it")
+if dock.rows["moundDetector"].row.header.isEnabled():
+    failures.append("dock: the mound detector should be greyed out under Python")
+if dock.rows["hillshade"].row.available != {"colour"}:
+    failures.append(f"dock: hillshade offers {dock.rows['hillshade'].row.available} under Python (colour only)")
+row = dock.rows["curvature"].row
 steps = [
     ("values only", lambda: row.forms["values"].setChecked(True), ["curvature:values"]),
-    ("+ colour", lambda: row.forms["colour"].setChecked(True), ["curvature:colour", "curvature:values"]),
+    ("+ colour", lambda: row.forms["colour"].setChecked(True), ["curvature", "curvature:values"]),
     ("mode off", lambda: row.check.setChecked(False), []),
-    ("mode on: both back", lambda: row.check.setChecked(True), ["curvature:colour", "curvature:values"]),
+    ("mode on: both back", lambda: row.check.setChecked(True), ["curvature", "curvature:values"]),
     ("colour off", lambda: row.forms["colour"].setChecked(False), ["curvature:values"]),
     ("values off", lambda: row.forms["values"].setChecked(False), []),
-    ("mode on: colour", lambda: row.check.setChecked(True), ["curvature:colour"]),
+    ("mode on: colour", lambda: row.check.setChecked(True), ["curvature"]),
 ]
 for label, act, want in steps:
     act()
-    got = [k for k in local_keys() if k.startswith("curvature")]
+    got = py_keys("curvature")
     cog = row.more.isVisibleTo(row.box)
     print(f"  curvature {label:<20} -> {got}, mode {row.check.isChecked()}, cog {cog}")
     if got != want:
@@ -480,20 +486,33 @@ for label, act, want in steps:
     if cog != row.on("colour"):
         failures.append(f"dock curvature {label}: cog shown {cog} with colour {row.on('colour')}")
 # A layer removed by hand unchecks its form.
-from terrain_viewer.live.layers import LocalLayers as _LL  # noqa: E402
-QgsProject.instance().removeMapLayer(_LL().find("curvature", "colour").id())
+QgsProject.instance().removeMapLayer(dock.stack.find("curvature").id())
 if row.check.isChecked():
     failures.append("dock: removing the layer by hand left the row checked")
-# Contours: the lines too.
-crow = dock.local_section.rows["contours"][0]
-crow.forms["vector"].setChecked(True)
-if "contours:vector" not in local_keys():
-    failures.append("dock: contour lines layer missing")
-dock.local.setChecked(False)
-if local_groups() or LiveServer._instance is not None:
-    failures.append("dock: unchecking leaves the group or the server")
-if not crow.on("vector"):
-    failures.append("dock: unchecking the box forgot the rows")
+# Contours: the lines (the default form of an overlay).
+dock.rows["contours"].check.setChecked(True)
+if py_keys("contours") != ["contours:vector"]:
+    failures.append(f"dock: contour lines layer {py_keys('contours')}")
+# A setting the Python backend reads goes into its address; one it ignores is greyed.
+svf = dock.rows["svf"]
+svf.check.setChecked(True)
+svf.settings["svfRadius"].set(12)
+dock.flush()
+if "radius=12" not in dock.stack.find("svf").source().replace("%3D", "="):
+    failures.append("dock: svfRadius did not reach the Python address")
+if svf.settings["svfColorRamp"].widget.isEnabled():
+    failures.append("dock: the SVF ramp should be greyed out under Python (it draws its own)")
+# Another source live/ reads (AWS Terrarium) is followed.
+dock.set_source("aws")
+dock.flush()
+if "source=aws" not in dock.stack.find("svf").source().replace("%3D", "="):
+    failures.append("dock: the Python backend did not follow the source")
+dock.set_source("mapterhorn")
+for r in dock.rows.values():
+    r.row.set_forms(set())
+    r.update()
+if py_keys():
+    failures.append(f"dock: unchecked rows left Python layers {py_keys()}")
 
 print("\nmatch scores:")
 for m, ref, s, d in scores:

@@ -2,18 +2,42 @@
 /colorramps) and the addresses of a mode's tiles. No QGIS widget here, so
 the address building can be tested on its own."""
 import json
+import re
 from urllib.parse import urlencode, urlsplit, parse_qsl
 
 from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
 from qgis.core import QgsNetworkAccessManager
 
-# The keys a source can need, as the service names them (?mapboxKey=...).
+# The keys a source can need, as the service names them (?mapboxKey=...):
+# the only ones sent to a tile service.
 KEY_PARAMS = ("mapboxKey", "maptilerKey", "cesiumIonKey")
+# Every key the panel keeps (QGIS settings terrain_viewer/<name>), with its
+# label; HERE and Google are the app's basemap keys, kept for the sources
+# that will need them, sent nowhere today.
+ALL_KEYS = (("mapboxKey", "Mapbox"), ("maptilerKey", "MapTiler"), ("hereKey", "HERE"), ("googleKey", "Google"),
+            ("cesiumIonKey", "Cesium ion"))
+# The view's parameters that are the app's alone (the layout, the camera,
+# the other views): never put in a tile address.
+APP_ONLY = re.compile(r"^(splitRatio|splitStyle|splitScreen|viewMode|zoom|lat|lng|pitch|bearing|roll|fov|terrainSource[A-H]|"
+                      r"source[A-H]|gridLayout|appMode|terrainType)$")
 
 
 class ServiceError(Exception):
     pass
+
+
+def health(base, timeout_ms=3000):
+    """(True, "") when the service at `base` answers /health within the
+    timeout, else (False, the error): asked before anything else, so a
+    service that is not there costs one short wait and one message, not a
+    timeout per tile."""
+    request = QNetworkRequest(QUrl(f"{base.rstrip('/')}/health"))
+    request.setTransferTimeout(timeout_ms)
+    reply = QgsNetworkAccessManager.instance().blockingGet(request)
+    if reply.error() != QNetworkReply.NetworkError.NoError:
+        return False, reply.errorString() or "no answer"
+    return True, ""
 
 
 def get_json(url, timeout_ms=20000):
@@ -51,7 +75,7 @@ def unresponsive_message(base, error, bundled_available=False, bundled_on=False,
         text += (" Start the Terrain Viewer desktop app with its tile service on (Settings > Desktop: local tile service"
                  + (f", port {port}" if port else "") + "), or a tile service of your own (cd tile-server && pnpm start).")
         if bundled_available:
-            text += " Or check \"Local tile service\" (installed from the panel) to run one inside QGIS."
+            text += " Or pick \"Local service\" at the top of the panel to run one from QGIS (installed on first use)."
     else:
         text += " Check the address, your network, or whether that service is up."
     return text
@@ -79,10 +103,11 @@ def mode_of_process(p):
         schema = spec.get("schema") or {}
         s = {"key": spec.get("x-tv-url-param", key), "type": spec.get("x-tv-type") or schema.get("type", "string")}
         if schema.get("enum"):
-            s["enum"] = schema["enum"]
-        if "default" in schema:
-            s["default"] = schema["default"]
-        if spec.get("description"):
+            s["enum"] = clean_enum(schema["enum"])
+        for k in ("default", "minimum", "maximum"):
+            if k in schema:
+                s[k] = schema[k]
+        if spec.get("description") and spec["description"] != "--":
             s["note"] = spec["description"]
         settings.append(s)
     mode = {"id": p["id"], "name": p.get("title", p["id"]), "form": p.get("x-tv-form", "raster"),
@@ -93,6 +118,17 @@ def mode_of_process(p):
     if p.get("x-tv-values"):
         mode["values"] = p["x-tv-values"]
     return mode
+
+
+def clean_enum(values):
+    """An enum as the app takes it (the URL reference once listed an inline
+    literal's last value as `live" as const`)."""
+    out = []
+    for v in values or []:
+        v = str(v).split('"')[0].strip()
+        if v and v not in out:
+            out.append(v)
+    return out
 
 
 def tree_of_processes(groups, modes):
@@ -114,21 +150,37 @@ class Catalog:
     (/processes, OGC API - Processes), its colour ramps. A service from
     before 2026-11-24 (no /processes) is not read: update it."""
 
-    def __init__(self, base):
-        self.base = base.rstrip("/")
-        self.sources = get_json(f"{self.base}/sources").get("sources", [])
-        try:
-            listing = get_json(f"{self.base}/processes?expand=true")
-        except ServiceError as e:
-            raise ServiceError(f"{e} (a tile service from before 2026-11-24 has no /processes: update it)")
-        modes = {p["id"]: mode_of_process(p) for p in listing.get("processes", [])}
-        self.tree = tree_of_processes(listing.get("x-tv-groups", []), modes)
-        try:
-            self.colorramps = [r["id"] for r in get_json(f"{self.base}/colorramps").get("colorramps", [])]
-        except ServiceError:
-            self.colorramps = []
+    def __init__(self, base, snapshot=None):
+        """`base`: the service asked; `snapshot`: the packaged catalog
+        (assets.catalog(), no request: the Python backend, or before a
+        service answers)."""
+        self.base = (base or "").rstrip("/")
+        if snapshot is not None:
+            self.snapshot = True
+            self.sources = snapshot.get("sources", [])
+            self.tree = snapshot.get("tree", [])
+            self.colorramps = [r["id"] for r in snapshot.get("colorramps", [])]
+            self.inputs = set(snapshot.get("inputs", []))
+        else:
+            self.snapshot = False
+            self.sources = get_json(f"{self.base}/sources").get("sources", [])
+            try:
+                listing = get_json(f"{self.base}/processes?expand=true")
+            except ServiceError as e:
+                raise ServiceError(f"{e} (a tile service from before 2026-11-24 has no /processes: update it)")
+            modes = {p["id"]: mode_of_process(p) for p in listing.get("processes", [])}
+            self.inputs = {spec.get("x-tv-url-param", k) for p in listing.get("processes", [])
+                           for k, spec in (p.get("inputs") or {}).items()}
+            self.tree = tree_of_processes(listing.get("x-tv-groups", []), modes)
+            try:
+                self.colorramps = [r["id"] for r in get_json(f"{self.base}/colorramps").get("colorramps", [])]
+            except ServiceError:
+                self.colorramps = []
         self.modes = {item["id"]: item for _, item in walk_modes(self.tree)}
         self.order = [item["id"] for _, item in walk_modes(self.tree)]
+
+    def source(self, source_id):
+        return next((s for s in self.sources if s.get("id") == source_id), None)
 
     def view(self, query):
         """A share link's view: the modes it switches on, their opacities,
@@ -193,11 +245,22 @@ def values_url(base, mode, values, common):
 
 
 def split_link(link):
-    """A share link (or a bare query): its query string."""
-    link = link.strip()
+    """A share link (a whole address, with or without its scheme) or a bare
+    query (with or without its "?"): its query string, the fragment off."""
+    link = (link or "").strip().split("#", 1)[0]
     if "?" in link:
-        return urlsplit(link).query
-    return link.lstrip("?")
+        return link.split("?", 1)[1]
+    return link if "=" in link else ""
+
+
+def link_params(params, inputs, taken):
+    """A share link's parameters that go into every layer's address: the
+    ones some mode takes (`inputs`, /processes), minus the ones the panel
+    sets itself (`taken`: the settings, opacities, keys, the source, the
+    light). The app's own (splitRatio, the camera, the other views) stay out
+    of the tiles."""
+    return {k: v for k, v in params.items()
+            if k not in taken and k not in KEY_PARAMS and not APP_ONLY.match(k) and (not inputs or k in inputs)}
 
 
 def query_dict(query):

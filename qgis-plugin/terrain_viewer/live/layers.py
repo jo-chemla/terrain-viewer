@@ -239,7 +239,8 @@ class LocalLayers:
         whatever order they are checked in."""
         g = self.group(create=True)
         self.project.addMapLayer(layer, False)
-        rank = (ORDER.index(mode), FORM_ORDER.index(form))
+        # A mode live/ added after this list goes under the listed ones.
+        rank = (ORDER.index(mode) if mode in ORDER else len(ORDER), FORM_ORDER.index(form))
         at = 0
         for i, n in enumerate(g.children()):
             other = getattr(n, "layer", lambda: None)()
@@ -299,7 +300,7 @@ class LocalLayers:
         self.refresh_vector(layer, opts, extent, width_px)
         return layer
 
-    def refresh_vector(self, layer, opts, extent, width_px, wait=False):
+    def refresh_vector(self, layer, opts, extent, width_px, wait=False, source="mapterhorn"):
         """The contour lines of the view computed in a QgsTask and put into
         the layer when done (a later view's result wins); wait: here, now
         (tests)."""
@@ -307,11 +308,11 @@ class LocalLayers:
         if extent is None or width_px <= 0:
             return
         o = modes.parse_opts("contours", opts)
-        key = (extent.toString(), width_px, o["minor"], o["major"])
+        key = (extent.toString(), width_px, o["minor"], o["major"], source)
         if layer.customProperty("terrain_viewer/local_view") == str(key) and not wait:
             return
         layer.setCustomProperty("terrain_viewer/local_view", str(key))
-        dem = self.server.dem("mapterhorn")
+        dem = self.server.dem(source)
         ext = QgsRectangle(extent)
         if wait:
             lines, _z = contours.view_contours(dem, ext, width_px, o["minor"], o["major"])
@@ -348,11 +349,11 @@ class LocalLayers:
                 self.refresh_vector(layer, opts_of(_mode_form(layer)[0]), extent, width_px)
 
     # -- the rest ---------------------------------------------------------------
-    def prefetch(self, extent3857, width_px):
+    def prefetch(self, extent3857, width_px, source="mapterhorn"):
         """The canvas's elevation tiles (and a ring around) fetched now, in
         parallel, before QGIS asks for them."""
         z = tile_zoom(extent3857, width_px)
-        self.server.dem("mapterhorn").prefetch(tiles_of(extent3857, z))
+        self.server.dem(source).prefetch(tiles_of(extent3857, z))
 
     def remove_all(self):
         """Removes the group and its layers, stops the server."""

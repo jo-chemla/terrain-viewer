@@ -156,11 +156,13 @@ print("plugin: plain;", f"a service pinned for {local_server.platform_label()}" 
 # and must not start the bundled service.
 if external:
     QgsSettings().setValue("terrain_viewer/service", external)
+# 0.7.0: a backend picked at the top of the panel; the remote one first.
+QgsSettings().setValue("terrain_viewer/backend", "remote" if external else "local")
 plugin.action.setChecked(True)
 dock = plugin.dock
+check(not local_server.instance().running(), "the panel opening starts no service")
 if offered:
-    check(dock.bundled is not None and not dock.bundled.isEnabled() and dock.install_btn.text().startswith("Install"),
-          f"local service row offered, disabled until installed: [{dock.install_btn.text()}]")
+    check(dock.install_btn.text().startswith("Install"), f"the local page offers Install: [{dock.install_btn.text()}]")
 has_bundle = False
 if mode == "installed":
     from terrain_viewer import service_install  # noqa: E402
@@ -177,12 +179,11 @@ if mode == "installed":
     print(f"install: {ok} in {time.time() - t0:.1f} s; status: {dock.status.text()}")
     where = local_server.current_dir() or ""
     check(ok and local_server.bundled() and where.startswith(os.environ["TV_SERVICE_HOME"]), f"installed into the plugin's data folder ({where})")
-    check(dock.bundled.isEnabled() and dock.install_btn.text() == "Remove", "the box enabled, the button now removes it")
+    check(dock.install_btn.text() == "Remove", "the button now removes it")
     has_bundle = True
     print("bundle:", json.dumps(local_server.bundle_info()))
-    check(not dock.bundled.isChecked() and not local_server.instance().running(), "box off by default, the service not started")
-    dock.bundled.setChecked(True)
-    check(not local_server.instance().running(), "checking the box alone does not start it")
+    check(not local_server.instance().running(), "installing does not start it")
+    dock.set_backend("local", connect=False)
     print("  status:", dock.status.text())
 
 t0 = time.time()
@@ -227,9 +228,7 @@ if ok:
         print("  written to", os.path.join(tmp, f"slope-{mode}.png"))
 
 # Unresponsive, at Connect: a local address where nothing listens.
-saved_bundled = has_bundle and dock.bundled.isChecked()
-if has_bundle:
-    dock.bundled.setChecked(False)
+dock.set_backend("remote", connect=False)
 dead = "http://localhost:3499"
 dock.url.setText(dead)
 n = len(iface.bar.messages)
@@ -238,7 +237,7 @@ said = dock.status.text()
 print("  status:", said)
 check("does not answer" in said and "desktop app" in said, "the warning names the desktop app's tile service")
 if offered:
-    check("Local tile service" in said, "and the local service")
+    check("Local service" in said, "and the local service")
 check(len(iface.bar.messages) > n, "the warning went to the message bar too")
 # A remote address: no desktop app suggested.
 dock.url.setText("http://tv-unreachable.invalid:3400")
@@ -247,7 +246,7 @@ check("desktop app" not in dock.status.text(), "a remote address does not sugges
 
 # Unresponsive, while connected: the service goes away.
 if mode == "installed":
-    dock.bundled.setChecked(True)
+    dock.set_backend("local", connect=False)
     check(dock.connect_service(), "Connect again (local service)")
     proc = local_server.instance().proc
     proc.kill()
