@@ -182,6 +182,18 @@ const refused = new Map()
 /** The HTTP status of the source's last refusal (401, 403), if any. */
 export const refusalOf = (dem) => refused.get(dem.tiles)
 
+/** An HTTP tile's bytes: `{ status, bytes }`, bytes null unless 2xx. */
+export async function fetchTileBytes(url) {
+  const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(20000) })
+  return { status: res.status, bytes: res.ok ? new Uint8Array(await res.arrayBuffer()) : null }
+}
+let fetchTile = fetchTileBytes
+/** Replaces how HTTP tiles are fetched: the direct engine's workers ask the
+ *  server's thread, which keeps one cache of tile bytes for all of them
+ *  (direct-pool.mjs), so neighbouring tiles drawn by different workers
+ *  fetch a source tile once. */
+export const setTileFetcher = (fn) => { fetchTile = fn }
+
 /** One tile as elevations: `{ side, data: Float32Array }`, side being the
  *  source's tile size, or null when the tile does not exist. */
 export function loadTile(dem, z, x, y) {
@@ -195,10 +207,10 @@ export function loadTile(dem, z, x, y) {
     const url = tileUrl(dem.tiles, z, x, y)
     let data, width, height, holeBelow
     if (/^https?:\/\//.test(url)) {
-      const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(20000) })
+      const res = await fetchTile(url)
       if (res.status === 401 || res.status === 403) refused.set(dem.tiles, res.status)
-      if (!res.ok) return null
-      const r = await sharp(Buffer.from(await res.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      if (!res.bytes) return null
+      const r = await sharp(Buffer.from(res.bytes.buffer, res.bytes.byteOffset, res.bytes.byteLength)).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
       data = r.data; width = r.info.width; height = r.info.height; holeBelow = 1
     } else {
       // One of the app's schemes, through its own reader (lib/normal-derived-protocol.ts).

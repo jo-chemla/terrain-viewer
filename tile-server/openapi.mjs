@@ -68,12 +68,30 @@ const VALUE_PARAMS = [
 ]
 const VALUE_HEADERS = { "x-tv-value-unit": { schema: { type: "string" }, description: "The unit of the values (m, degree, 1/m, 1/m^2, 1; ASCII)" }, "x-tv-value-scale": { schema: { type: "number" }, description: "The factor a PNG packing multiplied them by" } }
 const COMPRESSION = q("compression", { type: "string", enum: ["deflate", "none"], default: "deflate" }, "Deflate with the floating-point predictor (GDAL's PREDICTOR=3), lossless: about a quarter of the size for elevation, half for slope, two thirds for curvature or svf, for 2 to 6 ms a tile. `none` for a reader without deflate.")
-const MESHER_NOTE = "`delatin` (the default): Delaunay refinement, about half the triangles of martini for the same error, 17 to 40 ms a tile. `martini`: a right-triangulated irregular network on the 257 x 257 grid, three times faster, twice the triangles."
+const MESHER_NOTE = "`delatin` (the default): Delaunay refinement, about 45% fewer triangles and bytes than martini for the same error, 20 to 55 ms a tile. `martini`: a right-triangulated irregular network on the 257 x 257 grid, 5 to 15 ms a tile, about twice the triangles."
 const TIFF_NOTE = " Browsers do not display TIFF: Scalar's test request answers \"Preview unavailable\" and offers the file to download."
 const tiff = (description) => ({
   200: { description, headers: { ...VALUE_HEADERS, ...LINK_HEADER }, content: { "image/tiff": { schema: { type: "string", format: "binary" } } } },
   400: { description: "More than one mode, a mode without values, or a source the direct engine cannot read", content: { "text/plain": { schema: { type: "string" } } } },
 })
+
+/** Ready-to-copy addresses on this service (Scalar gives each code block a
+ *  copy button): the top of the API's description, and of the docs page. */
+export function quickStart(base = "http://localhost:3400") {
+  const fence = "```"
+  const block = (title, url, note) => `**${title}**${note ? " " + note : ""}\n\n${fence}\n${base}${url}\n${fence}`
+  return [
+    "## Quick start",
+    "Copy an address into QGIS (XYZ Tiles), MapLibre, CesiumJS or Blender. `{z}/{x}/{y}` stay as they are: the client fills them.",
+    block("Slope, Mapterhorn, XYZ tiles", "/terrain-tiles/{z}/{x}/{y}.png?terrainSource=mapterhorn&modes=slope", "(any mode of `/processes`, several comma-separated)"),
+    block("Sky-view factor, IGN RGE ALTI (France), XYZ tiles", "/terrain-tiles/{z}/{x}/{y}.png?terrainSource=custom-fr-ign-rgealti-highres&modes=svf", "(zoom 12 and finer; the first tiles of an area take a second or two)"),
+    block("Cesium terrain (quantized mesh), Mapterhorn: the layer.json", "/quantized-mesh/mapterhorn/layer.json", "(CesiumJS, Blender's OGC 3D Tiles add-on as a *Quantized-mesh terrain* entry; delatin mesher)"),
+    block("The same, meshed by martini", "/quantized-mesh/mapterhorn/layer.json?mesher=martini", "(about three times faster to make, twice the triangles)"),
+    block("A picture of a box", "/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours", "(west,south,east,north; `.tif` with one mode for its values)"),
+    block("The STAC Item of a tile", "/terrain-tiles/12/2133/1449.png.stac.json?terrainSource=mapterhorn&modes=slope", "(any raster export's address plus `.stac.json`)"),
+    block("The modes, as OGC API - Processes", "/processes", "(each mode's settings: `/processes/{id}`)"),
+  ].join("\n\n")
+}
 
 export function openapi(server = "http://localhost:3400") {
   return {
@@ -81,7 +99,7 @@ export function openapi(server = "http://localhost:3400") {
     info: {
       title: "Terrain Viewer tile service",
       version: "0.1.0",
-      description: "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n" + STACKING,
+      description: quickStart(server) + "\n\n## About\n\nWhat Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n" + STACKING,
       license: { name: "MIT", url: "https://github.com/Iconem/terrain-viewer" },
     },
     externalDocs: { description: "Documentation", url: "https://terrain-viewer.iconem.com/docs/dev/tile-service" },
@@ -90,7 +108,8 @@ export function openapi(server = "http://localhost:3400") {
     // the modes), then the tiles they run as, then the rest.
     tags: [
       { name: "OGC API - Processes", description: "The modes as OGC API - Processes processes (OGC 18-062r2), with OGC API Common's landing page and conformance. `/processes` lists every mode with its settings; a process is run by asking for its tiles: its description links them." },
-      { name: "Terrain tiles", description: "`/terrain-tiles`: the elevation modes as XYZ raster tiles, the overlays as vector tiles, a TileJSON and a QGIS project of them. `/quantized-mesh`: the elevation as Cesium terrain (quantized-mesh-1.0)." },
+      { name: "Terrain tiles", description: "`/terrain-tiles`: the elevation modes as XYZ raster tiles, the overlays as vector tiles, a TileJSON and a QGIS project of them." },
+      { name: "Quantized mesh", description: "`/quantized-mesh`: any direct source as Cesium terrain (quantized-mesh-1.0) for CesiumJS, Cesium for Unreal or Unity and Blender. Give the client the layer.json; it asks for the tiles." },
       { name: "Basemap tiles", description: "`/basemap-tiles`: the imagery as XYZ tiles." },
       { name: "Catalogs", description: "What can be named by id: sources, colour ramps, modes, and what a share link switches on." },
       { name: "Viewport", description: "A picture of a viewport or a box, like a WMS GetMap." },
@@ -208,13 +227,14 @@ export function openapi(server = "http://localhost:3400") {
       },
       "/quantized-mesh/{source}/layer.json": {
         get: {
-          tags: ["Terrain tiles"], operationId: "quantizedMeshLayer", summary: "A source as Cesium terrain: its layer.json",
+          tags: ["Quantized mesh"], operationId: "quantizedMeshLayer", summary: "A source as Cesium terrain: its layer.json",
           description: "The layer.json a Cesium terrain client reads first (CesiumJS `CesiumTerrainProvider.fromUrl`, Cesium for Unreal or Unity, Blender add-ons that read Cesium terrain): TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326` (two tiles at level 0), `available` level by level (whole at level 0, the source's bounds below), down to the level as fine as the source (its deepest 256 px Web Mercator zoom, less one), `extensions: [octvertexnormals]` and the source's attribution. The tile template keeps the query given. Any source the direct engine reads (`/sources`, engine `direct`): Terrarium and Terrain-RGB pyramids, COG, VRT, WMS, LERC, PMTiles, with the same API keys as `/terrain-tiles`.",
           parameters: [
             { name: "source", in: "path", required: true, schema: { type: "string" }, description: "An id from `/sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration).", example: "mapterhorn" },
             q("terrainSource", { type: "string" }, "With `custom`: the source's address or configuration, as for `/terrain-tiles`."),
             q("error", { type: "number", exclusiveMinimum: 0, maximum: 16, default: 0.5 }, "The mesh's vertical error, as a share of Cesium's geometric error of the level (77 km at level 0, halved each level: 4.7 m at level 14, times 0.5 is 2.35 m). Smaller for a finer mesh (more triangles), larger for a lighter one."),
             q("mesher", { type: "string", enum: ["delatin", "martini"], default: "delatin" }, MESHER_NOTE),
+            q("maxTriangles", { type: "integer", minimum: 2, maximum: 262144, default: 32768 }, "delatin only: the most triangles a tile gets. The mesh stops refining there, worst points first, even above `error`. The default only bounds noisy or very fine sources (Mapterhorn's Alps need 7,000 to 15,000 a tile); lower it to keep a 3D scene light."),
             q("extensions", { type: "string", enum: ["octvertexnormals"] }, "The extensions to write, for a client that sets no `Accept: application/vnd.quantized-mesh;extensions=octvertexnormals` header (CesiumJS sets it when asked for vertex normals)."),
             ...VIEW_PARAMS.filter((p) => /Key$/.test(p.name)),
           ],
@@ -223,7 +243,7 @@ export function openapi(server = "http://localhost:3400") {
       },
       "/quantized-mesh/{source}/{z}/{x}/{y}.terrain": {
         get: {
-          tags: ["Terrain tiles"], operationId: "quantizedMeshTile", summary: "One quantized-mesh-1.0 terrain tile",
+          tags: ["Quantized mesh"], operationId: "quantizedMeshTile", summary: "One quantized-mesh-1.0 terrain tile",
           description: "One tile of the geographic TMS grid (level z: 2^(z+1) x 2^z tiles, y from the south) as quantized-mesh-1.0: the source's Web Mercator pixels of the matching zoom resampled (bilinear) to a 257 x 257 grid over the tile, meshed within the error asked, encoded with the header (centre, heights, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices and the four edge lists; skirts are the client's. With `octvertexnormals` asked (Accept header or `extensions`), the oct-encoded vertex normals. Gzipped when the client accepts it. A tile with no data is flat at 0 m.",
           parameters: [
             { name: "source", in: "path", required: true, schema: { type: "string" }, example: "mapterhorn" },
@@ -233,6 +253,7 @@ export function openapi(server = "http://localhost:3400") {
             q("terrainSource", { type: "string" }, "With `custom`: the source."),
             q("error", { type: "number", exclusiveMinimum: 0, maximum: 16, default: 0.5 }, "As for layer.json."),
             q("mesher", { type: "string", enum: ["delatin", "martini"], default: "delatin" }, "As for layer.json."),
+            q("maxTriangles", { type: "integer", minimum: 2, maximum: 262144, default: 32768 }, "As for layer.json."),
             q("extensions", { type: "string", enum: ["octvertexnormals"] }, "As for layer.json."),
             ...VIEW_PARAMS.filter((p) => /Key$/.test(p.name)),
           ],
@@ -312,7 +333,8 @@ export function openapi(server = "http://localhost:3400") {
 }
 
 // Scalar's reference from its CDN, over /openapi.json: "Test request" sends
-// the request to this service and shows the image that comes back.
+// the request to this service and shows the image that comes back. Every
+// tag group of the sidebar starts open.
 export const DOCS_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -323,7 +345,7 @@ export const DOCS_HTML = `<!doctype html>
 <body>
 <div id="app"></div>
 <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.77.0"></script>
-<script>Scalar.createApiReference("#app", { url: "./openapi.json" })</script>
+<script>Scalar.createApiReference("#app", { url: "./openapi.json", defaultOpenAllTags: true })</script>
 </body>
 </html>
 `

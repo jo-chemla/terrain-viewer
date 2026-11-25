@@ -21,8 +21,10 @@
 // @mapbox/martini (right-triangulated irregular network, a 2^k + 1 grid).
 // Measured on Mapterhorn around the Matterhorn, levels 10 to 14, 257 x 257:
 // for the same error delatin makes 45% fewer triangles (and bytes) in about
-// three times the time (17 to 40 ms a tile against 6 to 12). Both stop at
-// `maxError` metres of vertical error. Skirts are the client's (the spec leaves them out).
+// three to five times the time (25 to 55 ms a tile against 4 to 8; delatin's
+// time grows with its points, about 7 us each). Both stop at `maxError`
+// metres of vertical error, delatin also at `maxTriangles`. Skirts are the
+// client's (the spec leaves them out).
 import Martini from "@mapbox/martini"
 import Delatin from "delatin"
 
@@ -92,13 +94,24 @@ function filled(heights, size, fill = "nearest") {
   return out
 }
 
+/** Delatin's default cap on a tile's triangles: past it the mesh stops
+ *  refining even above `maxError`. 32768 triangles is about 16500 vertices
+ *  (16-bit indices, 300 kB a tile); Mapterhorn's Alps at levels 10 to 14
+ *  need 7000 to 15000, so the cap only bounds noisy or very fine sources. */
+export const MAX_TRIANGLES = 32768
+
 const martinis = new Map()
 /** The grid's triangles: `{ coords, triangles }`, coords as grid column and
- *  row pairs (row 0 the north edge). */
-export function meshGrid(heights, size, maxError, mesher = "delatin") {
+ *  row pairs (row 0 the north edge). delatin stops at `maxTriangles` (its
+ *  worst points first, so a capped mesh is the best one of that size);
+ *  martini ignores it. */
+export function meshGrid(heights, size, maxError, mesher = "delatin", maxTriangles = MAX_TRIANGLES) {
   if (mesher === "delatin") {
     const tin = new Delatin(heights, size, size)
-    tin.run(maxError)
+    // tin.run(maxError), with the cap: each refine adds one point, two
+    // triangles net.
+    const cap = 3 * Math.max(2, maxTriangles)
+    while (tin.getMaxError() > maxError && tin.triangles.length < cap) tin.refine()
     return { coords: Uint32Array.from(tin.coords), triangles: Uint32Array.from(tin.triangles) }
   }
   if (!Number.isInteger(Math.log2(size - 1))) throw new Error("martini needs a 2^k + 1 grid")
@@ -162,32 +175,31 @@ function horizonOcclusionPoint(positions, cx, cy, cz) {
  * @param {"delatin"|"martini"} [o.mesher]  delatin by default
  * @param {boolean} [o.normals]  write the oct-encoded vertex normals extension
  * @param {number|"nearest"} [o.fill]   holes grown from the data around ("nearest", the default) or set to a height
+ * @param {number} [o.maxTriangles]  delatin's cap (MAX_TRIANGLES)
  * @returns {Uint8Array}
  */
-export function encodeTile({ heights, size, bounds, maxError, mesher = "delatin", normals = false, fill = "nearest" }) {
+export function encodeTile({ heights, size, bounds, maxError, mesher = "delatin", normals = false, fill = "nearest", maxTriangles = MAX_TRIANGLES }) {
   if (heights.length !== size * size) throw new Error(`heights holds ${heights.length} values, not ${size} x ${size}`)
   const grid = filled(heights, size, fill)
-  const { coords, triangles: tri } = meshGrid(grid, size, Math.max(0, maxError), mesher)
+  const { coords, triangles: tri } = meshGrid(grid, size, Math.max(0, maxError), mesher, maxTriangles)
   const nIn = coords.length / 2
   const last = size - 1
 
   // Vertices in the order the triangles first name them: what the
   // high-water-mark index encoding needs.
   const remap = new Int32Array(nIn).fill(-1)
-  const order = []
+  const order = new Uint32Array(nIn)
+  let n = 0
   const tris = new Uint32Array(tri.length)
+  const name = (i) => { if (remap[i] < 0) { remap[i] = n; order[n++] = i } return remap[i] }
   for (let t = 0; t < tri.length; t += 3) {
     // Counter-clockwise seen from above (u east, v north): the globe culls back faces.
     let a = tri[t], b = tri[t + 1], c = tri[t + 2]
     const ax = coords[2 * a], ay = coords[2 * a + 1], bx = coords[2 * b], by = coords[2 * b + 1], cx = coords[2 * c], cy = coords[2 * c + 1]
     // Rows grow southwards, so the signed area in (column, row) is negated.
     if ((bx - ax) * (cy - ay) - (by - ay) * (cx - ax) > 0) { const s = b; b = c; c = s }
-    for (const [k, i] of [[0, a], [1, b], [2, c]]) {
-      if (remap[i] < 0) { remap[i] = order.length; order.push(i) }
-      tris[t + k] = remap[i]
-    }
+    tris[t] = name(a); tris[t + 1] = name(b); tris[t + 2] = name(c)
   }
-  const n = order.length
   const col = new Uint32Array(n), row = new Uint32Array(n), h = new Float64Array(n)
   let minH = Infinity, maxH = -Infinity
   for (let k = 0; k < n; k++) {
@@ -220,12 +232,14 @@ export function encodeTile({ heights, size, bounds, maxError, mesher = "delatin"
   for (let k = 0; k < n; k++) r2 = Math.max(r2, (pos[3 * k] - sc[0]) ** 2 + (pos[3 * k + 1] - sc[1]) ** 2 + (pos[3 * k + 2] - sc[2]) ** 2)
   const hop = horizonOcclusionPoint(pos, sc[0], sc[1], sc[2])
 
-  // Edge vertices, along each edge.
-  const edge = (test, key) => { const e = []; for (let k = 0; k < n; k++) if (test(k)) e.push(k); return e.sort((a, b) => key(a) - key(b)) }
-  const westE = edge((k) => U[k] === 0, (k) => V[k])
-  const southE = edge((k) => V[k] === 0, (k) => U[k])
-  const eastE = edge((k) => U[k] === 32767, (k) => V[k])
-  const northE = edge((k) => V[k] === 32767, (k) => U[k])
+  // Edge vertices, along each edge: one pass, then each list sorted.
+  const westE = [], southE = [], eastE = [], northE = []
+  for (let k = 0; k < n; k++) {
+    if (U[k] === 0) westE.push(k); else if (U[k] === 32767) eastE.push(k)
+    if (V[k] === 0) southE.push(k); else if (V[k] === 32767) northE.push(k)
+  }
+  westE.sort((a, b) => V[a] - V[b]); eastE.sort((a, b) => V[a] - V[b])
+  southE.sort((a, b) => U[a] - U[b]); northE.sort((a, b) => U[a] - U[b])
 
   const wide = n > 65536
   const ib = wide ? 4 : 2
@@ -238,7 +252,9 @@ export function encodeTile({ heights, size, bounds, maxError, mesher = "delatin"
       const vx = pos[c] - pos[a], vy = pos[c + 1] - pos[a + 1], vz = pos[c + 2] - pos[a + 2]
       // Area-weighted face normal (counter-clockwise: outwards).
       const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx
-      for (const o of [a, b, c]) { acc[o] += nx; acc[o + 1] += ny; acc[o + 2] += nz }
+      acc[a] += nx; acc[a + 1] += ny; acc[a + 2] += nz
+      acc[b] += nx; acc[b + 1] += ny; acc[b + 2] += nz
+      acc[c] += nx; acc[c + 1] += ny; acc[c + 2] += nz
     }
     normalBytes = new Uint8Array(n * 2)
     for (let k = 0; k < n; k++) {

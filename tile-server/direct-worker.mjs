@@ -5,11 +5,23 @@
 // back as a transferred buffer.
 import { parentPort } from "node:worker_threads"
 import { plan, draw, drawViewport, vectorTile, valueTile, quantizedMeshTile, warmUp } from "./direct.mjs"
+import { setTileFetcher } from "./dem.mjs"
 
 // The app's code is loaded as the worker starts, before its first tile.
 warmUp().catch(() => {})
 
-parentPort.on("message", async ({ id, op, view, rest, keys, args }) => {
+// HTTP source tiles are fetched by the server's thread, whose cache every
+// worker shares (direct-pool.mjs); decoding stays here.
+const fetches = new Map()
+let nextFetch = 0
+setTileFetcher((url) => new Promise((done) => {
+  const fid = ++nextFetch
+  fetches.set(fid, done)
+  parentPort.postMessage({ fetch: url, fid })
+}))
+
+parentPort.on("message", async ({ id, op, view, rest, keys, args, fid, status, bytes: fetched }) => {
+  if (fid !== undefined) { const done = fetches.get(fid); fetches.delete(fid); done?.({ status, bytes: fetched ?? null }); return }
   try {
     const how = await plan(view, new URLSearchParams(rest), keys)
     if (how.engine !== "direct") throw Object.assign(new Error(`The direct engine cannot draw this: ${how.why}`), { status: 400 })

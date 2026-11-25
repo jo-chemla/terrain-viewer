@@ -3,7 +3,7 @@
   "info": {
     "title": "Terrain Viewer tile service",
     "version": "0.1.0",
-    "description": "What Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
+    "description": "## Quick start\n\nCopy an address into QGIS (XYZ Tiles), MapLibre, CesiumJS or Blender. `{z}/{x}/{y}` stay as they are: the client fills them.\n\n**Slope, Mapterhorn, XYZ tiles** (any mode of `/processes`, several comma-separated)\n\n```\nhttp://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=mapterhorn&modes=slope\n```\n\n**Sky-view factor, IGN RGE ALTI (France), XYZ tiles** (zoom 12 and finer; the first tiles of an area take a second or two)\n\n```\nhttp://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=custom-fr-ign-rgealti-highres&modes=svf\n```\n\n**Cesium terrain (quantized mesh), Mapterhorn: the layer.json** (CesiumJS, Blender's OGC 3D Tiles add-on as a *Quantized-mesh terrain* entry; delatin mesher)\n\n```\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json\n```\n\n**The same, meshed by martini** (about three times faster to make, twice the triangles)\n\n```\nhttp://localhost:3400/quantized-mesh/mapterhorn/layer.json?mesher=martini\n```\n\n**A picture of a box** (west,south,east,north; `.tif` with one mode for its values)\n\n```\nhttp://localhost:3400/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours\n```\n\n**The STAC Item of a tile** (any raster export's address plus `.stac.json`)\n\n```\nhttp://localhost:3400/terrain-tiles/12/2133/1449.png.stac.json?terrainSource=mapterhorn&modes=slope\n```\n\n**The modes, as OGC API - Processes** (each mode's settings: `/processes/{id}`)\n\n```\nhttp://localhost:3400/processes\n```\n\n## About\n\nWhat Terrain Viewer draws, as map tiles and as pictures of a viewport. Two engines draw them. The direct engine computes every 2D terrain mode in the server with the app's own code, reading the elevation with the app's own readers (tile pyramids, COG, VRT, WMS and WCS, LERC, quantized mesh, PMTiles, differences), in a fraction of a second. For everything else the app itself renders them in a headless browser, so every source it reads and every mode it computes comes out as in the app: a tile is drawn with the 2048 px block around it and the block is kept a week, so the first tile of a block takes seconds and its neighbours milliseconds. Web Mercator only.\n\nThe elevation modes are at `/terrain-tiles`, the imagery at `/basemap-tiles`. Each mode is described as an OGC API - Processes process at `/processes/{id}`: its settings with their types, ranges and defaults.\n\n**How several modes stack.** `modes=a,b,c` draws them in one tile, in the map's order, never in the order written: bottom to top, `colorRelief`, `slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`, `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, `isoline`, `graticules`, `moundDetector`, `planeSlicer`, `contours`. The last is on top (the contours over everything, the colour relief at the bottom). `/processes/{id}` gives each mode's place as `x-tv-stack-rank` (0 at the bottom).\n\n**Opacity.** A mode's opacity is its own parameter (`slopeOpacity`, `svfOpacity`, `phongOpacity`, ... named in `x-tv-opacity-key`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`, listed in `x-tv-group-opacity-keys`), each 0 to 1: `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. The group's opacity scales every mode of the group, each one separately (not the group flattened first).\n\n**Blending.** Over the map's background (white, black with `theme=dark`, transparent with `background=none`), each layer is drawn source-over with that opacity. The shading layers are different: the hillshade is a half-transparent dark and light layer drawn over what is under it; Phong and matcap multiply the colours under them and add their highlight; the terrain and building shadows darken. In a GIS, stack them with a multiply blend (the QGIS project does). The overlays (contours, iso-line, graticule, mound markers, plane slicer) are lines and areas over everything.\n\n**Defaults.** Without `modes`, the hillshade alone. Given without `hillshade`, the hillshade is off. A mode's group switch does not bring the group's default mode with it (asking for `aspect` does not also draw `slope`).\n\n**Refused together.** `basemap` with a terrain mode on `/terrain-tiles` (400: ask `/basemap-tiles` for the imagery and stack the two in the client; `/render` draws them in one picture). Any terrain mode on `/basemap-tiles` (400). On `.pbf`/`.mvt`, any mode that is only a picture: only `contours`, `isoline`, `moundDetector`, `graticules` and `planeSlicer` are vector (400). On `.tif` and `encoding=`, more than one mode, or a mode without values (400). `engine=direct` with a mode or source only the browser draws (400). Otherwise any set of modes stacks.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/Iconem/terrain-viewer"
@@ -25,7 +25,11 @@
     },
     {
       "name": "Terrain tiles",
-      "description": "`/terrain-tiles`: the elevation modes as XYZ raster tiles, the overlays as vector tiles, a TileJSON and a QGIS project of them. `/quantized-mesh`: the elevation as Cesium terrain (quantized-mesh-1.0)."
+      "description": "`/terrain-tiles`: the elevation modes as XYZ raster tiles, the overlays as vector tiles, a TileJSON and a QGIS project of them."
+    },
+    {
+      "name": "Quantized mesh",
+      "description": "`/quantized-mesh`: any direct source as Cesium terrain (quantized-mesh-1.0) for CesiumJS, Cesium for Unreal or Unity and Blender. Give the client the layer.json; it asks for the tiles."
     },
     {
       "name": "Basemap tiles",
@@ -1832,7 +1836,7 @@
     "/quantized-mesh/{source}/layer.json": {
       "get": {
         "tags": [
-          "Terrain tiles"
+          "Quantized mesh"
         ],
         "operationId": "quantizedMeshLayer",
         "summary": "A source as Cesium terrain: its layer.json",
@@ -1881,7 +1885,19 @@
               ],
               "default": "delatin"
             },
-            "description": "`delatin` (the default): Delaunay refinement, about half the triangles of martini for the same error, 17 to 40 ms a tile. `martini`: a right-triangulated irregular network on the 257 x 257 grid, three times faster, twice the triangles."
+            "description": "`delatin` (the default): Delaunay refinement, about 45% fewer triangles and bytes than martini for the same error, 20 to 55 ms a tile. `martini`: a right-triangulated irregular network on the 257 x 257 grid, 5 to 15 ms a tile, about twice the triangles."
+          },
+          {
+            "name": "maxTriangles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 262144,
+              "default": 32768
+            },
+            "description": "delatin only: the most triangles a tile gets. The mesh stops refining there, worst points first, even above `error`. The default only bounds noisy or very fine sources (Mapterhorn's Alps need 7,000 to 15,000 a tile); lower it to keep a 3D scene light."
           },
           {
             "name": "extensions",
@@ -1943,7 +1959,7 @@
     "/quantized-mesh/{source}/{z}/{x}/{y}.terrain": {
       "get": {
         "tags": [
-          "Terrain tiles"
+          "Quantized mesh"
         ],
         "operationId": "quantizedMeshTile",
         "summary": "One quantized-mesh-1.0 terrain tile",
@@ -2021,6 +2037,18 @@
                 "martini"
               ],
               "default": "delatin"
+            },
+            "description": "As for layer.json."
+          },
+          {
+            "name": "maxTriangles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 262144,
+              "default": 32768
             },
             "description": "As for layer.json."
           },

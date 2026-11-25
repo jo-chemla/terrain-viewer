@@ -525,13 +525,13 @@ export async function geographicGrid(dem, z, x, y, size = 257) {
  *  geographic grid, meshed within `errorScale` times Cesium's geometric
  *  error of the level (at least 5 cm). A tile with no data is flat at 0, a
  *  source that refused the request (401, 403) is an error. */
-export async function quantizedMeshTile({ dem }, { z, x, y, size = 257, errorScale = 0.5, normals = false, mesher = "delatin" }) {
+export async function quantizedMeshTile({ dem }, { z, x, y, size = 257, errorScale = 0.5, normals = false, mesher = "delatin", maxTriangles }) {
   const heights = await geographicGrid(dem, z, x, y, size)
   if (heights.every(Number.isNaN)) {
     const refused = refusalOf(dem)
     if (refused) throw Object.assign(new Error(`The source refused the request (HTTP ${refused}): check the API key or its allowed origins`), { status: 502 })
   }
-  return encodeTile({ heights, size, bounds: tileBounds(z, x, y), maxError: Math.max(0.05, levelGeometricError(z) * errorScale), mesher, normals })
+  return encodeTile({ heights, size, bounds: tileBounds(z, x, y), maxError: Math.max(0.05, levelGeometricError(z) * errorScale), mesher, normals, ...(maxTriangles ? { maxTriangles } : {}) })
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────────

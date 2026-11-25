@@ -192,11 +192,13 @@ export function landingPage(base, extra = {}) {
       { href: `${base}/`, rel: "self", type: "application/json", title: "This document" },
       { href: `${base}/openapi.json`, rel: "service-desc", type: "application/vnd.oai.openapi+json;version=3.1", title: "The API definition" },
       { href: `${base}/docs`, rel: "service-doc", type: "text/html", title: "The API documentation" },
+      { href: `${base}/docs#description/quick-start`, rel: "help", type: "text/html", title: "Quick start: ready-to-copy addresses (XYZ tiles, Cesium terrain, a picture, STAC)" },
       { href: `${base}/conformance`, rel: "conformance", type: "application/json", title: "Conformance classes" },
       { href: `${base}/conformance`, rel: `${OGC}/conformance`, type: "application/json", title: "Conformance classes" },
       { href: `${base}/processes`, rel: `${OGC}/processes`, type: "application/json", title: "The modes, as processes" },
       { href: `${base}/terrain-tiles/{z}/{x}/{y}.png?modes=hillshade`, rel: "item", type: "image/png", templated: true, title: "Terrain tiles" },
       { href: `${base}/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback`, rel: "item", type: "image/jpeg", templated: true, title: "Basemap tiles" },
+      { href: `${base}/quantized-mesh/mapterhorn/layer.json`, rel: "item", type: "application/json", title: "Cesium terrain (quantized mesh): the layer.json" },
     ],
     ...extra,
   }

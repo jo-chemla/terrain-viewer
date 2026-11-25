@@ -100,7 +100,7 @@ function assertStacItem(item) {
 {
   const { openapi } = await import("./openapi.mjs")
   const doc = openapi()
-  assert.deepEqual(doc.tags.map((t) => t.name), ["OGC API - Processes", "Terrain tiles", "Basemap tiles", "Catalogs", "Viewport", "Values", "Service"])
+  assert.deepEqual(doc.tags.map((t) => t.name), ["OGC API - Processes", "Terrain tiles", "Quantized mesh", "Basemap tiles", "Catalogs", "Viewport", "Values", "Service"])
   const used = new Set(Object.values(doc.paths).flatMap((p) => Object.values(p).flatMap((op) => op.tags)))
   assert.deepEqual([...used].sort(), doc.tags.map((t) => t.name).sort(), "every tag used, every used tag listed")
   assert.ok(!Object.keys(doc.paths).some((p) => p.startsWith("/tiles/")), "no /tiles path documented")
@@ -416,16 +416,19 @@ function assertStacItem(item) {
     assert.ok(stubbed > 0, "the synthetic source was read")
     // Without normals asked, no extension.
     assert.deepEqual(decodeTile(await quantizedMeshTile(how, { z, x, y })).extensions, {})
+    // delatin stops at maxTriangles (worst points first).
+    const capped = decodeTile(await quantizedMeshTile(how, { z, x, y, errorScale: 0.01, maxTriangles: 200 }))
+    assert.ok(capped.triangleCount <= 202 && capped.triangleCount > 150, `capped at 200: ${capped.triangleCount}`)
     // Holes are grown from the data around, not pits at 0; no data at all is flat.
     const holey = new Float32Array(65 * 65).fill(500); holey[32 * 65 + 32] = NaN
     const flatHole = decodeTile(encodeTile({ heights: holey, size: 65, bounds: tileBounds(5, 3, 3), maxError: 1 }))
     assert.equal(flatHole.header.minHeight, 500); assert.equal(flatHole.triangleCount, 2)
     const none = decodeTile(encodeTile({ heights: new Float32Array(65 * 65).fill(NaN), size: 65, bounds: tileBounds(5, 3, 3), maxError: 1 }))
     assert.equal(none.header.maxHeight, 0)
-    // More than 65536 vertices: 32-bit indices, aligned.
+    // More than 65536 vertices (the cap lifted): 32-bit indices, aligned.
     let seed = 7
     const noisy = Float32Array.from({ length: 257 * 257 }, () => (seed = (seed * 16807) % 2147483647) / 2147483647 * 100)
-    const wide = encodeTile({ heights: noisy, size: 257, bounds: tileBounds(12, 100, 100), maxError: 0 })
+    const wide = encodeTile({ heights: noisy, size: 257, bounds: tileBounds(12, 100, 100), maxError: 0, maxTriangles: Infinity })
     const wd = decodeTile(wide)
     assert.ok(wd.vertexCount > 65536, `${wd.vertexCount} vertices`)
     assert.deepEqual([...here(wide.buffer).triangleIndices.subarray(0, 300)], [...wd.indices.subarray(0, 300)])
@@ -464,6 +467,15 @@ function assertStacItem(item) {
     const landing = await json("/")
     for (const rel of ["self", "service-desc", "service-doc", "conformance", "http://www.opengis.net/def/rel/ogc/1.0/processes"]) assert.ok(landing.links.some((l) => l.rel === rel && l.href), rel)
     assert.equal((await get("/", { redirect: "manual" })).status, 302, "a browser goes to /docs")
+    assert.ok(landing.links.some((l) => l.rel === "help" && /quick-start/.test(l.href)), "the landing page links the quick start")
+    // The reference opens on the quick start, with this server's address; the
+    // quantized mesh has its own group, layer.json first.
+    const spec = await json("/openapi.json")
+    assert.match(spec.info.description, /^## Quick start/)
+    assert.ok(spec.info.description.includes(`${base}/quantized-mesh/mapterhorn/layer.json?mesher=martini`))
+    const qmOps = Object.entries(spec.paths).filter(([, v]) => v.get?.tags?.includes("Quantized mesh")).map(([k]) => k)
+    assert.deepEqual(qmOps, ["/quantized-mesh/{source}/layer.json", "/quantized-mesh/{source}/{z}/{x}/{y}.terrain"])
+    assert.match(await (await get("/docs")).text(), /defaultOpenAllTags: true/)
     assert.equal((await get("/?f=json")).status, 200)
     const { conformsTo } = await json("/conformance")
     assert.ok(conformsTo.includes("http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/ogc-process-description"))
@@ -582,6 +594,11 @@ function assertStacItem(item) {
     assert.equal(raw.headers["content-encoding"], "gzip"); assert.match(raw.headers.vary, /Accept-Encoding/)
     assert.equal((await get("/quantized-mesh/mapterhorn/1/4/0.terrain")).status, 404, "level 1 has 4 x 2 tiles")
     assert.equal((await get("/quantized-mesh/mapterhorn/0/0/0.terrain?mesher=nope")).status, 400)
+    assert.equal((await get("/quantized-mesh/mapterhorn/0/0/0.terrain?maxTriangles=1")).status, 400)
+    // Kept gzipped: a client that takes no gzip gets the tile inflated.
+    const plain = await new Promise((ok, fail) => import("node:http").then((h) => h.get(`${base}/quantized-mesh/mapterhorn/9/533/386.terrain`, (res) => { const c = []; res.on("data", (d) => c.push(d)); res.on("end", () => ok({ res, body: Buffer.concat(c) })) }).on("error", fail)))
+    assert.equal(plain.res.headers["content-encoding"], undefined)
+    assert.equal(decodeTile(new Uint8Array(plain.body)).vertexCount, alps.vertexCount)
     assert.equal((await get("/quantized-mesh/mapbox/layer.json")).status, process.env.TV_MAPBOX_KEY ? 200 : 400, "a keyed source needs its key")
     assert.equal((await get("/quantized-mesh/custom/layer.json?terrainSource=https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png")).status, 200)
     assert.equal((await get("/quantized-mesh/mapterhorn/9/533/386.terrain", { method: "OPTIONS", headers: { origin: "http://x", "access-control-request-method": "GET", "access-control-request-headers": "accept" } })).status, 204)

@@ -85,9 +85,11 @@ import { withSettledPage, closeBrowser } from "./render.mjs"
 import { openapi, DOCS_HTML } from "./openapi.mjs"
 import { processCatalog, processList, withLinks, landingPage, BASEMAP_PROCESS, CONFORMANCE } from "./processes.mjs"
 import { plan, flatView, DIRECT_MODES, VECTOR_MODES, VALUE_MODES, valueUnit, activeLayers, meshLevel } from "./direct.mjs"
-import { layerJson, requestedExtensions, CONTENT_TYPE as QM_TYPE, EXTENSIONS as QM_EXTENSIONS } from "./quantized-mesh.mjs"
-import { gzipSync } from "node:zlib"
-import { runDirect, poolStats, closePool, POOL_SIZE } from "./direct-pool.mjs"
+import { layerJson, requestedExtensions, CONTENT_TYPE as QM_TYPE, EXTENSIONS as QM_EXTENSIONS, MAX_TRIANGLES as QM_MAX_TRIANGLES } from "./quantized-mesh.mjs"
+import { gunzipSync, gzip as gzipCb } from "node:zlib"
+import { promisify } from "node:util"
+const gzipAsync = promisify(gzipCb)
+import { runDirect, poolStats, closePool, startPool, POOL_SIZE } from "./direct-pool.mjs"
 import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 import { handleProxy } from "./proxy.mjs"
 import { stacItem, STAC_SUFFIX } from "./stac.mjs"
@@ -434,8 +436,8 @@ const MESHERS = ["martini", "delatin"]
  *  (`tile` [z, x, y]): `{ json }` or `{ bytes, type }`. Read with the same
  *  source lookup and keys as /terrain-tiles; `error` scales Cesium's
  *  geometric error of the level into the mesh's error (0.5), `mesher` is
- *  delatin (the default) or martini, `extensions` (or the Accept header) asks for the
- *  vertex normals. */
+ *  delatin (the default) or martini, `maxTriangles` caps delatin's mesh,
+ *  `extensions` (or the Accept header) asks for the vertex normals. */
 async function quantizedMesh(source, tile, search, headers) {
   const q = new URLSearchParams(search)
   if (source !== "custom") { q.delete("url"); q.delete("terrainSourceA"); q.set("terrainSource", source) }
@@ -446,6 +448,9 @@ async function quantizedMesh(source, tile, search, headers) {
   if (!(errorScale > 0) || errorScale > 16) throw status(400, "error is a positive number (at most 16): the share of Cesium's geometric error of the level allowed in the mesh, 0.5 by default")
   const mesher = take("mesher") ?? "delatin"
   if (!MESHERS.includes(mesher)) throw status(400, `mesher is ${MESHERS.join(" or ")}`)
+  const capRaw = take("maxTriangles")
+  const maxTriangles = capRaw === undefined ? QM_MAX_TRIANGLES : Number(capRaw)
+  if (!Number.isInteger(maxTriangles) || maxTriangles < 2 || maxTriangles > 262144) throw status(400, `maxTriangles is a whole number from 2 to 262144 (delatin stops refining there; ${QM_MAX_TRIANGLES} by default)`)
   const how = await plan({ terrainSource: view.terrainSource }, new URLSearchParams(), keys)
   if (how.engine !== "direct") throw status(400, `This source cannot be read here: ${how.why}`)
   const maxzoom = meshLevel(how.dem)
@@ -463,17 +468,20 @@ async function quantizedMesh(source, tile, search, headers) {
   const [z, x, y] = tile
   if (z > 21 || x >= 2 ** (z + 1) || y >= 2 ** z) throw status(404, "No such tile: level z has 2^(z+1) x 2^z tiles (geographic TMS)")
   const normals = requestedExtensions(headers.accept, take("extensions")).includes("octvertexnormals")
-  const key = `mesh|${how.dem.tiles}|${errorScale}|${mesher}|${normals ? "n" : ""}|${z}/${x}/${y}`
-  let bytes = await cached(key, "terrain")
-  if (!bytes) {
-    bytes = Buffer.from(await directRun("mesh", { view: { terrainSource: view.terrainSource }, rest: new URLSearchParams(), keys }, { z, x, y, errorScale, mesher, normals }))
+  const key = `mesh|${how.dem.tiles}|${errorScale}|${mesher}${mesher === "delatin" && maxTriangles !== QM_MAX_TRIANGLES ? ":" + maxTriangles : ""}|${normals ? "n" : ""}|${z}/${x}/${y}`
+  // Kept gzipped: compressed once, in the thread pool (10 ms for a 220 kB
+  // tile at level 6), and a cached tile goes out as it is read.
+  let gz = await cached(key, "terrain.gz")
+  if (!gz) {
+    const bytes = Buffer.from(await directRun("mesh", { view: { terrainSource: view.terrainSource }, rest: new URLSearchParams(), keys }, { z, x, y, errorScale, mesher, normals, maxTriangles }))
+    gz = await gzipAsync(bytes, { level: 6 })
     // A tile with no data (two triangles at 0 m) is not kept: outside the
     // source it costs nothing to make again, and a source that failed for a
     // moment would otherwise leave a hole for a week.
     const empty = bytes.length < 256 && bytes.readFloatLE(24) === 0 && bytes.readFloatLE(28) === 0
-    if (!empty) store(key, "terrain", bytes)
+    if (!empty) store(key, "terrain.gz", gz)
   }
-  return { bytes, type: normals ? `${QM_TYPE};extensions=octvertexnormals` : QM_TYPE }
+  return { gz, type: normals ? `${QM_TYPE};extensions=octvertexnormals` : QM_TYPE }
 }
 
 const valueHeaders = (made) => ({
@@ -526,7 +534,13 @@ export function start(port = PORT) {
     }, RENDER_TIMEOUT)
     res.on("close", () => clearTimeout(timer))
     requestContext.run({ signal: controller.signal }, () => handle(req, res))
-  }).listen(port, HOST, () => console.error(`terrain-viewer tiles on http://${HOST || "localhost"}:${port}/ (app: ${BASE_URL})`))
+  }).listen(port, HOST, () => {
+    console.error(`terrain-viewer tiles on http://${HOST || "localhost"}:${port}/ (app: ${BASE_URL})`)
+    // The direct engine's workers and the app's code, loaded now rather than
+    // by the first tile (about 3 s).
+    startPool()
+    import("./direct.mjs").then((d) => d.warmUp()).catch(() => {})
+  })
 }
 
 async function handle(req, res) {
@@ -569,11 +583,12 @@ async function handle(req, res) {
       }
       if (u.pathname === "/" && !wantsJson) return send(302, "text/plain", "See /docs", { location: "/docs" })
       if (u.pathname === "/") return send(200, "application/json", JSON.stringify(landingPage(self, {
-        docs: "/docs", openapi: "/openapi.json", conformance: "/conformance", processes: "/processes", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
+        docs: "/docs", quickStart: "/docs#description/quick-start", openapi: "/openapi.json", conformance: "/conformance", processes: "/processes", sources: "/sources", colorramps: "/colorramps", algorithms: "/algorithms",
         terrainTiles: "/terrain-tiles/{z}/{x}/{y}.png?modes=slope&terrainSource=<id or URL>",
         vectorTiles: "/terrain-tiles/{z}/{x}/{y}.pbf?modes=contours,moundDetector",
         basemapTiles: "/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback&imageryDate=2020-01-01",
         render: "/render.jpg?lat=45.83&lng=6.86&zoom=11&width=1024&height=640&modes=hillshade,contours",
+        quantizedMesh: "/quantized-mesh/{source}/layer.json",
         modes: MODE_NAMES, app: BASE_URL,
       }), null, 2))
       if (u.pathname === "/conformance") return send(200, "application/json", JSON.stringify({ conformsTo: CONFORMANCE }, null, 2))
@@ -657,7 +672,7 @@ async function handle(req, res) {
         const made = await quantizedMesh(decodeURIComponent(qm[1]), qm[2] === undefined ? null : qm.slice(2, 5).map(Number), u.search, req.headers)
         if (made.json) return send(200, "application/json", JSON.stringify(made.json, null, 2), { "cache-control": "public, max-age=3600" })
         const gzip = /\bgzip\b/.test(req.headers["accept-encoding"] || "")
-        return send(200, made.type, gzip ? gzipSync(made.bytes, { level: 6 }) : made.bytes, {
+        return send(200, made.type, gzip ? made.gz : gunzipSync(made.gz), {
           "cache-control": "public, max-age=86400", vary: "Accept, Accept-Encoding", ...(gzip ? { "content-encoding": "gzip" } : {}),
           "x-tv-engine": "direct", "access-control-expose-headers": EXPOSED,
         })

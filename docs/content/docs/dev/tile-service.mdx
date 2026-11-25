@@ -21,7 +21,53 @@ docker run -p 3400:3400 --shm-size=1g -v tv-tiles:/data/tiles ghcr.io/iconem/ter
 
 Or from a clone, without Docker: `cd tile-server && pnpm install && pnpm start` (after `pnpm install` at the root). The service is its own package, `tile-server/`, with its own image (`tile-server/Dockerfile`).
 
-Then `http://localhost:3400/docs` is the reference below with a working **Test request** button, and `http://localhost:3400/openapi.json` its OpenAPI document.
+Then `http://localhost:3400/docs` is the reference below with a working **Test request** button, and `http://localhost:3400/openapi.json` its OpenAPI document. `http://localhost:3400/` opens that page too: its first section is the quick start below, with the service's own address in each line.
+
+## Quick start
+
+Copy an address into QGIS (*XYZ Tiles*), MapLibre, CesiumJS or Blender. Leave `{z}/{x}/{y}` as they are: the client fills them in. On another server, replace `http://localhost:3400` with its address.
+
+Slope from Mapterhorn, as XYZ tiles (any mode of `/processes`, or several comma-separated):
+
+```text
+http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=mapterhorn&modes=slope
+```
+
+Sky-view factor from IGN RGE ALTI (France), as XYZ tiles (zoom 12 and finer; the first tiles of an area take a second or two):
+
+```text
+http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?terrainSource=custom-fr-ign-rgealti-highres&modes=svf
+```
+
+Cesium terrain (quantized mesh) from Mapterhorn: the layer.json, for CesiumJS or Blender (see [Quantized mesh](#quantized-mesh)):
+
+```text
+http://localhost:3400/quantized-mesh/mapterhorn/layer.json
+```
+
+The same terrain meshed by martini instead of delatin (made about three times faster, with twice the triangles):
+
+```text
+http://localhost:3400/quantized-mesh/mapterhorn/layer.json?mesher=martini
+```
+
+A picture of a box (west, south, east, north in degrees; `.tif` with one mode gives its values):
+
+```text
+http://localhost:3400/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours
+```
+
+The STAC Item of a tile (any raster export's address plus `.stac.json`):
+
+```text
+http://localhost:3400/terrain-tiles/12/2133/1449.png.stac.json?terrainSource=mapterhorn&modes=slope
+```
+
+The modes, as OGC API - Processes (each mode's settings: `/processes/{id}`):
+
+```text
+http://localhost:3400/processes
+```
 
 ## The answers
 
@@ -141,36 +187,99 @@ Some of the app's sliders read these in other units, where its protocols scale a
 
 ## Quantized mesh
 
-Any source the direct engine reads (every `/sources` entry whose engine is `direct`: Terrarium and Terrain-RGB pyramids such as Mapterhorn, AWS, Mapbox and MapTiler, Esri's LERC, COGs, VRTs such as GEM-15, WMS and WCS, PMTiles, differences) also comes as Cesium terrain, [quantized-mesh-1.0](https://github.com/CesiumGS/quantized-mesh), the format of Cesium ion's terrain. A 3D client loads it as a globe:
+Any source the direct engine reads also comes as Cesium terrain, [quantized-mesh-1.0](https://github.com/CesiumGS/quantized-mesh), the format of Cesium ion's terrain. A 3D client is given one address, the layer.json, and asks for the tiles itself:
 
 | Address | Answers |
 |---|---|
-| `/quantized-mesh/{source}/layer.json` | The layer.json a Cesium client reads first: TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326`, `available` level by level (level 0 whole, the source's bounds below), `maxzoom` the level as fine as the source (its deepest 256 px Web Mercator zoom less one: 17 for Mapterhorn), `extensions: [octvertexnormals]`, the source's attribution. The tile template keeps the query given |
+| `/quantized-mesh/{source}/layer.json` | The layer.json a Cesium client reads first: TileJSON 2.1.0, `format: quantized-mesh-1.0`, `scheme: tms`, `projection: EPSG:4326`, `available` level by level (level 0 whole, the source's bounds below), `maxzoom` the level as fine as the source (its deepest 256 px Web Mercator zoom less one: 17 for Mapterhorn), `extensions: [octvertexnormals]`, the source's attribution. The tile template keeps the query given, so `?mesher=martini` or a key on the layer.json's address reaches every tile |
 | `/quantized-mesh/{source}/{z}/{x}/{y}.terrain` | One tile, `application/vnd.quantized-mesh`, gzipped when the client accepts it, cached a week |
 
-`{source}` is an id from `/sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration, as for `/terrain-tiles`). The API keys are the same as for the other tiles (`mapboxKey`, `maptilerKey`, `cesiumIonKey`, or the operator's). Parameters: `error` (0.5) the mesh's vertical error as a share of Cesium's geometric error of the level (77 km at level 0, halved each level: 4.7 m at level 14, so 2.35 m by default; smaller for a finer mesh); `mesher`, `delatin` (the default) or `martini`; `extensions=octvertexnormals` for a client that does not send Cesium's `Accept: application/vnd.quantized-mesh;extensions=octvertexnormals`.
+`{source}` is an id from `/sources`, or `custom` with the source in `terrainSource` (an address or a JSON configuration, as for `/terrain-tiles`). The API keys are the same as for the other tiles (`mapboxKey`, `maptilerKey`, `cesiumIonKey`, or the operator's). Parameters:
 
-How a tile is made: the grid is geographic TMS (EPSG:4326, two tiles at level 0, `y` from the south). The source's Web Mercator pixels of the zoom as wide as the tile (level `z` reads 256 px zoom `z + 1`, capped at the source's deepest) are read with a two-pixel border and resampled, bilinear, to a 257 × 257 grid over the tile; holes are grown from the data around them. The grid is meshed within the error, then encoded with the header (centre, minimum and maximum height, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices, the west, south, east and north edge lists and, when asked, the oct-encoded vertex normals (smooth shading). Skirts are the client's, as the spec says. A tile with no data is flat at 0 m (and not cached). The meshing is `tile-server/quantized-mesh.mjs`, a module with no server in it: it takes a height grid and gives the tile, so another app can use it with its own reader.
-
-| Mapterhorn, Matterhorn, per 257 × 257 tile | delatin | martini |
+| Parameter | Default | What it does |
 |---|---|---|
-| Level 12, error × 0.5 (9.4 m) | 6,600 triangles, 65 KB, 16 ms | 12,600 triangles, 124 KB, 6 ms |
-| Level 14, error × 0.5 (2.35 m) | 9,900 triangles, 98 KB, 24 ms | 18,000 triangles, 177 KB, 7 ms |
-| Level 14, error × 0.25 (1.2 m) | 19,600 triangles, 192 KB, 39 ms | 32,200 triangles, 316 KB, 12 ms |
+| `error` | 0.5 | The mesh's vertical error, as a share of Cesium's geometric error of the level (77 km at level 0, halved each level: 4.7 m at level 14, so 2.35 m by default). Smaller for a finer mesh, larger for a lighter one |
+| `mesher` | `delatin` | `delatin` or `martini`, see [Martini or delatin](#martini-or-delatin) |
+| `maxTriangles` | 32768 | delatin only: the most triangles a tile gets. The mesh stops refining there, worst points first. The default only bounds noisy or very fine sources; lower it to keep a Blender scene light |
+| `extensions` | | `octvertexnormals`, for a client that does not send Cesium's `Accept: application/vnd.quantized-mesh;extensions=octvertexnormals` |
 
-Delatin (Delaunay refinement) makes about 45 % fewer triangles than martini (a right-triangulated irregular network) for the same error, in about three times the time; with tiles cached, the smaller tile wins. Reading and resampling the source adds 20 to 35 ms (network); gzip takes off another quarter. Measured on levels 10 to 14, 3 × 3 tiles each.
+### Blender
+
+The [OGC 3D Tiles add-on](https://github.com/jo-chemla/blender_ogc3dtiles) (`blender_ogc3dtiles`, with its cesium-native backend installed) streams the terrain around the camera:
+
+1. Start the tile service: the desktop app runs it on port 3400, or `docker run -p 3400:3400 ghcr.io/iconem/terrain-viewer-tiles`.
+2. In Blender, open the 3D viewport's sidebar (N), tab **3D Tiles**, and add an entry (+) of type **Quantized-mesh terrain**.
+3. Paste the layer.json address as its URL: `http://localhost:3400/quantized-mesh/mapterhorn/layer.json`. Another source: its id in place of `mapterhorn` (`custom-global-gem15-dtm`, `custom-nl-ahn-dtm`…); a keyed one: add `?maptilerKey=…`; lighter tiles: add `?maxTriangles=8000` or `?error=1`.
+4. Drape imagery on top under **Raster overlays**, as a URL template: this service's imagery, `http://localhost:3400/basemap-tiles/{z}/{x}/{y}.jpg?imagerySource=wayback`, or a terrain mode as a picture, `http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=hillshade,slope`.
+5. Press **Start**. Tiles load as the camera moves. A photogrammetry mesh or a point cloud on top can blend into the terrain (the add-on's *Terrain blending*, beta).
+
+The add-on asks for the normals itself; for a client that does not, `?extensions=octvertexnormals` adds them (smooth shading). Checked with the desktop app's service on port 3400.
+
+### CesiumJS
 
 ```js
-// CesiumJS
 const viewer = new Cesium.Viewer("cesiumContainer", {
   terrainProvider: await Cesium.CesiumTerrainProvider.fromUrl(
     "http://localhost:3400/quantized-mesh/mapterhorn/",
     { requestVertexNormals: true },
   ),
 })
+// Any XYZ layer of the service draped over it:
+viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+  url: "http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=slope&background=none",
+}))
 ```
 
-**Blender.** A Blender add-on that reads Cesium terrain or quantized mesh takes the layer.json address as its terrain URL: `http://localhost:3400/quantized-mesh/mapterhorn/layer.json` (another source: its id in place of `mapterhorn`; a keyed one: `?maptilerKey=…`). For the OGC 3D Tiles add-on, give that address where it asks for a terrain (quantized mesh) layer, not a `tileset.json`: this service does not write 3D Tiles. If the add-on sends no `Accept` header with the extensions, add `?extensions=octvertexnormals` to get the normals. Not yet tried with the add-on here; CesiumJS, HERE's decoder and the tests' own decoder read the tiles.
+`fromUrl` takes the folder of the layer.json. Cesium for Unreal and Unity take the layer.json's address as a quantized-mesh terrain source.
+
+### Which sources
+
+Every `/sources` entry whose engine is `direct`, by type:
+
+| Type | Checked |
+|---|---|
+| Terrarium and Terrain-RGB pyramids | Mapterhorn, AWS Terrain Tiles; Mapbox and MapTiler with a key |
+| LERC (ArcGIS tiled elevation) | Esri World Elevation |
+| COG | NRCan MRDEM 30 m (Canada), swissALTIRegio (Switzerland) |
+| VRT of COGs | Google GEM-15 DTM and DSM |
+| WMS and WCS (`wms-raw`) | AHN 0.5 m (Netherlands), IGN RGE ALTI (France) |
+| PMTiles | SmartMaps GEL |
+| Difference (nDSM, change) | Read through their two operands, each as above |
+
+A new tile of a tile pyramid (Mapterhorn, AWS, Esri) takes 0.2 to 0.6 s the first time, of a COG, VRT, WMS or PMTiles source 1 to 3.5 s (several reads per tile); then it comes from the cache.
+
+### How a tile is made
+
+The grid is geographic TMS (EPSG:4326, two tiles at level 0, `y` from the south). The source's Web Mercator pixels of the zoom as wide as the tile (level `z` reads 256 px zoom `z + 1`, capped at the source's deepest) are read with a two-pixel border and resampled once, bilinear, to a 257 × 257 grid over the tile; holes are grown from the data around them. The grid is meshed within the error, then encoded with the header (centre, minimum and maximum height, bounding sphere, horizon occlusion point), zigzag-delta vertices, high-water-mark indices, the west, south, east and north edge lists and, when asked, the oct-encoded vertex normals. Skirts are the client's, as the spec says. A tile with no data is flat at 0 m (and not cached). The meshing is `tile-server/quantized-mesh.mjs`, a module with no server in it: it takes a height grid and gives the tile, so another app can use it with its own reader.
+
+What keeps it fast: the workers start with the service (the first tile no longer waits about 3 s for them); a source tile fetched by one worker is shared with the others, and decoded tiles are shared with `/terrain-tiles`; each tile is gzipped once, off the main thread, and kept gzipped, so a cached tile goes out as it is read (about 1,000 tiles a second, 16 requests at a time on a 20-thread machine, against 200 when every answer was compressed again).
+
+### Martini or delatin
+
+| | delatin (default) | martini |
+|---|---|---|
+| Method | Delaunay refinement: adds the worst point, one at a time, until the error is met | RTIN: right triangles split in halves over a 2^k + 1 grid (257 × 257) |
+| Triangles for the same error | About 45 % fewer, so 45 % fewer bytes to stream and less memory in Blender | About twice as many |
+| Time to make a tile | 25 to 45 ms at levels 10 to 14 (about 7 µs a point), growing with the triangles | 8 to 11 ms, about three to four times faster |
+| Structure | Irregular triangles that follow ridges and valleys | A regular, nested pattern of right triangles |
+| Cap | `maxTriangles` | None |
+
+Measured on Mapterhorn around the Matterhorn, one 257 × 257 tile per level, error × 0.5, vertex normals on, the source already read (1.5 to 3 ms), in Node on one core:
+
+| Level (error) | delatin | martini |
+|---|---|---|
+| 10 (37.6 m) | 7,536 triangles, 75 KB, 31 ms | 14,387 triangles, 142 KB, 10 ms |
+| 11 (18.8 m) | 7,233 triangles, 72 KB, 25 ms | 13,662 triangles, 135 KB, 8 ms |
+| 12 (9.4 m) | 7,304 triangles, 72 KB, 25 ms | 14,064 triangles, 139 KB, 8 ms |
+| 13 (4.7 m) | 13,632 triangles, 134 KB, 39 ms | 24,904 triangles, 245 KB, 10 ms |
+| 14 (2.4 m) | 15,179 triangles, 149 KB, 43 ms | 25,178 triangles, 248 KB, 10 ms |
+| 14, error × 0.25 (1.2 m) | 27,703 triangles, 272 KB, 85 ms | 42,208 triangles, 415 KB, 18 ms |
+| 14, error × 1 (4.7 m) | 7,476 triangles, 74 KB, 26 ms | 14,112 triangles, 139 KB, 9 ms |
+| 14, `maxTriangles=4000` | 4,000 triangles, 40 KB, 17 ms | |
+
+gzip takes off about 60 %. Through the service, a tile not yet cached takes 25 to 50 ms with delatin and 17 to 30 ms with martini once its source tiles are read; the first tiles of a new area also wait for the source (60 to 170 ms for Mapterhorn).
+
+Which to pick: **delatin** for a client that streams or keeps the tiles (Blender, CesiumJS over a network, a cache): each tile is made once and sent many times, and half the triangles is half the download and half the memory. **martini** to make many tiles once and fast (a bulk export, a server short of CPU), or where a regular mesh is wanted. With either, `error` is the first setting to change: doubling it roughly halves the triangles.
 
 ## A QGIS project
 

@@ -8,10 +8,33 @@
 //
 // TV_DIRECT_WORKERS: the number of workers (default: the cores minus one,
 // at least one, at most 8); 0 draws in the server's thread, as before the pool.
-// Each worker keeps its own elevation cache, so memory grows with the count.
+// Each worker keeps its own cache of decoded elevation tiles, so memory
+// grows with the count; the HTTP tiles' bytes are fetched here, in one
+// cache for all of them (a source tile asked by two workers at once is
+// fetched once).
 import os from "node:os"
 import { Worker } from "node:worker_threads"
 import { plan, draw, drawViewport, vectorTile, valueTile, quantizedMeshTile } from "./direct.mjs"
+import { fetchTileBytes } from "./dem.mjs"
+
+// Fetched tile bytes (compressed PNG or WebP, 50 to 500 kB), most recent
+// last, at most 96 MB; a failed fetch is not kept.
+const fetched = new Map()
+let fetchedBytes = 0
+const FETCHED_MAX = 96 * 1024 * 1024
+function sharedFetch(url) {
+  const have = fetched.get(url)
+  if (have) { fetched.delete(url); fetched.set(url, have); return have.promise }
+  const entry = { size: 0, promise: null }
+  entry.promise = fetchTileBytes(url).then((r) => {
+    if (!r.bytes) { fetched.delete(url); return r }
+    entry.size = r.bytes.byteLength; fetchedBytes += entry.size
+    while (fetchedBytes > FETCHED_MAX && fetched.size > 1) { const [k, v] = fetched.entries().next().value; fetched.delete(k); fetchedBytes -= v.size }
+    return r
+  }, () => { fetched.delete(url); return { status: 0, bytes: null } })
+  fetched.set(url, entry)
+  return entry.promise
+}
 
 const asked = process.env.TV_DIRECT_WORKERS ?? process.env.TV_DIRECT_CONCURRENCY
 export const POOL_SIZE = asked !== undefined && asked !== ""
@@ -31,7 +54,12 @@ function spawn() {
   // as in the main thread; with no workerData at all it throws.
   const w = new Worker(new URL("./direct-worker.mjs", import.meta.url), { workerData: {} })
   w.job = null
-  w.on("message", ({ id, bytes, error, status }) => {
+  w.on("message", ({ id, bytes, error, status, fetch, fid }) => {
+    if (fetch) {
+      // A copy each: the cached bytes stay here.
+      sharedFetch(fetch).then((r) => { if (all.has(w)) w.postMessage({ fid, status: r.status, bytes: r.bytes }) })
+      return
+    }
     const job = w.job
     if (!job || job.id !== id) return
     w.job = null
@@ -66,11 +94,15 @@ function release(w) {
 }
 
 let started = false
-const start = () => {
-  if (started) return
+/** Starts the workers (each loads the app's code as it starts). The server
+ *  calls it as it starts listening, so the first tile does not wait for
+ *  them; otherwise the first render does. */
+export const startPool = () => {
+  if (started || POOL_SIZE === 0) return
   started = true
   for (let i = 0; i < POOL_SIZE; i++) idle.push(spawn())
 }
+const start = startPool
 
 const inThread = async (op, { view, rest, keys }, args) => {
   const how = await plan(view, rest, keys)
