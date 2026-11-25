@@ -27,7 +27,7 @@ import { memo, useEffect, useRef } from "react"
 import { useMap } from "react-map-gl/maplibre"
 import * as maplibregl from "maplibre-gl"
 import type { CustomLayerInterface, CustomRenderMethodInput } from "maplibre-gl"
-import earcut, { flatten } from "earcut"
+import earcut from "earcut"
 import { LAYER_SLOTS } from "./MapLayers"
 import { BUILDING_TILE_BUFFER, BUILDING_TILE_ZOOM, abortBuildingTilesExcept, cachedBuildingTile, requestBuildingTile, tileKey, type BuildingPolygon } from "@/lib/building-tiles"
 
@@ -132,38 +132,69 @@ function neededTiles(map: maplibregl.Map, altitude: number): TileRange | null {
 function buildGeometry(map: maplibregl.Map, tiles: BuildingPolygon[][]): Geometry | null {
   const c = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter())
   const origin: [number, number] = [c.x, c.y]
-  const sweep: number[] = [], roof: number[] = []
+  const [ox, oy] = origin
+  // Straight into Float32Arrays that double when full: the same float32
+  // values as a number[] converted at the end, without the number[] (16
+  // central-Paris tiles make 15 million numbers, 120 MB of doubles).
+  let sweep = new Float32Array(1 << 16), sn = 0
+  let roof = new Float32Array(1 << 14), rn = 0
+  const grow = (a: Float32Array<ArrayBuffer>, used: number, more: number): Float32Array<ArrayBuffer> => {
+    if (used + more <= a.length) return a
+    const next = new Float32Array(Math.max(a.length * 2, used + more))
+    next.set(a.subarray(0, used))
+    return next
+  }
   const seen = new Set<string>()
+  // The building's rings relative to the origin, flat as earcut takes them
+  // (what earcut's flatten() made from a copied [x, y] per vertex), refilled
+  // building after building; holes[k] is ring k+1's first vertex.
+  const vertices: number[] = [], holes: number[] = []
   for (const tile of tiles) {
     for (const { rings: absRings, height: h } of tile) {
       // Mercator units per metre at this latitude (cos(lat) from the
       // Mercator y): the vertex's sweep per unit of 1/tan(altitude).
       const cosLat = 1 / Math.cosh(Math.PI * (1 - 2 * absRings[0][0][1]))
       const s = Math.min(MAX_SHADOW_M, h) / (40075016.686 * cosLat)
-      const rings = absRings.map((ring) => ring.map(([x, y]) => [x - origin[0], y - origin[1]] as [number, number]))
       // A building inside two tiles' buffers comes whole from both.
-      const key = `${rings[0][0][0].toFixed(9)},${rings[0][0][1].toFixed(9)},${rings[0].length},${h}`
+      const key = `${(absRings[0][0][0] - ox).toFixed(9)},${(absRings[0][0][1] - oy).toFixed(9)},${absRings[0].length},${h}`
       if (seen.has(key)) continue
       seen.add(key)
-      for (const ring of rings) {
-        for (let i = 0; i < ring.length - 1; i++) {
-          const [x0, y0] = ring[i], [x1, y1] = ring[i + 1]
-          if ((x0 === x1 && y0 === y1) || isClipEdge(x0 + origin[0], y0 + origin[1], x1 + origin[0], y1 + origin[1])) continue
-          // Two triangles: foot-foot-tip, foot-tip-tip.
-          sweep.push(x0, y0, 0, x1, y1, 0, x1, y1, s, x0, y0, 0, x1, y1, s, x0, y0, s)
+      vertices.length = 0
+      holes.length = 0
+      for (let k = 0; k < absRings.length; k++) {
+        const ring = absRings[k]
+        if (k > 0) holes.push(vertices.length / 2)
+        let x0 = ring[0][0] - ox, y0 = ring[0][1] - oy
+        vertices.push(x0, y0)
+        for (let i = 1; i < ring.length; i++) {
+          const x1 = ring[i][0] - ox, y1 = ring[i][1] - oy
+          vertices.push(x1, y1)
+          // The clip test on the absolute position, as (relative + origin).
+          if (!((x0 === x1 && y0 === y1) || isClipEdge(x0 + ox, y0 + oy, x1 + ox, y1 + oy))) {
+            // Two triangles: foot-foot-tip, foot-tip-tip.
+            sweep = grow(sweep, sn, 18)
+            const w = sweep
+            w[sn] = x0; w[sn + 1] = y0; w[sn + 2] = 0; w[sn + 3] = x1; w[sn + 4] = y1; w[sn + 5] = 0
+            w[sn + 6] = x1; w[sn + 7] = y1; w[sn + 8] = s; w[sn + 9] = x0; w[sn + 10] = y0; w[sn + 11] = 0
+            w[sn + 12] = x1; w[sn + 13] = y1; w[sn + 14] = s; w[sn + 15] = x0; w[sn + 16] = y0; w[sn + 17] = s
+            sn += 18
+          }
+          x0 = x1; y0 = y1
         }
       }
       // The roof outline at the tip (swept) and at the foot (the cut).
-      const flat = flatten(rings)
-      for (const idx of earcut(flat.vertices, flat.holes, flat.dimensions)) {
-        const x = flat.vertices[idx * 2], y = flat.vertices[idx * 2 + 1]
-        sweep.push(x, y, s)
-        roof.push(x, y, 0)
+      const tri = earcut(vertices, holes, 2)
+      sweep = grow(sweep, sn, 3 * tri.length)
+      roof = grow(roof, rn, 3 * tri.length)
+      for (const idx of tri) {
+        const x = vertices[idx * 2], y = vertices[idx * 2 + 1]
+        sweep[sn++] = x; sweep[sn++] = y; sweep[sn++] = s
+        roof[rn++] = x; roof[rn++] = y; roof[rn++] = 0
       }
     }
   }
-  if (!sweep.length) return null
-  return { origin, sweep: new Float32Array(sweep), sweepCount: sweep.length / 3, roof: new Float32Array(roof), roofCount: roof.length / 3 }
+  if (!sn) return null
+  return { origin, sweep: sweep.subarray(0, sn), sweepCount: sn / 3, roof: roof.subarray(0, rn), roofCount: rn / 3 }
 }
 
 class ShadowLayer implements CustomLayerInterface {
