@@ -25,8 +25,9 @@ QGIS's API, no dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d)
-(Terrain Viewer 0.6.0, Send2MapApp 0.5.1). Terrain Viewer is one plain zip,
+The zips of each version are on a release: [`qgis-plugins-2026-11-25e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25e)
+(Terrain Viewer 0.7.0, Send2MapApp 0.5.1; the tile service bundles it pins are on
+[`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d)). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this
@@ -55,8 +56,8 @@ working on it, link the folder into the profile's plugins folder (Windows:
 uses `QGIS4`), then enable it in the plugin manager. `send2map_app` installs
 the same way, and replaces an earlier Send2MapApp in place (same folder name).
 
-Without any tile service, the experimental **Python** backend draws 15 of
-the tree's modes computed in QGIS with numpy.
+Without any tile service, the experimental **Python** backend draws 24 of
+the tree's 25 modes computed in QGIS with numpy.
 
 ## Use
 

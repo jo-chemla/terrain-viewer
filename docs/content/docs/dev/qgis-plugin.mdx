@@ -5,7 +5,7 @@ description: Two QGIS plugins - Terrain Viewer 0.7.0, the app's sidebar as a QGI
 ---
 
 <LinkButtons links={[
-  { href: "https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d", label: "Download the QGIS plugins (0.6.0)", icon: "download" },
+  { href: "https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25e", label: "Download the QGIS plugins (0.7.0)", icon: "download" },
   { href: "https://github.com/Iconem/terrain-viewer/releases?q=qgis-plugins&expanded=true", label: "All QGIS plugin releases", icon: "release" },
 ]} />
 
@@ -58,7 +58,7 @@ The tree comes from the service's `/processes` (each mode as an [OGC API - Proce
 
 #### The modes and their backends
 
-Every mode is drawn by a tile service, local or remote. The Python column is what `live/` computes in plugin 0.7.0; "in progress" marks the modes being ported (to be reconciled at release).
+Every mode is drawn by a tile service, local or remote. The Python column is what `live/` computes in plugin 0.7.0: every mode but the mound detector (24 of 25), its registry (`live/modes.py`: `python_supported`, `outputs`, `service`) read by the panel.
 
 | Mode | Group | Forms (service) | Python |
 |---|---|---|---|
@@ -69,24 +69,24 @@ Every mode is drawn by a tile service, local or remote. The Python column is wha
 | TRI | Terrain Analysis | Colour, Values | Yes: Colour, Values |
 | TPI | Terrain Analysis | Colour, Values | Yes: Colour, Values |
 | Roughness | Terrain Analysis | Colour, Values | Yes: Colour, Values |
-| Shape index | Terrain Analysis | Colour, Values | In progress |
-| Blobness | Terrain Analysis | Colour, Values | In progress |
-| Eigen ratio | Terrain Analysis | Colour, Values | No |
-| Orientation | Terrain Analysis | Colour, Values | No |
+| Shape index | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| Blobness | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| Eigen ratio | Terrain Analysis | Colour, Values | Yes: Colour, Values |
+| Orientation | Terrain Analysis | Colour, Values | Yes: Colour, Values |
 | Local relief model | Relief Visualization | Colour, Values | Yes: Colour, Values |
 | Sky view factor | Relief Visualization | Colour, Values | Yes: Colour, Values |
 | Openness (positive, negative) | Relief Visualization | Colour, Values | Yes: Colour, Values |
-| Local dominance | Relief Visualization | Colour, Values | In progress |
+| Local dominance | Relief Visualization | Colour, Values | Yes: Colour, Values |
 | Hillshade | | Colour | Yes: Colour (standard; the multidirectional methods as gdaldem's multidirectional shade) |
 | Matcap | Lighting Effects | Colour | Yes: Colour |
 | Phong | Lighting Effects | Colour | Yes: Colour |
 | Terrain shadows | Lighting Effects | Colour | Yes: Colour |
-| Building shadows | Lighting Effects | Colour | No |
+| Building shadows | Lighting Effects | Colour | Yes: Colour (OpenStreetMap buildings, live/buildings.py) |
 | Contours | Overlays | Vector, Raster | Yes: Vector (lines for the view), Raster |
-| Iso-line | Overlays | Vector, Raster | No |
-| Plane slicer | Overlays | Vector, Raster | In progress |
-| Graticule | Overlays | Vector, Raster | In progress |
-| Mound candidates | Overlays | Vector, Raster | No |
+| Iso-line | Overlays | Vector, Raster | Yes: Vector (lines for the view), Raster |
+| Plane slicer | Overlays | Vector, Raster | Yes: Vector (areas for the view), Raster |
+| Graticule | Overlays | Vector, Raster | Yes: Vector (lines for the view), Raster |
+| Mound candidates | Overlays | Vector, Raster | No (tile service only) |
 
 **Sources under the Python backend**: it reads Terrarium and Terrain-RGB tile pyramids, decoded in numpy: Mapterhorn (the default), AWS Terrain, the library's other Terrarium and Terrain-RGB sources with a public address (GSI Japan, LINZ New Zealand, Open Waters Seascape, Re:Earth), Mapbox and MapTiler with their keys, or a typed `{z}/{x}/{y}` address (Terrain-RGB when it says so, Terrarium otherwise). It follows the source picked: changing it re-points the layers. Not read: COGs, VRTs, LERC (Esri), WMS/WCS rasters, quantized mesh (Cesium), PMTiles and the differences of two sources; picking one says so once and draws Mapterhorn. Those need a tile service, which reads every GDAL source (in principle the Python backend could read any GDAL source too, through GDAL's warped reads; not done).
 
@@ -101,7 +101,7 @@ Every mode is drawn by a tile service, local or remote. The Python column is wha
 
 ### Install
 
-Terrain Viewer 0.7.0 (the panel described above) is built from the repository (`python make_zip.py`) until its release; the zip grows to about 190 KB with its previews and catalog snapshot. The zips released so far are on the [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d) release (Terrain Viewer 0.6.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28); 0.5.0 stays on [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c), 0.4.0 on [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b) and 0.3.0 on [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25). Since 0.5.0 Terrain Viewer is **one plain zip** for every platform; the tile service is downloaded from the panel when wanted:
+Terrain Viewer 0.7.0 (the panel described above) is on the [`qgis-plugins-2026-11-25e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25e) release, `terrain_viewer-0.7.0.zip` (about 200 KB with its previews and catalog snapshot), with Send2MapApp 0.5.1; it pins the tile service bundles of `qgis-plugins-2026-11-25d`, which its Install button downloads. Earlier zips are on the [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d) release (Terrain Viewer 0.6.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28); 0.5.0 stays on [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c), 0.4.0 on [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b) and 0.3.0 on [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25). Since 0.5.0 Terrain Viewer is **one plain zip** for every platform; the tile service is downloaded from the panel when wanted:
 
 | Asset | Size | What it is |
 |---|---|---|

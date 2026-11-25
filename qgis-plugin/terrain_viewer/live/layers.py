@@ -9,8 +9,9 @@ the panel (Colour, Values, and Vector for contours), each a layer:
   (server.gdal_xml), drawn by QGIS's own renderers (the same ramp as the
   coloured default; any other from the layer's properties). Identify, the
   raster calculator and Processing read the numbers.
-- vector: contour lines in a memory layer, recomputed for the view
-  (live/contours.py).
+- vector: the mode's features for the view in a memory layer (contour
+  lines, iso-lines, graticule lines, plane slicer polygons:
+  live/contours.py view_vector), recomputed after each pan or zoom.
 
 A changed setting re-points the layer (setDataSource): its style,
 opacity, blending and resampling, as set in its properties, stay.
@@ -38,8 +39,7 @@ NORMAL = QPainter.CompositionMode.CompositionMode_SourceOver
 # factor and the shadows, as the first experiment had them.
 DEFAULT_ON = ("shadows", "hillshade", "svf")
 # Top of the map first: masks and shades over the colours.
-ORDER = ["contours", "shadows", "phong", "hillshade", "multihillshade", "svf", "openness", "matcap", "lrm", "curvature", "tpi",
-         "tri", "roughness", "aspect", "slope", "elevation"]
+ORDER = modes.ORDER  # top of the map first, the app's layer order (live/modes.py)
 # The deepest zoom of the colour tiles: Mapterhorn's 512 px tiles go to z17,
 # so 256 px tiles to z18, the level the values (GDAL) read too.
 XYZ_ZMAX = 18
@@ -288,58 +288,58 @@ class LocalLayers:
         self._place(layer, mode, form)
         return layer
 
-    # -- contour lines --------------------------------------------------------
+    # -- vector forms ----------------------------------------------------------
     def _vector(self, mode, layer, opts, extent, width_px):
-        from . import contours
         if layer is None:
-            layer = QgsVectorLayer("LineString?crs=EPSG:3857&field=elev:double&field=major:integer",
-                                   f"{modes.MODES[mode]['label']} (local, lines)", "memory")
+            layer = vector_layer(mode, f"{modes.MODES[mode]['label']} (local, {vector_noun(mode)})", opts)
             layer.setCustomProperty(LAYER_PROP, _key(mode, "vector"))
-            contours.style(layer)
             self._place(layer, mode, "vector")
-        self.refresh_vector(layer, opts, extent, width_px)
+        self.refresh_vector(layer, opts, extent, width_px, mode=mode)
         return layer
 
-    def refresh_vector(self, layer, opts, extent, width_px, wait=False, source="mapterhorn"):
-        """The contour lines of the view computed in a QgsTask and put into
-        the layer when done (a later view's result wins); wait: here, now
-        (tests)."""
+    def refresh_vector(self, layer, opts, extent, width_px, wait=False, source="mapterhorn", mode=None):
+        """A vector form's features for the view (contours.view_vector),
+        computed in a QgsTask and put into the layer when done (a later
+        view's result wins); wait: here, now (tests). `mode`: live/'s mode
+        (by default the layer's own, else contours)."""
         from . import contours
         if extent is None or width_px <= 0:
             return
-        o = modes.parse_opts("contours", opts)
-        key = (extent.toString(), width_px, o["minor"], o["major"], source)
+        mode = mode or _mode_form(layer)[0] or "contours"
+        o = modes.parse_opts(mode, opts)
+        key = (mode, extent.toString(), width_px, tuple(sorted((k, str(v)) for k, v in o.items())), source)
         if layer.customProperty("terrain_viewer/local_view") == str(key) and not wait:
             return
         layer.setCustomProperty("terrain_viewer/local_view", str(key))
         dem = self.server.dem(source)
         ext = QgsRectangle(extent)
         if wait:
-            lines, _z = contours.view_contours(dem, ext, width_px, o["minor"], o["major"])
-            contours.replace_features(layer, lines)
+            feats, _z = contours.view_vector(dem, ext, width_px, mode, o)
+            replace_vector_features(layer, feats)
             return
         global _contour_generation
         _contour_generation += 1
         gen = _contour_generation
+        _generation[layer.id()] = gen
         layer_id = layer.id()
         project = self.project
 
         def run(task):
-            return contours.view_contours(dem, ext, width_px, o["minor"], o["major"])
+            return contours.view_vector(dem, ext, width_px, mode, o)
 
         def finished(exception, result=None):
             lyr = project.mapLayer(layer_id)
-            if exception is not None or result is None or lyr is None or gen != _contour_generation:
+            if exception is not None or result is None or lyr is None or _generation.get(layer_id) != gen:
                 return
-            contours.replace_features(lyr, result[0])
-        task = QgsTask.fromFunction("Terrain Viewer: contour lines", run, on_finished=finished,
+            replace_vector_features(lyr, result[0])
+        task = QgsTask.fromFunction(f"Terrain Viewer: {mode} for the view", run, on_finished=finished,
                                     flags=QgsTask.Flag.Silent if hasattr(QgsTask, "Flag") else QgsTask.Silent)
         _tasks.append(task)
-        del _tasks[:-8]
+        del _tasks[:-16]
         QgsApplication.taskManager().addTask(task)
 
     def refresh_vectors(self, opts_of, extent, width_px):
-        """Every contour line layer of the group, for a new view."""
+        """Every vector layer of the group, for a new view."""
         g = self.group()
         if g is None:
             return
@@ -365,6 +365,64 @@ class LocalLayers:
 
 
 _contour_generation = 0
+_generation = {}  # layer id -> the generation of its latest task (one layer's result never cancels another's)
+
+
+def vector_noun(mode):
+    geom = modes.MODES[mode].get("vector_layer", {}).get("geometry", "LineString")
+    return "areas" if geom == "Polygon" else "lines"
+
+
+def vector_layer(mode, name, opts=None):
+    """An empty memory layer for a mode's vector form, its geometry and fields
+    as live/modes.py declares them (vector_layer), styled."""
+    spec = modes.MODES[mode].get("vector_layer") or {"geometry": "LineString", "fields": (("elev", "double"), ("major", "integer"))}
+    fields = "".join(f"&field={n}:{t}" for n, t in spec["fields"])
+    layer = QgsVectorLayer(f"{spec['geometry']}?crs=EPSG:3857{fields}", name, "memory")
+    style_vector(layer, mode, opts)
+    return layer
+
+
+def style_vector(layer, mode, opts=None):
+    """Contours: minor thin, major thick, the mask's brown; the others a line
+    or a fill in the mode's colour setting."""
+    from qgis.core import QgsFillSymbol, QgsLineSymbol, QgsSingleSymbolRenderer
+    from . import contours
+    if mode == "contours":
+        contours.style(layer)
+        return
+    o = modes.parse_opts(mode, opts or {})
+    colour = QColor(str(o.get("color") or "#d01c8b"))
+    if not colour.isValid():
+        colour = QColor("#d01c8b")
+    width = max(0.1, float(o.get("weight", o.get("width", 1.0)) or 1.0) * 0.26)
+    if modes.MODES[mode].get("vector_layer", {}).get("geometry") == "Polygon":
+        fill = QColor(colour)
+        fill.setAlphaF(min(max(float(o.get("opacity", 0.6)), 0.0), 1.0))
+        sym = QgsFillSymbol.createSimple({"color": f"{fill.red()},{fill.green()},{fill.blue()},{fill.alpha()}",
+                                          "outline_color": colour.name(), "outline_width": "0.2"})
+    else:
+        sym = QgsLineSymbol.createSimple({"line_color": colour.name(), "line_width": f"{width:.2f}", "line_width_unit": "MM"})
+    layer.setRenderer(QgsSingleSymbolRenderer(sym))
+
+
+def replace_vector_features(layer, feats):
+    """The layer's features replaced by `feats` [(wkb, [attributes])]."""
+    from qgis.core import QgsFeature, QgsGeometry
+    prov = layer.dataProvider()
+    prov.truncate()
+    fields = layer.fields()
+    out = []
+    for wkb, attrs in feats:
+        f = QgsFeature(fields)
+        g = QgsGeometry()
+        g.fromWkb(wkb)
+        f.setGeometry(g)
+        f.setAttributes(list(attrs))
+        out.append(f)
+    prov.addFeatures(out)
+    layer.updateExtents()
+    layer.triggerRepaint()
 _tasks = []  # QgsTask.fromFunction tasks kept referenced while they run
 
 

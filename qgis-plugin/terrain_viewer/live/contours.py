@@ -78,6 +78,18 @@ def view_contours(dem, extent3857, width_px, minor=50.0, major=200.0):
     return contour_lines(grid, gt, minor, major), z
 
 
+_POOL = []
+
+
+def _view_pool():
+    """The workers that compute a view's tiles (apart from the Dem's fetchers)."""
+    if not _POOL:
+        import os
+        from concurrent.futures import ThreadPoolExecutor
+        _POOL.append(ThreadPoolExecutor(max_workers=max(2, os.cpu_count() or 4), thread_name_prefix="tv-view"))
+    return _POOL[0]
+
+
 def view_values(dem, extent3857, width_px, mode, opts, max_tiles=MAX_TILES):
     """A mode's values over a view, mosaicked from its tiles (each computed
     with its own halo and ancestors, as the server's: no seams):
@@ -101,7 +113,11 @@ def view_values(dem, extent3857, width_px, mode, opts, max_tiles=MAX_TILES):
         g = dem.grid(z, tx % (1 << z), ty)
         return modes.values(mode, g, ground_resolution_m(z, ty), opts, TILE)
 
-    futs = {(ty, tx): dem.pool.submit(one, tx, ty) for ty in range(y0, y1 + 1) for tx in range(x0, x1 + 1)}
+    # A pool of its own: `one` waits on dem.pool (Dem.padded fetches the
+    # neighbours there), so run on dem.pool itself it filled every worker
+    # with waits on jobs queued behind them, and froze (a view of more tiles
+    # than workers: an iso-line over a 1024 px canvas).
+    futs = {(ty, tx): _view_pool().submit(one, tx, ty) for ty in range(y0, y1 + 1) for tx in range(x0, x1 + 1)}
     out = np.empty(((y1 - y0 + 1) * TILE, (x1 - x0 + 1) * TILE), np.float32)
     for (ty, tx), f in futs.items():
         out[(ty - y0) * TILE:(ty - y0 + 1) * TILE, (tx - x0) * TILE:(tx - x0 + 1) * TILE] = f.result()

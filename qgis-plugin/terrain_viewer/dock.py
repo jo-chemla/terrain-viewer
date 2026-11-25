@@ -581,12 +581,13 @@ class ModeRow:
                     dock.remove_layers(key, prune=False)
                     layer = None
                 if layer is None:
-                    from .live import contours
-                    layer = QgsVectorLayer("LineString?crs=EPSG:3857&field=elev:double&field=major:integer",
-                                           f"{self.mode['name']} (lines)", "memory")
-                    contours.style(layer)
+                    from .live.layers import vector_layer, vector_noun
+                    layer = vector_layer(py, f"{self.mode['name']} ({vector_noun(py)})", opts)
                     stack.add_layer(layer, key, self.path, "python")
-                LocalLayers(stack.project).refresh_vector(layer, opts, ext, width, source=sid)
+                elif not new:
+                    from .live.layers import style_vector
+                    style_vector(layer, py, opts)  # a colour or width setting changed
+                LocalLayers(stack.project).refresh_vector(layer, opts, ext, width, source=sid, mode=py)
             if new and layer is not None:
                 stack.set_visible(layer, True)
 
@@ -1383,7 +1384,7 @@ class TerrainViewerDock(QDockWidget):
     def extent_changed(self):
         if self.connected == "python":
             self.prefetch_timer.start()
-            if self.stack.find("contours:vector") is not None:
+            if any(r.row.on("vector") for r in self.rows.values()):
                 self.vector_timer.start()
 
     def prefetch(self):
