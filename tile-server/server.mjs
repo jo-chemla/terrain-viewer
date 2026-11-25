@@ -80,7 +80,7 @@
 import http from "node:http"
 import { AsyncLocalStorage } from "node:async_hooks"
 import { qgisProject, readView, viewForPlugin, gdalWmsXml } from "./qgis-project.mjs"
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -145,7 +145,21 @@ export function blockOf(z, x, y, size) {
   }
 }
 
-const file = (key, ext) => path.join(CACHE_DIR, createHash("sha1").update(key).digest("hex") + "." + ext)
+// The code that draws the tiles, hashed once at start: it goes into every
+// cache key, so a tile drawn by older code (the aspect fix of 2026-11-25 kept
+// serving east-west mirrored tiles for a week) is never served by newer code,
+// and two services of different versions can share TILE_CACHE_DIR.
+export const CODE_REVISION = (() => {
+  const h = createHash("sha1")
+  const dir = path.dirname(fileURLToPath(import.meta.url))
+  for (const sub of ["", "generated"]) {
+    let names = []
+    try { names = readdirSync(path.join(dir, sub)).filter((n) => n.endsWith(".mjs") && !/test|bench/.test(n)).sort() } catch {}
+    for (const n of names) h.update(n).update(readFileSync(path.join(dir, sub, n)))
+  }
+  return h.digest("hex").slice(0, 12)
+})()
+const file = (key, ext) => path.join(CACHE_DIR, createHash("sha1").update(CODE_REVISION + "|" + key).digest("hex") + "." + ext)
 async function cached(key, ext) {
   try {
     const f = file(key, ext)
@@ -654,7 +668,7 @@ async function handle(req, res) {
       // A source id in the path: read as the query form.
       const inPath = await sourceInPath(u.pathname, u.search)
       if (inPath) { u.pathname = inPath.pathname; u.search = inPath.search }
-      if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, browser: slot.stats(), direct: { ...directSlot.stats(), ...poolStats() } }))
+      if (u.pathname === "/health") return send(200, "application/json", JSON.stringify({ ok: true, app: BASE_URL, codeRevision: CODE_REVISION, browser: slot.stats(), direct: { ...directSlot.stats(), ...poolStats() } }))
       // A browser goes to the page to try the service; a client that asks
       // for JSON gets the index of addresses.
       const self = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`
