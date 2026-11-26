@@ -143,8 +143,8 @@ export const HEIGHT_RAMP: readonly [number, string][] = [[0, "#fde725"], [6, "#9
 /** Feature without a height, in color by height. */
 export const NO_HEIGHT_COLOR = "#9ca3af"
 /** Metres per floor, and the height of a feature that states neither. */
-const FLOOR_M = 3.2
-const DEFAULT_HEIGHT_M = 4
+export const FLOOR_M = 3.2
+export const DEFAULT_HEIGHT_M = 4
 
 type Expr = unknown[]
 const num = (field: string): Expr => ["to-number", ["get", field], -1]
@@ -157,6 +157,30 @@ export function heightExpression(entry: VectorSourceEntry, fallback: number = DE
     ? ["case", [">", num(entry.floorsField), 0], ["*", num(entry.floorsField), FLOOR_M], fallback]
     : fallback
   return ["case", [">", num(entry.heightField), 0], num(entry.heightField), byFloors]
+}
+
+/** A decoded property as `["to-number", value, -1]` reads it: a number, a
+ *  numeric string, 0 for a missing one, -1 for what is not a number. */
+export function propertyNumber(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : -1
+  if (value === null || value === undefined || value === false || value === "") return 0
+  if (value === true) return 1
+  const n = Number(value)
+  return Number.isFinite(n) ? n : -1
+}
+
+/** heightExpression on a decoded feature's properties (the building
+ *  shadows' tile reader, lib/building-tiles.ts): its height, else its floors
+ *  times FLOOR_M, else `fallback`. Keep the two in step. */
+export function featureHeight(entry: VectorSourceEntry, properties: Record<string, unknown>, fallback: number = DEFAULT_HEIGHT_M): number {
+  if (!entry.heightField) return fallback
+  const h = propertyNumber(properties[entry.heightField])
+  if (h > 0) return h
+  if (entry.floorsField) {
+    const floors = propertyNumber(properties[entry.floorsField])
+    if (floors > 0) return floors * FLOOR_M
+  }
+  return fallback
 }
 
 /** The color of a feature by its category, as a MapLibre value: the first

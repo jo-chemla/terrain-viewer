@@ -193,6 +193,45 @@ If anything between the pixel and the sun rises above the sun's own altitude ang
 
 Azimuth/altitude for Hard Shadows share the same `state.illuminationDir`/`illuminationAlt` state as Hillshade and Phong (no separate light control) — and can be driven by real solar position via [the sun-position math](/features/sun-position).
 
+## Building shadows
+
+`components/LayersAndSources/BuildingShadowLayer.tsx` is a custom layer of its own, not a tile protocol: each footprint is swept away from the sun by height / tan(altitude) into a mask (walls as quads, the roof outline at the tip), the footprints are cut back out, and the mask is composited over the map, or per terrain tile through `renderToTerrainTile` when terrain is on. The light is two uniforms; the geometry is rebuilt when the map settles or tiles arrive.
+
+**Where the buildings come from.** `lib/building-tiles.ts` reads them from a `VectorSourceEntry` with a `heightField` ([Source schema, Vector overlays](/dev/source-schema#vector-overlays)), named by `?buildingShadowSource=` (default `osm-buildings-openfreemap`, so a link without the parameter draws what it drew before; an id that is gone or has no height falls back to it). The picker (Lighting Effects, Buildings, **Buildings from**) lists every Library and user vector source with a height.
+
+| Transport | How a tile is read |
+|---|---|
+| `pmtiles` | `PMTiles.getZxy` on the archive's reader from `lib/pmtiles-readers.ts`, the same instance the map's `pmtiles://` protocol uses: header and directories once, then one range request a tile. Overture's address goes through `resolveVectorUrl` (the monthly release) |
+| `tilejson` | the TileJSON once, then its first tile template |
+| `mvt` | the template |
+
+Tiles are read at the source's deepest zoom, 14 at most (both built-in sources stop at 14), over the viewport widened by the longest shadow at the current sun height, 16 tiles at most. The cache (200 decoded tiles or 256 MB), the one request a tile shared by split views and the abort once no view wants a tile are per source and tile.
+
+**Decoding.** `decodeBuildingTile` reads the MVT geometry commands straight into typed arrays (`@mapbox/vector-tile` parses the layers and the properties): coordinates as absolute Web Mercator in a `Float64Array`, ring and polygon starts in `Uint32Array`s, a height and a base per polygon, a flag per edge that runs along the tile's clip line (the lowest or highest coordinate past the tile's edge, as the clip buffer differs from one tile set to the next) and a flag per polygon that reaches the tile's edge (only those can come again from a neighbour, so only those are de-duplicated).
+
+**Heights.** `featureHeight` in `lib/vector-sources.ts` is the twin of the 3D overlay's `heightExpression` and shares its constants: the height field, else the floors field times 3.2 m, else 4 m (a test evaluates both on the same properties with MapLibre's expression engine). The base comes from `minHeightField`: a raised part sweeps from its base to its top and cuts nothing out of the mask, so the ground under a bridge between two towers can be shaded. With `partLayers` and `hasPartsField` (Overture), a building marked as having parts is left out and its parts drawn, as the 3D overlay does.
+
+**Heights in view.** Each tile counts its building features, those stating a height and those stating only floors; the layer sums them over its loaded tiles into `buildingShadowStatsAtom` and the panel says the share, as a warning under 50 %. Nothing is said for OpenFreeMap: its tiles give every building a rendering height and merge neighbours into one feature.
+
+**Measured** (2026-11-26, real Chrome through agent-browser, a cold page at zoom 15.6, sun at 35°, 6 to 9 tiles a view; the time runs from the source being set to the shadows drawn):
+
+| View | Source | First shadows | Fetch a tile (median) | Decode a tile (median, max) | Buildings stating a height |
+|---|---|---|---|---|---|
+| Midtown Manhattan | OpenFreeMap | 0.9 s | 170 ms | 14 ms, 21 ms | n/a |
+| Midtown Manhattan | Overture | 1.9 s | 730 ms | 34 ms, 51 ms | 98 % of 16 424 |
+| Chicago Loop | OpenFreeMap | 1.8 s | 320 ms | 6 ms, 15 ms | n/a |
+| Chicago Loop | Overture | 1.4 s | 910 ms | 5 ms, 20 ms | 80 % of 7 416 |
+| Lyon | OpenFreeMap | 1.0 s | 480 ms | 9 ms, 13 ms | n/a |
+| Lyon | Overture | 1.5 s | 660 ms | 11 ms, 20 ms | under 1 % of 32 248 (33 % floors only) |
+| Naples | OpenFreeMap | 1.4 s | 210 ms | 10 ms, 12 ms | n/a |
+| Naples | Overture | 2.7 s | 1.9 s | 18 ms, 21 ms | 22 % of 15 612 |
+
+Overture's tiles are two to four times heavier (0.8 to 1.3 MB against 250 to 600 kB) for about the same number of vertices: the weight is in the properties. In Node the same tiles decode in 5 to 8 ms (Overture) and 2 to 5 ms (OpenFreeMap); reading the geometry into typed arrays costs the same time as `loadGeometry` did (the properties dominate) and holds a tile in 0.3 to 0.7 MB.
+
+The tile service's `buildingShadowSvg` and the QGIS plugin's `live/buildings.py` still read OpenFreeMap only (`requestOsmBuildingPolygons`).
+
+Tests: `node scripts/test-lib.mjs lib/building-tiles.test.ts` (offline: tiles written in the test, and two recorded z14 tiles of Neuschwanstein in `lib/fixtures/building-tiles/`).
+
 ## Draping
 
 What MapLibre 6 drapes over its terrain, why Matcap and Phong keep a raster path and a live GL path, and the tile-seam fix are on [Draping custom layers](/dev/draping).

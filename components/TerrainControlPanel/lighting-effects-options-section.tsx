@@ -1,6 +1,6 @@
 import type React from "react"
 import { perViewProps, modeOnVisibleView } from "@/lib/viz-views"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { useAtom, useAtomValue } from "jotai"
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { Label } from "@/components/ui/label"
@@ -10,7 +10,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Section, CheckboxWithSlider, SliderControl, SegmentedToggle, AdvancedModeToggle } from "./controls-components"
 import { LightDirectionControl } from "./light-direction-control"
 import { useDebouncedState } from "./use-debounced-state"
-import { activeProjectConfigAtom, lightingEffectsAdvancedAtom, shadowLiveUnsupportedAtom } from "@/lib/settings-atoms"
+import { activeProjectConfigAtom, buildingShadowStatsAtom, customVectorSourcesAtom, lightingEffectsAdvancedAtom, shadowLiveUnsupportedAtom } from "@/lib/settings-atoms"
+import { buildingSourceEntry, isBuildingSource, DEFAULT_BUILDING_SOURCE_ID } from "@/lib/building-tiles"
+import { allVectorSources, DEFAULT_HEIGHT_M } from "@/lib/vector-sources"
 import { MATCAP_TEXTURES } from "@/lib/matcap-textures"
 import { SHADOW_RADIUS_MAX_PX } from "@/lib/shadow-protocol"
 
@@ -20,6 +22,34 @@ import { SHADOW_RADIUS_MAX_PX } from "@/lib/shadow-protocol"
 const SEG_WIDTH = "w-[200px]"
 
 const MATCAP_IDS = MATCAP_TEXTURES.map((t) => t.id)
+
+// The Library's building sources as the shadow picker names them.
+const BUILDING_SOURCE_LABELS: Record<string, string> = {
+  [DEFAULT_BUILDING_SOURCE_ID]: "OpenStreetMap (OpenFreeMap)",
+  "overture-buildings": "Overture Maps",
+}
+// Under this share of buildings stating a height, the line turns into a warning.
+const FEW_HEIGHTS = 0.5
+
+/** What the loaded building tiles hold: the share of buildings with a
+ *  stated height, said louder when it is low (Overture outside North
+ *  America: most buildings then cast the shadow of the default height). */
+function BuildingHeightsLine({ heights, hasFloors, derived }: { heights: { buildings: number; stated: number; floors: number; pending: number; error?: string }; hasFloors: boolean; derived: boolean }) {
+  if (heights.error) return <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400 break-words">This source could not be read ({heights.error}).</p>
+  if (!heights.buildings) return heights.pending ? <p className="text-[11px] leading-snug text-muted-foreground">Loading buildings…</p> : null
+  // OpenFreeMap's tiles give every building a rendering height (5 m when OSM
+  // has none) and merge neighbours into one feature: a share would say nothing.
+  if (derived) return null
+  const share = heights.stated / heights.buildings
+  const percent = (n: number) => `${n > 0 && n < 0.01 ? "<1" : Math.round(n * 100)} %`
+  const few = share < FEW_HEIGHTS
+  const floors = hasFloors && heights.floors > 0 ? `, ${percent(heights.floors / heights.buildings)} only floors (3.2 m each)` : ""
+  return (
+    <p data-building-heights={share.toFixed(3)} className={`text-[11px] leading-snug break-words ${few ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+      {few ? "Few heights here: " : "Heights: "}{percent(share)} of {heights.buildings.toLocaleString("en-US")} buildings state one{floors}{few ? `; the others cast the shadow of a ${DEFAULT_HEIGHT_M} m building.` : "."}{heights.pending ? " Loading more…" : ""}
+    </p>
+  )
+}
 
 // "Lighting Effects" houses two independent shading sub-modes, mirroring
 // Relief Visualization's LRM/SVF/Openness pattern (master checkbox+opacity at
@@ -62,6 +92,23 @@ export const LightingEffectsOptionsSection: React.FC<{
   // Phong to move the light. Default closed (Phong's stays the primary).
   const [isShadowLightDirOpen, setIsShadowLightDirOpen] = useState(false)
   const shadowLiveUnsupported = useAtomValue(shadowLiveUnsupportedAtom)
+  // Building shadows: the vector sources with a height (the Library's and
+  // the user's own), and what the views have loaded of the chosen one.
+  const customVectorSources = useAtomValue(customVectorSourcesAtom)
+  // The default first, then the Library's order, then the user's own.
+  const buildingSources = useMemo(() => allVectorSources(customVectorSources).filter(isBuildingSource).sort((a, b) => Number(b.id === DEFAULT_BUILDING_SOURCE_ID) - Number(a.id === DEFAULT_BUILDING_SOURCE_ID)), [customVectorSources])
+  const buildingSource = buildingSourceEntry(state.buildingShadowSource, customVectorSources)
+  const buildingSourceItems = useMemo(() => Object.fromEntries(buildingSources.map((s) => [s.id, BUILDING_SOURCE_LABELS[s.id] ?? s.shortName ?? s.name])), [buildingSources])
+  const buildingStats = useAtomValue(buildingShadowStatsAtom)
+  const buildingHeights = useMemo(() => {
+    let buildings = 0, stated = 0, floors = 0, pending = 0, error: string | undefined
+    for (const v of Object.values(buildingStats)) {
+      if (v.sourceId !== buildingSource.id) continue
+      buildings += v.buildings; stated += v.stated; floors += v.floors; pending += v.pending
+      error ??= v.error
+    }
+    return { buildings, stated, floors, pending, error }
+  }, [buildingStats, buildingSource.id])
 
   // Same live-vs-raster debounce split as Phong below — "live" is a GPU
   // uniform with zero tile refetch (0ms), "raster" re-fetches a tile per
@@ -335,13 +382,27 @@ export const LightingEffectsOptionsSection: React.FC<{
           )}
           <CheckboxWithSlider perView={perViewFor("showBuildingShadows")}
             id="lighting-building-shadows"
-            label="Buildings (OSM)"
-            tooltip="Shadows cast by OpenStreetMap buildings (heights from OpenFreeMap, from OSM height or levels), drawn on flat ground at each building's foot: fast, recomputed when the map settles, from zoom 13. Draped over 3D terrain but not bent by it. Same light as terrain shadows."
+            label="Buildings"
+            tooltip="Shadows cast by buildings, from the footprints and heights of a vector source: OpenStreetMap through OpenFreeMap by default (OSM height or levels), Overture Maps, or a source of your own with a height field. Drawn on flat ground at each building's foot: fast, recomputed when the map settles, from zoom 13. Draped over 3D terrain but not bent by it. Same light as terrain shadows."
             checked={state.showBuildingShadows}
             onCheckedChange={(checked) => setState({ showBuildingShadows: checked })}
             sliderValue={state.buildingShadowOpacity}
             onSliderChange={(value) => setState({ buildingShadowOpacity: value })}
           />
+          {modeOnVisibleView(state, "showBuildingShadows") && (
+            <div className="space-y-1 pl-1">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <Label className="text-sm font-medium shrink-0" title="The vector source the footprints and heights are read from: any source of the Library or of your own (Bring Your Own Data, Vector overlays) that has a height field. The overlay itself need not be on.">Buildings from</Label>
+                <Select value={buildingSource.id} onValueChange={(value) => value && setState({ buildingShadowSource: value })} items={buildingSourceItems}>
+                  <SelectTrigger id="lighting-building-shadow-source" className="h-8 text-xs flex-1 min-w-0 cursor-pointer"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {buildingSources.map((s) => <SelectItem key={s.id} value={s.id}>{buildingSourceItems[s.id]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <BuildingHeightsLine heights={buildingHeights} hasFloors={!!buildingSource.floorsField} derived={buildingSource.id === DEFAULT_BUILDING_SOURCE_ID} />
+            </div>
+          )}
           {/* Same shared illuminationDir/illuminationAlt pad Phong shows,
               for both kinds of shadow, so either works standalone. Debounced
               150 ms: terrain shadows recompute tiles per change. */}

@@ -37,3 +37,35 @@ lines with 64/4096. Do not reintroduce a map source for the footprints. A lower
 sun that needs tiles beyond the last range triggers a rebuild through
 `setLight()`; otherwise the light is two uniforms. Scripts:
 `.cache/pw/shadow-edge-shot.mjs`, `shadow-edge-url.mjs`, `decode-tile.mjs`.
+
+**Any vector source with heights (2026-11-26).** `lib/building-tiles.ts` now
+reads a `VectorSourceEntry` with a `heightField` (`?buildingShadowSource=`,
+default `osm-buildings-openfreemap`; picker under Lighting Effects, Buildings):
+PMTiles through the reader shared with the map's `pmtiles://` protocol
+(`lib/pmtiles-readers.ts`), TileJSON, MVT template, at the source's maxzoom
+(14 at most). A tile is typed arrays (`BuildingTile`), not `{rings, height}`
+lists; the tile service still gets lists through `requestOsmBuildingPolygons`
+(OpenFreeMap only, as is QGIS's `live/buildings.py`). Things learned:
+
+- The clip buffer differs per tile set (64/4096 at OpenFreeMap, other values
+  elsewhere), so a cut edge is found per tile: axis-aligned on the tile line
+  or on the layer's lowest / highest coordinate past the tile's edge. The
+  flag is per edge, set at decode time.
+- OpenFreeMap merges neighbouring buildings into one feature at z14 and gives
+  every one a `render_height`: a count of its "buildings" or a share with
+  heights says nothing (Lyon: 576 features against Overture's 32 248), so the
+  panel's heights line is only shown for other sources.
+- Overture z14 tiles are 0.8 to 1.3 MB for about the same vertices as
+  OpenFreeMap's 250 to 600 kB: the weight is properties, and the property
+  parsing of `@mapbox/vector-tile` is most of the decode time (5 to 8 ms in
+  Node, 5 to 34 ms median in the browser). Reading the geometry into typed
+  arrays did not make decoding faster than `loadGeometry`; it saves memory.
+- Share of Overture buildings stating a height around the centre, release
+  2026-11-18.0: Midtown Manhattan 98 %, Chicago Loop 80 %, Naples 22 %, Lyon
+  under 1 % (33 % more with floors only).
+- `parseAsString.withDefault(CONSTANT)` shows the constant's name as the
+  default in the generated URL reference: write the literal.
+- The tile service has its own `node_modules`; in a worktree without them,
+  bundle `tile-server/app-render.ts` with tsx's esbuild to check an export.
+- A raised part (`minHeightField`) sweeps from its base and cuts no roof.
+

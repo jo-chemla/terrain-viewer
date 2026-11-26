@@ -1717,6 +1717,16 @@
             }
           },
           {
+            "name": "buildingShadowSource",
+            "in": "query",
+            "required": false,
+            "description": "State. The vector source the building shadows take footprints and heights from, by id (lib/building-tiles.ts): OpenFreeMap's OSM tiles by default, \"overture-buildings\", or a vector source of the user's own …",
+            "schema": {
+              "type": "string",
+              "default": "osm-buildings-openfreemap"
+            }
+          },
+          {
             "name": "lightUseDatetime",
             "in": "query",
             "required": false,

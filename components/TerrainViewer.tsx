@@ -85,7 +85,7 @@ import { slopeProtocol } from '@/lib/slope-protocol'
 import { demDiffProtocol } from '@/lib/demdiff-protocol'
 import { lercProtocol } from '@/lib/lerc-protocol'
 import { quantizedMeshProtocol, setCesiumIonToken, setQuantizedMeshDetailOffset } from '@/lib/quantized-mesh-protocol'
-import { Protocol as PmtilesProtocol } from 'pmtiles'
+import { sharedPmtilesProtocol } from '@/lib/pmtiles-readers'
 import { aspectProtocol } from '@/lib/aspect-protocol'
 import { triProtocol } from '@/lib/tri-protocol'
 import { curvatureProtocol, CURVATURE_ENCODE_SCALE } from '@/lib/curvature-protocol'
@@ -646,6 +646,12 @@ export const QUERY_STATE_PARSERS = {
     // OpenFreeMap's building layer, same light as the other shadows.
     showBuildingShadows: parseAsBoolean.withDefault(false),
     buildingShadowOpacity: parseAsFloat.withDefault(0.5),
+    // The vector source the building shadows take footprints and heights
+    // from, by id (lib/building-tiles.ts): OpenFreeMap's OSM tiles by
+    // default, "overture-buildings", or a vector source of the user's own
+    // that has a height field. An id that is gone falls back to the default.
+    // The literal is DEFAULT_BUILDING_SOURCE_ID (the URL reference reads it here).
+    buildingShadowSource: parseAsString.withDefault("osm-buildings-openfreemap"),
     // "Datetime-based" light: when on, illuminationDir/illuminationAlt are
     // driven from a physically-plausible sun position (see lib/solar-position.ts)
     // computed from the viewport-center lat/lng + these day-of-year (1–365) and
@@ -1822,7 +1828,7 @@ export function TerrainViewer() {
     registerProtocol('quantized-mesh', withTileResultCache(quantizedMeshProtocol))
     // pmtiles://<archive url>/{z}/{x}/{y} - tile pyramids in one range-read
     // archive (e.g. the Smart Maps GEL Terrain-RGB library entry).
-    registerProtocol('pmtiles', new PmtilesProtocol().tile)
+    registerProtocol('pmtiles', sharedPmtilesProtocol.tile)
     registerProtocol('aspect', withTileResultCache(aspectProtocol))
     registerProtocol('tri', withTileResultCache(triProtocol))
     registerProtocol('curvature', withTileResultCache(curvatureProtocol))
@@ -4383,6 +4389,7 @@ export function TerrainViewer() {
             opacity={state.lightingEffectsOpacity * state.buildingShadowOpacity}
             sunAzimuth={shadowLightDir}
             sunAltitude={shadowLightAlt}
+            sourceId={state.buildingShadowSource}
           />
           <HillshadeLayer
             showHillshade={state.showHillshade && !isHistoricalMode && vm("showHillshade")}
