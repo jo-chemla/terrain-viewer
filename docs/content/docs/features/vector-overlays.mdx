@@ -1,0 +1,57 @@
+---
+title: Building Footprints and Vector Overlays
+sidebarTitle: Vector Overlays
+icon: Building2
+description: "Open building footprints over any terrain or basemap: Overture Maps, VIDA's Google + Microsoft + OpenStreetMap merge and OpenStreetMap, flat or in 3D, colored by origin or height, per view in a split."
+---
+
+<OpenInApp href="/?zoom=15.2&lat=45.7578&lng=4.8320&vectorOverlayIds=overture-buildings">Overture's buildings over Lyon</OpenInApp>
+
+**Vector overlays** draw vector tiles over the terrain layers: above the hillshade and the shadows, under the contours. The first ones are open building footprints, with OpenStreetMap's roads and labels as a hybrid layer. They are in **Sources › Basemap › Bring Your Own Data › Vector overlays**, each with a switch, an opacity and a settings button.
+
+## The sources
+
+| Overlay | Coverage | Heights | Licence |
+|---|---|---|---|
+| **Overture Maps buildings** | Worldwide: OpenStreetMap first, then Esri Community Maps, Google Open Buildings and Microsoft's ML footprints where OSM has none | Where a source gives one (dense in North America, sparse elsewhere), plus building parts | ODbL 1.0 |
+| **VIDA Google + Microsoft + OSM** | 2.7 billion footprints, the widest coverage of Africa, South Asia and Latin America | None | ODbL 1.0 (Google's part also CC BY 4.0) |
+| **OpenStreetMap buildings** (OpenFreeMap) | Where mappers drew them | OpenMapTiles' rendering height, from OSM's height and levels tags | ODbL 1.0 |
+| **OpenStreetMap roads and labels** (OpenFreeMap Liberty) | Worldwide | Not buildings: the lines and labels of the Liberty style, without its fills | ODbL 1.0 |
+
+Microsoft's Global ML Building Footprints have no entry of their own: they are published as files per region, not as tiles, and both Overture and VIDA already carry them. **Color by › Origin** shows which footprints are Microsoft's.
+
+Overture publishes a new archive every month and removes the old ones after about 60 days. The app asks Overture's catalog for the current release when the overlay is switched on, so a link never names a release.
+
+## Drawing
+
+The settings button of a row opens its style:
+
+- **Draw as**: *Footprints* (flat, draped on the terrain) or *3D, by height* (extruded, for the sources that have heights). A building with no height stands 4 m tall, or 3.2 m a floor when it states its floors.
+- **Color by**: *One color*, *Origin* (OpenStreetMap, Microsoft, Google, Esri) or *Height* (yellow for a house, purple for a tower, grey without a height). The legend is in the same popover.
+- **Outlines**, and the row's own **opacity**.
+
+The style is remembered in your browser, per overlay. A shared link carries which overlays are on, not how they are drawn.
+
+Footprints draw from zoom 11. In a dense city an Overture tile weighs about 1 MB at zoom 14, so the first view of a place takes a moment; OpenStreetMap buildings are the light choice.
+
+## In a split or a grid
+
+With per-view basemaps on, each row shows one button per view, as the raster overlays do: VIDA on view A and Overture on view B compares the two over the same place. Views keep their overlays when they are swapped or reordered.
+
+<OpenInApp href="/?zoom=15.5&lat=6.4541&lng=3.3947&splitStyle=side&vectorOverlayIds=vida-open-buildings&vectorOverlayIdsB=overture-buildings">VIDA beside Overture over Lagos</OpenInApp>
+
+## In a link
+
+| Parameter | Value |
+|---|---|
+| `vectorOverlayIds` | The overlays of view A (and of every view without per-view basemaps), comma-separated: `overture-buildings`, `vida-open-buildings`, `osm-buildings-openfreemap`, `osm-liberty-lines-labels` |
+| `vectorOverlayIdsB` … `vectorOverlayIdsH` | The overlays of the other views |
+
+## Not yet
+
+- Your own vector sources (a PMTiles archive, a GeoJSON): the list is the Library's for now.
+- A blend mode per overlay: it needs MapLibre's layer blending, which the app does not use yet.
+- Building shadows cast from these heights: the [building shadows](/dev/lighting-effects) still read OpenFreeMap's tiles.
+- The tile service and the QGIS plugin do not draw them yet.
+
+For developers: the entries and the schema are described in [Source schema](/dev/source-schema#vector-overlays), the slot in [Layer order](/dev/layer-order).

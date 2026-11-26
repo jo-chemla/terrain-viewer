@@ -488,6 +488,86 @@
       "note": ""
     },
     {
+      "key": "vectorOverlayIds",
+      "stateKey": "vectorOverlayIds",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": "Vector overlays (building footprints, lib/vector-sources.ts) by source id, drawn above the shading and under the contours."
+    },
+    {
+      "key": "vectorOverlayIdsB",
+      "stateKey": "vectorOverlayIdsB",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "vectorOverlayIdsC",
+      "stateKey": "vectorOverlayIdsC",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "vectorOverlayIdsD",
+      "stateKey": "vectorOverlayIdsD",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "vectorOverlayIdsE",
+      "stateKey": "vectorOverlayIdsE",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "vectorOverlayIdsF",
+      "stateKey": "vectorOverlayIdsF",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "vectorOverlayIdsG",
+      "stateKey": "vectorOverlayIdsG",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
+      "key": "vectorOverlayIdsH",
+      "stateKey": "vectorOverlayIdsH",
+      "type": "array",
+      "items": "string",
+      "enum": null,
+      "default": [],
+      "defaultSource": "[]",
+      "note": ""
+    },
+    {
       "key": "date",
       "stateKey": "date",
       "type": "integer",
@@ -4141,6 +4221,12 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "byodOverlaysOpen",
+      "default": "true",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
+      "key": "byodVectorOverlaysOpen",
       "default": "true",
       "note": ""
     },

@@ -3,7 +3,7 @@ title: Layer Order and Slots
 description: Why every layer is inserted beforeId an invisible placeholder, and the order those placeholders are in
 ---
 
-Up to two dozen layers can be on the map at once — a basemap, overlays, a hypsometric tint, a dozen terrain-analysis modes, hillshade, matcap, Phong, cast shadows, contours, the plane slicer. They have a **required draw order**, and most of them come and go as you toggle modes.
+More than two dozen layers can be on the map at once — a basemap, overlays, a hypsometric tint, a dozen terrain-analysis modes, hillshade, matcap, Phong, cast shadows, contours, the plane slicer. They have a **required draw order**, and most of them come and go as you toggle modes.
 
 MapLibre has no concept of a layer's "place": `addLayer(layer, beforeId)` inserts relative to a layer that must **already exist**. So the obvious approach — insert each layer before whichever one happens to be above it — fails the moment the layer above is switched off. The reference disappears, the insert falls back to the top of the stack, and the order silently scrambles depending on the sequence you happened to toggle things in.
 
@@ -42,9 +42,11 @@ Bottom of the stack first — later entries draw **on top**:
 | 20 | `MATCAP` | matcap shading |
 | 21 | `PHONG` | Phong shading |
 | 22 | `SHADOWS` | cast shadows |
-| 23 | `CONTOURS` | contour lines and graticules |
-| 24 | `TELLS` | mound-candidate detection |
-| 25 | `PLANE_SLICER` | the elevation-threshold plane |
+| 23 | `OVERLAYS_TOP` | raster overlays set to "On top" |
+| 24 | `VECTOR_OVERLAYS` | [vector overlays](/features/vector-overlays): building footprints, roads and labels |
+| 25 | `CONTOURS` | contour lines and graticules |
+| 26 | `TELLS` | mound-candidate detection |
+| 27 | `PLANE_SLICER` | the elevation-threshold plane |
 
 The reasoning behind the grouping:
 
@@ -52,6 +54,7 @@ The reasoning behind the grouping:
 - **Hypsometric tint below the analysis modes**, because it is a color wash that the modes' own color ramps need to sit over rather than under.
 - **Analysis modes as one block**, all mutually exclusive in practice, so their relative order rarely matters — but fixing it means a screenshot is reproducible when two *are* on together.
 - **Shading above color** (hillshade, matcap, Phong, shadows). These are multiply-style luminance layers; their whole job is to darken whatever color has accumulated below. Put them underneath and they get painted over.
+- **Footprints above shading, under line work.** A building footprint has to stay readable over the darkest hillshade, and a contour line over the footprint. Raster overlays set to "On top" have their own slot just under: they used to share the contours' slot, where the order depended on which was switched on last.
 - **Line work above shading** (contours, graticules). A contour line has to stay readable over the darkest hillshade.
 - **Tells and the plane slicer last**, because they are analytical call-outs — you want them visible over everything, not blended into it.
 

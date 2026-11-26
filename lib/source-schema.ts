@@ -9,6 +9,7 @@
 //                        extent, documentation, provenance, library flags)
 //   TerrainSourceEntry   + an elevation transport and its decoding knobs
 //   RasterSourceEntry    + an imagery transport and its display knobs
+//   VectorSourceEntry    + a vector tile transport and what its layers hold
 //
 // `kind` and `section` are optional on purpose: the lists saved in a
 // browser's localStorage (customTerrainSources, customBasemapSources) and the
@@ -20,8 +21,8 @@
 // type, and stays importable by Node without a bundler (docs/scripts and
 // tile-server/build.mjs import it directly).
 
-/** Elevation or imagery. */
-export type SourceKind = "terrain" | "raster"
+/** Elevation, imagery, or vector tiles drawn as an overlay. */
+export type SourceKind = "terrain" | "raster" | "vector"
 
 /** Where a source surfaces: "defaults" (the Worldwide Defaults / the built-in
  *  basemap picker, shipped with the app), "library" (the Library dialogs,
@@ -225,7 +226,50 @@ export interface RasterSourceEntry extends SourceEntryBase {
   underzoom?: number
 }
 
-/** Any source. */
+/** How a vector source's tiles are read (lib/vector-sources.ts): a PMTiles
+ *  archive (`url` is the archive's https address), an MVT `{z}/{x}/{y}`
+ *  template, a TileJSON, or a whole MapLibre style whose layers are drawn as
+ *  they are ("style": OpenFreeMap's Liberty). */
+export type VectorTransport = "pmtiles" | "mvt" | "tilejson" | "style"
+
+/** A vector overlay: footprints (or a styled map) drawn over the terrain
+ *  layers. Listed in SAMPLE_VECTOR_SOURCES of lib/custom-sources.json;
+ *  `kind` is required, as no saved list predates it. */
+export interface VectorSourceEntry extends SourceEntryBase {
+  kind: "vector"
+  type: VectorTransport
+  /** The address changes with each release and `url` holds a `{release}`
+   *  placeholder: "overture" reads the current release id from Overture's
+   *  STAC catalog (releases older than about 60 days answer 410 Gone). */
+  resolver?: "overture"
+  /** The release used when the resolver's request fails. */
+  fallbackRelease?: string
+  /** The polygon layers to draw (MVT layer names). Not for "style". */
+  sourceLayers?: string[]
+  /** Layers of building parts, drawn in 3D in place of the buildings that
+   *  `hasPartsField` marks as having parts (Overture's building_part). */
+  partLayers?: string[]
+  hasPartsField?: string
+  /** Property holding a height in metres: offers 3D and color by height. */
+  heightField?: string
+  /** Property holding the base height in metres of a raised part. */
+  minHeightField?: string
+  /** Property holding a number of floors, for a feature with no height. */
+  floorsField?: string
+  /** Property naming where a feature comes from (OSM, Microsoft, Google):
+   *  offers color by source, with `sourceColors` (value to color; a value
+   *  not listed takes the single color). */
+  sourceField?: string
+  sourceColors?: Record<string, string>
+  /** "style" only: the layer types of the style to draw (default all but
+   *  the background); ["line", "symbol"] makes a roads-and-labels overlay. */
+  styleLayerTypes?: ("fill" | "line" | "symbol" | "fill-extrusion" | "raster")[]
+  /** The single color a new user sees (hex). */
+  color?: string
+}
+
+/** Any tile source of the terrain and basemap lists. A vector overlay
+ *  (VectorSourceEntry) has its own list and lookup, lib/vector-sources.ts. */
 export type SourceEntry = TerrainSourceEntry | RasterSourceEntry
 
 /** A Library row with no single mosaic to add, only a STAC collection of
@@ -237,14 +281,16 @@ export interface LibraryBrowseEntry extends Pick<SourceEntryBase, "id" | "name" 
   stac: LibraryStacLink
 }
 
+const VECTOR_ONLY = new Set<string>(["pmtiles", "mvt", "style"])
 const TERRAIN_ONLY = new Set<string>(["terrainrgb", "terrarium", "vrt", "stac", "mosaicjson", "wms-raw", "dem-diff", "lerc", "quantized-mesh"])
 
 /** An entry's kind: its own field, else read from its transport ("cog",
- *  "cog-local" and "tilejson" exist on both sides, and default to terrain
- *  only when nothing else says). */
+ *  "cog-local" and "tilejson" exist on several sides, and default to terrain
+ *  only when nothing else says; "pmtiles", "mvt" and "style" are vector). */
 export function sourceKind(entry: { kind?: SourceKind; type?: string; role?: string }): SourceKind {
   if (entry.kind) return entry.kind
   if (entry.role) return "raster"
+  if (entry.type && VECTOR_ONLY.has(entry.type)) return "vector"
   return entry.type && !TERRAIN_ONLY.has(entry.type) && entry.type !== "cog" && entry.type !== "cog-local" && entry.type !== "tilejson" ? "raster" : "terrain"
 }
 

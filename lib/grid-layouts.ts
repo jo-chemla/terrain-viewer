@@ -158,10 +158,12 @@ const PER_VIEW_BASES: PerViewBase[] = ["basemapSource", "date", "historicalActiv
 export function permuteViewsUpdates(state: Record<string, any>, from: ViewId[], to: ViewId[]): Record<string, unknown> {
   const perView = !!state.basemapPerView
   const overlayField = (side: ViewId) => (side === "A" ? "overlayBasemapIds" : `overlayBasemapIds${side}`)
+  const vectorField = (side: ViewId) => (side === "A" ? "vectorOverlayIds" : `vectorOverlayIds${side}`)
   const contents = from.map((side) => ({
     source: state[sourceFieldName(side)],
     bases: perView ? PER_VIEW_BASES.map((b) => state[viewFieldName(side, b, true)]) : null,
     overlays: perView ? (state[overlayField(side)] ?? []) : null,
+    vectors: perView ? (state[vectorField(side)] ?? []) : null,
   }))
   const updates: Record<string, unknown> = {}
   to.forEach((side, i) => {
@@ -169,6 +171,7 @@ export function permuteViewsUpdates(state: Record<string, any>, from: ViewId[], 
     updates[sourceFieldName(side)] = contents[i].source
     contents[i].bases?.forEach((v, j) => { updates[viewFieldName(side, PER_VIEW_BASES[j], true)] = v })
     if (contents[i].overlays) updates[overlayField(side)] = contents[i].overlays
+    if (contents[i].vectors) updates[vectorField(side)] = contents[i].vectors
   })
   // Per-view visualization modes (lib/viz-views.ts, "showSlope:AC;..."):
   // the letters move with the views.

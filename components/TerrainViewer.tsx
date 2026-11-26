@@ -160,6 +160,7 @@ import { ContoursLayer } from "./LayersAndSources/ContoursLayer"
 import { MODE_RELIEF } from "@/lib/mode-relief"
 import { GraticuleLayer } from "./LayersAndSources/GraticuleLayer"
 import { CoverageOverlayLayer } from "./LayersAndSources/CoverageOverlayLayer"
+import { VectorOverlayLayers } from "./LayersAndSources/VectorOverlayLayers"
 import { IteratorHighlightLayer } from "./LayersAndSources/IteratorHighlightLayer"
 
 import { createParser } from 'nuqs'
@@ -403,6 +404,19 @@ export const QUERY_STATE_PARSERS = {
     overlayBasemapIdsF: parseAsArrayOf(parseAsString).withDefault([]),
     overlayBasemapIdsG: parseAsArrayOf(parseAsString).withDefault([]),
     overlayBasemapIdsH: parseAsArrayOf(parseAsString).withDefault([]),
+    // Vector overlays (building footprints, lib/vector-sources.ts) by source
+    // id, drawn above the shading and under the contours. Per view like the
+    // raster overlays: view A's list is the plain one, B-H have their own
+    // when basemapPerView is on. How each is drawn (flat or 3D, colors) is
+    // local (vectorOverlayStylesAtom), not in a link.
+    vectorOverlayIds: parseAsArrayOf(parseAsString).withDefault([]),
+    vectorOverlayIdsB: parseAsArrayOf(parseAsString).withDefault([]),
+    vectorOverlayIdsC: parseAsArrayOf(parseAsString).withDefault([]),
+    vectorOverlayIdsD: parseAsArrayOf(parseAsString).withDefault([]),
+    vectorOverlayIdsE: parseAsArrayOf(parseAsString).withDefault([]),
+    vectorOverlayIdsF: parseAsArrayOf(parseAsString).withDefault([]),
+    vectorOverlayIdsG: parseAsArrayOf(parseAsString).withDefault([]),
+    vectorOverlayIdsH: parseAsArrayOf(parseAsString).withDefault([]),
     // The ONE scrubbed date (epoch ms) for whichever concrete historical
     // source is active on this side (historicalActiveSource(A/B) below) —
     // Wayback/HLS/GE-Historical/Planet/EOX-S2/Bing all share this single
@@ -3707,6 +3721,7 @@ export function TerrainViewer() {
       // overlayBasemapIds<side>; view A and the single-basemap mode read the
       // plain overlayBasemapIds (basemap-byod-section.tsx's grid toggle writes them).
       const overlayIdsForView = (s: ViewId): string[] => (state.basemapPerView && s !== "A" ? ((stateAny[`overlayBasemapIds${s}`] as string[] | undefined) ?? []) : (state.overlayBasemapIds ?? []))
+      const vectorOverlayIdsForView = (s: ViewId): string[] => (state.basemapPerView && s !== "A" ? ((stateAny[`vectorOverlayIds${s}`] as string[] | undefined) ?? []) : (state.vectorOverlayIds ?? []))
       const isBottomRight = side === bottomRightViewId
       // "live" (lib/phong-live-gl-layer.ts) now projects through MapLibre's own
       // per-frame shaderData prelude, so it renders correctly under BOTH
@@ -4259,6 +4274,9 @@ export function TerrainViewer() {
           {state.showRasterBasemap && vm("showRasterBasemap") && (
             <OverlayBasemapLayers overlayIds={overlayIdsForView(side)} stack={state.overlaysStack} opacity={(isHistoricalMode ? 1 : state.rasterBasemapOpacity) * state.overlaysOpacity} customBasemapSources={customBasemapSources} />
           )}
+          {/* Not tied to the Basemap switch: footprints read well over a
+              hillshade alone. */}
+          <VectorOverlayLayers ids={vectorOverlayIdsForView(side)} />
           <CatalogFootprintsLayer />
           <ColorReliefLayer
             showColorRelief={state.showColorRelief && !isHistoricalMode && vm("showColorRelief")}

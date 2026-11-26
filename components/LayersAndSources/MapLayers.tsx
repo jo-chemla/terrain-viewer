@@ -32,6 +32,8 @@ export const LAYER_SLOTS = {
   MATCAP: "slot-matcap",
   PHONG: "slot-phong",
   SHADOWS: "slot-shadows",
+  OVERLAYS_TOP: "slot-overlays-top",
+  VECTOR_OVERLAYS: "slot-vector-overlays",
   CONTOURS: "slot-contours",
   TELLS: "slot-tells",
   PLANE_SLICER: "slot-plane-slicer",
@@ -62,6 +64,8 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.MATCAP}      type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.PHONG}       type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.SHADOWS}     type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.OVERLAYS_TOP} type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.VECTOR_OVERLAYS} type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.CONTOURS}    type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TELLS}       type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.PLANE_SLICER}type="background" paint={{ "background-opacity": 0 }} />
@@ -110,7 +114,10 @@ RasterLayer.displayName = "RasterLayer"
 // the only control, which meant an overlay could only ever be fully opaque or
 // track the primary basemap's slider, with no way to blend a specific overlay
 // (e.g. a land-cover map) more subtly against what's under it.
-const OVERLAY_STACK_SLOT = { under: LAYER_SLOTS.OVERLAYS, relief: LAYER_SLOTS.HILLSHADE, top: LAYER_SLOTS.CONTOURS } as const
+// "top" has its own slot, under the vector overlays' and the contours': it
+// used to share the contours' slot, where the order depended on which of the
+// two was switched on last.
+const OVERLAY_STACK_SLOT = { under: LAYER_SLOTS.OVERLAYS, relief: LAYER_SLOTS.HILLSHADE, top: LAYER_SLOTS.OVERLAYS_TOP } as const
 export const OverlayBasemapLayers = memo(({ overlayIds, opacity, customBasemapSources, stack }: {
   overlayIds: string[]
   opacity: number

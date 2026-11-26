@@ -5,6 +5,7 @@ import { ChevronDown, Plus, Edit, Library, Crosshair, Braces, GripVertical } fro
 import { SourceMetadataDialog, useSourceInfoDialog } from "./source-metadata"
 import { sourcesEditModeAtom } from "@/lib/settings-atoms"
 import { OpacityPill } from "@/components/ui/opacity-pill"
+import { VectorOverlaysSection } from "./vector-overlays-section"
 import { cn } from "@/lib/utils"
 import { georefImageAtom, georefEditingIdAtom, georefActiveAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { sectionOpenAtom } from "./TerrainControlPanel"
@@ -616,6 +617,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               </>)}
             </div>
           )}
+          <VectorOverlaysSection state={state} setState={setState} />
         </CollapsibleContent>
 
       </Collapsible>

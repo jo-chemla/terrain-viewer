@@ -371,6 +371,11 @@ export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
 // The Basemap and Overlays groups of the basemap BYOD list, folded or not.
 export const byodBasemapsOpenAtom = atomWithStorage("byodBasemapsOpen", true)
 export const byodOverlaysOpenAtom = atomWithStorage("byodOverlaysOpen", true)
+export const byodVectorOverlaysOpenAtom = atomWithStorage("byodVectorOverlaysOpen", true)
+/** How each vector overlay is drawn, by source id (lib/vector-sources.ts's
+ *  VectorOverlayStyle: flat or 3D, color by, color, opacity, outlines). Only
+ *  what the user changed; the rest comes from vectorStyleOf. */
+export const vectorOverlayStylesAtom = atomWithStorage<Record<string, Partial<import("./vector-sources").VectorOverlayStyle>>>("vectorOverlayStyles", {})
 export const isHillshadeXYPadOpenAtom = atomWithStorage("isHillshadeXYPadOpen", true)
 // User-dragged height (px) of the Bookmarks list's scroll area (bookmarks-section.tsx's
 // drag handle below it) — null means "use the default max-h-64 clamp".

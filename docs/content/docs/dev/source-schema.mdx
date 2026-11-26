@@ -112,21 +112,38 @@ The presets: OpenAerialMap (`stac-oam`), Maxar Open Data (`stac-maxar`), Vantor 
 
 Still outside it: the live per-place walks the timeline runs as React hooks for Wayback, Google Earth and Bing (debounced, cached, filled in progressively; `listDates` is their one-shot equivalent), and the per-place attribution hooks. The timeline's other catalogs (old maps, ArcGIS Online, Map Warper, the STAC catalogs you attach...) are search results, each item with its own footprint and address rather than one source with a date, and stay with the catalogs.
 
-## Planned: vector overlays
+## Vector overlays
 
-Vector overlays are one of the next big features, open building footprints first. The schema has two kinds today, `terrain` and `raster` (`SourceKind` in `lib/source-schema.ts`), and the map draws vectors in two fixed places only: the OpenStreetMap style and the building shadow layer, which decodes OpenFreeMap's z14 tiles by hand (`lib/building-tiles.ts`). Neither is a source a user picks. The candidate datasets, checked on 2026-11-25:
+A third kind since 2026-11-26: `SourceKind` is `terrain`, `raster` or `vector`, and a `VectorSourceEntry` (`lib/source-schema.ts`) adds to the shared record what a vector tile source needs. What the user sees is on [Vector overlays](/features/vector-overlays).
 
-| Dataset | Address | What it is | How the app could read it |
-|---|---|---|---|
-| **Overture Maps buildings** | `https://tiles.overturemaps.org/<release>/buildings.pmtiles`; the current release is `2026-11-18.0`, read from the `latest` field of [`stac.overturemaps.org/catalog.json`](https://stac.overturemaps.org/catalog.json) | One PMTiles archive (about 181 GB), MVT, zoom 0 to 14, layers `building` and `building_part`, with `height`, `num_floors`, `roof_*`, `@height_source` and `@geometry_source` (Microsoft's ML footprints are merged in and named there) | Directly: range requests answer 206 with `Access-Control-Allow-Origin: *`, and the app already registers the `pmtiles://` protocol. Releases rotate: one older than about 60 days answers 410 Gone, so the entry resolves the release from the STAC catalogue (or a stable alias in the schema, as OpenFreeMap's TileJSON does for the shadow layer) instead of storing a dated URL |
-| **Microsoft Global ML Building Footprints** | Index `https://bfppub.blob.core.windows.net/%24web/2026-11-12/dataset-links.csv` (the [repository](https://github.com/microsoft/GlobalMLBuildingFootprints)'s README; the old `minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv` still answers but lists the February 2026 snapshot) | Release of 2026-11-12: about 1.4 billion buildings from Bing imagery 2014-2024, about 225 million with a height (mainly the US and Europe; missing heights are now `null`), as GeoJSON lines gzipped per region and quadkey (GeoParquet and CSV elsewhere on Azure). CDLA Permissive 2.0 | No tiles and no CORS on the index: not streamable as is. Overture already carries these footprints; a dedicated entry would need tiles built from the files (tippecanoe or a PMTiles release asset) |
-| **VIDA combined buildings** (Google Open Buildings V3 + Microsoft + OpenStreetMap) | [`source.coop/vida/google-microsoft-osm-open-buildings`](https://source.coop/vida/google-microsoft-osm-open-buildings); global PMTiles `https://data.source.coop/vida/google-microsoft-osm-open-buildings/pmtiles/goog_msft_osm.pmtiles`, one per country at `.../pmtiles/by_country/country_iso=<ISO3>/<ISO3>.pmtiles` | 2.7 billion footprints from 2024 snapshots, merged per country. Global archive about 254 GB, MVT, zoom 0 to 15, layer `goog_msft_osm_building_footprints` with `bf_source`, `confidence`, `area_in_meters`, `country_iso`; a country file has one layer named by its ISO code. GeoParquet and FlatGeobuf per country beside them. No heights | Directly: 206 range answers, `Access-Control-Allow-Origin: *`. The best coverage of the Global South, where Google's footprints fill what OSM and Microsoft miss; the archive is fixed (no rotation) |
+| Field | What it holds |
+|---|---|
+| `type` | `pmtiles` (the archive's https address), `mvt` (a `{z}/{x}/{y}` template), `tilejson`, or `style` (a whole MapLibre style whose layers are drawn as they are) |
+| `resolver`, `fallbackRelease` | An address that rotates: `url` holds `{release}`, and `"overture"` reads the current release from `stac.overturemaps.org/catalog.json` (a release older than about 60 days answers 410 Gone). The fallback is used when the catalog does not answer |
+| `sourceLayers`, `partLayers`, `hasPartsField` | The polygon layers to draw; the layers of building parts, drawn in 3D in place of the buildings marked as having parts |
+| `heightField`, `minHeightField`, `floorsField` | Offer 3D and color by height |
+| `sourceField`, `sourceColors` | Offer color by origin |
+| `styleLayerTypes` | For `style`: which layer types of the style to draw (`["line", "symbol"]` is roads and labels) |
 
-What the feature takes:
+`sourceKind` reads `vector` from the transports that exist nowhere else (`pmtiles`, `mvt`, `style`); a `tilejson` entry states its `kind`.
 
-1. **A vector source kind.** `SourceKind` gains `"vector"`, with a `VectorSourceEntry`: a transport (`pmtiles`, `mvt` XYZ, `tilejson`, later GeoJSON or FlatGeobuf for small files), the source layer name, the zoom range, the height field when there is one, and the usual credit and licence fields. `sourceKind` reads it from the transport as for the other two. The Library dialog gets a section for it (a `libraryGroup` such as `buildings`), and the saved lists a third array or a `kind` on each entry, since the browser's lists predate the field. A release that rotates (Overture) needs a resolver step, like the dated imagery's: the entry names the catalogue, not the file.
-2. **An overlay renderer.** A layer component in the slot order ([Layer order](/dev/layer-order)) that draws a vector source as `fill` (footprints, colored by source or height), `line` (outlines) or `fill-extrusion` (heights, in 3D), keyed on the source as react-map-gl requires, with its opacity and blend in the layers panel and one copy per split view. Vector tiles sit on the map, not on the terrain mesh, so 3D needs MapLibre's own draping of vector layers over terrain to look right; the [draping](/dev/draping) notes cover what is drawn under the terrain today.
-3. **Reuse elsewhere.** The building shadow layer could take its buildings from any vector source with heights (Overture rather than OpenFreeMap's OSM heights), and the tile service's MVT writer and building shadow sweep would read the same entries from `generated/library.json`.
+Where things are:
+
+- **Entries**: `SAMPLE_VECTOR_SOURCES` in `lib/custom-sources.json`, in the `buildings` library group. There is no list of the user's own yet, so no saved list predates the field and `kind` is required.
+- **Lookup and specs**: `lib/vector-sources.ts`. `findVectorSource(id)` is the one lookup; `resolveVectorUrl` fills the release; `vectorSourceSpec` and `vectorLayerSpecs` return the MapLibre source and its `fill`, `line` and `fill-extrusion` layers as plain objects (no MapLibre import, so the tile service can read the same entries). Its test validates every entry in every style against MapLibre's style spec: `node scripts/test-lib.mjs lib/vector-sources.test.ts`.
+- **Renderer**: `components/LayersAndSources/VectorOverlayLayers.tsx`, one copy inside each view's `<Map>`, at the `VECTOR_OVERLAYS` slot ([Layer order](/dev/layer-order)). A PMTiles archive is read through the `pmtiles://` protocol as a tile template with the entry's zoom range. The `<Source>` is keyed on the resolved address, and the layer ids carry their type, so a change of release or from flat to 3D mounts new layers rather than retyping one.
+- **State**: which overlays are on is in the link (`vectorOverlayIds`, `vectorOverlayIdsB` to `H`, moved with the views by `permuteViewsUpdates`); how each is drawn is local (`vectorOverlayStylesAtom`).
+
+The datasets, checked on 2026-11-26 by decoding tiles over Lyon, Chicago and Lagos:
+
+| Dataset | Address | Layers and fields |
+|---|---|---|
+| **Overture Maps buildings** | `https://tiles.overturemaps.org/<release>/buildings.pmtiles` (release `2026-11-18.0`), zoom 5 to 14, range requests with CORS | `building` and `building_part`; `height`, `min_height`, `num_floors`, `has_parts`, `@geometry_source` (`OpenStreetMap`, `Microsoft ML Buildings`, `Google Open Buildings`, `Esri Community Maps`). A zoom 14 tile over a city is 0.6 to 1.5 MB; 28 of 4 024 buildings had a height over Lyon, 757 of 1 141 over Chicago |
+| **VIDA combined buildings** | `https://data.source.coop/vida/google-microsoft-osm-open-buildings/pmtiles/goog_msft_osm.pmtiles`, zoom 0 to 15, fixed | `goog_msft_osm_building_footprints`; `bf_source` (`google`, `microsoft`, `osm`), `confidence`, `area_in_meters`. No heights. Tiles of 45 to 300 KB |
+| **OpenFreeMap planet** | TileJSON `https://tiles.openfreemap.org/planet`, zoom 14 | `building` with `render_height`, `render_min_height` (OpenMapTiles schema); the same tiles as the building shadows |
+| **Microsoft Global ML Building Footprints** | Gzipped GeoJSON lines per quadkey, index CSV without CORS | Not streamable, and already inside the two archives above: no entry |
+
+Still open: a list of the user's own vector sources, a blend mode per overlay (it needs MapLibre's `*-layer-blend`, which the app's MapLibre 6.13 does not have), the building shadows reading any vector source with heights, and the tile service and QGIS plugin drawing the same entries from `generated/library.json`.
 
 ## Before the schema
 

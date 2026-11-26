@@ -767,6 +767,126 @@
             "explode": false
           },
           {
+            "name": "vectorOverlayIds",
+            "in": "query",
+            "required": false,
+            "description": "State. Vector overlays (building footprints, lib/vector-sources.ts) by source id, drawn above the shading and under the contours.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "vectorOverlayIdsB",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "vectorOverlayIdsC",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "vectorOverlayIdsD",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "vectorOverlayIdsE",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "vectorOverlayIdsF",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "vectorOverlayIdsG",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "vectorOverlayIdsH",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
             "name": "date",
             "in": "query",
             "required": false,
