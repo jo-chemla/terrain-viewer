@@ -39,3 +39,12 @@ Status 2026-11-18: a GDAL VRT in any projection is now reprojected in the browse
 
 This would directly fix the EPSG:3857-only limitation documented in the README's
 "Local (offline) COG terrain sources" section, for both local and remote COGs.
+
+## Two-date color composite (red / cyan) as a split blend
+
+Noted 2026-11-26, from the blend-mode discussion on maplibre-gl-js #48.
+
+- **Red and blue tint, correct:** desaturate both views, tint A red and B cyan, then combine with `screen` or `plus-lighter`. Areas that didn't change come out grey; features only in A show red, and features only in B show cyan. This is the classic two-date color composite. `multiply` works too, with dark where both images agree.
+- **Soft-light and hard-light, not quite:** they don't "take the best of two shots". They use the top image to lighten or darken the bottom one, so they move one image's contrast and relief onto the other's colors. That's useful for laying a sharp recent image over an older color one. The per-pixel "best of" modes are `lighten` and `darken`.
+
+What it would take: a "two-date composite" preset in the overlay split (a desaturate plus tint filter per view, then the blend), next to the existing blend-mode select.

@@ -6,14 +6,11 @@ type: feedback
 
 # Reminders (bring up at the start of a session, then prune)
 
-- **Upstream requests**: state on 2026-11-19 in [[handoff-2026-11-19]].
-  MapLibre 48: Jonathan replied 2026-11-19 offering the blend-mode PRs
-  (ready locally, branch `feat/w3c-blend-modes` in C:\Dev\maplibre-style-spec
-  and C:\Dev\maplibre-gl-js); WAIT for CommanderStorm's answer before
-  opening them. style-spec 1374: answered by HarelM, replied 2026-11-19.
-  Allmaps 643: declined (IIIF only), closed for us. maplibre-contour 434:
-  no answer, no longer needed. The impasto CORS request: Jonathan said
-  2026-11-19 it is time to send it; draft it, he posts.
+- **Upstream requests**: the blend-mode PRs are open (maplibre-style-spec
+  2017, maplibre-gl-js 9143; gl-js CI is red until the spec release).
+  Jonathan posted the use-case comment on gl-js 48 and the reply on 9143 on
+  2026-11-26: wait for the reviewers. Still to tick by him after review: the
+  AI-policy box on both PRs. The impasto CORS request: draft it, he posts.
 - **Next, Jonathan's order of 2026-11-19**: drawing on secondary views
   (B..H) is done ([[terra-draw-multi-map-adapter]]); then the MCP app
   (.claude/memory/mcp-apps-plan.md), the Umami website swap, the impasto
