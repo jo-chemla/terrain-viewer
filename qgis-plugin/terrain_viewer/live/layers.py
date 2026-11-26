@@ -416,16 +416,18 @@ def vector_layer(mode, name, opts=None):
 
 
 def style_vector(layer, mode, opts=None):
-    """Contours: minor thin, major thick, the mask's brown; the others a line
+    """Contours: minor thin, major thick, in the contour colour (black by
+    default); the others a line
     or a fill in the mode's colour setting."""
     from qgis.core import QgsFillSymbol, QgsLineSymbol, QgsSingleSymbolRenderer
     from . import contours
     from ..labels import label_memory_layer
     label_memory_layer(layer, mode)  # the values as QGIS labels on the lines
-    if mode == "contours":
-        contours.style(layer)
-        return
     o = modes.parse_opts(mode, opts or {})
+    if mode == "contours":
+        c = QColor(str(o.get("color") or ""))
+        contours.style(layer, c.name() if c.isValid() else contours.DEFAULT_COLOUR)
+        return
     if mode == "moundDetector":
         style_mounds(layer, o)
         return

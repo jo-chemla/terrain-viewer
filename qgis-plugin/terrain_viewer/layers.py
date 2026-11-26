@@ -89,7 +89,7 @@ def vector_renderer(mode_id, values):
     labels on their lines (labels.py)."""
     color_key = {"contours": "contourColor", "isoline": "isolineColor", "planeSlicer": "planeSlicerColor",
                  "graticules": "graticuleColor", "moundDetector": "tellsOutlineColor"}.get(mode_id)
-    color = _color(values.get(color_key), "#7a3b00" if mode_id == "contours" else "#d01c8b")
+    color = _color(values.get(color_key), "#000000" if mode_id == "contours" else "#d01c8b")
     width = str(values.get({"contours": "contourWeight", "isoline": "isolineWeight", "graticules": "graticuleWidth"}.get(mode_id, ""), 1) or 1)
     try:
         width_mm = max(0.1, float(width) * 0.26)

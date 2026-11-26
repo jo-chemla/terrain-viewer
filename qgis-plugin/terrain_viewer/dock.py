@@ -41,7 +41,7 @@ from .service import (
     health, health_request, link_params, panel_tree,
 )
 from .layers import LayerStack, PROP, BACKEND_PROP, tree_ranks
-from . import local_server, assets
+from . import local_server, assets, links
 from . import python_backend as pyb
 from .settings_ui import (
     LIGHT_KEYS, LIGHT_DEFAULT, LIGHT_MODES, slider_range, symmetric_pairs, is_ramp_key, is_matcap_key, is_color_key,
@@ -60,6 +60,13 @@ HEALTH_EVERY_MS = 15000
 # The deepest zoom of the Python backend's color tiles (Mapterhorn's 512 px
 # tiles go to z17, so 256 px tiles to z18).
 PY_XYZ_ZMAX = 18
+# The panel's defaults where they differ from the app's: contours in black
+# (the app's "" draws them half transparent black on the map, brown in a
+# QGIS vector style), for every backend.
+PANEL_DEFAULTS = {"contourColor": "#000000"}
+# The basemap a link shows (showRasterBasemap=true): one layer under the
+# modes, at the bottom of the live group.
+BASEMAP_KEY = "basemap"
 # While the light is dragged, the shaded modes' layers are rewritten as soon
 # as the canvas has drawn the previous light, and at most this often (ms);
 # after LIGHT_MAX_WAIT_MS without a finished draw, anyway. Measured on a
@@ -132,6 +139,8 @@ class SettingWidget:
     read and written as the URL value."""
 
     def __init__(self, spec, dock, on_change):
+        if spec["key"] in PANEL_DEFAULTS:
+            spec = {**spec, "default": PANEL_DEFAULTS[spec["key"]]}
         self.spec = spec
         t, key = spec["type"], spec["key"]
         d = spec.get("default")
@@ -189,7 +198,9 @@ class SettingWidget:
             # The default as written (#FFFFFF), so an unchanged color stays
             # out of the address.
             self.get = lambda: str(d) if d and QColor(str(d)) == w.color() else w.color().name()
-            self.set = lambda v: w.setColor(QColor(str(v)))
+            # An empty or unreadable color (the app's "" default) is the
+            # panel's default.
+            self.set = lambda v: w.setColor(QColor(str(v)) if v and QColor(str(v)).isValid() else QColor(str(d or "#000000")))
         else:
             w = QLineEdit(str(d) if d is not None else "")
             w.editingFinished.connect(on_change)
@@ -887,7 +898,7 @@ class TerrainViewerDock(QDockWidget):
         self.freeze_btn = freeze_btn
 
         # -- the light, shared by the shaded modes ----------------------------
-        self.light_section = FoldSection("Light (hillshade, Phong, shadows)", None, open_=False)
+        self.light_section = FoldSection("Light (hillshade, Phong, shadows)", None, open_=True)  # open by default (0.9.2)
         # Free (the pad and its sliders) or the sun at a date and time over
         # the canvas centre, which sets them (the pad shows where it is).
         self.light_mode = RadioRow((("free", "Free", "Drag the light on the pad or set its azimuth and elevation"),
@@ -2016,26 +2027,20 @@ class TerrainViewerDock(QDockWidget):
 
     # -- a share link -----------------------------------------------------
     def local_view(self, query):
-        """A share link read without a service (the Python backend): the
-        modes whose switches it turns on, their opacities, the settings, the
-        camera."""
-        q = query_dict(query)
-        active, opacity = [], {}
-        for mid, row in self.rows.items():
-            sw = row.mode.get("switches") or {}
-            if sw and all(str(q.get(k, "")).lower() == "true" for k, v in sw.items() if v):
-                active.append(mid)
-            ok = row.mode.get("opacityKey")
-            if ok and ok in q:
-                opacity[mid] = q[ok]
-        camera = {k: q.get(k) for k in ("lat", "lng", "zoom") if q.get(k) is not None}
-        params = {k: v for k, v in q.items() if not k.startswith("show")}
-        return {"active": active, "opacity": opacity, "params": params, "camera": camera}
+        """A share link read without a service (the Python backend), as the
+        app reads it: every parameter the link leaves out at the app's
+        default (links.py), so showTerrainAnalysis=true alone is the slope.
+        The modes on, their opacities, the link's parameters, the camera."""
+        return links.local_view(query, {mid: row.mode for mid, row in self.rows.items()})
 
     def open_link(self, link=None):
-        """A share link (or its query): its modes checked, their settings and
-        opacities set, the source picked, the canvas moved to its camera. The
-        backend is asked first (one clear message if it is not there)."""
+        """A share link (any address: https://..., the desktop app's
+        views://app/index.html?..., no scheme) or its query (with or without
+        its "?"): its modes checked, their settings set (the app's defaults
+        for the ones it leaves out), their opacities, the light, the source,
+        the basemap under them when it shows one, the canvas moved to its
+        camera. The backend is asked first (one clear message if it is not
+        there)."""
         link = link if isinstance(link, str) else self.link.text()
         query = split_link(link)
         if not query:
@@ -2056,25 +2061,31 @@ class TerrainViewerDock(QDockWidget):
             except ServiceError as e:
                 self.warn(f"Could not read the link: {e}")
                 return False
+        state, given = links.link_state(query)
         params = dict(view.get("params", {}))
         src = params.pop("terrainSource", None) or params.pop("terrainSourceA", None)
         if src:
             self.set_source(src, quiet=True)
             self._py_sources.clear()
-        if any(k in params for k in LIGHT_KEYS):
-            self._to_free()
-            self.set_light(float(params.get("illuminationDir", LIGHT_DEFAULT[0])),
-                           float(params.get("illuminationAlt", LIGHT_DEFAULT[1])), schedule=False)
+        # The light: the link's, else the app's default (315, 45).
+        self._to_free()
+        self.set_light(float(state.get("illuminationDir", LIGHT_DEFAULT[0])),
+                       float(state.get("illuminationAlt", LIGHT_DEFAULT[1])), schedule=False)
         # The opacities go to the QGIS layers (view["opacity"]), not into
         # the addresses.
         taken = {r.mode["opacityKey"] for r in self.rows.values() if r.mode.get("opacityKey")}
         taken.update(LIGHT_KEYS)
         taken.update(("terrainSource", "terrainSourceA"))
         for row in self.rows.values():
-            row.set_values(params)
+            # Every setting the link leaves out back to its default (the
+            # app's, or the panel's: PANEL_DEFAULTS).
+            values = {k: sw.spec["default"] for k, sw in row.settings.items() if sw.spec.get("default") is not None}
+            values.update({k: v for k, v in params.items() if k in row.settings})
+            row.set_values(values)
             taken.update(row.settings)
         self.extra = link_params(params, getattr(self.catalog, "inputs", set()), taken)
         active = set(view.get("active", []))
+        on = 0
         for mode_id, row in self.rows.items():
             if mode_id in view.get("opacity", {}):
                 row.set_opacity(view["opacity"][mode_id])
@@ -2083,15 +2094,72 @@ class TerrainViewerDock(QDockWidget):
             else:
                 forms = set()
             row.row.set_forms(forms)
+            on += bool(forms)
         self.pending.clear()
         for row in self.rows.values():
             row.update()
+        base = self.open_basemap(query)
         cam = view.get("camera") or {}
         if cam.get("lat") is not None and cam.get("lng") is not None:
             self.camera = (float(cam["lat"]), float(cam["lng"]), float(cam.get("zoom") or 12))
             self.zoom_to(*self.camera)
-        self.status.setText(f"Opened: {len(active)} modes on" + (f", {len(self.extra)} other parameters kept" if self.extra else ""))
+        if links.truthy(state.get("lightUseDatetime")):
+            self.sun_from_link(state)
+        skipped = len(active & set(self.rows)) - on
+        self.status.setText(f"Opened: {on} modes on" + (" over the basemap" if base else "")
+                            + (f" ({skipped} not drawn by this backend)" if skipped > 0 else "")
+                            + (f", {len(self.extra)} other parameters kept" if self.extra else ""))
         return True
+
+    def open_basemap(self, query):
+        """The basemap a link shows (showRasterBasemap=true) as an XYZ layer
+        at the bottom of the live group, or the panel's basemap layer removed
+        when it shows none. Returns the layer, or None."""
+        service = None if self.connected == "python" else self.service_url()
+        base = links.basemap(query, self.key_values(), service)
+        if base is None:
+            if self.stack.find(BASEMAP_KEY) is not None:
+                self.remove_layers(BASEMAP_KEY)
+            return None
+        name, url, zmax, note = base
+        old = self.stack.find(BASEMAP_KEY)
+        if old is not None and old.name() != name:
+            self.remove_layers(BASEMAP_KEY, prune=False)
+        layer = self.stack.ensure(BASEMAP_KEY, name, (), url, False, zmax=zmax,
+                                  backend="python" if self.connected == "python" else "service")
+        state, _ = links.link_state(query)
+        try:
+            opacity = max(0.0, min(1.0, float(state.get("rasterBasemapOpacity", 1))))
+        except (TypeError, ValueError):
+            opacity = 1.0
+        self.stack.style(layer, opacity, False)
+        self.stack.set_visible(layer, True)
+        if note:
+            self.warn(f"Basemap: {note}")
+        return layer
+
+    def sun_from_link(self, state):
+        """lightUseDatetime=true: the light set to the sun at the link's day
+        (lightDayOfYear) and time (lightTimeOfDay), over the canvas centre.
+        The panel's hour is UTC; the app's "local" time is the place's civil
+        time, taken here as its longitude's mean time (lng / 15 hours from
+        UTC: within an hour of the app's, which follows time zones and DST)."""
+        try:
+            day = int(float(state.get("lightDayOfYear", 172)))
+            hour = float(state.get("lightTimeOfDay", 15))
+        except (TypeError, ValueError):
+            return
+        if state.get("lightTimeMode", "local") != "utc":
+            place = self.sun_place()
+            if place is not None:
+                hour -= place[1] / 15
+        hour %= 24
+        self._sun_sync = True
+        self.sun_day.setValue(max(1, min(365, day)))
+        self.sun_hour.setValue(hour)
+        self._sun_sync = False
+        self._sun_from_parts()
+        self.set_light_mode("sun")
 
     # -- freeze ---------------------------------------------------------------
     def place(self):
@@ -2138,8 +2206,17 @@ class TerrainViewerDock(QDockWidget):
         y = math.log(math.tan((90 + lat) * math.pi / 360)) * WORLD / math.pi
         per_px = 2 * WORLD / (512 * 2 ** zoom)
         w, h = max(self.canvas.width(), 400), max(self.canvas.height(), 300)
-        crs = QgsCoordinateReferenceSystem("EPSG:3857")
-        if self.canvas.mapSettings().destinationCrs() != crs:
-            QgsProject.instance().setCrs(crs)
-        self.canvas.setExtent(QgsRectangle(x - w / 2 * per_px, y - h / 2 * per_px, x + w / 2 * per_px, y + h / 2 * per_px))
+        merc = QgsCoordinateReferenceSystem("EPSG:3857")
+        rect = QgsRectangle(x - w / 2 * per_px, y - h / 2 * per_px, x + w / 2 * per_px, y + h / 2 * per_px)
+        dest = self.canvas.mapSettings().destinationCrs()
+        if not dest.isValid():
+            QgsProject.instance().setCrs(merc)
+        elif dest != merc:
+            # The project's CRS kept: the app's view (Web Mercator) as an
+            # extent in it.
+            try:
+                rect = QgsCoordinateTransform(merc, dest, QgsProject.instance()).transformBoundingBox(rect)
+            except Exception:  # noqa: BLE001 - a view outside the project's CRS
+                QgsProject.instance().setCrs(merc)
+        self.canvas.setExtent(rect)
         self.canvas.refresh()

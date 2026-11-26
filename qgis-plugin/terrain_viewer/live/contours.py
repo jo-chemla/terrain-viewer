@@ -241,8 +241,13 @@ def view_mounds(dem, extent3857, width_px, opts, max_tiles=MAX_TILES):
     return out, z
 
 
-def style(layer, colour="#7a3b00"):
-    """Minor lines thin, major lines thicker, the mask's brown."""
+# The contour lines' colour when none is set: black (0.9.2; brown before).
+DEFAULT_COLOUR = "#000000"
+
+
+def style(layer, colour=DEFAULT_COLOUR):
+    """Minor lines thin, major lines thicker, in the contour colour (black by
+    default)."""
     from qgis.core import QgsCategorizedSymbolRenderer, QgsLineSymbol, QgsRendererCategory
     minor = QgsLineSymbol.createSimple({"line_color": colour, "line_width": "0.2", "line_width_unit": "MM"})
     major = QgsLineSymbol.createSimple({"line_color": colour, "line_width": "0.5", "line_width_unit": "MM"})

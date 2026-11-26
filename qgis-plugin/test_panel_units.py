@@ -249,7 +249,7 @@ check(solar.format_hour(6.5) == "06:30" and solar.format_hour(23.999) == "24:00"
 # project, the labels of the overlays.
 from qgis.PyQt.QtCore import QDateTime, QDate, QTime  # noqa: E402
 from qgis.PyQt.QtWidgets import QRadioButton, QPushButton  # noqa: E402
-from qgis.core import QgsProject, QgsRectangle, QgsCoordinateReferenceSystem, QgsVectorTileLayer  # noqa: E402
+from qgis.core import QgsProject, QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsVectorTileLayer  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
 from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
 from terrain_viewer import labels  # noqa: E402
@@ -495,6 +495,89 @@ check(dock.light_value() == (259.0, 40.0), "the last position applied")
 dock.connected = None
 del hill.update
 hill.row.set_forms(set())
+
+# 0.9.2: app links read as the app reads them (the parameters a link leaves
+# out at the app's defaults), any address or a bare query; the light section
+# open; contours black.
+from terrain_viewer import links  # noqa: E402
+check(dock.light_section.button.isChecked(), "the light section is open by default")
+check(dock.rows["contours"].values().get("contourColor") == "#000000", "contours: black by default")
+check(vector_renderer("contours", {}).styles()[0].symbol().color().name() == "#000000", "contours: black vector tiles without a color")
+LINK1 = ("views://app/index.html?zoom=11.32&lat=44.5061&lng=4.0005&showHillshade=false&showTerrainAnalysis=true&slopeOpacity=0.8"
+         "&slopeColorRamp=black-and-white&slopeMaxDegrees=45&openSections=download&closeSections=general")
+LINK2 = ("https://terrain-viewer.iconem.com/?showRasterBasemap=true&splitRatio=0.489&illuminationDir=39.68&illuminationAlt=46.05"
+         "&lightTimeOfDay=9.25&showReliefVisualization=true")
+q1 = split_link(LINK1)
+check(q1.startswith("zoom=11.32") and q1.endswith("closeSections=general"), "views://app/index.html?...: its query")
+for variant in ("app/index.html?" + q1, "?" + q1, q1):
+    check(split_link(variant) == q1, f"the same link as {variant[:24]}...: the same query")
+modes = {item["id"]: item for _, item in __import__("terrain_viewer.service", fromlist=["walk_modes"]).walk_modes(cat["tree"])}
+v1 = links.local_view(q1, modes)
+check(v1["active"] == ["slope"], f"link 1: the slope alone (showTerrainAnalysis=true, showSlope's default true; hillshade off): {v1['active']}")
+check(abs(v1["opacity"]["slope"] - 0.8) < 1e-9 and v1["opacity"]["aspect"] == 0.5, "link 1: slope at 0.8, the others at the app's defaults")
+check(v1["camera"] == {"zoom": "11.32", "lat": "44.5061", "lng": "4.0005"}, f"link 1: its camera {v1['camera']}")
+check(links.basemap(q1) is None, "link 1: no basemap (showRasterBasemap's default false)")
+q2 = split_link(LINK2)
+v2 = links.local_view(q2, modes)
+check(sorted(v2["active"]) == ["hillshade", "lrm"], f"link 2: the local relief model (showLrm's default) over the hillshade (on by default): {v2['active']}")
+b2 = links.basemap(q2)
+check(b2 is not None and b2[0] == "ESRI World Imagery" and "World_Imagery/MapServer/tile/{z}/{y}/{x}" in b2[1] and b2[2] == 19,
+      f"link 2: the app's default basemap, ESRI ({b2 and b2[:3]})")
+check(links.basemap("showRasterBasemap=true&basemapSourceA=bing")[1].startswith("https://t.ssl.ak.tiles.virtualearth.net/tiles/a{q}"),
+      "a Bing basemap: its quadkey as QGIS's {q}")
+check(links.basemap("showRasterBasemap=true&basemapSourceA=mapbox")[0] == "ESRI World Imagery"
+      and "{API_KEY}" not in links.basemap("showRasterBasemap=true&basemapSourceA=mapbox", {"mapboxKey": "k"})[1],
+      "a keyed basemap: ESRI without its key, its own with it")
+check(links.basemap("showRasterBasemap=true&basemapSourceA=wayback", None, "http://localhost:3400")[1].startswith("http://localhost:3400/basemap-tiles/{z}/{x}/{y}.jpg?"),
+      "a dated basemap: through the tile service's /basemap-tiles")
+check(links.basemap("showRasterBasemap=true&basemapUrl=https://tiles.example.com/{z}/{x}/{y}.png")[1] == "https://tiles.example.com/{z}/{x}/{y}.png",
+      "an XYZ basemap address: as it is")
+
+# The two links opened in the panel under the Python backend (the layers
+# themselves not written: update stubbed).
+QgsProject.instance().clear()
+spin()
+canvas.setDestinationCrs(QgsCoordinateReferenceSystem("EPSG:2154"))
+QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:2154"))
+dock.connected = "python"
+for r in dock.rows.values():
+    r.update = lambda: None
+dock.rows["contours"].settings["contourColor"].set("#ff0000")
+dock.rows["lrm"].settings["lrmRadius"].set(40)
+for variant in (LINK1, "app/index.html?" + q1, "?" + q1, q1):
+    check(dock.open_link(variant), f"link 1 opened as {variant[:24]}...")
+    on = sorted(k for k, r in dock.rows.items() if r.row.checked_forms())
+    check(on == ["slope"], f"link 1: the slope checked, nothing else ({on})")
+slope = dock.rows["slope"]
+check(slope.settings["slopeColorRamp"].get() == "black-and-white" and float(slope.settings["slopeMaxDegrees"].get()) == 45
+      and abs(slope.opacity_value() - 0.8) < 1e-6, "link 1: the slope's ramp, maximum and opacity")
+check(float(slope.settings["slopeMinDegrees"].get()) == 0 if "slopeMinDegrees" in slope.settings else True, "link 1: the slope's other settings at their defaults")
+check(dock.rows["contours"].settings["contourColor"].get() == "#000000" and float(dock.rows["lrm"].settings["lrmRadius"].get()) == 16,
+      "link 1: settings the link leaves out back to their defaults (contours black, LRM radius 16)")
+check(dock.stack.find("basemap") is None, "link 1: no basemap layer")
+check(canvas.mapSettings().destinationCrs().authid() == "EPSG:2154", "link 1: the project's CRS kept")
+c = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), QgsCoordinateReferenceSystem("EPSG:4326"), QgsProject.instance()).transform(canvas.extent().center())
+check(abs(c.y() - 44.5061) < 0.01 and abs(c.x() - 4.0005) < 0.01, f"link 1: the canvas on its camera ({c.y():.4f}, {c.x():.4f})")
+lat, lng, zoom = dock.place()
+check(abs(zoom - 11.32) < 0.3, f"link 1: at its zoom ({zoom:.2f})")
+check(dock.light_value() == (315.0, 45.0), f"link 1: the app's default light ({dock.light_value()})")
+check(dock.open_link(LINK2), "link 2 opened")
+on = sorted(k for k, r in dock.rows.items() if r.row.checked_forms())
+check(on == ["hillshade", "lrm"], f"link 2: hillshade and LRM checked ({on})")
+check(abs(dock.light_value()[0] - 39.68) < 0.51 and abs(dock.light_value()[1] - 46.05) < 0.51, f"link 2: its light ({dock.light_value()})")
+bm = dock.stack.find("basemap")
+check(bm is not None and bm.name() == "ESRI World Imagery" and "World_Imagery" in bm.source(), "link 2: the ESRI basemap as an XYZ layer")
+root = dock.stack.root(create=False)
+check(root is not None and root.children()[-1].layer() is bm if root and root.children() and hasattr(root.children()[-1], "layer") else False,
+      "link 2: the basemap at the bottom of the live group")
+check("over the basemap" in dock.status.text(), f"link 2: said ({dock.status.text()})")
+check(dock.open_link(LINK1) and dock.stack.find("basemap") is None, "link 1 again: the basemap removed")
+for r in dock.rows.values():
+    r.row.set_forms(set())
+    del r.update
+dock.connected = None
+QgsProject.instance().clear()
+spin()
 
 # Updates: plugins.xml as make_zip.py writes it, read as QGIS reads it (the
 # key before the first dot of file_name), a zip installed over a copy of

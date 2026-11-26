@@ -108,9 +108,13 @@ modes computed in QGIS with numpy.
   (Mapbox, MapTiler, HERE, Google, Cesium ion, in QGIS's settings
   `terrain_viewer/<key>`): the three the service reads go into every layer's
   address, Mapbox and MapTiler serve the Python backend.
-- **Open link**: a share link or its bare query; its modes, settings,
-  opacities, source, light and camera. Only the parameters some mode takes go
-  into the addresses (not `splitRatio` or the camera).
+- **Open link**: a share link (any address, the desktop app's `views://...`
+  too) or its bare query, read as the app reads it: a parameter it leaves out
+  takes the app's default (`showTerrainAnalysis=true` alone is the slope);
+  its modes, settings, opacities, source, light and camera (an extent in the
+  project's CRS), and with `showRasterBasemap=true` the view's basemap as an
+  XYZ layer under the modes. Only the parameters some mode takes go into the
+  addresses (not `splitRatio` or the camera).
 - **Freeze** copies the layers drawn now into a dated group under the live
   one, which the panel never changes.
 - A saved project reopens with its layers; on Connect the panel reads their
@@ -126,6 +130,7 @@ modes computed in QGIS with numpy.
 | `terrain_viewer/widgets.py`, `settings_ui.py` | The slider with its box, the light pad, the selects with previews, the foldable section, the backend buttons; the slider ranges and symmetric pairs by parameter name |
 | `terrain_viewer/python_backend.py` | The Python backend under the tree: the service's modes, settings and sources mapped onto `live/` |
 | `terrain_viewer/assets.py`, `assets/`, `make_assets.py` | The ramp and matcap previews (sprite sheets) and the catalog snapshot, made from a running tile service: `python make_assets.py [http://localhost:3400]` |
+| `terrain_viewer/links.py`, `assets/app_defaults.json`, `make_app_defaults.py` | An app link read as the app reads it (its defaults for what it leaves out, the basemap): the defaults and built-in basemaps from `docs/src/generated/url-params.json` and `lib/basemap-sources.ts`, `python make_app_defaults.py` |
 | `test_panel_units.py` | No service, no network: slider ranges, links, the Python mapping, the assets, the light pad, the panel's order and backends, the source groups, the labels, plugins.xml and an update installed: `QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py` |
 | `test_sources.py` | Network: the library's raw elevation read by the Python backend (NRCan's COG, IGN's raw WMS, a WCS, an ArcGIS image service), the panel drawing them and never Mapterhorn in their place, the raw inputs as QGIS layers: `QT_QPA_PLATFORM=offscreen python-qgis test_sources.py` |
 | `terrain_viewer/updates.py` | Updates: `plugins.xml` read, a zip checked and unpacked over the plugin (the panel's Update button) |
