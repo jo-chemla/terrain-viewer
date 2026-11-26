@@ -4,13 +4,13 @@ import { Layer, Source, useMap } from "react-map-gl/maplibre"
 import type { LayerSpecification, SourceSpecification, StyleSpecification } from "maplibre-gl"
 import { useAtomValue } from "jotai"
 import { LAYER_SLOTS } from "./MapLayers"
-import { vectorOverlayStylesAtom } from "@/lib/settings-atoms"
+import { customVectorSourcesAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
 import type { VectorSourceEntry } from "@/lib/source-schema"
 import { findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, vectorSourceSpec, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
 
 /**
- * Vector overlays of one view: the Library's vector sources (building
- * footprints, lib/vector-sources.ts) named by `ids`, each as its own vector
+ * Vector overlays of one view: the vector sources (the Library's building
+ * footprints and the user's own, lib/vector-sources.ts) named by `ids`, each as its own vector
  * source and its fill / line / fill-extrusion layers at the VECTOR_OVERLAYS
  * slot: above the shading, under the contours. Every view mounts its own
  * copy inside its <Map>, so a source on view B never touches view A's map.
@@ -20,16 +20,17 @@ import { findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, v
  */
 export const VectorOverlayLayers = memo(({ ids, opacity = 1 }: { ids: string[]; opacity?: number }) => {
   const styles = useAtomValue(vectorOverlayStylesAtom)
+  const customs = useAtomValue(customVectorSourcesAtom)
   return (
     <>
       {ids.map((id) => {
-        const entry = findVectorSource(id)
+        const entry = findVectorSource(id, customs)
         if (!entry) return null
         const style = vectorStyleOf(entry, styles[id])
         const scaled = opacity === 1 ? style : { ...style, opacity: style.opacity * opacity }
         return entry.type === "style"
-          ? <StyleOverlay key={id} entry={entry} opacity={scaled.opacity} />
-          : <TileOverlay key={id} entry={entry} style={scaled} />
+          ? <StyleOverlay key={`${id}|${entry.url}`} entry={entry} opacity={scaled.opacity} />
+          : <TileOverlay key={`${id}|${entry.url}|${entry.type}`} entry={entry} style={scaled} />
       })}
     </>
   )

@@ -277,15 +277,41 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
     ctx.globalCompositeOperation = (blend && blend !== "normal" ? blend : "source-over") as GlobalCompositeOperation
     const paneOpacity = parseFloat(paneStyle.opacity)
 
+    // The two-date composite tints a pane (the boxes TerrainViewer.tsx lays
+    // over it, kept out of the DOM pass): the pane is drawn apart, grey
+    // then tint filled over the tinted part, and that picture is blended in.
+    const tintBox = pane.querySelector<HTMLElement>("[data-composite-tint]")
+    const tmp = tintBox ? document.createElement("canvas") : null
+    if (tmp) { tmp.width = out.width; tmp.height = out.height }
+    const target = tmp ? tmp.getContext("2d")! : ctx
+
     for (const c of canvases) {
       if (!c.width || !c.height) continue
       const r = c.getBoundingClientRect()
       if (r.width < 1 || r.height < 1) continue
       const cs = getComputedStyle(c)
-      ctx.globalAlpha = (Number.isFinite(paneOpacity) ? paneOpacity : 1) * (parseFloat(cs.opacity) || 0)
-      if (ctx.globalAlpha === 0) continue
-      ctx.filter = cs.filter && cs.filter !== "none" ? cs.filter : "none"
-      ctx.drawImage(c, (r.left - rootRect.left) * dpr, (r.top - rootRect.top) * dpr, r.width * dpr, r.height * dpr)
+      const alpha = (Number.isFinite(paneOpacity) ? paneOpacity : 1) * (parseFloat(cs.opacity) || 0)
+      if (alpha === 0) continue
+      // Apart, the pane's opacity is applied once, when it is blended in.
+      target.globalAlpha = tmp ? (parseFloat(cs.opacity) || 0) : alpha
+      target.filter = cs.filter && cs.filter !== "none" ? cs.filter : "none"
+      target.drawImage(c, (r.left - rootRect.left) * dpr, (r.top - rootRect.top) * dpr, r.width * dpr, r.height * dpr)
+    }
+    if (tmp && tintBox) {
+      const t = tmp.getContext("2d")!
+      const b = tintBox.getBoundingClientRect()
+      const box: [number, number, number, number] = [(b.left - rootRect.left) * dpr, (b.top - rootRect.top) * dpr, b.width * dpr, b.height * dpr]
+      t.globalAlpha = 1
+      t.filter = "none"
+      t.globalCompositeOperation = "saturation"
+      t.fillStyle = "#808080"
+      t.fillRect(...box)
+      t.globalCompositeOperation = "multiply"
+      t.fillStyle = tintBox.dataset.compositeTint || "#ffffff"
+      t.fillRect(...box)
+      ctx.globalAlpha = Number.isFinite(paneOpacity) ? paneOpacity : 1
+      ctx.filter = "none"
+      ctx.drawImage(tmp, 0, 0)
     }
     ctx.restore()
   }

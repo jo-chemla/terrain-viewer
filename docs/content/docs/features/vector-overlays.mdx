@@ -9,7 +9,7 @@ description: "Open building footprints over any terrain or basemap: Overture Map
 
 ![Overture Maps buildings over Midtown Manhattan, extruded and colored by height over the hillshade](/screenshots/vector-overlays-overture-nyc-3d.jpg)
 
-**Vector overlays** draw vector tiles over the terrain layers: above the hillshade and the shadows, under the contours. The first ones are open building footprints, with OpenStreetMap's roads and labels as a hybrid layer. They are in **Sources › Basemap › Bring Your Own Data › Vector overlays**, each with a switch, an opacity and a settings button.
+**Vector overlays** draw vector tiles over the terrain layers: above the hillshade and the shadows, under the contours. The first ones are open building footprints, with OpenStreetMap's roads and labels as a hybrid layer. They are in **Sources › Basemap › Bring Your Own Data › Vector overlays**, each with a switch, an opacity and a settings button, and you can [add your own](#your-own-vector-sources).
 
 ## The sources
 
@@ -38,6 +38,19 @@ The style is remembered in your browser, per overlay. A shared link carries whic
 
 Footprints draw from zoom 11. In a dense city an Overture tile weighs about 1 MB at zoom 14, so the first view of a place takes a moment; OpenStreetMap buildings are the light choice.
 
+## Your own vector sources
+
+**Add vector source**, under the list, takes an address and reads what it is:
+
+| Address | What is read | How it draws |
+|---|---|---|
+| A **PMTiles** archive of vector tiles (`https://…/buildings.pmtiles`) | Its header and metadata: layers, zoom range, extent | The layers you tick, as fills with outlines, lines and points |
+| A **TileJSON** | Its `vector_layers`, zoom range and extent | The same |
+| A **tile template** (`https://…/{z}/{x}/{y}.pbf`) | Nothing: a template does not name its layers, so you type them | The same |
+| A **MapLibre style** (JSON with `sources` and `layers`; its sources may be PMTiles) | The style | With the style's own layers and colors; only the opacity is yours |
+
+A source that has a `height` (or `render_height`) property offers **3D** and **Color by › Height** like the Library's buildings. Your sources are kept in this browser, draw from their own first zoom, and are removed from the settings popover of their row. The host must allow requests from other sites (CORS). A link names a source of yours by an id made from its address, so it opens for someone else only once they have added the same address.
+
 ## In a split or a grid
 
 With per-view basemaps on, each row shows one button per view, as the raster overlays do: VIDA on view A and Overture on view B compares the two over the same place. Views keep their overlays when they are swapped or reordered.
@@ -53,7 +66,7 @@ With per-view basemaps on, each row shows one button per view, as the raster ove
 
 ## Not yet
 
-- Your own vector sources (a PMTiles archive, a GeoJSON): the list is the Library's for now.
+- A GeoJSON or FlatGeobuf file as a vector source, and a color per property of your choice.
 - A blend mode per overlay: it needs MapLibre's layer blending, which the app does not use yet.
 - Building shadows cast from these heights: the [building shadows](/dev/lighting-effects) still read OpenFreeMap's tiles.
 - The tile service and the QGIS plugin do not draw them yet.

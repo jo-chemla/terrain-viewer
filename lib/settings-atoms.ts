@@ -372,6 +372,10 @@ export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
 export const byodBasemapsOpenAtom = atomWithStorage("byodBasemapsOpen", true)
 export const byodOverlaysOpenAtom = atomWithStorage("byodOverlaysOpen", true)
 export const byodVectorOverlaysOpenAtom = atomWithStorage("byodVectorOverlaysOpen", true)
+/** The user's own vector sources (Bring Your Own Data > Vector overlays > Add):
+ *  PMTiles archives, TileJSONs, MVT templates or MapLibre styles, as
+ *  VectorSourceEntry records with section "custom". */
+export const customVectorSourcesAtom = atomWithStorage<import("./source-schema").VectorSourceEntry[]>("customVectorSources", [], undefined, { getOnInit: true })
 /** How each vector overlay is drawn, by source id (lib/vector-sources.ts's
  *  VectorOverlayStyle: flat or 3D, color by, color, opacity, outlines). Only
  *  what the user changed; the rest comes from vectorStyleOf. */

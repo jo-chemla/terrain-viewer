@@ -233,7 +233,8 @@ export interface RasterSourceEntry extends SourceEntryBase {
 export type VectorTransport = "pmtiles" | "mvt" | "tilejson" | "style"
 
 /** A vector overlay: footprints (or a styled map) drawn over the terrain
- *  layers. Listed in SAMPLE_VECTOR_SOURCES of lib/custom-sources.json;
+ *  layers. Listed in SAMPLE_VECTOR_SOURCES of lib/custom-sources.json, or
+ *  in the user's own list (customVectorSourcesAtom, Bring Your Own Data);
  *  `kind` is required, as no saved list predates it. */
 export interface VectorSourceEntry extends SourceEntryBase {
   kind: "vector"
@@ -266,6 +267,10 @@ export interface VectorSourceEntry extends SourceEntryBase {
   styleLayerTypes?: ("fill" | "line" | "symbol" | "fill-extrusion" | "raster")[]
   /** The single color a new user sees (hex). */
   color?: string
+  /** What is drawn of each source layer: polygons (fill, outline), lines
+   *  and points (circles). Default polygons only (building footprints); a
+   *  source of your own draws all three. */
+  geometries?: ("polygon" | "line" | "point")[]
 }
 
 /** Any tile source of the terrain and basemap lists. A vector overlay

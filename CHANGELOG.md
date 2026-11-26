@@ -4,10 +4,11 @@
 
 #### TL;DR
 
-- **[Building footprints and vector overlays](/docs/features/vector-overlays)**: Overture Maps, VIDA's Google + Microsoft + OpenStreetMap merge and OpenStreetMap buildings over any terrain or basemap, flat or in 3D, colored by origin or height, one choice per view in a split; OpenStreetMap roads and labels as a hybrid layer. Under Basemap › Bring Your Own Data › Vector overlays.
+- **[Building footprints and vector overlays](/docs/features/vector-overlays)**: Overture Maps, VIDA's Google + Microsoft + OpenStreetMap merge and OpenStreetMap buildings over any terrain or basemap, flat or in 3D, colored by origin or height, one choice per view in a split; OpenStreetMap roads and labels as a hybrid layer; and your own PMTiles archive, TileJSON, tile template or MapLibre style. Under Basemap › Bring Your Own Data › Vector overlays.
 
   ![Overture Maps buildings over Midtown Manhattan, extruded and colored by height](/docs/screenshots/vector-overlays-overture-nyc-3d.jpg)
 - **[QGIS plugin 0.9.3](/docs/dev/qgis-plugin)**: Basemap is a row of the modes tree, with a select for its source; a hillshade over a raw COG such as Canada's NRCan now shows; it updates itself (from its own plugin repository, or a button in the panel); the Python backend comes first and reads any elevation GDAL opens, including WMS and COG Library sources such as France's IGN LiDAR HD or Canada's MRDEM; sources grouped, opacity in each row, modes reordered.
+- **[Red / Cyan two-date composite](/docs/features/split-modes#red--cyan-the-two-date-composite)**: a new blend mode of the Overlay split. Both dates in grey, one tinted red and the other cyan, added: what did not change is grey, what is only in one date takes its color.
 - **Blobness orientation** now gives the direction a feature runs (a north-south ridge reads 0°), with a color ramp that wraps around.
 - **New in the Library**: the Holmul lidar DEM (Guatemala), Pennsylvania's PAMAP hillshade, Sardinia's 1 m and 10 m hillshades.
 
@@ -23,6 +24,8 @@
 ##### Vector overlays, desktop
 
 - Vector overlays (`bb12c99`, `c6d710d`): a third source kind, `vector`, in `lib/source-schema.ts`; four entries in `SAMPLE_VECTOR_SOURCES` (Overture's release read from its STAC catalog, since old releases answer 410); `lib/vector-sources.ts` builds the MapLibre source and its fill, line and fill-extrusion layers; a `VECTOR_OVERLAYS` slot above the shading and under the contours, and an `OVERLAYS_TOP` slot for raster overlays set to "On top"; `vectorOverlayIds` (and `B` to `H`) in the link, the style kept in the browser. Microsoft's footprints have no entry of their own (files, not tiles; both archives carry them). Not yet: your own vector sources, a blend mode per overlay, shadows from these heights.
+- Your own vector sources: `lib/vector-source-detect.ts` reads a PMTiles header and metadata, a TileJSON, a tile template or a MapLibre style into a `VectorSourceEntry` kept in `customVectorSourcesAtom`; polygons, lines and points are drawn, from the source's own first zoom.
+- Red / Cyan composite: `splitBlendMode=red-cyan`, drawn as `screen` with two blended boxes over each pane (a grey one as `saturation`, the tint as `multiply`), so no SVG filter; the snapshot repeats the two fills on the canvases. The TODO note is gone with it.
 - Desktop (`ae27895`): the update no longer loops. Windows refused to replace the app folder while the local tile service ran from inside it; the service is stopped before the install. Bundles for Windows, macOS and Linux rebuilt on [`desktop-latest`](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest).
 - Tile service bundle for Linux arm64 (`20e9ebb`): a `linux-arm64` target in `qgis-plugin/make_zip.py`, built and started on GitHub's arm64 runner by the QGIS plugins workflow, attached to the next `qgis-plugins-*` release.
 

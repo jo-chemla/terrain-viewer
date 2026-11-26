@@ -82,6 +82,17 @@ Overlay mode's Blend Mode dropdown controls how source A composites over source 
 
 ## Color Matching (Match Colors)
 
+
+### Red / Cyan: the two-date composite
+
+**Red / Cyan (two dates)**, last in the Blend Mode list, is the classic two-date color composite. Both views are reduced to grey, view A is tinted red and view B cyan, and the two are added. What did not change between the two comes out grey; what is brighter in A shows red, what is brighter in B shows cyan. It reads at a glance over a whole site, where Difference only says that something changed, not in which date.
+
+Left of the wipe, view A keeps its own colors. Match Colors still applies, and helps: two dates of different exposure otherwise lean wholly red or cyan. Imagery taken from different angles shows red and cyan fringes along every tall building; that is parallax, not change.
+
+<OpenInApp href="/?zoom=15.5&lat=49.6116&lng=6.1319&splitStyle=overlay&basemapSourceA=esri&basemapSourceB=google&splitBlendModeEnabled=true&splitBlendMode=red-cyan&splitRatio=0.2&showRasterBasemap=true&showHillshade=false">Red / cyan composite of two imagery sources over Luxembourg</OpenInApp>
+
+Soft Light and Hard Light do something else: they use the top image to lighten or darken the bottom one, carrying one date's contrast onto the other's colors. The per-pixel "best of" modes are Lighten and Darken.
+
 **Match Colors** (Compare and Blend) automatically recolors every other view onto view A's color histogram, so two different imagery sources — or two different dates of the same source — no longer look noticeably darker/bluer/warmer next to each other when compared or blended. A **Color Space** picker controls how thorough the match is: **RGB** (the default) is instant, while **HSL / HSV / LAB / LCH** are slower but can match more subtle color differences.
 
 The same 2×2 grid over Zermatt (Bing Aerial 2003, Google Hybrid, ESRI World Imagery 2023, Mapbox Satellite), with and without Match Colors — with it on, views B–D take on view A's warmer 2003 Bing palette instead of each keeping their own look:

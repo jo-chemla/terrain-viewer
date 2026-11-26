@@ -4232,6 +4232,12 @@
     },
     {
       "file": "lib/settings-atoms.ts",
+      "key": "customVectorSources",
+      "default": "[]",
+      "note": ""
+    },
+    {
+      "file": "lib/settings-atoms.ts",
       "key": "isHillshadeXYPadOpen",
       "default": "true",
       "note": ""

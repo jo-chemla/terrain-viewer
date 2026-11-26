@@ -129,7 +129,7 @@ A third kind since 2026-11-26: `SourceKind` is `terrain`, `raster` or `vector`, 
 
 Where things are:
 
-- **Entries**: `SAMPLE_VECTOR_SOURCES` in `lib/custom-sources.json`, in the `buildings` library group. There is no list of the user's own yet, so no saved list predates the field and `kind` is required.
+- **Entries**: `SAMPLE_VECTOR_SOURCES` in `lib/custom-sources.json`, in the `buildings` library group. The user's own are in `customVectorSourcesAtom` (`section: "custom"`, `geometries` set to polygons, lines and points), built from an address by `detectVectorSource` in `lib/vector-source-detect.ts` (a PMTiles header and metadata, a TileJSON, a tile template, or a MapLibre style); no saved list predates the field, so `kind` is required.
 - **Lookup and specs**: `lib/vector-sources.ts`. `findVectorSource(id)` is the one lookup; `resolveVectorUrl` fills the release; `vectorSourceSpec` and `vectorLayerSpecs` return the MapLibre source and its `fill`, `line` and `fill-extrusion` layers as plain objects (no MapLibre import, so the tile service can read the same entries). Its test validates every entry in every style against MapLibre's style spec: `node scripts/test-lib.mjs lib/vector-sources.test.ts`.
 - **Renderer**: `components/LayersAndSources/VectorOverlayLayers.tsx`, one copy inside each view's `<Map>`, at the `VECTOR_OVERLAYS` slot ([Layer order](/dev/layer-order)). A PMTiles archive is read through the `pmtiles://` protocol as a tile template with the entry's zoom range. The `<Source>` is keyed on the resolved address, and the layer ids carry their type, so a change of release or from flat to 3D mounts new layers rather than retyping one.
 - **State**: which overlays are on is in the link (`vectorOverlayIds`, `vectorOverlayIdsB` to `H`, moved with the views by `permuteViewsUpdates`); how each is drawn is local (`vectorOverlayStylesAtom`).
@@ -143,7 +143,7 @@ The datasets, checked on 2026-11-26 by decoding tiles over Lyon, Chicago and Lag
 | **OpenFreeMap planet** | TileJSON `https://tiles.openfreemap.org/planet`, zoom 14 | `building` with `render_height`, `render_min_height` (OpenMapTiles schema); the same tiles as the building shadows |
 | **Microsoft Global ML Building Footprints** | Gzipped GeoJSON lines per quadkey, index CSV without CORS | Not streamable, and already inside the two archives above: no entry |
 
-Still open: a list of the user's own vector sources, a blend mode per overlay (it needs MapLibre's `*-layer-blend`, which the app's MapLibre 6.13 does not have), the building shadows reading any vector source with heights, and the tile service and QGIS plugin drawing the same entries from `generated/library.json`.
+Still open: GeoJSON and FlatGeobuf files as vector sources, a blend mode per overlay (it needs MapLibre's `*-layer-blend`, which the app's MapLibre 6.13 does not have), the building shadows reading any vector source with heights, and the tile service and QGIS plugin drawing the same entries from `generated/library.json`.
 
 ## Before the schema
 

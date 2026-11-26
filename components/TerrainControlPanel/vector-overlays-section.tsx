@@ -1,22 +1,27 @@
 // The "Vector overlays" list of the Bring Your Own Data section: the
 // Library's vector sources (lib/vector-sources.ts: Overture, VIDA and OSM
-// building footprints, OSM roads and labels), each with its switch (one per
-// view in a split), its opacity and a settings popover (flat or 3D, color
-// by, color, outlines, legend, credit). No list of your own yet: the rows
-// are the Library's entries, switched on in place.
+// building footprints, OSM roads and labels) and your own (Add: a PMTiles
+// archive, a TileJSON, a tile template or a MapLibre style, read by
+// lib/vector-source-detect.ts), each with its switch (one per view in a
+// split), its opacity and a settings popover (flat or 3D, color by, color,
+// outlines, legend, credit, and Remove for your own).
 import type React from "react"
+import { useState } from "react"
 import { useAtom, useAtomValue } from "jotai"
-import { ChevronDown, ExternalLink, Settings2 } from "lucide-react"
+import { ChevronDown, ExternalLink, Plus, Settings2, Trash2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { OpacityPill } from "@/components/ui/opacity-pill"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
-import { activeViewAtom, byodVectorOverlaysOpenAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
+import { activeViewAtom, byodVectorOverlaysOpenAtom, customVectorSourcesAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
 import type { VectorSourceEntry } from "@/lib/source-schema"
-import { VECTOR_LIBRARY, VECTOR_FOOTPRINT_MINZOOM, vectorLegend, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
+import { allVectorSources, VECTOR_FOOTPRINT_MINZOOM, vectorLegend, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
+import { detectVectorSource, heightFieldsOf, type DetectedVectorSource } from "@/lib/vector-source-detect"
 import { GroupHeading, SourceGridToggle } from "./controls-components"
 
 const fieldOf = (side: ViewId) => (side === "A" ? "vectorOverlayIds" : `vectorOverlayIds${side}`)
@@ -25,6 +30,9 @@ export const VectorOverlaysSection: React.FC<{ state: any; setState: (updates: a
   const [open, setOpen] = useAtom(byodVectorOverlaysOpenAtom)
   const [styles, setStyles] = useAtom(vectorOverlayStylesAtom)
   const activeView = useAtomValue(activeViewAtom)
+  const [customs, setCustoms] = useAtom(customVectorSourcesAtom)
+  const [adding, setAdding] = useState(false)
+  const sources = allVectorSources(customs)
   const perView = !!state.basemapPerView && state.splitStyle !== "off"
   const idsOf = (side: ViewId): string[] => state[fieldOf(side)] || []
   const toggle = (side: ViewId, id: string) => {
@@ -32,22 +40,32 @@ export const VectorOverlaysSection: React.FC<{ state: any; setState: (updates: a
     setState({ [fieldOf(side)]: current.includes(id) ? current.filter((x) => x !== id) : [...current, id] })
   }
   const patch = (id: string, change: Partial<VectorOverlayStyle>) => setStyles((prev) => ({ ...prev, [id]: { ...prev[id], ...change } }))
-  const active = VECTOR_LIBRARY.filter((s) => idsOf("A").includes(s.id)).length
-  if (VECTOR_LIBRARY.length === 0) return null
+  const active = sources.filter((s) => idsOf("A").includes(s.id)).length
+  const add = (entry: VectorSourceEntry) => {
+    setCustoms((prev) => [...prev.filter((s) => s.id !== entry.id), entry])
+    if (!idsOf("A").includes(entry.id)) toggle("A", entry.id)
+  }
+  // Removed from the list and from every view that showed it.
+  const remove = (id: string) => {
+    setCustoms((prev) => prev.filter((s) => s.id !== id))
+    const updates: Record<string, string[]> = {}
+    for (const side of VIEW_IDS) if (idsOf(side).includes(id)) updates[fieldOf(side)] = idsOf(side).filter((x) => x !== id)
+    if (Object.keys(updates).length) setState(updates)
+  }
 
   return (
     <div className="space-y-2 pt-2 mt-2 border-t">
       <button type="button" className="flex items-center gap-1 w-full cursor-pointer text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !open && "-rotate-90")} />
         <GroupHeading>Vector overlays</GroupHeading>
-        {!open && <span className="text-[10px] text-muted-foreground tabular-nums ml-1">{active}/{VECTOR_LIBRARY.length}</span>}
+        {!open && <span className="text-[10px] text-muted-foreground tabular-nums ml-1">{active}/{sources.length}</span>}
       </button>
       {open && (
         <>
-          {(state.zoom ?? 0) < VECTOR_FOOTPRINT_MINZOOM && VECTOR_LIBRARY.some((s) => s.type !== "style" && (perView ? VIEW_IDS : (["A"] as ViewId[])).some((side) => idsOf(side).includes(s.id))) && (
+          {(state.zoom ?? 0) < VECTOR_FOOTPRINT_MINZOOM && sources.some((s) => s.type !== "style" && s.section !== "custom" && (perView ? VIEW_IDS : (["A"] as ViewId[])).some((side) => idsOf(side).includes(s.id))) && (
             <p className="text-[11px] text-muted-foreground">Footprints draw from zoom {VECTOR_FOOTPRINT_MINZOOM}: zoom in to see them.</p>
           )}
-          {VECTOR_LIBRARY.map((source) => {
+          {sources.map((source) => {
             const style = vectorStyleOf(source, styles[source.id])
             return (
               <div key={source.id} className="flex items-center gap-2 min-w-0">
@@ -66,17 +84,98 @@ export const VectorOverlaysSection: React.FC<{ state: any; setState: (updates: a
                 <span className="flex-1 min-w-0 truncate text-sm cursor-pointer" title={source.name} onClick={() => (perView ? undefined : toggle("A", source.id))}>
                   {source.shortName ?? source.name}
                 </span>
-                <VectorOverlaySettings source={source} style={style} onChange={(change) => patch(source.id, change)} />
+                <VectorOverlaySettings source={source} style={style} onChange={(change) => patch(source.id, change)} onRemove={source.section === "custom" ? () => remove(source.id) : undefined} />
               </div>
             )
           })}
+          <Button variant="outline" size="sm" className="w-full min-w-0 cursor-pointer bg-transparent" onClick={() => setAdding(true)} title="A PMTiles archive, a TileJSON, a {z}/{x}/{y} vector tile template or a MapLibre style">
+            <Plus className="h-3.5 w-3.5" /> <span className="truncate">Add vector source</span>
+          </Button>
         </>
       )}
+      <AddVectorSourceDialog open={adding} onOpenChange={setAdding} onAdd={add} taken={(id) => sources.some((s) => s.id === id && s.section !== "custom")} />
     </div>
   )
 }
 
-const VectorOverlaySettings: React.FC<{ source: VectorSourceEntry; style: VectorOverlayStyle; onChange: (change: Partial<VectorOverlayStyle>) => void }> = ({ source, style, onChange }) => {
+/** Add a vector source of your own: paste its address, Read finds what it
+ *  is and which layers it declares, Add saves it and switches it on. */
+const AddVectorSourceDialog: React.FC<{ open: boolean; onOpenChange: (open: boolean) => void; onAdd: (entry: VectorSourceEntry) => void; taken: (id: string) => boolean }> = ({ open, onOpenChange, onAdd, taken }) => {
+  const [url, setUrl] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [found, setFound] = useState<DetectedVectorSource | null>(null)
+  const [name, setName] = useState("")
+  const [picked, setPicked] = useState<string[]>([])
+  const [typed, setTyped] = useState("")
+  const reset = () => { setUrl(""); setBusy(false); setError(null); setFound(null); setName(""); setPicked([]); setTyped("") }
+  const read = async () => {
+    setBusy(true); setError(null); setFound(null)
+    try {
+      const d = await detectVectorSource(url)
+      setFound(d); setName(d.entry.name); setPicked(d.layers.map((l) => l.id)); setTyped("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The address could not be read.")
+    } finally { setBusy(false) }
+  }
+  const isStyle = found?.entry.type === "style"
+  const layerNames = found ? (found.layers.length ? picked : typed.split(",").map((t) => t.trim()).filter(Boolean)) : []
+  const canAdd = !!found && (isStyle || layerNames.length > 0) && !taken(found.entry.id)
+  const save = () => {
+    if (!found || !canAdd) return
+    const chosen = found.layers.filter((l) => layerNames.includes(l.id))
+    const { heightField: _h, minHeightField: _m, floorsField: _f, ...rest } = found.entry
+    onAdd({ ...rest, name: name.trim() || found.entry.name, ...(isStyle ? {} : { sourceLayers: layerNames, ...heightFieldsOf(chosen) }) })
+    reset(); onOpenChange(false)
+  }
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o) }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add a vector source</DialogTitle>
+          <DialogDescription>
+            The address of a PMTiles archive of vector tiles, a TileJSON, a {"{z}/{x}/{y}"} vector tile template, or a MapLibre style (drawn with its own layers; its sources may be PMTiles). The host must allow requests from other sites (CORS).
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 min-w-0">
+          <div className="flex gap-2 min-w-0">
+            <Input value={url} onChange={(e) => { setUrl(e.target.value); setFound(null); setError(null) }} onKeyDown={(e) => { if (e.key === "Enter" && url.trim() && !busy) read() }} placeholder="https://example.com/buildings.pmtiles" className="flex-1 min-w-0" aria-label="Address" />
+            <Button variant="outline" className="shrink-0 cursor-pointer" disabled={!url.trim() || busy} onClick={read}>{busy ? "Reading…" : "Read"}</Button>
+          </div>
+          {error && <p className="text-xs text-destructive break-words">{error}</p>}
+          {found && (
+            <>
+              <p className="text-xs text-muted-foreground break-words">
+                {found.label}{found.entry.maxzoom !== undefined ? `, zoom ${found.entry.minzoom ?? 0} to ${found.entry.maxzoom}` : ""}{found.entry.heightField ? `, heights in "${found.entry.heightField}"` : ""}.{found.note ? ` ${found.note}` : ""}
+              </p>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="min-w-0" aria-label="Name" />
+              {!isStyle && found.layers.length > 0 && (
+                <div className="max-h-44 overflow-y-auto space-y-1 rounded-md border p-2">
+                  {found.layers.map((l) => (
+                    <label key={l.id} className="flex items-center gap-2 text-xs cursor-pointer min-w-0">
+                      <Checkbox checked={picked.includes(l.id)} onCheckedChange={(c) => setPicked((p) => (c === true ? [...p, l.id] : p.filter((x) => x !== l.id)))} className="cursor-pointer shrink-0" />
+                      <span className="truncate" title={l.fields.length ? `${l.id}: ${l.fields.join(", ")}` : l.id}>{l.id}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {!isStyle && found.layers.length === 0 && (
+                <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Layer names, comma-separated (building, road)" className="min-w-0" aria-label="Layer names" />
+              )}
+              {taken(found.entry.id) && <p className="text-xs text-destructive">This address is already in the Library's list.</p>}
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="cursor-pointer" onClick={() => { reset(); onOpenChange(false) }}>Cancel</Button>
+          <Button className="cursor-pointer" disabled={!canAdd} onClick={save}>Add</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const VectorOverlaySettings: React.FC<{ source: VectorSourceEntry; style: VectorOverlayStyle; onChange: (change: Partial<VectorOverlayStyle>) => void; onRemove?: () => void }> = ({ source, style, onChange, onRemove }) => {
   const styled = source.type !== "style"
   const colorByItems: Record<string, string> = { single: "One color", ...(source.sourceField ? { source: "Origin" } : {}), ...(source.heightField ? { height: "Height" } : {}) }
   const legend = vectorLegend(source, style)
@@ -138,6 +237,12 @@ const VectorOverlaySettings: React.FC<{ source: VectorSourceEntry; style: Vector
             : source.licenseName)}
           {source.licenseName && source.attribution ? ". " : ""}{source.attribution}
         </p>
+        {onRemove && <p className="text-muted-foreground break-all">{source.url}</p>}
+        {onRemove && (
+          <Button variant="outline" size="sm" className="cursor-pointer bg-transparent text-destructive" onClick={onRemove}>
+            <Trash2 className="h-3.5 w-3.5" /> Remove from my list
+          </Button>
+        )}
         {source.infoUrl && (
           <a href={source.infoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">
             About this dataset <ExternalLink className="h-3 w-3" />

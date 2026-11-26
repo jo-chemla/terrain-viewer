@@ -67,7 +67,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
 import { bookmarksAtom, mergeImportedBookmarks, type Bookmark } from "@/lib/bookmarks"
 import { coverageOverlaysAtom, coverageGroups, parseAsCoverageOverlays } from "@/lib/coverage-overlays"
-import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, splitBlendCss, compositeTint, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
 import * as maplibregl from 'maplibre-gl'
@@ -4920,6 +4920,11 @@ export function TerrainViewer() {
       <div ref={splitContainerRef} data-snapshot-root className="absolute inset-0">
         {paneLayouts.map((pane) => {
           const isBlendedOverlayPane = isOverlaySplit && pane.side === "B"
+          // The two-date composite (splitBlendMode "red-cyan"): this view's
+          // tint, over the part of the view the wipe shows blended (all of
+          // B's clipped pane; A right of the boundary, so A alone stays in
+          // its own colors left of it).
+          const tint = isOverlaySplit && state.splitBlendModeEnabled ? compositeTint(state.splitBlendMode, pane.side) : null
           return (
             <div
               key={pane.side}
@@ -4940,7 +4945,7 @@ export function TerrainViewer() {
                 // pill drag or a window resize, which must track 1:1.
                 transition: panelGeometryTransition,
                 clipPath: isBlendedOverlayPane ? `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)` : undefined,
-                mixBlendMode: isBlendedOverlayPane ? ((state.splitBlendModeEnabled ? state.splitBlendMode : "normal") as any) : undefined,
+                mixBlendMode: isBlendedOverlayPane ? ((state.splitBlendModeEnabled ? splitBlendCss(state.splitBlendMode) : "normal") as any) : undefined,
                 opacity: isBlendedOverlayPane ? state.overlayOpacity : undefined,
                 ["--scale-offset" as any]: scaleBottomOffset,
                 ["--scale-right-offset" as any]: scaleRightOffset,
@@ -4956,6 +4961,20 @@ export function TerrainViewer() {
               onPointerDownCapture={() => { lastInteractedViewRef.current = pane.side }}
             >
               {renderMap(stateAny[sourceFieldName(pane.side)], pane.side)}
+              {/* Desaturate, then tint: a grey box blended as "saturation"
+                  (the view's own luminance, no color), then the tint
+                  multiplied over it. Plain mix-blend-mode on two boxes, so it
+                  works wherever the blend modes do; the wrapper must not be
+                  a stacking context, or the boxes would blend with nothing.
+                  Left out of the snapshot's DOM pass: compositeViews
+                  repeats the two fills on the canvases (data-composite-*). */}
+              {tint && (
+                <div data-snapshot-ignore data-composite-tint={tint} data-composite-from={pane.side === "A" ? overlayBoundaryPct : 0}
+                  className="absolute inset-y-0 right-0 pointer-events-none" style={{ left: pane.side === "A" ? `${overlayBoundaryPct}%` : 0 }}>
+                  <div className="absolute inset-0" style={{ background: "#808080", mixBlendMode: "saturation" }} />
+                  <div className="absolute inset-0" style={{ background: tint, mixBlendMode: "multiply" }} />
+                </div>
+              )}
             </div>
           )
         })}

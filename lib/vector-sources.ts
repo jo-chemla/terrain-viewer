@@ -17,9 +17,15 @@ export const VECTOR_LIBRARY: readonly VectorSourceEntry[] = ((customSources as u
 
 const BY_ID = new Map(VECTOR_LIBRARY.map((s) => [s.id, s]))
 
-/** The entry of a vector source id. */
-export function findVectorSource(id: string | null | undefined): VectorSourceEntry | undefined {
-  return id ? BY_ID.get(id) : undefined
+/** The entry of a vector source id: the user's own, else the Library's. */
+export function findVectorSource(id: string | null | undefined, customs: readonly VectorSourceEntry[] = []): VectorSourceEntry | undefined {
+  if (!id) return undefined
+  return customs.find((s) => s.id === id) ?? BY_ID.get(id)
+}
+
+/** The Library's entries followed by the user's own that do not shadow one. */
+export function allVectorSources(customs: readonly VectorSourceEntry[] = []): VectorSourceEntry[] {
+  return [...VECTOR_LIBRARY, ...customs.filter((s) => !BY_ID.has(s.id))]
 }
 
 // ── Style ───────────────────────────────────────────────────────────────────
@@ -140,7 +146,7 @@ export function colorExpression(entry: VectorSourceEntry, style: VectorOverlaySt
 
 export type VectorLayerSpec = {
   id: string
-  type: "fill" | "line" | "fill-extrusion"
+  type: "fill" | "line" | "fill-extrusion" | "circle"
   "source-layer": string
   minzoom: number
   filter?: Expr
@@ -169,21 +175,37 @@ export function vectorLayerSpecs(entry: VectorSourceEntry, style: VectorOverlayS
   // A darker shade of the one color; over a color per feature, a dark line
   // (a shade of each cannot be computed in an expression).
   const lineColor = style.colorBy === "single" ? darken(style.color) : "rgba(0,0,0,0.45)"
-  const minzoom = Math.max(VECTOR_FOOTPRINT_MINZOOM, entry.minzoom ?? 0)
+  // The Library's footprints wait for zoom 11; a source of your own draws
+  // from its own first zoom.
+  const minzoom = entry.section === "custom" ? (entry.minzoom ?? 0) : Math.max(VECTOR_FOOTPRINT_MINZOOM, entry.minzoom ?? 0)
   const threeD = style.mode === "3d" && !!entry.heightField
+  const geometries = new Set(entry.geometries ?? ["polygon"])
+  const lineOpacity = Math.min(1, style.opacity + 0.25)
   for (const layer of entry.sourceLayers ?? []) {
-    if (!threeD) {
-      out.push({ id: `${prefix}-${layer}-fill`, type: "fill", "source-layer": layer, minzoom, filter: polygon,
-        paint: { "fill-color": color, "fill-opacity": style.opacity, "fill-antialias": !style.outline } })
+    if (geometries.has("polygon")) {
+      if (!threeD) {
+        out.push({ id: `${prefix}-${layer}-fill`, type: "fill", "source-layer": layer, minzoom, filter: polygon,
+          paint: { "fill-color": color, "fill-opacity": style.opacity, "fill-antialias": !style.outline } })
+      }
+      if (style.outline) {
+        out.push({ id: `${prefix}-${layer}-line`, type: "line", "source-layer": layer, minzoom, filter: polygon, layout: { "line-join": "round" },
+          paint: { "line-color": lineColor, "line-opacity": lineOpacity, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.4, 16, 1.2] } })
+      }
     }
-    if (style.outline) {
-      out.push({ id: `${prefix}-${layer}-line`, type: "line", "source-layer": layer, minzoom, filter: polygon, layout: { "line-join": "round" },
-        paint: { "line-color": lineColor, "line-opacity": Math.min(1, style.opacity + 0.25), "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.4, 16, 1.2] } })
+    // Lines and points of a source of your own, in the fill color.
+    if (geometries.has("line")) {
+      out.push({ id: `${prefix}-${layer}-path`, type: "line", "source-layer": layer, minzoom, filter: ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": color, "line-opacity": lineOpacity, "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 16, 2.2] } })
+    }
+    if (geometries.has("point")) {
+      out.push({ id: `${prefix}-${layer}-point`, type: "circle", "source-layer": layer, minzoom, filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
+        paint: { "circle-color": color, "circle-opacity": lineOpacity, "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 1.5, 16, 4.5], "circle-stroke-color": "rgba(0,0,0,0.45)", "circle-stroke-width": 0.6 } })
     }
   }
   if (threeD) {
     const extrusion = (layer: string, filter: Expr): VectorLayerSpec => ({
-      id: `${prefix}-${layer}-3d`, type: "fill-extrusion", "source-layer": layer, minzoom: Math.max(minzoom, 13), filter,
+      id: `${prefix}-${layer}-3d`, type: "fill-extrusion", "source-layer": layer, minzoom: entry.section === "custom" ? minzoom : Math.max(minzoom, 13), filter,
       paint: {
         "fill-extrusion-color": color, "fill-extrusion-opacity": style.opacity,
         "fill-extrusion-height": heightExpression(entry),

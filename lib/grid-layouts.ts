@@ -45,6 +45,7 @@ const BLEND_MODE_LABELS: Record<string, string> = {
   "hard-light": "Hard Light", "soft-light": "Soft Light", difference: "Difference", exclusion: "Exclusion",
   hue: "Hue", saturation: "Saturation", color: "Color", luminosity: "Luminosity",
   "plus-darker": "Plus Darker", "plus-lighter": "Plus Lighter",
+  "red-cyan": "Red / Cyan (two dates)",
 }
 // Two flat, `as const` value tuples (not one big tuple-of-tuples) — a
 // grouped structure built by flatMap-ing an `as const` array of arrays
@@ -55,7 +56,24 @@ const BLEND_MODE_LABELS: Record<string, string> = {
 // value a real string-literal member of one shared union throughout.
 const STANDARD_BLEND_MODES = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion"] as const
 const EXTRA_BLEND_MODES = ["hue", "saturation", "color", "luminosity", "plus-darker", "plus-lighter"] as const
-export const BLEND_MODES = [...STANDARD_BLEND_MODES, ...EXTRA_BLEND_MODES] as const
+// Not a CSS keyword: the two-date color composite. Both views are
+// desaturated, view A tinted red and view B cyan, then B is screened over A
+// (the channels do not overlap, so screen is a plain sum): what did not
+// change comes out grey, what is brighter in A red, what is brighter in B
+// cyan. splitBlendCss gives the CSS mode it is drawn with, compositeTint the
+// tint of each view; the tint itself is two blended boxes over each pane
+// (TerrainViewer.tsx) and the same two fills in a snapshot (controls-utils).
+export const COMPOSITE_BLEND_MODES = ["red-cyan"] as const
+export const BLEND_MODES = [...STANDARD_BLEND_MODES, ...EXTRA_BLEND_MODES, ...COMPOSITE_BLEND_MODES] as const
+/** The CSS mix-blend-mode a split blend mode is drawn with. */
+export function splitBlendCss(mode: string): string {
+  return mode === "red-cyan" ? "screen" : mode
+}
+/** The tint of a view under a composite mode (hex), or null. */
+export function compositeTint(mode: string, side: string): string | null {
+  if (mode !== "red-cyan") return null
+  return side === "A" ? "#ff0000" : side === "B" ? "#00ffff" : null
+}
 export type BlendModeOption = { value: string; label: string }
 // BLEND_MODE_LABELS' plain (non-`as const`) Record type is what keeps each
 // group's `items` the SAME widened `BlendModeOption[]` shape instead of a
@@ -73,6 +91,7 @@ export const BLEND_MODE_GROUPS: { label: string; items: BlendModeOption[] }[] = 
   { label: "Favourites", items: FAVOURITE_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
   { label: "Standard", items: STANDARD_BLEND_MODES.filter((v) => !isFavourite(v)).map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
   { label: "Extra", items: EXTRA_BLEND_MODES.filter((v) => !isFavourite(v)).map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
+  { label: "Composite", items: COMPOSITE_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
 ]
 export const BLEND_MODE_OPTIONS = BLEND_MODE_GROUPS.flatMap((g) => g.items)
 
