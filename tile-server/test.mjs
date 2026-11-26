@@ -142,7 +142,7 @@ function assertStacItem(item) {
   // martini and ellipsoidal heights by default; the source-in-path forms documented.
   assert.equal(doc.paths["/quantized-mesh/{source}/layer.json"].get.parameters.find((x) => x.name === "mesher").schema.default, "martini")
   assert.equal(doc.paths["/quantized-mesh/{source}/layer.json"].get.parameters.find((x) => x.name === "heights").schema.default, "ellipsoidal")
-  for (const path of ["/terrain-tiles/{source}/{z}/{x}/{y}.{format}", "/basemap-tiles/{source}/{z}/{x}/{y}.{format}", "/basemaps", "/colorramps/{id}.{format}"]) assert.ok(doc.paths[path], path)
+  for (const path of ["/terrain-tiles/{source}/{z}/{x}/{y}.{format}", "/basemap-tiles/{source}/{z}/{x}/{y}.{format}", "/basemaps", "/imagery-dates/{source}", "/colorramps/{id}.{format}"]) assert.ok(doc.paths[path], path)
   assert.ok(doc.paths["/view"].get.parameters.some((x) => x.name === "url"), "/view takes a whole link")
 }
 
@@ -653,6 +653,38 @@ function assertStacItem(item) {
     assert.equal((await get("/terrain-tiles/mapterhorn/2/2/1.pbf?modes=contours")).status, 200)
     assert.equal((await get("/terrain-tiles/mapterhorn/2/2/1.png.stac.json?modes=slope")).status, 200)
     assert.equal((await get("/basemap-tiles/no-such-basemap/2/2/1.jpg")).status, 404)
+    // Google Earth historical without the browser engine (ge-historical.mjs):
+    // the dates at the Eiffel Tower, a Web Mercator tile of two of them, the
+    // newest without a date; the answers say which engine drew them.
+    {
+      assert.deepEqual((await json("/imagery-dates")).sources.slice(0, 2), ["ge-historical", "wayback"])
+      assert.equal((await get("/imagery-dates/no-such-source?lat=1&lng=1")).status, 404)
+      assert.equal((await get("/imagery-dates/ge-historical?lng=2.2945")).status, 400, "lat is required")
+      assert.equal((await get("/imagery-dates/ge-historical?lat=95&lng=2.2945")).status, 400, "lat out of range")
+      const ge = await json("/imagery-dates/ge-historical?lat=48.8584&lng=2.2945&zoom=17")
+      assert.equal(ge.level, 17); assert.equal(ge.engine, "direct")
+      assert.ok(ge.dates.length >= 20, `${ge.dates.length} Google Earth dates at the Eiffel Tower`)
+      assert.ok(ge.dates.every((d, i) => /^\d{4}-\d\d-\d\d$/.test(d.date) && (i === 0 || d.dateMs < ge.dates[i - 1].dateMs)), "newest first, one per day")
+      assert.ok(ge.dates.some((d) => d.date.startsWith("20") && d.provider), "a capture names its provider")
+      assert.ok(ge.tiles.includes("/basemap-tiles/ge-historical/{z}/{x}/{y}.jpg?imageryDate={date}"))
+      const sharp = (await import("sharp")).default
+      const mean = async (bytes) => { const { data } = await sharp(bytes).resize(8, 8, { fit: "fill" }).removeAlpha().raw().toBuffer({ resolveWithObject: true }); return [...data] }
+      const tileOf = async (date, tail = ".jpg") => {
+        const r = await get(`/basemap-tiles/ge-historical/17/66371/45091${tail}${date ? `${tail.includes("?") ? "&" : "?"}imageryDate=${date}` : ""}`)
+        assert.equal(r.status, 200, `Google Earth tile of ${date}`)
+        assert.equal(r.headers.get("x-tv-engine"), "direct", "no browser engine")
+        const bytes = Buffer.from(await r.arrayBuffer())
+        return { bytes, type: r.headers.get("content-type"), meta: await sharp(bytes).metadata() }
+      }
+      const newest = await tileOf(ge.dates[0].date), old = await tileOf(ge.dates.find((d) => d.date < "2010").date)
+      assert.equal(newest.type, "image/jpeg"); assert.equal(newest.meta.width, 256); assert.equal(newest.meta.height, 256)
+      const [a, b] = [await mean(newest.bytes), await mean(old.bytes)]
+      assert.ok(a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0) / a.length > 4, "two dates, two pictures")
+      assert.deepEqual(await mean((await tileOf(null)).bytes), a, "no date: the newest capture")
+      assert.equal((await tileOf(ge.dates[0].date, "@2x.png")).meta.width, 512, "@2x: 512 px, built from the level above")
+      assert.equal((await get("/basemap-tiles/ge-historical/17/66371/45091.jpg?imageryDate=soon")).status, 400, "not a date")
+      console.log(`ge-historical: ${ge.dates.length} dates at the Eiffel Tower (${ge.dates.at(-1).date} to ${ge.dates[0].date}), tiles ${newest.bytes.length} and ${old.bytes.length} bytes, direct`)
+    }
     const { basemaps, sourceInPath } = await import("./server.mjs")
     const bms = await basemaps()
     assert.ok(bms.some((x) => x.id === "wayback" && x.kind === "dated") && bms.some((x) => x.id === "esri" && x.kind === "static"))
@@ -955,6 +987,31 @@ function assertStacItem(item) {
   let lit = 0, foot = 0
   for (let v = 0.3; v < 0.7; v += 1 / size) for (let u = 0.3; u < 0.7; u += 1 / size) { foot++; if (at(u + 0.5 / size, v + 0.5 / size) === 0) lit++ }
   assert.ok(lit / foot > 0.99, `${((100 * lit) / foot).toFixed(1)} % of the roofs lit`)
+}
+
+// Google Earth historical: the Keyhole grid is plate carrée, a Mercator tile
+// is cut from it row by row (ge-historical.mjs). Offline.
+{
+  const { keyholeRows, reprojectStrip, parseDate } = await import("./ge-historical.mjs")
+  assert.deepEqual(parseDate("2014-09-12"), { year: 2014, month: 9, day: 12 })
+  assert.deepEqual(parseDate(Date.UTC(2014, 8, 12)), { year: 2014, month: 9, day: 12 })
+  assert.equal(parseDate(""), null); assert.throws(() => parseDate("soon"), /not a date/)
+  // z1: the northern Mercator tile (0 to 85.05) lies in Keyhole row 1 (0 to 180); the southern in row 0.
+  assert.deepEqual(keyholeRows(1, 0, 1), [1, 1]); assert.deepEqual(keyholeRows(1, 1, 1), [0, 0])
+  // z3 y2 (66.5 to 40.98 N): Keyhole rows of 45 degrees, 4 (0 to 45) and 5 (45 to 90).
+  assert.deepEqual(keyholeRows(3, 2, 3), [4, 5])
+  // A strip whose red channel is its latitude (one row a degree, 90 at the
+  // top): each output row must read the latitude of its own centre.
+  const W = 4, H = 90, strip = Buffer.alloc(W * H * 4)
+  for (let r = 0; r < H; r++) for (let i = 0; i < W; i++) { strip[(r * W + i) * 4] = 89.5 - r; strip[(r * W + i) * 4 + 3] = 255 }
+  const out = reprojectStrip(strip, W, H, 90, 1, 3, 2, 8)
+  const latOf = (j) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * ((2 + (j + 0.5) / 8) / 8)))) * 180) / Math.PI
+  for (let j = 0; j < 8; j++) assert.ok(Math.abs(out[j * 8 * 4] - latOf(j)) <= 1, `row ${j}: ${out[j * 8 * 4]} for latitude ${latOf(j).toFixed(2)}`)
+  assert.ok(out[0] - out[7 * 8 * 4] > 20 && out[3] === 255, "north at the top, opaque")
+  // A missing Keyhole row stays transparent, and does not darken its neighbour.
+  for (let r = 45; r < H; r++) for (let i = 0; i < W; i++) strip[(r * W + i) * 4 + 3] = 0
+  const half = reprojectStrip(strip, W, H, 90, 1, 3, 2, 8)
+  assert.equal(half[7 * 8 * 4 + 3], 0); assert.equal(half[3], 255)
 }
 
 console.log("ok")

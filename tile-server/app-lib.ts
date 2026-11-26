@@ -21,3 +21,7 @@ export { tileServiceQuickstart } from "../lib/tile-service-quickstart"
 // The built-in basemaps with a fixed address: what /basemap-tiles/{source}/...
 // takes besides the dated imagery (server.mjs basemaps()).
 export { BUILTIN_BASEMAP_SOURCES } from "../lib/basemap-sources"
+// Google Earth's historical imagery reader (the gehist:// protocol's): its
+// dbRoot, quadtree packets, dates and Keyhole images, for ge-historical.mjs,
+// which draws the Mercator tiles without a canvas.
+export { GEHistoricalSource, keyholePathAtLngLat, rowColToPath } from "../lib/ge-timemachine/ge-historical.js"

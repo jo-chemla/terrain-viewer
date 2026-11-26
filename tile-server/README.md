@@ -10,6 +10,7 @@ document served at `/openapi.json` (a page to try it at `/docs`).
 |---|---|
 | `/terrain-tiles/{source}/{z}/{x}/{y}.png\|jpg` | One Web Mercator tile of the elevation modes, 256 px (`@2x` or `tilesize=512` for 512); a library id in the path, or `/terrain-tiles/{z}/{x}/{y}…?terrainSource=` for an address, a COG or JSON (`custom` in the path: the same) |
 | `/basemap-tiles/{source}/{z}/{x}/{y}.jpg\|png` | One tile of the imagery: a dated source or a built-in basemap by id (`/basemaps`), or `/basemap-tiles/{z}/{x}/{y}…?imageryUrl=` (and `imagerySource`, `imageryDate`, the app's basemap parameters) |
+| `/imagery-dates/{source}?lat=&lng=&zoom=` | The dates a dated source holds at a point, newest first, with the tile template of one. `ge-historical` is read and drawn here, without the browser engine: `/basemap-tiles/ge-historical/{z}/{x}/{y}.jpg?imageryDate=YYYY-MM-DD` is a plain Web Mercator tile (`ge-historical.mjs`) |
 | `/terrain-tiles/{z}/{x}/{y}.pbf\|mvt` | The overlays as a vector tile: contours, iso-line, mound detector, plane slicer, graticule |
 | `/render.png\|jpg` | A viewport, like a WMS GetMap |
 | `/bbox/{w},{s},{e},{n}/{width}x{height}.png\|jpg\|tif` | The same as `/render` with `bbox`, `width`, `height` (one handler) |
@@ -66,6 +67,7 @@ and with `TV_RENDER_URL` asks a running tile service for its pictures.
 | `render.mjs` | The browser engine: the app in a headless browser, waited on until its maps have drawn (`withSettledPage`). |
 | `direct.mjs` | The direct engine: rebuilds the map's layer stack from the app's URL parameters and draws every 2D terrain mode and the overlays with the app's own code; the hillshade and the live Phong and matcap shaders are ported line by line. `plan()` says when a request goes to the browser instead, and why. |
 | `dem.mjs` | Elevation tiles read in Node, for every source type the app reads, through the app's tile spec (`lib/terrain-tile-spec.ts`) and readers; cached. Also the MCP server's `elevation` and `export_geotiff`. |
+| `ge-historical.mjs` | Google Earth historical in Node: the dates at a place (`geDates`) and Web Mercator tiles of a date (`geTile`), the app's reader for the quadtree and the images, sharp and a row-by-row resampling for the plate carrée to Mercator step. |
 | `contours.mjs` | Contours by maplibre-contour with the app's options: the vector tiles, and the lines and labels on a picture. |
 | `symbols.mjs` | Where MapLibre puts symbols along a line (clipping, anchor spacing, bend check), ported: contour labels and cliff teeth. |
 | `mvt.mjs` | Vector tiles read and written. |

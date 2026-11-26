@@ -1273,6 +1273,22 @@ class TerrainViewerDock(QDockWidget):
             QTimer.singleShot(0, again)
         return version
 
+    # -- the backend connected ------------------------------------------------
+    @property
+    def connected(self):
+        return self._connected
+
+    @connected.setter
+    def connected(self, value):
+        """None, "local", "remote" or "python". The Historical mode is told
+        of a change: Google Earth historical is listed and drawn through a
+        tile service."""
+        changed = value != getattr(self, "_connected", None)
+        self._connected = value
+        panel = getattr(self, "historical", None)
+        if changed and panel is not None:
+            QTimer.singleShot(0, panel.backend_changed)
+
     # -- the app's modes ------------------------------------------------------
     def set_mode(self, mode, save=True):
         """Terrain (the backends, the source, the light, the modes tree) or

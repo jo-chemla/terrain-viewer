@@ -1,20 +1,20 @@
 ---
 title: QGIS Plugins
 icon: Puzzle
-description: Two QGIS plugins - Terrain Viewer 0.10.0, the app's sidebar as a QGIS panel, with a Historical mode (dated imagery stepped through by QGIS's Temporal Controller) and three backends (a Python backend in numpy, a packaged tile server installed from the panel, a remote tile server) under one modes tree (Color, Values and Vector per mode), any GDAL source, updates from its own plugin repository - and Send2MapApp 0.5.1, the app's "Open in" list in QGIS.
+description: Two QGIS plugins - Terrain Viewer 0.10.1, the app's sidebar as a QGIS panel, with a Historical mode (Esri Wayback, Google Earth historical, Planet, NASA HLS and EOX imagery stepped through by QGIS's Temporal Controller) and three backends (a Python backend in numpy, a packaged tile server installed from the panel, a remote tile server) under one modes tree (Color, Values and Vector per mode), any GDAL source, updates from its own plugin repository - and Send2MapApp 0.5.1, the app's "Open in" list in QGIS.
 ---
 
 <LinkButtons links={[
-  { href: "https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26d", label: "Download the QGIS plugins (0.9.3)", icon: "download" },
+  { href: "https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26e", label: "Download the QGIS plugins (0.10.1)", icon: "download" },
   { href: "https://github.com/Iconem/terrain-viewer/releases?q=qgis-plugins&expanded=true", label: "All QGIS plugin releases", icon: "release" },
 ]} />
 
 Two QGIS plugins are released, both in [`qgis-plugin/`](https://github.com/Iconem/terrain-viewer/tree/main/qgis-plugin), their zips on the repository's `qgis-plugins-*` releases ([install](#install)):
 
-- **Terrain Viewer** (0.10.0 in the repository, 0.9.3 released; MIT, QGIS 3.28 to 4.x): a dock panel laid out as the app's sidebar, with the app's two modes at its top since 0.10.0: Terrain, and [Historical](#the-historical-mode), dated imagery on QGIS's Temporal Controller. A backend is picked at its top: the **Python backend** (the modes computed in QGIS itself with numpy, no service at all, [QGIS Live Compute](/dev/qgis-live-compute); the default for a new user since 0.9.0), the **Packaged tile server** (a [tile service](/dev/tile-service) packaged for QGIS, downloaded and started from the panel), or a **Remote tile server** (any tile service's address). Under all three, the same modes tree: each checked mode is a layer, with its settings in the layer's address.
+- **Terrain Viewer** (0.10.1; MIT, QGIS 3.28 to 4.x): a dock panel laid out as the app's sidebar, with the app's two modes at its top since 0.10.0: Terrain, and [Historical](#the-historical-mode), dated imagery on QGIS's Temporal Controller. A backend is picked at its top: the **Python backend** (the modes computed in QGIS itself with numpy, no service at all, [QGIS Live Compute](/dev/qgis-live-compute); the default for a new user since 0.9.0), the **Packaged tile server** (a [tile service](/dev/tile-service) packaged for QGIS, downloaded and started from the panel), or a **Remote tile server** (any tile service's address). Under all three, the same modes tree: each checked mode is a layer, with its settings in the layer's address.
 - **Send2MapApp** (0.5.1, GPL v2 or later, QGIS 3.22 to 4.x): "Open in", the place shown or clicked in QGIS opened in another viewer at the same place and scale ([below](#send2mapapp-open-in)).
 
-Both are checked headless in QGIS 4.2 and 3.44 LTR (`qgis-plugin/test_*.py`). Neither is on plugins.qgis.org; since 0.9.0 they have a plugin repository of their own, so QGIS offers their updates ([updates](#updates)). How they came about: [design history](#design-history).
+Both are checked headless in QGIS 4.2 and 3.44 LTR (`qgis-plugin/test_*.py`), and Terrain Viewer's toolbar buttons and Temporal Controller button inside the application itself, offscreen (`test_app_window.py`). Neither is on plugins.qgis.org; since 0.9.0 they have a plugin repository of their own, so QGIS offers their updates ([updates](#updates)). How they came about: [design history](#design-history).
 
 ## Terrain Viewer: the panel
 
@@ -22,8 +22,8 @@ Both are checked headless in QGIS 4.2 and 3.44 LTR (`qgis-plugin/test_*.py`). Ne
 
 A dock panel laid out as the app's sidebar. From the top:
 
-1. **An update**, when there is one: "Terrain Viewer 0.9.3 is available" and an **Update to 0.9.3** button ([updates](#updates)); hidden otherwise.
-1. **The mode** (0.10.0, in the repository, not yet on a release): **Terrain**, everything below, or **Historical** (a clock), dated imagery on QGIS's Temporal Controller ([the Historical mode](#the-historical-mode)).
+1. **An update**, when there is one: "Terrain Viewer 0.10.1 is available" and an **Update to 0.10.1** button ([updates](#updates)); hidden otherwise.
+1. **The mode** (0.10.0): **Terrain**, everything below, or **Historical** (a clock), dated imagery on QGIS's Temporal Controller ([the Historical mode](#the-historical-mode)). Since 0.10.1 the Web toolbar has a second button, a clock, that opens the panel straight in the Historical mode.
 2. **The backend**: three radio buttons in a row, as QGIS lays out a choice: **Python backend**, **Packaged tile server**, **Remote tile server** (in that order since 0.9.0), and under them the picked one's options (below).
 3. **The status line**: what is connected, or why not.
 4. **Source**, in three groups (0.9.0): **QGIS elevation layers** (the project's raster layers that can be elevation: one band of floats or 16-bit integers, "QGIS layer: ...", kept in step with the project; a photo or a hillshade picture is left out), **Worldwide defaults** (Mapterhorn, Esri, Mapbox, MapTiler, AWS, Cesium, GEM-15) and the **Terrain library** (the rest of the service's `/terrain-sources`); or a typed id, tile address, file path or GDAL source. Beside it, a **zoom to** button that moves the map canvas to the source's bounds (the whole world for a global source such as Mapterhorn), and an **add raw elevation** button: for a library COG, VRT or raw WMS, its raw elevation as a raster layer of the project, in a **Raw elevation inputs** group kept under the modes (0.9.3), opened by GDAL with the very address the Python backend reads (below).
@@ -122,7 +122,10 @@ Why a button, not a layer added on every pick: a raw input layer is drawn by QGI
 
 ### What the Python backend reads, and at what resolution
 
-Never the whole file. Every mode is computed tile by tile, on 256 px Web Mercator tiles at the zoom QGIS asks for (the canvas's resolution, rounded to the nearest tile zoom by QGIS's XYZ provider; the Values form reads the level just finer), each with a one tile ring around it for the kernels' halo: a 1600 x 900 canvas is 28 to 40 tiles.
+Two things, said plainly:
+
+- **The raw elevations, whatever the layer's symbology.** A QGIS raster layer picked as the source is never read through its renderer. For a layer of GDAL's provider (a file, a COG, a VRT, a raw input) the plugin takes the layer's file address (`layer.source()`) and opens it with GDAL itself, band 1: the color ramp, the hillshade renderer, the stretch, the opacity, the blending and the resampling set in Layer Properties play no part, and neither does a "no data" value added there (only the file's own no data, scale and offset are applied, and feet are turned into metres). For a layer of another provider (WMS, WCS, ArcGIS) it makes a provider of its own from the layer's address and asks it for blocks of band 1 (`QgsRasterProjector` over the data provider, not the layer's render pipe): data values again, not the picture. `terrain_viewer/live/gdal_source.py` (`layer_spec`, `GdalDem`, `QgsProviderDem`); `test_panel_units.py` reads the same tile of a GeoTIFF under a hillshade renderer, a color ramp and a grey stretch at 30% opacity: the same metres each time. One consequence: a layer QGIS draws as a hillshade because its file *is* a hillshade picture (bytes 0 to 255) is not elevation, and is not listed under **QGIS elevation layers**.
+- **A window per tile, never the whole file.** Every mode is computed tile by tile, on 256 px Web Mercator tiles at the zoom QGIS asks for (the canvas's resolution, rounded to the nearest tile zoom by QGIS's XYZ provider; the Values form reads the level just finer), each with a one tile ring around it for the kernels' halo: a 1600 x 900 canvas is 28 to 40 tiles. What is read for one tile is a 256 x 256 window of the source at that zoom's resolution: the table below says from where.
 
 | Source | What one tile reads |
 |---|---|
@@ -152,37 +155,84 @@ A row of the modes tree, under Elevation Hypso (the app's stack: the basemap at 
 
 ### The Historical mode
 
-A first version (0.10.0) of the app's [historical imagery mode](/features/historical-imagery) (`appMode=historical`). The switch at the top of the panel, **Terrain** and **Historical** (a clock), shows one page or the other; the choice is kept (`terrain_viewer/appMode`). The layers of either mode stay in the project when the other is shown, so dated imagery under a hillshade is one picture.
+The app's [historical imagery mode](/features/historical-imagery) (`appMode=historical`), 0.10.0, extended in 0.10.1. The switch at the top of the panel, **Terrain** and **Historical** (a clock), shows one page or the other; the choice is kept (`terrain_viewer/appMode`), and the Web toolbar's second button, a clock (0.10.1), opens the panel straight in it. The layers of either mode stay in the project when the other is shown, so dated imagery under a hillshade is one picture.
 
-- **Imagery**, in two groups. **Historical sources**: Esri World Imagery Wayback (every archived release since 2014, at its real capture date at the map's centre) and EOX Sentinel-2 cloudless (one 10 m mosaic a year, 2016 to 2025). **Worldwide defaults (no dates)**: the app's built-in basemaps, which [the Basemap row](#the-basemap-row) draws. One basemap at a time: a historical source unchecks the Basemap row, a worldwide default removes the dated layers. An opacity beside the select.
+- **Imagery**, in two groups. **Historical sources** (below). **Worldwide defaults (no dates)**: the app's built-in basemaps, which [the Basemap row](#the-basemap-row) draws. One basemap at a time: a historical source unchecks the Basemap row, a worldwide default removes the dated layers. An opacity beside the select.
 - **The dates** at the map's centre: the current one between **previous** and **next**, with who took it, its resolution and the release it came from; a time axis with one tick per date, each at its place in time (a click picks the nearest); and the list, newest first.
-- **Listing Esri Wayback's dates** takes 5 to 50 s: the release catalog (one request), the releases that have their own imagery at the centre's tile (the app's walk, about 25 `tilemap` requests in eight chains), then one metadata query per release for its capture date (Esri's metadata service answers in 1 to 30 s). It runs in a worker thread (`urllib`, as the Python backend reads its tiles), the panel reading its progress twice a second: the dates appear as they answer and QGIS stays free. Several releases in a row often carry the same imagery: one date per capture, the newest release of it. A release whose date does not answer (asked twice) stands at its release date, marked. **Follow the map** lists again when the centre moves to another tile (a quarter of a tile, as the app); layers that stay are kept, so nothing redraws. Zoomed out past zoom 10, the newest release alone: a wide view has no one date.
-- **No backend, no key.** The tiles are the providers' own XYZ addresses, under every backend and with none connected. No tile service lists the dates of a place, and its `/basemap-tiles` draws dated imagery with the browser engine only, which the packaged tile server does not have; so the dates are a Python port (`terrain_viewer/historical.py`, from `lib/wayback.ts` and `lib/dated-imagery.ts`).
-- **Open link** reads a link in the app's historical mode: `appMode=historical` switches the mode, moves the canvas, picks view A's source (`historicalActiveSourceA`) and the date nearest `dateA`. A source the panel does not list is said, and Esri Wayback takes its place.
+- **Open link** reads a link in the app's historical mode: `appMode=historical` switches the mode, moves the canvas, picks view A's source (`historicalActiveSourceA`) and the date nearest `dateA`. A source that cannot be used now (no key, no tile server) is said with its reason, and Esri Wayback takes its place.
+
+| Source | Its dates | Its tiles | Needs |
+|---|---|---|---|
+| **Esri World Imagery Wayback** | The real capture dates at the map's centre, one per distinct capture (every archived release since 2014) | Each release's own XYZ address, to z19 | Nothing |
+| **Google Earth historical** (0.10.1) | Every dated capture Google Earth holds at the centre (at the Eiffel Tower: 48, from 1943 to 2026), each with its provider | A tile service's `/basemap-tiles/ge-historical`, to z21 | A tile server backend connected, from 2026-11-26 or later |
+| **Planet monthly**, **Planet quarterly** (0.10.1) | Every mosaic, computed as the app computes them: monthly from 2020-01 to two months back, quarterly from 2016 Q1 | Planet's XYZ address with the key, to z15 | A Planet key |
+| **NASA HLS** (0.10.1) | A monthly cadence from 2016 (about 130 dates): not captures found at the place | titiler-cmr's XYZ address (NASA's public demonstration server: slow, sometimes down), to z16 | Nothing |
+| **EOX Sentinel-2 cloudless** | One 10 m mosaic a year, 2016 to 2025 | EOX's XYZ address, to z14 | Nothing |
+
+A source that cannot be used now is greyed out in the select with its reason ("needs a Planet key", "needs a tile server backend"), and offered as soon as the key is typed or a tile server connects.
+
+#### Where the tiles come from: no backend on this page
+
+Esri Wayback, Planet, NASA HLS and EOX are **the providers' own XYZ tiles, read by QGIS itself**. Nothing stands in between: not the Python backend, not a tile server. That is why the Historical page has no backend to pick, and why it works with any backend connected or with none; a line under the select says so (0.10.1).
+
+Google Earth historical is the exception. Its tiles are not Web Mercator (a plate carrée quadtree of encrypted images), so they cannot be an XYZ address QGIS asks. A [tile service](/dev/tile-service#google-earth-historical-dates-and-web-mercator-tiles-no-browser) lists the dates of a place (`/imagery-dates/ge-historical`) and builds plain Web Mercator tiles of a date (`/basemap-tiles/ge-historical/{z}/{x}/{y}.jpg?imageryDate=...`), in Node, with no browser engine, so the packaged tile server does it too. The plugin uses both when a tile server backend is connected (**Packaged tile server** or **Remote tile server**, picked and connected in the Terrain mode), and the line under the select names its address; without one the source is greyed out with the reason. The dates are asked at the Keyhole level of the tiles QGIS draws (the app's zoom plus one). An older service (before 2026-11-26) answers 404 and the panel says to update it: the bundles pinned by 0.9.3's release are older, so the packaged tile server lists Google Earth's dates from the next plugin release on. The Python backend does not read Google Earth yet.
+
+#### Planet: the key
+
+**API keys**, folded at the bottom of the Historical page as in the Terrain mode, holds the Planet key (`terrain_viewer/planetKey` in QGIS's settings, a password field). It goes into the address of each Planet layer and nowhere else: it is not one of the Terrain mode's keys, so it is never sent to a tile service, and no status line, warning or log of the panel shows it (an error that quotes an address has its key taken out). A project saved with Planet layers holds the key in their addresses, as for the other keyed basemaps. Every tile counts against the key's quota: one layer per month means QGIS only asks the tiles of the month drawn. Once a session the key is tried on one world tile of the newest mosaic, so a key Planet refuses (HTTP 401 or 403) is said in the panel instead of 80 layers of blank tiles. The mosaics are computed, not listed, as in the app (`lib/planet.ts`).
+
+#### Listing Esri Wayback's dates, and what the panel says meanwhile
+
+Esri answers slowly, so the listing runs in a worker thread (`urllib`, as the Python backend reads its tiles), the panel reading its progress, and QGIS stays free:
+
+1. **The catalog**, one request: some 200 releases.
+2. **The walk** (`tilemap`, about 25 requests in eight chains started across the catalog): the 10 to 30 releases whose imagery changed at the centre's tile. This is the app's own shortcut (`lib/wayback.ts`): the other releases repeat their neighbour's picture there, and are never asked for a date.
+3. **One metadata query per kept release**, six at a time, for its capture date (Esri's metadata service answers in 1 to 30 s). Several releases in a row often carry the same capture: one date per capture, the newest release of it. A release whose date does not answer (asked twice) stands at its release date, marked.
+
+What 0.10.1 changed:
+
+- **The dates are added as they answer** to the list, the axis and the layer group, with a thin progress bar and "3 of 14 releases dated", also after a pan (0.10.0 waited for the whole list then). Only dated releases appear: a release date is not a capture date. The layers on screen stay until the new list is whole, so the imagery does not go and come back.
+- **The releases that can hold the date asked for are dated first** (imagery is never newer than its release: the first release at or after the date, then outward), the newest first when no date is asked.
+- **What was found is kept between sessions**, in `<profile>/terrain_viewer/wayback-dates.json` (the last 300 places): a walk until a new release comes out, a capture date for good. A place seen before costs one request.
+- **A notice above the dates** says what the dates shown are worth: *The map moved: these dates are of the previous place. Updating (3 of 14 releases dated)...* from the moment the centre leaves the tile (a quarter of a tile, as the app) until the new list is whole; *Dates still arriving* during a first listing; and, zoomed out, *Zoom in to see the capture dates. Esri Wayback dates a place from zoom 10 on (about 1:250 000 here); the map is at zoom 7.3. Until then only the newest release is listed: a wider view has no one date.* With **Follow the map** off the dates are not listed again, and the notice says how to (the list button).
+
+Measured at the Eiffel Tower (2026-11-26, QGIS 4.2 and 3.44): the first date after 5 s, all nine after 25 s, 40 requests; listed again in another session, 0.9 s.
 
 #### Dates as steps of QGIS's Temporal Controller
 
-Every date is **one XYZ raster layer** of the group **Historical imagery**, at the bottom of **Terrain Viewer (live)**, with a **fixed temporal range** (`QgsRasterLayerTemporalProperties`, `FixedTemporalRange`): from its capture to the next one, the newest until tomorrow; a yearly mosaic's range is its year. The ranges are half open, so no two overlap.
+Every date is **one XYZ raster layer** of the group **Historical imagery**, at the bottom of **Terrain Viewer (live)**, with a **fixed temporal range** (`QgsRasterLayerTemporalProperties`, `FixedTemporalRange`): from its capture to the next one; a mosaic's range is its month, quarter or year (HLS: the 30 days its mosaic is made of). The ranges are half open, so no two overlap, and the newest stays drawn after its own. A source of months is 80 to 130 layers: its group starts folded.
 
-The panel then sets the canvas's temporal navigation (`canvas.temporalController()`, the `QgsTemporalNavigationObject` behind **View > Panels > Temporal Controller**): animated navigation, `setAvailableTemporalRanges` with those ranges, a frame duration of one `IrregularStep` (the step the controller calls **source timestamps**), the extent from the first date to the last. From there QGIS does the work:
+The panel then sets the canvas's temporal navigation (`canvas.temporalController()`, the `QgsTemporalNavigationObject` behind **View > Panels > Temporal Controller**) to animated navigation, with those ranges as its available ranges. The **Temporal Controller** button shows QGIS's panel, and **step**, beside it, picks how its slider divides time (0.10.1; kept in `terrain_viewer/historicalStep`):
 
-- The controller's slider has **one stop per real capture date**, and nothing in between: at the Eiffel Tower, nine stops from 2011-08-01 to 2025-04-12.
-- Stepping, dragging or playing it draws the layer whose range holds the frame. The panel follows (it listens to `updateTemporalRange`), and a date picked in the panel moves the slider (`setCurrentFrameNumber`).
-- The group works without the plugin: a saved project reopens with its dates, the controller's own **source timestamps** step reads the layers' ranges again, and its animation export writes one picture per date.
-- Another step can be picked in the controller (a month, a year): each frame then draws the newest capture of its span.
+| Step | The slider | The controller's date | The cost |
+|---|---|---|---|
+| **Source timestamps** (the default) | One stop per date, nothing in between (`IrregularStep`): nine stops at the Eiffel Tower | The capture's own: each frame's range begins on the capture date | The stops are evenly spaced, whatever the time between them: QGIS draws no tick at a date's place in time |
+| **Day** | Proportional to time, every capture in its own frame | The day; the imagery is the capture current that day | Most frames change nothing: 14 years are 5600 frames, a long animation |
+| **Week** | Proportional to time, 800 frames for 14 years, each from a Monday | The week | Two captures of one week share a frame |
+| **Month** | Proportional to time, 187 frames for 14 years, calendar months | The month | Two captures of one month share a frame |
+| **Year** | 16 frames for 14 years | The year | Each frame draws the newest capture of the year |
 
-Its limits, as measured headless in QGIS 4.2 and 3.44:
+How a regular step works, and its limits, as measured headless in QGIS 4.2 and 3.44:
 
-- **The slider's stops are evenly spaced.** QGIS draws no tick at a date's place in time; the controller's label says the frame's range. The panel's own axis is where the dates stand at their place.
-- **One layer per date**: 9 to 30 layers at a place for Esri Wayback. Only the one of the frame is drawn. With the controller turned off (its first button), QGIS would draw all of them: the panel then checks the current date's layer alone, and a pick swaps the checked layer.
+- The frames have one duration, from the start of the first date's day, week, month or year, so **the slider's position is the date's place in time** (checked to a frame for every date).
+- **Each frame draws the capture current at that time**: QGIS draws the layers whose range meets the frame, so a frame between two captures shows the older one until the newer begins. The controller's date is then the frame's, not the capture's: at June 2019 the Eiffel Tower shows the capture of 2018-09-11, and the panel says 2018-09-11. That is the trade: the date the controller shows is exact, and the imagery is the latest as of it.
+- **A date picked in the panel** moves the slider to the frame that holds it. When a newer capture begins in the same frame (two captures in one month, under the month step), QGIS draws both and the newer is on top: the panel shows the newer and says that a finer step shows the other. The panel always shows the date drawn.
+- **Why source timestamps stays the default**: it is the one step where every stop changes the picture and the date read on the controller is the capture's. A regular step reads better for a slider that respects time, and for an animation whose speed is real time; month is the one to try first (a short slider, few shared frames).
+- QGIS counts a month as 30 days when it numbers the frames of a regular step, so a slider of months ends a frame or two past the last date; the newest layer's range is left open, so those frames draw it.
+
+Common to every step:
+
+- Stepping, dragging or playing the controller draws the layer of the frame. The panel follows (it listens to `updateTemporalRange`), and a date picked in the panel moves the slider.
+- The group works without the plugin: a saved project reopens with its dates, and the controller's animation export writes one picture per frame.
+- **One layer per date**: only the one of the frame is drawn. With the controller turned off (its first button), QGIS would draw all of them: the panel then checks the current date's layer alone, and a pick swaps the checked layer.
 - **One navigation for the project.** The available ranges are the panel's; a project with other temporal layers gets its own ranges back by picking **source timestamps** again in the controller.
 - Removing several XYZ layers while they draw holds QGIS's event loop on their tile requests (five layers mid-draw: minutes, headless). The panel stops the canvas's rendering before it removes dated layers.
 - A Python slot on the navigation's `navigationModeChanged` signal crashes QGIS 3.44 (Qt 5) when the mode changes; the panel listens to `updateTemporalRange` alone, which a change of mode emits too.
-- After a pan, the dates shown stay until the new place's list is whole (a list filling in would take the layers away and bring them back); a first listing shows its dates as they arrive. **Remove** takes the group out and lists nothing again until the list button, another source or a link.
+- **Remove** takes the group out and lists nothing again until the list button, another source or a link.
 
-**Not yet**: Google Earth historical (its dates and tiles are read from Google Earth's quadtree packets by the app's own `gehist://` scheme, not an address QGIS can ask), Planet monthly basemaps (a key the panel does not hold), NASA HLS (a monthly cadence of about 130 dates that are not captures at the place, composed by a public demonstration server), Bing (one current mosaic: it is a Basemap source), the national series and the STAC catalogs, source coverage, a second view to compare two dates.
+**The Temporal Controller button that did nothing (0.10.0).** It looked for QGIS's panel by the type of the widget inside it (`findChild(QgsTemporalControllerWidget)` on each dock). In the application that finds nothing: the widget is not reachable by its type from Python, so the button only wrote a hint in the status line. 0.10.1 finds the dock by its object name, `Temporal Controller` (the same in QGIS 3.44 and 4.2; the title is translated, the object name is not), and shows it through QGIS's own checkable action `mActionTemporalController` (View > Panels, the toolbar's clock), then `setUserVisible(true)`, which also raises it when it is tabbed behind another panel. `qgis-plugin/test_app_window.py` runs this inside the application (QGIS 4.2 and 3.44, offscreen, a throwaway profile): hidden before the click, visible after, the action checked.
 
-EOX's layer names differ from the app's list: `lib/eox-s2-cloudless.ts` leaves 2017 out and names 2016 `s2cloudless-2016`, which EOX's server does not have (404, 2026-11-26); its WMTS capabilities list every year from 2017 and the first mosaic as plain `s2cloudless`. The panel follows the capabilities.
+**Not yet**: Bing (one current mosaic: it is a Basemap source), the national series and the STAC catalogs, source coverage, a second view to compare two dates, Google Earth historical under the Python backend.
 
 ![Curvature in color under the Python backend, its settings cog open: Mode (combined), the diverging color ramp, Min and Max (kept symmetric, here ±2.5), Invert color ramp, Symmetric](/screenshots/qgis/qgis-terrain-viewer-curvature-settings.jpg)
 
@@ -207,11 +257,11 @@ How to:
 
 ### Install
 
-Terrain Viewer 0.9.3 (the panel described above: the Basemap row, the raw inputs under the modes) is on the [`qgis-plugins-2026-11-26d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26d) release, `terrain_viewer-0.9.3.zip`, with Send2MapApp 0.5.1, the tile service bundles its Install button downloads (Linux arm64 among them since this release) and `plugins.xml`. 0.9.2 is on [`qgis-plugins-2026-11-26c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26c), 0.9.1 on [`qgis-plugins-2026-11-26b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26b), 0.9.0 on [`qgis-plugins-2026-11-26`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26), 0.8.0 on [`qgis-plugins-2026-11-25f`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25f), 0.7.0 on [`qgis-plugins-2026-11-25e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25e). Earlier zips are on the [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d) release (Terrain Viewer 0.6.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28); 0.5.0 stays on [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c), 0.4.0 on [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b) and 0.3.0 on [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25). Since 0.5.0 Terrain Viewer is **one plain zip** for every platform; the tile service is downloaded from the panel when wanted:
+Terrain Viewer 0.10.1 (the panel described above, with the Historical mode) is on the [`qgis-plugins-2026-11-26e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26e) release, `terrain_viewer-0.10.1.zip`, with Send2MapApp 0.5.1, the tile service bundles its Install button downloads and `plugins.xml`. 0.9.3 (the Basemap row, the raw inputs under the modes) is on the [`qgis-plugins-2026-11-26d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26d) release, `terrain_viewer-0.10.1.zip`, with Send2MapApp 0.5.1, the tile service bundles its Install button downloads (Linux arm64 among them since this release) and `plugins.xml`. 0.9.2 is on [`qgis-plugins-2026-11-26c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26c), 0.9.1 on [`qgis-plugins-2026-11-26b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26b), 0.9.0 on [`qgis-plugins-2026-11-26`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26), 0.8.0 on [`qgis-plugins-2026-11-25f`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25f), 0.7.0 on [`qgis-plugins-2026-11-25e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25e). Earlier zips are on the [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d) release (Terrain Viewer 0.6.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28); 0.5.0 stays on [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c), 0.4.0 on [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b) and 0.3.0 on [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25). Since 0.5.0 Terrain Viewer is **one plain zip** for every platform; the tile service is downloaded from the panel when wanted:
 
 | Asset | Size | What it is |
 |---|---|---|
-| `terrain_viewer-0.9.3.zip` | 364 KB | The plugin, pure Python. Install it in QGIS |
+| `terrain_viewer-0.10.1.zip` | 364 KB | The plugin, pure Python. Install it in QGIS |
 | `terrain-viewer-tile-service-windows-x64.zip`, `-macos-arm64`, `-macos-x64`, `-linux-x64`, `-linux-arm64` | 48 to 59 MB each | The local tile service of one platform (Node 22, the service, its node_modules with that platform's sharp binaries). Not installed by hand: the plugin's **Install** button downloads the one it pins |
 | `service_pins.json`, `SHA256SUMS` | | The bundles' names, sizes and sha256, as the plugin pins them |
 | `plugins.xml` | 8 KB | The QGIS plugin repository of this release (both plugins, their zips' addresses and sha256); also on the fixed release [`qgis-plugins-repository`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-repository) ([updates](#updates)) |
@@ -266,7 +316,7 @@ From the repository:
 cd qgis-plugin
 python make_assets.py [http://localhost:3400]          # terrain_viewer/assets/: ramp and matcap previews, the catalog snapshot (a tile service running)
 python make_app_defaults.py                            # terrain_viewer/assets/app_defaults.json: the app's URL parameter defaults and built-in basemaps (Open link)
-python make_zip.py                                     # dist/terrain_viewer-0.10.0.zip and dist/send2map_app-0.5.1.zip
+python make_zip.py                                     # dist/terrain_viewer-0.10.1.zip and dist/send2map_app-0.5.1.zip
 python make_zip.py --plugins-xml <release-tag>         # dist/plugins.xml: the QGIS plugin repository of that release (after the zips)
 python make_zip.py --service-bundle windows-x64        # dist/terrain-viewer-tile-service-windows-x64.zip (any platform from any host; none named: all four)
 python make_zip.py --pins <release-tag> dist           # terrain_viewer/service_pins.json from the bundles in dist/ (before the plain zip)
@@ -274,11 +324,12 @@ python make_zip.py --server-dir windows-x64 <folder>   # the service unzipped, a
 python -I smoke_bundled.py dist/terrain-viewer-tile-service-windows-x64.zip   # starts it as the plugin does, asks a tile, stops it (no QGIS)
 # Through the panel, in headless QGIS, from a temporary plugins folder: Install (the bundle served from this machine and
 # pinned, a tampered one refused), Connect, processes, a slope layer, a tile, the unresponsive warnings, Remove
-QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-0.10.0.zip dist/terrain-viewer-tile-service-windows-x64.zip
-QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-0.10.0.zip   # the real download from the pinned release
-QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py external dist/terrain_viewer-0.10.0.zip http://localhost:3400 [--stop "<command>"]
-QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py   # no service, no network: slider ranges, links, the Python mapping, the assets, the light pad, the panel's order, the Historical mode (a recorded Esri Wayback session, the temporal navigation), plugins.xml and an update
-QT_QPA_PLATFORM=offscreen python-qgis test_sources.py       # network: NRCan's COG, IGN's WMS, a WCS and an ArcGIS service read by the Python backend, the raw inputs, Esri Wayback's dates and tiles
+QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-0.10.1.zip dist/terrain-viewer-tile-service-windows-x64.zip
+QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-0.10.1.zip   # the real download from the pinned release
+QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py external dist/terrain_viewer-0.10.1.zip http://localhost:3400 [--stop "<command>"]
+QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py   # no service, no network: slider ranges, links, the Python mapping, the assets, the light pad, the panel's order, the Historical mode (a recorded Esri Wayback session, the temporal navigation and its steps, the notices, Planet, HLS, Google Earth from a recorded answer, the toolbar buttons, a layer's symbology), plugins.xml and an update
+TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_sources.py   # network: NRCan's COG, IGN's WMS, a WCS and an ArcGIS service read by the Python backend, the raw inputs, Esri Wayback's dates and tiles, an HLS tile, Google Earth's dates and tiles through that tile service (PLANET_API_KEY: Planet too)
+QT_QPA_PLATFORM=offscreen TV_APP_TEST_OUT=out/app-window.json qgis --noplugins --profiles-path <an empty folder> --code test_app_window.py   # inside the application: the toolbar buttons, the Temporal Controller button (Windows: see the file's header)
 QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/   # the panel against a service: forms, cleanup, both shadows, light, symmetric, previews, links, Freeze
 ```
 

@@ -52,8 +52,10 @@ class Iface:
 iface = Iface()
 plugin = terrain_viewer.classFactory(iface)
 plugin.initGui()
-if len(iface.toolbar) != 1 or len(iface.web) != 1 or iface.toolbar[0].icon().pixmap(24, 24).isNull():
-    failures.append("plugin: toolbar button, Web menu entry or icon")
+# Two buttons since 0.10.1: the panel, and a clock straight to its Historical mode.
+if (len(iface.toolbar) != 2 or len(iface.web) != 2 or any(a.icon().pixmap(24, 24).isNull() for a in iface.toolbar)
+        or not iface.toolbar[0].isCheckable() or iface.toolbar[1].objectName() != "terrainViewerHistorical"):
+    failures.append("plugin: toolbar buttons, Web menu entries or icons")
 plugin.unload()
 if iface.toolbar or iface.web:
     failures.append("plugin: unload")

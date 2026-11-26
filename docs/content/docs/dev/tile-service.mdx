@@ -120,6 +120,21 @@ An id goes in the path because it is short and cannot be lost from a copied temp
 
 `/basemap-tiles` is not only the historical imagery: it draws the basemap as the app does, so it serves the dated sources (`wayback`, `ge-historical`, `bing`, `hls`, `eox-s2`, each with `imageryDate`), the app's built-in basemaps with a fixed address (`google`, `googlesat`, `bing`, `esri`, `mapbox`, `maptiler`, `here`), any XYZ or COG address (`imageryUrl`), and the app's basemap parameters (`basemapSource`, `overlayBasemapIds`). `bing` is in both lists: dated with an `imageryDate`, Bing Aerial without. It keeps its name for that reason. `/basemaps` lists the ids.
 
+### Google Earth historical: dates and Web Mercator tiles, no browser
+
+Google Earth's historical imagery is the one dated source the service draws itself (since 2026-11-26), where the others go to the browser engine: a client that only takes XYZ tiles, QGIS first, gets it from a service with no browser at all (the QGIS plugin's packaged one runs with `TV_NO_BROWSER=1`).
+
+```text
+/imagery-dates/ge-historical?lat=48.8584&lng=2.2945&zoom=17
+/basemap-tiles/ge-historical/{z}/{x}/{y}.jpg?imageryDate=2008-12-31
+```
+
+- **`/imagery-dates/{source}`** lists the dates a dated source holds at a point, newest first: `{ source, level, dates: [{ date, dateMs, provider }], tiles, engine, note }`, where `tiles` is the template that draws one (`{date}` to fill in). For `ge-historical`, `zoom` is the Web Mercator tile zoom of the 256 px tiles drawn, which is the Keyhole level read: Google Earth keeps a list of captures per node of its quadtree, and a finer node has its own, often shorter and sharper. At the Eiffel Tower, zoom 17: 46 captures from 1943 to 2026, each with the provider Google names. `wayback`, `eox-s2`, `hls` and `bing` answer through the app's own listing (as the MCP server's `imagery_dates`), with `from` and `to`. `/imagery-dates` lists the sources.
+- **`/basemap-tiles/ge-historical/{z}/{x}/{y}.jpg|png`** is a plain 256 px Web Mercator tile (`@2x` or `tilesize=512`: 512 px, built from the level above, twice the detail) of the newest capture on or before `imageryDate` (the app's rule: the node's capture of that date, else an ancestor's, cropped and scaled; with nothing that old, the oldest), or of the newest of all without a date. 404 where Google has no imagery; `.jpg` answers a PNG when a part of the tile is empty. Its `x-tv-engine` header says `direct`.
+- **How.** The app's reader (`lib/ge-timemachine/ge-historical.js`, bundled into `generated/app-lib.mjs`) does everything but the drawing: the dbRoot and its key, the quadtree packets, the dates of a node, the pick of a capture, the fetch and decryption of a Keyhole image. Google Earth's tiles are plate carrée (a level-z tile is 360 / 2^z degrees a side, in longitude and in latitude), so a Mercator tile of the same z has the same columns and one to three Keyhole rows. `tile-server/ge-historical.mjs` decodes them with sharp, stacks them into a strip, and gives each output row the strip's rows at its own latitude (two rows blended, per pixel row; the app's canvas does it in 8 px bands). No canvas, no browser: Node and sharp, which every bundle has.
+- **Kept**: a tile of a date for a week on disk (a capture does not change); the newest-of-all is built again.
+- Measured from this machine (2026-11-26): the dates of a place in 1 to 6 s the first time (the packets down to the node), then at once; a tile in 0.4 to 2.5 s the first time, 0.03 s from the reader's memory.
+
 A tile is the map alone. A viewport keeps the scale bar and the credits. The terrain tiles refuse `basemap` and the basemap tiles refuse terrain modes: ask both and stack them in the client.
 
 Both take the view as query parameters, the same words the [MCP server](/features/mcp-server) uses:
@@ -158,6 +173,7 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 | `/colorramps`, `/colorramps/{id}` | The app's 268 color ramps, to name as `colorRamp` (color relief) or `slopeColorRamp` (slope); one ramp gives its stops |
 | `/colorramps/{id}.png` or `.jpg` | A ramp as a picture, colored as the map colors it (MapLibre's color relief: linear between the stops): `width` and `height` (256 × 16 by default, 16 × 256 vertical), `orientation=vertical` (the lowest value at the bottom; horizontal: on the left), `reverse=true`. PNG keeps the ramp's transparency, JPEG is on white. For a legend or a ramp picker |
 | `/basemaps` | What `/basemap-tiles/{source}/…` takes: the dated imagery and the built-in basemaps, each with the parameter it stands for and its API key |
+| `/imagery-dates`, `/imagery-dates/{source}?lat=&lng=&zoom=` | The dated sources whose dates at a place can be listed, and those dates, newest first, with the tile template of one ([Google Earth historical](#google-earth-historical-dates-and-web-mercator-tiles-no-browser)) |
 | `/algorithms` | The modes with the engine that draws each |
 | `/processes`, `/processes/{id}` | Each mode as an [OGC API - Processes](#visualization-modes-ogc-api---processes) description: its settings as inputs with their JSON Schema (type, range, values, default), its outputs, its panel group, form, opacity parameters, and the unit and typical range of its values. The [QGIS plugin](/dev/qgis-plugin) builds its panel from it |
 | `/view?url=<a share link>` or `/view?<its query>` | Reads a link of the app: which modes it switches on (`active`), each mode's opacity, the parameters its layers keep, the camera, and `tiles.terrain`, the XYZ template that draws it here. Paste `https://terrain-viewer.iconem.com/?showTerrainAnalysis=true&slopeOpacity=0.5&terrainSourceA=mapterhorn` (URL-encoded) as `url` and the answer has `"active": ["slope", "hillshade"]` and `"tiles": {"terrain": "…/terrain-tiles/mapterhorn/{z}/{x}/{y}.png?modes=slope,hillshade"}`. The QGIS plugin's *Open link* reads it |

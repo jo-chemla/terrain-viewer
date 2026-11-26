@@ -1,0 +1,249 @@
+{
+ "place": [
+  48.8584,
+  2.2945,
+  15
+ ],
+ "service": "http://tiles.test",
+ "url": "http://tiles.test/imagery-dates/ge-historical?lat=48.8584&lng=2.2945&zoom=16",
+ "answer": {
+  "source": "ge-historical",
+  "lat": 48.8584,
+  "lng": 2.2945,
+  "zoom": 16,
+  "level": 16,
+  "dates": [
+   {
+    "date": "2026-09-04",
+    "dateMs": 1788480000000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2026-08-22",
+    "dateMs": 1787356800000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2026-07-25",
+    "dateMs": 1784937600000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2026-07-11",
+    "dateMs": 1783728000000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2026-04-09",
+    "dateMs": 1775692800000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2025-12-26",
+    "dateMs": 1766707200000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2024-12-27",
+    "dateMs": 1735257600000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2024-08-06",
+    "dateMs": 1722902400000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2023-10-16",
+    "dateMs": 1697414400000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2023-05-25",
+    "dateMs": 1684972800000,
+    "provider": "Image © 2026 Airbus"
+   },
+   {
+    "date": "2022-03-10",
+    "dateMs": 1646870400000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2021-04-07",
+    "dateMs": 1617753600000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2020-08-06",
+    "dateMs": 1596672000000
+   },
+   {
+    "date": "2020-04-16",
+    "dateMs": 1586995200000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2020-03-28",
+    "dateMs": 1585353600000,
+    "provider": "Image © 2026 CNES / Airbus"
+   },
+   {
+    "date": "2019-08-22",
+    "dateMs": 1566432000000
+   },
+   {
+    "date": "2019-07-09",
+    "dateMs": 1562630400000
+   },
+   {
+    "date": "2019-04-17",
+    "dateMs": 1555459200000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2019-02-26",
+    "dateMs": 1551139200000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2018-12-13",
+    "dateMs": 1544659200000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2018-12-08",
+    "dateMs": 1544227200000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2018-10-05",
+    "dateMs": 1538697600000,
+    "provider": "Image © 2026 CNES / Airbus"
+   },
+   {
+    "date": "2018-05-18",
+    "dateMs": 1526601600000
+   },
+   {
+    "date": "2017-08-07",
+    "dateMs": 1502064000000
+   },
+   {
+    "date": "2017-06-10",
+    "dateMs": 1497052800000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2017-06-09",
+    "dateMs": 1496966400000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2016-08-07",
+    "dateMs": 1470528000000
+   },
+   {
+    "date": "2016-06-09",
+    "dateMs": 1465430400000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2016-03-15",
+    "dateMs": 1458000000000
+   },
+   {
+    "date": "2016-02-29",
+    "dateMs": 1456704000000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2015-06-19",
+    "dateMs": 1434672000000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2015-06-03",
+    "dateMs": 1433289600000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2015-04-18",
+    "dateMs": 1429315200000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2015-04-17",
+    "dateMs": 1429228800000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2014-09-12",
+    "dateMs": 1410480000000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2014-06-18",
+    "dateMs": 1403049600000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2014-04-16",
+    "dateMs": 1397606400000
+   },
+   {
+    "date": "2011-12-31",
+    "dateMs": 1325289600000
+   },
+   {
+    "date": "2008-12-31",
+    "dateMs": 1230681600000
+   },
+   {
+    "date": "2007-10-21",
+    "dateMs": 1192924800000,
+    "provider": "Image © 2026 Aerodata International Surveys"
+   },
+   {
+    "date": "2005-07-16",
+    "dateMs": 1121472000000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2004-09-02",
+    "dateMs": 1094083200000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2004-05-31",
+    "dateMs": 1085961600000,
+    "provider": "Image © 2026 The GeoInformation Group | InterAtlas"
+   },
+   {
+    "date": "2003-12-31",
+    "dateMs": 1072828800000
+   },
+   {
+    "date": "2002-03-27",
+    "dateMs": 1017187200000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "2001-05-12",
+    "dateMs": 989625600000,
+    "provider": "Image © 2026 Maxar Technologies"
+   },
+   {
+    "date": "1949-06-16",
+    "dateMs": -648345600000
+   },
+   {
+    "date": "1943-12-31",
+    "dateMs": -820627200000,
+    "provider": "Image © 2026 The GeoInformation Group"
+   }
+  ],
+  "tiles": "http://tiles.test/basemap-tiles/ge-historical/{z}/{x}/{y}.jpg?imageryDate={date}",
+  "engine": "direct",
+  "note": "Google Earth's dated captures of the Keyhole node at this place and level, newest first. A tile of a date draws the newest capture on or before it."
+ }
+}

@@ -101,6 +101,7 @@ import { library, whyNotDirect, needsKey, keysOf, KEY_PARAMS } from "./dem.mjs"
 import { handleProxy } from "./proxy.mjs"
 import { stacItem, STAC_SUFFIX } from "./stac.mjs"
 import { handleFiles } from "./files.mjs"
+import { geDates, geTile, parseDate as geDate } from "./ge-historical.mjs"
 
 const PORT = Number(process.env.PORT || 3400)
 // TV_HOST=127.0.0.1: only this machine (the QGIS plugin's bundled service); unset: every interface.
@@ -571,6 +572,59 @@ export async function basemaps() {
   ]
 }
 
+/** The dated sources whose dates at a place /imagery-dates lists. Google
+ *  Earth's are read here (ge-historical.mjs); the others through the app's
+ *  own listing (lib/dated-imagery.ts listDates), as the MCP server's
+ *  imagery_dates does. Planet needs a key the service does not hold. */
+export const IMAGERY_DATE_SOURCES = ["ge-historical", "wayback", "eox-s2", "hls", "bing"]
+
+/** /imagery-dates/{source}: the dates at lat, lng and a tile zoom, newest
+ *  first, with the tile template that draws one ({date} to fill in). */
+export async function imageryDates(self, id, q) {
+  if (!IMAGERY_DATE_SOURCES.includes(id)) throw status(404, `No dated source "${id}": ${IMAGERY_DATE_SOURCES.join(", ")}`)
+  const num = (k, lo, hi, fallback) => {
+    const raw = q.get(k)
+    if (raw == null || raw === "") { if (fallback != null) return fallback; throw status(400, `${k} is required: /imagery-dates/${id}?lat=..&lng=..&zoom=..`) }
+    const v = Number(raw)
+    if (!Number.isFinite(v) || v < lo || v > hi) throw status(400, `${k} must be a number from ${lo} to ${hi}`)
+    return v
+  }
+  const lat = num("lat", -85.06, 85.06), lng = num("lng", -180, 180), zoom = num("zoom", 0, 23, 16)
+  const tiles = `${self}/basemap-tiles/${id}/{z}/{x}/{y}.jpg?imageryDate={date}`
+  if (id === "ge-historical") {
+    const { level, dates, current } = await geDates({ lat, lng, zoom })
+    return {
+      source: id, lat, lng, zoom, level, dates, tiles, engine: "direct",
+      note: dates.length
+        ? "Google Earth's dated captures of the Keyhole node at this place and level, newest first. A tile of a date draws the newest capture on or before it."
+        : current ? "Google Earth lists no dated capture here at this level, only its current imagery: ask a coarser zoom, or the tiles without imageryDate." : "Google Earth has no imagery here at this level.",
+    }
+  }
+  const { findDatedImagery } = await import("./generated/app-lib.mjs")
+  const from = q.get("from") ? Date.parse(q.get("from")) : -8.64e15, to = q.get("to") ? Date.parse(q.get("to")) : Date.now()
+  if (!Number.isFinite(from) || !Number.isFinite(to)) throw status(400, "from and to are dates (YYYY-MM-DD)")
+  const ticks = await findDatedImagery(id).listDates({ lat, lng, zoom }, from, to, {})
+  return {
+    source: id, lat, lng, zoom, tiles, engine: "browser",
+    dates: ticks.map((t) => ({ date: new Date(t.dateMs).toISOString().slice(0, 10), dateMs: t.dateMs, ...(t.label ? { label: t.label } : {}) })).reverse(),
+    note: "Listed by the app's own code (lib/dated-imagery.ts). The tiles of these sources are drawn by the browser engine; a client can also read them from the provider.",
+  }
+}
+
+/** A Google Earth historical tile, kept a week when it is of a date (a
+ *  capture does not change; the newest one does). */
+async function geHistoricalTile(z, x, y, dateText, size, ext) {
+  const date = geDate(dateText)
+  const key = date ? `ge-historical|${date.year}-${date.month}-${date.day}|${size}|${ext}|${z}/${x}/${y}` : null
+  if (key) for (const e of ext === "jpg" ? ["jpg", "png"] : ["png"]) {
+    const have = await cached(key, e)
+    if (have) return { bytes: have, type: TYPES[e] }
+  }
+  const made = await geTile(z, x, y, { date, size, format: ext })
+  if (made && key) store(key, made.type === "image/png" ? "png" : "jpg", made.bytes)
+  return made
+}
+
 /** The path forms with a source id, `/terrain-tiles/{source}/{z}/{x}/{y}.*`
  *  and `/basemap-tiles/{source}/{z}/{x}/{y}.*` (the scheme of
  *  /quantized-mesh/{source}/...), as the query forms every handler reads:
@@ -775,6 +829,9 @@ async function handle(req, res) {
         if (!found) return send(404, "text/plain", "No such source: see /terrain-sources")
         return send(200, "application/json", JSON.stringify({ ...found, description: library().terrain.find((x) => x.id === id)?.description }))
       }
+      const idates = u.pathname.match(/^\/imagery-dates\/([^/]+)$/)
+      if (idates) return send(200, "application/json", JSON.stringify(await imageryDates(self, decodeURIComponent(idates[1]), u.searchParams), null, 2), { "cache-control": "public, max-age=3600" })
+      if (u.pathname === "/imagery-dates") return send(200, "application/json", JSON.stringify({ sources: IMAGERY_DATE_SOURCES, note: "The dates of a source at a place: /imagery-dates/{source}?lat=..&lng=..&zoom=.. (zoom: the Web Mercator tile zoom of the 256 px tiles drawn)." }))
       if (u.pathname === "/basemaps") return send(200, "application/json", JSON.stringify({ basemaps: await basemaps(), note: "Give an id in the path: /basemap-tiles/{id}/{z}/{x}/{y}.jpg (a dated one with imageryDate). An XYZ or COG address: /basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=..." }))
       // A ramp as a picture: the app's interpolation (MapLibre's colour
       // relief), horizontal by default.
@@ -843,7 +900,16 @@ async function handle(req, res) {
         const [z, x, y] = bt.slice(1, 4).map(Number)
         if (z > MAX_ZOOM || x >= 2 ** z || y >= 2 ** z) return send(404, "text/plain", "No such tile")
         const ext = bt[5] === "png" ? "png" : "jpg"
-        const made = await tile(z, x, y, ext, basemapQuery(u.search), bt[4] === "@2x" ? 2 : 1)
+        const bq = basemapQuery(u.search)
+        // Google Earth historical: built here (ge-historical.mjs), no browser.
+        if (bq.get("imagerySource") === "ge-historical" && bq.get("engine") !== "browser") {
+          const size = Number(bq.get("tilesize") ?? bq.get("size") ?? 256) * (bt[4] === "@2x" ? 2 : 1)
+          if (size !== 256 && size !== 512) return send(400, "text/plain", "A tile is 256 px, or 512 px with @2x or tilesize=512")
+          const made = await geHistoricalTile(z, x, y, bq.get("imageryDate"), size, ext)
+          if (!made) return send(404, "text/plain", "Google Earth has no imagery at this tile for that date")
+          return send(200, made.type, made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": "direct", "access-control-expose-headers": EXPOSED })
+        }
+        const made = await tile(z, x, y, ext, bq, bt[4] === "@2x" ? 2 : 1)
         return send(200, TYPES[ext], made.bytes, { "cache-control": "public, max-age=86400", "x-tv-engine": made.engine, ...(made.why ? { "x-tv-engine-why": made.why } : {}), "access-control-expose-headers": EXPOSED, ...describedBy(self, u) })
       }
       if (/^\/basemap-tiles\//.test(u.pathname)) return send(404, "text/plain", "Basemap tiles are /basemap-tiles/{source}/{z}/{x}/{y}.jpg (an id of /basemaps) or /basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=..., .jpg or .png (imagery has neither values nor vector tiles)")

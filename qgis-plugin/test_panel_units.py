@@ -723,12 +723,13 @@ def iso(dt):
     return dt.toString(_Qt.DateFormat.ISODate)
 
 
-historical.reset_cache()
+historical.set_store(None)  # nothing read from, or written to, the profile's own store
+historical.reset_cache(store=True)
 releases = historical.parse_wayback_config(recorded["answers"][historical.WAYBACK_CONFIG])
 check(len(releases) > 150 and releases[0]["releaseMs"] > releases[-1]["releaseMs"] and releases[-1]["releaseLabel"] == "2014-02-20",
       f"Wayback's catalog: {len(releases)} releases, the newest first, back to 2014-02-20")
 partial = []
-ticks = historical.list_dates("wayback", *PARIS, fetch=recorded_fetch, report=lambda t, note: partial.append((list(t), note)))
+ticks = historical.list_dates("wayback", *PARIS, fetch=recorded_fetch, report=lambda t, note, *_n: partial.append((list(t), note, _n)))
 labels_h = [t["label"] for t in ticks]
 check(not missed and len(ticks) == 9 and labels_h[0] == "2011-08-01" and labels_h[-1] == "2025-04-12",
       f"Wayback at the Eiffel Tower: 9 capture dates from 2011-08-01 to 2025-04-12 ({labels_h}; {len(missed)} requests not recorded)")
@@ -738,7 +739,7 @@ check(ticks[0]["url"].endswith("/MapServer/tile/10/{z}/{y}/{x}") and ticks[0]["r
 n_walk = sum("/tilemap/" in u for u in asked)
 check(len(asked) < 60 and n_walk < 30, f"{len(asked)} requests for the place ({n_walk} of the walk, not one per release)")
 check(len(partial) > 5 and partial[0][0] == [] and all(t["real"] for p in partial for t in p[0])
-      and len(partial[-1][0]) == 9 and "of 15 releases dated" in partial[-1][1],
+      and len(partial[-1][0]) == 9 and "of 15 releases dated" in partial[-1][1] and partial[-1][2] == (15, 15),
       f"the dates are reported as they arrive, only the ones known ({partial[-1][1]})")
 n_asked = len(asked)
 check(historical.list_dates("wayback", PARIS[0] + 0.0002, PARIS[1], PARIS[2], fetch=recorded_fetch) is ticks and len(asked) == n_asked,
@@ -751,7 +752,8 @@ check(len(two) == 2 and not two[0]["real"] and two[1]["label"].endswith("(releas
       and historical.wayback_ticks(releases[:2], {releases[0]["releaseNum"]: None}, final=False) == [],
       "a release whose capture date did not answer: at its release date, marked, and only once the list is final")
 low = historical.list_dates("wayback", 20, 10, 3, fetch=recorded_fetch)
-check(len(low) == 1 and low[0]["ref"] == "latest" and "zoom in" in low[0]["hint"] and len(asked) == n_asked,
+check(len(low) == 1 and low[0]["ref"] == "latest" and low[0]["wide"] and historical.too_wide("wayback", 3)
+      and not historical.too_wide("wayback", 10) and not historical.too_wide("eox-s2", 3) and len(asked) == n_asked,
       f"zoomed out: the newest release alone ({low[0]['label']})")
 eox = historical.list_dates("eox-s2", 0, 0, 0, fetch=recorded_fetch)
 check([t["label"] for t in eox] == [str(y) for y in range(2016, 2026)]
@@ -763,7 +765,7 @@ if os.path.exists(ts_path):
     with open(ts_path, encoding="utf-8") as f:
         ts = f.read()
     years = [int(y) for y in _re.search(r"EOX_S2_YEARS = \[([^\]]+)\]", ts).group(1).split(",")]
-    check(set(years) <= set(historical.EOX_YEARS) and "s2cloudless-${year}_3857/default/g/{z}/{y}/{x}.jpg" in ts
+    check(set(years) <= set(historical.EOX_YEARS) and "_3857/default/g/{z}/{y}/{x}.jpg" in ts and 'year === 2016 ? ""' in ts
           and eox[-1]["url"] == "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/g/{z}/{y}/{x}.jpg",
           f"EOX's tiles are the app's (lib/eox-s2-cloudless.ts), every year of the app listed: {years}")
     with open(os.path.join(here_dir, "..", "lib", "dated-imagery.ts"), encoding="utf-8") as f:
@@ -886,7 +888,8 @@ check(len(keys_h) == 10 and keys_h[0] == "eox-s2:2016" and len(asked) == n_asked
 r16 = hp.layers()["eox-s2:2016"].temporalProperties().fixedTemporalRange()
 check(iso(r16.begin()) == "2016-01-01T00:00:00Z" and iso(r16.end()) == "2017-01-01T00:00:00Z", "the 2016 mosaic's range is 2016")
 choices_h = [hp.source.itemData(i) for i in range(hp.source.count()) if hp.source.itemData(i)]
-check(choices_h[:2] == ["dated:wayback", "dated:eox-s2"] and "basemap:esri" in choices_h and "basemap:mapbox" not in choices_h,
+check(choices_h[:6] == ["dated:wayback", "dated:ge-historical", "dated:planet", "dated:planet-quarterly", "dated:hls", "dated:eox-s2"]
+      and "basemap:esri" in choices_h and "basemap:mapbox" not in choices_h,
       f"the imagery select: the historical sources, then the worldwide defaults ({choices_h})")
 hp.source.setCurrentIndex(hp.source.findData("basemap:esri"))
 bm = dock.stack.find("basemap")
@@ -910,26 +913,54 @@ spin(50)
 date_2014 = historical.utc_ms(2014, 9, 12)
 ok_link = dock.open_link(f"https://historical-satellite.iconem.com/?appMode=historical&lat={PARIS[0]}&lng={PARIS[1]}&zoom={PARIS[2]}"
                          f"&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA={date_2014 + 5 * 86400000}")
-historical.reset_cache()  # listed again as after a pan, in the worker thread: the dates shown stay meanwhile
+# Listed again in the worker thread, Esri's metadata answering slowly: the
+# dates fill in as they answer, the layers on screen staying meanwhile.
+historical.reset_cache(store=True)
+
+
+def slow_fetch(url):
+    if "/query?" in url:
+        time.sleep(0.7)
+    return recorded_fetch(url)
+
+
+hp.fetch = slow_fetch
 hp.listed_key = None
 hp.refresh()
-held = len(hp.layers()) == 9 and hp.job is not None and not hp.stream
-for _ in range(100):
+on_screen = {lyr.id() for lyr in hp.layers().values()}
+held = len(on_screen) == 9 and hp.job is not None and not hp.progress.isHidden()
+partials, notices, bars, in_step = set(), set(), set(), True
+for _ in range(300):
     spin(100)
-    held = held and len(hp.layers()) == 9
+    held = held and on_screen <= {lyr.id() for lyr in hp.layers().values()}
+    if hp.job is not None and not hp.final:
+        partials.add(len(hp.ticks))
+        notices.add(hp.notice.text()[2:22])
+        bars.add((hp.progress.value(), hp.progress.maximum()))
+        in_step = in_step and hp.dates.count() == len(hp.ticks) == len(hp.strip.ticks) and not hp.notice.isHidden()
     if hp.job is None and hp.ticks:
         break
-check(held, "while the place's dates are listed again, the dates shown stay (no layer taken away and brought back)")
+hp.fetch = recorded_fetch
+held = held and len(hp.layers()) == 9
+check(held, "while the place's dates are listed again, the layers shown stay (none taken away and brought back)")
+check(in_step and len(partials) >= 2 and max(partials) < 9 and "Dates still arriving" in notices
+      and any(m == 15 and 0 < v < 15 for v, m in bars),
+      f"the dates are added to the list, the axis and the layers as they answer ({sorted(partials)} dates, then 9; "
+      f"progress {sorted(bars)[:3]}...)")
+check(hp.final and hp.notice.isHidden() and hp.progress.isHidden(), "once whole: no notice, no progress bar")
+check(hp.ticks[-1]["label"] == "2025-04-12" and min(partials) >= 1 and "2014-09-12" in [t["label"] for t in hp.ticks],
+      "the releases that can hold the date asked for are dated first")
 check(ok_link and dock.mode == "historical" and len(hp.ticks) == 9 and hp.current_label.text() == "2014-09-12" and drawn() == ["2014-09-12"],
       f"a historical link: the mode, the source, the date nearest dateA, listed off the UI thread ({hp.current_label.text()}, {hp.status.text()})")
 before_w = len(dock.warnings)
 dock.open_link(f"appMode=historical&lat={PARIS[0]}&lng={PARIS[1]}&zoom={PARIS[2]}&historicalActiveSourceA=ge-historical")
-check(len(dock.warnings) == before_w + 1 and "gehist" in dock.warnings[-1] and hp.current()[1] == "wayback",
-      f"a link's source the panel does not list: said, Esri Wayback instead ({dock.warnings[-1][:70]}...)")
+check(len(dock.warnings) == before_w + 1 and "needs a tile server backend" in dock.warnings[-1] and hp.current()[1] == "wayback",
+      f"a link's source that cannot be used now: said with the reason, Esri Wayback instead ({dock.warnings[-1][:90]}...)")
 for _ in range(50):
     spin(100)
     if hp.job is None:
         break
+exec(open(os.path.join(here_dir, "panel_historical_checks.py"), encoding="utf-8").read())  # 0.10.1, the same panel and canvas
 hp.remove()
 hp.follow.setChecked(True)
 dock.set_mode("terrain")

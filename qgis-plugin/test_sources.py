@@ -58,7 +58,11 @@ for sid, place, lat, lon, z, reader, (lo, hi) in CASES:
         check(False, f"{sid}: refused ({why})")
         continue
     d = gdal_source.make_dem(dem.SOURCES[src])
-    a = d.tile(z, *tile_of(lat, lon, z))
+    try:
+        a = d.tile(z, *tile_of(lat, lon, z))
+    except Exception as e:  # noqa: BLE001 - a service down is one failure, not the end of the run
+        check(False, f"{sid}, {place}: not read ({str(e).splitlines()[0][:120]})")
+        continue
     ok = np.isfinite(a)
     mn, mx = (float(np.nanmin(a)), float(np.nanmax(a))) if ok.any() else (None, None)
     check(type(d).__name__ == reader and ok.mean() > 0.3 and lo <= mn and mx <= hi,
@@ -71,14 +75,28 @@ for sid, place, lat, lon, z, reader, (lo, hi) in CASES:
 # newest date, and a tile of an EOX yearly mosaic.
 from terrain_viewer import historical  # noqa: E402
 
+import tempfile  # noqa: E402
+historical.set_store(os.path.join(tempfile.mkdtemp(), "wayback-dates.json"))  # not the profile's: listed from nothing
+historical.reset_cache(store=True)
 t0 = time.perf_counter()
 steps = []
-wb = historical.list_dates("wayback", 48.8584, 2.2945, 15, report=lambda t, note: steps.append(len(t)))
+wb = historical.list_dates("wayback", 48.8584, 2.2945, 15,
+                           report=lambda t, note, *_n: steps.append((len(t), round(time.perf_counter() - t0, 1))))
+t_all = time.perf_counter() - t0
 wb_labels = [t["label"] for t in wb]
+first_date = next((at for n, at in steps if n), None)
 check(len(wb) >= 8 and wb_labels[0] == "2011-08-01" and wb_labels == sorted(set(wb_labels)) and "2014-09-12" in wb_labels,
       f"Esri Wayback at the Eiffel Tower: {len(wb)} capture dates, {wb_labels[0]} to {wb_labels[-1]}, "
-      f"{sum(1 for t in wb if not t['real'])} at their release date, in {time.perf_counter() - t0:.1f} s "
+      f"{sum(1 for t in wb if not t['real'])} at their release date, in {t_all:.1f} s "
       f"({len(steps)} progress reports)")
+check(first_date is not None and first_date <= t_all and len({n for n, _at in steps}) >= 3,
+      f"the dates arrive one by one: the first after {first_date} s, the last after {t_all:.1f} s")
+historical.reset_cache()  # QGIS restarted: the walk and the dates are in the file
+t0 = time.perf_counter()
+again = historical.list_dates("wayback", 48.8584, 2.2945, 15)
+check([t["label"] for t in again] == wb_labels and time.perf_counter() - t0 < max(3.0, t_all / 3),
+      f"the same place listed again in another session: {time.perf_counter() - t0:.1f} s (the catalog alone is asked)")
+historical.set_store(None)
 wx, wy = tile_of(48.8584, 2.2945, 16)
 tiles = [historical.fetch_url(t["url"].format(z=16, x=wx, y=wy)) for t in (wb[0], wb[-1])]
 check(all(b[:2] == b"\xff\xd8" and len(b) > 2000 for b in tiles) and tiles[0] != tiles[1],
@@ -86,6 +104,45 @@ check(all(b[:2] == b"\xff\xd8" and len(b) > 2000 for b in tiles) and tiles[0] !=
 ex, ey = tile_of(48.8584, 2.2945, 12)
 eox_tile = historical.fetch_url(historical.eox_ticks()[0]["url"].format(z=12, x=ex, y=ey))
 check(eox_tile[:2] == b"\xff\xd8" and len(eox_tile) > 2000, f"EOX Sentinel-2 cloudless 2016: a tile ({len(eox_tile)} bytes)")
+# 0.10.1: NASA HLS from its provider; Google Earth historical through a tile
+# service (its address in TERRAIN_VIEWER_SERVICE, e.g. http://localhost:3400;
+# skipped without one); Planet with a key in PLANET_API_KEY (skipped without).
+hls_tick = historical.hls_ticks()[-14]
+hx, hy = tile_of(48.8584, 2.2945, 9)
+t0 = time.perf_counter()
+try:
+    hls_tile = historical.fetch_url(hls_tick["url"].format(z=9, x=hx, y=hy), timeout=120)
+except Exception as e:  # noqa: BLE001 - a demonstration server: said
+    hls_tile = b""
+    print(f"  NASA HLS did not answer: {e}")
+check(hls_tile[:2] in (b"\xff\xd8", b"\x89P") and len(hls_tile) > 2000,
+      f"NASA HLS {hls_tick['label']}: a tile from titiler-cmr ({len(hls_tile)} bytes, {time.perf_counter() - t0:.1f} s)")
+service = (os.environ.get("TERRAIN_VIEWER_SERVICE") or "").rstrip("/")
+if not service:
+    print("  skip Google Earth historical: no tile service (set TERRAIN_VIEWER_SERVICE=http://localhost:3400)")
+else:
+    t0 = time.perf_counter()
+    ge = historical.list_dates("ge-historical", 48.8584, 2.2945, 15, service=service)
+    t_ge = time.perf_counter() - t0
+    check(len(ge) >= 20 and ge[0]["dateMs"] < ge[-1]["dateMs"] and ge[0]["label"] < "1960" and "Google Earth" in ge[-1]["detail"],
+          f"Google Earth historical at the Eiffel Tower, through {service}: {len(ge)} captures, {ge[0]['label']} to {ge[-1]['label']}, in {t_ge:.1f} s")
+    gx, gy = tile_of(48.8584, 2.2945, 16)
+    recent = next(t for t in ge if t["label"] > "2008")
+    t0 = time.perf_counter()
+    ge_tiles = [historical.fetch_url(t["url"].format(z=16, x=gx, y=gy), timeout=90) for t in (recent, ge[-1])]
+    check(all(b[:2] == b"\xff\xd8" and len(b) > 2000 for b in ge_tiles) and ge_tiles[0] != ge_tiles[1],
+          f"a Web Mercator tile of {recent['label']} and one of {ge[-1]['label']}: two different JPEGs "
+          f"({len(ge_tiles[0])} and {len(ge_tiles[1])} bytes, {time.perf_counter() - t0:.1f} s)")
+planet_key = os.environ.get("PLANET_API_KEY", "").strip()
+if not planet_key:
+    print("  skip Planet: no key (set PLANET_API_KEY; one world tile is asked)")
+else:
+    try:
+        pl = historical.list_dates("planet", 0, 0, 0, keys={"planetKey": planet_key})
+        check(len(pl) > 80 and pl[0]["label"] == "2020-01", f"Planet monthly: {len(pl)} mosaics, the key accepted")
+    except historical.HistoricalError as e:
+        check(planet_key not in str(e) and "Planet refused the key" in str(e), f"Planet: {e}")
+        failures.append("Planet refused the key given")
 historical.reset_cache()
 
 # The panel: the Python backend draws the source picked, or nothing.
