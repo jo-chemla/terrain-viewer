@@ -1,9 +1,12 @@
 # Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
 
-<!-- released: 2026-11-26T02:30 -->
+<!-- released: 2026-11-26T13:30 -->
 
 #### TL;DR
 
+- **[Building footprints and vector overlays](/docs/features/vector-overlays)**: Overture Maps, VIDA's Google + Microsoft + OpenStreetMap merge and OpenStreetMap buildings over any terrain or basemap, flat or in 3D, colored by origin or height, one choice per view in a split; OpenStreetMap roads and labels as a hybrid layer. Under Basemap › Bring Your Own Data › Vector overlays.
+
+  ![Overture Maps buildings over Midtown Manhattan, extruded and colored by height](/docs/screenshots/vector-overlays-overture-nyc-3d.jpg)
 - **[QGIS plugin 0.9.1](/docs/dev/qgis-plugin)**: updates itself (from its own plugin repository, or a button in the panel); the Python backend comes first and reads any elevation GDAL opens, including WMS and COG Library sources such as France's IGN LiDAR HD or Canada's MRDEM; sources grouped, opacity in each row, modes reordered.
 - **Blobness orientation** now gives the direction a feature runs (a north-south ridge reads 0°), with a color ramp that wraps around.
 - **New in the Library**: the Holmul lidar DEM (Guatemala), Pennsylvania's PAMAP hillshade, Sardinia's 1 m and 10 m hillshades.
@@ -12,8 +15,15 @@
 
 ##### QGIS Plugins
 
+- **0.9.2** (`8556b4b`, release [`qgis-plugins-2026-11-26c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26c)): Open link reads a link as the web app does (the app's defaults for what the link leaves out, any address or a bare query), loads the basemap, keeps the project's CRS; the Light section is open by default; contours are black.
 - **0.9.1** (`cbfcdaf`, release [`qgis-plugins-2026-11-26b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26b)): blobness orientation as in the web app, bundles rebuilt.
 - **0.9.0** (`9f5f902`, `2176473`, release [`qgis-plugins-2026-11-26`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26)): updates through a QGIS plugin repository (`plugins.xml` at `https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml`, add it once in Plugin Manager › Settings) and an "Update to x.y.z" button in the panel (daily check, sha256, reload); the first mode in a fresh project sets EPSG:3857 and the whole world, later ones keep the canvas; opacity slider in each mode row; Hillshade above Elevation Hypso, overlays ordered Contours, Iso-line, Plane slicer, Graticule, Mound candidates; backends ordered Python (default for new users), Packaged, Remote; the light pad redraws as fast as the canvas does; COG, VRT, raw Float32 WMS, WCS and ArcGIS image Library sources read by the Python backend (IGN LiDAR HD, NRCan MRDEM, AHN, 3DEP tested), and a source it can't read draws nothing instead of Mapterhorn; sources grouped (QGIS elevation layers, Worldwide defaults, Terrain library) with a button adding the raw input to a "Raw elevation inputs" group; only contours labelled, at half the size; the Python server binds its port exclusively.
+
+##### Vector overlays, desktop
+
+- Vector overlays (`bb12c99`, `c6d710d`): a third source kind, `vector`, in `lib/source-schema.ts`; four entries in `SAMPLE_VECTOR_SOURCES` (Overture's release read from its STAC catalog, since old releases answer 410); `lib/vector-sources.ts` builds the MapLibre source and its fill, line and fill-extrusion layers; a `VECTOR_OVERLAYS` slot above the shading and under the contours, and an `OVERLAYS_TOP` slot for raster overlays set to "On top"; `vectorOverlayIds` (and `B` to `H`) in the link, the style kept in the browser. Microsoft's footprints have no entry of their own (files, not tiles; both archives carry them). Not yet: your own vector sources, a blend mode per overlay, shadows from these heights.
+- Desktop (`ae27895`): the update no longer loops. Windows refused to replace the app folder while the local tile service ran from inside it; the service is stopped before the install. Bundles for Windows, macOS and Linux rebuilt on [`desktop-latest`](https://github.com/Iconem/terrain-viewer/releases/tag/desktop-latest).
+- Tile service bundle for Linux arm64 (`20e9ebb`): a `linux-arm64` target in `qgis-plugin/make_zip.py`, built and started on GitHub's arm64 runner by the QGIS plugins workflow, attached to the next `qgis-plugins-*` release.
 
 ##### Tile Service, Library, Docs
 
