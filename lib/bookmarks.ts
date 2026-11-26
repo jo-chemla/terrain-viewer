@@ -246,6 +246,9 @@ const VIZ_MODE_SHORTHANDS: Array<{ master: string; flag: string; label: string }
  *  exactly this, not the (shared) viewport. */
 export function summarizeActiveVizModes(state: Record<string, unknown>): string {
   const active = VIZ_MODE_SHORTHANDS.filter((m) => state[m.master] && state[m.flag]).map((m) => m.label)
+  // The River REM mode draws its own layer whatever the modes are: a view
+  // saved there was named "Hillshade" after the one mode left on.
+  if (state.appMode === "rem") active.unshift(state.remShow === "elevation" ? "River REM (elevation)" : "River REM")
   return active.length ? active.join(" + ") : "No viz modes"
 }
 

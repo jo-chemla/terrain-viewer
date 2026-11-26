@@ -2024,13 +2024,14 @@
       "type": "enum",
       "items": null,
       "enum": [
+        "main",
         "longest",
         "all",
         "named",
         "drawn"
       ],
-      "default": "longest",
-      "defaultSource": "\"longest\"",
+      "default": "main",
+      "defaultSource": "\"main\"",
       "note": "River REM mode (appMode=rem): height above the river, the DEM minus a trend surface that follows the river's water level (lib/river-rem.ts)."
     },
     {
@@ -2109,6 +2110,92 @@
       "default": "min",
       "defaultSource": "\"min\"",
       "note": "How the sampled water levels are made to fall downstream: running minimum, monotone least-squares fit, or left as read."
+    },
+    {
+      "key": "remInterp",
+      "stateKey": "remInterp",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "idw",
+        "nearest"
+      ],
+      "default": "idw",
+      "defaultSource": "\"idw\"",
+      "note": "How the river's level is spread over the view: inverse-distance weighting of the nearest samples (RiverREM's), or the level at the nearest place on the centerline."
+    },
+    {
+      "key": "remShow",
+      "stateKey": "remShow",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "rem",
+        "elevation"
+      ],
+      "default": "rem",
+      "defaultSource": "\"rem\"",
+      "note": "What the mode draws: the REM (height above the river) or the terrain source's own elevation, each with its own range."
+    },
+    {
+      "key": "remElevAuto",
+      "stateKey": "remElevAuto",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Elevation display: the range follows the heights in view; false uses remElevMin and remElevMax."
+    },
+    {
+      "key": "remElevMin",
+      "stateKey": "remElevMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "Elevation display: height in metres at the start of the color ramp, when remElevAuto is false."
+    },
+    {
+      "key": "remElevMax",
+      "stateKey": "remElevMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 100,
+      "defaultSource": "100",
+      "note": "Elevation display: height in metres at the end of the color ramp, when remElevAuto is false."
+    },
+    {
+      "key": "remContours",
+      "stateKey": "remContours",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "Contour lines of the height above the river (of the elevation, in the Elevation display)."
+    },
+    {
+      "key": "remContourInterval",
+      "stateKey": "remContourInterval",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1",
+      "note": "Interval of those contour lines, in metres."
+    },
+    {
+      "key": "remDetail",
+      "stateKey": "remDetail",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": -1,
+      "defaultSource": "-1",
+      "note": "How many zoom levels deeper than the screen needs the heights are read (0 to 2): finer heights where a source rounds them by zoom, four times the tiles per level."
     },
     {
       "key": "remMin",

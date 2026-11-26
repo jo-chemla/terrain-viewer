@@ -37,6 +37,7 @@ import { TooltipIconButton, MacroSeparator } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection, drawingUrlsAtom } from "./TerraDrawSystem"
 import { RiverRemSections } from "./river-rem-sections"
+import { riverRemSectionsOpenAtom, RIVER_REM_SECTION_KEYS } from "@/lib/river-rem-atoms"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
@@ -521,13 +522,18 @@ export function TerrainControlPanel({
   // toggle) is excluded from the "is everything folded" check and left
   // untouched when folding — it only ever closes via its own chevron.
   const isPinned = (k: SectionKey) => k === "visualizationModes" && vizModePinned
+  // The River REM mode's three sections keep their fold state in their own
+  // atom (they only exist in that mode); fold all / expand all moves them too.
+  const [riverRemOpen, setRiverRemOpen] = useAtom(riverRemSectionsOpenAtom)
   const allFolded = SECTION_KEYS.every((k) => isPinned(k) || !sectionOpen[k])
+    && (!remMode || RIVER_REM_SECTION_KEYS.every((k) => !riverRemOpen[k]))
 
   const handleFoldExpandAll = () => {
     const next = allFolded
     setSectionOpen((prev) => Object.fromEntries(SECTION_KEYS.map((k) =>
       [k, isPinned(k) && !next ? prev[k] : next]
     )) as SectionOpenState)
+    if (remMode) setRiverRemOpen((prev) => ({ ...prev, river: next, detrending: next, display: next }))
   }
 
   // With a project active, clears every other URL param back to default, then

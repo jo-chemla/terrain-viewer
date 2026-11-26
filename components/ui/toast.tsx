@@ -64,6 +64,14 @@ export function dismissToast(id: number): void {
   emit()
 }
 
+/** Removes the toast of a key, if it is still up (the end of a long job
+ *  whose toast stays until then). */
+export function dismissToastByKey(key: string): void {
+  if (!toasts.some((t) => t.key === key)) return
+  toasts = toasts.filter((t) => t.key !== key)
+  emit()
+}
+
 /** Convenience for components: `const toast = useToast(); toast({ key, title })`. */
 export function useToast() {
   return pushToast
