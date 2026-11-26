@@ -13,7 +13,7 @@ const byodDiff = shot('byod-difference-dsm-dtm.jpg');
 const contours = shot('viz-modes/contours.jpg');
 const buildingShadows = shot('viz-modes/building-shadows.jpg');
 const exportLayers = shot('export-share/export-layers-dialog.jpg');
-const qgisPanel = shot('qgis/qgis-terrain-viewer-packaged-tile-server.jpg');
+const qgisPanel = shot('qgis/qgis-terrain-viewer-slope-contours.jpg');
 const downloadSection = shot('export-share/download-section.jpg');
 const embedHost = shot('ui/embedding-host-page.jpg');
 const openIn = shot('ui/open-in-launcher.jpg');
@@ -697,7 +697,7 @@ const P12bQgis: Page = () => (
           <Li k="Open from link">paste a share link, get its layers.</Li>
         </Bullets>
       }
-      right={<Shot src={qgisPanel} caption="QGIS 4.2 over Mont Blanc: Packaged tile server, Mapterhorn, light pad, hypso, hillshade, labelled contours" width={900} height={620} />}
+      right={<Shot src={qgisPanel} caption="QGIS 4.2 over the Matterhorn: Python backend, Mapterhorn, light pad, slope over hillshade, labelled contours" width={900} height={620} />}
     />
   </Frame>
 );

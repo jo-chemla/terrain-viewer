@@ -18,7 +18,7 @@ Both are checked headless in QGIS 4.2 and 3.44 LTR (`qgis-plugin/test_*.py`). Ne
 
 ## Terrain Viewer: the panel
 
-![The Terrain Viewer panel in QGIS 4.2 over Mont Blanc: Packaged tile server picked, Mapterhorn as the source, the light pad, Elevation Hypso, Hillshade and labelled contours drawn](/screenshots/qgis/qgis-terrain-viewer-packaged-tile-server.jpg)
+![The Terrain Viewer panel (0.9.1) in QGIS 4.2 over the Matterhorn: the Python backend picked (first of the three backend radios), Mapterhorn as the source, the Light fold open with its pad, Slope in color at 70% (its inline opacity slider) over Hillshade, and contour lines with their labels](/screenshots/qgis/qgis-terrain-viewer-slope-contours.jpg)
 
 A dock panel laid out as the app's sidebar. From the top:
 
@@ -48,7 +48,7 @@ A dock panel laid out as the app's sidebar. From the top:
 - While connected to a service, its `/health` is asked every 15 s in the background; a service that went away is said once, and its return too.
 - **Which one a new user gets** (0.9.0): the Python backend, which needs nothing (no 50 MB download, no service to run) and draws every mode; the packaged tile server stays one click away. A user who picked a backend keeps it, and so does a user of 0.6.0 or earlier (the "Local tile service" box, or a service address typed). Without numpy in QGIS's Python, the remote tile server.
 
-![The Python backend with the sun at a date and time (21 December, 09:30 UTC): the pad shows the sun's azimuth and elevation over the canvas centre](/screenshots/qgis/qgis-terrain-viewer-python-backend-sun.jpg)
+![Sky View Factor under the Python backend, its settings cog open: color ramp, Min (raised to 50) and Max, Invert color ramp, Radius and Precision](/screenshots/qgis/qgis-terrain-viewer-svf-settings.jpg)
 
 ### One modes tree for every backend
 
@@ -118,6 +118,8 @@ How to use a raster of your own as the elevation:
 
 Why a button, not a layer added on every pick: a raw input layer is drawn by QGIS like any other, so every pan asks its service again (an IGN WMS, an 84 GB COG); added only when asked, it costs nothing otherwise, and the Python backend never needs it (it reads the address itself).
 
+![Curvature in color under the Python backend, its settings cog open: Mode (combined), the diverging color ramp, Min and Max (kept symmetric, here ±2.5), Invert color ramp, Symmetric](/screenshots/qgis/qgis-terrain-viewer-curvature-settings.jpg)
+
 ### Local files for the tile server
 
 **A QGIS raster layer with a tile service**: a service on this machine (the packaged one, the desktop app's, one started with `pnpm start`) cannot be given a path in a tile address, so the panel hands it the layer's GeoTIFF or VRT file once (`POST /files`, [local files](/dev/tile-service#local-files)) and every address then names it as `terrainSource=file:<id>`, never by its path (`terrain_viewer/local_files.py`). The id is an HMAC of the real path, size and modification time (a key in the service's cache folder): not guessable, the same while the file is unchanged, new when it changes. A service on another machine cannot read this machine's files: an https COG or VRT goes to it as its address, anything else is for the Python backend (said once).
@@ -127,8 +129,6 @@ How to:
 1. Pick **Packaged tile server** (or **Remote tile server** with `http://localhost:3400`, the desktop app's), **Connect**.
 2. Add the GeoTIFF or VRT to the project and pick it under **QGIS elevation layers**: the panel registers it, the status line says so, the layers draw from it.
 3. On a shared or exposed service, the operator limits what can be registered: `TV_FILE_ROOTS` (folders the file, and every local file of a VRT, must lie under; `;`-separated on Windows, `:` elsewhere), or `TV_LOCAL_FILES=off` (no registration at all; the plugin then says the file is for the Python backend). Registration is accepted only from the same machine, without an `Origin` header (no web page can register a file).
-
-![Slope as Values (Float32), styled with QGIS's Magma ramp over the hillshade, with its legend](/screenshots/qgis/qgis-terrain-viewer-slope-values-styled.jpg)
 
 ### Open link, Freeze, saved projects
 
