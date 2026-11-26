@@ -115,6 +115,18 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
     }),
   },
   {
+    // The River REM mode (appMode=rem). The river is named: "Main river"
+    // finds it too, but a preset should not depend on a ranking.
+    id: "preset-mississippi-rem",
+    name: "Mississippi at Greenville — River REM, height above the river",
+    ts: 0,
+    thumb: "/bookmark-thumbs/mississippi-rem.jpg",
+    search: presetSearch({
+      appMode: "rem", viewMode: "2d", zoom: 11, lat: 33.3, lng: -91.12, pitch: 0,
+      remRiver: "named", remRiverName: "Mississippi River",
+    }),
+  },
+  {
     id: "preset-iceland-overlay",
     name: "Iceland — Bing vs. AWS Overlay Compare",
     ts: 0,

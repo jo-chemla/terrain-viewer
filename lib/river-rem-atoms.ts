@@ -48,6 +48,8 @@ export interface RiverRemInfo {
   gridW: number
   gridH: number
   method: "idw" | "nearest"
+  /** Heights read from the nearest bank: the DEM has none on the water. */
+  banks: number
 }
 export const riverRemInfoAtom = atom<RiverRemInfo | null>(null)
 
@@ -72,3 +74,7 @@ export const riverRemProgressAtom = atom<RiverRemProgress | null>(null)
 /** Elevation display: lowest and highest height of the tiles in view A,
  *  followed while `remElevAuto` is on. */
 export const riverRemElevRangeAtom = atom<{ min: number; max: number } | null>(null)
+
+/** The mode's three sections, for the sidebar's fold all / expand all. */
+export const RIVER_REM_SECTION_KEYS = ["river", "detrending", "display"] as const
+export type RiverRemSectionKey = (typeof RIVER_REM_SECTION_KEYS)[number]

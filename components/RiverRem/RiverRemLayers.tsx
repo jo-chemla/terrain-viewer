@@ -22,7 +22,7 @@ import { colorRampsFlat } from "@/lib/color-ramps"
 import { yieldToMainThread } from "@/lib/normal-derived-protocol"
 import {
   mergeWaterways, chooseRiverLines, decodeLines, encodeLines, lineLengthM, resampleLine, resolveSpacingM,
-  cleanProfile, runsUphill, sinuosity, estimateNeighbors, createTrendGrid, fillTrendRows,
+  cleanProfile, medianFilter, runsUphill, sinuosity, estimateNeighbors, createTrendGrid, fillTrendRows,
   lngToMercX, latToMercY, type Bbox, type LngLat, type Waterway, type MonotoneMode, type RiverChoice, type TrendMethod,
 } from "@/lib/river-rem"
 import { fetchWaterways, OverpassError, OVERPASS_MAX_AREA_DEG2, type WaterwayKinds } from "@/lib/overpass-rivers"
@@ -54,7 +54,11 @@ function pad(b: Bbox, share: number): Bbox {
   return [b[0] - dx, Math.max(-85, b[1] - dy), b[2] + dx, Math.min(85, b[3] + dy)]
 }
 
-interface Samples { key: string; perLine: LngLat[][]; elevations: Float64Array; zoom: number; spacingM: number; lengthM: number; lines: LngLat[][]; label: string }
+interface Samples { key: string; perLine: LngLat[][]; elevations: Float64Array; zoom: number; spacingM: number; lengthM: number; lines: LngLat[][]; label: string; banks: number }
+
+/** Above this share of heights read from a bank (no height on the water), the
+ *  profile is median-filtered before it is cleaned. */
+const BANK_SHARE_FOR_MEDIAN = 0.2
 
 // ─── The progress toast ─────────────────────────────────────────────────────
 
@@ -250,10 +254,10 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
         const spacingM = resolveSpacingM(lengthM, spacingSetting)
         const perLine = choice.lines.map((l) => resampleLine(l, spacingM))
         const points = perLine.flat()
-        const { elevations, zoom } = await sampleRiverElevations(points, { template, encoding, tileSize, minzoom, maxzoom }, controller.signal,
+        const { elevations, zoom, banks } = await sampleRiverElevations(points, { template, encoding, tileSize, minzoom, maxzoom }, controller.signal,
           (done, total) => setSampleProgress({ done, total, points: points.length }))
         if (controller.signal.aborted) return
-        setSamples({ key, perLine, elevations, zoom, spacingM, lengthM, lines: choice.lines, label: choice.label })
+        setSamples({ key, perLine, elevations, zoom, spacingM, lengthM, lines: choice.lines, label: choice.label, banks })
       } catch {
         if (controller.signal.aborted) return
         setSamples(null)
@@ -285,14 +289,21 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
     const timer = setTimeout(async () => {
       const xs: number[] = [], ys: number[] = [], zs: number[] = [], starts: number[] = []
       let offset = 0, corrected = 0, levelHigh = -Infinity, levelLow = Infinity
+      // A DEM with no heights on water was read from the banks: noisy, with
+      // pits a running minimum would latch onto (GEM-15 on the Mississippi:
+      // bank readings from -29 to 36 m around a river at 30 m). A long
+      // running median, then the monotone fit instead of the minimum.
+      const despike = samples.banks > BANK_SHARE_FOR_MEDIAN * samples.elevations.length
+      const cleaning: MonotoneMode = despike && monotone === "min" ? "fit" : monotone
       for (const line of samples.perLine) {
-        const raw = samples.elevations.subarray(offset, offset + line.length)
+        const read = samples.elevations.subarray(offset, offset + line.length)
+        const raw = despike ? medianFilter(read, 31) : read
         offset += line.length
         // OpenStreetMap draws a waterway the way it flows; a hand-drawn line
         // can go either way, so it is read from its higher end.
         const reversed = drawn && runsUphill(raw)
         const ordered = reversed ? Float64Array.from(raw).reverse() : raw
-        const cleaned = cleanProfile(ordered, monotone)
+        const cleaned = cleanProfile(ordered, cleaning)
         let first = true
         for (let i = 0; i < line.length; i++) {
           const level = cleaned[i]
@@ -343,7 +354,7 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
       setRevision(setRiverRemTrend(grid))
       setInfo({
         riverLabel: samples.label, lengthM: samples.lengthM, points: xs.length, spacingM: samples.spacingM, sampleZoom: samples.zoom,
-        neighbors, sinuosity: riverSinuosity, levelHigh, levelLow, corrected, buildMs: Math.round(fillMs), gridW: grid.w, gridH: grid.h, method,
+        neighbors, sinuosity: riverSinuosity, levelHigh, levelLow, corrected, buildMs: Math.round(fillMs), gridW: grid.w, gridH: grid.h, method, banks: samples.banks,
       })
       setBuilding(false)
     }, 150)
@@ -458,8 +469,12 @@ function RiverRemInner({ primary, state, setState, terrainSource, mapLoaded, the
   // source is declared with smaller tiles, so MapLibre asks for the level
   // below and each tile still comes at its full size. A source that rounds
   // its heights by zoom (Mapterhorn: 1 m up to z11, half of it per level
-  // after) is twice as fine one level down.
-  const detail = Math.max(0, Math.min(2, Math.round(Number(state.remDetail ?? 1)) || 0))
+  // after) is twice as fine one level down. Auto (-1) is one level, except
+  // for a WMS or an ImageServer read as raw floats: its heights are exact at
+  // any zoom and every tile is a render on the server (IGN LiDAR HD took
+  // minutes to fill a view at four times the requests).
+  const detailSetting = Math.round(Number(state.remDetail ?? -1))
+  const detail = detailSetting >= 0 ? Math.min(2, detailSetting) : upstream?.template.startsWith("float32dem-bbox://") ? 0 : 1
   const mapTileSize = upstream ? Math.max(128, upstream.tileSize >> detail) : 256
   const tileUrl = upstream ? buildRiverRemProtocolUrl(upstream.template, upstream.encoding, upstream.tileSize, revision, showElevation) : ""
   const contourInterval = Math.max(0.05, Number(state.remContourInterval) || 1)

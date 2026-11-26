@@ -285,6 +285,27 @@ export function cleanProfile(elevations: ArrayLike<number>, mode: MonotoneMode):
   return out
 }
 
+/** A running median over `window` samples (odd; NaN samples are skipped and
+ *  stay NaN). Used before the cleaning when the heights were read from the
+ *  banks of a DEM with no water: such a profile has pits and spikes one or
+ *  two samples wide, and a single pit is enough to drag a running minimum
+ *  down for the rest of the river (GEM-15 on the Mississippi: one 13.4 m
+ *  reading under a 30 m river). */
+export function medianFilter(values: ArrayLike<number>, window = 7): Float64Array {
+  const n = values.length
+  const out = new Float64Array(n)
+  const half = Math.max(1, Math.floor(window / 2))
+  const buffer: number[] = []
+  for (let i = 0; i < n; i++) {
+    if (!Number.isFinite(values[i])) { out[i] = NaN; continue }
+    buffer.length = 0
+    for (let j = Math.max(0, i - half); j <= Math.min(n - 1, i + half); j++) if (Number.isFinite(values[j])) buffer.push(values[j])
+    buffer.sort((a, b) => a - b)
+    out[i] = buffer[buffer.length >> 1]
+  }
+  return out
+}
+
 // ─── k, as RiverREM guesses it ──────────────────────────────────────────────
 
 /** River length over the largest distance between two line ends, at least 1

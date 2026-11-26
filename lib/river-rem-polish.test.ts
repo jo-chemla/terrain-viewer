@@ -7,12 +7,13 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
   mergeWaterways, chooseRiverLines, riverScore, buildTrendGrid, quantizationStep, dequantizeDem,
-  linesToGeoJson, linesFromGeoJson, simplifyLine, encodeLinesForUrl, decodeLines, lineLengthM,
+  linesToGeoJson, linesFromGeoJson, simplifyLine, encodeLinesForUrl, decodeLines, lineLengthM, medianFilter,
   type LngLat, type Waterway, type TrendPoints,
 } from "./river-rem"
 import { riverRemKernel, buildRiverRemProtocolUrl, riverRemElevationRange } from "./river-rem-protocol"
 import { qleverQuery, parseWktLines, parseQleverWays, waterwayServers, fetchWaterways, OverpassError, type WaterwayServer } from "./overpass-rivers"
 import { terrariumToElevation } from "./elevation-encoding"
+import { nearestGround } from "./river-rem-sample"
 
 const way = (id: number, name: string, coords: LngLat[], tagCount?: number): Waterway => ({ id, name, kind: "river", coords, tagCount })
 
@@ -227,4 +228,27 @@ test("a long imported line is simplified until it fits in a link", () => {
   assert.ok(Math.abs(lineLengthM(back) / lineLengthM(survey) - 1) < 0.01)
   const short = encodeLinesForUrl([[[3.3, 46.3], [3.31, 46.4]]])
   assert.equal(short.simplified, false)
+})
+
+test("a running median drops a pit and keeps the holes", () => {
+  const out = medianFilter([30, 30.1, 13.4, 29.9, NaN, 29.8, 29.7, 60, 29.6], 5)
+  assert.ok(Math.abs(out[2] - 30) < 0.2, `pit kept: ${out[2]}`)
+  assert.ok(Math.abs(out[7] - 29.7) < 0.2, `spike kept: ${out[7]}`)
+  assert.ok(Number.isNaN(out[4]))
+  assert.equal(out.length, 9)
+  assert.deepEqual(Array.from(medianFilter([5], 7)), [5])
+})
+
+test("a point in a void of the DEM takes the nearest ground, by the median of its ring", () => {
+  // 32 px tile: columns 0..9 are a bank at 31 m with one pit, 10..31 water (void).
+  const n = 32
+  const data = new Float32Array(n * n), valid = new Uint8Array(n * n)
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { if (x < 10) { data[y * n + x] = 31; valid[y * n + x] = 1 } }
+  data[16 * n + 9] = -20 // a pit on the waterline, right beside the point
+  const tile = { data, width: n, height: n, valid }
+  assert.equal(nearestGround(tile, 14.5 / n, 16.5 / n), 31)
+  // Too far from any ground.
+  assert.ok(Number.isNaN(nearestGround(tile, 30.5 / n, 16.5 / n, 8)))
+  // A tile with no hole mask has no void to fill.
+  assert.ok(Number.isNaN(nearestGround({ data, width: n, height: n }, 0.5, 0.5)))
 })

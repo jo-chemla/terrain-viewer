@@ -780,8 +780,8 @@ export const QUERY_STATE_PARSERS = {
     remContours: parseAsBoolean.withDefault(false),
     // Interval of those contour lines, in metres.
     remContourInterval: parseAsFloat.withDefault(1),
-    // How many zoom levels deeper than the screen needs the heights are read (0 to 2): finer heights where a source rounds them by zoom, four times the tiles per level.
-    remDetail: parseAsInteger.withDefault(1),
+    // How many zoom levels deeper than the screen needs the heights are read (0 to 2): finer heights where a source rounds them by zoom, four times the tiles per level. -1 (auto) is 1, and 0 for a WMS read as raw floats.
+    remDetail: parseAsInteger.withDefault(-1),
     // Height above the river, in metres, at the start of the color ramp.
     remMin: parseAsFloat.withDefault(0),
     // Height above the river, in metres, at the end of the color ramp.

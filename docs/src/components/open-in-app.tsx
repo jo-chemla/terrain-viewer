@@ -22,11 +22,13 @@ import type { ReactNode } from 'react';
 //
 // Plain anchors, like OpenInApp: a link inside these docs is written with
 // its /docs prefix and opens in the same tab; an absolute (https) link opens
-// in a new one.
+// in a new one. `quiet` outlines every button, the first included: for a row
+// of references under a page's own OpenInApp button (the origin of a
+// technique, a paper), which must not read as a second call to action.
 const LINK_ICONS = { api: Table2, download: Download, release: Package, terminal: Terminal, app: Mountain } as const;
 const BUTTON = 'inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold no-underline shadow-sm transition-opacity hover:opacity-90';
 
-export function LinkButtons({ links }: { links: { href: string; label: string; icon?: keyof typeof LINK_ICONS }[] }) {
+export function LinkButtons({ links, quiet = false }: { links: { href: string; label: string; icon?: keyof typeof LINK_ICONS }[]; quiet?: boolean }) {
   return (
     <p className="not-prose my-5 flex flex-wrap gap-3">
       {links.map(({ href, label, icon }, i) => {
@@ -38,7 +40,7 @@ export function LinkButtons({ links }: { links: { href: string; label: string; i
             key={href}
             href={href}
             {...(external ? { target: '_blank', rel: 'noopener' } : {})}
-            className={`${BUTTON} ${i === 0 ? 'bg-fd-primary text-fd-primary-foreground' : 'border bg-fd-card text-fd-foreground'}`}
+            className={`${BUTTON} ${i === 0 && !quiet ? 'bg-fd-primary text-fd-primary-foreground' : 'border bg-fd-card text-fd-foreground'}`}
           >
             {Icon ? <Icon className="size-4" /> : null}
             <span>{label}</span>

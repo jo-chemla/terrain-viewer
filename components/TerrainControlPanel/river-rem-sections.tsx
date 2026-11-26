@@ -28,7 +28,7 @@ import { getGradientColors } from "@/lib/controls-utils"
 import { encodeLines, decodeLines, lineLengthM, linesToGeoJson, linesFromGeoJson, encodeLinesForUrl, type LngLat } from "@/lib/river-rem"
 import {
   riverRemStatusAtom, riverRemRiversAtom, riverRemInfoAtom, riverRemRetryAtom, riverRemDrawnIdAtom, riverRemSectionsOpenAtom,
-  riverRemLinesAtom, riverRemElevRangeAtom,
+  riverRemLinesAtom, riverRemElevRangeAtom, type RiverRemSectionKey,
 } from "@/lib/river-rem-atoms"
 
 const km = (m: number) => (m >= 10000 ? `${Math.round(m / 1000)} km` : m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`)
@@ -38,7 +38,7 @@ const RIVER_DEFAULTS = { remRiver: "main", remWaterways: "river", remRiverName: 
 const DETREND_DEFAULTS = { remInterp: "idw", remPower: 1, remNeighbors: 0, remMonotone: "min" }
 const DISPLAY_DEFAULTS = {
   remShow: "rem", remMin: 0, remMax: 10, remElevAuto: true, remColorRamp: "rem-mako", remInvertColorRamp: false, remStretch: "log", remGamma: 0.5, remOpacity: 1,
-  remContours: false, remContourInterval: 1, remDetail: 1,
+  remContours: false, remContourInterval: 1, remDetail: -1,
 }
 
 // "Main river" first: the default. The words are Jonathan's ("Longest,
@@ -52,6 +52,7 @@ const CENTERLINE_OPTIONS = [
 ]
 
 const DETAIL_OPTIONS = [
+  { value: "-1", label: "Auto" },
   { value: "0", label: "As on screen" },
   { value: "1", label: "One level finer" },
   { value: "2", label: "Two levels finer" },
@@ -232,6 +233,7 @@ const RiverPanel: React.FC<{ state: any; setState: (updates: any) => void; draw:
         <p className="text-xs text-muted-foreground break-words">
           0 spreads 1000 points over the river, as RiverREM does.
           {info && ` Now: ${info.points} heights every ${Math.round(info.spacingM)} m over ${km(info.lengthM)}, read at zoom ${info.sampleZoom}.`}
+          {info && info.banks > 0 && ` This terrain source has no heights on the water at ${info.banks} of them: the nearest bank is read there, which is rougher (the profile is smoothed and fitted rather than taken at its minimum).`}
         </p>
       </div>
 
@@ -357,7 +359,7 @@ const DisplayPanel: React.FC<{ state: any; setState: (updates: any) => void }> =
   const trackMin = Math.floor(Math.min(elevMin, elevRange?.min ?? elevMin) - elevSpan * 0.25)
   const trackMax = Math.ceil(Math.max(elevMax, elevRange?.max ?? elevMax) + elevSpan * 0.25)
   const elevStep = elevSpan > 200 ? 5 : elevSpan > 40 ? 1 : 0.5
-  const detail = String(Math.max(0, Math.min(2, Math.round(Number(state.remDetail ?? 1)) || 0)))
+  const detail = String(Math.max(-1, Math.min(2, Math.round(Number(state.remDetail ?? -1)))))
   return (
     <div className="space-y-3">
       <div className="space-y-2">
@@ -486,7 +488,7 @@ const DisplayPanel: React.FC<{ state: any; setState: (updates: any) => void }> =
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground break-words">
-          How much deeper than the screen needs the terrain is read. Some sources round their heights more at low zoom (Mapterhorn: 1 m up to zoom 11, half of it per level after), which bands a floodplain into a few colors; a level finer halves the step for four times the tiles. Rounded heights are also smoothed within their own half step.
+          How much deeper than the screen needs the terrain is read. Some sources round their heights more at low zoom (Mapterhorn: 1 m up to zoom 11, half of it per level after), which bands a floodplain into a few colors; a level finer halves the step for four times the tiles. Auto reads one level finer, except from a WMS, whose heights are exact at any zoom. Rounded heights are also smoothed within their own half step.
         </p>
       </div>
 
@@ -507,10 +509,6 @@ const DisplayPanel: React.FC<{ state: any; setState: (updates: any) => void }> =
 }
 
 // ─── The group ──────────────────────────────────────────────────────────────
-
-/** The mode's three sections, for the sidebar's fold all / expand all. */
-export const RIVER_REM_SECTION_KEYS = ["river", "detrending", "display"] as const
-export type RiverRemSectionKey = (typeof RIVER_REM_SECTION_KEYS)[number]
 
 export const RiverRemSections: React.FC<{ state: any; setState: (updates: any) => void; draw: TerraDraw | null }> = ({ state, setState, draw }) => {
   const [open, setOpen] = useAtom(riverRemSectionsOpenAtom)

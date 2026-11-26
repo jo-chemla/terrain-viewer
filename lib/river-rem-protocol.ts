@@ -195,6 +195,30 @@ async function dequantizedHeights(
   return { data, valid, step, ms: detectMs + performance.now() - t1 }
 }
 
+/** The tile's heights. A WMS or an ImageServer read as raw floats
+ *  (float32dem-bbox://) goes the way every other computed mode reads it: one
+ *  GetMap for the tile through fetchPaddedElevationGrid. Asked as a plain
+ *  z/x/y tile, IGN LiDAR HD answered one tile of a view and left the others
+ *  empty (measured 2026-11-26; the padded read answered in 6 s). */
+async function readTile(
+  template: string, encoding: UpstreamEncoding, z: number, x: number, y: number, n: number, signal: AbortSignal,
+): Promise<{ data: Float32Array; width: number; height: number; valid?: Uint8Array } | null> {
+  if (template.startsWith("float32dem-bbox://")) {
+    const grid = await fetchPaddedElevationGrid(sharedTileCache, template, encoding, z, x, y, n, signal, 1)
+    const stride = grid.stride
+    const data = new Float32Array(n * n)
+    const valid = grid.paddedValid ? new Uint8Array(n * n) : undefined
+    for (let row = 0; row < n; row++) {
+      const from = (row + 1) * stride + 1
+      data.set(grid.padded.subarray(from, from + n), row * n)
+      if (valid) valid.set(grid.paddedValid!.subarray(from, from + n), row * n)
+    }
+    return { data, width: n, height: n, valid }
+  }
+  const url = template.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
+  return fetchDecodedTile(sharedTileCache, url, encoding, signal)
+}
+
 export async function riverRemProtocol(
   params: { url: string },
   abortController: AbortController,
@@ -208,8 +232,7 @@ export async function riverRemProtocol(
   if (!absolute && !grid) throw new Error("River REM: no trend surface yet")
   const template = decodeURIComponent(encodedTemplate)
   const encoding = encodingRaw as UpstreamEncoding
-  const upstreamUrl = template.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
-  const tile = await fetchDecodedTile(sharedTileCache, upstreamUrl, encoding, abortController.signal)
+  const tile = await readTile(template, encoding, z, x, y, n, abortController.signal)
   if (!tile) throw new Error(`Failed to fetch River REM elevation tile at ${z}/${x}/${y}`)
   const out = new Uint8ClampedArray(n * n * 4)
   // A halo read that fails (a neighbor off the source's edge, a cancelled

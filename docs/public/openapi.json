@@ -2410,12 +2410,13 @@
             "schema": {
               "type": "string",
               "enum": [
+                "main",
                 "longest",
                 "all",
                 "named",
                 "drawn"
               ],
-              "default": "longest"
+              "default": "main"
             }
           },
           {
@@ -2495,6 +2496,94 @@
                 "none"
               ],
               "default": "min"
+            }
+          },
+          {
+            "name": "remInterp",
+            "in": "query",
+            "required": false,
+            "description": "State. How the river's level is spread over the view: inverse-distance weighting of the nearest samples (RiverREM's), or the level at the nearest place on the centerline.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "idw",
+                "nearest"
+              ],
+              "default": "idw"
+            }
+          },
+          {
+            "name": "remShow",
+            "in": "query",
+            "required": false,
+            "description": "State. What the mode draws: the REM (height above the river) or the terrain source's own elevation, each with its own range.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "rem",
+                "elevation"
+              ],
+              "default": "rem"
+            }
+          },
+          {
+            "name": "remElevAuto",
+            "in": "query",
+            "required": false,
+            "description": "State. Elevation display: the range follows the heights in view; false uses remElevMin and remElevMax.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "remElevMin",
+            "in": "query",
+            "required": false,
+            "description": "State. Elevation display: height in metres at the start of the color ramp, when remElevAuto is false.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "remElevMax",
+            "in": "query",
+            "required": false,
+            "description": "State. Elevation display: height in metres at the end of the color ramp, when remElevAuto is false.",
+            "schema": {
+              "type": "number",
+              "default": 100
+            }
+          },
+          {
+            "name": "remContours",
+            "in": "query",
+            "required": false,
+            "description": "State. Contour lines of the height above the river (of the elevation, in the Elevation display).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "remContourInterval",
+            "in": "query",
+            "required": false,
+            "description": "State. Interval of those contour lines, in metres.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "remDetail",
+            "in": "query",
+            "required": false,
+            "description": "State. How many zoom levels deeper than the screen needs the heights are read (0 to 2): finer heights where a source rounds them by zoom, four times the tiles per level.",
+            "schema": {
+              "type": "integer",
+              "default": -1
             }
           },
           {

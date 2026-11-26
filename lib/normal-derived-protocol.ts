@@ -342,7 +342,7 @@ async function fetchWmsPaddedGrid(
   const url = decodeURIComponent(match[1]).replace("{bbox-epsg-3857}", bbox)
     .replace(/([?&]WIDTH=)\d+/i, `$1${stride}`).replace(/([?&]HEIGHT=)\d+/i, `$1${stride}`)
   const cached = cacheGet(cache, url)
-  const promise = cached ?? (async (): Promise<DecodedTile | null> => {
+  const read = (): Promise<DecodedTile | null> => (async (): Promise<DecodedTile | null> => {
     const r = await fetchFloat32Raster(`float32dem://${url}`, signal)
     let data: Float32Array, valid: Uint8Array | undefined
     if (r.width === stride && r.height === stride) {
@@ -363,8 +363,24 @@ async function fetchWmsPaddedGrid(
     }
     return valid ? { data, width: stride, height: stride, valid } : { data, width: stride, height: stride }
   })()
-  if (!cached) cacheSet(cache, url, promise)
-  const tile = await promise
+  // A read runs on its first requester's signal. When that one is cancelled
+  // (a pan, a source whose tiles were reloaded) the read fails, and its
+  // rejection used to stay in the cache: every later request for the tile
+  // failed at once, for good ("signal is aborted", 0 ms; IGN LiDAR HD under
+  // the River REM drew no tile at all, 2026-11-26). A failed read leaves the
+  // cache, and a requester that was not itself cancelled reads again.
+  const keep = (promise: Promise<DecodedTile | null>) => {
+    cacheSet(cache, url, promise)
+    promise.catch(() => { if (cache.get(url) === promise) cache.delete(url) })
+    return promise
+  }
+  let tile: DecodedTile | null
+  try {
+    tile = await (cached ?? keep(read()))
+  } catch (error) {
+    if (!cached || signal.aborted) throw error
+    tile = await keep(read())
+  }
   if (!tile) return null
   // The centre tile, cut out of the grid, for callers that read it.
   const center = new Float32Array(n * n)
