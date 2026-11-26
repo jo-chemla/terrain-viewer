@@ -21,6 +21,8 @@
 - `epsg4326://` (`a22cf0a`): plate carrée tiles resampled to Web Mercator, used by the Holmul DEM (Tulane, a grey picture of the 1 m DEM; about h ≈ 0.75 × grey + 120 m, not a terrain); PAMAP and Sardinia hillshades (licences not stated); El Pilar's bare-earth hillshade checked.
 - Blobness orientation `180 − θ` mod 180 in `lib/blobness-protocol.ts` and the Python port, cyclic ramp (`bbf787e`); the tile service and QGIS agree on 99.999 % of pixels.
 - The G-LiHT slide and page show a real Kiuic render (`48c9f1f`); `qgis-plugin/out/` is no longer tracked (a 985 KB test picture failed the deploy's media check).
+- Tools & Integrations is a section of Features, between Tools and Other (`5601d7f`); the QGIS screenshots retaken on 0.9.1: slope with contours, then sky view factor and curvature with their settings open (`633922a`).
+- MapLibre: ten more W3C blend modes (difference, exclusion, soft-light, hard-light, darken, lighten, color-dodge, color-burn, hue, saturation) for `fill-`, `line-` and `raster-layer-blend`, proposed upstream in [maplibre-style-spec#2017](https://github.com/maplibre/maplibre-style-spec/pull/2017) and [maplibre-gl-js#9143](https://github.com/maplibre/maplibre-gl-js/pull/9143) (render tests for all three layer types).
 
 
 <!-- released: 2026-11-25T23:55 -->
