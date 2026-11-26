@@ -1,11 +1,11 @@
 ---
 title: QGIS Plugins
 icon: Puzzle
-description: Two QGIS plugins - Terrain Viewer 0.9.0, the app's sidebar as a QGIS panel with three backends (a Python backend in numpy, a packaged tile server installed from the panel, a remote tile server) under one modes tree (Color, Values and Vector per mode), any GDAL source, updates from its own plugin repository - and Send2MapApp 0.5.1, the app's "Open in" list in QGIS.
+description: Two QGIS plugins - Terrain Viewer 0.9.2, the app's sidebar as a QGIS panel with three backends (a Python backend in numpy, a packaged tile server installed from the panel, a remote tile server) under one modes tree (Color, Values and Vector per mode), any GDAL source, updates from its own plugin repository - and Send2MapApp 0.5.1, the app's "Open in" list in QGIS.
 ---
 
 <LinkButtons links={[
-  { href: "https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26b", label: "Download the QGIS plugins (0.9.1)", icon: "download" },
+  { href: "https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26c", label: "Download the QGIS plugins (0.9.2)", icon: "download" },
   { href: "https://github.com/Iconem/terrain-viewer/releases?q=qgis-plugins&expanded=true", label: "All QGIS plugin releases", icon: "release" },
 ]} />
 
@@ -22,7 +22,7 @@ Both are checked headless in QGIS 4.2 and 3.44 LTR (`qgis-plugin/test_*.py`). Ne
 
 A dock panel laid out as the app's sidebar. From the top:
 
-1. **An update**, when there is one: "Terrain Viewer 0.9.1 is available" and an **Update to 0.9.1** button ([updates](#updates)); hidden otherwise.
+1. **An update**, when there is one: "Terrain Viewer 0.9.2 is available" and an **Update to 0.9.2** button ([updates](#updates)); hidden otherwise.
 2. **The backend**: three radio buttons in a row, as QGIS lays out a choice: **Python backend**, **Packaged tile server**, **Remote tile server** (in that order since 0.9.0), and under them the picked one's options (below).
 3. **The status line**: what is connected, or why not.
 4. **Source**, in three groups (0.9.0): **QGIS elevation layers** (the project's raster layers that can be elevation: one band of floats or 16-bit integers, "QGIS layer: ...", kept in step with the project; a photo or a hillshade picture is left out), **Worldwide defaults** (Mapterhorn, Esri, Mapbox, MapTiler, AWS, Cesium, GEM-15) and the **Terrain library** (the rest of the service's `/terrain-sources`); or a typed id, tile address, file path or GDAL source. Beside it, a **zoom to** button that moves the map canvas to the source's bounds (the whole world for a global source such as Mapterhorn), and an **add raw elevation** button: for a library COG, VRT or raw WMS, its raw elevation as a raster layer of the project, in a **Raw elevation inputs** group, opened by GDAL with the very address the Python backend reads (below).
@@ -141,11 +141,11 @@ How to:
 
 ### Install
 
-Terrain Viewer 0.9.1 (the panel described above) is on the [`qgis-plugins-2026-11-26b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26b) release, `terrain_viewer-0.9.1.zip`, with Send2MapApp 0.5.1, the tile service bundles its Install button downloads and `plugins.xml`. 0.9.0 is on [`qgis-plugins-2026-11-26`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26), 0.8.0 on [`qgis-plugins-2026-11-25f`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25f), 0.7.0 on [`qgis-plugins-2026-11-25e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25e). Earlier zips are on the [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d) release (Terrain Viewer 0.6.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28); 0.5.0 stays on [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c), 0.4.0 on [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b) and 0.3.0 on [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25). Since 0.5.0 Terrain Viewer is **one plain zip** for every platform; the tile service is downloaded from the panel when wanted:
+Terrain Viewer 0.9.2 (the panel described above) is on the [`qgis-plugins-2026-11-26c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26c) release, `terrain_viewer-0.9.2.zip`, with Send2MapApp 0.5.1, the tile service bundles its Install button downloads and `plugins.xml`. 0.9.1 is on [`qgis-plugins-2026-11-26b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26b), 0.9.0 on [`qgis-plugins-2026-11-26`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26), 0.8.0 on [`qgis-plugins-2026-11-25f`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25f), 0.7.0 on [`qgis-plugins-2026-11-25e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25e). Earlier zips are on the [`qgis-plugins-2026-11-25d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25d) release (Terrain Viewer 0.6.0, Send2MapApp 0.5.1), for QGIS 3.22 to 4.x (Terrain Viewer needs 3.28); 0.5.0 stays on [`qgis-plugins-2026-11-25c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25c), 0.4.0 on [`qgis-plugins-2026-11-25b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25b) and 0.3.0 on [`qgis-plugins-2026-11-25`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-25). Since 0.5.0 Terrain Viewer is **one plain zip** for every platform; the tile service is downloaded from the panel when wanted:
 
 | Asset | Size | What it is |
 |---|---|---|
-| `terrain_viewer-0.9.2.zip` | 360 KB | The plugin, pure Python. Install it in QGIS |
+| `terrain_viewer-0.9.2.zip` | 364 KB | The plugin, pure Python. Install it in QGIS |
 | `terrain-viewer-tile-service-windows-x64.zip`, `-macos-arm64`, `-macos-x64`, `-linux-x64` | 48 to 59 MB each | The local tile service of one platform (Node 22, the service, its node_modules with that platform's sharp binaries). Not installed by hand: the plugin's **Install** button downloads the one it pins |
 | `service_pins.json`, `SHA256SUMS` | | The bundles' names, sizes and sha256, as the plugin pins them |
 | `plugins.xml` | 8 KB | The QGIS plugin repository of this release (both plugins, their zips' addresses and sha256); also on the fixed release [`qgis-plugins-repository`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-repository) ([updates](#updates)) |
