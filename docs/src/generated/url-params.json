@@ -2117,12 +2117,44 @@
       "type": "enum",
       "items": null,
       "enum": [
-        "idw",
-        "nearest"
+        "edt",
+        "jfa",
+        "nearest",
+        "idw"
       ],
-      "default": "idw",
-      "defaultSource": "\"idw\"",
-      "note": "How the river's level is spread over the view: inverse-distance weighting of the nearest samples (RiverREM's), or the level at the nearest place on the centerline."
+      "default": "edt",
+      "defaultSource": "\"edt\"",
+      "note": "How the river's level is spread over the view: the level at the nearest place on the centerline found by a distance transform (edt, the default), by a jump flood on the GPU (jfa) or by an exact scan …"
+    },
+    {
+      "key": "remBlend",
+      "stateKey": "remBlend",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.5,
+      "defaultSource": "0.5",
+      "note": "Nearest-centerline methods: how far the level is blended across the lines where two reaches are equally near, as a share of the distance to the river (0 keeps the creases)."
+    },
+    {
+      "key": "remGrid",
+      "stateKey": "remGrid",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "Cells on the longer side of the trend grid of the distance-transform and jump-flood methods (256 to 2048); 0 follows the screen, one cell for two pixels."
+    },
+    {
+      "key": "remSmooth",
+      "stateKey": "remSmooth",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "The steps of the water level read along the river (rounded heights, survey seams, the running minimum's treads) are turned into ramps."
     },
     {
       "key": "remShow",

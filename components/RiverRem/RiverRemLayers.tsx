@@ -22,11 +22,14 @@ import { colorRampsFlat } from "@/lib/color-ramps"
 import { yieldToMainThread } from "@/lib/normal-derived-protocol"
 import {
   mergeWaterways, chooseRiverLines, decodeLines, encodeLines, lineLengthM, resampleLine, resolveSpacingM,
-  cleanProfile, medianFilter, runsUphill, sinuosity, estimateNeighbors, createTrendGrid, fillTrendRows,
-  lngToMercX, latToMercY, type Bbox, type LngLat, type Waterway, type MonotoneMode, type RiverChoice, type TrendMethod,
+  cleanProfile, rampProfile, smoothProfile, medianFilter, runsUphill, sinuosity, estimateNeighbors, createTrendGrid, fillTrendRows,
+  burnCenterline, labelNearestSeed, refineNearest, refineReach, blendTrendByDistance, subSamplePoints, reduceStations,
+  lngToMercX, latToMercY, mercYToLat, MERCATOR_HALF, REM_GRID_SIZE,
+  type Bbox, type LngLat, type Waterway, type MonotoneMode, type RiverChoice, type TrendMethod,
 } from "@/lib/river-rem"
 import { fetchWaterways, OverpassError, OVERPASS_MAX_AREA_DEG2, type WaterwayKinds } from "@/lib/overpass-rivers"
-import { sampleRiverElevations } from "@/lib/river-rem-sample"
+import { sampleRiverElevations, pickSampleZoom, samplePixelM } from "@/lib/river-rem-sample"
+import { jumpFloodLabels } from "@/lib/river-rem-gpu"
 import { buildRiverRemProtocolUrl, setRiverRemTrend, onRiverRemTile, riverRemElevationRange } from "@/lib/river-rem-protocol"
 import { buildRemColorExpression, type RemStretch } from "@/lib/river-rem-style"
 import {
@@ -54,7 +57,32 @@ function pad(b: Bbox, share: number): Bbox {
   return [b[0] - dx, Math.max(-85, b[1] - dy), b[2] + dx, Math.min(85, b[3] + dy)]
 }
 
-interface Samples { key: string; perLine: LngLat[][]; elevations: Float64Array; zoom: number; spacingM: number; lengthM: number; lines: LngLat[][]; label: string; banks: number }
+interface Samples {
+  key: string; perLine: LngLat[][]; elevations: Float64Array; zoom: number; spacingM: number; lengthM: number; lines: LngLat[][]; label: string; banks: number
+  /** Readings of the terrain behind each height, and the pixel they were read at (m). */
+  perStation: number; pixelM: number
+  /** Terrain tiles read for it, and how long the reading took. */
+  tiles: number; sampleMs: number
+}
+
+/** Most readings of the terrain per height along the river. */
+const MAX_READINGS_PER_HEIGHT = 8
+/** How far into a long flat reach (a reservoir) the ramp of a step may run. */
+const RAMP_REACH_M = 5000
+/** Half width of each of the two box passes that follow the ramps: a lone
+ *  step is spread over four times this. */
+const SMOOTH_RADIUS_M = 300
+/** The trend grid of the distance-transform and jump-flood methods: one cell
+ *  for this many screen pixels, between these sizes. */
+const TREND_PX_PER_CELL = 2
+const TREND_GRID_MIN = 512
+const TREND_GRID_MAX = 2048
+const METHOD_LABEL: Record<TrendMethod, string> = {
+  idw: "Inverse-distance weighting of the river's level",
+  nearest: "Nearest point of the centerline, by a scan",
+  edt: "Nearest point of the centerline, by a distance transform",
+  jfa: "Nearest point of the centerline, by a jump flood on the GPU",
+}
 
 /** Above this share of heights read from a bank (no height on the water), the
  *  profile is median-filtered before it is cleaned. */
@@ -254,10 +282,26 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
         const spacingM = resolveSpacingM(lengthM, spacingSetting)
         const perLine = choice.lines.map((l) => resampleLine(l, spacingM))
         const points = perLine.flat()
-        const { elevations, zoom, banks } = await sampleRiverElevations(points, { template, encoding, tileSize, minzoom, maxzoom }, controller.signal,
-          (done, total) => setSampleProgress({ done, total, points: points.length }))
+        // The zoom is the finest the tile budget allows; the terrain is then
+        // read about once a pixel along the line (several readings per
+        // height, a low quantile of them kept) rather than once per spacing:
+        // a bar the centerline cuts across, a bridge or one pit no longer
+        // decide a height on their own.
+        const source = { template, encoding, tileSize, minzoom, maxzoom }
+        const zoom = pickSampleZoom(points, source)
+        const pixelM = samplePixelM(zoom, points[0]?.[1] ?? 0, tileSize)
+        const perStation = Math.max(1, Math.min(MAX_READINGS_PER_HEIGHT, Math.round(spacingM / pixelM)))
+        const readings = perLine.flatMap((l) => subSamplePoints(l, perStation))
+        const started = performance.now()
+        const read = await sampleRiverElevations(readings, source, controller.signal,
+          (done, total) => setSampleProgress({ done, total, points: points.length }), zoom)
         if (controller.signal.aborted) return
-        setSamples({ key, perLine, elevations, zoom, spacingM, lengthM, lines: choice.lines, label: choice.label, banks })
+        // Dev-only: every reading's cost (the panel shows the last one, which is a cached re-read when the lines were found twice).
+        if (import.meta.env.DEV) ((window as any).__tvRemSampleRuns ??= []).push({ zoom, tiles: read.tiles, ms: Math.round(performance.now() - started), readings: readings.length })
+        setSamples({
+          key, perLine, elevations: reduceStations(read.elevations, perStation), zoom, spacingM, lengthM, lines: choice.lines, label: choice.label,
+          banks: Math.round(read.banks / perStation), perStation, pixelM, tiles: read.tiles, sampleMs: Math.round(performance.now() - started),
+        })
       } catch {
         if (controller.signal.aborted) return
         setSamples(null)
@@ -279,7 +323,10 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
   const monotone = (state.remMonotone ?? "min") as MonotoneMode
   const power = Number(state.remPower) > 0 ? Number(state.remPower) : 1
   const neighborsSetting = Math.max(0, Math.floor(Number(state.remNeighbors) || 0))
-  const method: TrendMethod = state.remInterp === "nearest" ? "nearest" : "idw"
+  const method: TrendMethod = state.remInterp === "idw" || state.remInterp === "nearest" || state.remInterp === "jfa" ? state.remInterp : "edt"
+  const blend = method === "idw" ? 0 : Math.min(2, Math.max(0, Number(state.remBlend ?? 0.5) || 0))
+  const gridSetting = Math.max(0, Math.floor(Number(state.remGrid) || 0))
+  const smooth = state.remSmooth !== false
   useEffect(() => {
     setTrendProblem("")
     if (!samples) { setBuilding(false); return }
@@ -288,7 +335,9 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
     setBuildFraction(0)
     const timer = setTimeout(async () => {
       const xs: number[] = [], ys: number[] = [], zs: number[] = [], starts: number[] = []
-      let offset = 0, corrected = 0, levelHigh = -Infinity, levelLow = Infinity
+      let offset = 0, corrected = 0, levelHigh = -Infinity, levelLow = Infinity, maxStep = 0
+      const rampReach = Math.max(2, Math.round(RAMP_REACH_M / samples.spacingM))
+      const smoothRadius = Math.max(1, Math.round(SMOOTH_RADIUS_M / samples.spacingM))
       // A DEM with no heights on water was read from the banks: noisy, with
       // pits a running minimum would latch onto (GEM-15 on the Mississippi:
       // bank readings from -29 to 36 m around a river at 30 m). A long
@@ -304,14 +353,20 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
         const reversed = drawn && runsUphill(raw)
         const ordered = reversed ? Float64Array.from(raw).reverse() : raw
         const cleaned = cleanProfile(ordered, cleaning)
-        let first = true
+        // The staircase left by rounded heights, survey seams and the
+        // running minimum, read as ramps: each step would otherwise be
+        // printed across the floodplain as a straight line.
+        const levels = smooth ? smoothProfile(rampProfile(cleaned, rampReach), smoothRadius) : cleaned
+        let first = true, previous = NaN
         for (let i = 0; i < line.length; i++) {
-          const level = cleaned[i]
+          const level = levels[i]
           if (!Number.isFinite(level)) continue
           const point = line[reversed ? line.length - 1 - i : i]
           xs.push(lngToMercX(point[0])); ys.push(latToMercY(point[1])); zs.push(level); starts.push(first ? 1 : 0)
           first = false
-          if (Math.abs(level - ordered[i]) > 0.1) corrected++
+          if (Math.abs(previous - level) > maxStep) maxStep = Math.abs(previous - level)
+          previous = level
+          if (Math.abs(cleaned[i] - ordered[i]) > 0.1) corrected++
           if (level > levelHigh) levelHigh = level
           if (level < levelLow) levelLow = level
         }
@@ -321,6 +376,8 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
         setTrendProblem("The terrain source has no heights along this river.")
         return
       }
+      // Dev-only: the profile in use, for a console or an automated browser.
+      if (import.meta.env.DEV) (window as any).__tvRemProfile = { read: Array.from(samples.elevations), levels: zs.slice(), starts: starts.slice(), spacingM: samples.spacingM }
       const riverSinuosity = sinuosity(samples.lines)
       const neighbors = neighborsSetting > 0 ? Math.min(neighborsSetting, xs.length) : estimateNeighbors(xs.length, riverSinuosity)
       // The grid covers the samples with a margin, the searched box and what
@@ -338,29 +395,72 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
       if (view && (view.getEast() - view.getWest()) * (view.getNorth() - view.getSouth()) <= OVERPASS_MAX_AREA_DEG2) include([view.getWest(), view.getSouth(), view.getEast(), view.getNorth()])
 
       const points = { x: Float64Array.from(xs), y: Float64Array.from(ys), z: Float64Array.from(zs), starts: Uint8Array.from(starts) }
-      const grid = createTrendGrid({ x0, y0, x1, y1 })
-      const options = { power, neighbors, method }
-      // Only the filling is timed: the yields between chunks are the page's.
-      let fillMs = 0
-      for (let row = 0; row < grid.h; row += 16) {
-        const t0 = performance.now()
-        fillTrendRows(grid, points, options, row, Math.min(grid.h, row + 16))
-        fillMs += performance.now() - t0
-        setBuildFraction(Math.min(1, (row + 16) / grid.h))
-        await yieldToMainThread()
-        if (cancelled) return
+      // IDW and the scanned nearest cost cells x samples and stay on 256
+      // cells. The distance transform and the jump flood cost cells alone and
+      // follow the screen: one cell for two pixels of the view the trend is
+      // built for, or the size asked for.
+      const transform = method === "edt" || method === "jfa"
+      let size = REM_GRID_SIZE
+      if (transform) {
+        const zoomNow = mapRef?.getMap()?.getZoom() ?? 10
+        const pixels = Math.max(x1 - x0, y1 - y0) / ((2 * MERCATOR_HALF) / (512 * 2 ** zoomNow))
+        size = gridSetting > 0
+          ? Math.min(TREND_GRID_MAX, Math.max(REM_GRID_SIZE, gridSetting))
+          : Math.min(TREND_GRID_MAX, Math.max(TREND_GRID_MIN, Math.ceil(pixels / TREND_PX_PER_CELL / 64) * 64))
       }
+      const grid = createTrendGrid({ x0, y0, x1, y1 }, size)
+      // Only the computing is timed: the yields between chunks are the page's.
+      let fillMs = 0, blendMs = 0
+      let gpu: boolean | undefined
+      const step = async (fraction: number, run: () => void) => {
+        const t0 = performance.now()
+        run()
+        fillMs += performance.now() - t0
+        setBuildFraction(Math.min(1, fraction))
+        await yieldToMainThread()
+        return !cancelled
+      }
+      if (transform) {
+        let seeds!: Int32Array, labels: Int32Array | null = null
+        if (!(await step(0.05, () => { seeds = burnCenterline(grid, points) }))) return
+        if (!(await step(0.3, () => {
+          // The same labels by either road; the GPU's when it can.
+          if (method === "jfa") { labels = jumpFloodLabels(seeds, grid.w, grid.h)?.labels ?? null; gpu = labels !== null }
+          labels ??= labelNearestSeed(seeds, grid.w, grid.h)
+        }))) return
+        const reach = refineReach(grid, points)
+        const chunk = Math.max(16, Math.round(120000 / grid.w))
+        for (let row = 0; row < grid.h; row += chunk) {
+          if (!(await step(0.3 + (0.5 * (row + chunk)) / grid.h, () => refineNearest(grid, points, labels!, row, Math.min(grid.h, row + chunk), reach)))) return
+        }
+      } else {
+        if (method === "nearest") grid.dist = new Float32Array(grid.w * grid.h)
+        const options = { power, neighbors, method }
+        for (let row = 0; row < grid.h; row += 16) {
+          if (!(await step(((blend > 0 ? 0.8 : 1) * (row + 16)) / grid.h, () => fillTrendRows(grid, points, options, row, Math.min(grid.h, row + 16))))) return
+        }
+      }
+      const cell = Math.max((grid.x1 - grid.x0) / (grid.w - 1), (grid.y1 - grid.y0) / (grid.h - 1))
+      if (blend > 0 && grid.dist) {
+        const before = fillMs
+        if (!(await step(1, () => blendTrendByDistance(grid.data, grid.dist!, grid.w, grid.h, cell, blend)))) return
+        blendMs = fillMs - before
+      }
+      // Only the blending reads the distances: 16 MB at 2048 cells.
+      grid.dist = undefined
       setRendering({ since: performance.now(), tiles: 0 })
       setRevision(setRiverRemTrend(grid))
       setInfo({
         riverLabel: samples.label, lengthM: samples.lengthM, points: xs.length, spacingM: samples.spacingM, sampleZoom: samples.zoom,
         neighbors, sinuosity: riverSinuosity, levelHigh, levelLow, corrected, buildMs: Math.round(fillMs), gridW: grid.w, gridH: grid.h, method, banks: samples.banks,
+        blendMs: Math.round(blendMs), cellM: cell * Math.cos((mercYToLat((y0 + y1) / 2) * Math.PI) / 180), gpu,
+        perStation: samples.perStation, pixelM: samples.pixelM, maxStep, sampleTiles: samples.tiles, sampleMs: samples.sampleMs,
       })
       setBuilding(false)
     }, 150)
     return () => { cancelled = true; clearTimeout(timer) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [samples, monotone, power, neighborsSetting, method])
+  }, [samples, monotone, power, neighborsSetting, method, blend, gridSetting, smooth])
 
   // The drawing step ends a moment after the first tile of the new trend, or
   // after a few seconds when none comes (the REM hidden, every tile cached).
@@ -415,7 +515,7 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
       next = sampleProgress
         ? { step: 2, detail: `${sampleProgress.points} heights, ${sampleProgress.done} of ${sampleProgress.total} terrain tiles read.`, fraction: sampleProgress.total ? sampleProgress.done / sampleProgress.total : undefined }
         : { step: 2, detail: choice.label ? `${choice.label}: reading the terrain under the centerline.` : "Reading the terrain under the centerline." }
-    } else if (building) next = { step: 3, detail: method === "nearest" ? "Nearest point of the centerline, on a 256-cell grid." : "Inverse-distance weighting of the river's level, on a 256-cell grid.", fraction: buildFraction }
+    } else if (building) next = { step: 3, detail: `${METHOD_LABEL[method]}.`, fraction: buildFraction }
     else if (rendering) next = { step: 4, detail: rendering.tiles ? `${rendering.tiles} tiles drawn.` : "Subtracting the river's level from the terrain tiles." }
     setProgress(next)
   }, [upstream, searching, slow, hasLines, sampling, sampleProgress, building, buildFraction, rendering, sampleProblem, trendProblem, method, choice.label, setProgress])
@@ -425,6 +525,75 @@ function RiverRemEngine({ state, setState, upstream }: { state: any; setState: (
   useProgressToast(progress, revision > 0, !showElevation)
 
   return null
+}
+
+// ─── Tile borders ───────────────────────────────────────────────────────────
+
+/** Copies each loaded tile's one-pixel border again from its loaded
+ *  neighbors, for a raster-dem source whose tiles were reloaded in place.
+ *
+ *  MapLibre (6.13, tile_manager_raster_dem.ts) fills a tile's border from a
+ *  neighbor once, when the tile loads, and marks the pair done. When the
+ *  source's tiles are all reloaded with new contents (a new trend: the
+ *  revision in the tile address), a tile that arrives before its neighbor
+ *  copies the neighbor's OLD edge, and nothing refreshes it when the neighbor
+ *  arrives. Arriving from another river (a bookmark) the old edge is the
+ *  terrain minus the other river's level, far out of the ramp: a one-pixel
+ *  line of the ramp's first color along some tile edges, at fractional zooms
+ *  (found 2026-11-26 on the Mississippi bookmark, 189 m of difference).
+ *
+ *  Reads MapLibre's tiles through private fields, so everything is checked
+ *  and a miss does nothing. */
+function refreshDemBorders(map: any, sourceId: string): void {
+  try {
+    const tiles: Record<string, any> | undefined = map?.style?.tileManagers?.[sourceId]?._inViewTiles?._tiles
+    if (!tiles) return
+    let touched = false
+    for (const tile of Object.values(tiles)) {
+      if (!tile?.dem || !tile.neighboringTiles || typeof tile.dem.backfillBorder !== "function") continue
+      const here = tile.tileID.canonical
+      const world = 2 ** here.z
+      let filled = false
+      for (const key of Object.keys(tile.neighboringTiles)) {
+        const other = tiles[key]
+        if (!other?.dem || other.dem.dim !== tile.dem.dim) continue
+        let dx = other.tileID.canonical.x - here.x
+        const dy = other.tileID.canonical.y - here.y
+        if (Math.abs(dx) > 1) { if (Math.abs(dx + world) === 1) dx += world; else if (Math.abs(dx - world) === 1) dx -= world }
+        if (Math.abs(dx) > 1 || Math.abs(dy) > 1 || (dx === 0 && dy === 0)) continue
+        tile.dem.backfillBorder(other.dem, dx, dy)
+        tile.neighboringTiles[key].backfilled = true
+        filled = true
+      }
+      if (filled) { tile.needsHillshadePrepare = true; tile.needsTerrainPrepare = true; tile.needsColorReliefPrepare = true; touched = true }
+    }
+    if (touched) map.triggerRepaint()
+  } catch { /* MapLibre's internals moved: the borders stay as MapLibre left them */ }
+}
+
+/** Refreshes the borders of the REM tiles after each new trend: once the
+ *  burst of reloaded tiles has settled, and again until the source reports
+ *  itself loaded. */
+function useFreshDemBorders(revision: number, active: boolean) {
+  const { current: mapRef } = useMap()
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    if (!map || !active || revision <= 0) return
+    let dirty = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const run = () => {
+      refreshDemBorders(map, RIVER_REM_SOURCE_ID)
+      try { if (map.isSourceLoaded(RIVER_REM_SOURCE_ID)) dirty = false } catch { dirty = false }
+    }
+    const onData = (e: any) => {
+      if (!dirty || e?.sourceId !== RIVER_REM_SOURCE_ID) return
+      clearTimeout(timer)
+      timer = setTimeout(run, 120)
+    }
+    map.on("sourcedata", onData)
+    timer = setTimeout(run, 120)
+    return () => { clearTimeout(timer); map.off("sourcedata", onData) }
+  }, [mapRef, revision, active])
 }
 
 // ─── Layers (every view) ────────────────────────────────────────────────────
@@ -465,6 +634,7 @@ function RiverRemInner({ primary, state, setState, terrainSource, mapLoaded, the
 
   // The Elevation display has no trend to wait for.
   const ready = !!upstream && (showElevation || revision > 0)
+  useFreshDemBorders(revision, ready && !showElevation)
   // Heights read `detail` zoom levels deeper than the screen needs: the
   // source is declared with smaller tiles, so MapLibre asks for the level
   // below and each tile still comes at its full size. A source that rounds

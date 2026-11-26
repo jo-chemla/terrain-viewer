@@ -2512,14 +2512,46 @@
             "name": "remInterp",
             "in": "query",
             "required": false,
-            "description": "State. How the river's level is spread over the view: inverse-distance weighting of the nearest samples (RiverREM's), or the level at the nearest place on the centerline.",
+            "description": "State. How the river's level is spread over the view: the level at the nearest place on the centerline found by a distance transform (edt, the default), by a jump flood on the GPU (jfa) or by an exact scan …",
             "schema": {
               "type": "string",
               "enum": [
-                "idw",
-                "nearest"
+                "edt",
+                "jfa",
+                "nearest",
+                "idw"
               ],
-              "default": "idw"
+              "default": "edt"
+            }
+          },
+          {
+            "name": "remBlend",
+            "in": "query",
+            "required": false,
+            "description": "State. Nearest-centerline methods: how far the level is blended across the lines where two reaches are equally near, as a share of the distance to the river (0 keeps the creases).",
+            "schema": {
+              "type": "number",
+              "default": 0.5
+            }
+          },
+          {
+            "name": "remGrid",
+            "in": "query",
+            "required": false,
+            "description": "State. Cells on the longer side of the trend grid of the distance-transform and jump-flood methods (256 to 2048); 0 follows the screen, one cell for two pixels.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "remSmooth",
+            "in": "query",
+            "required": false,
+            "description": "State. The steps of the water level read along the river (rounded heights, survey seams, the running minimum's treads) are turned into ramps.",
+            "schema": {
+              "type": "boolean",
+              "default": true
             }
           },
           {

@@ -772,8 +772,14 @@ export const QUERY_STATE_PARSERS = {
     remNeighbors: parseAsInteger.withDefault(0),
     // How the sampled water levels are made to fall downstream: running minimum, monotone least-squares fit, or left as read.
     remMonotone: parseAsStringLiteral(["min", "fit", "none"] as const).withDefault("min"),
-    // How the river's level is spread over the view: inverse-distance weighting of the nearest samples (RiverREM's), or the level at the nearest place on the centerline.
-    remInterp: parseAsStringLiteral(["idw", "nearest"] as const).withDefault("idw"),
+    // How the river's level is spread over the view: the level at the nearest place on the centerline found by a distance transform (edt, the default), by a jump flood on the GPU (jfa) or by an exact scan on a coarse grid (nearest), or inverse-distance weighting of the nearest samples (idw, RiverREM's).
+    remInterp: parseAsStringLiteral(["edt", "jfa", "nearest", "idw"] as const).withDefault("edt"),
+    // Nearest-centerline methods: how far the level is blended across the lines where two reaches are equally near, as a share of the distance to the river (0 keeps the creases).
+    remBlend: parseAsFloat.withDefault(0.5),
+    // Cells on the longer side of the trend grid of the distance-transform and jump-flood methods (256 to 2048); 0 follows the screen, one cell for two pixels.
+    remGrid: parseAsInteger.withDefault(0),
+    // The steps of the water level read along the river (rounded heights, survey seams, the running minimum's treads) are turned into ramps.
+    remSmooth: parseAsBoolean.withDefault(true),
     // What the mode draws: the REM (height above the river) or the terrain source's own elevation, each with its own range.
     remShow: parseAsStringLiteral(["rem", "elevation"] as const).withDefault("rem"),
     // Elevation display: the range follows the heights in view; false uses remElevMin and remElevMax.

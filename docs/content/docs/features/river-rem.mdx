@@ -7,13 +7,14 @@ description: Height above the river, live in the browser - the River REM app mod
 <OpenInApp href="/?appMode=rem&viewMode=2d&lat=46.46&lng=3.32&zoom=12.2">Open the River REM mode on the Allier, upstream of Moulins</OpenInApp>
 
 <LinkButtons quiet links={[
-  { href: "https://github.com/OpenTopography/RiverREM", label: "Origin of the technique: OpenTopography RiverREM", icon: "release" },
+  { href: "https://github.com/Iconem/RiverREM_UI", label: "Our original implementation: Iconem RiverREM_UI", icon: "release" },
+  { href: "https://github.com/OpenTopography/RiverREM", label: "Origin of the technique: OpenTopography RiverREM (Python)", icon: "release" },
   { href: "https://dancoecarto.com/creating-rems-in-qgis-the-idw-method", label: "Dan Coe: creating REMs, the IDW method" },
 ]} />
 
 A **Relative Elevation Model (REM)** shows height above the river instead of height above the sea: the DEM minus a trend surface that follows the river's water level. The slope of the valley is gone, the floodplain reads flat, and what stands a metre or two above or below it shows at once: terraces, levees, old channels, meander scars, point-bar scrolls.
 
-**Where it comes from.** The technique and its look are [Dan Coe](https://dancoecarto.com/creating-rems-in-qgis-the-idw-method)'s (Washington Geological Survey), who made these maps known and wrote down the inverse-distance method. The [OpenTopography RiverREM](https://github.com/OpenTopography/RiverREM) Python package ([documentation](https://opentopography.github.io/RiverREM/)) automated it: centerline from OpenStreetMap, sampling, interpolation, color. This mode is a port of that method to the browser, with its defaults; it is not their code and any fault here is ours.
+**Where it comes from.** The technique and its look are [Dan Coe](https://dancoecarto.com/creating-rems-in-qgis-the-idw-method)'s (Washington Geological Survey), who made these maps known and wrote down the inverse-distance method. The [OpenTopography RiverREM](https://github.com/OpenTopography/RiverREM) Python package ([documentation](https://opentopography.github.io/RiverREM/)) automated it: centerline from OpenStreetMap, sampling, interpolation, color. Iconem's [RiverREM_UI](https://github.com/Iconem/RiverREM_UI) put it in a web app, with a server engine that runs the package and a client engine that added two other ways to spread the river's level: nearest centerline ("JFA") and a Euclidean distance transform ("EDT"). This mode is a port of those to this app, with RiverREM's defaults where it has some; it is not their code and any fault here is ours. Every source is listed in [References](#references).
 
 The **River REM mode** computes one live, in the browser, from whatever terrain source is selected. There is no server: pan to a river and the picture follows.
 
@@ -21,7 +22,7 @@ The **River REM mode** computes one live, in the browser, from whatever terrain 
 
 **The Allier upstream of Moulins (France).** One of the last freely wandering rivers of western Europe: the active channel belt in pale green, the abandoned channels of the last centuries as a braid of blue threads across the floodplain, the valley sides dark.
 
-![The River REM mode over the Allier upstream of Moulins: the active channel belt in pale green, abandoned channels as blue threads across the floodplain, with the River and Detrending panels](/screenshots/river-rem-mode-allier.jpg)
+![The River REM mode over the Allier upstream of Moulins: the active channel belt in pale green, abandoned channels as blue threads across the floodplain, with the River Centerline and Detrending panels](/screenshots/river-rem-mode-allier.jpg)
 
 <OpenInApp href="/?appMode=rem&viewMode=2d&lat=46.46&lng=3.32&zoom=12.2">Open the Allier upstream of Moulins</OpenInApp>
 
@@ -29,9 +30,9 @@ The same reach from IGN's LiDAR HD terrain (0.5 m, read as raw floats from the n
 
 <OpenInApp href="/?appMode=rem&viewMode=2d&lat=46.46&lng=3.32&zoom=13&terrainSourceA=custom-ign-lidarhd-dtm-wms-raw">Open the Allier on IGN LiDAR HD</OpenInApp>
 
-**The Mississippi near Greenville (Mississippi, USA).** Meander scrolls, oxbow lakes cut off at different heights, and the levees as thin dark lines. It is also one of the **Featured bookmarks** of the sidebar.
+**The Mississippi near Greenville (Mississippi, USA).** Meander scrolls, oxbow lakes cut off at different heights, and the levees as thin dark lines.
 
-![The River REM mode over the Mississippi near Greenville: meander scrolls and oxbow lakes](/screenshots/river-rem-mode-mississippi.jpg)
+![The River REM mode over the Mississippi near Greenville: meander scrolls and oxbow lakes, with the Detrending panel](/screenshots/river-rem-mode-mississippi.jpg)
 
 <OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.30&lng=-91.12&zoom=11">Open the Mississippi near Greenville</OpenInApp>
 
@@ -39,7 +40,7 @@ The same reach from IGN's LiDAR HD terrain (0.5 m, read as raw floats from the n
 
 In 1944 Harold Fisk drew, for the US Army Corps of Engineers, every former course of the lower Mississippi he could reconstruct from air photographs, borings and old surveys: plate 22 of his *Geological Investigation of the Alluvial Valley of the Lower Mississippi River*, each age of channel in its own color. The scrolls and cut-offs he traced by hand are the ones a REM shows from lidar eighty years later.
 
-Two sheets of the plate are in the **Basemap Library** (search for *Fisk*), georeferenced in [Allmaps](https://allmaps.org) and drawn by the app's [old-map overlays](/features/historical-imagery): Greenville to Lake Providence, and Rosedale to Greenville. This link splits the view, the REM on the left and the same REM under Fisk's sheet on the right, cameras tied:
+Two sheets of the plate are in the **Basemap Library** (search for *Fisk*), georeferenced in [Allmaps](https://allmaps.org) and drawn by the app's [old-map overlays](/features/historical-imagery): Greenville to Lake Providence, and Rosedale to Greenville. This view is the **Mississippi at Greenville** entry of the sidebar's **Featured bookmarks**: the view split in two, the REM on the left and the same REM under Fisk's sheet on the right, cameras tied.
 
 ![The River REM of the lower Mississippi beside Harold Fisk's 1944 meander map: the scars the REM shows are the former courses Fisk colored](/screenshots/river-rem-mode-fisk.jpg)
 
@@ -49,11 +50,11 @@ Lower the overlays' opacity (Basemaps and Overlays section) to see the REM throu
 
 ## How to use it
 
-Click the sidebar's title and choose **River REM**, or open a link with `appMode=rem`. The sidebar keeps General Settings, the terrain source and the tools, and gets a **River REM** group of three panels in place of the Options group: **River**, **Detrending** (marked *Advanced*, folded until wanted) and **Display**. The sidebar's fold all / expand all button moves them with the other sections.
+Click the sidebar's title and choose **River REM**, or open a link with `appMode=rem`. The sidebar keeps General Settings, the terrain source and the tools, and gets a **River REM** group of three panels in place of the Options group: **River Centerline**, **Detrending** (folded until wanted: its defaults rarely need a hand) and **REM Symbology**. The sidebar's fold all / expand all button moves them with the other sections.
 
-While the first REM of a place is computed, a note at the bottom of the map shows the four steps and how far each is: **1/4 finding the river**, **2/4 reading heights along it** (terrain tiles read out of those needed), **3/4 detrending** (rows of the grid), **4/4 drawing** (tiles). It goes away when the first tiles are drawn, and comes back only for a recompute that takes more than a second.
+While the first REM of a place is computed, a note at the bottom of the map shows the four steps and how far each is: **1/4 finding the river**, **2/4 reading heights along it** (terrain tiles read out of those needed), **3/4 detrending**, **4/4 drawing** (tiles). It goes away when the first tiles are drawn, and comes back only for a recompute that takes more than a second.
 
-### River
+### River Centerline
 
 Where the centerline comes from:
 
@@ -63,13 +64,13 @@ Where the centerline comes from:
 | **Longest river** | RiverREM's own rule: the named river with the most length in view. |
 | **Main river and tributaries** | Every waterway found feeds the trend. For a confluence, a delta or a braided reach. |
 | **Named river** | A list of the named rivers found, with their length in view. |
-| **Drawn or imported line** | A line drawn with the app's [Drawing tool](/features/tools) (the **Draw** button starts one), any line already drawn, or a file (see below). For paleochannels and historical courses OpenStreetMap does not have, or where its centerline is too coarse. The line can run up or down the river. |
+| **Drawn or imported line** | A line drawn with the app's [Drawing tool](/features/tools) (the **Draw** button starts one: click along the channel, double-click to finish), any line already drawn, or a file (see below). For paleochannels and historical courses OpenStreetMap does not have, or where its centerline is too coarse. The line can run up or down the river: it is read from its higher end. |
 
 **Why not simply the longest.** On a floodplain a small creek winds more than the river it runs beside. Near Greenville, Deer Creek has 113 km in view and the Mississippi 91 km, so the longest-river rule builds the REM on the creek. OpenStreetMap has no dependable size tag (`width` is on a small minority of ways), but mappers describe a large river far more than a small one: names in dozens of languages, a Wikidata link, navigation tags, a width. The Mississippi's way carries 60 tags and Deer Creek's 4; the Rhône 28 and the Aygues 9; the Allier 6 and the Sioule 3. The tag count comes with the answer already asked for, where a relation's members or a Wikidata lookup would need a second request. It is a proxy, not a measurement: where it picks wrong, **Named river** names the right one.
 
 **Import line / Export GeoJSON.** *Export* saves the centerline in use (found, named, drawn or imported) as a GeoJSON file of LineStrings, with the river's name and length. *Import* takes a GeoJSON, KML or GPX file and makes its lines the centerline; it is then carried by the link like a drawn line, simplified first when it has too many vertices for a URL (a 20 000-vertex survey line comes down to a few hundred with its length within 1 %).
 
-**Rivers / Rivers, streams, canals** widens the OpenStreetMap search from `waterway=river` to streams and canals. **Sample spacing** is the distance between two heights read along the line; 0 spreads 1000 points over the river, as RiverREM does. The line in use is drawn in orange over the REM (**Show the centerline**).
+**Rivers / Rivers, streams, canals** widens the OpenStreetMap search from `waterway=river` to streams and canals. **Sample spacing** is the distance between two heights kept along the line; 0 spreads 1000 of them over the river, as RiverREM does. Under the slider the panel says what was read: how many heights, at which zoom and pixel size, from how many readings each and how many terrain tiles (see [Heights along the river](#heights-along-the-river)). The line in use is drawn in orange over the REM (**Show the centerline**).
 
 **Where the rivers are asked.** From OpenStreetMap, once the view has rested and again only when it leaves the box already searched, through two public services:
 
@@ -78,79 +79,147 @@ Where the centerline comes from:
 
 Both are shared services run for free: when a server is slow, the next is asked as well and the first answer wins; when all refuse, the panel says so and offers **Retry**, and the last rivers found stay in use. Rivers © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
 
-### Detrending (advanced)
+### Detrending
 
-- **Interpolation**: how the river's level is spread over the land.
-  - **IDW** (default, RiverREM's): the average of the nearest river heights, weighted by 1 / distance^power.
-  - **Nearest centerline**: the level at the nearest place on the centerline, interpolated along the line. This is what a Euclidean distance transform or a jump-flood pass computes, done exactly here. Truest right beside the channel; where two reaches are equally near (the neck of a tight meander) it steps from one level to the other along a line, which IDW blends. On a gentle river the two are hard to tell apart: the Mississippi falls 4.7 m over the 62 km of the example.
-- **IDW power**: 1 is RiverREM's. Higher values follow the nearest reach more closely.
-- **Neighbors**: how many of the nearest river heights are averaged. 0 guesses it from the river's sinuosity, as RiverREM does (2 % of the samples for a straight river, up to five times more for a winding one, between 5 and 100): on a tight meander, too few neighbors print each bend as a step.
-- **Downstream cleaning**: a river does not flow uphill, but what a DEM reads along a centerline sometimes does (bridges, banks where the line leaves the water, trees over a narrow stream). **Running minimum** keeps the lowest height met so far going downstream, since all those errors read too high. **Monotone fit** takes the falling profile closest to the heights read, steadier where the DEM has pits. **Off** uses the heights as read, as RiverREM does. The panel reports the water level at both ends and how many heights the cleaning moved.
+How the river's level is spread over the land. Four methods, in two families:
 
-The panel shows what the last trend cost ("253 x 256 cells from 1000 heights in 371 ms").
+| Method | What it computes | Grid | Time (Greenville view) |
+|---|---|---|---|
+| **EDT** (default) | The level at the **nearest place on the centerline**. The line is burned into a grid and a Euclidean distance transform finds, for every cell, which part of it is nearest. On the CPU. | The screen's: one cell for two pixels, 512 to 2048 cells | 0.14 s for 1536 x 1373 cells, 0.24 s with blending |
+| **JFA** | The same nearest place, found by a jump flood on the graphics card (WebGL2). Falls back to EDT where the GPU cannot (no float render targets, a lost context), and the panel says so. | The same | 0.25 s for 1536 x 1373 cells |
+| **Scan** | The same again by trying every height for every cell: exact, and the reference the two above are tested against. | 256 cells | 0.22 s |
+| **IDW** | The average of the nearest river heights, weighted by 1 / distance^power: RiverREM's and Dan Coe's method. | 256 cells | 0.20 s (40 neighbors) |
 
-### Display
+![Four trends of the same view of the Mississippi: inverse-distance weighting with the water level's steps kept shows straight bands; the distance transform with ramps and blending shows none](/screenshots/river-rem-detrending-compare.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">The same view four ways (hillshade off). Top left, what the mode drew before: IDW with the water level's steps kept, two straight bands across the floodplain. Bottom left: nearest centerline with no blending, the remaining edges are sharp. Bottom right: the default.</p>
+
+- **Blend across creases** (the three nearest-centerline methods). A nearest-centerline trend is exact beside the channel and has a **crease** wherever two reaches are equally near: across the neck of a meander, between two channels. There the level jumps from one reach's to the other's, and the REM shows an edge that is not in the ground. A crease is never close to the river (it is as far from it as the two reaches are apart), so each place is averaged over a neighborhood whose size is this share of its own distance to the river: nothing at the bank, a wide blend far out, and a jump becomes a ramp about that wide. 0.5 by default; 0 keeps the edges.
+- **Trend resolution** (EDT and JFA): *Auto* follows the screen, one cell for two pixels of the view the trend is built for; or 512, 1024, 2048 cells on the longer side.
+- **IDW power** (IDW): 1 is RiverREM's. Higher values follow the nearest reach more closely.
+- **Neighbors** (IDW): how many of the nearest river heights are averaged. 0 guesses it from the river's sinuosity, as RiverREM does (2 % of the samples for a straight river, up to five times more for a winding one, between 5 and 100): on a tight meander, too few neighbors print each bend as a step.
+- **Downstream cleaning**: a river does not flow uphill, but what a DEM reads along a centerline sometimes does (bridges, banks where the line leaves the water, trees over a narrow stream). **Running minimum** keeps the lowest height met so far going downstream, since all those errors read too high. **Monotone fit** takes the falling profile closest to the heights read, steadier where the DEM has pits. **Off** uses the heights as read, as RiverREM does.
+- **Steps into ramps** (on by default): see below. The panel reports the water level at both ends, how many heights the cleaning moved, and the largest step left between two consecutive heights.
+
+The panel shows what the last trend cost ("1536 x 1373 cells of 64 m from 1000 heights in 238 ms (EDT, 79 ms of it blending)").
+
+### REM Symbology
 
 - **Show: REM / Elevation.** *Elevation* draws the terrain source's own heights with the same ramp, stretch and opacity, and its own range: by default it **follows the heights in view** (their 2nd to 98th percentile), or set the two bounds by hand. The river's trend is kept, so switching back to the REM is instant; and the Elevation display needs no river at all, so it draws while the centerline is still being looked for.
 - **Color ramp** over a range of heights above the river (0 to 10 m by default), with a **stretch**: **Log** is RiverREM's, most of the ramp spent in the first metres above the water; **Power** with its gamma; **Linear**. The default ramp, *REM Mako*, is RiverREM's look (seaborn's mako reversed: the river pale, high ground dark); *REM Blues* and every other ramp of the app are in the list, with **Invert ramp**.
-- **Contours above the river**: lines of equal height above the river (of equal elevation in the Elevation display), every 1 m by default, every fifth bold and labeled. They are traced by the app's [contour engine](/features/visualization-modes) from the REM tiles themselves, so they follow the detrended surface: a terrace edge is one line, where a contour of elevation would cross it obliquely. White unless a color is set in the Contours section.
+- **Contours above the river**: lines of equal height above the river (of equal elevation in the Elevation display), every 1 m by default, every fifth bold and labeled. They are traced by the app's [contour engine](/features/visualization-modes) from the REM tiles themselves, so they follow the detrended surface: a terrace edge is one line, where a contour of elevation would cross it obliquely. White unless a color is set in the Contours section. They are drawn in 3D and on every view of a split.
 - **Height detail**: how much deeper than the screen needs the terrain is read (see *Banding* below).
 - **Opacity** lets a basemap show through, and **Hillshade on top** shades the result with the app's hillshade.
 
-Every setting is in the link (`remRiver`, `remInterp`, `remShow`, `remContours`, `remMax`, ... see the [URL reference](/dev/url-api)), the drawn or imported line included. A **bookmark** therefore saves and restores the mode with all of them, and is named "River REM" by default.
+Every setting is in the link (`remRiver`, `remInterp`, `remBlend`, `remGrid`, `remSmooth`, `remShow`, `remContours`, `remMax`, ... see the [URL reference](/dev/url-api)), the drawn or imported line included. A **bookmark** therefore saves and restores the mode with all of them, and is named "River REM" by default.
 
 **Download → Layers** exports what is shown (the REM in metres above the river, or the elevation) as a float32 GeoTIFF, or as colored on screen.
 
 ## What is computed, and what it costs
 
 1. **Centerline.** OpenStreetMap ways of one name are joined end to end into lines and cut at the searched box; or the drawn or imported line is taken as is.
-2. **Water level.** The DEM is read every *spacing* along the line, from the terrain source's own tiles (any source the other modes can read: XYZ tiles, COGs, VRTs, WMS). A long river is read one or two zoom levels down so that it stays under 48 tiles. The profile is cleaned so that it falls downstream.
-3. **Trend surface.** On a grid of 256 cells on its longer side covering the river and the view, read bilinearly by the tiles.
+2. **Water level.** The DEM is read along the line from the terrain source's own tiles and turned into a falling, continuous profile (next section).
+3. **Trend surface.** On a grid covering the river and the view, by one of the four methods, read bilinearly by the tiles.
 4. **REM = elevation − trend**, per tile, as a custom MapLibre protocol (`riverrem://`, `lib/river-rem-protocol.ts`) drawn by a `color-relief` layer. A new centerline or parameter changes a revision number in the tile address: the tiles are recomputed, the map is not rebuilt.
 
-All of it runs in the page, on the main thread, in plain JavaScript over typed arrays: no GPU pass, no worker, no server.
+All of it runs in the page. The trend is computed on the main thread in plain JavaScript over typed arrays, in slices that leave the page answering, except the jump flood's passes, which run on the GPU. No worker, no server.
 
-| Step | Cost (measured 2026-11-26) |
+| Step | Cost (measured 2026-11-26, one run each) |
 |---|---|
 | Rivers of a view | 0.3 to 6 s (QLever); 10 to 21 s when it falls to Overpass |
-| Heights along the river | the terrain tiles under the line: a few seconds on tiled sources, 20 s and more on a national WMS (22 requests for the Allier on IGN LiDAR HD) |
-| Trend grid, IDW, 1000 heights | 0.4 to 0.5 s (253 x 256 cells, 42 to 100 neighbors) |
-| Trend grid, nearest centerline, 1000 heights | 0.45 s |
-| Trend grid, 4000 heights | 2.7 s (IDW), 1.6 s (nearest) |
+| Heights along the river | 16 to 81 terrain tiles in 0.4 to 0.8 s on Mapterhorn, first visit (Willamette, Rhône, Río Negro); 20 s and more on a national WMS (22 requests for the Allier on IGN LiDAR HD) |
+| Trend, EDT, 1000 heights | 0.03 s at 512 cells, 0.13 s at 1024, 0.14 s at 1536 x 1373, 0.34 s at 2048 x 1831 |
+| Trend, JFA on the GPU | 0.05 s at 512, 0.10 s at 1024, 0.25 s at 1536 x 1373, 0.43 s at 2048 x 1831 |
+| Blending the creases | 0.04 to 0.13 s on top, whatever the size |
+| Trend, scan, 256 cells | 0.22 s |
+| Trend, IDW, 256 cells | 0.20 s (40 neighbors); 2.7 s with 4000 heights |
 | One REM tile | 1.3 ms at 256 px, 4 to 5 ms at 512 px, 15 to 20 ms at 1024 px; 42 ms for a 512 px tile whose rounded heights are smoothed |
 
-**IDW, a distance transform or a jump flood?** The trend is brute-force inverse-distance weighting, exact, on a coarse grid: 65 000 cells against at most 4000 river samples. A jump-flood or a Euclidean distance transform earns its keep when the nearest river pixel must be found for every pixel of a full-resolution raster (millions of cells): here the grid is small enough that the exact search costs the same half second either way, so neither would make the mode faster. What they compute, nearest-centerline, is offered as the second interpolation; it is not the default because IDW is the method of the reference and costs the same, and because nearest-centerline can leave a seam across the neck of a meander on a steeper river. The one real cost of IDW was its neighbor search, which was at its worst on river data (samples arrive in order of distance, so nearly every one displaced the heap's root: 4.8 s for 100 neighbors): the cells now bound the search by their neighbor's result and take 0.5 s for the same answer.
+### Heights along the river
+
+The trend is only as good as the water level read along the centerline, and a REM stretches a few metres over the whole ramp: 20 cm wrong at the river is 20 cm wrong everywhere it is the nearest reach. What is done, in order:
+
+1. **Stations.** The line is resampled at the spacing (1000 stations by default, 4000 at most).
+2. **The best zoom within a budget.** The terrain is read at the source's finest zoom there, lowered until the line touches at most 96 tiles (48 for a WMS, which renders every tile on its server and rounds nothing), and never above zoom 15. It was 48 tiles everywhere before: one level deeper halves both the pixel and, on a source that rounds its heights by zoom (Mapterhorn), the rounding step. The Mississippi's 62 km are read at zoom 15 (2 m pixels, heights to 1/16 m) from 79 tiles; the Willamette at zoom 13, the finest the source has there.
+3. **Several readings per height.** Around each station the terrain is read about once a pixel along the line (up to 8 readings) and their 25th percentile is kept. Low, because whatever is not water along a centerline reads too high: a bar the line cuts across (OpenStreetMap's Mississippi has 40 vertices over 62 km), a bridge, trees. Not the minimum, so that one pit does not decide.
+4. **Downstream cleaning** (running minimum by default), so that the profile falls.
+5. **Steps into ramps.** What comes out is a staircase: heights rounded by the source, water surfaces flattened survey by survey with a jump where two surveys meet, and the running minimum's own treads. Each run of equal levels gives one point at its middle and the level is linear between those points (a height rounded to *L* is *L* in the middle of its tread). A ramp reaches at most 5 km into a long flat reach, so a reservoir stays flat except near its ends. A short moving average (0.6 km each way) then spreads the lone step this leaves, in a profile that falls steadily on both sides of it. Neither can make the level rise where it did not.
+
+On the Mississippi near Greenville the profile read is flat at 32.5 m for 21 km, then drops a metre in one kilometre: the water surface of two lidar surveys, flown at different river stages. Left as a step, every interpolation printed it across the whole floodplain as a straight east-west line. As measured on the panel: water level from 33.7 m down to 29.1 m, 14 of 1000 heights moved by the cleaning, the largest step left between two heights 63 mm.
+
+**What this cannot do.** The ramp is a guess between two measured levels: at a real dam or weir the true profile is a step, and the REM within a kilometre or so of it reads up to half the dam's height too high on one side and too low on the other (on the Rhône near Avignon, a river of dams and locks, 0.85 m is left between two heights 71 m apart). Untick **Steps into ramps** to see the profile as cleaned. And a line that is not on the water at all (a drawn line across a meander's inside) still reads land: the low percentile and the running minimum only remove what is higher than the water somewhere upstream.
+
+### IDW, a distance transform or a jump flood?
+
+The two families answer different questions. **IDW** averages river heights, so it is smooth everywhere and exact nowhere: beside the channel the trend is a mean over several kilometres of river (40 to 100 neighbors) rather than the level abreast. The **nearest-centerline** methods take the level abreast, exact at the bank, and pay for it with a crease wherever two reaches are equally near.
+
+**What RiverREM_UI does about the creases: nothing.** Its IDW grid used to be softened by four box blurs, removed when the nearest-centerline and EDT modes arrived; its README lists the step across a tight meander's neck as a known and accepted artefact, shared with IDW's bull's-eyes. Its JFA is the nearest-polyline scan on the CPU (the name is the GPU algorithm's, which it does not run), its EDT burns the line into a 256-cell grid and reads each cell's level from the nearest burned cell, and its one GPU pass is an IDW shader in the standalone page.
+
+**What this mode does.**
+
+- *EDT*: the same Felzenszwalb and Huttenlocher two-pass transform, carrying the label of the nearest seed. The transform only says **which segment** is nearest; the level and the distance are then computed on that segment and its neighbors, so the level does not show the grid's cells.
+- *JFA*: a real jump flood on the GPU, eight neighbors at steps n/2 ... 1 with one pass of step 1 before and one after, giving the same labels to the same refinement.
+- *Blending by distance* for the creases, described above.
+- *The screen's resolution* for both, instead of 256 cells.
+
+**Which is the default, and why not the GPU.** EDT. The jump flood itself is fast, but the tiles are computed on the CPU and need the grid as an array: sending the seeds up and reading the labels back costs about as much as the transform it replaces. One run each: the GPU ahead at 1024 cells (0.10 s against 0.13 s), behind at 512 (0.05 against 0.03), at 1536 (0.25 against 0.14) and at 2048 (0.43 against 0.34). EDT also gives the same answer on every machine, and needs no WebGL2 float target. IDW is kept as RiverREM's method and is the one to choose to reproduce its pictures; it stays on 256 cells because its cost is cells x samples (the k nearest heights are found exactly), and its trend is smooth enough for that.
+
+**What remains, honestly.**
+
+- A crease is blended, not removed: across a neck the REM passes from "above this reach" to "above that reach" over a width of about half the distance to the river. That is a choice of reference, not a measurement: the two differ by the river's fall between the two reaches.
+- With blending at 0 the creases are sharp edges, as in RiverREM_UI.
+- A crease closer to the river than about two cells of the blending grid (512 cells on the longer side) keeps part of its edge: tight meanders of a small river seen from far.
+- A seed is a grid cell, up to half a cell off the line: a crease can lie a cell away from where the exact scan puts it (1.2 % of the cells of a 256 grid differ from the scan; none of it shows beside the river).
+- The trend is built for the view it was computed in and is not rebuilt on zooming in: far in on a long river a cell covers several pixels. The trend is smooth by then, and the tiles read it bilinearly.
+
+### Straight lines across the picture
+
+Two defects of the earlier version looked like tile borders and were not the tiles' data:
+
+- **Bands and rectangular blocks of a different level**, on straight east-west lines: the steps of the water profile described above, printed across the floodplain by the interpolation (the trend was exactly 32.5 m on one side of a line and 31.25 m on the other). Fixed by the ramps.
+- **One-pixel pale lines along some tile edges**, at fractional zooms, after arriving from another river (a bookmark): MapLibre copies a one-pixel border between neighboring elevation tiles when a tile loads, and does not refresh it when the neighbor's contents change. After a new trend, tiles kept borders computed against the previous river's level (189 m off, measured). The mode now copies the borders again once the tiles of a new trend are in.
 
 ### Banding on a flat floodplain
 
-A REM stretches a few metres of relief over the whole color ramp, and the log stretch spends most of it on the first metre: any rounding in the DEM shows as flat color patches, a few colors where there should be a gradient. On the Mississippi the cause was measured, and it is neither the REM's own encoding (Terrarium, 1/256 m) nor the log stretch nor the coarse trend grid: **Mapterhorn rounds its heights by zoom level**, to 1 m up to zoom 11, then 0.5 m at zoom 12, 0.25 m at 13, 0.125 m at 14. At zoom 11 the ten metres above the river held 11 distinct heights. (AWS Terrain is whole metres at zoom 10 and below, and 1/256 m from zoom 11.)
+A REM stretches a few metres of relief over the whole color ramp, and the log stretch spends most of it on the first metre: any rounding in the DEM shows as flat color patches, a few colors where there should be a gradient. On the Mississippi the cause was measured, and it is neither the REM's own encoding (Terrarium, 1/256 m) nor the log stretch nor the trend grid: **Mapterhorn rounds its heights by zoom level**, to 1 m up to zoom 11, then 0.5 m at zoom 12, 0.25 m at 13, 0.125 m at 14, 1/16 m at 15. At zoom 11 the ten metres above the river held 11 distinct heights. (AWS Terrain is whole metres at zoom 10 and below, and 1/256 m from zoom 11.)
 
-Two things are done about it:
+Two things are done about it, for the land as the ramps do for the river:
 
 - **Height detail.** The REM reads the terrain one zoom level deeper than the screen needs (*Auto*; *Two levels finer* is offered), so the step is halved, for four times the tiles. Sources read as raw floats from a WMS are left as on screen: their heights are exact at any zoom.
 - **Smoothing within the rounding.** A height rounded to a step only says that the ground is within half a step of it. Where a tile's heights sit on such a ladder, they are blurred and pulled back into that half step: a staircase becomes ramps and nothing moves by more than the DEM's own uncertainty. Tiles of unrounded heights are left untouched.
 
-On the Greenville view, the same 420 px patch of floodplain (hillshade off) went from 273 distinct colors to 514, and from flat patches with hard edges to gradients. What remains is the DEM's: at zoom 11 a tread wider than the smoothing is still flat, and **zooming in is what brings real detail**. The broad east-west stripes of that view are steps between lidar surveys in the source data, and are there in every REM of it.
+On the Greenville view, the same 420 px patch of floodplain (hillshade off) went from 273 distinct colors to 514, and from flat patches with hard edges to gradients. What remains is the DEM's: at zoom 11 a tread wider than the smoothing is still flat, and **zooming in is what brings real detail**.
 
 ### Approximations against RiverREM
 
-- The trend is interpolated on a coarse grid (a cell is 100 to 300 m for a 30 to 80 km view), not at every DEM pixel. The water level varies slowly, so the difference is small away from the channel; inside a narrow channel the grid can smooth a step such as a weir.
-- Distances are Web Mercator metres, not a local UTM projection. The weights only depend on ratios of distances, so the effect is negligible at the scale of a view.
-- The heights along the river are read at the points of the resampled line (bilinear), where RiverREM burns the line into the DEM grid and takes every pixel it crosses.
-- The k nearest neighbors are exact (RiverREM allows 10 % slack for speed).
-- The downstream cleaning is an addition: RiverREM uses the heights as read. Set it to **Off** to compare.
+- The default is not RiverREM's interpolation: choose **IDW**, **Downstream cleaning: Off** and untick **Steps into ramps** to follow the package (power 1, k from the sinuosity).
+- The trend is interpolated on a grid and read bilinearly, not at every DEM pixel: a cell is two screen pixels for EDT and JFA (64 m on the Greenville view at zoom 11), and 100 to 400 m for IDW and the scan.
+- Distances are Web Mercator metres, not a local UTM projection. The methods only depend on ratios of distances, so the effect is negligible at the scale of a view.
+- The heights along the river are several bilinear readings per station (see above), where RiverREM burns the line into the DEM grid and takes every pixel it crosses, then keeps 1000.
+- IDW's k nearest neighbors are exact (RiverREM allows 10 % slack for speed).
+- The downstream cleaning and the ramps are additions: RiverREM uses the heights as read.
 - The default centerline is the *main* river, not the longest: choose **Longest river** for RiverREM's rule.
-- A DEM whose water surface was flattened survey by survey (much of the USGS 3DEP lidar) shows steps in the river itself: they are in the data.
 
 ### Terrain sources
 
 The trend and the heights it is subtracted from are read through the same code as every computed mode, so any terrain source that those can read works. Checked on the two example rivers: Mapterhorn and AWS Terrain (the Worldwide Defaults), USGS 3DEP as raw floats from its ImageServer (1 m), IGN LiDAR HD as raw floats from its WMS (0.5 m), and Google GEM-15 (a VRT of COG cells, 15 m).
 
-**A DEM with no heights on water.** Some elevation models have a hole where the river is (GEM-15, lidar terrain models with the water masked): the centerline runs in the void. Each such point then takes the height of the nearest ground, the bank at the waterline, and the panel says how many were read that way. Bank heights are rougher than a water surface, so the profile is median-filtered and fitted rather than taken at its running minimum. On GEM-15 over the Mississippi the bank heights are themselves noisy (readings from −29 to 36 m around a river at about 30 m): the picture shows the floodplain's forms, but the heights above the river are approximate there. Prefer a source that has the water surface.
+**A DEM with no heights on water.** Some elevation models have a hole where the river is (GEM-15, lidar terrain models with the water masked): the centerline runs in the void. Each such reading then takes the height of the nearest ground, the bank at the waterline, and the panel says how many heights were read that way. Bank heights are rougher than a water surface, so the profile is median-filtered and fitted rather than taken at its running minimum. On GEM-15 over the Mississippi the bank heights are themselves noisy (readings from −29 to 36 m around a river at about 30 m): the picture shows the floodplain's forms, but the heights above the river are approximate there. Prefer a source that has the water surface.
 
-### Split views
+### Split views and 3D
 
-The mode draws on every view of a split, but computes everything from **view A's terrain source**: the centerline heights, the trend, and the elevation it is subtracted from. A trend built on one DEM and subtracted from another would mostly show the two surveys' differences. Basemaps and overlays are per view as usual, which is how the Fisk comparison above is made.
+The mode draws on every view of a split, but computes everything from **view A's terrain source**: the centerline heights, the trend, and the elevation it is subtracted from. A trend built on one DEM and subtracted from another would mostly show the two surveys' differences. Basemaps and overlays are per view as usual, which is how the Fisk comparison above is made. Contours above the river are drawn on each view.
+
+In **3D** the REM is draped on the terrain like any other layer, with its contours and the centerline.
+
+### Limits
+
+- One trend at a time, for view A's terrain source and the river in view; it is rebuilt when the view leaves the box searched, not on every pan.
+- A centerline is needed: no river in OpenStreetMap and no drawn line, no REM (the Elevation display still draws).
+- OpenStreetMap's centerline of a large river is coarse and cuts across bars; the sampling absorbs it, a drawn or imported line does better.
+- The water level is the DEM's: a lidar flown at high water gives a high river, and two surveys two stages.
+- Dams, weirs and tight meanders: see what remains under [Heights along the river](#heights-along-the-river) and [IDW, a distance transform or a jump flood?](#idw-a-distance-transform-or-a-jump-flood).
+- The public OpenStreetMap services can be slow or refuse; the last rivers found stay in use.
 
 ## The companion app and the Python package
 
@@ -160,14 +229,24 @@ The mode draws on every view of a split, but computes everything from **view A's
 
 <LinkButtons quiet links={[
   { href: "https://rem.prod.heritagewatch.ai/", label: "Open the River-REM app", icon: "app" },
+  { href: "https://github.com/Iconem/RiverREM_UI", label: "RiverREM_UI on GitHub", icon: "release" },
 ]} />
 
-[River-REM](https://rem.prod.heritagewatch.ai/) ([RiverREM_UI](https://github.com/Iconem/RiverREM_UI)) is Iconem's separate app around the same idea, and the reference this mode was ported from. Use it when you need what this mode leaves out:
+[River-REM](https://rem.prod.heritagewatch.ai/) ([RiverREM_UI](https://github.com/Iconem/RiverREM_UI)) is Iconem's separate app around the same idea, and the implementation this mode was ported from. Use it when you need what this mode leaves out:
 
 - a **server engine**: FastAPI and GDAL running the OpenTopography RiverREM package itself on a UTM mosaic, with the result kept as a full-resolution float32 Cloud-Optimized GeoTIFF and a list of past runs;
-- a **Euclidean distance transform** at the DEM's full resolution, where this mode's nearest-centerline runs on its 256-cell grid;
+- the package's **own numbers**, for a figure that must match a RiverREM run;
 - other **centerline sources** (OpenStreetMap vector tiles, a shapefile import).
 
 **Open In → Iconem River-REM** in the sidebar hands the current view over (`https://rem.prod.heritagewatch.ai/?lng=…&lat=…&zoom=…`).
 
 **LRM is the generic cousin.** The [Local Relief Model](/dev/lrm) mode also subtracts a trend from the DEM, but its trend is a blur with no notion of a river: it shows "higher or lower than the neighborhood", where a REM shows "metres above the water".
+
+## References
+
+- **Iconem RiverREM_UI**, our original implementation (server engine around RiverREM; client engine with IDW, nearest centerline and EDT): [github.com/Iconem/RiverREM_UI](https://github.com/Iconem/RiverREM_UI), running at [rem.prod.heritagewatch.ai](https://rem.prod.heritagewatch.ai/).
+- **OpenTopography RiverREM**, the Python package: [github.com/OpenTopography/RiverREM](https://github.com/OpenTopography/RiverREM), [documentation](https://opentopography.github.io/RiverREM/), and the [announcement](https://opentopography.org/blog/new-package-automates-river-relative-elevation-model-rem-generation).
+- **Dan Coe**, [Creating REMs in QGIS: the IDW method](https://dancoecarto.com/creating-rems-in-qgis-the-idw-method), and his [river maps](https://dancoecarto.com/).
+- P. F. Felzenszwalb and D. P. Huttenlocher, [Distance Transforms of Sampled Functions](https://cs.brown.edu/people/pfelzens/dt/), *Theory of Computing* 8 (2012): the distance transform behind EDT.
+- G. Rong and T.-S. Tan, *Jump Flooding in GPU with Applications to Voronoi Diagram and Distance Transform*, ACM Symposium on Interactive 3D Graphics and Games (2006): the jump flood behind JFA.
+- H. N. Fisk, *Geological Investigation of the Alluvial Valley of the Lower Mississippi River*, US Army Corps of Engineers (1944): the meander maps of the split example.

@@ -1,5 +1,5 @@
-// The River REM mode's own sidebar group (appMode=rem): River, Detrending,
-// Display. The panels of Iconem's RiverREM_UI this app needs, in this app's
+// The River REM mode's own sidebar group (appMode=rem): River Centerline,
+// Detrending, REM Symbology. The panels of Iconem's RiverREM_UI this app needs, in this app's
 // components: the centerline's source (its OSM / Draw tabs and river mode),
 // the interpolation (IDW power, samples), and the symbology (ramp, min/max,
 // log). Its engine choice, runs list, basemap picker and exports are not
@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Section, MacroSeparator, MobileSlider, DraftBoundInput, SegmentedToggle, SliderControl, GroupHeading, clampMinCommit, clampMaxCommit } from "./controls-components"
+import { Section, MacroSeparator, MobileSlider, DraftBoundInput, SegmentedToggle, SliderControl, clampMinCommit, clampMaxCommit } from "./controls-components"
 import { pushToast } from "@/components/ui/toast"
 import { parseVector, vectorFormatFromName } from "@/lib/remote-vector"
 import { drawingFeaturesAtom, activeDrawModeAtom } from "./TerraDrawSystem"
@@ -35,7 +35,7 @@ const km = (m: number) => (m >= 10000 ? `${Math.round(m / 1000)} km` : m >= 1000
 const INPUT_CLASS = "h-6 py-1 px-1 w-14 text-xs text-right bg-transparent border rounded"
 
 const RIVER_DEFAULTS = { remRiver: "main", remWaterways: "river", remRiverName: "", remSpacing: 0, remShowLine: true }
-const DETREND_DEFAULTS = { remInterp: "idw", remPower: 1, remNeighbors: 0, remMonotone: "min" }
+const DETREND_DEFAULTS = { remInterp: "edt", remBlend: 0.5, remGrid: 0, remPower: 1, remNeighbors: 0, remMonotone: "min", remSmooth: true }
 const DISPLAY_DEFAULTS = {
   remShow: "rem", remMin: 0, remMax: 10, remElevAuto: true, remColorRamp: "rem-mako", remInvertColorRamp: false, remStretch: "log", remGamma: 0.5, remOpacity: 1,
   remContours: false, remContourInterval: 1, remDetail: -1,
@@ -49,6 +49,27 @@ const CENTERLINE_OPTIONS = [
   { value: "all", label: "Main river and tributaries", hint: "Every waterway found feeds the trend: confluences, deltas, braided reaches" },
   { value: "named", label: "Named river", hint: "One river, picked from the names found in view" },
   { value: "drawn", label: "Drawn or imported line", hint: "A line drawn with the Drawing tool, or a GeoJSON, KML or GPX file" },
+]
+
+// The detrending methods, the default first. What each one is goes under the
+// toggle; the hover titles say what it costs.
+const METHOD_OPTIONS = [
+  { value: "edt", label: "EDT", tooltip: "Euclidean distance transform: the level at the nearest place on the centerline, at the screen's resolution, on the CPU. The default" },
+  { value: "jfa", label: "JFA", tooltip: "Jump flood: the same nearest place found on the GPU (WebGL2). Falls back to EDT where the GPU cannot" },
+  { value: "nearest", label: "Scan", tooltip: "Nearest centerline by a scan of every height for every cell: exact, on 256 cells. The reference the two above are checked against" },
+  { value: "idw", label: "IDW", tooltip: "Inverse-distance weighting of the nearest river heights, RiverREM's and Dan Coe's method, on 256 cells" },
+]
+const METHOD_NOTES: Record<string, string> = {
+  edt: "The river's level at the nearest place on the centerline. The line is burned into a grid and a Euclidean distance transform finds, for every cell, which part of it is nearest.",
+  jfa: "The river's level at the nearest place on the centerline, the nearest part found by a jump flood on the graphics card.",
+  nearest: "The river's level at the nearest place on the centerline, found by trying every height for every cell of a 256-cell grid.",
+  idw: "The average of the nearest river heights, weighted by 1 / distance^power, on a 256-cell grid: RiverREM's method.",
+}
+const GRID_OPTIONS = [
+  { value: "0", label: "Auto (the screen's, one cell for two pixels)" },
+  { value: "512", label: "512 cells" },
+  { value: "1024", label: "1024 cells" },
+  { value: "2048", label: "2048 cells" },
 ]
 
 const DETAIL_OPTIONS = [
@@ -75,7 +96,7 @@ const Swatch: React.FC<{ colors: any[] }> = ({ colors }) => (
   <div className="w-12 h-4 shrink-0 rounded-sm" style={{ background: `linear-gradient(to right, ${getGradientColors(colors)})` }} />
 )
 
-// ─── River ──────────────────────────────────────────────────────────────────
+// ─── River Centerline ──────────────────────────────────────────────────────────────────
 
 const RiverPanel: React.FC<{ state: any; setState: (updates: any) => void; draw: TerraDraw | null }> = ({ state, setState, draw }) => {
   const status = useAtomValue(riverRemStatusAtom)
@@ -232,7 +253,7 @@ const RiverPanel: React.FC<{ state: any; setState: (updates: any) => void; draw:
         <MobileSlider sliderId="rem:spacing" min={0} max={500} step={5} value={Math.min(500, state.remSpacing ?? 0)} onValueChange={(v) => setState({ remSpacing: v as number })} className="w-full cursor-pointer" />
         <p className="text-xs text-muted-foreground break-words">
           0 spreads 1000 points over the river, as RiverREM does.
-          {info && ` Now: ${info.points} heights every ${Math.round(info.spacingM)} m over ${km(info.lengthM)}, read at zoom ${info.sampleZoom}.`}
+          {info && ` Now: ${info.points} heights every ${Math.round(info.spacingM)} m over ${km(info.lengthM)}, read at zoom ${info.sampleZoom} (a pixel is ${info.pixelM >= 10 ? Math.round(info.pixelM) : info.pixelM.toFixed(1)} m)${info.perStation > 1 ? `, each from ${info.perStation} readings of the terrain` : ""}; ${info.sampleTiles} terrain tiles in ${(info.sampleMs / 1000).toFixed(1)} s.`}
           {info && info.banks > 0 && ` This terrain source has no heights on the water at ${info.banks} of them: the nearest bank is read there, which is rougher (the profile is smoothed and fitted rather than taken at its minimum).`}
         </p>
       </div>
@@ -270,7 +291,12 @@ const RiverPanel: React.FC<{ state: any; setState: (updates: any) => void; draw:
 const DetrendingPanel: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const info = useAtomValue(riverRemInfoAtom)
   const auto = !(state.remNeighbors > 0)
-  const nearest = state.remInterp === "nearest"
+  const method: string = METHOD_NOTES[state.remInterp] ? state.remInterp : "edt"
+  const idw = method === "idw"
+  const transform = method === "edt" || method === "jfa"
+  const blend = Math.min(1, Math.max(0, state.remBlend ?? 0.5))
+  const grid = String(GRID_OPTIONS.some((o) => o.value === String(state.remGrid ?? 0)) ? state.remGrid ?? 0 : 0)
+  const methodName = (m: string) => (m === "idw" ? `IDW, ${info?.neighbors} neighbors` : m === "nearest" ? "scan" : m === "jfa" ? (info?.gpu === false ? "EDT, the GPU could not run the jump flood" : "JFA on the GPU") : "EDT")
   return (
     <div className="space-y-3">
       <div className="space-y-2">
@@ -278,23 +304,37 @@ const DetrendingPanel: React.FC<{ state: any; setState: (updates: any) => void }
           <Label className="text-sm font-medium">Interpolation</Label>
           <ResetButton onClick={() => setState(DETREND_DEFAULTS)} />
         </div>
-        <SegmentedToggle
-          value={nearest ? "nearest" : "idw"}
-          onChange={(v) => setState({ remInterp: v })}
-          options={[
-            { value: "idw", label: "IDW", tooltip: "Inverse-distance weighting of the nearest river heights, RiverREM's: smooth across a meander neck" },
-            { value: "nearest", label: "Nearest centerline", tooltip: "The river's level at the nearest place on the centerline (what a distance transform gives): exact beside the channel, with a seam where two reaches are equally near" },
-          ]}
-          className="w-full"
-        />
+        <SegmentedToggle value={method} onChange={(v) => setState({ remInterp: v })} options={METHOD_OPTIONS} className="w-full" />
+        <p className="text-xs text-muted-foreground break-words">{METHOD_NOTES[method]}</p>
         {info && (
           <p className="text-xs text-muted-foreground break-words">
-            Last trend: {info.gridW} x {info.gridH} cells from {info.points} heights in {info.buildMs} ms ({info.method === "nearest" ? "nearest centerline" : `IDW, ${info.neighbors} neighbors`}).
+            Last trend: {info.gridW} x {info.gridH} cells of {info.cellM >= 10 ? Math.round(info.cellM) : info.cellM.toFixed(1)} m from {info.points} heights in {info.buildMs} ms ({methodName(info.method)}{info.blendMs > 0 ? `, ${info.blendMs} ms of it blending` : ""}).
           </p>
         )}
       </div>
 
-      {!nearest && (<>
+      {!idw && (
+        <div data-slider-group="" className="space-y-1">
+          <SliderControl label="Blend across creases" sliderId="rem:blend" value={blend} onChange={(v) => setState({ remBlend: v })} min={0} max={1} step={0.05} decimals={2} />
+          <p className="text-xs text-muted-foreground break-words">
+            Where two reaches are equally near (across a meander's neck) the nearest level jumps from one to the other. Each place is averaged over a neighborhood this share of its distance to the river wide: nothing at the bank, a ramp instead of an edge far out. 0 keeps the edges.
+          </p>
+        </div>
+      )}
+
+      {transform && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Trend resolution</Label>
+          <Select value={grid} onValueChange={(v) => v != null && setState({ remGrid: Number(v) })} items={GRID_OPTIONS}>
+            <SelectTrigger className="w-full cursor-pointer"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {GRID_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {idw && (<>
       <div data-slider-group="" className="space-y-1">
         <div className="flex items-center justify-between">
           <Label className="text-sm">IDW power</Label>
@@ -332,16 +372,20 @@ const DetrendingPanel: React.FC<{ state: any; setState: (updates: any) => void }
           ]}
           className="w-full"
         />
+        <div className="flex items-center gap-2">
+          <Checkbox id="rem-smooth" checked={state.remSmooth !== false} onCheckedChange={(c) => setState({ remSmooth: c === true })} className="cursor-pointer" />
+          <Label htmlFor="rem-smooth" className="text-sm font-medium cursor-pointer">Steps into ramps</Label>
+        </div>
         <p className="text-xs text-muted-foreground break-words">
-          A river does not flow uphill; what a DEM reads along it sometimes does.
-          {info && ` Water level from ${info.levelHigh.toFixed(1)} m down to ${info.levelLow.toFixed(1)} m; ${info.corrected} of ${info.points} heights moved by more than 10 cm.`}
+          A river does not flow uphill; what a DEM reads along it sometimes does. And it comes in steps (rounded heights, a jump where two surveys meet), each of which would be drawn across the floodplain as a straight line: they are read as ramps.
+          {info && ` Water level from ${info.levelHigh.toFixed(1)} m down to ${info.levelLow.toFixed(1)} m; ${info.corrected} of ${info.points} heights moved by more than 10 cm; the largest step left between two heights is ${info.maxStep >= 0.1 ? `${info.maxStep.toFixed(2)} m` : `${Math.round(info.maxStep * 1000)} mm`}.`}
         </p>
       </div>
     </div>
   )
 }
 
-// ─── Display ────────────────────────────────────────────────────────────────
+// ─── REM Symbology ────────────────────────────────────────────────────────────────
 
 const DisplayPanel: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
   const rampKey = REM_RAMPS[state.remColorRamp] ? state.remColorRamp : "rem-mako"
@@ -518,16 +562,14 @@ export const RiverRemSections: React.FC<{ state: any; setState: (updates: any) =
       <MacroSeparator label="River REM" isOpen={open.group !== false} onToggle={() => setOpen((prev) => ({ ...prev, group: prev.group === false }))} />
       {open.group !== false && (
         <>
-          <Section title="River" isOpen={open.river} onOpenChange={toggle("river")} id="river-rem-river-section">
+          <Section title="River Centerline" isOpen={open.river} onOpenChange={toggle("river")} id="river-rem-river-section">
             <RiverPanel state={state} setState={setState} draw={draw} />
           </Section>
-          {/* Advanced: the defaults are RiverREM's and rarely need a hand.
-              Marked the way the app marks its advanced blocks (the
-              "Advanced" group heading), folded by default. */}
-          <Section title="Detrending" isOpen={open.detrending} onOpenChange={toggle("detrending")} id="river-rem-detrending-section" headerExtra={<GroupHeading className="mr-2">Advanced</GroupHeading>}>
+          {/* The defaults rarely need a hand: folded until wanted. */}
+          <Section title="Detrending" isOpen={open.detrending} onOpenChange={toggle("detrending")} id="river-rem-detrending-section">
             <DetrendingPanel state={state} setState={setState} />
           </Section>
-          <Section title="Display" isOpen={open.display} onOpenChange={toggle("display")} withSeparator={false} id="river-rem-display-section">
+          <Section title="REM Symbology" isOpen={open.display} onOpenChange={toggle("display")} withSeparator={false} id="river-rem-display-section">
             <DisplayPanel state={state} setState={setState} />
           </Section>
         </>

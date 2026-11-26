@@ -11,10 +11,13 @@
 //      distance weighting over the k nearest points (weights 1/d, k guessed
 //      from the river's sinuosity, between 5 and interp_pts/10),
 //   4. subtracts.
-// This file does the same in the browser, on a coarse grid (the app's
-// approximate algorithms work that way: the trend is smooth, the DEM carries
-// the detail): centerline merge and clipping, resampling, the downstream
-// cleaning RiverREM does not do, the k estimate, and the IDW grid. Nothing
+// This file does the same in the browser, on a grid the tiles read
+// bilinearly (the trend is smooth, the DEM carries the detail): centerline
+// merge and clipping, resampling, the downstream cleaning and the ramps
+// RiverREM does not do, the k estimate, the IDW grid, and the two methods of
+// Iconem's RiverREM_UI client engine (github.com/Iconem/RiverREM_UI): nearest
+// centerline by a scan, and by a labeled Euclidean distance transform, with
+// the blending of the creases that such a trend has. Nothing
 // here touches the DOM or the network, so `node scripts/test-lib.mjs
 // lib/river-rem.test.ts` runs it.
 
@@ -36,7 +39,9 @@ export interface River {
 export const REM_INTERP_PTS = 1000
 /** Hard ceiling on sampled points whatever the spacing asked for. */
 export const REM_MAX_PTS = 4000
-/** Cells on the longer side of the trend grid (RiverREM_UI's client engine: 256). */
+/** Cells on the longer side of the IDW and scanned-nearest trend grids
+ *  (RiverREM_UI's client engine: 256). The distance-transform and jump-flood
+ *  methods are O(cells) and run at the screen's resolution instead. */
 export const REM_GRID_SIZE = 256
 /** Distances are floored here (metres) so a cell on a sample has a finite weight. */
 const MIN_DISTANCE_M = 1
@@ -342,13 +347,27 @@ export interface TrendPoints {
 }
 
 /** "idw": inverse-distance mean of the k nearest samples (RiverREM's).
- *  "nearest": the water level at the nearest place ON the centerline (the
- *  sample segments, level interpolated along the segment): what a Euclidean
- *  distance transform or a jump-flood pass computes, done exactly here. */
-export type TrendMethod = "idw" | "nearest"
+ *  The three others give the water level at the nearest place ON the
+ *  centerline (level interpolated along the segment), and differ in how the
+ *  nearest place is found:
+ *  "nearest": a scan of every sample per cell, exact, O(cells x samples);
+ *  "edt": the centerline burned into the grid, then a Euclidean distance
+ *  transform that carries the seed's label (Felzenszwalb and Huttenlocher's
+ *  two passes), O(cells);
+ *  "jfa": the same seeds flooded on the GPU (jump flooding, WebGL2, see
+ *  lib/river-rem-gpu.ts).
+ *  EDT and JFA only find WHICH segment is nearest; the level and the distance
+ *  are then worked out on that segment and its neighbors (refineNearest), so
+ *  neither shows the grid's rasterization. */
+export type TrendMethod = "idw" | "nearest" | "edt" | "jfa"
 
 /** The trend on a regular Web Mercator grid; row 0 is the north edge. */
-export interface TrendGrid { data: Float32Array; w: number; h: number; x0: number; y0: number; x1: number; y1: number }
+export interface TrendGrid {
+  data: Float32Array; w: number; h: number; x0: number; y0: number; x1: number; y1: number
+  /** Distance to the centerline in metres, per cell: written by the three
+   *  nearest-centerline methods, read by blendTrendByDistance. */
+  dist?: Float32Array
+}
 
 export interface TrendOptions {
   /** IDW exponent: weights are 1 / d^power. RiverREM: 1. */
@@ -494,7 +513,7 @@ export function fillTrendRows(grid: TrendGrid, points: TrendPoints, options: Tre
  *  continuous along the river instead of stepping from one sample to the
  *  next. */
 function fillNearestRows(grid: TrendGrid, points: TrendPoints, rowStart: number, rowEnd: number): void {
-  const { data, w, h, x0, y0, x1, y1 } = grid
+  const { data, dist, w, h, x0, y0, x1, y1 } = grid
   const { x: px, y: py, z: pz, starts } = points
   const count = px.length
   const stepX = w > 1 ? (x1 - x0) / (w - 1) : 0
@@ -525,6 +544,7 @@ function fillNearestRows(grid: TrendGrid, points: TrendPoints, rowStart: number,
         if (d2 < bestD2) { bestD2 = d2; level = pz[a] + (pz[b] - pz[a]) * t }
       }
       data[row * w + col] = level
+      if (dist !== undefined) dist[row * w + col] = Math.sqrt(bestD2)
     }
   }
 }
@@ -547,6 +567,397 @@ export function sampleTrend(grid: TrendGrid, mx: number, my: number): number {
   const top = data[cy0 * w + cx0] * (1 - fx) + data[cy0 * w + cx1] * fx
   const bottom = data[cy1 * w + cx0] * (1 - fx) + data[cy1 * w + cx1] * fx
   return top * (1 - fy) + bottom * fy
+}
+
+// ─── Steps into ramps ───────────────────────────────────────────────────────
+
+/** A staircase read as the slope it stands for. The water level read along a
+ *  river comes out in steps: heights rounded by the DEM (Mapterhorn: 1 m up
+ *  to z11, half of it per level after), water flattened survey by survey with
+ *  a jump where two surveys meet (1.25 m on the Mississippi near Greenville),
+ *  and the running minimum's own treads. Every interpolation then prints each
+ *  step across the whole floodplain as a straight line at right angles to
+ *  the river. Here each run of equal levels gives one knot at its middle (a
+ *  height rounded to L is L in the middle of its tread, half a step higher
+ *  where the tread starts and half a step lower where it ends) and the level
+ *  is linear between knots: continuous, never rising where the input never
+ *  rose, and unchanged where no two neighbors are equal.
+ *
+ *  `maxHalfRamp` (samples) bounds how far a ramp reaches into a long tread: a
+ *  reservoir stays flat except near its two ends, where a dam's step becomes
+ *  a ramp of that length. NaN stays NaN. */
+export function rampProfile(levels: ArrayLike<number>, maxHalfRamp = Infinity): Float64Array {
+  const n = levels.length
+  const out = new Float64Array(n)
+  for (let i = 0; i < n; i++) out[i] = levels[i]
+  const at: number[] = []
+  for (let i = 0; i < n; i++) if (Number.isFinite(out[i])) at.push(i)
+  const m = at.length
+  if (m < 3) return out
+  // Knots in "finite sample" positions (a gap of NaN does not stretch a ramp).
+  const knotPos: number[] = [], knotVal: number[] = []
+  const reach = Math.max(0, maxHalfRamp)
+  const push = (pos: number, value: number) => {
+    if (knotPos.length && pos <= knotPos[knotPos.length - 1]) return
+    knotPos.push(pos); knotVal.push(value)
+  }
+  let a = 0
+  while (a < m) {
+    let b = a
+    const v = out[at[a]]
+    while (b + 1 < m && Math.abs(out[at[b + 1]] - v) < 1e-4) b++
+    const half = (b - a) / 2
+    if (a === 0) push(0, v)
+    if (half <= reach) push(a + half, v)
+    else { push(a + reach, v); push(b - reach, v) }
+    if (b === m - 1) push(m - 1, v)
+    a = b + 1
+  }
+  let k = 0
+  for (let i = 0; i < m; i++) {
+    while (k + 2 < knotPos.length && knotPos[k + 1] < i) k++
+    const p0 = knotPos[k], p1 = knotPos[k + 1]
+    const t = p1 > p0 ? Math.min(1, Math.max(0, (i - p0) / (p1 - p0))) : 0
+    out[at[i]] = knotVal[k] + (knotVal[k + 1] - knotVal[k]) * t
+  }
+  return out
+}
+
+/** A moving average along the profile: two box passes of `radius` samples
+ *  (a triangle `4 * radius + 1` samples wide), the ends repeated. For the one
+ *  step rampProfile leaves alone: a drop between two heights that are each
+ *  the only one at their level (a seam in a water surface that falls
+ *  steadily on both sides). An average with positive weights of a profile
+ *  that never rises never rises either. NaN stays NaN and is stepped over. */
+export function smoothProfile(levels: ArrayLike<number>, radius: number): Float64Array {
+  const n = levels.length
+  const out = new Float64Array(n)
+  for (let i = 0; i < n; i++) out[i] = levels[i]
+  const r = Math.floor(radius)
+  const at: number[] = []
+  for (let i = 0; i < n; i++) if (Number.isFinite(out[i])) at.push(i)
+  const m = at.length
+  if (r < 1 || m < 3) return out
+  let from = new Float64Array(m), to = new Float64Array(m)
+  for (let i = 0; i < m; i++) from[i] = out[at[i]]
+  const sums = new Float64Array(m + 1)
+  for (let pass = 0; pass < 2; pass++) {
+    sums[0] = 0
+    for (let i = 0; i < m; i++) sums[i + 1] = sums[i] + from[i]
+    for (let i = 0; i < m; i++) {
+      const a = i - r < 0 ? 0 : i - r, b = i + r >= m ? m - 1 : i + r
+      to[i] = (sums[b + 1] - sums[a] + (a - (i - r)) * from[0] + (i + r - b) * from[m - 1]) / (2 * r + 1)
+    }
+    const swap = from; from = to; to = swap
+  }
+  for (let i = 0; i < m; i++) out[at[i]] = from[i]
+  return out
+}
+
+// ─── Several readings per height ────────────────────────────────────────────
+
+/** `perStation` points for each point of a line, spread over the half
+ *  spacing before and after it, so that the DEM is read about once a pixel
+ *  along the river instead of once per spacing. Point i's readings are at
+ *  [i * perStation, (i + 1) * perStation). */
+export function subSamplePoints(line: LngLat[], perStation: number): LngLat[] {
+  const k = Math.max(1, Math.floor(perStation))
+  if (k === 1) return line.slice()
+  const out: LngLat[] = []
+  for (let i = 0; i < line.length; i++) {
+    const here = line[i]
+    for (let j = 0; j < k; j++) {
+      const t = (j + 0.5) / k - 0.5
+      const other = t < 0 ? line[i - 1] : line[i + 1]
+      const share = Math.abs(t)
+      out.push(other ? [here[0] + (other[0] - here[0]) * share, here[1] + (other[1] - here[1]) * share] : here)
+    }
+  }
+  return out
+}
+
+/** One height per station from its `perStation` readings: the given quantile
+ *  of the finite ones (0.25 by default). Low, because what is not water along
+ *  a centerline reads too high (a bar the line cuts across, a bridge, trees);
+ *  not the minimum, so that one pit does not decide. NaN when none is finite. */
+export function reduceStations(values: ArrayLike<number>, perStation: number, quantile = 0.25): Float64Array {
+  const k = Math.max(1, Math.floor(perStation))
+  const count = Math.floor(values.length / k)
+  const out = new Float64Array(count)
+  const buffer: number[] = []
+  for (let i = 0; i < count; i++) {
+    buffer.length = 0
+    for (let j = 0; j < k; j++) { const v = values[i * k + j]; if (Number.isFinite(v)) buffer.push(v) }
+    if (!buffer.length) { out[i] = NaN; continue }
+    buffer.sort((p, q) => p - q)
+    const pos = quantile * (buffer.length - 1)
+    const lo = Math.floor(pos), hi = Math.min(buffer.length - 1, lo + 1)
+    out[i] = buffer[lo] + (buffer[hi] - buffer[lo]) * (pos - lo)
+  }
+  return out
+}
+
+// ─── Nearest centerline by a distance transform ─────────────────────────────
+
+/** The centerline burned into the grid: for each cell a segment passes
+ *  through, the index of that segment's first sample; -1 elsewhere. A line of
+ *  one sample burns its cell. These are the seeds of the distance transform
+ *  and of the jump flood. */
+export function burnCenterline(grid: TrendGrid, points: TrendPoints): Int32Array {
+  const { w, h, x0, y0, x1, y1 } = grid
+  const { x: px, y: py, starts } = points
+  const count = px.length
+  const seeds = new Int32Array(w * h).fill(-1)
+  const scaleX = (w - 1) / (x1 - x0), scaleY = (h - 1) / (y1 - y0)
+  const mark = (gx: number, gy: number, label: number) => {
+    const col = Math.round(gx), row = Math.round(gy)
+    if (col >= 0 && col < w && row >= 0 && row < h) seeds[row * w + col] = label
+  }
+  for (let a = 0; a < count; a++) {
+    const b = a + 1
+    const ax = (px[a] - x0) * scaleX, ay = (y1 - py[a]) * scaleY
+    if (b >= count || (starts !== undefined && starts[b] === 1)) { mark(ax, ay, a); continue }
+    const bx = (px[b] - x0) * scaleX, by = (y1 - py[b]) * scaleY
+    const steps = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay))) + 1
+    for (let s = 0; s <= steps; s++) { const t = s / steps; mark(ax + (bx - ax) * t, ay + (by - ay) * t, a) }
+  }
+  return seeds
+}
+
+/** For every cell, the label of the nearest seed cell (Euclidean, in cells):
+ *  Felzenszwalb and Huttenlocher's distance transform of sampled functions,
+ *  carrying the label instead of the distance. First down each column (the
+ *  nearest seed of that column), then along each row (the lower envelope of
+ *  one parabola per column). Exact for the burned cells, O(cells), nothing
+ *  allocated per cell. -1 everywhere when there is no seed. */
+export function labelNearestSeed(seeds: Int32Array, w: number, h: number): Int32Array {
+  const INF = 1e20
+  // Phase 1: per cell, the row of the nearest seed in its own column.
+  const seedRow = new Int32Array(w * h)
+  for (let col = 0; col < w; col++) {
+    let last = -1
+    for (let row = 0; row < h; row++) {
+      if (seeds[row * w + col] >= 0) last = row
+      seedRow[row * w + col] = last
+    }
+    last = -1
+    for (let row = h - 1; row >= 0; row--) {
+      const at = row * w + col
+      if (seeds[at] >= 0) last = row
+      const above = seedRow[at]
+      if (last >= 0 && (above < 0 || last - row < row - above)) seedRow[at] = last
+    }
+  }
+  // Phase 2: per row, the lower envelope of the parabolas (q - col)^2 + f(col).
+  const labels = new Int32Array(w * h).fill(-1)
+  const f = new Float64Array(w)
+  const v = new Int32Array(w)
+  const z = new Float64Array(w + 1)
+  for (let row = 0; row < h; row++) {
+    const base = row * w
+    let k = -1
+    for (let col = 0; col < w; col++) {
+      const sr = seedRow[base + col]
+      if (sr < 0) { f[col] = INF; continue }
+      const dy = row - sr
+      const fc = dy * dy
+      f[col] = fc
+      while (k >= 0) {
+        const p = v[k]
+        const s = ((fc + col * col) - (f[p] + p * p)) / (2 * (col - p))
+        if (s <= z[k]) k--
+        else { k++; v[k] = col; z[k] = s; z[k + 1] = INF; break }
+      }
+      if (k < 0) { k = 0; v[0] = col; z[0] = -INF; z[1] = INF }
+    }
+    if (k < 0) continue
+    let j = 0
+    for (let col = 0; col < w; col++) {
+      while (z[j + 1] < col) j++
+      const from = v[j]
+      labels[base + col] = seeds[seedRow[base + from] * w + from]
+    }
+  }
+  return labels
+}
+
+/** How many segments on each side of the labeled one refineNearest tries:
+ *  the nearest place is within about two cells of the labeled seed, so two
+ *  cells' worth of segments (two at least: samples wider apart than a cell). */
+export function refineReach(grid: TrendGrid, points: TrendPoints): number {
+  const { x: px, y: py, starts } = points
+  let length = 0, segments = 0
+  for (let b = 1; b < px.length; b++) {
+    if (starts !== undefined && starts[b] === 1) continue
+    length += Math.hypot(px[b] - px[b - 1], py[b] - py[b - 1]); segments++
+  }
+  if (!segments || !(length > 0)) return 2
+  const cell = Math.max((grid.x1 - grid.x0) / Math.max(1, grid.w - 1), (grid.y1 - grid.y0) / Math.max(1, grid.h - 1))
+  return Math.max(2, Math.min(64, Math.ceil((2 * cell * segments) / length) + 1))
+}
+
+/** The level and the distance at the nearest place of the centerline, for
+ *  rows [rowStart, rowEnd), given for each cell a segment that is nearest or
+ *  next to it (`labels`, from labelNearestSeed or the jump flood). The
+ *  labeled segment and `reach` on each side are tried: a cell holds the last
+ *  segment burned into it, and with samples closer than a cell the truly
+ *  nearest one is a neighbor of that. A cell with no label (no seed at all)
+ *  takes the first sample. Fills `grid.data` and `grid.dist`.
+ *
+ *  What is left of the rasterization: a seed is a cell, up to half a cell off
+ *  the line, so a crease between two reaches can lie a cell away from where
+ *  an exact scan puts it (1.2 % of the cells of a 256 grid differ; the level
+ *  beside the river and along it does not depend on the grid). */
+export function refineNearest(grid: TrendGrid, points: TrendPoints, labels: Int32Array, rowStart = 0, rowEnd = grid.h, reach = refineReach(grid, points)): void {
+  const { data, w, h, x0, y0, x1, y1 } = grid
+  const dist = (grid.dist ??= new Float32Array(w * h))
+  const { x: px, y: py, z: pz, starts } = points
+  const count = px.length
+  const stepX = w > 1 ? (x1 - x0) / (w - 1) : 0
+  const stepY = h > 1 ? (y1 - y0) / (h - 1) : 0
+  for (let row = rowStart; row < rowEnd; row++) {
+    const cy = y1 - row * stepY
+    for (let col = 0; col < w; col++) {
+      const cell = row * w + col
+      const label = labels[cell]
+      if (label < 0) { data[cell] = count ? pz[0] : NaN; dist[cell] = Infinity; continue }
+      const cx = x0 + col * stepX
+      let dx = px[label] - cx, dy = py[label] - cy
+      let bestD2 = dx * dx + dy * dy, level = pz[label]
+      const first = label - reach < 0 ? 0 : label - reach
+      const last = label + reach >= count - 1 ? count - 2 : label + reach
+      for (let a = first; a <= last; a++) {
+        const b = a + 1
+        if (starts !== undefined && starts[b] === 1) continue
+        const sx = px[b] - px[a], sy = py[b] - py[a]
+        const len2 = sx * sx + sy * sy
+        if (!(len2 > 0)) continue
+        let t = ((cx - px[a]) * sx + (cy - py[a]) * sy) / len2
+        if (t < 0) t = 0; else if (t > 1) t = 1
+        dx = px[a] + sx * t - cx; dy = py[a] + sy * t - cy
+        const d2 = dx * dx + dy * dy
+        if (d2 < bestD2) { bestD2 = d2; level = pz[a] + (pz[b] - pz[a]) * t }
+      }
+      data[cell] = level
+      dist[cell] = Math.sqrt(bestD2)
+    }
+  }
+}
+
+/** The "edt" method in one go (tests; the engine runs the three steps itself
+ *  to yield between them). */
+export function fillTrendEdt(grid: TrendGrid, points: TrendPoints): void {
+  refineNearest(grid, points, labelNearestSeed(burnCenterline(grid, points), grid.w, grid.h))
+}
+
+// ─── Blending the creases ───────────────────────────────────────────────────
+
+/** Two box blurs of radius `r` (edges repeated), from `src` into `dst`,
+ *  through `tmp`: running sums, so the cost does not depend on the radius. */
+function boxBlurTwice(src: Float32Array, dst: Float32Array, tmp: Float32Array, w: number, h: number, r: number, line: Float64Array): void {
+  let from = src
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < h; y++) {
+      const base = y * w
+      line[0] = 0
+      for (let x = 0; x < w; x++) line[x + 1] = line[x] + from[base + x]
+      for (let x = 0; x < w; x++) {
+        const a = x - r < 0 ? 0 : x - r, b = x + r >= w ? w - 1 : x + r
+        // Edges repeated: the cells missing on one side count as the edge's.
+        tmp[base + x] = (line[b + 1] - line[a] + (a - (x - r)) * from[base] + (x + r - b) * from[base + w - 1]) / (2 * r + 1)
+      }
+    }
+    const sums = line.fill(0, 0, w)
+    for (let x = 0; x < w; x++) sums[x] = (r + 1) * tmp[x]
+    for (let y = 1; y <= r; y++) { const row = (y < h ? y : h - 1) * w; for (let x = 0; x < w; x++) sums[x] += tmp[row + x] }
+    const inv = 1 / (2 * r + 1)
+    for (let y = 0; y < h; y++) {
+      const base = y * w
+      for (let x = 0; x < w; x++) dst[base + x] = sums[x] * inv
+      const add = (y + r + 1 < h ? y + r + 1 : h - 1) * w, drop = (y - r > 0 ? y - r : 0) * w
+      for (let x = 0; x < w; x++) sums[x] += tmp[add + x] - tmp[drop + x]
+    }
+    from = dst
+  }
+}
+
+/** Smooths a nearest-centerline trend in proportion to the distance from the
+ *  river. Such a trend is exact beside the channel and has a crease wherever
+ *  two reaches are equally near (the axis of a meander neck, the line between
+ *  two channels): there the level jumps from one reach's to the other's, and
+ *  the REM shows an edge that is not in the ground. A crease is never close
+ *  to the river (it is as far from it as the two reaches are apart), so each
+ *  cell is averaged over a neighborhood whose size is `amount` times its own
+ *  distance to the centerline: nothing at the water's edge, a wide blend far
+ *  out, and a jump becomes a ramp about that wide.
+ *
+ *  Done with a stack of blurs of doubling radius (each two box blurs of the
+ *  one before), each cell taking the two levels that bracket its own radius:
+ *  O(cells x log(size)). A grid larger than `maxSize` is blended on every
+ *  f-th cell (measured: 1.8 s for 2048 x 2048 in full, 67 ms for 512): the
+ *  blended trend is smooth, so the coarse copy read bilinearly is the same
+ *  surface, and the full grid keeps its own values within a coarse cell or
+ *  so of the blur's reach (beside the river, where nothing is blended).
+ *  In place; `dist` in metres, `cellM` the cell size. */
+export function blendTrendByDistance(data: Float32Array, dist: Float32Array, w: number, h: number, cellM: number, amount: number, maxSize = 512): void {
+  if (!(amount > 0) || !(cellM > 0) || w < 3 || h < 3) return
+  const f = Math.ceil(Math.max(w, h) / maxSize)
+  if (f <= 1) { blendFull(data, dist, w, h, cellM, amount); return }
+  const cw = Math.ceil((w - 1) / f) + 1, ch = Math.ceil((h - 1) / f) + 1
+  const coarse = new Float32Array(cw * ch), coarseDist = new Float32Array(cw * ch)
+  for (let j = 0; j < ch; j++) {
+    const row = Math.min(h - 1, j * f) * w
+    for (let i = 0; i < cw; i++) { const at = row + Math.min(w - 1, i * f); coarse[j * cw + i] = data[at]; coarseDist[j * cw + i] = dist[at] }
+  }
+  blendFull(coarse, coarseDist, cw, ch, cellM * f, amount)
+  // Blur radius in coarse cells: under half a cell the full grid's own value,
+  // over one and a half the coarse blend, a smooth step between.
+  const scale = amount / (cellM * f)
+  const inv = 1 / f
+  for (let row = 0; row < h; row++) {
+    const gy = row * inv, j0 = Math.min(ch - 1, Math.floor(gy)), j1 = Math.min(ch - 1, j0 + 1), fy = gy - j0
+    const top = j0 * cw, bottom = j1 * cw
+    for (let col = 0; col < w; col++) {
+      const at = row * w + col
+      let t = dist[at] * scale - 0.5
+      if (!(t > 0)) continue
+      const gx = col * inv, i0 = Math.min(cw - 1, Math.floor(gx)), i1 = Math.min(cw - 1, i0 + 1), fx = gx - i0
+      const blended = (coarse[top + i0] * (1 - fx) + coarse[top + i1] * fx) * (1 - fy) + (coarse[bottom + i0] * (1 - fx) + coarse[bottom + i1] * fx) * fy
+      if (t >= 1) { data[at] = blended; continue }
+      t = t * t * (3 - 2 * t)
+      data[at] += (blended - data[at]) * t
+    }
+  }
+}
+
+function blendFull(data: Float32Array, dist: Float32Array, w: number, h: number, cellM: number, amount: number): void {
+  let farthest = 0
+  for (let i = 0; i < dist.length; i++) { const d = dist[i]; if (d > farthest && d < Infinity) farthest = d }
+  const wanted = (amount * farthest) / cellM // the largest sigma asked for, in cells
+  if (!(wanted > 0.25)) return
+  let current: Float32Array = data.slice(), next: Float32Array = new Float32Array(data.length)
+  const tmp = new Float32Array(data.length)
+  const line = new Float64Array(Math.max(w, h) + 1)
+  const scale = amount / cellM
+  const largest = Math.max(w, h) / 2
+  let sigma = 0, variance = 0
+  for (let r = 1; ; r *= 2) {
+    boxBlurTwice(current, next, tmp, w, h, r, line)
+    // Each box of radius r adds ((2r + 1)^2 - 1) / 12 to the variance.
+    variance += (2 * ((2 * r + 1) ** 2 - 1)) / 12
+    const nextSigma = Math.sqrt(variance)
+    const last = nextSigma >= wanted || r * 2 > largest
+    const span = nextSigma - sigma
+    for (let i = 0; i < data.length; i++) {
+      const s = dist[i] * scale
+      if (s < sigma) continue
+      if (s < nextSigma) data[i] = current[i] + (next[i] - current[i]) * ((s - sigma) / span)
+      else if (last) data[i] = next[i]
+    }
+    if (last) break
+    const swap = current; current = next; next = swap
+    sigma = nextSigma
+  }
 }
 
 // ─── The drawn line in a link ───────────────────────────────────────────────
