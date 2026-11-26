@@ -16,6 +16,7 @@ import { useSourceConfig, useTheme, type Bounds } from "@/lib/controls-utils"
 import { SettingsDialog } from "./settings-dialog"
 import { DataLayersModal } from "./data-layers-modal"
 import { LibraryDialogHost } from "./sample-sources-modal"
+import { VectorLibraryPanel } from "./vector-library-panel"
 import { ModePicker } from "./ModePicker"
 import { GeneralSettings } from "./general-settings"
 import { ComparisonMixSection } from "./comparison-mix-section"
@@ -887,8 +888,8 @@ export function TerrainControlPanel({
             <TooltipIconButton icon={BookOpen} tooltip="Documentation" href="docs/" />
             <DataLayersModal open={isDataLayersOpen} onOpenChange={setIsDataLayersOpen} state={state} setState={setState} />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
-            {/* The one Library dialog both libraries render into (sample-sources-modal.tsx). */}
-            <LibraryDialogHost />
+            {/* The one Library dialog the libraries render into (sample-sources-modal.tsx); the Vector tab is its child. */}
+            <LibraryDialogHost><VectorLibraryPanel mapRef={mapRef} terrainTab={!historicalMode} /></LibraryDialogHost>
             {isBottomSheet ? (
               <TooltipIconButton
                 icon={isSidebarOpen ? PanelBottomClose : PanelBottomOpen}

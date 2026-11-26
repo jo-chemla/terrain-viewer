@@ -68,7 +68,7 @@ export function hasCategories(entry: VectorSourceEntry): boolean {
  *  height, color by category without one). */
 export function vectorStyleOf(entry: VectorSourceEntry, saved?: Partial<VectorOverlayStyle>, shared?: Partial<VectorSharedStyle>): VectorOverlayStyle {
   const own = hasCategories(entry) ? ("source" as const) : ("single" as const)
-  const style = { ...VECTOR_STYLE_DEFAULT, ...(entry.color ? { color: entry.color } : {}), colorBy: own, ...saved }
+  const style = { ...VECTOR_STYLE_DEFAULT, ...(entry.color ? { color: entry.color } : {}), ...(entry.outline === false ? { outline: false } : {}), colorBy: own, ...saved }
   if (shared?.mode) style.mode = shared.mode
   if (shared?.colorBy) style.colorBy = shared.colorBy === "auto" ? own : shared.colorBy
   if (!entry.heightField) {
@@ -102,6 +102,15 @@ export function latestOvertureRelease(fetcher: typeof fetch = fetch): Promise<st
     .then((release) => { if (!release) overtureRelease = null; return release }))
 }
 
+/** Whether the address is a file the app serves itself (public/, pulled
+ *  from the dataset-indexes release at build time): "/vector/x.geojson". */
+export const isAppFile = (url: string) => url.startsWith("/") && !url.startsWith("//")
+
+/** An app file's address under the site's base path ("/terrain-viewer/"). */
+export function appFileUrl(url: string, base = "/"): string {
+  return isAppFile(url) ? `${base.endsWith("/") ? base : base + "/"}${url.slice(1)}` : url
+}
+
 /** For tests: forget the release asked earlier. */
 export function resetVectorResolvers() { overtureRelease = null }
 
@@ -124,7 +133,7 @@ export async function resolveVectorUrl(entry: VectorSourceEntry, fetcher: typeof
  *  there and a tile still weighs hundreds of kilobytes. */
 export const VECTOR_FOOTPRINT_MINZOOM = 11
 
-export type VectorSourceSpec = { type: "vector" | "geojson"; tiles?: string[]; url?: string; data?: string; minzoom?: number; maxzoom?: number; bounds?: [number, number, number, number]; attribution?: string }
+export type VectorSourceSpec = { type: "vector" | "geojson"; tiles?: string[]; url?: string; data?: string | object; minzoom?: number; maxzoom?: number; bounds?: [number, number, number, number]; attribution?: string }
 
 /** The MapLibre source of an entry at its resolved address. A PMTiles
  *  archive is read through the app's `pmtiles://` protocol, as a tile
@@ -240,8 +249,12 @@ export function darken(hex: string, by = 0.45): string {
 export function vectorLayerSpecs(entry: VectorSourceEntry, style: VectorOverlayStyle, prefix: string): VectorLayerSpec[] {
   if (entry.type === "style") return []
   const out: VectorLayerSpec[] = []
-  const polygon: Expr = ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false]
+  // The entry's own filter joins the geometry test of every layer.
+  const own = Array.isArray(entry.filter) && entry.filter.length ? (entry.filter as Expr) : null
+  const only = (test: Expr): Expr => (own ? ["all", test, own] : test)
+  const polygon = only(["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false])
   const color = colorExpression(entry, style)
+  const filled = entry.polygonFill !== false
   // A darker shade of the one color; over a color per feature, a dark line
   // (a shade of each cannot be computed in an expression).
   const lineColor = style.colorBy === "single" ? darken(style.color) : "rgba(0,0,0,0.45)"
@@ -249,7 +262,7 @@ export function vectorLayerSpecs(entry: VectorSourceEntry, style: VectorOverlayS
   // from its own first zoom.
   const footprints = entry.section !== "custom" && entry.libraryGroup === "buildings"
   const minzoom = footprints ? Math.max(VECTOR_FOOTPRINT_MINZOOM, entry.minzoom ?? 0) : (entry.minzoom ?? 0)
-  const threeD = style.mode === "3d" && !!entry.heightField
+  const threeD = style.mode === "3d" && !!entry.heightField && entry.polygonFill !== false
   const geometries = new Set(entry.geometries ?? ["polygon"])
   const lineOpacity = Math.min(1, style.opacity + 0.25)
   // A GeoJSON source has no layers: one nameless one, with no source-layer.
@@ -257,23 +270,28 @@ export function vectorLayerSpecs(entry: VectorSourceEntry, style: VectorOverlayS
   const sl = (layer: string) => (entry.type === "geojson" ? {} : { "source-layer": layer })
   for (const layer of sourceLayers) {
     if (geometries.has("polygon")) {
-      if (!threeD) {
+      if (!threeD && filled) {
         out.push({ id: `${prefix}-${layer}-fill`, type: "fill", ...sl(layer), minzoom, filter: polygon,
           paint: { "fill-color": color, "fill-opacity": style.opacity, "fill-antialias": !style.outline } })
       }
-      if (style.outline) {
+      if (!filled) {
+        // Outlines only, in the color a fill would have had: a perimeter the
+        // size of a region stays a line.
+        out.push({ id: `${prefix}-${layer}-line`, type: "line", ...sl(layer), minzoom, filter: polygon, layout: { "line-join": "round" },
+          paint: { "line-color": color, "line-opacity": lineOpacity, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.8, 12, 1.4, 16, 2.2] } })
+      } else if (style.outline) {
         out.push({ id: `${prefix}-${layer}-line`, type: "line", ...sl(layer), minzoom, filter: polygon, layout: { "line-join": "round" },
           paint: { "line-color": lineColor, "line-opacity": lineOpacity, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.4, 16, 1.2] } })
       }
     }
     // Lines and points of a source of your own, in the fill color.
     if (geometries.has("line")) {
-      out.push({ id: `${prefix}-${layer}-path`, type: "line", ...sl(layer), minzoom, filter: ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false],
+      out.push({ id: `${prefix}-${layer}-path`, type: "line", ...sl(layer), minzoom, filter: only(["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false]),
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": color, "line-opacity": lineOpacity, "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 16, 2.2] } })
     }
     if (geometries.has("point")) {
-      out.push({ id: `${prefix}-${layer}-point`, type: "circle", ...sl(layer), minzoom, filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
+      out.push({ id: `${prefix}-${layer}-point`, type: "circle", ...sl(layer), minzoom, filter: only(["match", ["geometry-type"], ["Point", "MultiPoint"], true, false]),
         paint: { "circle-color": color, "circle-opacity": lineOpacity, "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 1.6, 9, 3, 16, 6], "circle-stroke-color": "rgba(255,255,255,0.85)", "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 6, 0, 10, 0.8] } })
     }
   }
@@ -302,4 +320,58 @@ export function vectorLegend(entry: VectorSourceEntry, style: VectorOverlayStyle
   if (style.colorBy === "source" && entry.sourceColors) return Object.entries(entry.sourceColors)
   if (style.colorBy === "height" && entry.heightField) return [...HEIGHT_RAMP.map(([m, c]): [string, string] => [`${m} m`, c]), ["no height", NO_HEIGHT_COLOR]]
   return []
+}
+
+// ── Zoom to, search ─────────────────────────────────────────────────────────
+
+/** Where "Zoom to" takes the view: the bounds of the entry (or of one of
+ *  its companions) when smaller than the world, else the place the entry
+ *  names as a sample, else nothing (a worldwide source: no button). */
+export function vectorZoomTarget(entry: VectorSourceEntry): { bounds: [number, number, number, number] } | { center: [number, number]; zoom: number } | null {
+  const b = entry.bounds
+  if (b && b.length === 4 && b.every(Number.isFinite) && (b[2] - b[0] < 300 || b[3] - b[1] < 140)) return { bounds: b }
+  if (entry.sample && Number.isFinite(entry.sample.lng) && Number.isFinite(entry.sample.lat)) return { center: [entry.sample.lng, entry.sample.lat], zoom: entry.sample.zoom }
+  return null
+}
+
+/** What the Library's search reads of a vector source. */
+export const vectorSearchText = (s: VectorSourceEntry) => {
+  const g = VECTOR_LIBRARY_GROUPS.find((x) => x.key === s.libraryGroup)
+  return `${s.name} ${s.id} ${s.type} ${s.keywords ?? ""} ${s.licenseName ?? ""} vector${g ? ` ${g.title} ${g.keywords ?? ""}` : ""}`
+}
+
+/** The sections of the Library's Vector tab, in order; an entry joins one by
+ *  its `libraryGroup`. A group's title and keywords are part of what the
+ *  search reads of its rows. */
+export const VECTOR_LIBRARY_GROUPS: readonly { key: string; title: string; blurb: string; keywords?: string }[] = [
+  { key: "buildings", title: "Buildings", blurb: "Open building footprints, some with heights.", keywords: "buildings footprints 3d" },
+  { key: "heritage", title: "Heritage sites and monuments", blurb: "Heritage Watch AI's weekly exports of OpenStreetMap and Wikidata, the heritage inventories it compiles, and UNESCO's World Heritage List with the components of its serial properties.", keywords: "heritage monuments archaeology culture" },
+  { key: "landcover", title: "Land use and land cover", blurb: "Polygons of what covers the ground and what it is used for, colored by class: Overture's worldwide layers and IGN's OCS GE over France. Heavy tiles: each draws from the zoom its description gives.", keywords: "land cover land use landcover landuse lulc occupation du sol" },
+  { key: "reference", title: "Reference", blurb: "Roads, places and labels over any basemap or relief.", keywords: "roads labels hybrid" },
+]
+
+/** The Library's vector sources by group, in the groups' order (an unknown
+ *  `libraryGroup` gets a section titled by its key, after the others). */
+export function vectorLibraryGroups(entries: readonly VectorSourceEntry[] = VECTOR_LIBRARY): { key: string; title: string; blurb: string; rows: VectorSourceEntry[] }[] {
+  const known = new Set(VECTOR_LIBRARY_GROUPS.map((g) => g.key))
+  const extra = [...new Set(entries.map((s) => s.libraryGroup ?? "other"))].filter((k) => !known.has(k)).map((k) => ({ key: k, title: k, blurb: "" }))
+  return [...VECTOR_LIBRARY_GROUPS, ...extra]
+    .map((g) => ({ key: g.key, title: g.title, blurb: g.blurb, rows: entries.filter((s) => (s.libraryGroup ?? "other") === g.key) }))
+    .filter((g) => g.rows.length)
+}
+
+/** A color and an opacity as one `#rrggbbaa` (what the color picker edits),
+ *  and back. The row's opacity pill and the picker's transparency are the
+ *  same number: there is one opacity per overlay. */
+export function withAlpha(hex: string, opacity: number): string {
+  const base = /^#[0-9a-f]{6}/i.test(hex) ? hex.slice(0, 7) : VECTOR_STYLE_DEFAULT.color
+  const a = Math.round(Math.max(0, Math.min(1, Number.isFinite(opacity) ? opacity : 1)) * 255)
+  return `${base}${a.toString(16).padStart(2, "0")}`.toLowerCase()
+}
+export function splitAlpha(hex: string): { color: string; opacity?: number } {
+  const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(hex.trim())
+  if (m) return m[2] ? { color: `#${m[1]}`.toLowerCase(), opacity: Math.round((parseInt(m[2], 16) / 255) * 100) / 100 } : { color: `#${m[1]}`.toLowerCase() }
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?$/i.exec(hex.trim())
+  if (short) return { color: `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase(), ...(short[4] ? { opacity: Math.round((parseInt(short[4] + short[4], 16) / 255) * 100) / 100 } : {}) }
+  return { color: VECTOR_STYLE_DEFAULT.color }
 }

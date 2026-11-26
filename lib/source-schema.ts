@@ -230,7 +230,8 @@ export interface RasterSourceEntry extends SourceEntryBase {
  *  archive (`url` is the archive's https address), an MVT `{z}/{x}/{y}`
  *  template, a TileJSON, a whole MapLibre style whose layers are drawn as
  *  they are ("style": OpenFreeMap's Liberty), or one GeoJSON file of a few
- *  megabytes at most ("geojson": no tiles, the whole file is loaded). */
+ *  megabytes at most ("geojson": no tiles, the whole file is loaded; a `url`
+ *  starting with "/" is a file the app serves itself, under public/). */
 export type VectorTransport = "pmtiles" | "mvt" | "tilejson" | "style" | "geojson"
 
 /** One class of a vector source's "color by category". */
@@ -240,6 +241,40 @@ export interface VectorCategory {
   color: string
   field: string
   value?: string | string[]
+}
+
+/** A link of a feature's card to where the feature comes from. */
+export interface VectorPopupLink {
+  label: string
+  /** The address, with `{field}` placeholders filled from the feature's
+   *  properties (each value URL-encoded, a slash kept: OSM's "way/123"). */
+  url: string
+  /** The property that must hold a value for the link to show (default:
+   *  the first placeholder of `url`). */
+  field?: string
+  /** A regular expression the value must match in full ("Q[0-9]+"): a value
+   *  of another shape gives no link. */
+  pattern?: string
+}
+
+/** What the card of a clicked feature shows (lib/vector-popup.ts). Every
+ *  part is optional: without it a card is the feature's name and all its
+ *  non-empty properties. */
+export interface VectorPopup {
+  /** Properties tried in turn for the title (default: name, name_en, label…). */
+  title?: string[]
+  /** Properties tried in turn for a second line under the title. */
+  subtitle?: string[]
+  /** The rows shown first, in this order, each with its label. */
+  fields?: { field: string; label?: string; suffix?: string }[]
+  /** Properties never listed (ids already behind a link, internal numbers). */
+  hide?: string[]
+  /** false: only `fields` are listed, not the feature's other properties. */
+  rest?: boolean
+  /** A picture: the property holding its address or, with `commons`, a
+   *  Wikimedia Commons file name. */
+  image?: { field: string; commons?: boolean }
+  links?: VectorPopupLink[]
 }
 
 /** A vector overlay: footprints (or a styled map) drawn over the terrain
@@ -284,7 +319,24 @@ export interface VectorSourceEntry extends SourceEntryBase {
   /** More archives drawn with this entry, under one switch and one style:
    *  a dataset published as a points archive and a shapes archive. Each
    *  inherits everything it does not state. */
-  companions?: Pick<VectorSourceEntry, "url" | "sourceLayers" | "geometries" | "minzoom" | "maxzoom" | "type">[]
+  companions?: Pick<VectorSourceEntry, "url" | "sourceLayers" | "geometries" | "minzoom" | "maxzoom" | "type" | "filter" | "polygonFill">[]
+  /** A MapLibre filter expression every layer of the entry adds to its own
+   *  (features it rejects are neither drawn nor clickable). */
+  filter?: unknown[]
+  /** false: polygons are drawn as outlines only, in the fill color. For a
+   *  dataset whose polygons run from a house to a whole region, where a fill
+   *  would hide the map (the heritage inventories' perimeters). */
+  polygonFill?: boolean
+  /** Whether footprints get an outline until the user says otherwise
+   *  (default true; false for a mosaic of classes, land cover). */
+  outline?: boolean
+  /** "geojson" only: the file is KML or GPX, converted in the browser
+   *  (lib/remote-vector.ts) before it is drawn. */
+  format?: "kml" | "gpx"
+  /** Where "Zoom to" goes for a worldwide source: a place that shows it well. */
+  sample?: { lng: number; lat: number; zoom: number }
+  /** The card of a clicked feature. */
+  popup?: VectorPopup
   /** "style" only: the layer types of the style to draw (default all but
    *  the background); ["line", "symbol"] makes a roads-and-labels overlay. */
   styleLayerTypes?: ("fill" | "line" | "symbol" | "fill-extrusion" | "raster")[]

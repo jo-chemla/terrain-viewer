@@ -385,7 +385,7 @@ export const byodVectorOverlaysOpenAtom = atomWithStorage("byodVectorOverlaysOpe
 export const vectorOverlaySharedAtom = atomWithStorage<import("./vector-sources").VectorSharedStyle>("vectorOverlayShared", { mode: "flat", colorBy: "auto" })
 /** The Library's vector sources listed in the sidebar (the Vector library
  *  dialog ticks them); one switched on by a link shows too. */
-export const vectorLibraryIdsAtom = atomWithStorage<string[]>("vectorLibraryIds", ["overture-buildings", "vida-open-buildings", "osm-buildings-openfreemap", "osm-liberty-lines-labels", "hwai-heritage-wikidata", "hwai-heritage-osm", "hwai-heritage-osm-condition"], undefined, { getOnInit: true })
+export const vectorLibraryIdsAtom = atomWithStorage<string[]>("vectorLibraryIds", ["overture-buildings", "vida-open-buildings", "osm-buildings-openfreemap", "osm-liberty-lines-labels", "hwai-heritage-osm", "hwai-heritage-wikidata"], undefined, { getOnInit: true })
 /** The user's own vector sources (Bring Your Own Data > Vector overlays > Add):
  *  PMTiles archives, TileJSONs, MVT templates or MapLibre styles, as
  *  VectorSourceEntry records with section "custom". */
@@ -483,6 +483,9 @@ export const terrainLibraryOpenAtom = atom(false)
  *  section so `?openDialog=addTerrain` can open it on arrival. */
 export const addTerrainSourceOpenAtom = atom(false)
 export const basemapLibraryOpenAtom = atom(false)
+/** The Vector tab of the same Library dialog (vector-library-panel.tsx);
+ *  `?openLibrary=vector` and the Vector overlays list open it. */
+export const vectorLibraryOpenAtom = atom(false)
 /** The filter typed into either Library dialog. One for both, so the
  *  Terrain / Basemap tabs switch libraries with the same search. */
 export const libraryQueryAtom = atom("")

@@ -617,7 +617,7 @@ export const BasemapByodSection: React.FC<{ state: any; setState: (updates: any)
               </>)}
             </div>
           )}
-          <VectorOverlaysSection state={state} setState={setState} />
+          <VectorOverlaysSection state={state} setState={setState} mapRef={mapRef} />
         </CollapsibleContent>
 
       </Collapsible>

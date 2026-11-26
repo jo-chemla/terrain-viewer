@@ -902,3 +902,34 @@
 .macro-separator {
   transition: opacity 150ms;
 }
+
+/* The card of a clicked vector feature (VectorFeaturePopup.tsx): MapLibre's
+   popup in the app's own surface, light or dark, instead of its white box. */
+.vector-feature-popup .maplibregl-popup-content {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+  font: inherit;
+}
+.vector-feature-popup .maplibregl-popup-close-button {
+  color: var(--muted-foreground);
+  font-size: 1.125rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+.vector-feature-popup .maplibregl-popup-close-button:hover {
+  background: transparent;
+  color: var(--popover-foreground);
+}
+.vector-feature-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.vector-feature-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.vector-feature-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: var(--popover); }
+.vector-feature-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.vector-feature-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.vector-feature-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-bottom-color: var(--popover); }
+.vector-feature-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--popover); }
+.vector-feature-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--popover); }

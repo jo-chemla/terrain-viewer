@@ -1,14 +1,15 @@
 // The "Vector overlays" list of the Bring Your Own Data section: the
-// Library's vector sources (lib/vector-sources.ts: Overture, VIDA and OSM
-// building footprints, OSM roads and labels) and your own (Add: a PMTiles
-// archive, a TileJSON, a tile template or a MapLibre style, read by
-// lib/vector-source-detect.ts), each with its switch (one per view in a
-// split), its opacity and a settings popover (flat or 3D, color by, color,
-// outlines, legend, credit, and Remove for your own).
+// Library's vector sources listed by the Library dialog's Vector tab
+// (vector-library-panel.tsx) and your own (Add vector: a PMTiles archive, a
+// TileJSON, a tile template, a MapLibre style, a GeoJSON, KML or GPX file,
+// read by lib/vector-source-detect.ts), each with its switch (one per view
+// in a split), its opacity, a Zoom to button and a settings popover (color
+// with transparency, outlines, legend, credit, and Remove for your own).
 import type React from "react"
 import { useState } from "react"
-import { useAtom, useAtomValue } from "jotai"
-import { ChevronDown, ExternalLink, Library, Plus, Settings2, Trash2 } from "lucide-react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import type { MapRef } from "react-map-gl/maplibre"
+import { ChevronDown, ExternalLink, Library, Maximize2, Plus, Settings2, Shapes, Trash2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -18,23 +19,26 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
-import { activeViewAtom, byodVectorOverlaysOpenAtom, customVectorSourcesAtom, vectorLibraryIdsAtom, vectorOverlaySharedAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
+import { activeViewAtom, byodVectorOverlaysOpenAtom, customVectorSourcesAtom, vectorLibraryIdsAtom, vectorLibraryOpenAtom, vectorOverlaySharedAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
 import type { VectorSourceEntry } from "@/lib/source-schema"
-import { allVectorSources, hasCategories, VECTOR_FOOTPRINT_MINZOOM, VECTOR_LIBRARY, vectorLegend, vectorStyleOf, type VectorOverlayStyle, type VectorSharedStyle } from "@/lib/vector-sources"
+import { allVectorSources, hasCategories, splitAlpha, VECTOR_FOOTPRINT_MINZOOM, vectorLegend, vectorStyleOf, vectorZoomTarget, withAlpha, type VectorOverlayStyle, type VectorSharedStyle } from "@/lib/vector-sources"
 import { detectVectorSource, heightFieldsOf, type DetectedVectorSource } from "@/lib/vector-source-detect"
-import { GroupHeading, SourceGridToggle } from "./controls-components"
+import { GroupHeading, SourceGridToggle, TooltipButton } from "./controls-components"
+import { ColorAlphaSwatch } from "./color-picker"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { zoomToVectorSource } from "./vector-library-panel"
 
 const fieldOf = (side: ViewId) => (side === "A" ? "vectorOverlayIds" : `vectorOverlayIds${side}`)
 
-export const VectorOverlaysSection: React.FC<{ state: any; setState: (updates: any) => void }> = ({ state, setState }) => {
+export const VectorOverlaysSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef?: React.RefObject<MapRef | null> }> = ({ state, setState, mapRef }) => {
   const [open, setOpen] = useAtom(byodVectorOverlaysOpenAtom)
   const [styles, setStyles] = useAtom(vectorOverlayStylesAtom)
   const activeView = useAtomValue(activeViewAtom)
   const [customs, setCustoms] = useAtom(customVectorSourcesAtom)
   const [adding, setAdding] = useState(false)
-  const [browsing, setBrowsing] = useState(false)
+  const openLibrary = useSetAtom(vectorLibraryOpenAtom)
   const [shared, setShared] = useAtom(vectorOverlaySharedAtom)
-  const [libraryIds, setLibraryIds] = useAtom(vectorLibraryIdsAtom)
+  const libraryIds = useAtomValue(vectorLibraryIdsAtom)
   const everySource = allVectorSources(customs)
   const perView = !!state.basemapPerView && state.splitStyle !== "off"
   const idsOf = (side: ViewId): string[] => state[fieldOf(side)] || []
@@ -66,6 +70,7 @@ export const VectorOverlaysSection: React.FC<{ state: any; setState: (updates: a
     <div className="space-y-2 pt-2 mt-2 border-t">
       <button type="button" className="flex items-center gap-1 w-full cursor-pointer text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+        <Shapes className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
         <GroupHeading>Vector overlays</GroupHeading>
         {!open && <span className="text-[10px] text-muted-foreground tabular-nums ml-1">{active}/{sources.length}</span>}
       </button>
@@ -115,74 +120,31 @@ export const VectorOverlaysSection: React.FC<{ state: any; setState: (updates: a
                 <span className="flex-1 min-w-0 truncate text-sm cursor-pointer" title={source.name} onClick={() => (perView ? undefined : toggle("A", source.id))}>
                   {source.shortName ?? source.name}
                 </span>
+                {mapRef && vectorZoomTarget(source) && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" aria-label={`Zoom to ${source.shortName ?? source.name}`}
+                    title={source.bounds ? "Zoom to this source's extent" : "Zoom to a place that shows this source"}
+                    onClick={() => zoomToVectorSource(mapRef.current, source)}>
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
                 <VectorOverlaySettings source={source} style={style} onChange={(change) => patch(source.id, change)} onRemove={source.section === "custom" ? () => remove(source.id) : undefined} />
               </div>
             )
           })}
-          <div className="flex gap-2 min-w-0">
-            <Button variant="outline" size="sm" className="flex-1 min-w-0 cursor-pointer bg-transparent" onClick={() => setBrowsing(true)} title="Buildings, heritage sites and monuments, reference layers">
-              <Library className="h-3.5 w-3.5" /> <span className="truncate">Vector library</span>
-            </Button>
-            <Button variant="outline" size="sm" className="flex-1 min-w-0 cursor-pointer bg-transparent" onClick={() => setAdding(true)} title="A PMTiles archive, a TileJSON, a {z}/{x}/{y} vector tile template, a MapLibre style or a GeoJSON file">
-              <Plus className="h-3.5 w-3.5" /> <span className="truncate">Add yours</span>
-            </Button>
-          </div>
+          <TooltipProvider>
+            <div className="flex gap-2 min-w-0">
+              <TooltipButton icon={Library} label="Vector library" className="flex-1 min-w-0"
+                tooltip="Buildings, heritage sites and monuments, land use and land cover, reference layers: the Vector tab of the Library"
+                onClick={() => openLibrary(true)} />
+              <TooltipButton icon={Plus} label="Add vector" className="flex-1 min-w-0"
+                tooltip="A PMTiles archive, a TileJSON, a {z}/{x}/{y} vector tile template, a MapLibre style, or a GeoJSON, KML or GPX file"
+                onClick={() => setAdding(true)} />
+            </div>
+          </TooltipProvider>
         </>
       )}
       <AddVectorSourceDialog open={adding} onOpenChange={setAdding} onAdd={add} taken={(id) => everySource.some((s) => s.id === id && s.section !== "custom")} />
-      <VectorLibraryDialog open={browsing} onOpenChange={setBrowsing} listed={libraryIds} onToggle={(id) => setLibraryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))} />
     </div>
-  )
-}
-
-const VECTOR_GROUPS: [key: string, title: string, blurb: string][] = [
-  ["buildings", "Buildings", "Open building footprints, some with heights."],
-  ["heritage", "Heritage sites and monuments", "Heritage Watch AI's weekly exports of OpenStreetMap and Wikidata, the heritage inventories it compiles, and UNESCO's World Heritage List."],
-  ["reference", "Reference", "Roads, places and labels over any basemap or relief."],
-]
-
-/** The Vector library: every Library vector source by group, each ticked
- *  into or out of the sidebar's list. */
-const VectorLibraryDialog: React.FC<{ open: boolean; onOpenChange: (open: boolean) => void; listed: string[]; onToggle: (id: string) => void }> = ({ open, onOpenChange, listed, onToggle }) => {
-  const [query, setQuery] = useState("")
-  const q = query.trim().toLowerCase()
-  const match = (s: VectorSourceEntry) => !q || q.split(/\s+/).every((w) => `${s.name} ${s.description ?? ""} ${s.keywords ?? ""} ${s.licenseName ?? ""}`.toLowerCase().includes(w))
-  const known = new Set(VECTOR_GROUPS.map(([k]) => k))
-  const groups = [...VECTOR_GROUPS, ...[...new Set(VECTOR_LIBRARY.map((s) => s.libraryGroup ?? "other"))].filter((k) => !known.has(k)).map((k): [string, string, string] => [k, k, ""])]
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Vector library</DialogTitle>
-          <DialogDescription>Tick a source to list it under Vector overlays, where it is switched on per view.</DialogDescription>
-        </DialogHeader>
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search (heritage, buildings, unesco…)" className="min-w-0" aria-label="Search the vector library" />
-        <div className="max-h-[60vh] overflow-y-auto space-y-4 min-w-0 pr-1">
-          {groups.map(([key, title, blurb]) => {
-            const rows = VECTOR_LIBRARY.filter((s) => (s.libraryGroup ?? "other") === key && match(s))
-            if (!rows.length) return null
-            return (
-              <div key={key} className="space-y-2 min-w-0">
-                <div>
-                  <p className="text-sm font-medium">{title}</p>
-                  {blurb && <p className="text-xs text-muted-foreground break-words">{blurb}</p>}
-                </div>
-                {rows.map((s) => (
-                  <label key={s.id} className="flex items-start gap-2 cursor-pointer min-w-0 rounded-md border p-2">
-                    <Checkbox checked={listed.includes(s.id)} onCheckedChange={() => onToggle(s.id)} className="cursor-pointer shrink-0 mt-0.5" />
-                    <span className="min-w-0 space-y-0.5">
-                      <span className="block text-sm break-words">{s.name}</span>
-                      {s.description && <span className="block text-xs text-muted-foreground break-words">{s.description}</span>}
-                      <span className="block text-[11px] text-muted-foreground break-words">{[s.licenseName, s.type === "geojson" ? "GeoJSON" : s.type === "style" ? "MapLibre style" : "vector tiles"].filter(Boolean).join(" · ")}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )
-          })}
-        </div>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -222,7 +184,7 @@ const AddVectorSourceDialog: React.FC<{ open: boolean; onOpenChange: (open: bool
         <DialogHeader>
           <DialogTitle>Add a vector source</DialogTitle>
           <DialogDescription>
-            The address of a PMTiles archive of vector tiles, a TileJSON, a {"{z}/{x}/{y}"} vector tile template, a MapLibre style (drawn with its own layers; its sources may be PMTiles), or a GeoJSON file of 10 MB at most. The host must allow requests from other sites (CORS).
+            The address of a PMTiles archive of vector tiles, a TileJSON, a {"{z}/{x}/{y}"} vector tile template, a MapLibre style (drawn with its own layers; its sources may be PMTiles), or a GeoJSON, KML or GPX file of 10 MB at most. The host must allow requests from other sites (CORS).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 min-w-0">
@@ -278,10 +240,15 @@ const VectorOverlaySettings: React.FC<{ source: VectorSourceEntry; style: Vector
       <PopoverContent align="end" className="w-72 max-w-[calc(100vw-2rem)] p-3 space-y-2.5 text-xs">
         <p className="font-medium text-sm break-words">{source.name}</p>
         {styled && style.colorBy === "single" && (
-          <label className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="text-muted-foreground shrink-0 w-16">Color</span>
-            <input type="color" value={style.color} onChange={(e) => onChange({ color: e.target.value })} title="This overlay's color" className="h-7 w-10 shrink-0 cursor-pointer rounded border bg-transparent p-0.5" />
-          </label>
+            {/* One opacity per overlay: the picker's transparency and the
+                row's pill are the same number. */}
+            <ColorAlphaSwatch title="This overlay's color and opacity" size="h-7 w-7" className="rounded border-0"
+              color={withAlpha(style.color, style.opacity)}
+              onChange={(hex) => onChange(splitAlpha(hex))} />
+            <span className="text-muted-foreground tabular-nums">{Math.round(style.opacity * 100)} %</span>
+          </div>
         )}
         {styled && style.colorBy === "source" && hasCategories(source) && (
           <p className="text-muted-foreground">Colored by {(source.categoryLabel ?? "origin").toLowerCase()}.</p>

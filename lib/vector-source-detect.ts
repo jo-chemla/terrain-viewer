@@ -1,7 +1,8 @@
 // What a vector source's address is, read from the address itself and one
 // request: a PMTiles archive of vector tiles (its header and metadata), a
 // TileJSON, an MVT {z}/{x}/{y} template, a whole MapLibre style, or a
-// GeoJSON file of 10 MB at most. Returns
+// GeoJSON, KML or GPX file of 10 MB at most (KML and GPX are converted to
+// GeoJSON by lib/remote-vector.ts, the drawing tools' reader). Returns
 // the VectorSourceEntry the Add dialog saves (Bring Your Own Data > Vector
 // overlays), with the layers and zoom range the source declares.
 //
@@ -39,7 +40,7 @@ function layersOf(vectorLayers: unknown): DetectedLayer[] {
 
 /** A stable id from the address: letters, digits and dashes of its host and path. */
 export function vectorSourceId(url: string): string {
-  const core = url.replace(/^pmtiles:\/\//, "").replace(/^https?:\/\//, "").replace(/\{[^}]*\}/g, "").replace(/\.(pmtiles|json|pbf|mvt)\b/gi, "")
+  const core = url.replace(/^pmtiles:\/\//, "").replace(/^https?:\/\//, "").replace(/\{[^}]*\}/g, "").replace(/\.(pmtiles|json|pbf|mvt|kml|gpx)\b/gi, "")
   const slug = core.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
   if (slug.length <= 48) return `vec-${slug || "source"}`
   // A long address keeps its two ends and a hash of the whole: two archives
@@ -52,7 +53,7 @@ export function vectorSourceId(url: string): string {
 function nameOf(url: string): string {
   try {
     const u = new URL(url.replace(/^pmtiles:\/\//, "").replace(/\{[^}]*\}/g, "x"))
-    const last = u.pathname.split("/").filter((p) => p && !/^x(\.\w+)?$/.test(p)).pop()?.replace(/\.(pmtiles|json|pbf|mvt)$/i, "")
+    const last = u.pathname.split("/").filter((p) => p && !/^x(\.\w+)?$/.test(p)).pop()?.replace(/\.(pmtiles|geojson|json|pbf|mvt|kml|gpx)$/i, "")
     return last ? `${last} (${u.hostname})` : u.hostname
   } catch { return url }
 }
@@ -74,6 +75,24 @@ const clean = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o
 const zoom = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined)
 const bounds4 = (b: unknown) => (Array.isArray(b) && b.length === 4 && b.every((n) => typeof n === "number" && Number.isFinite(n)) ? (b as [number, number, number, number]) : undefined)
 
+/** KML or GPX text to GeoJSON features (the browser's reader by default,
+ *  lib/remote-vector.ts, which needs a DOM; a test passes its own). */
+export type XmlVectorParser = (text: string, format: "kml" | "gpx") => Promise<{ features: { properties?: Record<string, unknown> | null }[] }>
+const parseXmlVector: XmlVectorParser = async (text, format) => {
+  const { parseVector } = await import("./remote-vector")
+  return parseVector(new TextEncoder().encode(text).buffer as ArrayBuffer, format)
+}
+
+/** KML or GPX, by the address's extension, else by the first tag. */
+export function xmlVectorFormat(url: string, text: string): "kml" | "gpx" | null {
+  const ext = url.split(/[?#]/)[0].split(".").pop()?.toLowerCase()
+  const head = text.slice(0, 600)
+  if (!head.trimStart().startsWith("<")) return null
+  if (ext === "gpx" || /<gpx[\s>]/i.test(head)) return "gpx"
+  if (ext === "kml" || /<kml[\s>]/i.test(head)) return "kml"
+  return null
+}
+
 /** A reader of a PMTiles archive's header and metadata (the pmtiles package
  *  by default; a test passes its own). */
 export type PmtilesProbe = (url: string) => Promise<{ header: { tileType: number; minZoom: number; maxZoom: number; minLon: number; minLat: number; maxLon: number; maxLat: number }; metadata: unknown }>
@@ -87,7 +106,7 @@ const probePmtiles: PmtilesProbe = async (url) => {
  * Order: a PMTiles archive by its name, an MVT template by its {z}, else
  * the JSON behind the address (a MapLibre style or a TileJSON).
  */
-export async function detectVectorSource(raw: string, opts: { fetcher?: typeof fetch; pmtiles?: PmtilesProbe } = {}): Promise<DetectedVectorSource> {
+export async function detectVectorSource(raw: string, opts: { fetcher?: typeof fetch; pmtiles?: PmtilesProbe; xml?: XmlVectorParser } = {}): Promise<DetectedVectorSource> {
   const fetcher = opts.fetcher ?? fetch
   const url = raw.trim()
   if (!/^(https?|pmtiles):\/\//i.test(url)) throw new Error("An https address is needed: a .pmtiles archive, a TileJSON, a {z}/{x}/{y} tile template or a MapLibre style.")
@@ -120,9 +139,24 @@ export async function detectVectorSource(raw: string, opts: { fetcher?: typeof f
   // A GeoJSON file is loaded whole, so it is capped (the header when the
   // host states it, the text otherwise).
   const declared = Number(res.headers?.get?.("content-length") ?? 0)
-  if (declared > GEOJSON_MAX_BYTES) throw new Error(`This file is ${Math.round(declared / 1e6)} MB: a GeoJSON source is loaded whole and capped at ${GEOJSON_MAX_BYTES / 1e6} MB. Make vector tiles of it (tippecanoe to PMTiles) instead.`)
+  const tooBig = (bytes: number) => new Error(`This file is ${Math.round(bytes / 1e6)} MB: a GeoJSON, KML or GPX source is loaded whole and capped at ${GEOJSON_MAX_BYTES / 1e6} MB. Make vector tiles of it (tippecanoe to PMTiles) instead.`)
+  if (declared > GEOJSON_MAX_BYTES) throw tooBig(declared)
+  const text = await res.text()
+  if (text.length > GEOJSON_MAX_BYTES) throw tooBig(text.length)
+
+  // KML and GPX: converted once here to count the features and find the
+  // fields, and again by the map when the source is drawn.
+  const xml = xmlVectorFormat(url, text)
+  if (xml) {
+    let features: { properties?: Record<string, unknown> | null }[]
+    try { features = (await (opts.xml ?? parseXmlVector)(text, xml)).features ?? [] } catch (e) { throw new Error(`This ${xml.toUpperCase()} file could not be read: ${e instanceof Error ? e.message : "not valid XML"}.`) }
+    if (!features.length) throw new Error(`This ${xml.toUpperCase()} file holds no feature.`)
+    const fields = [...new Set(features.slice(0, 200).flatMap((f) => Object.keys(f?.properties ?? {})))]
+    return { entry: clean({ ...base(url, "geojson"), format: xml, ...heightFieldsOf([{ id: "data", fields }]) }), layers: [], label: `${xml.toUpperCase()} file, ${features.length} feature${features.length === 1 ? "" : "s"}`, note: "Converted to GeoJSON in your browser and read whole, not as tiles: fine up to a few megabytes." }
+  }
+
   let json: Record<string, unknown>
-  try { json = await res.json() } catch { throw new Error("The address is neither a PMTiles archive, a tile template nor JSON (a TileJSON or a MapLibre style).") }
+  try { json = JSON.parse(text) } catch { throw new Error("The address is neither a PMTiles archive, a tile template, JSON (a TileJSON, a MapLibre style, GeoJSON) nor a KML or GPX file.") }
 
   if (json.type === "FeatureCollection" || json.type === "Feature") {
     const features = (json.type === "Feature" ? [json] : Array.isArray(json.features) ? json.features : []) as { properties?: Record<string, unknown> | null }[]
