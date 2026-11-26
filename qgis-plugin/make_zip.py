@@ -3,7 +3,7 @@ Install from ZIP), and the tile service bundles the Terrain Viewer plugin
 downloads:
   python make_zip.py                 -> dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
   python make_zip.py send2map_app    -> only that one
-  python make_zip.py --service-bundle [windows-x64 macos-arm64 macos-x64 linux-x64]
+  python make_zip.py --service-bundle [windows-x64 macos-arm64 macos-x64 linux-x64 linux-arm64]
       -> dist/terrain-viewer-tile-service-<platform>.zip: the tile service of
          a platform (Node, the service and its production node_modules with
          that platform's sharp binaries; bundle.json), what the plugin's
@@ -59,6 +59,7 @@ TARGETS = {
     "macos-arm64": ("darwin-arm64.tar.gz", "darwin", "arm64"),
     "macos-x64": ("darwin-x64.tar.gz", "darwin", "x64"),
     "linux-x64": ("linux-x64.tar.gz", "linux", "x64"),
+    "linux-arm64": ("linux-arm64.tar.gz", "linux", "arm64"),
 }
 # The service's files that run (the tests, the engine comparison and the
 # build step stay out).

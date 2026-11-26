@@ -44,8 +44,8 @@ def platform_label():
         return "windows-x64"
     if sys.platform == "darwin":
         return "macos-arm64" if arm else "macos-x64"
-    if sys.platform.startswith("linux") and x64:
-        return "linux-x64"
+    if sys.platform.startswith("linux") and (x64 or arm):
+        return "linux-x64" if x64 else "linux-arm64"
     return None
 
 

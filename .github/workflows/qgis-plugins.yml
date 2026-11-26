@@ -33,6 +33,9 @@ jobs:
           - { os: windows-latest, targets: windows-x64, smoke: windows-x64 }
           - { os: macos-latest, targets: "macos-arm64 macos-x64", smoke: macos-arm64 }
           - { os: ubuntu-latest, targets: linux-x64, smoke: linux-x64 }
+          # GitHub's arm64 Linux runner (free for a public repository): the
+          # bundle other tools install on arm64 boxes (3dtiled).
+          - { os: ubuntu-24.04-arm, targets: linux-arm64, smoke: linux-arm64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
