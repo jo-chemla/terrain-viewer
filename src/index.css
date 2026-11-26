@@ -902,3 +902,10 @@
 .macro-separator {
   transition: opacity 150ms;
 }
+
+/* The "Difference of edges" two-date composite: each of the two overlay
+   panes shows its edges (the SVG filters TerrainViewer.tsx renders). On the
+   canvas container, so the pane's own controls are left alone; a Match
+   Colors filter on the canvas itself applies first. */
+[data-composite-edges="composite-edges"] .maplibregl-canvas-container { filter: url(#composite-edges); }
+[data-composite-edges="composite-edges-a"] .maplibregl-canvas-container { filter: url(#composite-edges-a); }

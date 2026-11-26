@@ -127,6 +127,21 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
     }),
   },
   {
+    // The maya-lidar project (lib/projects.json) in an overlay split: its
+    // twelve lidar renders over Tikal on view A, the forest canopy alone on
+    // view B (ESRI World Imagery, the sharpest keyless imagery there, with
+    // no overlays: basemapPerView is on by default, so B reads its own,
+    // empty, overlayBasemapIdsB). The wipe at 0.8 leaves the lidar 80% of
+    // the width and the forest the right 20%. A whole link: only a page
+    // load seeds a project's sources into the list.
+    id: "preset-maya-lidar",
+    name: "Tikal, Maya Lowlands — lidar renders against the forest canopy",
+    ts: 0,
+    thumb: "/bookmark-thumbs/maya-lidar.jpg",
+    reload: true,
+    search: "project=maya-lidar&splitStyle=overlay&splitRatio=0.8&basemapSourceA=esri&basemapSourceB=esri",
+  },
+  {
     id: "preset-iceland-overlay",
     name: "Iceland — Bing vs. AWS Overlay Compare",
     ts: 0,

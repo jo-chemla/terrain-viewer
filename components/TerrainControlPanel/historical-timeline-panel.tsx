@@ -27,7 +27,7 @@ import { fixedDatedTicks } from "@/lib/dated-imagery"
 import { TIMELINE_SOURCE_IDS, resolveActiveHistoricalSource } from "@/lib/historical-sources"
 import { planetKeyAtom, timelineWindowRequestAtom, timelineViewWindowAtom, activeViewAtom } from "@/lib/settings-atoms"
 import { historicalTimelinePanelHeightAtom, sideColorOverridesAtom, colorizeMapBordersAtom, timelineActiveSideAtom, timelineActiveOverlayAtom, profileDockHeightAtom, profileDockLiftPx, bottomSheetBarHeightAtom, BOTTOM_SHEET_STACK_GAP_PX } from "@/lib/layout-constants"
-import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, SIDE_COLORS, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, viewFieldName, VIEW_IDS, effectiveSideColor, tintedCompositeOn, type GridLayoutId, type ViewId, permuteViewsUpdates } from "@/lib/grid-layouts"
 import { isSidebarOpenAtom } from "@/components/TerrainControlPanel/TerrainControlPanel"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -245,9 +245,11 @@ export const HistoricalTimelinePanel: React.FC<{ state: any; setState: (updates:
   // chips, side-picker buttons, A/B captions) to fall back to a plain
   // primary-colored/neutral look instead of a per-view hue nothing on the
   // map actually shows anymore.
+  // B shows the opposite of A's color under a tinted two-date composite.
+  const tintedComposite = tintedCompositeOn(state)
   const colorFor = useCallback((side: ViewId): string | undefined =>
-    colorizeMapBorders ? (sideColorOverrides[side] ?? SIDE_COLORS[side]) : undefined,
-  [colorizeMapBorders, sideColorOverrides])
+    colorizeMapBorders ? effectiveSideColor(side, sideColorOverrides, tintedComposite) : undefined,
+  [colorizeMapBorders, sideColorOverrides, tintedComposite])
   // Expanded by default: title + source/resolution pills + sync/side-picker
   // shown. Toggled off via the cog button for a minimal header (just a small
   // floating cog+collapse cluster hovering over the track's top-right

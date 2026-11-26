@@ -96,13 +96,33 @@ There are two of them:
 
 ![The dark-changes composite of the same two dates](/screenshots/split-modes/blend-red-cyan-dark.jpg)
 
-The tints are the view colors of **Compare and Blend › Advanced** (the same as the pills and the timeline handles), at full strength. Cyan and red are opposite, so unchanged ground is exactly grey; two colors that are not opposite give a tinted result. Left of the wipe, view A keeps its own colors. Turn **Match Colors** on: two dates of different exposure otherwise lean wholly to one color. Imagery taken from different angles shows fringes along every tall building; that is parallax, not change.
+The tints come from the view colors of **Compare and Blend › Advanced** (the same as the borders and the timeline handles), at full strength. View A's tint is its own color. While one of these two composites is on, view B's color is the exact opposite of A's, whatever B's own color is: unchanged ground is then always neutral grey (cyan and red by default; pick purple for A and B turns lime). B's border, its timeline handle and its caption show that color, its swatch in Advanced is hatched and cannot be edited, and a line under the swatches says so. B's own color is kept and returns when the mode is switched off. Left of the wipe, view A keeps its own colors. Turn **Match Colors** on: two dates of different exposure otherwise lean wholly to one color. Imagery taken from different angles shows fringes along every tall building; that is parallax, not change.
 
 <OpenInApp href="/?zoom=16.2&lat=36.7066&lng=67.1100&viewMode=2d&splitStyle=overlay&basemapSourceA=esri&basemapSourceB=bing&splitBlendModeEnabled=true&splitBlendMode=red-cyan&splitRatio=0.2&showRasterBasemap=true&showHillshade=false&matchColorsToA=true">Two-date composite of Esri and Bing imagery over Mazar-i-Sharif</OpenInApp>
 
 Soft Light and Hard Light do something else: they use the top image to lighten or darken the bottom one, carrying one date's contrast onto the other's colors. The per-pixel "best of" modes are Lighten and Darken.
 
-Other ways to spot change between two images, none of them in the app yet: the ratio of the two dates (insensitive to exposure, which Difference is not); a three-date composite with one date per color channel; change vector analysis and its robust form, the iteratively reweighted MAD transform, which separates real change from a global shift in radiometry; and a difference of edges rather than of brightness, which ignores lighting.
+### Ratio of the two dates
+
+**Ratio of the two dates**, in the same **Two dates** group, divides one date by the other instead of subtracting them. Both views are reduced to grey and the result is `1 − A / (2 × B)`: mid grey where the two dates are equally bright, lighter where B is brighter, darker where B is darker. A difference of exposure or illumination that scales the whole picture only moves that grey up or down and draws nothing, where Difference would show the whole scene. The scale is not symmetric: ground half as bright in B is already black, while ground twice as bright is three quarters of the way to white.
+
+![Ratio of two Esri Wayback dates over the Benban solar park in Egypt: the desert of 2016 and the panels of 2024, unchanged sand mid grey, the dark panels near black](/screenshots/split-modes/blend-ratio.jpg)
+
+<OpenInApp href="/?appMode=historical&viewMode=2d&zoom=14.6&lat=24.452&lng=32.72&splitStyle=overlay&showHillshade=false&showRasterBasemap=true&showContours=false&timelineSources=wayback&timelineWindow=2014,2026&basemapSourceA=historical&dateA=1464739200000&basemapSourceB=historical&dateB=1717200000000&historicalActiveSourceA=wayback&historicalActiveSourceB=wayback&splitRatio=0.2&splitBlendModeEnabled=true&splitBlendMode=ratio&matchColorsToA=true">Ratio of 2016 and 2024 over the Benban solar park</OpenInApp>
+
+### Difference of edges
+
+**Difference of edges** compares outlines instead of brightness. Each view is replaced by its edges (a band-pass filter: the difference of two blurs, with a threshold that drops faint texture), then the two are subtracted. An edge present at both dates cancels to black; an edge present at one date only stays white. Lighting and exposure hardly matter, since an outline stays where it is when the picture gets brighter.
+
+![Difference of edges of the same two dates: the rows and tracks of the solar park in white on black, the unchanged desert black](/screenshots/split-modes/blend-edges.jpg)
+
+It needs two pictures that sit exactly on each other. Two dates of one source usually do; two different providers are often a pixel or two apart and taken from different angles, and then most outlines remain. The edges are as wide on a dense screen as on a plain one. The filter runs on the graphics card for every frame: on an integrated laptop chip panning dropped from 60 to about 50 frames per second, and to about 37 on a 2800 × 1800 pixel view.
+
+<OpenInApp href="/?appMode=historical&viewMode=2d&zoom=14.6&lat=24.452&lng=32.72&splitStyle=overlay&showHillshade=false&showRasterBasemap=true&showContours=false&timelineSources=wayback&timelineWindow=2014,2026&basemapSourceA=historical&dateA=1464739200000&basemapSourceB=historical&dateB=1717200000000&historicalActiveSourceA=wayback&historicalActiveSourceB=wayback&splitRatio=0.2&splitBlendModeEnabled=true&splitBlendMode=edges&matchColorsToA=true">Difference of edges of 2016 and 2024 over the Benban solar park</OpenInApp>
+
+All four composites are drawn by the browser (blended boxes over each view, one SVG filter for the edges), not computed pixel by pixel, and a [Snapshot](/features/export-and-share) comes out the same as the screen.
+
+Other ways to spot change between two images, none of them in the app yet: a three-date composite with one date per color channel; and change vector analysis and its robust form, the iteratively reweighted MAD transform, which separates real change from a global shift in radiometry.
 
 **Match Colors** (Compare and Blend) automatically recolors every other view onto view A's color histogram, so two different imagery sources — or two different dates of the same source — no longer look noticeably darker/bluer/warmer next to each other when compared or blended. A **Color Space** picker controls how thorough the match is: **RGB** (the default) is instant, while **HSL / HSV / LAB / LCH** are slower but can match more subtle color differences.
 
@@ -151,6 +171,6 @@ Match Colors makes the panes agree; these make them distinguishable again. Both 
 
 - **Colorize map borders** outlines each active pane in its own side color. Purely cosmetic, and genuinely useful once you are past two panes — in a 2×2 grid, "which one was C?" stops being a question, and it pairs with the view letter each date pill already carries.
 - **Inset** (the default) draws that border 3 px in from the pane edge, so it reads as a frame. Turning it off puts the border flush against the edge and doubles its stroke width, so a flush border does not read as thinner or weaker than an inset one.
-- Each side's color can be **overridden individually**, from the same Advanced block. The override is shared between a pane's border and its timeline pill, so the two never disagree about what color view C is.
+- Each side's color can be **overridden individually**, from the same Advanced block. The override is shared between a pane's border and its timeline pill, so the two never disagree about what color view C is. Under a tinted [two-date composite](#two-date-composite) view B shows the opposite of A's color instead of its own, which is kept for when the mode is off.
 
 These are local preferences (`colorizeMapBorders`, `colorizeMapBordersInset`, `sideColorOverrides`), not part of the shared link — a link carries what the views *show*, not how you chose to frame them. Like the other pane chrome they are **excluded from [snapshots](/features/export-and-share)**, so a composite never comes out with a stray colored frame around each tile.

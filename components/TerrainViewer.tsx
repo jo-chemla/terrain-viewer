@@ -67,7 +67,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
 import { bookmarksAtom, mergeImportedBookmarks, type Bookmark } from "@/lib/bookmarks"
 import { coverageOverlaysAtom, coverageGroups, parseAsCoverageOverlays } from "@/lib/coverage-overlays"
-import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, splitBlendCss, compositeTint, compositeInverts, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SPLIT_STYLES, splitBlendCss, compositeSteps, compositeUsesEdges, effectiveSideColor, tintedCompositeOn, edgeFilterPrimitives, EDGE_FILTER_ID, EDGE_FILTER_A_ID, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
 import * as maplibregl from 'maplibre-gl'
@@ -4660,7 +4660,9 @@ export function TerrainViewer() {
   const overlayBoundaryPct = splitContainerWidth > 0 ? (overlayGutterPx / splitContainerWidth) * 100 : 0
   const grid: ViewId[][] = isSplit ? gridConfig.grid : [["A"]]
   const rows = grid.length
-  const borderColorFor = (side: ViewId) => sideColorOverrides[side] ?? SIDE_COLORS[side]
+  // Under a tinted two-date composite B shows the complement of A's color
+  // (border, tint); its stored color is untouched and returns with the mode.
+  const borderColorFor = (side: ViewId) => effectiveSideColor(side, sideColorOverrides, tintedCompositeOn(state))
 
   // Every pane is ALWAYS absolutely positioned relative to splitContainerRef
   // — never a flex child, never nested inside a per-row wrapper — so
@@ -4979,15 +4981,19 @@ export function TerrainViewer() {
       <div ref={splitContainerRef} data-snapshot-root className="absolute inset-0">
         {paneLayouts.map((pane) => {
           const isBlendedOverlayPane = isOverlaySplit && pane.side === "B"
-          // The two-date composites (splitBlendMode "red-cyan", "red-cyan-dark"):
-          // this view's tint, its own view color, over the part of the view the wipe shows blended (all of
-          // B's clipped pane; A right of the boundary, so A alone stays in
-          // its own colors left of it).
-          const tint = isOverlaySplit && state.splitBlendModeEnabled ? compositeTint(state.splitBlendMode, pane.side, borderColorFor(pane.side)) : null
-          const tintInverts = compositeInverts(state.splitBlendMode)
+          // The two-date composites (grid-layouts' COMPOSITE_BLEND_MODES):
+          // this view's boxes, over the part of the view the wipe shows
+          // blended (all of B's clipped pane; A right of the boundary, so A
+          // alone stays in its own colors left of it).
+          const composite = isOverlaySplit && state.splitBlendModeEnabled ? compositeSteps(state.splitBlendMode, pane.side, borderColorFor("A")) : null
+          // The edges composite: the filter goes on the pane's canvas
+          // container (index.css, [data-composite-edges]), not on the pane,
+          // whose controls it would redraw too.
+          const edges = composite && compositeUsesEdges(state.splitBlendMode) ? (pane.side === "A" ? EDGE_FILTER_A_ID : EDGE_FILTER_ID) : undefined
           return (
             <div
               key={pane.side}
+              data-composite-edges={edges}
               className={cn(
                 "absolute",
                 // No bottom-left targeting here anymore — the minimap is a
@@ -5007,6 +5013,13 @@ export function TerrainViewer() {
                 clipPath: isBlendedOverlayPane ? `polygon(${overlayBoundaryPct}% 0%, ${overlayBoundaryPct}% 100%, 100% 100%, 100% 0%)` : undefined,
                 mixBlendMode: isBlendedOverlayPane ? ((state.splitBlendModeEnabled ? splitBlendCss(state.splitBlendMode) : "normal") as any) : undefined,
                 opacity: isBlendedOverlayPane ? state.overlayOpacity : undefined,
+                // B on a compositor layer of its own, always. Without it,
+                // switching a two-date composite on while the map is idle
+                // (blending was off, the boxes and B's blend mode arrive in
+                // one frame) left Chrome blending B against a stale backdrop:
+                // A's boxes were ignored until something else invalidated B
+                // (checked in Chrome, 2026-11-26).
+                willChange: isBlendedOverlayPane ? "opacity" : undefined,
                 ["--scale-offset" as any]: scaleBottomOffset,
                 ["--scale-right-offset" as any]: scaleRightOffset,
               }}
@@ -5021,21 +5034,18 @@ export function TerrainViewer() {
               onPointerDownCapture={() => { lastInteractedViewRef.current = pane.side }}
             >
               {renderMap(stateAny[sourceFieldName(pane.side)], pane.side)}
-              {/* Desaturate, then tint: a grey box blended as "saturation"
-                  (the view's own luminance, no color), then the tint
-                  multiplied over it. Plain mix-blend-mode on two boxes, so it
-                  works wherever the blend modes do; the wrapper must not be
-                  a stacking context, or the boxes would blend with nothing.
-                  Left out of the snapshot's DOM pass: compositeViews
-                  repeats the two fills on the canvases (data-composite-*). */}
-              {tint && (
-                <div data-snapshot-ignore data-composite-tint={tint} data-composite-invert={tintInverts ? "1" : undefined}
+              {/* The composite's fills, each a box with its own
+                  mix-blend-mode (desaturate: grey as "saturation"; invert:
+                  white as "difference"; tint or halve: "multiply"). Plain
+                  blended boxes, so it works wherever the blend modes do; the
+                  wrapper must not be a stacking context, or the boxes would
+                  blend with nothing. Left out of the snapshot's DOM pass:
+                  compositeViews repeats the fills on the canvases, read
+                  from data-composite-steps. */}
+              {composite && (
+                <div data-snapshot-ignore data-composite-steps={JSON.stringify(composite)} data-composite-filter={edges ? EDGE_FILTER_ID : undefined}
                   className="absolute inset-y-0 right-0 pointer-events-none" style={{ left: pane.side === "A" ? `${overlayBoundaryPct}%` : 0 }}>
-                  {/* The dark-changes composite: white as "difference" inverts
-                      the view, so its dark features become the bright ones. */}
-                  {tintInverts && <div className="absolute inset-0" style={{ background: "#ffffff", mixBlendMode: "difference" }} />}
-                  <div className="absolute inset-0" style={{ background: "#808080", mixBlendMode: "saturation" }} />
-                  <div className="absolute inset-0" style={{ background: tint, mixBlendMode: "multiply" }} />
+                  {composite.map((step, i) => <div key={i} className="absolute inset-0" style={{ background: step.color, mixBlendMode: step.blend }} />)}
                 </div>
               )}
             </div>
@@ -5171,6 +5181,22 @@ export function TerrainViewer() {
         )}
       </div>
       <LightControlOverlay state={state} setState={setState} mapRef={mapRefs.A as any} />
+      {/* The edges composite's two filters (grid-layouts' edgeFilterPrimitives):
+          the whole picture for B, and for A the edges right of the wipe
+          only, merged over the untouched picture, so A alone keeps its
+          colors left of it. Units are CSS pixels of the filtered element
+          (A's canvas container fills the split container), which is why the
+          wipe's position is given in pixels. */}
+      {isOverlaySplit && state.splitBlendModeEnabled && compositeUsesEdges(state.splitBlendMode) && (
+        <svg aria-hidden width="0" height="0" className="absolute pointer-events-none">
+          <filter id={EDGE_FILTER_ID} x="0" y="0" width="1" height="1" colorInterpolationFilters="sRGB"
+            dangerouslySetInnerHTML={{ __html: edgeFilterPrimitives() }} />
+          <filter id={EDGE_FILTER_A_ID} x="0" y="0" width="1" height="1" colorInterpolationFilters="sRGB"
+            dangerouslySetInnerHTML={{ __html: edgeFilterPrimitives()
+              + `<feOffset in="edges" x="${overlayGutterPx.toFixed(1)}" width="${Math.max(0, splitContainerWidth - overlayGutterPx).toFixed(1)}" result="right"/>`
+              + `<feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="right"/></feMerge>` }} />
+        </svg>
+      )}
       {/* One instance per non-A active view — overlay only ever has B, but
           grid/side-by-side can have up to G (B..H), each independently
           matched onto A. */}

@@ -14,7 +14,7 @@ import { ColorAlphaSwatch } from "./color-picker"
 import { OpenInLinksButton } from "./open-in-links"
 import { activeProjectConfigAtom } from "@/lib/settings-atoms"
 import { colorizeMapBordersAtom, colorizeMapBordersInsetAtom, isComparisonMixAdvancedOpenAtom, sideColorOverridesAtom } from "@/lib/layout-constants"
-import { GRID_LAYOUTS, GRID_LAYOUT_IDS, BLEND_MODE_GROUPS, SIDE_COLORS, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, BLEND_MODE_GROUPS, effectiveSideColor, tintedCompositeOn, type GridLayoutId, type ViewId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
 // RGB is the only space cheap enough for a live CSS filter (see
@@ -126,6 +126,7 @@ export const ComparisonMixSection: React.FC<{
   const [colorizeMapBorders, setColorizeMapBorders] = useAtom(colorizeMapBordersAtom)
   const [colorizeMapBordersInset, setColorizeMapBordersInset] = useAtom(colorizeMapBordersInsetAtom)
   const [sideColorOverrides, setSideColorOverrides] = useAtom(sideColorOverridesAtom)
+  const tintedComposite = tintedCompositeOn(state)
   // Default collapsed — capture-date pills, border colorization and its side
   // colors are secondary/cosmetic compared to Split Mode/Grid Layout/Blend
   // Mode above, which most users need every time they turn split mode on.
@@ -380,6 +381,7 @@ export const ComparisonMixSection: React.FC<{
               />
             </div>
             {colorizeMapBorders && (
+              <>
               <div className="flex items-center justify-between gap-2 pt-1">
                 <Label className="text-sm font-medium">Side Colors</Label>
                 <div className="flex items-center gap-2">
@@ -412,13 +414,24 @@ export const ComparisonMixSection: React.FC<{
                   <div className="flex flex-col border shrink-0 overflow-hidden rounded-md divide-y divide-border">
                     {GRID_LAYOUTS[effectiveGridLayout].grid.map((row, rowIdx) => (
                       <div key={rowIdx} className="flex divide-x divide-border">
-                        {row.map((side: ViewId) => (
+                        {row.map((side: ViewId) => side === "B" && tintedComposite ? (
+                          // Not a picker while the composite sets it: the
+                          // stored color is kept for when the mode is off.
+                          <span
+                            key={side}
+                            role="img"
+                            aria-label="View B color, set by the two-date composite"
+                            title="View B color: the opposite of A's while the two-date composite is on"
+                            className="h-6 w-6 shrink-0 cursor-not-allowed bg-[repeating-linear-gradient(135deg,transparent_0_4px,rgba(255,255,255,0.45)_4px_5px)]"
+                            style={{ backgroundColor: effectiveSideColor("B", sideColorOverrides, true) }}
+                          />
+                        ) : (
                           <ColorAlphaSwatch
                             key={side}
                             title={`View ${side} border color`}
                             size="h-6 w-6"
                             className="rounded-none border-0"
-                            color={sideColorOverrides[side] ?? SIDE_COLORS[side]}
+                            color={effectiveSideColor(side, sideColorOverrides, false)}
                             onChange={(hex) => setSideColorOverrides((prev) => ({ ...prev, [side]: hex }))}
                           />
                         ))}
@@ -427,6 +440,12 @@ export const ComparisonMixSection: React.FC<{
                   </div>
                 </div>
               </div>
+              {tintedComposite && (
+                <p className="text-xs text-muted-foreground break-words">
+                  Two-date composite: view B takes the opposite of A&apos;s color, so unchanged ground stays grey. Its own color returns when the mode is off.
+                </p>
+              )}
+              </>
             )}
           </CollapsibleContent>
         </Collapsible>

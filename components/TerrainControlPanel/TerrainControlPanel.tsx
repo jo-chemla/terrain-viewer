@@ -943,9 +943,9 @@ export function TerrainControlPanel({
         {/* Whole "Sources" group (label+chevron row AND its sections) is hidden
             when the project config hides source panels — otherwise the chevron/
             label row would sit there with nothing to expand. Historical mode
-            drops the group header and terrain-source picker entirely too (only
-            basemap imagery is a valid "source" there), but keeps Raster Basemap
-            reachable, just ungrouped rather than under a "Sources" label. */}
+            has the same group without the terrain-source picker (only basemap
+            imagery is a valid "source" there): Basemaps and Overlays, then
+            Sources Coverage, between General and Tools. */}
         {!hideSourcePanels && !historicalMode && (
           <>
             <MacroSeparator label="Sources" isOpen={groupOpen("Sources")} onToggle={() => toggleMacroGroup("Sources")} />
@@ -964,9 +964,14 @@ export function TerrainControlPanel({
         )}
         {!hideSourcePanels && historicalMode && (
           <>
-            <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={!hiddenSections.includes("sourceInfo")} historicalMode />
-            {!hiddenSections.includes("sourceInfo") && (
-              <SourceInfoSection state={state} setState={setState} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} withSeparator={false} />
+            <MacroSeparator label="Sources" isOpen={groupOpen("Sources")} onToggle={() => toggleMacroGroup("Sources")} />
+            {groupOpen("Sources") && (
+              <>
+                <RasterBasemapSection state={state} setState={setState} mapRef={mapRef} isOpen={sectionOpen.rasterBasemap} onOpenChange={toggle("rasterBasemap")} withSeparator={!hiddenSections.includes("sourceInfo")} historicalMode />
+                {!hiddenSections.includes("sourceInfo") && (
+                  <SourceInfoSection state={state} setState={setState} mapRef={mapRef} historicalMode={historicalMode} isOpen={sectionOpen.sourceInfo} onOpenChange={toggle("sourceInfo")} withSeparator={false} />
+                )}
+              </>
             )}
           </>
         )}

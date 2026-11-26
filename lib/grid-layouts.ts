@@ -47,6 +47,8 @@ const BLEND_MODE_LABELS: Record<string, string> = {
   "plus-darker": "Plus Darker", "plus-lighter": "Plus Lighter",
   "red-cyan": "Two-date composite (bright changes)",
   "red-cyan-dark": "Two-date composite (dark changes)",
+  ratio: "Ratio of the two dates",
+  edges: "Difference of edges",
 }
 // Two flat, `as const` value tuples (not one big tuple-of-tuples) — a
 // grouped structure built by flatMap-ing an `as const` array of arrays
@@ -57,45 +59,129 @@ const BLEND_MODE_LABELS: Record<string, string> = {
 // value a real string-literal member of one shared union throughout.
 const STANDARD_BLEND_MODES = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion"] as const
 const EXTRA_BLEND_MODES = ["hue", "saturation", "color", "luminosity", "plus-darker", "plus-lighter"] as const
-// Not CSS keywords: the two-date color composites. Both views are
-// desaturated, each tinted with its own view color (Compare and Blend >
-// Advanced > side colors; cyan for A and red for B by default, which are
-// complementary), then B is screened over A: what did not change comes out
-// grey, what is brighter in one date takes that view's color. "red-cyan"
-// (the name kept from when the tints were fixed) shows bright features
-// present at one date only; "red-cyan-dark" inverts both views first, so
-// dark features present at one date only (a new road cut, a looting pit, a
-// burn scar) are the ones that take a color. splitBlendCss gives the CSS
-// mode they are drawn with, compositeTint the tint of each view; the tint
-// itself is blended boxes over each pane (TerrainViewer.tsx) and the same
-// fills in a snapshot (controls-utils).
-export const COMPOSITE_BLEND_MODES = ["red-cyan", "red-cyan-dark"] as const
+// Not CSS keywords: the two-date composites of the overlay split, drawn
+// with CSS only (blended boxes over each pane, one SVG filter for the
+// edges) and repeated on a canvas by a snapshot (controls-utils).
+// - "red-cyan", "red-cyan-dark" (names kept from when the tints were
+//   fixed): both views desaturated, each tinted (A with its view color, B
+//   with the exact complement of A's), B screened over A. What did not
+//   change comes out grey, what is brighter in one date takes that view's
+//   color. The dark form inverts both views first, so dark features present
+//   at one date only (a road cut, a looting pit, a burn scar) take a color.
+// - "ratio": both desaturated; A becomes 1 - A/2 (halved, then inverted)
+//   and B is burned over it: color-burn gives 1 - (1 - backdrop) / source,
+//   that is 1 - A / (2 B). Unchanged ground is mid grey, brighter in B is
+//   lighter, darker is darker, and a difference of exposure (B = k A
+//   everywhere) only moves the grey, it draws nothing.
+// - "edges": each view replaced by its edges (edgeFilterPrimitives), then
+//   B over A as difference: an edge present at both dates cancels, one
+//   present at one date only stays.
+// splitBlendCss gives the CSS mode B is blended with, compositeSteps the
+// boxes of each view, compositeUsesEdges whether the views take the filter.
+export const COMPOSITE_BLEND_MODES = ["red-cyan", "red-cyan-dark", "ratio", "edges"] as const
 export const BLEND_MODES = [...STANDARD_BLEND_MODES, ...EXTRA_BLEND_MODES, ...COMPOSITE_BLEND_MODES] as const
 export const isCompositeBlend = (mode: string) => (COMPOSITE_BLEND_MODES as readonly string[]).includes(mode)
-/** Whether the composite inverts both views before tinting them. */
-export const compositeInverts = (mode: string) => mode === "red-cyan-dark"
+/** The composites that tint each view with a color (and so set B's). */
+export const isTintedComposite = (mode: string) => mode === "red-cyan" || mode === "red-cyan-dark"
+/** Whether the composite replaces each view by its edges first. */
+export const compositeUsesEdges = (mode: string) => mode === "edges"
+const COMPOSITE_CSS: Record<string, string> = { "red-cyan": "screen", "red-cyan-dark": "screen", ratio: "color-burn", edges: "difference" }
 /** The CSS mix-blend-mode a split blend mode is drawn with. */
 export function splitBlendCss(mode: string): string {
-  return isCompositeBlend(mode) ? "screen" : mode
+  return COMPOSITE_CSS[mode] ?? mode
 }
-/** A color's hue at full saturation and brightness: the composite stays as
- *  bright as the imagery (a soft UI cyan would dim it), and two view colors
- *  whose hues are opposite (the defaults: cyan and red) sum to white, so
- *  what did not change is exactly grey. A grey view color stays grey. */
-export function fullStrength(hex: string): string {
+/** The canvas globalCompositeOperation of a CSS mix-blend-mode: the same
+ *  names, but "normal" and "plus-lighter". */
+export function canvasBlendOp(css: string): string {
+  if (!css || css === "normal") return "source-over"
+  if (css === "plus-lighter") return "lighter"
+  return css
+}
+function parseHex(hex: string): [number, number, number] | null {
   const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex)
-  if (!m) return hex
-  const rgb = m.slice(1).map((c) => parseInt(c, 16))
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : null
+}
+const toHex = (rgb: number[]) => "#" + rgb.map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, "0")).join("")
+/** A color's hue at full saturation and brightness: the composite stays as
+ *  bright as the imagery (a soft UI cyan would dim it). A grey stays grey
+ *  (white: no tint). */
+export function fullStrength(hex: string): string {
+  const rgb = parseHex(hex)
+  if (!rgb) return hex
   const max = Math.max(...rgb), min = Math.min(...rgb)
   if (max === min) return "#ffffff"
-  return "#" + rgb.map((c) => Math.round(((c - min) * 255) / (max - min)).toString(16).padStart(2, "0")).join("")
+  return toHex(rgb.map((c) => ((c - min) * 255) / (max - min)))
 }
-/** The tint of a view under a composite mode (hex), from that view's own
- *  color, or null. Only A and B take part (the overlay split). */
-export function compositeTint(mode: string, side: string, sideColor: string): string | null {
+/** The opposite color: same lightness and saturation, hue turned by half a
+ *  circle (in RGB, each channel mirrored within the color's own range:
+ *  max + min - c). #0fbdbd gives #bd0f0f. A grey has no opposite. */
+export function complementColor(hex: string): string {
+  const rgb = parseHex(hex)
+  if (!rgb) return hex
+  const max = Math.max(...rgb), min = Math.min(...rgb)
+  return toHex(rgb.map((c) => max + min - c))
+}
+/** Whether the overlay split is showing a tinted two-date composite: then
+ *  view B's color is the complement of A's (effectiveSideColor). */
+export function tintedCompositeOn(s: { splitStyle?: string; splitBlendModeEnabled?: boolean; splitBlendMode?: string }): boolean {
+  return s.splitStyle === "overlay" && !!s.splitBlendModeEnabled && isTintedComposite(s.splitBlendMode ?? "")
+}
+/** The color a view shows (border, pill, timeline handle, tint): its stored
+ *  color, but for B under a tinted composite, which takes the complement of
+ *  A's so that unchanged ground is neutral grey whatever A's color is. The
+ *  stored color of B is left alone and is back when the mode is off. */
+export function effectiveSideColor(side: ViewId, overrides: Partial<Record<ViewId, string>>, tintedComposite: boolean): string {
+  if (side === "B" && tintedComposite) return complementColor(overrides.A ?? SIDE_COLORS.A)
+  return overrides[side] ?? SIDE_COLORS[side]
+}
+/** The tint of a view under a tinted composite (hex), or null. `colorA` is
+ *  view A's color. A's tint is its hue at full strength; B's is what A's
+ *  lacks to make white, channel by channel, so the two always sum to white
+ *  (the hue of effectiveSideColor's B, at full strength). */
+export function compositeTint(mode: string, side: string, colorA: string): string | null {
+  if (!isTintedComposite(mode) || (side !== "A" && side !== "B")) return null
+  const a = fullStrength(colorA)
+  if (side === "A" || a === "#ffffff") return a
+  return toHex(parseHex(a)!.map((c) => 255 - c))
+}
+export type CompositeStep = { color: string; blend: "difference" | "saturation" | "multiply" }
+const DESATURATE: CompositeStep = { color: "#808080", blend: "saturation" }
+const INVERT: CompositeStep = { color: "#ffffff", blend: "difference" }
+/** The fills blended over a view, in order, before B is blended over A (the
+ *  same list drives the boxes on the map and the fills of a snapshot), or
+ *  null when the mode is no composite or the view takes no part. `colorA` is
+ *  view A's color. */
+export function compositeSteps(mode: string, side: string, colorA: string): CompositeStep[] | null {
   if (!isCompositeBlend(mode) || (side !== "A" && side !== "B")) return null
-  return fullStrength(sideColor)
+  if (mode === "ratio") return side === "A" ? [DESATURATE, { color: "#808080", blend: "multiply" }, INVERT] : [DESATURATE]
+  if (mode === "edges") return []
+  const tint: CompositeStep = { color: compositeTint(mode, side, colorA)!, blend: "multiply" }
+  return mode === "red-cyan-dark" ? [INVERT, DESATURATE, tint] : [DESATURATE, tint]
 }
+/** The SVG filter primitives that replace a picture by its edges, as
+ *  markup: grey, then the difference of two Gaussian blurs (a band-pass, the
+ *  smooth form of a Laplacian), amplified with a threshold that drops the
+ *  faint texture, then a light blur so that an edge a pixel off between the
+ *  two dates still cancels. Radii are in CSS pixels times `scale`, so the
+ *  edges are as wide on a dense screen as on a plain one (a 3x3 convolution
+ *  works on device pixels: half as wide and noisier at a pixel ratio of 2);
+ *  a snapshot, drawn in device pixels, passes the pixel ratio. The last
+ *  primitive is named "edges". */
+export const EDGE_FILTER = { fine: 1.2, coarse: 3, gain: 10, threshold: 0.15, soften: 1.2 } as const
+export function edgeFilterPrimitives(scale = 1): string {
+  const px = (v: number) => +(v * scale).toFixed(2)
+  const fn = (c: string) => `<feFunc${c} type="linear" slope="${EDGE_FILTER.gain}" intercept="${-EDGE_FILTER.threshold}"/>`
+  return `<feColorMatrix type="saturate" values="0" result="grey"/>`
+    + `<feGaussianBlur in="grey" stdDeviation="${px(EDGE_FILTER.fine)}" result="fine"/>`
+    + `<feGaussianBlur in="grey" stdDeviation="${px(EDGE_FILTER.coarse)}" result="coarse"/>`
+    + `<feBlend mode="difference" in="fine" in2="coarse" result="band"/>`
+    + `<feComponentTransfer in="band" result="strong">${fn("R")}${fn("G")}${fn("B")}</feComponentTransfer>`
+    + `<feGaussianBlur in="strong" stdDeviation="${px(EDGE_FILTER.soften)}" result="edges"/>`
+}
+/** Filter ids: the edges of a whole picture, and of view A right of the
+ *  wipe only (TerrainViewer renders both). */
+export const EDGE_FILTER_ID = "composite-edges"
+export const EDGE_FILTER_A_ID = "composite-edges-a"
 export type BlendModeOption = { value: string; label: string }
 // BLEND_MODE_LABELS' plain (non-`as const`) Record type is what keeps each
 // group's `items` the SAME widened `BlendModeOption[]` shape instead of a

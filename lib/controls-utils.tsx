@@ -145,6 +145,7 @@ import { domToBlob, domToCanvas } from "modern-screenshot"
 import type { MapRef } from "react-map-gl/maplibre"
 import { getDefaultStore } from "jotai"
 import { snapshotIncludeTimelineAtom } from "./settings-atoms"
+import { canvasBlendOp, edgeFilterPrimitives, EDGE_FILTER_ID, type CompositeStep } from "./grid-layouts"
 import { TITILER_CACHE_KEY } from "@/lib/titiler-health"
 
 export type ImageFormat = "png" | "jpeg"
@@ -222,6 +223,17 @@ const isHidden = (el: Element, stopAt: Element) => {
   return false
 }
 
+/** The edges composite's filter for a canvas, in the page for the time of
+ *  one draw (a canvas filter can only name a filter of the document). */
+function mountEdgeFilter(scale: number): { id: string; remove: () => void } {
+  const id = `${EDGE_FILTER_ID}-snapshot`
+  const holder = document.createElement("div")
+  holder.style.cssText = "position:absolute;width:0;height:0;overflow:hidden"
+  holder.innerHTML = `<svg width="0" height="0"><filter id="${id}" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB">${edgeFilterPrimitives(scale)}</filter></svg>`
+  document.body.appendChild(holder)
+  return { id, remove: () => holder.remove() }
+}
+
 /**
  * Every visible map view composited the way the screen shows them: each
  * pane's canvases drawn at their on-screen rectangle, with the pane's own
@@ -273,47 +285,56 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
       ctx.closePath()
       ctx.clip()
     }
-    const blend = paneStyle.mixBlendMode
-    ctx.globalCompositeOperation = (blend && blend !== "normal" ? blend : "source-over") as GlobalCompositeOperation
+    ctx.globalCompositeOperation = canvasBlendOp(paneStyle.mixBlendMode) as GlobalCompositeOperation
     const paneOpacity = parseFloat(paneStyle.opacity)
 
-    // The two-date composite tints a pane (the boxes TerrainViewer.tsx lays
-    // over it, kept out of the DOM pass): the pane is drawn apart, grey
-    // then tint filled over the tinted part, and that picture is blended in.
-    const tintBox = pane.querySelector<HTMLElement>("[data-composite-tint]")
-    const tmp = tintBox ? document.createElement("canvas") : null
+    // A two-date composite works on a pane before it is blended in (the
+    // boxes TerrainViewer.tsx lays over it, kept out of the DOM pass, and
+    // for the edges the filter on its canvas container): the pane is drawn
+    // apart, the same fills go over the part the boxes cover, and that
+    // picture is blended in.
+    const stepsBox = pane.querySelector<HTMLElement>("[data-composite-steps]")
+    const tmp = stepsBox ? document.createElement("canvas") : null
     if (tmp) { tmp.width = out.width; tmp.height = out.height }
     const target = tmp ? tmp.getContext("2d")! : ctx
+    const b = stepsBox?.getBoundingClientRect()
+    const box: [number, number, number, number] | null = b ? [(b.left - rootRect.left) * dpr, (b.top - rootRect.top) * dpr, b.width * dpr, b.height * dpr] : null
+    // The edges: the same primitives as on screen, with radii in device
+    // pixels since this canvas is. Drawn a second time, filtered, inside
+    // the box only (A keeps its colors left of the wipe).
+    const edgeFilter = stepsBox?.dataset.compositeFilter ? mountEdgeFilter(dpr) : null
 
-    for (const c of canvases) {
-      if (!c.width || !c.height) continue
-      const r = c.getBoundingClientRect()
-      if (r.width < 1 || r.height < 1) continue
-      const cs = getComputedStyle(c)
-      const alpha = (Number.isFinite(paneOpacity) ? paneOpacity : 1) * (parseFloat(cs.opacity) || 0)
-      if (alpha === 0) continue
-      // Apart, the pane's opacity is applied once, when it is blended in.
-      target.globalAlpha = tmp ? (parseFloat(cs.opacity) || 0) : alpha
-      target.filter = cs.filter && cs.filter !== "none" ? cs.filter : "none"
-      target.drawImage(c, (r.left - rootRect.left) * dpr, (r.top - rootRect.top) * dpr, r.width * dpr, r.height * dpr)
+    const drawCanvases = (extraFilter: string) => {
+      for (const c of canvases) {
+        if (!c.width || !c.height) continue
+        const r = c.getBoundingClientRect()
+        if (r.width < 1 || r.height < 1) continue
+        const cs = getComputedStyle(c)
+        const alpha = (Number.isFinite(paneOpacity) ? paneOpacity : 1) * (parseFloat(cs.opacity) || 0)
+        if (alpha === 0) continue
+        // Apart, the pane's opacity is applied once, when it is blended in.
+        target.globalAlpha = tmp ? (parseFloat(cs.opacity) || 0) : alpha
+        target.filter = [cs.filter && cs.filter !== "none" ? cs.filter : "", extraFilter].filter(Boolean).join(" ") || "none"
+        target.drawImage(c, (r.left - rootRect.left) * dpr, (r.top - rootRect.top) * dpr, r.width * dpr, r.height * dpr)
+      }
     }
-    if (tmp && tintBox) {
+    drawCanvases("")
+    if (tmp && stepsBox && box) {
       const t = tmp.getContext("2d")!
-      const b = tintBox.getBoundingClientRect()
-      const box: [number, number, number, number] = [(b.left - rootRect.left) * dpr, (b.top - rootRect.top) * dpr, b.width * dpr, b.height * dpr]
+      if (edgeFilter) {
+        t.save()
+        t.beginPath(); t.rect(...box); t.clip()
+        drawCanvases(`url(#${edgeFilter.id})`)
+        t.restore()
+        edgeFilter.remove()
+      }
       t.globalAlpha = 1
       t.filter = "none"
-      if (tintBox.dataset.compositeInvert) {
-        t.globalCompositeOperation = "difference"
-        t.fillStyle = "#ffffff"
+      for (const step of JSON.parse(stepsBox.dataset.compositeSteps || "[]") as CompositeStep[]) {
+        t.globalCompositeOperation = step.blend
+        t.fillStyle = step.color
         t.fillRect(...box)
       }
-      t.globalCompositeOperation = "saturation"
-      t.fillStyle = "#808080"
-      t.fillRect(...box)
-      t.globalCompositeOperation = "multiply"
-      t.fillStyle = tintBox.dataset.compositeTint || "#ffffff"
-      t.fillRect(...box)
       ctx.globalAlpha = Number.isFinite(paneOpacity) ? paneOpacity : 1
       ctx.filter = "none"
       ctx.drawImage(tmp, 0, 0)
