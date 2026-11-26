@@ -1,6 +1,6 @@
 ---
 name: river-rem-mode
-description: River REM app mode (appMode=rem) - where each part lives, the trend-in-a-module-slot plus URL revision design, QLever before Overpass, the main-river ranking, why a floodplain banded (Mapterhorn rounds by zoom), WMS cache poisoning, DEMs with no water, how it was tested
+description: River REM app mode (appMode=rem) - where each part lives, the trend-in-a-module-slot plus URL revision design, the four detrending methods (EDT default, JFA on the GPU, scan, IDW) and why the GPU is not the default, the water-profile ramps, stale raster-dem tile borders after a reload, QLever before Overpass, the main-river ranking, why a floodplain banded (Mapterhorn rounds by zoom), WMS cache poisoning, DEMs with no water, how it was tested
 type: project
 ---
 
@@ -8,12 +8,12 @@ type: project
 
 `appMode=rem`: REM = DEM minus a trend through the river's water level, live, no backend. Ported from Iconem/RiverREM_UI (its client engine) and OpenTopography RiverREM's defaults (interp_pts 1000, weights 1/d, k from sinuosity between 5 and 100, log color scale).
 
-- Pure parts and tests: `lib/river-rem.ts` (way joining, clipping, resampling, running-minimum / PAV cleaning, median filter, k estimate, IDW and nearest-centerline grids, `riverScore`, `quantizationStep` / `dequantizeDem`, GeoJSON in and out, polyline for `remLine`), `lib/river-rem-style.ts`, tests in `lib/river-rem.test.ts` and `lib/river-rem-polish.test.ts`.
+- Pure parts and tests: `lib/river-rem.ts` (way joining, clipping, resampling, running-minimum / PAV cleaning, ramps, median filter, k estimate, IDW and nearest-centerline grids, the labeled distance transform, the blending, `riverScore`, `quantizationStep` / `dequantizeDem`, GeoJSON in and out, polyline for `remLine`), `lib/river-rem-style.ts`, tests in `lib/river-rem.test.ts` and `lib/river-rem-polish.test.ts`.
 - `lib/river-rem-protocol.ts`: `riverrem://…?rev=N` (and `&abs=1`, the Elevation display: same kernel, no trend). The trend grid is in a module slot on globalThis; the URL only carries its revision. The slot also holds tile statistics, per-tile height samples (the Elevation auto range, 2nd to 98th percentile) and tile listeners.
 - `lib/river-rem-sample.ts` reads centerline heights through `fetchDecodedTile`; a point in a void takes `nearestGround` (median of the nearest ring of valid pixels).
 - `lib/overpass-rivers.ts`: QLever first, the Overpass mirrors after it, hedged.
 - `components/RiverRem/RiverRemLayers.tsx`: source, layer, contours (`ContoursLayer` with `dem` = the riverrem template, idPrefix `remcontour`), centerline on every view; the engine and the progress toast run in view A only. Every view uses `state.sourceA`.
-- Panels: `components/TerrainControlPanel/river-rem-sections.tsx`; fold state in `riverRemSectionsOpenAtom`, moved by the sidebar's fold all through `RIVER_REM_SECTION_KEYS` (in `lib/river-rem-atoms.ts`: a non-component export in the panel file breaks Fast Refresh).
+- Panels (River Centerline, Detrending, REM Symbology): `components/TerrainControlPanel/river-rem-sections.tsx`; fold state in `riverRemSectionsOpenAtom`, moved by the sidebar's fold all through `RIVER_REM_SECTION_KEYS` (in `lib/river-rem-atoms.ts`: a non-component export in the panel file breaks Fast Refresh).
 
 Gotchas, each measured:
 
@@ -28,5 +28,19 @@ Gotchas, each measured:
 - OSM's Mississippi centerline has 40 vertices over 62 km and cuts across point bars: the running minimum keeps those land heights out.
 - East-west stripes on the Greenville view are steps between lidar surveys in the source, present before and after every change here.
 - Git Bash heredocs break on backticks and quotes in the body, and the working copy is CRLF: write scripts with the Write tool and edit with Edit.
+
+## Third round (2026-11-26): JFA, EDT, sampling, the "tile borders"
+
+- **Methods** (`remInterp`): `edt` (default), `jfa`, `nearest` (the scan, 256 cells), `idw` (256 cells). EDT and JFA only LABEL each cell with a nearest segment (`burnCenterline` then `labelNearestSeed`, Felzenszwalb-Huttenlocher, or `jumpFloodLabels` in `lib/river-rem-gpu.ts`, WebGL2 RGBA32F, 1+JFA+1); `refineNearest` then works the level and distance out on that segment and its neighbors, so the grid's cells do not show. Grid: one cell for two screen pixels, 512 to 2048 (`remGrid`). Tests: `lib/river-rem-trend.test.ts`.
+- **The GPU does not pay here**: the tiles are computed on the CPU, so the labels must come back (readPixels of RGBA32F). Greenville view, one run each: EDT 0.14 s against JFA 0.25 s at 1536 x 1373; 0.13 against 0.10 at 1024; 0.34 against 0.43 at 2048. Hence EDT as the default. A real win would need the tiles' subtraction on the GPU too.
+- **Creases** (two reaches equally near) are blended, not removed: `blendTrendByDistance` averages each cell over a neighborhood `remBlend` (0.5) times its distance to the river, with a stack of doubling box blurs; a grid over 512 cells is blended on every f-th cell and read back bilinearly (1.8 s for 2048 in full, under 0.2 s that way). RiverREM_UI does nothing about them (its README accepts the step across a neck; it removed its box blur).
+- **"Tiles border looks wrong" was two things, neither the tiles' data**:
+  1. straight bands and blocks: the water profile is a staircase (rounded heights, two lidar surveys at different river stages: flat at 32.5 m for 21 km then a metre lower) and every interpolation prints each step across the floodplain as a line at right angles to the river. `rampProfile` (one knot per run of equal levels, linear between, a reach of 5 km into a long tread) then `smoothProfile` (two box passes, 300 m radius), `remSmooth` on by default.
+  2. one-pixel pale lines on some tile edges at fractional zooms after arriving from another river: **MapLibre's `backfillDEM` fills a raster-dem tile's border from a neighbor once and never again when the neighbor's contents are reloaded** (tile_manager_raster_dem.ts, 6.13), so after a `tiles` change a tile keeps the neighbor's OLD edge (189 m off, coming from the Allier). `refreshDemBorders` in `RiverRemLayers.tsx` copies the borders again after each revision, through `map.style.tileManagers[id]._inViewTiles._tiles` (private: guarded). Any raster-dem source whose tiles change in place has this. Reproduce: open the Allier, click the Mississippi Featured bookmark, wheel to zoom 10.98.
+- **Sampling**: finest zoom within 96 tiles (48 for `float32dem-bbox://`), up to 8 readings of the terrain per station (`subSamplePoints`), their 25th percentile kept (`reduceStations`). A source's `maxzoom` is per place for Mapterhorn (13 on the Willamette, 15 or 16 at Greenville, where heights are to 1/16 m).
+- **Contours drew on one view of a split** (the app's own too): `configureContourWorker(prefix)` replaces the earlier DEM of the same prefix in the workers, and every view passed the bare layer name. `ContoursLayer.tsx` now passes a per-instance scope.
+- Dev handles: `window.__tvRemProfile` (heights read, levels used), `window.__tvRemSampleRuns` (zoom, tiles, ms per reading).
+- The agent browser's disk cache is shared between sessions: a "fresh" session still reads warm tiles. Time cold reads on a river not visited before.
+- Verified this round with agent-browser: the bookmark sequence above before and after; a centerline drawn with the pointer (ten clicks and a double-click on the Allier); 3D with contours; contours on both views of a split; IGN LiDAR HD WMS (22 requests, 18.9 s). Not run: the JFA fallback without a GPU, a phone, GEM-15 after the sampling change.
 
 Tested 2026-11-26 with agent-browser (Mississippi at Greenville, Allier at Moulins; Mapterhorn, AWS, USGS 3DEP ImageServer, IGN LiDAR HD WMS, GEM-15 VRT; bookmark save and restore of all rem* fields; import GeoJSON and KML, export; contours; Elevation display; Fisk 1944 sheet from Allmaps in a split). Not run: drawing a line with the pointer, 3D with contours, a phone, an actual GeoTIFF export of the Elevation display.

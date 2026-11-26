@@ -1,5 +1,4 @@
 # Project Memory Index
-
 - [Camera sync architecture](camera-sync.md) — PR #10 fixes: elevation as 6th camera param, recalculateZoomAndCenter settle, _elevationFreeze wart, drag-eaten-by-stop, dead ends
 - [Docs screenshots context](screenshots-context.md) — Playwright setup/gotchas for capturing real docs screenshots, URL/lightbox conventions, docs-update branch history
 - [docs-update handoff](handoff-docs-update.md) — current state for a fresh agent picking up the docs-update branch: what's done, deliberately deferred, and the one known-unresolved app bug
@@ -77,5 +76,5 @@
 - [Performance rules for kernels](kernel-performance-rules.md) — per-pixel loops: no allocation, taps once per tile, keep the arithmetic for bit-identical tiles, bench-direct.mjs A/B with TV_PROTOCOL_CACHE_MB=0; vector tiles and vertex buffers into typed arrays; monotone functions after the max, separable bilinear taps, bounding boxes before SVG geometry, numpy bands and scratch at 512 px
 - [River REM app mode](river-rem-mode.md) — appMode=rem: where each part lives, trend in a module slot plus URL revision, QLever before Overpass, main-river ranking, Mapterhorn rounds heights by zoom (banding), WMS cache poisoned by a cancelled read, DEMs with no water, what was tested
 - [Composite blend stale backdrop](composite-blend-stale-backdrop.md) — overlay pane B keeps will-change or Chrome ignores the composite boxes; snapshot parity method
-
 - [Vector overlays round 3](vector-overlays-round3.md) — feature cards and their click rules (exact layer ids, tools, untrusted properties), the Library's Vector tab as the host's child, inventories as outlines (no area in the archive), Overture base and OCS GE tile weights, UNESCO files on the dataset release, the worldheritagesite.org dump is not a tentative list
+- [River REM app mode](river-rem-mode.md) — appMode=rem: where each part lives, EDT / JFA / scan / IDW and why the GPU is not the default, water-profile ramps, stale raster-dem borders after a tile reload (MapLibre), QLever before Overpass, Mapterhorn rounds heights by zoom

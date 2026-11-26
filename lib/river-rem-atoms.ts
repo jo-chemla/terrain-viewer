@@ -5,7 +5,7 @@
 
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import type { LngLat } from "./river-rem"
+import type { LngLat, TrendMethod } from "./river-rem"
 
 export type RiverRemPhase = "idle" | "rivers" | "sampling" | "trend" | "ready" | "empty" | "error"
 
@@ -47,7 +47,21 @@ export interface RiverRemInfo {
   buildMs: number
   gridW: number
   gridH: number
-  method: "idw" | "nearest"
+  method: TrendMethod
+  /** Of buildMs, the part spent blending the creases (0: none). */
+  blendMs: number
+  /** Ground size of a trend cell, in metres. */
+  cellM: number
+  /** The jump flood ran on the GPU; false when it fell back to the distance transform. */
+  gpu?: boolean
+  /** Readings of the terrain per height, and the ground size of the pixel read. */
+  perStation: number
+  pixelM: number
+  /** The largest drop left between two consecutive heights, in metres. */
+  maxStep: number
+  /** Terrain tiles read along the river, and how long that took (network included). */
+  sampleTiles: number
+  sampleMs: number
   /** Heights read from the nearest bank: the DEM has none on the water. */
   banks: number
 }

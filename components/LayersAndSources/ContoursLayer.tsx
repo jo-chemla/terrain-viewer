@@ -349,6 +349,9 @@ export interface ContoursLayerProps {
 
 const MAX_INIT_ATTEMPTS = 5
 
+/** Numbers the mounted contour layers: see the worker scope below. */
+let contourLayerInstances = 0
+
 export function ContoursLayer({
   showContours,
   showContourLabels: showContourLabelsProp,
@@ -396,6 +399,8 @@ export function ContoursLayer({
   // declarative case by simply not rendering the <Layer>s until the
   // precondition is actually met.
   const [slotReady, setSlotReady] = useState(false)
+  const workerScopeRef = useRef("")
+  if (!workerScopeRef.current) workerScopeRef.current = `${idPrefix}.${++contourLayerInstances}`
   useEffect(() => {
     if (!mapRef) return
     const map = mapRef.getMap()
@@ -556,7 +561,11 @@ export function ContoursLayer({
           const demUrlPattern = lrm
             ? buildLrmProtocolUrl(resolved.tileUrl, resolved.encoding as UpstreamEncoding, resolved.tileSize, lrmRadius)
             : resolved.tileUrl
-          const key = await configureContourWorker(idPrefix, {
+          // Scoped to this layer on this map: the worker keeps one DEM per
+          // prefix, and with the bare layer name the second view of a split
+          // replaced the first view's, whose tiles then had nothing to
+          // answer them (contours on one view only, found 2026-11-26).
+          const key = await configureContourWorker(workerScopeRef.current, {
             demUrlPattern,
             encoding: lrm ? "terrarium" : resolved.encoding,
             maxzoom: resolved.maxzoom,

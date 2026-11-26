@@ -10,9 +10,14 @@ import type { LngLat } from "./river-rem"
 export interface RiverSampleSource { template: string; encoding: UpstreamEncoding; tileSize: number; minzoom?: number; maxzoom?: number }
 
 /** Most tiles one centerline may read. A long river is sampled a zoom or two
- *  lower rather than fetching hundreds of tiles: the water level varies
- *  slowly, the sampled width does not matter much. */
-const MAX_SAMPLE_TILES = 48
+ *  lower rather than fetching hundreds of tiles. It was 48 until the third
+ *  round: a level deeper halves the step of a source that rounds its heights
+ *  by zoom (Mapterhorn) and the pixel, which is what a narrow river needs. */
+export const MAX_SAMPLE_TILES = 96
+/** A WMS or an ImageServer read as raw floats renders every tile on the
+ *  server and rounds nothing: it keeps the earlier budget (the Allier on IGN
+ *  LiDAR HD took 20 s for 22 requests). */
+const MAX_SAMPLE_TILES_WMS = 48
 /** Never sample above this zoom: at z15 a 512 px tile is about 1 m a pixel,
  *  finer adds tiles without a better water level. */
 const MAX_SAMPLE_ZOOM = 15
@@ -34,9 +39,15 @@ function countTiles(points: LngLat[], z: number): number {
  *  line touches few enough tiles. */
 export function pickSampleZoom(points: LngLat[], source: RiverSampleSource): number {
   const floor = source.minzoom ?? 0
+  const budget = source.template.startsWith("float32dem-bbox://") ? MAX_SAMPLE_TILES_WMS : MAX_SAMPLE_TILES
   let z = Math.max(floor, Math.min(source.maxzoom ?? 14, MAX_SAMPLE_ZOOM))
-  while (z > floor && countTiles(points, z) > MAX_SAMPLE_TILES) z--
+  while (z > floor && countTiles(points, z) > budget) z--
   return z
+}
+
+/** Ground size of a pixel of the source at a zoom and a latitude, in metres. */
+export function samplePixelM(zoom: number, lat: number, tileSize: number): number {
+  return (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (tileSize * 2 ** zoom)
 }
 
 function bilinear(tile: DecodedTile, fx: number, fy: number): number {
@@ -95,8 +106,10 @@ export async function sampleRiverElevations(
   points: LngLat[], source: RiverSampleSource, signal: AbortSignal,
   /** Called as the tiles under the line arrive: tiles read, tiles needed. */
   onProgress?: (done: number, total: number) => void,
+  /** The zoom to read at, when the caller has already picked it. */
+  atZoom?: number,
 ): Promise<{ elevations: Float64Array; zoom: number; tiles: number; banks: number }> {
-  const zoom = pickSampleZoom(points, source)
+  const zoom = atZoom ?? pickSampleZoom(points, source)
   const floor = source.minzoom ?? 0
   const urlAt = (z: number, x: number, y: number) => source.template.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
   const loaded = new Map<string, Promise<{ tile: DecodedTile; z: number } | null>>()
