@@ -1,16 +1,20 @@
-// Cast shadows of OSM buildings, the fast flat-ground way, on the GPU: each
+// Cast shadows of buildings, the fast flat-ground way, on the GPU: each
 // building's footprint is swept away from the sun by height / tan(altitude)
 // (walls as quads from foot to tip, the roof outline at the tip), the union
 // of the sweeps is drawn once into an offscreen mask (so overlapping shadows
 // never darken twice), the footprints are cut back out (roofs stay lit), and
-// the mask is composited over the map. Heights come from OpenFreeMap's
-// OpenMapTiles "building" layer (render_height, from OSM height or levels),
-// through z14 tiles this layer fetches and decodes itself
-// (lib/building-tiles.ts), over the viewport widened by the longest shadow
-// a building can cast at the current sun height: the OSM vector basemap
-// need not be on, and a tower just off screen towards the sun still casts
-// its shadow in (MapLibre's own vector source only holds the tiles under
-// the viewport, each cut at its edge).
+// the mask is composited over the map. Footprints and heights come from a
+// vector source with a height field, chosen in the panel
+// (?buildingShadowSource=): OpenFreeMap's OpenMapTiles "building" layer by
+// default (render_height, from OSM height or levels), Overture's buildings
+// (height, floors, building parts), or a source the user added. The layer
+// fetches and decodes the source's tiles itself (lib/building-tiles.ts),
+// over the viewport widened by the longest shadow a building can cast at
+// the current sun height: no vector overlay or basemap need be on, and a
+// tower just off screen towards the sun still casts its shadow in
+// (MapLibre's own vector source only holds the tiles under the viewport,
+// each cut at its edge). A raised part (a base above the ground) sweeps
+// from its base to its top and leaves the ground under it to the others.
 //
 // The geometry (positions in Web Mercator, each vertex's sweep length per
 // unit of 1/tan) is rebuilt only when the map settles or building tiles
@@ -23,13 +27,16 @@
 // drawn on (a shadow falling up a slope is not shortened). For shadows cast
 // by real shapes (a spire, a dome) and falling on slopes, the terrain Shadows
 // mode with a surface model (DSM) source is the way.
-import { memo, useEffect, useRef } from "react"
+import { memo, useEffect, useId, useRef } from "react"
+import { useAtomValue, useSetAtom } from "jotai"
 import { useMap } from "react-map-gl/maplibre"
 import * as maplibregl from "maplibre-gl"
 import type { CustomLayerInterface, CustomRenderMethodInput } from "maplibre-gl"
 import earcut from "earcut"
 import { LAYER_SLOTS } from "./MapLayers"
-import { BUILDING_TILE_BUFFER, BUILDING_TILE_ZOOM, abortBuildingTilesExcept, cachedBuildingTile, requestBuildingTile, tileKey, type BuildingPolygon } from "@/lib/building-tiles"
+import { abortBuildingTilesExcept, buildingSourceEntry, cachedBuildingTile, openBuildingSource, requestBuildingTile, tileKey, type BuildingSource, type BuildingTile } from "@/lib/building-tiles"
+import { buildingShadowStatsAtom, customVectorSourcesAtom, type BuildingShadowStats } from "@/lib/settings-atoms"
+import type { VectorSourceEntry } from "@/lib/source-schema"
 
 const LAYER_ID = "osm-building-shadows"
 const MIN_ZOOM = 13
@@ -44,18 +51,6 @@ const MAX_REACH_M = 3000
 // sun at 10 degrees (3 km reach, z14 tiles of about 1.9 km): Jonathan,
 // 2026-10-12, "16 tiles at a sun as low as 10 degrees, not more".
 const MAX_TILES = 16
-
-// The z14 tiles cut buildings at tile edges plus a buffer: those cut edges
-// are not walls. They run exactly along a z14 tile line offset by the
-// buffer, which a real wall practically never does. (Both halves of a cut
-// building come from the two tiles, so their sweeps union to the whole.)
-function isClipEdge(x0: number, y0: number, x1: number, y1: number): boolean {
-  const onCut = (v: number) => {
-    const u = v * 2 ** BUILDING_TILE_ZOOM, d = Math.abs(u - Math.round(u))
-    return d < 1e-3 || Math.abs(d - BUILDING_TILE_BUFFER) < 1e-3
-  }
-  return (x0 === x1 && onCut(x0)) || (y0 === y1 && onCut(y0))
-}
 
 const MASK_VS = `#version 300 es
 precision highp float;
@@ -102,13 +97,14 @@ type TileRange = { x0: number; x1: number; y0: number; y1: number }
 const contains = (outer: TileRange, inner: TileRange) => outer.x0 <= inner.x0 && outer.x1 >= inner.x1 && outer.y0 <= inner.y0 && outer.y1 >= inner.y1
 
 /**
- * The z14 tiles whose buildings can shade the viewport: its bounds widened
- * by the longest shadow at this sun height, in tile units, clamped to
- * MAX_TILES around the centre.
+ * The source's tiles (at `zoom`, 14 for the built-in sources) whose
+ * buildings can shade the viewport: its bounds widened by the longest
+ * shadow at this sun height, in tile units, clamped to MAX_TILES around
+ * the centre.
  */
-function neededTiles(map: maplibregl.Map, altitude: number): TileRange | null {
+function neededTiles(map: maplibregl.Map, altitude: number, zoom: number): TileRange | null {
   if (map.getZoom() < MIN_ZOOM - 0.5) return null
-  const n = 2 ** BUILDING_TILE_ZOOM
+  const n = 2 ** zoom
   const b = map.getBounds()
   const sw = maplibregl.MercatorCoordinate.fromLngLat(b.getSouthWest()), ne = maplibregl.MercatorCoordinate.fromLngLat(b.getNorthEast())
   const c = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter())
@@ -129,7 +125,7 @@ function neededTiles(map: maplibregl.Map, altitude: number): TileRange | null {
 }
 
 /** Sweep geometry for the buildings of the given tiles. */
-function buildGeometry(map: maplibregl.Map, tiles: BuildingPolygon[][]): Geometry | null {
+function buildGeometry(map: maplibregl.Map, tiles: BuildingTile[]): Geometry | null {
   const c = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter())
   const origin: [number, number] = [c.x, c.y]
   const [ox, oy] = origin
@@ -144,52 +140,62 @@ function buildGeometry(map: maplibregl.Map, tiles: BuildingPolygon[][]): Geometr
     next.set(a.subarray(0, used))
     return next
   }
+  // Only a building at a tile's edge can come from two tiles (whole, from
+  // both buffers): the others need no key.
   const seen = new Set<string>()
-  // The building's rings relative to the origin, flat as earcut takes them
-  // (what earcut's flatten() made from a copied [x, y] per vertex), refilled
-  // building after building; holes[k] is ring k+1's first vertex.
+  // The building's rings relative to the origin, flat as earcut takes them,
+  // refilled building after building; holes[k] is ring k+1's first vertex.
   const vertices: number[] = [], holes: number[] = []
   for (const tile of tiles) {
-    for (const { rings: absRings, height: h } of tile) {
+    const { coords, cut, ringStart, polyStart, height, base, edge } = tile
+    for (let p = 0; p < tile.count; p++) {
+      const r0 = polyStart[p], r1 = polyStart[p + 1]
+      const first = ringStart[r0]
+      const h = height[p], b = base[p]
+      if (edge[p]) {
+        const key = `${(coords[first * 2] - ox).toFixed(9)},${(coords[first * 2 + 1] - oy).toFixed(9)},${ringStart[r0 + 1] - first},${h},${b}`
+        if (seen.has(key)) continue
+        seen.add(key)
+      }
       // Mercator units per metre at this latitude (cos(lat) from the
-      // Mercator y): the vertex's sweep per unit of 1/tan(altitude).
-      const cosLat = 1 / Math.cosh(Math.PI * (1 - 2 * absRings[0][0][1]))
-      const s = Math.min(MAX_SHADOW_M, h) / (40075016.686 * cosLat)
-      // A building inside two tiles' buffers comes whole from both.
-      const key = `${(absRings[0][0][0] - ox).toFixed(9)},${(absRings[0][0][1] - oy).toFixed(9)},${absRings[0].length},${h}`
-      if (seen.has(key)) continue
-      seen.add(key)
+      // Mercator y): the vertex's sweep per unit of 1/tan(altitude), at the
+      // top (s) and at the base (s0, 0 for a building on the ground).
+      const cosLat = 1 / Math.cosh(Math.PI * (1 - 2 * coords[first * 2 + 1]))
+      const s = Math.min(MAX_SHADOW_M, h) / (40075016.686 * cosLat), s0 = Math.min(MAX_SHADOW_M, b) / (40075016.686 * cosLat)
       vertices.length = 0
       holes.length = 0
-      for (let k = 0; k < absRings.length; k++) {
-        const ring = absRings[k]
-        if (k > 0) holes.push(vertices.length / 2)
-        let x0 = ring[0][0] - ox, y0 = ring[0][1] - oy
+      for (let r = r0; r < r1; r++) {
+        const v0 = ringStart[r], v1 = ringStart[r + 1]
+        if (r > r0) holes.push(vertices.length / 2)
+        let x0 = coords[v0 * 2] - ox, y0 = coords[v0 * 2 + 1] - oy
         vertices.push(x0, y0)
-        for (let i = 1; i < ring.length; i++) {
-          const x1 = ring[i][0] - ox, y1 = ring[i][1] - oy
+        for (let v = v0 + 1; v < v1; v++) {
+          const x1 = coords[v * 2] - ox, y1 = coords[v * 2 + 1] - oy
           vertices.push(x1, y1)
-          // The clip test on the absolute position, as (relative + origin).
-          if (!((x0 === x1 && y0 === y1) || isClipEdge(x0 + ox, y0 + oy, x1 + ox, y1 + oy))) {
+          // A cut along the tile's clip line is not a wall (both halves of a
+          // cut building come from the two tiles: their sweeps union to the whole).
+          if (!((x0 === x1 && y0 === y1) || cut[v])) {
             // Two triangles: foot-foot-tip, foot-tip-tip.
             sweep = grow(sweep, sn, 18)
             const w = sweep
-            w[sn] = x0; w[sn + 1] = y0; w[sn + 2] = 0; w[sn + 3] = x1; w[sn + 4] = y1; w[sn + 5] = 0
-            w[sn + 6] = x1; w[sn + 7] = y1; w[sn + 8] = s; w[sn + 9] = x0; w[sn + 10] = y0; w[sn + 11] = 0
+            w[sn] = x0; w[sn + 1] = y0; w[sn + 2] = s0; w[sn + 3] = x1; w[sn + 4] = y1; w[sn + 5] = s0
+            w[sn + 6] = x1; w[sn + 7] = y1; w[sn + 8] = s; w[sn + 9] = x0; w[sn + 10] = y0; w[sn + 11] = s0
             w[sn + 12] = x1; w[sn + 13] = y1; w[sn + 14] = s; w[sn + 15] = x0; w[sn + 16] = y0; w[sn + 17] = s
             sn += 18
           }
           x0 = x1; y0 = y1
         }
       }
-      // The roof outline at the tip (swept) and at the foot (the cut).
+      // The roof outline at the tip (swept) and, for a building standing on
+      // the ground, at the foot (the cut: its roof stays lit). A raised part
+      // cuts nothing: what stands under it does, or the ground is shaded.
       const tri = earcut(vertices, holes, 2)
       sweep = grow(sweep, sn, 3 * tri.length)
-      roof = grow(roof, rn, 3 * tri.length)
+      if (!b) roof = grow(roof, rn, 3 * tri.length)
       for (const idx of tri) {
         const x = vertices[idx * 2], y = vertices[idx * 2 + 1]
         sweep[sn++] = x; sweep[sn++] = y; sweep[sn++] = s
-        roof[rn++] = x; roof[rn++] = y; roof[rn++] = 0
+        if (!b) { roof[rn++] = x; roof[rn++] = y; roof[rn++] = 0 }
       }
     }
   }
@@ -226,6 +232,19 @@ class ShadowLayer implements CustomLayerInterface {
   // The tiles the last rebuild asked for (a fetch finishing outside it is stale).
   private range: TileRange | null = null
   private timer: ReturnType<typeof setTimeout> | undefined
+  // The vector source the buildings come from: the entry asked for, and its
+  // opened form (TileJSON, archive or release resolved) once it answers.
+  private entry: VectorSourceEntry | null = null
+  private source: BuildingSource | null = null
+  /** Told after each rebuild what the loaded tiles hold (the panel's line on heights). */
+  onStats: ((stats: BuildingShadowStats) => void) | null = null
+  /** The last of them. */
+  stats: BuildingShadowStats | null = null
+  /** Milliseconds from the source being set to the first shadows and to
+   *  every tile of the view being in, and the tiles' own timings: read by
+   *  the timing checks through map.getLayer(id).implementation. */
+  timings: { sourceId: string; firstMs: number | null; completeMs: number | null; tiles: number; fetchMs: number[]; decodeMs: number[]; geometryMs: number } | null = null
+  private sourceSetAt = 0
 
   onAdd(map: maplibregl.Map, gl: WebGL2RenderingContext) {
     this.map = map; this.gl = gl
@@ -251,7 +270,30 @@ class ShadowLayer implements CustomLayerInterface {
   dispose() {
     clearTimeout(this.timer)
     this.range = null
+    this.entry = null; this.source = null
     abortBuildingTilesExcept(this, new Set())
+  }
+  /**
+   * The buildings come from another source: its fetches replace the old
+   * ones, and the shadows are rebuilt from what is cached of it as soon as
+   * it is opened (the old source's shadows stay until then).
+   */
+  setSource(entry: VectorSourceEntry) {
+    if (this.entry && this.entry.id === entry.id && this.entry.url === entry.url && this.entry.heightField === entry.heightField) return
+    this.entry = entry
+    this.sourceSetAt = performance.now()
+    this.timings = { sourceId: entry.id, firstMs: null, completeMs: null, tiles: 0, fetchMs: [], decodeMs: [], geometryMs: 0 }
+    openBuildingSource(entry).then((source) => {
+      if (this.entry !== entry) return
+      this.source = source
+      this.rebuild()
+    }, (e) => {
+      if (this.entry !== entry) return
+      console.warn(`[building-shadows] ${entry.id}:`, e)
+      this.source = null
+      this.rebuild()
+      this.onStats?.({ sourceId: entry.id, tiles: 0, pending: 0, buildings: 0, stated: 0, floors: 0, error: e instanceof Error ? e.message : String(e) })
+    })
   }
   /** A rebuild once things settle (the map, a burst of arriving tiles). */
   schedule() {
@@ -264,7 +306,8 @@ class ShadowLayer implements CustomLayerInterface {
     this.terrainTileRevision++
     const map = this.map
     if (!map) return
-    const range = neededTiles(map, altitude)
+    if (!this.source) return
+    const range = neededTiles(map, altitude, this.source.zoom)
     if (range && (!this.range || !contains(this.range, range))) this.schedule()
   }
   /**
@@ -275,23 +318,45 @@ class ShadowLayer implements CustomLayerInterface {
   rebuild() {
     const map = this.map, gl = this.gl
     if (!map || !gl) return
-    const range = (this.range = neededTiles(map, this.altitude))
-    const tiles: BuildingPolygon[][] = []
+    const source = this.source
+    const range = (this.range = source ? neededTiles(map, this.altitude, source.zoom) : null)
+    const tiles: BuildingTile[] = []
     const keep = new Set<string>()
-    if (range) {
+    let pending = 0
+    if (source && range) {
       for (let x = range.x0; x <= range.x1; x++) for (let y = range.y0; y <= range.y1; y++) {
-        const key = tileKey(x, y)
+        const key = tileKey(source, x, y)
         keep.add(key)
-        const tile = cachedBuildingTile(x, y)
+        const tile = cachedBuildingTile(source, x, y)
         if (tile) tiles.push(tile)
-        else void requestBuildingTile(x, y, this).then((result) => {
-          const r = this.range
-          if (result && this.map && r && x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) this.schedule()
-        })
+        else {
+          pending++
+          void requestBuildingTile(source, x, y, this).then((result) => {
+            const r = this.range
+            if (!result || !this.map || this.source !== source) return
+            this.timings?.fetchMs.push(result.fetchMs); this.timings?.decodeMs.push(result.decodeMs)
+            if (r && x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) this.schedule()
+          })
+        }
       }
     }
     abortBuildingTilesExcept(this, keep)
+    const t0 = performance.now()
     this.geometry = tiles.length ? buildGeometry(map, tiles) : null
+    if (source) {
+      const timings = this.timings
+      if (timings && range) {
+        const now = performance.now()
+        timings.geometryMs = now - t0
+        timings.tiles = tiles.length
+        if (this.geometry && timings.firstMs === null) timings.firstMs = now - this.sourceSetAt
+        if (!pending && timings.completeMs === null) timings.completeMs = now - this.sourceSetAt
+      }
+      let buildings = 0, stated = 0, floors = 0
+      for (const tile of tiles) { buildings += tile.buildings; stated += tile.stated; floors += tile.floors }
+      this.stats = { sourceId: source.entry.id, tiles: tiles.length, pending, buildings, stated, floors }
+      this.onStats?.(this.stats)
+    }
     if (this.geometry) {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.sweepBuf); gl.bufferData(gl.ARRAY_BUFFER, this.geometry.sweep, gl.STATIC_DRAW)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.roofBuf); gl.bufferData(gl.ARRAY_BUFFER, this.geometry.roof, gl.STATIC_DRAW)
@@ -447,7 +512,7 @@ const hexToRgb = (hex: string): [number, number, number] => {
   return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255]
 }
 
-export const BuildingShadowLayer = memo(({ enabled, opacity, sunAzimuth, sunAltitude, color = "#000000" }: {
+export const BuildingShadowLayer = memo(({ enabled, opacity, sunAzimuth, sunAltitude, color = "#000000", sourceId }: {
   enabled: boolean
   opacity: number
   /** Compass bearing toward the sun, degrees. */
@@ -455,15 +520,26 @@ export const BuildingShadowLayer = memo(({ enabled, opacity, sunAzimuth, sunAlti
   /** Sun height above the horizon, degrees. */
   sunAltitude: number
   color?: string
+  /** The vector source the buildings come from, by id (default OpenFreeMap's OSM tiles). */
+  sourceId?: string
 }) => {
   const { current: mapRef } = useMap()
   const layerRef = useRef<ShadowLayer | null>(null)
+  const customs = useAtomValue(customVectorSourcesAtom)
+  const entry = buildingSourceEntry(sourceId, customs)
+  const entryRef = useRef(entry)
+  entryRef.current = entry
+  // What this view's tiles hold, for the panel (one record per view).
+  const setStats = useSetAtom(buildingShadowStatsAtom)
+  const viewKey = useId()
 
   useEffect(() => {
     const map = mapRef?.getMap()
     if (!enabled || !map) return
     const layer = new ShadowLayer()
     layerRef.current = layer
+    layer.onStats = (stats) => setStats((all) => ({ ...all, [viewKey]: stats }))
+    layer.setSource(entryRef.current)
     const schedule = () => layer.schedule()
     const add = () => {
       if (map.getLayer(LAYER_ID) || !map.getLayer(LAYER_SLOTS.SHADOWS)) return
@@ -477,9 +553,14 @@ export const BuildingShadowLayer = memo(({ enabled, opacity, sunAzimuth, sunAlti
       map.off("styledata", add); map.off("moveend", schedule)
       layerRef.current = null
       if (map.style && map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID)
+      layer.onStats = null
       layer.dispose()
+      setStats((all) => { const { [viewKey]: _gone, ...rest } = all; return rest })
     }
-  }, [enabled, mapRef])
+  }, [enabled, mapRef, setStats, viewKey])
+
+  // Another source: the same layer and map, other tiles.
+  useEffect(() => { layerRef.current?.setSource(entry) }, [entry, enabled])
 
   useEffect(() => {
     const layer = layerRef.current

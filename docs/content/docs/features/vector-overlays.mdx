@@ -68,7 +68,7 @@ With per-view basemaps on, each row shows one button per view, as the raster ove
 
 - A GeoJSON or FlatGeobuf file as a vector source, and a color per property of your choice.
 - A blend mode per overlay: it needs MapLibre's layer blending, which the app does not use yet.
-- Building shadows cast from these heights: the [building shadows](/dev/lighting-effects) still read OpenFreeMap's tiles.
+- A building source per view for the shadows: the [building shadows](/features/sun-position#building-shadows) read one source for every view (Lighting Effects, Buildings, **Buildings from**: OpenFreeMap's OSM tiles, Overture, or a source of your own with a height).
 - The tile service and the QGIS plugin do not draw them yet.
 
 For developers: the entries and the schema are described in [Source schema](/dev/source-schema#vector-overlays), the slot in [Layer order](/dev/layer-order).

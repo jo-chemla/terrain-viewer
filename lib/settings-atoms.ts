@@ -307,6 +307,14 @@ export const nativeTerrainDrapeAtom = atomWithStorage("nativeTerrainDrape", true
 // draw on this device (shader or float texture failure): Hard Shadows then
 // fall back to the shadow:// tiles for the rest of the session. Not stored.
 export const shadowLiveUnsupportedAtom = atom<string | null>(null)
+/** What the building shadows of one view have loaded
+ *  (components/LayersAndSources/BuildingShadowLayer.tsx): the tiles in and
+ *  still asked for, the buildings they hold and how many state a height, or
+ *  only a number of floors (the rest cast the shadow of the default height). */
+export interface BuildingShadowStats { sourceId: string; tiles: number; pending: number; buildings: number; stated: number; floors: number; error?: string }
+// One record per view drawing building shadows, for the panel's line on
+// heights (Lighting Effects, Buildings). Not stored.
+export const buildingShadowStatsAtom = atom<Record<string, BuildingShadowStats>>({})
 // Google Earth Historical tiles built from one Keyhole level finer into 512 px
 // images (Settings → Streaming): no vertical stretch away from the equator and
 // a 2x image for HiDPI screens, for four times the Keyhole fetches. Read by

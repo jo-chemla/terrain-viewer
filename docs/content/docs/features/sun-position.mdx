@@ -29,7 +29,7 @@ The most telling demonstration is the Sun Shadow Calculator's **Reverse** mode: 
 
 ## Building shadows
 
-Lighting Effects → Shadows → **Buildings (OSM)** draws the shadow of every OpenStreetMap building in view, with heights from OpenFreeMap's building layer, from the same light as the rest of the app. In Datetime mode that light is the sun at the date and time on the sliders, so a date and an hour are enough to see which streets and squares are in the shade. The shadows are swept on flat ground at the buildings' feet (each footprint pushed away from the sun by height / tan(altitude)); how the layer is drawn is in [Visualization Modes](/features/visualization-modes#lighting-effects). In 3D the shadows drape over the terrain: with terrain on, the layer draws each terrain tile through MapLibre 6.13's experimental `renderToTerrainTile` hook and MapLibre lays the result on the relief, so a shadow follows a hill as the streets do (its length is still the flat-ground sweep, not shortened or stretched by the slope). The views below look straight down (pitch 0, north up, zoom 17.25). The grey blocks are the OpenStreetMap basemap's own extruded buildings, seen from above: their faces keep the style's fixed light and do not follow the sun, only the dark ground shadows do.
+Lighting Effects → Shadows → **Buildings** draws the shadow of every building in view, from the same light as the rest of the app. The buildings are OpenStreetMap's by default, with heights from OpenFreeMap's building layer; [another source](#where-the-buildings-come-from) can be chosen. In Datetime mode that light is the sun at the date and time on the sliders, so a date and an hour are enough to see which streets and squares are in the shade. The shadows are swept on flat ground at the buildings' feet (each footprint pushed away from the sun by height / tan(altitude)); how the layer is drawn is in [Visualization Modes](/features/visualization-modes#lighting-effects). In 3D the shadows drape over the terrain: with terrain on, the layer draws each terrain tile through MapLibre 6.13's experimental `renderToTerrainTile` hook and MapLibre lays the result on the relief, so a shadow follows a hill as the streets do (its length is still the flat-ground sweep, not shortened or stretched by the slope). The views below look straight down (pitch 0, north up, zoom 17.25). The grey blocks are the OpenStreetMap basemap's own extruded buildings, seen from above: their faces keep the style's fixed light and do not follow the sun, only the dark ground shadows do.
 
 The three views are Bryant Park, Manhattan, on June 21 (`lightDayOfYear=172`), at New York wall-clock time (`lightTimeMode` defaults to `local`, the civil time at the map centre, daylight saving included). Each link opens the same top-down view; the light direction is computed from the date and time on load.
 
@@ -56,6 +56,18 @@ The same three hours with the buildings drawn flat, as 2D footprints with no ext
 ![Building shadows at 17:00 on June 21 over Bryant Park with flat footprints: the shadows of the Sixth Avenue buildings fall east across the park](/screenshots/sun/building-shadows-manhattan-flat-1700.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">9:00, 13:00 and 17:00, same views and links as above. How these were made: the OSM basemap's <strong>3D</strong> switch (sidebar → Basemap, next to OSM) turned off, which hides the extruded blocks; the OpenFreeMap Liberty style draws its flat footprints only up to zoom 14, so with the switch off the app extends them to every zoom and the buildings stay drawn flat.</p>
+
+### Where the buildings come from
+
+**Buildings from**, under the Buildings checkbox, chooses the vector source the footprints and heights are read from (`buildingShadowSource` in a link):
+
+| Source | Heights | When to use it |
+|---|---|---|
+| **OpenStreetMap (OpenFreeMap)**, the default | OpenMapTiles' rendering height, from OSM `height` or `building:levels`, 5 m when OSM has neither | Everywhere OSM mappers drew the buildings; light tiles (250 to 600 kB in a dense city) |
+| **Overture Maps** (`overture-buildings`) | `height`, else `num_floors` times 3.2 m, else 4 m; a building with parts is replaced by its parts (a tower on its podium) | Where OSM has no footprints (Overture adds Microsoft's, Google's and Esri's); heights are dense in North America and sparse elsewhere; heavier tiles (0.8 to 1.3 MB) |
+| A vector source of your own | Its height field, its floors field, else 4 m | Any PMTiles archive, TileJSON or MVT template added under Bring Your Own Data, Vector overlays, that has a height field |
+
+The overlay itself need not be drawn. With a source other than the default, a line under the picker gives the share of buildings in the loaded tiles that state a height; under half, it turns into a warning, as most shadows are then those of a 4 m building. Measured on 2026-11-26 around the centre of each city with Overture: Midtown Manhattan 98 %, the Chicago Loop 80 %, Naples 22 %, Lyon under 1 % (33 % more with floors only). Where Overture's heights come from OSM the two sources draw the same shadows (Manhattan, Chicago); in Lyon OpenFreeMap's are the useful ones.
 
 Building shadows need zoom 13 or closer and the Mercator projection. For shadows cast by the real shape of a building (a spire, a dome) and falling on slopes, use the **Terrain** shadows with a surface model (DSM) as the terrain source.
 
