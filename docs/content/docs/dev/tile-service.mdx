@@ -72,7 +72,7 @@ A picture of a box (west, south, east, north in degrees; `.tif` with one mode gi
 http://localhost:3400/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours
 ```
 
-A colour ramp as a picture, for a legend (`orientation=vertical`; the ids: `/colorramps`):
+A color ramp as a picture, for a legend (`orientation=vertical`; the ids: `/colorramps`):
 
 ```text
 http://localhost:3400/colorramps/slope-plantopo.png?width=256&height=16
@@ -140,7 +140,7 @@ Every answer says which engine drew it in its `x-tv-engine` header, and `x-tv-en
 
 `modes=a,b,c` draws them in one tile in the map's order, never in the order written. Bottom to top: `colorRelief`, the terrain analysis and relief visualization modes (`slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`), `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, then the overlays `isoline`, `graticules`, `moundDetector`, `planeSlicer` and `contours` on top. `/processes/{id}` gives each mode's place as `x-tv-stack-rank`.
 
-A mode's opacity is its own parameter (`slopeOpacity`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`): `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. Each layer is drawn source-over with that opacity, over the map's background (white, black with `theme=dark`, none with `background=none`). The shading layers differ: the hillshade is a half-transparent dark and light layer, Phong and matcap multiply the colours under them and add their highlight, the shadows darken. In a GIS, give them a multiply blend, as the QGIS project does.
+A mode's opacity is its own parameter (`slopeOpacity`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`): `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. Each layer is drawn source-over with that opacity, over the map's background (white, black with `theme=dark`, none with `background=none`). The shading layers differ: the hillshade is a half-transparent dark and light layer, Phong and matcap multiply the colors under them and add their highlight, the shadows darken. In a GIS, give them a multiply blend, as the QGIS project does.
 
 Refused together: `basemap` with `/terrain-tiles`, a terrain mode with `/basemap-tiles`, a mode that is only a picture with `.pbf`, more than one mode or a mode without values with `.tif`, and `engine=direct` with what only the browser draws. Any other set stacks.
 
@@ -155,8 +155,8 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 | Address | Lists |
 |---|---|
 | `/terrain-sources`, `/terrain-sources/{id}` | The terrain sources: built-in and library, with type, tile address (`url`, a plain pyramid's template), raw address (`address`, with `tileSize` and `nodataFloor`: a keyless COG's, VRT's or raw WMS, WCS or ArcGIS service's, what GDAL can open; the QGIS plugin's Python backend reads it), zoom range, extent, and the engine that can draw each. First in the Terrain tiles group of the API reference, as `/basemaps` opens Basemap tiles |
-| `/colorramps`, `/colorramps/{id}` | The app's 268 colour ramps, to name as `colorRamp` (colour relief) or `slopeColorRamp` (slope); one ramp gives its stops |
-| `/colorramps/{id}.png` or `.jpg` | A ramp as a picture, coloured as the map colours it (MapLibre's colour relief: linear between the stops): `width` and `height` (256 × 16 by default, 16 × 256 vertical), `orientation=vertical` (the lowest value at the bottom; horizontal: on the left), `reverse=true`. PNG keeps the ramp's transparency, JPEG is on white. For a legend or a ramp picker |
+| `/colorramps`, `/colorramps/{id}` | The app's 268 color ramps, to name as `colorRamp` (color relief) or `slopeColorRamp` (slope); one ramp gives its stops |
+| `/colorramps/{id}.png` or `.jpg` | A ramp as a picture, colored as the map colors it (MapLibre's color relief: linear between the stops): `width` and `height` (256 × 16 by default, 16 × 256 vertical), `orientation=vertical` (the lowest value at the bottom; horizontal: on the left), `reverse=true`. PNG keeps the ramp's transparency, JPEG is on white. For a legend or a ramp picker |
 | `/basemaps` | What `/basemap-tiles/{source}/…` takes: the dated imagery and the built-in basemaps, each with the parameter it stands for and its API key |
 | `/algorithms` | The modes with the engine that draws each |
 | `/processes`, `/processes/{id}` | Each mode as an [OGC API - Processes](#visualization-modes-ogc-api---processes) description: its settings as inputs with their JSON Schema (type, range, values, default), its outputs, its panel group, form, opacity parameters, and the unit and typical range of its values. The [QGIS plugin](/dev/qgis-plugin) builds its panel from it |
@@ -180,11 +180,11 @@ Every mode, raster or vector:
 
 | Mode | Raster tile (`.png`, `.jpg`) | Vector tile (`.pbf`, `.mvt`) |
 |---|---|---|
-| Hillshade, colour relief, the 14 computed modes, matcap, Phong, cast shadows | Yes | No: they are images |
-| Plane slicer | Yes | No: the app draws it as a colour layer. The same edge as polygons: `isoline` on elevation at the slice's height |
+| Hillshade, color relief, the 14 computed modes, matcap, Phong, cast shadows | Yes | No: they are images |
+| Plane slicer | Yes | No: the app draws it as a color layer. The same edge as polygons: `isoline` on elevation at the slice's height |
 | Contours, iso-line, mound detector, graticule | Yes, drawn from the same vector tiles | Yes |
 
-The raster tile of these four is made from the vector tiles: their features are read, then drawn with the app's widths, colours and opacities, the contour labels and the cliff teeth placed as MapLibre places line symbols.
+The raster tile of these four is made from the vector tiles: their features are read, then drawn with the app's widths, colors and opacities, the contour labels and the cliff teeth placed as MapLibre places line symbols.
 
 ```js
 map.addSource("tv-overlays", { type: "vector", url: "http://localhost:3400/tilejson.json?tile_format=pbf&modes=contours,moundDetector" })
@@ -193,9 +193,9 @@ map.addLayer({ id: "contour-labels", type: "symbol", source: "tv-overlays", "sou
 map.addLayer({ id: "mounds", type: "circle", source: "tv-overlays", "source-layer": "tells", paint: { "circle-radius": 8, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": "#ef4444", "circle-stroke-width": 2 } })
 ```
 
-## Values, not colours
+## Values, not colors
 
-A colour is for the eye; an analysis wants the number under it. One mode's values, before its ramp, in natural units:
+A color is for the eye; an analysis wants the number under it. One mode's values, before its ramp, in natural units:
 
 | Address | Answers |
 |---|---|
@@ -465,18 +465,18 @@ The direct engine computes the tile in the server, with no browser. It opens not
 
 | Layers | How |
 |---|---|
-| Colour relief, and the 14 computed modes: slope, aspect, TRI, curvature, TPI, LRM, roughness, shape index, blobness, eigen ratio, orientation, sky-view factor, openness, local dominance | The app's tile protocols (`lib/*-protocol.ts`), coloured with the paint the map computes (`lib/layer-paints.ts`, `lib/mode-relief.ts`) and interpolated between the ramp's stops as MapLibre does |
+| Color relief, and the 14 computed modes: slope, aspect, TRI, curvature, TPI, LRM, roughness, shape index, blobness, eigen ratio, orientation, sky-view factor, openness, local dominance | The app's tile protocols (`lib/*-protocol.ts`), colored with the paint the map computes (`lib/layer-paints.ts`, `lib/mode-relief.ts`) and interpolated between the ramp's stops as MapLibre does |
 | Hillshade | MapLibre's two shader passes, rewritten in JavaScript line by line, fed with the paint the map computes: the five methods and the app's three multi-light presets |
 | Matcap, Phong | The app's live GL layers, its default renderer: their fragment shaders rewritten in JavaScript (the normal of each pixel from the bilinear elevation, Phong's multiply and add passes over the layers below, the camera-relative matcap lookup). With `matcapRenderer=raster` or `phongRenderer=raster`, the app's tile protocols, as the app then draws them |
 | Cast shadows | The app's tile protocol |
-| Contours | maplibre-contour, the app's contour library, with its intervals, widths and colours; on the terrain, or on its local relief model with `contourReferenceMode=lrm`. The labels are drawn on the picture (elevation and "m" on major lines, Noto Sans bold 10 px with a halo, upright), where MapLibre puts line symbols: per vector tile, every 250 px from where the line enters it, not where it turns more than 45°, and not over an earlier label. Straight, where MapLibre bends the letters along the line. The [vector tiles](#vector-tiles) carry `ele` for a client that places its own |
+| Contours | maplibre-contour, the app's contour library, with its intervals, widths and colors; on the terrain, or on its local relief model with `contourReferenceMode=lrm`. The labels are drawn on the picture (elevation and "m" on major lines, Noto Sans bold 10 px with a halo, upright), where MapLibre puts line symbols: per vector tile, every 250 px from where the line enters it, not where it turns more than 45°, and not over an earlier label. Straight, where MapLibre bends the letters along the line. The [vector tiles](#vector-tiles) carry `ele` for a client that places its own |
 | Iso-line | At a value: the app's `isoband://` vector tiles over the chosen measure (elevation, slope, any computed mode or lighting), the fill and the line, and on slope the cliff teeth, every 28 px from where MapLibre starts them on each tile. Every interval: the contour engine over the measure's tiles |
-| Mound detector | The app's `tells://` vector tiles, a circle per candidate with the map's radius (fixed, or the measured diameter times `tellsScaleMultiplier`) and colours (outline, or coloured by blobness, plan curvature, Hessian or LRM) |
-| Plane slicer | The colour relief the map draws for it, on the elevation or on the local relief model |
+| Mound detector | The app's `tells://` vector tiles, a circle per candidate with the map's radius (fixed, or the measured diameter times `tellsScaleMultiplier`) and colors (outline, or colored by blobness, plan curvature, Hessian or LRM) |
+| Plane slicer | The color relief the map draws for it, on the elevation or on the local relief model |
 | Graticule | The lines at the app's spacing for the zoom, or `graticuleDensity`. Its labels sit on the edges of the screen in the app, so a tile has none |
-| Dark theme | The black background, and the contour, label and graticule colours that follow the theme |
+| Dark theme | The black background, and the contour, label and graticule colors that follow the theme |
 
-The layers stack in the map's order (the relief and lighting layers, then iso-line and graticule, mound markers, plane slicer, and the contours on top) over its white or black background, each composited with the app's opacity for it, so any combination of modes is drawn as the map draws it. A colour ramp is read as MapLibre reads it: the stops rounded to the elevation encoding's step and the colours taken from an 8-bit texture. Every URL parameter the app reads for these layers applies: ramps, ranges, inversion, custom ramp stops, radii, light direction, exaggeration, opacities.
+The layers stack in the map's order (the relief and lighting layers, then iso-line and graticule, mound markers, plane slicer, and the contours on top) over its white or black background, each composited with the app's opacity for it, so any combination of modes is drawn as the map draws it. A color ramp is read as MapLibre reads it: the stops rounded to the elevation encoding's step and the colors taken from an 8-bit texture. Every URL parameter the app reads for these layers applies: ramps, ranges, inversion, custom ramp stops, radii, light direction, exaggeration, opacities.
 
 ### Sources
 
@@ -486,7 +486,7 @@ The direct engine reads every source type the app reads, with the app's own read
 |---|---|
 | Terrarium, Terrain-RGB, custom RGB packing | The tiles fetched and decoded in the server |
 | PMTiles | `pmtiles://`, Range reads of the archive |
-| COG | `cog://` (geotiff.js), with the elevation colour function the map registers. A COG the in-browser reader refuses, or one pinned to titiler (`cogViaTitiler`, most of the library's), is read through titiler as in the app |
+| COG | `cog://` (geotiff.js), with the elevation color function the map registers. A COG the in-browser reader refuses, or one pinned to titiler (`cogViaTitiler`, most of the library's), is read through titiler as in the app |
 | VRT | `vrt://`: the VRT's own index, its files Range-read by geotiff.js and warped by proj4. Also GEM-15, Open Buildings and Meta's canopy height, whose indexes come from the deployed app. A VRT pinned to titiler goes through titiler |
 | WMS, WCS, ArcGIS exportImage (`wms-raw`) | `float32dem://`, one Float32 GeoTIFF request per tile |
 | LERC (ArcGIS tiled elevation, Esri World Elevation) | `lerc://`, Esri's wasm decoder |
@@ -553,12 +553,12 @@ Run on 2026-11-21, the rows with contours, the iso-line teeth and the mound dete
 | hillshade standard | 2.27 | 0.97 % | 141 ms | 5811 ms |
 | hillshade igor | 1.6 | 0 % | 125 ms | 5885 ms |
 | hillshade basic, light 200/30 | 0.21 | 0.09 % | 82 ms | 4002 ms |
-| hillshade combined, exaggeration 0.6, coloured | 0.65 | 0 % | 122 ms | 5057 ms |
+| hillshade combined, exaggeration 0.6, colored | 0.65 | 0 % | 122 ms | 5057 ms |
 | hillshade multidir-colors | 0.82 | 0 % | 124 ms | 4205 ms |
 | hillshade duotone-nw-ne | 0.51 | 0 % | 110 ms | 5075 ms |
 | hillshade aspect-multidir | 1.08 | 0 % | 112 ms | 4524 ms |
-| colour relief (default) | 0.22 | 0 % | 53 ms | 3931 ms |
-| colour relief dem_screen 300-4500, opaque | 0.07 | 0 % | 54 ms | 4555 ms |
+| color relief (default) | 0.22 | 0 % | 53 ms | 3931 ms |
+| color relief dem_screen 300-4500, opaque | 0.07 | 0 % | 54 ms | 4555 ms |
 | slope | 0.02 | 0 % | 864 ms | 4607 ms |
 | slope 0-45 inverted | 0.04 | 0 % | 121 ms | 5509 ms |
 | aspect | 0.15 | 0 % | 174 ms | 5589 ms |
@@ -584,7 +584,7 @@ Run on 2026-11-21, the rows with contours, the iso-line teeth and the mound dete
 | cast shadows | 0 | 0 % | 228 ms | 4094 ms |
 | cast shadows, sun at 15 degrees | 0 | 0 % | 217 ms | 4140 ms |
 | phong, rim light 0.6, two lights | 1.36 | 0.14 % | 239 ms | 5138 ms |
-| hillshade + colour relief + contours | 1.19 | 0.14 % | 534 ms | 7096 ms |
+| hillshade + color relief + contours | 1.19 | 0.14 % | 534 ms | 7096 ms |
 | slope + hillshade | 0.9 | 0 % | 199 ms | 5607 ms |
 | LRM + sky-view factor + hillshade | 1 | 0 % | 977 ms | 5699 ms |
 | contours of the local relief model | 6.4 | 1.84 % | 1421 ms | 9722 ms |
@@ -607,7 +607,7 @@ What the remaining differences are:
 - **Hillshade** on flat ground: the gradient is kept in 8 bits, as in MapLibre's own texture, and a tiny slope rounds one way or the other.
 - **Matcap and Phong**: compared with the app's default live renderer, and with its raster renderer when `matcapRenderer=raster` or `phongRenderer=raster`.
 
-Sources other than Mapterhorn compare the same way: a COG within 0.4 to 2.5, a VRT 0.2 to 0.8, a WMS 0.02 to 1.3, LERC 0.02 to 1.7, quantized mesh 0.01 to 0.5 (hillshade, colour relief and slope). Where a source has holes, the direct engine leaves them transparent while the map draws them at the fill height titiler gives them (0 m), so a GEM-15 hole or the ground under a building in a nDSM differs. Both read their sources from the same entries (`lib/source-schema.ts`).
+Sources other than Mapterhorn compare the same way: a COG within 0.4 to 2.5, a VRT 0.2 to 0.8, a WMS 0.02 to 1.3, LERC 0.02 to 1.7, quantized mesh 0.01 to 0.5 (hillshade, color relief and slope). Where a source has holes, the direct engine leaves them transparent while the map draws them at the fill height titiler gives them (0 m), so a GEM-15 hole or the ground under a building in a nDSM differs. Both read their sources from the same entries (`lib/source-schema.ts`).
 
 `node tile-server/compare-engines.mjs <service>` runs the comparison again and writes the table and, for each case, the two tiles side by side with their difference.
 

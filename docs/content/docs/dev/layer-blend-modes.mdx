@@ -24,13 +24,13 @@ The `*-layer-opacity` properties are the quieter half: they fade a layer as a wh
 
 ## Hillshade multiplied over the basemap
 
-Today a relief mode sits over the imagery at an opacity, and every opacity is a trade: high, and the imagery goes grey; low, and the relief disappears. `multiply` keeps the imagery's colours on the lit slopes, where the hillshade is near white, and darkens only the shaded ones. Cartographers have combined relief and imagery this way for decades, and [pull request 8986](https://github.com/maplibre/maplibre-gl-js/pull/8986) shows exactly this before and after.
+Today a relief mode sits over the imagery at an opacity, and every opacity is a trade: high, and the imagery goes grey; low, and the relief disappears. `multiply` keeps the imagery's colors on the lit slopes, where the hillshade is near white, and darkens only the shaded ones. Cartographers have combined relief and imagery this way for decades, and [pull request 8986](https://github.com/maplibre/maplibre-gl-js/pull/8986) shows exactly this before and after.
 
 It applies because the viewer's relief modes are not MapLibre `hillshade` layers: hillshade, multidirectional, Phong, slope, sky-view factor and local relief model are computed by the custom protocols and drawn as `raster` layers ([Custom protocols](/dev/custom-protocols)). Each would get `raster-layer-blend: "multiply"`, and the opacity slider would stay as the strength of the effect.
 
-## Colour ramps that keep the relief
+## Color ramps that keep the relief
 
-The hypsometric tint and every colour-ramp mode (slope, aspect, curvature) cover what is beneath them. With `color`, the ramp gives hue and saturation and the hillshade underneath keeps the luminosity, so a tinted map still reads as relief at full strength. `luminosity` is the reverse: a grey relief mode over a coloured one passes its light and shade through the colours. Today both need an opacity near 35 %, the Color Relief default, and still wash each other out.
+The hypsometric tint and every color-ramp mode (slope, aspect, curvature) cover what is beneath them. With `color`, the ramp gives hue and saturation and the hillshade underneath keeps the luminosity, so a tinted map still reads as relief at full strength. `luminosity` is the reverse: a grey relief mode over a colored one passes its light and shade through the colors. Today both need an opacity near 35 %, the Color Relief default, and still wash each other out.
 
 ## Viz modes combined in one view
 
@@ -38,11 +38,11 @@ Several modes at once are stacked by opacity now, so the third one down is hardl
 
 ## Historical imagery over the current basemap
 
-An overlay basemap (a Timelapse year, a Wayback release, a national archive) sits over the current imagery at an opacity. In `luminosity`, the old picture's light and shade show through today's colours, which lines up roads and field edges between dates; in `screen`, the brighter of the two wins, useful for snow and night scenes. This happens inside one map, so it works in every view of a grid, where the overlay split only compares two.
+An overlay basemap (a Timelapse year, a Wayback release, a national archive) sits over the current imagery at an opacity. In `luminosity`, the old picture's light and shade show through today's colors, which lines up roads and field edges between dates; in `screen`, the brighter of the two wins, useful for snow and night scenes. This happens inside one map, so it works in every view of a grid, where the overlay split only compares two.
 
 ## Contours, graticules and footprints
 
-The contours and the graticule are line layers: in `multiply` a dark contour darkens the ground under it without a band of flat colour, and a white line in `screen` stays readable on dark imagery. The coverage overlays are fills: overlapping footprints (OpenTopography, Esri and Bing over the same city) add up to a dark blot today, and `fill-layer-opacity` draws them as one surface at one opacity. That one fixes a visible problem with no choice of mode to make.
+The contours and the graticule are line layers: in `multiply` a dark contour darkens the ground under it without a band of flat color, and a white line in `screen` stays readable on dark imagery. The coverage overlays are fills: overlapping footprints (OpenTopography, Esri and Bing over the same city) add up to a dark blot today, and `fill-layer-opacity` draws them as one surface at one opacity. That one fixes a visible problem with no choice of mode to make.
 
 ## Exports and screenshots
 
@@ -61,6 +61,6 @@ So the split stays as it is. Where both sides share a terrain and the comparison
 ## Before building
 
 1. Bump maplibre-gl from 6.13 to 6.18 or later, and recheck the camera sync and terrain code that depends on internals ([Camera sync](/dev/camera-sync)).
-2. Test with 3D terrain on: an automated review of 8073 reported wrong colours when a blended layer comes after layers that are not draped on the terrain.
+2. Test with 3D terrain on: an automated review of 8073 reported wrong colors when a blended layer comes after layers that are not draped on the terrain.
 3. Measure the cost: each blended layer is one more framebuffer and composite pass, and a stack of six blended modes on a phone may show it.
 4. The value is a constant, so a mode cannot be animated. A Blend select next to each opacity slider, saved in the URL, is the natural control.

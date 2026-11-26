@@ -20,7 +20,7 @@ Both tilers are public and keyless from the browser, and both are services someo
 
 The data behind HLS lives at NASA's LP DAAC and needs an Earthdata login to read; the VEDA instance holds those credentials server-side, which is why the browser needs none. The instance is a demo of VEDA's, not an SLA.
 
-The pill (`lib/hls.ts`) asks for one true-colour mosaic per date:
+The pill (`lib/hls.ts`) asks for one true-color mosaic per date:
 
 ```
 https://openveda.cloud/api/titiler-cmr/rasterio/tiles/WebMercatorQuad/{z}/{x}/{y}
@@ -67,7 +67,7 @@ pcmosaic://sentinel-2-l2a/{z}/{x}/{y}?from=2024-08-01&to=2024-08-31
 
 - **Two searches a window.** Scenes with at most 10 % cloud first; when no such scene covers the tile (an overcast quarter, a rainy month: June 2024 over Paris has none) the handler registers the same window at 60 % and tries again, so the tile draws, cloudier, rather than stays blank. Both ids are cached for the session.
 - **Landsat** is rendered from the `red`, `green` and `blue` surface-reflectance assets with Planetary Computer's own "Natural color" formula, 30 m, declared to zoom 13. Landsat 4 TM's first scene is 22 August 1982; Landsat 1 to 5 MSS (1972 to 1992, 60 m, no blue band) sits in `landsat-c2-l1` and is not offered.
-- **Sentinel-2** uses the L2A product's own true-colour image, the `visual` asset, 10 m, declared to zoom 15. Planetary Computer holds Level-2A from 2016 for most of the world, with 2015 scenes in places.
+- **Sentinel-2** uses the L2A product's own true-color image, the `visual` asset, 10 m, declared to zoom 15. Planetary Computer holds Level-2A from 2016 for most of the world, with 2015 scenes in places.
 - **In the catalog** (`lib/national-historical.ts`) each window is a layer of a `complete` source: every layer covers the globe, so the timeline lists them all without probing a tile at the view's centre. The Landsat catalog has a layer a quarter, the Sentinel-2 one a layer a month, and both sit under the Medium res pill.
 - **Not in Export Multi.** The export dialog lists the timeline's own pills; catalog layers, these included, are picked on the map.
 
@@ -85,7 +85,7 @@ capture://<catalog>|<date>|<catalog_id>/{z}/{x}/{y}
 - **Only what a tile touches.** A map tile asks [titiler](https://developmentseed.org/titiler/) for the COGs whose extent overlaps it, 1 to 4 once zoomed in, and composites the answers on a canvas in the browser, nearest COG on top. Only the map tiles in view cost anything, so no request goes out for the rest of the pass.
 - **A cap of 25 COGs.** The nearest to the latest view, which keeps a low zoom over a long pass bounded.
 - **It grows with the view.** Later searches add the COGs they find. A tile outside everything searched so far waits up to 3 s for the search of the new view; a tile inside it with no COG is simply empty.
-- **Seams.** It is a mosaic of one pass, with no colour balancing: within a pass the seams are slight, since it is one sensor at one time.
+- **Seams.** It is a mosaic of one pass, with no color balancing: within a pass the seams are slight, since it is one sensor at one time.
 
 The source is transient like every STAC tick: a shared link does not bring it back, since a catalog query would have to find it again.
 

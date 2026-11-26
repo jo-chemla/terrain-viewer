@@ -134,11 +134,11 @@ The az/alt → `(x, y, z)` light-vector signs were pinned by empirical measureme
 
 `diffuseIntensity` alone is capped at 1, so ordinary sunlit slopes (however bright) stay in the shadow/neutral regime — only specular can push `total` past 1 into the highlight regime.
 
-### Up to three coloured lights (live renderer)
+### Up to three colored lights (live renderer)
 
-The live renderer takes up to three lights. Light 1 is the app light shared with hillshade and shadows, with its own colour (white by default, so nothing changes until a colour is set). Lights 2 and 3 have their own azimuth, altitude and colour (`phongLightCount`, `phongLight2Dir`, `phongLight2Alt`, `phongLight2Color`, and the same for 3) and only reach Phong; in Camera anchor mode they rotate with the camera like the first. Their diffuse terms add per channel and are averaged, so a slope reached by every light stays at the single-light maximum and a slope reached by one takes that light's hue; specular is averaged the same way. The defaults are the duotone hillshade palette: blue from the north-east and orange from the south-east, which with a white key light from the north-west gives the two-tone LiDAR look with real specular highlights. The raster renderer keeps a single grey light: its output is one scalar packed into alpha, which cannot carry a hue.
+The live renderer takes up to three lights. Light 1 is the app light shared with hillshade and shadows, with its own color (white by default, so nothing changes until a color is set). Lights 2 and 3 have their own azimuth, altitude and color (`phongLightCount`, `phongLight2Dir`, `phongLight2Alt`, `phongLight2Color`, and the same for 3) and only reach Phong; in Camera anchor mode they rotate with the camera like the first. Their diffuse terms add per channel and are averaged, so a slope reached by every light stays at the single-light maximum and a slope reached by one takes that light's hue; specular is averaged the same way. The defaults are the duotone hillshade palette: blue from the north-east and orange from the south-east, which with a white key light from the north-west gives the two-tone LiDAR look with real specular highlights. The raster renderer keeps a single grey light: its output is one scalar packed into alpha, which cannot carry a hue.
 
-Under Light Direction, Free mode shows a **Lights 1 / 2 / 3** choice and one colour swatch per light; the extra lights are pills of their colour on the same pad and drag like the first.
+Under Light Direction, Free mode shows a **Lights 1 / 2 / 3** choice and one color swatch per light; the extra lights are pills of their color on the same pad and drag like the first.
 
 ### Fresnel rim
 

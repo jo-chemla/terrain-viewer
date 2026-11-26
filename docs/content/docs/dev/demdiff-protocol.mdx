@@ -41,7 +41,7 @@ A pixel is a hole when either operand is missing it — nodata, masked, outside 
 
 **MapLibre's DEM decoder ignores alpha, and the browser premultiplies it.** A transparent pixel is premultiplied to RGB `0,0,0` on decode, which in Terrain-RGB is the floor, **−10 000 m**. A single transparent pixel is a 10 km pit; a nodata edge is a 10 km cliff along the whole boundary.
 
-So a hole is written as **0 m in the colour channels with alpha 254**:
+So a hole is written as **0 m in the color channels with alpha 254**:
 
 ```ts
 const hole = !(Number.isFinite(va) && Number.isFinite(vb))
@@ -49,7 +49,7 @@ const [r, g, bl] = elevationToTerrainrgb(hole ? 0 : va - vb + offset)
 out[i] = r; out[i + 1] = g; out[i + 2] = bl; out[i + 3] = hole ? 254 : 255
 ```
 
-MapLibre reads the colour channels, sees flat ground and draws nothing dramatic. This app's own decoders read the alpha and know the cell is invalid. 254 is chosen because it is fully opaque for every practical purpose while still being distinguishable from the 255 that every real pixel carries.
+MapLibre reads the color channels, sees flat ground and draws nothing dramatic. This app's own decoders read the alpha and know the cell is invalid. 254 is chosen because it is fully opaque for every practical purpose while still being distinguishable from the 255 that every real pixel carries.
 
 ### The same convention, three places
 

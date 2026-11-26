@@ -15,7 +15,7 @@ Plugin 0.7.0 dropped the separate box and its own flat list of modes. The **Pyth
 - Every vector form (contour lines, iso-lines, graticule lines, plane slicer areas) is a memory layer filled for the view by `contours.view_vector` in a QGIS task after each pan or zoom, its geometry and fields as the registry's `vector_layer` declares them (`live/layers.py`, whose layer order is `modes.ORDER`).
 - Its layers go in the panel's "Terrain Viewer (live)" tree, keyed as the service's (`slope`, `slope:values`, `contours:vector`), so picking another backend re-points them, Freeze copies them and a saved project reads them back. 0.6.0's "Terrain Viewer (local compute)" group is removed on connect.
 - **Sources**: it follows the source picked: Terrarium and Terrain-RGB pyramids (Mapterhorn, AWS, the library's others with a public address, Mapbox and MapTiler with their keys, a typed `{z}/{x}/{y}` address), since the fifth round any elevation GDAL opens ([below](#any-gdal-raster-as-the-source)), and since 0.9.0 the library's COGs, VRTs and raw WMS, WCS and ArcGIS services ([below](#090-the-librarys-raw-elevation-through-gdal)). LERC, quantized mesh, PMTiles and difference sources say so once and draw nothing (0.8.0 drew Mapterhorn in their place). Contour lines and the elevation prefetch follow the source too.
-- The hypsometric tint is the app's: its ramp's own stops (mby: -8000 to 5000 m) unless **customHypsoMinMax** is on (then min and max), the range that follows the view (2nd to 98th percentile, read again after each pan or zoom) when **hypsoAutoRange** is on. 0.7.0 drew the plugin's own ramp over the view's range whatever the settings, which is why the user saw a range of 0 to 1 and a ramp the panel could not change: a Values layer made before the canvas had an extent got the renderer's fallback range (0 to 1), and the colour tiles ignored `colorRamp`, `invertColorRamp` and `customHypsoMinMax`.
+- The hypsometric tint is the app's: its ramp's own stops (mby: -8000 to 5000 m) unless **customHypsoMinMax** is on (then min and max), the range that follows the view (2nd to 98th percentile, read again after each pan or zoom) when **hypsoAutoRange** is on. 0.7.0 drew the plugin's own ramp over the view's range whatever the settings, which is why the user saw a range of 0 to 1 and a ramp the panel could not change: a Values layer made before the canvas had an extent got the renderer's fallback range (0 to 1), and the color tiles ignored `colorRamp`, `invertColorRamp` and `customHypsoMinMax`.
 
 ## 0.9.0: the library's raw elevation through GDAL
 
@@ -39,21 +39,21 @@ After 0.7.0 (2026-11-25), on the user's feedback: the hypsometric tint clamped t
 
 ### Parity with the tile service
 
-Every colour tile of the Python backend is now the tile service's picture of the same mode and settings, ported rather than approximated:
+Every color tile of the Python backend is now the tile service's picture of the same mode and settings, ported rather than approximated:
 
-- **The ramp modes** (colour relief, slope, aspect, TRI, TPI, roughness, curvature, shape index, blobness, eigenvalue ratio, orientation, LRM, sky view factor, openness, local dominance): `live/ramps.py` ports `lib/mode-relief.ts` (which settings colour a mode, with the app's defaults), `computeColorReliefPaint` (the ramp remapped onto min and max, colours swapped end for end when inverted, custom stops held between them when discrete, aspect's cyclic shift, the hole and top stops) and the service's `rampOf` (stops packed in the tile's encoding, colours premultiplied and rounded to 8 bits). The ramps are the app's 268, packaged as `assets/colorramp_stops.json` (`make_assets.py`, from the service's `/colorramps/{id}`). live/'s values are natural units; the ramp reads the app's wire units (blobness, eigenvalue ratio and the sky view factor x100, curvature x100000, shape index x1000, openness minus 90), packed as the app packs them (Terrarium floored to 1/256, slope's Terrain-RGB floored to 0.1) and read as Float32, as the service samples them: a value on a discrete ramp's collapsed pair of stops falls below it, as there.
-- **The Values layer** gets the same ramp as a QGIS colour ramp shader in natural units (alpha kept), editable in its properties; it follows the panel's ramp settings when they change.
-- **The hillshade**: `live/hillshade.py` ports MapLibre's two passes as the service does (the prepare pass's Sobel sums with the zoom factor of the source's own zoom and tile size, kept in 8 bits; the shading pass with its cos(latitude)), with `computeHillshadePaint`: the eight methods, the shadow, highlight and accent colours, the exaggeration, over the map's white. (Its values stay gdaldem's Horn shade, the iso-line's measure.)
-- **Phong**: up to three lights with their colours (`phongLightCount`, `phongLight<i>Color`, `Dir`, `Alt`); **matcap**: the camera-relative switch.
+- **The ramp modes** (color relief, slope, aspect, TRI, TPI, roughness, curvature, shape index, blobness, eigenvalue ratio, orientation, LRM, sky view factor, openness, local dominance): `live/ramps.py` ports `lib/mode-relief.ts` (which settings color a mode, with the app's defaults), `computeColorReliefPaint` (the ramp remapped onto min and max, colors swapped end for end when inverted, custom stops held between them when discrete, aspect's cyclic shift, the hole and top stops) and the service's `rampOf` (stops packed in the tile's encoding, colors premultiplied and rounded to 8 bits). The ramps are the app's 268, packaged as `assets/colorramp_stops.json` (`make_assets.py`, from the service's `/colorramps/{id}`). live/'s values are natural units; the ramp reads the app's wire units (blobness, eigenvalue ratio and the sky view factor x100, curvature x100000, shape index x1000, openness minus 90), packed as the app packs them (Terrarium floored to 1/256, slope's Terrain-RGB floored to 0.1) and read as Float32, as the service samples them: a value on a discrete ramp's collapsed pair of stops falls below it, as there.
+- **The Values layer** gets the same ramp as a QGIS color ramp shader in natural units (alpha kept), editable in its properties; it follows the panel's ramp settings when they change.
+- **The hillshade**: `live/hillshade.py` ports MapLibre's two passes as the service does (the prepare pass's Sobel sums with the zoom factor of the source's own zoom and tile size, kept in 8 bits; the shading pass with its cos(latitude)), with `computeHillshadePaint`: the eight methods, the shadow, highlight and accent colors, the exaggeration, over the map's white. (Its values stay gdaldem's Horn shade, the iso-line's measure.)
+- **Phong**: up to three lights with their colors (`phongLightCount`, `phongLight<i>Color`, `Dir`, `Alt`); **matcap**: the camera-relative switch.
 - **Sky view factor and openness**: the "fast" precision, the app's default (radii 1, 2, 4, ... and the near radius within 8 px, one ancestor ring per octave past it, three directions 0.3 rad apart, the steepest); "precise" as before.
-- **Contours**: their colour (`rgba(0, 0, 0, 0.5)` by default, as the service's), weight (minor lines half the major's) and the LRM reference (`contourReferenceMode=lrm` with its own intervals).
+- **Contours**: their color (`rgba(0, 0, 0, 0.5)` by default, as the service's), weight (minor lines half the major's) and the LRM reference (`contourReferenceMode=lrm` with its own intervals).
 - **The ground size** of a tile is the one at the centre of the source's own tile (a 512 px Mapterhorn tile at z-1), as the service's protocols take it: the values agree exactly (slope 100 % equal, it was 99.5 % within 0.5 % before).
 
 Measured with `test_live.py --service` (section 2b), Mont Blanc z12 and z13 (z12 to z14 for the pictures), against a service of the same commit and against the user's (the same results): each case is the share of pixels within 3 levels of the service's picture.
 
 | Mode | Parameters checked | Status | Match |
 |---|---|---|---|
-| Colour relief | `colorRamp`, `customHypsoMinMax`, `minElevation`, `maxElevation`, `invertColorRamp`; `hypsoAutoRange` (the view's range, by the panel); `hypsoSymmetric` (mirrored by the panel) | applied | 100 % |
+| Color relief | `colorRamp`, `customHypsoMinMax`, `minElevation`, `maxElevation`, `invertColorRamp`; `hypsoAutoRange` (the view's range, by the panel); `hypsoSymmetric` (mirrored by the panel) | applied | 100 % |
 | Slope | `slopeColorRamp`, `slopeMinDegrees`, `slopeMaxDegrees`, `slopeInvertColorRamp`, custom stops | applied | 100 % |
 | Aspect | ramp, min, max, invert, `aspectShiftDegrees` | applied | 100 % |
 | TRI, TPI, roughness | ramp, min, max, invert, symmetric (TPI) | applied | 100 % |
@@ -65,27 +65,27 @@ Measured with `test_live.py --service` (section 2b), Mont Blanc z12 and z13 (z12
 | Openness | `opennessRadius`, `opennessMode`, `opennessPrecision`, ramp, min, max, invert, symmetric | applied | 100 % |
 | Local dominance | min and max radius, ramp, min, max, invert, symmetric | applied | 100 % |
 | Hillshade | `hillshadeMethod` (8), light, `shadowColor`, `highlightColor`, `accentColor`, `hillshadeExag` | applied | 100 % (every method) |
-| Phong | diffuse, specular, Fresnel strength and power, light, `phongLightCount`, three lights' colour, direction, altitude | applied | 100 % |
+| Phong | diffuse, specular, Fresnel strength and power, light, `phongLightCount`, three lights' color, direction, altitude | applied | 100 % |
 | Phong | `phongRenderer=raster`, `phongLightRelativeToCamera` (a flat north-up view: no effect) | not ported / no effect | |
 | Matcap | texture, rotation, `matcapLightRelativeToCamera` | applied | 100 % |
 | Matcap | `matcapRenderer=raster` | not ported | |
 | Shadows | `shadowRadiusPx` (up to 256 px here, 512 in the app), light | applied | 0 px against the app's kernel |
 | Shadows, building shadows | `shadowRenderer`, `shadowSoft`, `lightUseDatetime`, `lightDayOfYear`, `lightTimeOfDay`, `lightTimeMode` | not read by the tile service either | |
 | Building shadows | light | applied | 98.9-99.4 % within 1 px |
-| Contours | `contourMinor`, `contourMajor`, `contourReferenceMode`, `contourMinorLrm`, `contourMajorLrm`, `contourWeight`, `contourColor` | applied (pixel lines here, antialiased there) | 94-99 % within 1 px, same colour |
+| Contours | `contourMinor`, `contourMajor`, `contourReferenceMode`, `contourMinorLrm`, `contourMajorLrm`, `contourWeight`, `contourColor` | applied (pixel lines here, antialiased there) | 94-99 % within 1 px, same color |
 | Contours, graticule | `showContourLabels`, `showGraticuleLabels` | labels on the vector layers (the panel) | |
-| Iso-line | measure, mode, value, interval, fill, fill opacity, smooth, weight, colour | applied | 99.2-100 % within 1 px |
+| Iso-line | measure, mode, value, interval, fill, fill opacity, smooth, weight, color | applied | 99.2-100 % within 1 px |
 | Iso-line | `isolineCliff` (the cliff edge's teeth) | not ported | |
-| Graticule | density, width, colour | applied | 100 % within 1 px |
-| Plane slicer | reference, value, LRM value, side, colour | applied | 99.9-100 % within 1 px |
+| Graticule | density, width, color | applied | 100 % within 1 px |
+| Plane slicer | reference, value, LRM value, side, color | applied | 99.9-100 % within 1 px |
 | Mound detector | `tellSize`, `tellRadius`, `tellMinRelief`, `tellBlobnessMin`, `tellPlanMin`, `tellDetHessianMin`, `tellMeasureScale`, `tellVetoResolution`, `tellsPolarity` | applied | 100 % of the points, same measures |
-| Mound detector | `tellsStyle` outline, `tellsOutlineColor`, `tellsPitColor`, `tellsScaleMarkers`, `tellsScaleMultiplier` (the vector layer's style) | applied; the `by*` colour styles drawn as outlines | |
+| Mound detector | `tellsStyle` outline, `tellsOutlineColor`, `tellsPitColor`, `tellsScaleMarkers`, `tellsScaleMultiplier` (the vector layer's style) | applied; the `by*` color styles drawn as outlines | |
 
-Opacities are the QGIS layers' own, as with a service. One app rule is kept as it is: aspect's shift reads only `rgb()` and `rgba()` colours (`shiftCyclicRampStops`), so a shifted ramp written in hex reads black in the app, the service and here alike.
+Opacities are the QGIS layers' own, as with a service. One app rule is kept as it is: aspect's shift reads only `rgb()` and `rgba()` colors (`shiftCyclicRampStops`), so a shifted ramp written in hex reads black in the app, the service and here alike.
 
 ### The mound detector
 
-`live/mounds.py` ports `lib/tells-protocol.ts` on the source's own tiles (a 512 px Mapterhorn tile at its zoom), as the protocol runs: the difference of the one-level and kLarge-level low-passes (lrm's half-pixel recentring, Float32 as the app keeps it), strict 3x3 extrema past the relief threshold, the strongest first, at most 2000, greedy suppression within half the tell size, then the blobness, plan convexity and Hessian vetoes on the low-pass ("coarse") or the tile's pixels ("fine"), pits on the flipped surface, and the half-maximum diameter on 8 rays. Holes (NaN) are the app's `paddedValid`. The vector form is a point layer for the view (the map's zoom, capped at z15 like the service's tiles), styled as the markers (`live/layers.py style_mounds`: the outline and pit colours, the measured diameter times the multiplier in ground metres).
+`live/mounds.py` ports `lib/tells-protocol.ts` on the source's own tiles (a 512 px Mapterhorn tile at its zoom), as the protocol runs: the difference of the one-level and kLarge-level low-passes (lrm's half-pixel recentring, Float32 as the app keeps it), strict 3x3 extrema past the relief threshold, the strongest first, at most 2000, greedy suppression within half the tell size, then the blobness, plan convexity and Hessian vetoes on the low-pass ("coarse") or the tile's pixels ("fine"), pits on the flipped surface, and the half-maximum diameter on 8 rays. Holes (NaN) are the app's `paddedValid`. The vector form is a point layer for the view (the map's zoom, capped at z15 like the service's tiles), styled as the markers (`live/layers.py style_mounds`: the outline and pit colors, the measured diameter times the multiplier in ground metres).
 
 Against the service's `moundDetector` vector tiles (`test_live.py` section 2c, `qgis-plugin/mvt_reader.py` decodes them): Mont Blanc z12 (1524 points), z13 (893), z14 (223), z13 with both polarities, radius 16 and size 60 (1668), z13 with the fine veto and a blobness threshold (635): **every point at the same position with the same measures (100 %)**, 0.3 to 1.3 s a tile in numpy.
 

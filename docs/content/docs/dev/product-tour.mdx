@@ -114,7 +114,7 @@ Coachmark's spotlight cutout lets clicks reach the live control underneath — t
 
 The mitigation has two layers:
 
-- **Containment.** A press inside the current step's target element, or inside some other portaled popup it opened (`PORTAL_CONTENT_SELECTOR` — a Select or colour-picker listbox renders to `document.body`, a *sibling* of the target, not a descendant), counts as "interacting with the lesson".
+- **Containment.** A press inside the current step's target element, or inside some other portaled popup it opened (`PORTAL_CONTENT_SELECTOR` — a Select or color-picker listbox renders to `document.body`, a *sibling* of the target, not a descendant), counts as "interacting with the lesson".
 - **A time window.** `lastLiveInteractionAtRef` is kept warm by a passive capture-phase listener on `pointerdown`, `focusin` and `click`. A dismiss within 1500 ms of a press inside our territory is treated as part of that same interaction. This catches the cases containment cannot — picking a Select item closes the listbox first, so by the time the outside-press check runs there may be nothing left to match.
 
 <Callout>

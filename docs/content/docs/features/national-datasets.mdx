@@ -80,7 +80,7 @@ These countries do publish a national elevation product — often an excellent o
 
 <UnusableDatasetsTable />
 
-Two patterns dominate. **Auth at the data step**: Portugal and Sweden both publish modern, public STAC catalogs under CC BY 4.0 where the *index* is open and CORS-enabled but every raster byte sits behind OAuth2 or HTTP Basic. **Rendered, not raw**: the product is a hillshade or a hypsometric colour ramp, sometimes mislabelled as an elevation coverage.
+Two patterns dominate. **Auth at the data step**: Portugal and Sweden both publish modern, public STAC catalogs under CC BY 4.0 where the *index* is open and CORS-enabled but every raster byte sits behind OAuth2 or HTTP Basic. **Rendered, not raw**: the product is a hillshade or a hypsometric color ramp, sometimes mislabelled as an elevation coverage.
 
 Beyond the table, a long tail of countries publishes nothing retrievable at all. Across Central Asia, the Caucasus, the western Balkans, the Caribbean, Central America, the Middle East, South-East Asia and the Pacific, the national geoportal is typically a dead host, a single-page app with no service directory, or an ArcGIS estate exposing only rendered `MapServer` layers. Two small countries need no entry of their own: **Monaco** is inside France's IGN LiDAR coverage and **San Marino** inside Italy's TINITALY, so both already work through the sources above.
 
@@ -128,7 +128,7 @@ Surveying national mapping agencies worldwide turns up two consistent traps.
 
 **No agency anywhere publishes Terrarium tiles.** Only two national agencies publish a pre-rendered elevation tile pyramid at all (Japan's GSI and Mexico's INEGI), and both invented their own encoding — Mexico's is close enough to Terrain-RGB to be described with custom factors, Japan's is not, and Japan only loads because the Geological Survey of Japan re-serves GSI's tiles as genuine Terrain-RGB. Everything else serves raw rasters on demand.
 
-**`FORMAT=image/geotiff` on a WMS is usually a lie.** Germany's BKG, the UK Environment Agency, Portugal, Croatia, Ecuador and Canada's MRDEM all advertise it and all return an 8-bit RGB colour ramp — a picture of elevation, not elevation. The raw values live on **WCS** or on an **ArcGIS ImageServer**, never on the WMS. A related trap: ArcGIS estates usually expose `MapServer` (rendered) rather than `ImageServer` (raw), which is what rules out Slovakia, Colombia, Argentina and Australia.
+**`FORMAT=image/geotiff` on a WMS is usually a lie.** Germany's BKG, the UK Environment Agency, Portugal, Croatia, Ecuador and Canada's MRDEM all advertise it and all return an 8-bit RGB color ramp — a picture of elevation, not elevation. The raw values live on **WCS** or on an **ArcGIS ImageServer**, never on the WMS. A related trap: ArcGIS estates usually expose `MapServer` (rendered) rather than `ImageServer` (raw), which is what rules out Slovakia, Colombia, Argentina and Australia.
 
 **Some excellent data sits behind a login.** NASA's High Mountain Asia 8 m DEM (HMA_DEM8m_MOS, stereo from commercial imagery, 2014–2016, 26–46 N by 67–103 E) is the natural pre-event reference for the Himalaya, and Mapterhorn does not carry it (its Nepal coverage is Copernicus GLO-30). It needs an Earthdata account, which the app cannot supply, so it is not in the library; download it and pick it as a local COG, or serve it yourself.
 

@@ -36,7 +36,7 @@ A local 2D PCA of the window's gradient vectors, via the Förstner/Harris struct
 
 - **Blobness:** det(J)/trace(J) — large where the gradient direction varies in every direction (peaks, pits, saddles, knolls), near zero on a uniform slope or straight ridge/valley; conflates shape with steepness
 - **Eigenvalue Ratio:** λmin/λmax of the structure tensor (0–100%) — shape only, independent of steepness: 0% is a coherent linear feature (slope/ridge/valley), 100% is an isotropic blob (peak/pit/saddle)
-- **Dominant Orientation:** the direction a linear feature (ridge, valley, fault line, terrace edge) runs, as an axis 0–180° clockwise from north: a ridge running north-south reads 0° (or 180°, the same axis), east-west 90°, north-east to south-west 45°. On a plain slope it is the direction of the contour lines. The colour ramp wraps (0° and 180° share a colour); most meaningful where Eigenvalue Ratio is low
+- **Dominant Orientation:** the direction a linear feature (ridge, valley, fault line, terrace edge) runs, as an axis 0–180° clockwise from north: a ridge running north-south reads 0° (or 180°, the same axis), east-west 90°, north-east to south-west 45°. On a plain slope it is the direction of the contour lines. The color ramp wraps (0° and 180° share a color); most meaningful where Eigenvalue Ratio is low
 
 ### Relief Visualization
 
@@ -47,7 +47,7 @@ A local 2D PCA of the window's gradient vectors, via the Förstner/Harris struct
 
 ### Light
 
-- **Matcap (material capture):** looks up a surface colour from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light
+- **Matcap (material capture):** looks up a surface color from a pre-lit sphere image using the surface normal as UV coordinates — a stylized, art-directable shading that doesn't depend on a directional light
 - **Phong:** real ambient + diffuse + specular shading from a compass-fixed (or camera-relative) light direction — a physically-plausible 3D-relief render; the "Live" renderer is a per-fragment GPU shader draped on the terrain mesh, "Legacy" the raster-tile pipeline (still the globe-capable one) — see the Lighting Effects panel ([Phong 1975](https://doi.org/10.1145/360825.360839))
 - **Shadows:** hard cast shadows — darkens a pixel wherever nearby terrain rises above the sun's own angle in the sky, blocking direct light (a single-ray horizon-angle march toward the sun's azimuth); shares Phong/Hillshade's light direction; the "Live" renderer marches every pixel on the GPU over the whole view (real-time sun, no radius), "Tiles" the `shadow://` raster tiles within a search radius (exports, Iso-line, fallback)
 

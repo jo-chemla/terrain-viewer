@@ -67,9 +67,9 @@ From the [methodology](https://developers.google.com/earth-engine/timelapse/abou
 - **Clouds.** Landsat pixels are scored with `simpleCloudScore`, with a threshold adapted per scene and raised over bright surfaces such as dunes and salt flats; Sentinel-2 uses Cloud Score+.
 - **Normalisation.** Top-of-atmosphere reflectance is scaled to 8 bits (0.02 to 0.50, gamma 1.7), haze and scene-to-scene differences are removed against MODIS BRDF-adjusted composites, Landsat 7, 8 and 9 are pansharpened from their 15 m band, and the year is reduced with a median.
 - **Gaps.** Before 1999, where a year has no cloud-free observation, each pixel is interpolated linearly between the nearest valid years before and after, then real observations are laid on top. A reservoir filled or a forest cleared inside such a gap therefore appears as a gradual transition, not an event.
-- **Water.** Land and water are separated with Hansen's Global Forest Change mask and MODIS MOD44W; the ocean is drawn as a shaded NOAA ETOPO1 bathymetry in blue, inland lakes keep their colour.
+- **Water.** Land and water are separated with Hansen's Global Forest Change mask and MODIS MOD44W; the ocean is drawn as a shaded NOAA ETOPO1 bathymetry in blue, inland lakes keep their color.
 
-The result is made for the eye: colour-balanced, sharpened, consistent from year to year. The red, green and blue values are not radiometric measurements, and the 2015 switch to Sentinel-2 changes the pixel size mid-series.
+The result is made for the eye: color-balanced, sharpened, consistent from year to year. The red, green and blue values are not radiometric measurements, and the 2015 switch to Sentinel-2 changes the pixel size mid-series.
 
 ## What it is good for here
 

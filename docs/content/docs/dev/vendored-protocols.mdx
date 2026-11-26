@@ -27,11 +27,11 @@ Elevation archives are ordinary Terrain-RGB or Terrarium once unwrapped, so ever
 
 ### Worked example: a painting as PMTiles
 
-[impasto.dev](https://impasto.dev/almond-blossom) streams a condition-assessment scan of a painting as three PMTiles archives, and the library carries two of them as **ART - Impasto: Almond Blossom**, height and colour. What is in them, read from the archives' own headers and metadata:
+[impasto.dev](https://impasto.dev/almond-blossom) streams a condition-assessment scan of a painting as three PMTiles archives, and the library carries two of them as **ART - Impasto: Almond Blossom**, height and color. What is in them, read from the archives' own headers and metadata:
 
 | Archive | Tiles | Content |
 |---|---|---|
-| `rgb.pmtiles` | PNG, 1024 px, z0–5 | the colour scan, 32768 × 32768 px of a 24 cm painting |
+| `rgb.pmtiles` | PNG, 1024 px, z0–5 | the color scan, 32768 × 32768 px of a 24 cm painting |
 | `height.pmtiles` | PNG, 1024 px, z0–5 | the height scan, `custom` encoding `R*65536 + G*256 + B`, integers of 0.25 µm |
 | `r8.v2.pmtiles` | JPEG, 512 px, z0–5 | their pre-rendered 8-bit shaded relief |
 

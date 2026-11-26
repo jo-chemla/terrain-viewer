@@ -13,7 +13,7 @@ They sit in the basemap **Library**, as overlays that stack over the active base
 | Overlay | Product | Variable and style | Grid |
 |---|---|---|---|
 | Sea Surface Temperature | [OSTIA daily analysis](https://data.marine.copernicus.eu/product/SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001/description) | `analysed_sst`, thermal | 0.05°, about 5 km |
-| Chlorophyll | [Ocean colour, Sentinel-3 OLCI monthly](https://data.marine.copernicus.eu/product/OCEANCOLOUR_GLO_BGC_L4_NRT_009_102/description) | `CHL`, algae on a log scale | 300 m |
+| Chlorophyll | [Ocean color, Sentinel-3 OLCI monthly](https://data.marine.copernicus.eu/product/OCEANCOLOUR_GLO_BGC_L4_NRT_009_102/description) | `CHL`, algae on a log scale | 300 m |
 | Surface Currents | [Global physics forecast](https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_PHY_001_024/description) | `sea_water_velocity`, speed with arrows | 1/12°, about 8 km |
 | Sea Ice Concentration | [Global physics forecast](https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_PHY_001_024/description) | `siconc`, ice | 1/12°, about 8 km |
 
@@ -46,7 +46,7 @@ https://wmts.marine.copernicus.eu/teroWmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=
   &LAYER=<PRODUCT/dataset/variable>&STYLE=<style>
 ```
 
-**Styles** are a colour map and options, joined by commas: `cmap:thermal`, `cmap:algae,logScale`. Each layer lists its own in the capabilities, a default map chosen for the variable plus its log-scale twin. Vector variables such as currents add `vectorStyle:solid`, `vectorStyle:vector` or `vectorStyle:solidAndVector` for colour, arrows or both.
+**Styles** are a color map and options, joined by commas: `cmap:thermal`, `cmap:algae,logScale`. Each layer lists its own in the capabilities, a default map chosen for the variable plus its log-scale twin. Vector variables such as currents add `vectorStyle:solid`, `vectorStyle:vector` or `vectorStyle:solidAndVector` for color, arrows or both.
 
 **Dimensions.** Every layer has a `time` dimension, given as a start, an end and a step, for instance one day from 2022-06-01 to nine days ahead for the physics forecast. Layers with depth add `elevation`, in metres below the surface as negative numbers. Both are plain query parameters, `&time=2026-10-28T00:00:00Z&elevation=-100`, and both fall back to a default when left out: the latest step and the level nearest the surface.
 

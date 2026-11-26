@@ -33,7 +33,7 @@ Bottom of the stack first — later entries draw **on top**:
 
 | # | Slot | What lands there |
 |---|---|---|
-| 1 | `BACKGROUND` | the flat background colour |
+| 1 | `BACKGROUND` | the flat background color |
 | 2 | `BASEMAP` | the raster basemap / historical imagery |
 | 3 | `OVERLAYS` | overlay-role sources stacked on the basemap |
 | 4 | `COLOR_RELIEF` | hypsometric tint |
@@ -49,9 +49,9 @@ Bottom of the stack first — later entries draw **on top**:
 The reasoning behind the grouping:
 
 - **Imagery at the bottom.** Everything else is an interpretation *of* the terrain and should be able to shade what is underneath it.
-- **Hypsometric tint below the analysis modes**, because it is a colour wash that the modes' own colour ramps need to sit over rather than under.
+- **Hypsometric tint below the analysis modes**, because it is a color wash that the modes' own color ramps need to sit over rather than under.
 - **Analysis modes as one block**, all mutually exclusive in practice, so their relative order rarely matters — but fixing it means a screenshot is reproducible when two *are* on together.
-- **Shading above colour** (hillshade, matcap, Phong, shadows). These are multiply-style luminance layers; their whole job is to darken whatever colour has accumulated below. Put them underneath and they get painted over.
+- **Shading above color** (hillshade, matcap, Phong, shadows). These are multiply-style luminance layers; their whole job is to darken whatever color has accumulated below. Put them underneath and they get painted over.
 - **Line work above shading** (contours, graticules). A contour line has to stay readable over the darkest hillshade.
 - **Tells and the plane slicer last**, because they are analytical call-outs — you want them visible over everything, not blended into it.
 

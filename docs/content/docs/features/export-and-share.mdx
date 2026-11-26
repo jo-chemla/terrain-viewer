@@ -28,7 +28,7 @@ The **Max Download Resolution (px)** field, in the **Export settings** fold belo
 
 ## Layers export
 
-![The Export layers dialog: name, Screen or Custom size resolution, values as raw or coloured, the output CRS, images as GeoTIFF, PNG or JPEG, files separate or in one zip, then the Visible and Not visible trees with the DEM, the basemap, hillshade and hypso](/screenshots/export-share/export-layers-dialog.jpg)
+![The Export layers dialog: name, Screen or Custom size resolution, values as raw or colored, the output CRS, images as GeoTIFF, PNG or JPEG, files separate or in one zip, then the Visible and Not visible trees with the DEM, the basemap, hillshade and hypso](/screenshots/export-share/export-layers-dialog.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">The Export layers dialog — one file per line, the Visible branch ticked: the snapshot, the DEM, hillshade and hypso, slope, curvature and LRM, and the rendered layers</p>
 
@@ -43,9 +43,9 @@ The **Max Download Resolution (px)** field, in the **Export settings** fold belo
 | Vector | Contour lines, mound candidates | GeoJSON |
 | Terrain Analysis, Relief Visualization | Each mode's raw values: slope, aspect and orientation in degrees, LRM, TPI and TRI in metres, sky-view factor in percent | float32 GeoTIFF, NaN = nodata |
 | Lighting Effects | Matcap, Phong, hard shadows, from their own tiles | RGBA |
-| Rendered layers | The modes as coloured on screen, basemap overlays | RGBA |
+| Rendered layers | The modes as colored on screen, basemap overlays | RGBA |
 
-Every raster is in Web Mercator (EPSG:3857), the grid of the tiles and of the map itself, so the exports line up with each other and with the snapshot without resampling. A colour-mapped mode is written next to its raw values as `…_colormapped_<date>.tif`.
+Every raster is in Web Mercator (EPSG:3857), the grid of the tiles and of the map itself, so the exports line up with each other and with the snapshot without resampling. A color-mapped mode is written next to its raw values as `…_colormapped_<date>.tif`.
 
 Under **Not visible**, the modes that are switched off can be exported too, even when their whole section is off: their tiles are computed for the export. Hidden rendered layers are shown for the moment of their capture.
 
@@ -55,9 +55,9 @@ Under the resolution, one line says what the batch will read: the terrain tiles 
 
 **Lighting Effects** (Matcap, Phong, hard shadows) export from their own tiles as RGBA on the same EPSG:3857 grid, at the export size and in any view, including while the live renderer draws them on screen. They use the light direction as set; the live renderer's "light follows the camera" option does not apply.
 
-**Values as.** *Raw values* is the float32 GeoTIFF. *Coloured* runs the values through the mode's own colour ramp, with the bounds, symmetric and inverted settings you set, into an RGBA image on the same grid. *Both* writes the two. Curvature and shape index are stored ×1000 in their tiles for precision; the export divides that back out.
+**Values as.** *Raw values* is the float32 GeoTIFF. *Colored* runs the values through the mode's own color ramp, with the bounds, symmetric and inverted settings you set, into an RGBA image on the same grid. *Both* writes the two. Curvature and shape index are stored ×1000 in their tiles for precision; the export divides that back out.
 
-**Images as.** RGBA outputs, the snapshot, rendered layers and coloured values, can be a GeoTIFF, or a PNG or JPEG with a world file (`.pgw`/`.jgw`), a `.prj`, and a `.aux.xml` from which GDAL and QGIS read the CRS. JPEG has no transparency, so nodata becomes white. Raw values and the DEM are always float32 GeoTIFF.
+**Images as.** RGBA outputs, the snapshot, rendered layers and colored values, can be a GeoTIFF, or a PNG or JPEG with a world file (`.pgw`/`.jgw`), a `.prj`, and a `.aux.xml` from which GDAL and QGIS read the CRS. JPEG has no transparency, so nodata becomes white. Raw values and the DEM are always float32 GeoTIFF.
 
 **Files as.** *Separate files* is one download per file. *One .zip* writes the whole run as one `.zip` named after the export, world files and sidecars included. A cancelled run writes nothing. The choice is remembered.
 
