@@ -6,7 +6,8 @@ import { useAtomValue } from "jotai"
 import { LAYER_SLOTS } from "./MapLayers"
 import { customVectorSourcesAtom, vectorOverlaySharedAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
 import type { VectorSourceEntry } from "@/lib/source-schema"
-import { findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, vectorParts, vectorSourceSpec, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
+import { appFileUrl, findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, vectorParts, vectorSourceSpec, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
+import { VectorFeaturePopup } from "./VectorFeaturePopup"
 
 /**
  * Vector overlays of one view: the vector sources (the Library's building
@@ -17,6 +18,8 @@ import { findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, v
  *
  * MapLibre drapes fill and line layers on the terrain itself and stands the
  * extrusions on it; nothing here knows whether terrain is on.
+ *
+ * A click on a feature opens its card (VectorFeaturePopup), per view.
  */
 export const VectorOverlayLayers = memo(({ ids, opacity = 1 }: { ids: string[]; opacity?: number }) => {
   const styles = useAtomValue(vectorOverlayStylesAtom)
@@ -36,6 +39,7 @@ export const VectorOverlayLayers = memo(({ ids, opacity = 1 }: { ids: string[]; 
           <TileOverlay key={`${part.id}|${part.url}|${part.type}`} entry={part} style={scaled} />
         ))
       })}
+      <VectorFeaturePopup ids={ids} />
     </>
   )
 })
@@ -44,14 +48,41 @@ VectorOverlayLayers.displayName = "VectorOverlayLayers"
 /** The entry's address: at once when it is fixed, after the resolver's
  *  answer when it rotates (Overture's release). */
 function useResolvedUrl(entry: VectorSourceEntry): string | null {
-  const [url, setUrl] = useState<string | null>(needsResolving(entry) ? null : entry.url)
+  // A file the app serves itself ("/vector/…") sits under the site's base path.
+  const fixed = appFileUrl(entry.url, import.meta.env.BASE_URL)
+  const [url, setUrl] = useState<string | null>(needsResolving(entry) ? null : fixed)
   useEffect(() => {
-    if (!needsResolving(entry)) { setUrl(entry.url); return }
+    if (!needsResolving(entry)) { setUrl(fixed); return }
     let cancelled = false
     resolveVectorUrl(entry).then((u) => { if (!cancelled) setUrl(u) })
     return () => { cancelled = true }
-  }, [entry])
+  }, [entry, fixed])
   return url
+}
+
+// A KML or GPX source is fetched and converted to GeoJSON here (the drawing
+// tools' reader, lib/remote-vector.ts), once per address and session.
+const converted = new Map<string, Promise<GeoJSON.FeatureCollection>>()
+function useConvertedData(entry: VectorSourceEntry, url: string | null): GeoJSON.FeatureCollection | null | undefined {
+  const [data, setData] = useState<GeoJSON.FeatureCollection | null>(null)
+  const format = entry.type === "geojson" ? entry.format : undefined
+  useEffect(() => {
+    if (!format || !url) { setData(null); return }
+    let cancelled = false
+    let p = converted.get(url)
+    if (!p) {
+      p = import("@/lib/remote-vector").then(async ({ parseVector }) => {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return parseVector(await res.arrayBuffer(), format) as Promise<GeoJSON.FeatureCollection>
+      }).catch((e) => { converted.delete(url); throw e })
+      converted.set(url, p)
+    }
+    p.then((fc) => { if (!cancelled) setData(fc) }).catch((e) => console.warn(`[vector overlay] ${entry.id}: ${e instanceof Error ? e.message : e}`))
+    return () => { cancelled = true }
+  }, [format, url, entry.id])
+  // undefined: nothing to convert, the address is the data.
+  return format ? data : undefined
 }
 
 // <Layer> typed per layer type; the specs of lib/vector-sources.ts are plain
@@ -61,7 +92,8 @@ const SpecLayer = Layer as unknown as React.ComponentType<Record<string, unknown
 const TileOverlay: React.FC<{ entry: VectorSourceEntry; style: VectorOverlayStyle }> = ({ entry, style }) => {
   const url = useResolvedUrl(entry)
   const sourceId = `vector-overlay-${entry.id}`
-  const source = useMemo(() => (url ? vectorSourceSpec(entry, url) : null), [entry, url])
+  const data = useConvertedData(entry, url)
+  const source = useMemo(() => (!url || data === null ? null : data ? { ...vectorSourceSpec(entry, url), data } : vectorSourceSpec(entry, url)), [entry, url, data])
   const layers = useMemo(() => vectorLayerSpecs(entry, style, sourceId), [entry, style, sourceId])
   if (!source) return null
   // Keyed on the address: react-map-gl does not move a mounted source to

@@ -28,7 +28,7 @@ import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
   appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
-  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, modeColorRampsAtom, addTerrainSourceOpenAtom, dataLayersModalOpenAtom, timelineWindowRequestAtom, shadowLiveUnsupportedAtom } from "@/lib/settings-atoms"
+  type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, vectorLibraryOpenAtom, modeColorRampsAtom, addTerrainSourceOpenAtom, dataLayersModalOpenAtom, timelineWindowRequestAtom, shadowLiveUnsupportedAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
 import { withSlowTileStats, resetSlowTileProgress } from "@/lib/tile-timing-stats"
@@ -2219,13 +2219,14 @@ export function TerrainViewer() {
       }).catch((e) => console.error(`[bookmarks] bookmarksUrl ${bookmarksUrl}:`, e))
     }
 
-    // ?openLibrary=terrain|basemap - opens that Library modal (the curated
+    // ?openLibrary=terrain|basemap|vector - opens that Library modal (the curated
     // list of national and global datasets) on arrival. Deliberately one or
     // the other: they are both dialogs, and two stacked leaves the one
     // underneath unreachable behind the other's backdrop.
     const openLibrary = searchParams.get("openLibrary")
     if (openLibrary === "terrain") setTerrainLibraryOpen(true)
     else if (openLibrary === "basemap") setBasemapLibraryOpen(true)
+    else if (openLibrary === "vector") setVectorLibraryOpen(true)
 
     // ?openDialog=addTerrain|dataLayers - the terrain Add dataset dialog
     // (bring your own data) or the Data layers gallery of every visualization
@@ -2413,6 +2414,7 @@ export function TerrainViewer() {
   const setBookmarks = useSetAtom(bookmarksAtom)
   const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
   const setBasemapLibraryOpen = useSetAtom(basemapLibraryOpenAtom)
+  const setVectorLibraryOpen = useSetAtom(vectorLibraryOpenAtom)
   const setAddTerrainSourceOpen = useSetAtom(addTerrainSourceOpenAtom)
   const setDataLayersModalOpen = useSetAtom(dataLayersModalOpenAtom)
   const requestTimelineWindow = useSetAtom(timelineWindowRequestAtom)

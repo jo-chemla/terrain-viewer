@@ -1,10 +1,10 @@
 // node scripts/test-lib.mjs lib/vector-source-detect.test.ts   (offline)
 import test from "node:test"
 import assert from "node:assert/strict"
-import { detectVectorSource, heightFieldsOf, vectorSourceId, type PmtilesProbe } from "./vector-source-detect"
+import { detectVectorSource, heightFieldsOf, vectorSourceId, xmlVectorFormat, type PmtilesProbe, type XmlVectorParser } from "./vector-source-detect"
 import { vectorLayerSpecs, vectorSourceSpec, vectorStyleOf, findVectorSource, allVectorSources, VECTOR_LIBRARY } from "./vector-sources"
 
-const json = (body: unknown, ok = true, status = 200) => (async () => ({ ok, status, json: async () => body })) as unknown as typeof fetch
+const json = (body: unknown, ok = true, status = 200) => (async () => ({ ok, status, json: async () => body, text: async () => (typeof body === "string" ? body : JSON.stringify(body)) })) as unknown as typeof fetch
 const header = { tileType: 1, minZoom: 2, maxZoom: 13, minLon: 2, minLat: 44, maxLon: 6, maxLat: 47 }
 const archive = (tileType = 1, metadata: unknown = { name: "Parcels", vector_layers: [{ id: "parcel", fields: { height: "Number", use: "String" } }, { id: "road", fields: {} }], attribution: '<a href="x">Ville</a>' }): PmtilesProbe =>
   async () => ({ header: { ...header, tileType }, metadata })
@@ -85,4 +85,31 @@ test("a GeoJSON file: read whole, capped at 10 MB, heights from its properties",
   assert.match(d.label, /1 feature/)
   const big = (async () => ({ ok: true, status: 200, headers: { get: () => "25000000" }, json: async () => fc })) as unknown as typeof fetch
   await assert.rejects(detectVectorSource("https://example.com/big.geojson", { fetcher: big }), /capped at 10 MB/)
+})
+
+test("a KML or a GPX file: recognized by its extension or its first tag, converted, saved as GeoJSON with its format", async () => {
+  const kml = '<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><name>A</name></Placemark></Document></kml>'
+  assert.equal(xmlVectorFormat("https://example.com/sites.kml", kml), "kml")
+  assert.equal(xmlVectorFormat("https://example.com/download?id=3", kml), "kml")
+  assert.equal(xmlVectorFormat("https://example.com/track.gpx", '<gpx version="1.1"></gpx>'), "gpx")
+  assert.equal(xmlVectorFormat("https://example.com/api?f=1", ' <?xml version="1.0"?>\n<gpx version="1.1"></gpx>'), "gpx")
+  assert.equal(xmlVectorFormat("https://example.com/x.kml", '{"type":"FeatureCollection","features":[]}'), null, "JSON behind a .kml name is JSON")
+  assert.equal(xmlVectorFormat("https://example.com/page", "<html><body></body></html>"), null)
+  const seen: string[] = []
+  const xml: XmlVectorParser = async (text, format) => { seen.push(`${format}:${text.length}`); return { features: [{ properties: { name: "A", height: 12 } }, { properties: { name: "B" } }] } }
+  const d = await detectVectorSource("https://example.com/data/sites.kml", { fetcher: json(kml), xml })
+  assert.deepEqual(seen, [`kml:${kml.length}`])
+  assert.equal(d.entry.type, "geojson")
+  assert.equal(d.entry.format, "kml")
+  assert.equal(d.entry.url, "https://example.com/data/sites.kml")
+  assert.equal(d.entry.name, "sites (example.com)")
+  assert.equal(d.entry.heightField, "height")
+  assert.match(d.label, /KML file, 2 features/)
+  assert.equal(vectorSourceId("https://example.com/data/sites.kml"), "vec-example-com-data-sites")
+  // Drawn as any GeoJSON source: no source-layer.
+  assert.equal(vectorLayerSpecs(d.entry, vectorStyleOf(d.entry), "p")[0]["source-layer"], undefined)
+  await assert.rejects(detectVectorSource("https://example.com/empty.gpx", { fetcher: json("<gpx></gpx>"), xml: async () => ({ features: [] }) }), /holds no feature/)
+  await assert.rejects(detectVectorSource("https://example.com/bad.kml", { fetcher: json("<kml>"), xml: async () => { throw new Error("not valid KML (XML parse error)") } }), /could not be read/)
+  const big = (async () => ({ ok: true, status: 200, headers: { get: () => "25000000" }, text: async () => kml })) as unknown as typeof fetch
+  await assert.rejects(detectVectorSource("https://example.com/big.kml", { fetcher: big, xml }), /capped at 10 MB/)
 })

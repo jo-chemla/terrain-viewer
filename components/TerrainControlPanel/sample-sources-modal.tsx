@@ -1,9 +1,10 @@
+import type React from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, ArrowRight, Waves, ExternalLink, Search, Library, Layers2, Mountain, Map as MapIcon, type LucideIcon } from "lucide-react"
+import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, ArrowRight, Waves, ExternalLink, Search, Library, Layers2, Mountain, Shapes, Map as MapIcon, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { disabledStacPresetsAtom, savedStacCatalogsAtom, libraryQueryAtom, terrainLibraryOpenAtom, basemapLibraryOpenAtom, libraryDialogHostAtom, libraryMountedAtom, type LibraryStacLink, type LibraryBrowseEntry } from "@/lib/settings-atoms"
+import { disabledStacPresetsAtom, savedStacCatalogsAtom, libraryQueryAtom, terrainLibraryOpenAtom, basemapLibraryOpenAtom, vectorLibraryOpenAtom, libraryDialogHostAtom, libraryMountedAtom, type LibraryStacLink, type LibraryBrowseEntry } from "@/lib/settings-atoms"
 import { sectionOpenAtom, macroGroupOpenAtom } from "./TerrainControlPanel"
 import customSources from "@/lib/custom-sources.json"
 import { Input } from "@/components/ui/input"
@@ -12,6 +13,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { CopyModalLinkButton } from "./controls-components"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { searchLibrary } from "@/lib/library-search"
+import { VECTOR_LIBRARY, vectorSearchText } from "@/lib/vector-sources"
 import { libraryGroup, usedLibraryGroups } from "@/lib/library-groups"
 import { compareWithMapterhorn, resolutionOf, formatRes, type MapterhornComparison, type MapterhornVerdict, type ResolutionMetric } from "@/lib/mapterhorn-compare"
 
@@ -83,9 +85,65 @@ export function libraryMatchCount(kind: LibraryKind, query: string): number {
  *  in the other library says so with a button, not only a count on the tab. */
 const FEW_MATCHES = 3
 
-const LIBRARY_TAB: Record<LibraryKind, { label: string; plural: string; button: string; icon: LucideIcon }> = {
+/** The dialog's tabs: the two tile libraries and the vector one, whose list
+ *  is vector-library-panel.tsx. */
+export type LibraryTabKey = LibraryKind | "vector"
+
+const LIBRARY_TAB: Record<LibraryTabKey, { label: string; plural: string; button: string; icon: LucideIcon }> = {
   terrain: { label: "Terrain", plural: "terrain datasets", button: "Terrain", icon: Mountain },
   basemap: { label: "Basemap", plural: "basemaps or overlays", button: "Basemaps", icon: MapIcon },
+  vector: { label: "Vector", plural: "vector sources", button: "Vector", icon: Shapes },
+}
+
+/** How many vector sources a filter keeps (the Vector tab's count). */
+export function vectorLibraryMatchCount(query: string): number {
+  return searchLibrary(VECTOR_LIBRARY, vectorSearchText, query.trim().toLowerCase()).length
+}
+
+/** A hook: go to a tab of the Library dialog. One library is open at a time;
+ *  a tile library's list lives in its sidebar section, which is unfolded so
+ *  the list is mounted. */
+export function useLibraryTabSwitch(): (to: LibraryTabKey) => void {
+  const setTerrain = useSetAtom(terrainLibraryOpenAtom)
+  const setBasemap = useSetAtom(basemapLibraryOpenAtom)
+  const setVector = useSetAtom(vectorLibraryOpenAtom)
+  const setSectionOpen = useSetAtom(sectionOpenAtom)
+  const setMacroGroupOpen = useSetAtom(macroGroupOpenAtom)
+  return (to) => {
+    if (to !== "vector") {
+      setMacroGroupOpen((p) => ({ ...p, Sources: true }))
+      setSectionOpen((p) => ({ ...p, [to === "terrain" ? "terrainSource" : "rasterBasemap"]: true }))
+    }
+    setTerrain(to === "terrain")
+    setBasemap(to === "basemap")
+    setVector(to === "vector")
+  }
+}
+
+/** The tab row of the Library dialog, the same in its three lists. `count`
+ *  gives a tab's number of matches while a filter is typed, else null. */
+export function LibraryTabBar({ active, count, terrainTab = true }: { active: LibraryTabKey; count: (tab: LibraryTabKey) => number | null; terrainTab?: boolean }) {
+  const switchTab = useLibraryTabSwitch()
+  const tabs = (["terrain", "basemap", "vector"] as const).filter((k) => terrainTab || k !== "terrain")
+  return (
+    <div role="tablist" aria-label="Library" className="flex items-end gap-1 border-b flex-1 min-w-0 self-stretch">
+      {tabs.map((k) => {
+        const t = LIBRARY_TAB[k]
+        const on = k === active
+        const n = count(k)
+        return (
+          <button key={k} role="tab" aria-selected={on} type="button"
+            onClick={() => { if (!on) switchTab(k) }}
+            title={n !== null ? `${n} ${n === 1 ? "match" : "matches"} in the ${t.label} library` : `The ${t.label} library`}
+            className={`flex items-center gap-1.5 min-w-0 px-3.5 py-1.5 -mb-px border-b-2 text-[15px] cursor-pointer ${on ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <t.icon className="h-[18px] w-[18px] shrink-0" />
+            <span className="truncate">{t.label}</span>
+            {n !== null && <span className="text-xs font-normal text-muted-foreground tabular-nums">{n}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 type SectionKey = "national" | "global" | "regional" | "city"
@@ -189,12 +247,19 @@ function kindOf(name: string): { label: string; title: string } | null {
  * owns its list (its Add dialog, its STAC hand-off, its fallbacks) and
  * portals it into this box, so switching between the Terrain and Basemap
  * tabs swaps the content in place instead of closing one dialog and opening
- * another. Open while either library's atom is; closing clears both.
+ * another. Open while any library's atom is; closing clears them all.
+ * The Vector tab's list needs no section: it is the host's own child
+ * (`children`, shown while the vector library is the open one).
  * Mounted once by TerrainControlPanel.
  */
-export function LibraryDialogHost() {
+export function LibraryDialogHost({ children }: { children?: React.ReactNode }) {
   const [terrainOpen, setTerrainOpen] = useAtom(terrainLibraryOpenAtom)
   const [basemapOpen, setBasemapOpen] = useAtom(basemapLibraryOpenAtom)
+  const [vectorOpen, setVectorOpen] = useAtom(vectorLibraryOpenAtom)
+  // The vector list stays while the dialog fades out after a close.
+  const lastVector = useRef(false)
+  if (terrainOpen || basemapOpen) lastVector.current = false
+  else if (vectorOpen) lastVector.current = true
   const setHost = useSetAtom(libraryDialogHostAtom)
   // The list lives in its section, so opening a library from anywhere
   // (?openLibrary=, the tour, a tab) unfolds that section to mount it.
@@ -207,11 +272,12 @@ export function LibraryDialogHost() {
     setSectionOpen((p) => (p[key] ? p : { ...p, [key]: true }))
   }, [terrainOpen, basemapOpen, setSectionOpen, setMacroGroupOpen])
   return (
-    <Dialog open={terrainOpen || basemapOpen} onOpenChange={(o) => { if (!o) { setTerrainOpen(false); setBasemapOpen(false) } }}>
+    <Dialog open={terrainOpen || basemapOpen || vectorOpen} onOpenChange={(o) => { if (!o) { setTerrainOpen(false); setBasemapOpen(false); setVectorOpen(false) } }}>
       <DialogContent id="tour-source-library" aria-labelledby="library-dialog-title" aria-describedby="library-dialog-description" className="sm:max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
         {/* display: contents, so the portaled header, toolbar and list are
             the dialog's own flex rows (the list scrolls, the rest stays). */}
         <div ref={setHost} className="contents" />
+        {lastVector.current && children}
       </DialogContent>
     </Dialog>
   )
@@ -271,18 +337,11 @@ export function SampleSourcesModal<T extends SampleLike>({
   // mounted; the search carries over (libraryQueryAtom).
   const kind: LibraryKind = stacTarget === "basemap" ? "basemap" : "terrain"
   const otherKind: LibraryKind = kind === "terrain" ? "basemap" : "terrain"
-  const setTerrainLibraryOpen = useSetAtom(terrainLibraryOpenAtom)
-  const setBasemapLibraryOpen = useSetAtom(basemapLibraryOpenAtom)
-  const setSectionOpen = useSetAtom(sectionOpenAtom)
-  const setMacroGroupOpen = useSetAtom(macroGroupOpenAtom)
-  const showTabs = !!stacTarget && terrainTabAvailable
-  const switchTab = (to: LibraryKind) => {
-    if (to === kind) return
-    setMacroGroupOpen((p) => ({ ...p, Sources: true }))
-    setSectionOpen((p) => ({ ...p, [to === "terrain" ? "terrainSource" : "rasterBasemap"]: true }))
-    setTerrainLibraryOpen(to === "terrain")
-    setBasemapLibraryOpen(to === "basemap")
-  }
+  // The tabs: Terrain (where the sidebar has that section), Basemap, Vector.
+  const showTabs = !!stacTarget
+  const switchLibrary = useLibraryTabSwitch()
+  const switchTab = (to: LibraryKind) => { if (to !== kind) switchLibrary(to) }
+  const vectorOpen = useAtomValue(vectorLibraryOpenAtom)
   // Where this list shows: in the shared dialog, while this library is the
   // open one, and still after a close (the dialog fades out with its content)
   // or while the other library's list is not mounted yet (a tab switch to a
@@ -297,7 +356,7 @@ export function SampleSourcesModal<T extends SampleLike>({
   const shownRef = useRef(false)
   if (!host) shownRef.current = false
   if (open) shownRef.current = true
-  else if (otherOpen && mounted[otherKind]) shownRef.current = false
+  else if (vectorOpen || (otherOpen && mounted[otherKind])) shownRef.current = false
   // Which catalogs the Add dialog's own picker offers. Stored as the
   // exclusions (see disabledStacPresetsAtom) so a catalog added in a later
   // release shows up rather than being silently absent.
@@ -425,7 +484,8 @@ export function SampleSourcesModal<T extends SampleLike>({
   )
 
   const matchCount = useMemo(() => Object.values(grouped).reduce((n, secs) => n + Object.values(secs).reduce((m, rows) => m + rows.length, 0), 0), [grouped])
-  const otherCount = useMemo(() => (showTabs && q ? libraryMatchCount(otherKind, q) : 0), [showTabs, q, otherKind])
+  const otherCount = useMemo(() => (showTabs && terrainTabAvailable && q ? libraryMatchCount(otherKind, q) : 0), [showTabs, terrainTabAvailable, q, otherKind])
+  const vectorCount = useMemo(() => (showTabs && q ? vectorLibraryMatchCount(q) : 0), [showTabs, q])
 
   const loadedCount = samples.filter((s) => presentIds.has(s.id)).length
 
@@ -606,23 +666,8 @@ export function SampleSourcesModal<T extends SampleLike>({
             The resolution toggle (terrain) stays on the row below. */}
         <div className="flex flex-wrap items-end gap-x-4 gap-y-2 min-w-0">
           {showTabs && (
-            <div role="tablist" aria-label="Library" className="flex items-end gap-1 border-b flex-1 min-w-0 self-stretch">
-              {(["terrain", "basemap"] as const).map((k) => {
-                const t = LIBRARY_TAB[k]
-                const active = k === kind
-                const n = q ? (active ? matchCount : otherCount) : null
-                return (
-                  <button key={k} role="tab" aria-selected={active} type="button"
-                    onClick={() => switchTab(k)}
-                    title={n !== null ? `${n} ${n === 1 ? "match" : "matches"} in the ${t.label} library` : `The ${t.label} library`}
-                    className={`flex items-center gap-1.5 min-w-0 px-3.5 py-1.5 -mb-px border-b-2 text-[15px] cursor-pointer ${active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                    <t.icon className="h-[18px] w-[18px] shrink-0" />
-                    <span className="truncate">{t.label}</span>
-                    {n !== null && <span className="text-xs font-normal text-muted-foreground tabular-nums">{n}</span>}
-                  </button>
-                )
-              })}
-            </div>
+            <LibraryTabBar active={kind} terrainTab={terrainTabAvailable}
+              count={(k) => (!q ? null : k === kind ? matchCount : k === "vector" ? vectorCount : otherCount)} />
           )}
           <div className={`relative min-w-0 w-full sm:w-64 ${showTabs ? "sm:ml-auto" : ""}`}>
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

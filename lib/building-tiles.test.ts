@@ -15,7 +15,7 @@ import { join } from "node:path"
 import Pbf from "pbf"
 import { VectorTile } from "@mapbox/vector-tile"
 import type { VectorSourceEntry } from "./source-schema"
-import { DEFAULT_HEIGHT_M, FLOOR_M, featureHeight, findVectorSource, heightExpression, propertyNumber } from "./vector-sources"
+import { DEFAULT_HEIGHT_M, FLOOR_M, VECTOR_LIBRARY, featureHeight, findVectorSource, heightExpression, propertyNumber } from "./vector-sources"
 import {
   DEFAULT_BUILDING_SOURCE_ID, abortBuildingTilesExcept, buildingPolygons, buildingSourceEntry, cachedBuildingTile, decodeBuildingTile,
   isBuildingSource, openBuildingSource, requestBuildingTile, resetBuildingTiles, type BuildingTile,
@@ -101,6 +101,22 @@ test("the sources with a height can cast shadows, the default is OpenFreeMap", (
   for (const id of [undefined, "", "gone", "vida-open-buildings"]) assert.equal(buildingSourceEntry(id).id, osm.id, String(id))
   const mine = { id: "vec-mine", name: "Mine", kind: "vector", type: "mvt", url: "https://example.org/{z}/{x}/{y}.pbf", sourceLayers: ["b"], heightField: "h", section: "custom" } as VectorSourceEntry
   assert.equal(buildingSourceEntry("vec-mine", [mine]), mine)
+})
+
+test("only sources with heights on polygons are listed: a points archive is read through its shapes companion, a points-only source is left out", () => {
+  const listed = VECTOR_LIBRARY.filter(isBuildingSource).map((s) => s.id)
+  assert.deepEqual(listed, ["overture-buildings", "osm-buildings-openfreemap", "hwai-heritage-osm", "hwai-heritage-osm-condition"])
+  // Heritage Watch's OSM export: points in the entry's archive, footprints
+  // (with height and levels) in its companion, which is what gets read.
+  const heritage = buildingSourceEntry("hwai-heritage-osm")
+  assert.equal(heritage.id, "hwai-heritage-osm")
+  assert.match(heritage.url, /osm-heritage-planet-shapes\.pmtiles$/)
+  assert.deepEqual(heritage.sourceLayers, ["shapes"])
+  assert.equal(heritage.heightField, "height")
+  for (const id of ["hwai-heritage-wikidata", "unesco-world-heritage", "hwai-heritage-inventories", "overture-land-use"]) assert.ok(!isBuildingSource(findVectorSource(id)), id)
+  const points = { id: "vec-pts", name: "Points", kind: "vector", type: "pmtiles", url: "https://example.org/p.pmtiles", sourceLayers: ["p"], geometries: ["point"], heightField: "height", section: "custom" } as VectorSourceEntry
+  assert.ok(!isBuildingSource(points), "a height on points casts no shadow")
+  assert.equal(buildingSourceEntry("vec-pts", [points]).id, osm.id)
 })
 
 // ── Height rules ────────────────────────────────────────────────────────────

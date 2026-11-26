@@ -28,7 +28,7 @@
 import Pbf from "pbf"
 import { VectorTile } from "@mapbox/vector-tile"
 import type { VectorSourceEntry } from "./source-schema"
-import { DEFAULT_HEIGHT_M, featureHeight, findVectorSource, propertyNumber, resolveVectorUrl } from "./vector-sources"
+import { DEFAULT_HEIGHT_M, featureHeight, findVectorSource, propertyNumber, resolveVectorUrl, vectorParts } from "./vector-sources"
 import { pmtilesReader } from "./pmtiles-readers"
 
 /** The deepest zoom tiles are read at (and the zoom of both built-in sources). */
@@ -42,16 +42,36 @@ const CACHE_TILES = 200
 // several megabytes, 200 of them would not fit.
 const CACHE_BYTES = 256 * 1024 * 1024
 
-/** The vector sources the shadows can read: tiles with a height field. */
+const holdsPolygons = (e: VectorSourceEntry) => e.type !== "style" && e.type !== "geojson" && !!e.sourceLayers?.length && (e.geometries ?? ["polygon"]).includes("polygon")
+
+/** What the shadows read of an entry: its own tiles when they hold polygons,
+ *  else its first companion archive that does (a dataset published as points
+ *  and, apart, shapes: Heritage Watch's OpenStreetMap export, whose heights
+ *  are on the shapes), under the entry's id. Undefined for an entry with no
+ *  height field or with points and lines only. */
+export function buildingPart(entry: VectorSourceEntry | undefined): VectorSourceEntry | undefined {
+  if (!entry || !entry.heightField) return undefined
+  if (holdsPolygons(entry)) return entry
+  // One object per entry: the shadow layer keys its work on its identity.
+  if (!companionParts.has(entry)) {
+    const part = vectorParts(entry).slice(1).find(holdsPolygons)
+    companionParts.set(entry, part ? { ...part, id: entry.id } : undefined)
+  }
+  return companionParts.get(entry)
+}
+const companionParts = new WeakMap<VectorSourceEntry, VectorSourceEntry | undefined>()
+
+/** The vector sources the shadows can read: tiles of polygons with a height
+ *  field (a points-only source is not one, whatever its fields). */
 export function isBuildingSource(entry: VectorSourceEntry | undefined): entry is VectorSourceEntry {
-  return !!entry && !!entry.heightField && entry.type !== "style" && !!entry.sourceLayers?.length
+  return !!buildingPart(entry)
 }
 
-/** The entry of a shadow source id, else the default (an id that is gone,
- *  or names a source without heights, still draws shadows). */
+/** What the shadows read for a source id (buildingPart), else the default
+ *  (an id that is gone, or names a source without heights, still draws
+ *  shadows). */
 export function buildingSourceEntry(id: string | null | undefined, customs: readonly VectorSourceEntry[] = []): VectorSourceEntry {
-  const entry = findVectorSource(id, customs)
-  return isBuildingSource(entry) ? entry : findVectorSource(DEFAULT_BUILDING_SOURCE_ID)!
+  return buildingPart(findVectorSource(id, customs)) ?? findVectorSource(DEFAULT_BUILDING_SOURCE_ID)!
 }
 
 /** One decoded tile. Polygon p owns rings polyStart[p]..polyStart[p+1] (the

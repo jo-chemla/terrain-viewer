@@ -2,14 +2,24 @@
 title: Building Footprints and Vector Overlays
 sidebarTitle: Vector Overlays
 icon: Building2
-description: "Open building footprints (Overture, VIDA, OpenStreetMap), heritage sites and monuments (Heritage Watch AI's OpenStreetMap and Wikidata exports, UNESCO) and your own PMTiles, TileJSON, style or GeoJSON over any terrain or basemap, flat or in 3D, per view in a split."
+description: "Open building footprints (Overture, VIDA, OpenStreetMap), heritage sites and monuments (Heritage Watch AI's OpenStreetMap and Wikidata exports, UNESCO), land use and land cover (Overture, IGN OCS GE) and your own PMTiles, TileJSON, style, GeoJSON, KML or GPX over any terrain or basemap, flat or in 3D, per view in a split. Click a feature for its card."
 ---
 
 <OpenInApp href="/?zoom=15.2&lat=45.7578&lng=4.8320&vectorOverlayIds=overture-buildings">Overture's buildings over Lyon</OpenInApp>
 
 ![Overture Maps buildings over Midtown Manhattan, extruded and colored by height over the hillshade](/screenshots/vector-overlays-overture-nyc-3d.jpg)
 
-**Vector overlays** draw vector data over the terrain layers: above the hillshade and the shadows, under the contours. There are open building footprints, heritage sites and monuments, and OpenStreetMap's roads and labels as a hybrid layer. They are in **Sources › Basemaps and Overlays › Bring Your Own Data › Vector overlays**, each with a switch, an opacity and a settings button. The **Vector library** button lists every source by group, and **Add yours** takes [your own](#your-own-vector-sources).
+**Vector overlays** draw vector data over the terrain layers: above the hillshade and the shadows, under the contours. There are open building footprints, heritage sites and monuments, land use and land cover, and OpenStreetMap's roads and labels as a hybrid layer. They are in **Sources › Basemaps and Overlays › Bring Your Own Data › Vector overlays**, each with a switch, an opacity, a **Zoom to** button and a settings button. **Vector library** lists every source by group, and **Add vector** takes [your own](#your-own-vector-sources). A click on a feature opens [its card](#click-a-feature).
+
+## The Vector library
+
+<OpenInApp href="/?openLibrary=vector">Open the Vector library</OpenInApp>
+
+![The Library dialog on its Vector tab: heritage sources with their licence, a link to their page, Zoom to and add or remove buttons](/screenshots/vector-overlays-library-tab.jpg)
+
+The vector sources are the third tab of the **Library** dialog, beside Terrain and Basemap, with the same search (it carries over from one tab to the next, each tab showing its number of matches) and the same rows: the plus lists a source under Vector overlays, where it is switched on per view; the minus takes it off the list. A listed source also has **Zoom to**: the extent of a regional source (OCS GE: France), a place that shows it well for a worldwide one (Overture's buildings: Midtown Manhattan).
+
+Six sources are listed until you choose otherwise: the three building sources, the roads and labels, and Heritage Watch AI's OpenStreetMap and Wikidata exports. A source a link switches on shows in the list whether you added it or not.
 
 ## Buildings
 
@@ -31,30 +41,71 @@ Overture publishes a new archive every month and removes the old ones after abou
 
 ![Heritage points around Damascus: places of worship in blue, historic features in brown, objects OpenStreetMap marks as destroyed in red](/screenshots/vector-overlays-heritage-damascus.jpg)
 
-The sources of Heritage Watch AI's [Heritage map](https://terria-catalog.prod.heritagewatch.ai/tools/heritage-map/), exported weekly as PMTiles, and UNESCO's list:
+The sources of Heritage Watch AI's [Heritage map](https://terria-catalog.prod.heritagewatch.ai/tools/heritage-map/), exported weekly as PMTiles and listed in the map's own order, then UNESCO's list:
 
 | Overlay | What it holds | Colored by | Licence |
 |---|---|---|---|
-| **HW.ai Heritage Map - Wikidata** | 1.7 million items of 40 heritage classes and 1.2 million more by heritage designation alone, as points | Status: gone, designated only, other | CC0 1.0 |
 | **HW.ai Heritage Map - OSM** | 4.46 million objects: `historic=*`, `heritage=*`, places of worship, museums; points, with footprints from a second archive | Kind: historic, place of worship, heritage, museum | ODbL 1.0 |
+| **HW.ai Heritage Map - Wikidata** | 1.7 million items of 40 heritage classes and 1.2 million more by heritage designation alone, as points, many with a picture | Status: gone, designated only, other | CC0 1.0 |
 | **HW.ai Heritage Map - OSM condition** | 663 thousand objects OpenStreetMap marks with a lifecycle prefix, heritage or not | Condition: destroyed, damaged, demolished or razed, removed or former | ODbL 1.0 |
 | **HW.ai Heritage Map - National and regional inventories** | A compilation in progress of monument registers and archaeological site records, points and footprints | Kind: monuments, archaeology, mixed | Per inventory |
-| **UNESCO World Heritage List** | The 1,273 properties, as points (one GeoJSON file of 0.5 MB) | In danger, cultural, natural, mixed | CC BY-SA 4.0 |
+| **UNESCO World Heritage List** | The inscribed properties, one point each (1,271 of 1,273; two have no coordinates), with category, year, criteria, States Parties and a short description | In danger, cultural, natural, mixed | CC BY-SA 4.0 |
+| **UNESCO World Heritage components** | The 5,612 parts of the 486 serial properties (the Aalto works, the Struve arc), each with its name, its reference and its property | The same | CC BY-SA 4.0 |
 
-The first three are listed by default; the inventories and UNESCO's list are in the **Vector library**. Points draw at every zoom.
+The first two are listed by default; the others are in the **Vector library**. Points draw at every zoom.
+
+The inventories' footprints are drawn as **outlines, not fills**. A register's perimeters run from a house to the Great Barrier Reef, a canal or a whole protected landscape, in dozens of inventories, and the archive carries no size to tell them apart: filled, a handful of them hid whole regions. As a line, a large perimeter stays out of the way and a small one is still seen. The boxes that are only the extent of an export (the Humanitarian OpenStreetMap exports) are left out.
+
+UNESCO's two files are compact copies of the open data portal's World Heritage dataset, which weighs 23 MB with its texts in six languages: 0.65 MB for the properties and 1.4 MB for the components (0.16 MB each once compressed by the server), served by the app itself. A serial property stands on the component nearest to the middle of its parts. There is no Tentative List source: UNESCO's open data does not publish one with coordinates.
+
+## Land use and land cover
+
+<OpenInApp href="/?zoom=14&lat=48.8566&lng=2.3522&showRasterBasemap=true&showHillshade=false&vectorOverlayIds=overture-land-use">Overture's land use over Paris</OpenInApp>
+
+![Overture land use over central Paris, residential in salmon, parks in green, schools in blue, with the card of a clicked school](/screenshots/vector-overlays-land-use-paris.jpg)
+
+| Overlay | Coverage | Classes | Drawn from | Licence |
+|---|---|---|---|---|
+| **Overture Maps land cover** | Worldwide, generalized from ESA WorldCover (10 m, 2020) | 10: forest, shrub, grass, crop, urban, barren, wetland, mangrove, moss, snow | Zoom 9 | CC BY 4.0 |
+| **Overture Maps land use** | Worldwide, from OpenStreetMap's landuse, leisure and amenity areas | 23 kinds in 10 colors: residential, commercial and industrial, farming, parks and sport, protected, schools and hospitals, transport, military, cemetery, quarries and works | Zoom 13 | ODbL 1.0 |
+| **France - IGN OCS GE land cover** | Most French departments (2021 to 2023), 28 million polygons | 14 covers in 11 colors, close to IGN's legend | Zoom 13 | Licence Ouverte 2.0 |
+| **France - IGN OCS GE land use** | The same polygons | 20 uses in 11 colors | Zoom 13 | Licence Ouverte 2.0 |
+
+These are the vector forms of the land cover maps the [Basemap library](/features/basemaps) holds as imagery: here a class is a polygon with a name, which can be clicked. They are colored by class, without outlines, and each has its legend in its settings.
+
+The first zoom is a matter of weight. Overture publishes land cover and land use inside its `base` theme, one archive with water, bathymetry and every tree and street lamp: a tile of it weighs 2 to 4 MB below zoom 9 over Europe, 0.2 to 1.6 MB from there. The land use classes are only in the deepest zoom of the archive (13), where a tile of a dense city reaches 2 MB and a rural one a few kilobytes. OCS GE is drawn from zoom 13 too (a zoom 12 tile of Paris is 1.7 MB). The Géoplateforme adds departments as IGN produces them; a few had no tiles on 2026-11-26 (Rhône, Ille-et-Vilaine, Gers, Alpes-Maritimes).
+
+Corine Land Cover has no entry: its vector form is a WFS, not tiles. It stays an imagery overlay.
 
 ## Reference
 
 **OpenStreetMap roads and labels** (OpenFreeMap Liberty) draws the lines and labels of the Liberty style, without its fills: a hybrid map over any imagery or relief. ODbL 1.0.
+
+## Click a feature
+
+<OpenInApp href="/?zoom=13.6&lat=33.5105&lng=36.3075&showRasterBasemap=true&showHillshade=false&vectorOverlayIds=hwai-heritage-osm,hwai-heritage-wikidata,unesco-world-heritage">Heritage over the old city of Damascus: click a point</OpenInApp>
+
+![The card of a clicked Wikidata item over Damascus: its picture, its name in English and Arabic, its designation, Zoom to and a link to Wikidata](/screenshots/vector-overlays-feature-card.jpg)
+
+A click on a feature of a vector overlay opens its card, and the feature is ringed on the map:
+
+- its **name** (and its name in the local language where the source has both), with the picture Wikidata gives it;
+- its **properties**: for the Library's sources the ones worth reading, labeled (a kind, a state, a date of damage, a height); for a source of your own, every property that has a value;
+- **Zoom to**, which frames the feature;
+- a link to **where it comes from**, when a property names it: the Wikidata item, the OpenStreetMap object, UNESCO's page of the property, the record of a heritage inventory.
+
+The pointer turns to a hand over a feature. In a split each view has its own card, for the overlays of that view. A card closes with its cross, with a click on the bare map, or when its overlay is switched off.
+
+Nothing opens while a tool owns the map's clicks: the elevation picker, the sun shadow calculator, the image georeferencer, or a drawing mode other than Select; and a click on a drawing selects the drawing. The roads and labels overlay is a backdrop: its features are not clickable.
 
 ## Drawing
 
 Two choices at the top of the list apply to every vector overlay, so two building sources compared side by side are drawn the same way:
 
 - **Footprints** (flat, draped on the terrain) or **3D, by height** (extruded, for the sources that have heights). A building with no height stands 4 m tall, or 3.2 m a floor when it states its floors.
-- **Color by category** (origin, kind or condition, where a source has one), **One color each**, or **Color by height** (yellow for a house, purple for a tower, grey without a height). A source that lacks what was chosen falls back to what it has.
+- **Color by category** (origin, kind, condition or class, where a source has one), **One color each**, or **Color by height** (yellow for a house, purple for a tower, grey without a height). A source that lacks what was chosen falls back to what it has.
 
-The settings button of a row holds what is its own: its **color** (shown when it is drawn in one color), **outlines**, the legend and the credit; the row's pill is its **opacity**.
+The settings button of a row holds what is its own: its **color** (shown when it is drawn in one color), **outlines**, the legend and the credit. The color opens the app's color picker, with transparency: an overlay has one opacity, so the picker's transparency and the row's pill are the same number, and moving one moves the other.
 
 These choices are remembered in your browser. A shared link carries which overlays are on, not how they are drawn.
 
@@ -62,7 +113,7 @@ Building footprints draw from zoom 11. In a dense city an Overture tile weighs a
 
 ## Your own vector sources
 
-**Add yours**, under the list, takes an address and reads what it is:
+**Add vector**, under the list, takes an address and reads what it is:
 
 | Address | What is read | How it draws |
 |---|---|---|
@@ -71,31 +122,38 @@ Building footprints draw from zoom 11. In a dense city an Overture tile weighs a
 | A **tile template** (`https://…/{z}/{x}/{y}.pbf`) | Nothing: a template does not name its layers, so you type them | The same |
 | A **MapLibre style** (JSON with `sources` and `layers`; its sources may be PMTiles) | The style | With the style's own layers and colors; only the opacity is yours |
 | A **GeoJSON** file, 10 MB at most | The whole file | Polygons, lines and points, in one color |
+| A **KML** or **GPX** file, 10 MB at most | The whole file, converted to GeoJSON in your browser | The same |
 
-A GeoJSON file is loaded whole rather than as tiles, which is why it is capped: past a few megabytes, make vector tiles of it (tippecanoe writes PMTiles). For a handful of shapes, the [drawing tools](/features/tools) also import GeoJSON and KML, and let you edit them.
+A GeoJSON, KML or GPX file is loaded whole rather than as tiles, which is why it is capped: past a few megabytes, make vector tiles of it (tippecanoe writes PMTiles). KML and GPX go through the reader the [drawing tools](/features/tools) import with, which keeps the geometry and the properties and ignores a KML's own styling; to edit the shapes, import the file there instead.
 
 A dataset that needs its own look (a color per class, labels, icons) is best published as a **MapLibre style** beside its PMTiles: the style is a small JSON file that names the archive as its source and holds the layers, it can be edited in [Maputnik](https://maputnik.github.io/), and this app draws it as it is.
 
-A source that has a `height` (or `render_height`) property takes part in **3D** and **Color by height** like the Library's buildings. Your sources are kept in this browser, draw from their own first zoom, and are removed from the settings popover of their row. The host must allow requests from other sites (CORS). A link names a source of yours by an id made from its address, so it opens for someone else only once they have added the same address.
+A source that has a `height` (or `render_height`) property takes part in **3D** and **Color by height** like the Library's buildings. Your sources are kept in this browser, draw from their own first zoom, and are removed from the settings popover of their row. Their features are clickable like the Library's: the card lists the name and every property. The host must allow requests from other sites (CORS). A link names a source of yours by an id made from its address, so it opens for someone else only once they have added the same address.
 
 ## In a split or a grid
 
 With per-view basemaps on, each row shows one button per view, as the raster overlays do: VIDA on view A and Overture on view B compares the two over the same place. Views keep their overlays when they are swapped or reordered.
 
-<OpenInApp href="/?zoom=15.5&lat=6.4541&lng=3.3947&splitStyle=side&vectorOverlayIds=vida-open-buildings&vectorOverlayIdsB=overture-buildings">VIDA beside Overture over Lagos</OpenInApp>
+<OpenInApp href="/?zoom=15.5&lat=6.4541&lng=3.3947&splitStyle=side-by-side&gridLayout=2x1&vectorOverlayIds=vida-open-buildings&vectorOverlayIdsB=overture-buildings">VIDA beside Overture over Lagos</OpenInApp>
 
 ## In a link
 
 | Parameter | Value |
 |---|---|
-| `vectorOverlayIds` | The overlays of view A (and of every view without per-view basemaps), comma-separated: `overture-buildings`, `vida-open-buildings`, `osm-buildings-openfreemap`, `osm-liberty-lines-labels`, `hwai-heritage-wikidata`, `hwai-heritage-osm`, `hwai-heritage-osm-condition`, `hwai-heritage-inventories`, `unesco-world-heritage` |
+| `vectorOverlayIds` | The overlays of view A (and of every view without per-view basemaps), comma-separated: `overture-buildings`, `vida-open-buildings`, `osm-buildings-openfreemap`, `osm-liberty-lines-labels`, `hwai-heritage-osm`, `hwai-heritage-wikidata`, `hwai-heritage-osm-condition`, `hwai-heritage-inventories`, `unesco-world-heritage`, `unesco-world-heritage-components`, `overture-land-cover`, `overture-land-use`, `ign-ocsge-couverture`, `ign-ocsge-usage` |
 | `vectorOverlayIdsB` … `vectorOverlayIdsH` | The overlays of the other views |
+| `openLibrary=vector` | Opens the Library on its Vector tab |
+
+## Building shadows
+
+The [building shadows](/features/sun-position#building-shadows) read one source for every view (Lighting Effects, Buildings, **Buildings from**). Only sources with heights on polygons are offered: OpenFreeMap's OSM tiles, Overture's buildings, Heritage Watch AI's OSM export (through its footprints archive, where a few percent of the features state a height and about a quarter their floors) and its OSM condition export, plus a source of your own with a height field. A source of points is not offered, whatever its fields.
 
 ## Not yet
 
-- A color per property of your choice for a source of your own (the Library's have their categories), and FlatGeobuf files.
+- A color per property of your choice for a source of your own (the Library's have their categories).
+- FlatGeobuf files. The library is light (54 KB, already installed for the drawing tools' import) and a file read whole would be a small step; the point of the format, though, is to read only what the view needs by range requests, which is a feature of its own: a query per move, a host that allows ranges, and no overview at low zooms.
 - A blend mode per overlay: it needs MapLibre's layer blending, which the app does not use yet.
-- A building source per view for the shadows: the [building shadows](/features/sun-position#building-shadows) read one source for every view (Lighting Effects, Buildings, **Buildings from**: OpenFreeMap's OSM tiles, Overture, or a source of your own with a height).
+- A building source per view for the shadows.
 - The tile service and the QGIS plugin do not draw them yet.
 
 For developers: the entries and the schema are described in [Source schema](/dev/source-schema#vector-overlays), the slot in [Layer order](/dev/layer-order).

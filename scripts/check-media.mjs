@@ -14,7 +14,7 @@ import { statSync } from "node:fs"
 
 const MEDIA = /\.(png|jpe?g|webp|gif|avif|mp4|webm|mov|mp3|wav|zip|tar|gz|7z|geojson|vrt|pdf|tiff?|glb|gltf|bin|pmtiles|mbtiles|psd|las|laz)$/i
 const FORBIDDEN_DIRS = ["docs/public/screenshots/", "public/vrt/", "posted-on-twitter/"]
-const FORBIDDEN = [/^public\/coverage\/.*\.geojson$/, /^video\/public\/.*\.(mp4|webm|mov)$/]
+const FORBIDDEN = [/^public\/coverage\/.*\.geojson$/, /^public\/vector\/.*\.geojson$/,/^video\/public\/.*\.(mp4|webm|mov)$/]
 const MAX_FILE = 600e3 // one picture, recompressed, fits; a raw screenshot does not
 const MAX_TOTAL = 8e6 // every tracked media file together (3.5 MB on 2026-11-13)
 

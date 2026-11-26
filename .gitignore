@@ -66,3 +66,5 @@ public/coverage/*.geojson
 # the docs screenshots live on the docs-media release (docs/media.lock, scripts/docs-media.mjs)
 docs/public/screenshots/
 qgis-plugin/out/
+# vector overlay files served from the app's origin (UNESCO lists): on the dataset-indexes release (datasets.lock.json)
+public/vector/*.geojson
