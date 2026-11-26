@@ -54,28 +54,39 @@ function bilinear(tile: DecodedTile, fx: number, fy: number): number {
 /** Heights at the points, NaN where the source has none. A tile the source
  *  does not serve is read from its parent, up to three levels (a declared
  *  maxzoom is not always backed by tiles everywhere). */
-export async function sampleRiverElevations(points: LngLat[], source: RiverSampleSource, signal: AbortSignal): Promise<{ elevations: Float64Array; zoom: number; tiles: number }> {
+export async function sampleRiverElevations(
+  points: LngLat[], source: RiverSampleSource, signal: AbortSignal,
+  /** Called as the tiles under the line arrive: tiles read, tiles needed. */
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ elevations: Float64Array; zoom: number; tiles: number }> {
   const zoom = pickSampleZoom(points, source)
   const floor = source.minzoom ?? 0
   const urlAt = (z: number, x: number, y: number) => source.template.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y))
   const loaded = new Map<string, Promise<{ tile: DecodedTile; z: number } | null>>()
+  const span = 2 ** zoom
+  const total = countTiles(points, zoom)
+  let done = 0
   const load = (x: number, y: number) => {
     const key = `${x}/${y}`
     let pending = loaded.get(key)
     if (!pending) {
       pending = (async () => {
-        for (let up = 0; up <= 3 && zoom - up >= floor; up++) {
-          if (signal.aborted) return null
-          const tile = await fetchDecodedTile(sharedTileCache, urlAt(zoom - up, x >> up, y >> up), source.encoding, signal)
-          if (tile) return { tile, z: zoom - up }
+        try {
+          for (let up = 0; up <= 3 && zoom - up >= floor; up++) {
+            if (signal.aborted) return null
+            const tile = await fetchDecodedTile(sharedTileCache, urlAt(zoom - up, x >> up, y >> up), source.encoding, signal)
+            if (tile) return { tile, z: zoom - up }
+          }
+          return null
+        } finally {
+          done++
+          if (!signal.aborted) onProgress?.(done, total)
         }
-        return null
       })()
       loaded.set(key, pending)
     }
     return pending
   }
-  const span = 2 ** zoom
   const elevations = new Float64Array(points.length).fill(NaN)
   await Promise.all(points.map(async ([lng, lat], i) => {
     const tx = Math.min(span - 1, Math.max(0, Math.floor(tileFractionX(lng, zoom))))

@@ -43,9 +43,11 @@ export interface RiverRemInfo {
   levelLow: number
   /** Samples the cleaning moved by more than 10 cm. */
   corrected: number
-  /** The 2nd and 98th percentile of the REM over the trend grid's river
-   *  samples are not known here; this is the trend build time, in ms. */
+  /** Time spent filling the trend grid, in ms, its size and the method. */
   buildMs: number
+  gridW: number
+  gridH: number
+  method: "idw" | "nearest"
 }
 export const riverRemInfoAtom = atom<RiverRemInfo | null>(null)
 
@@ -59,3 +61,14 @@ export const riverRemDrawnIdAtom = atom<string | null>(null)
 
 /** Fold state of the mode's own sidebar sections and of its group row. */
 export const riverRemSectionsOpenAtom = atomWithStorage("riverRemSectionsOpen", { group: true, river: true, detrending: false, display: true })
+
+/** The long work in progress, for the bottom toast: which of the four steps
+ *  (1 centerline, 2 sampling, 3 detrending, 4 rendering), one line of
+ *  detail, and how far the step is when that is known (0..1; undefined
+ *  spins). Null when nothing is running. */
+export interface RiverRemProgress { step: 1 | 2 | 3 | 4; detail: string; fraction?: number }
+export const riverRemProgressAtom = atom<RiverRemProgress | null>(null)
+
+/** Elevation display: lowest and highest height of the tiles in view A,
+ *  followed while `remElevAuto` is on. */
+export const riverRemElevRangeAtom = atom<{ min: number; max: number } | null>(null)

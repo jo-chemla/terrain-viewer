@@ -258,9 +258,9 @@ test("Overpass: the query names the kinds and the box, the answer becomes ways",
     { type: "node", id: 4 },
   ] })
   assert.deepEqual(ways, [
-    { id: 1, name: "Allier", kind: "river", coords: [[3.3, 46.3], [3.31, 46.4]] },
-    { id: 2, name: "", kind: "stream", coords: [[2, 1], [4, 3]] },
-    { id: 2, name: "", kind: "stream", coords: [[6, 5], [8, 7]] },
+    { id: 1, name: "Allier", kind: "river", coords: [[3.3, 46.3], [3.31, 46.4]], tagCount: 2 },
+    { id: 2, name: "", kind: "stream", coords: [[2, 1], [4, 3]], tagCount: 1 },
+    { id: 2, name: "", kind: "stream", coords: [[6, 5], [8, 7]], tagCount: 1 },
   ])
   assert.deepEqual(parseOverpassWays(null), [])
 })

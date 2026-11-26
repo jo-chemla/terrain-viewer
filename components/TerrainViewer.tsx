@@ -750,8 +750,8 @@ export const QUERY_STATE_PARSERS = {
     lrmCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     // River REM mode (appMode=rem): height above the river, the DEM minus a
     // trend surface that follows the river's water level (lib/river-rem.ts).
-    // Where the centerline comes from: OpenStreetMap's longest named river in view, every waterway in view, one river picked by name, or a drawn line.
-    remRiver: parseAsStringLiteral(["longest", "all", "named", "drawn"] as const).withDefault("longest"),
+    // Where the centerline comes from: OpenStreetMap's main river in view (length times how well it is described), its longest named river, every waterway in view (tributaries too), one river picked by name, or a drawn or imported line.
+    remRiver: parseAsStringLiteral(["main", "longest", "all", "named", "drawn"] as const).withDefault("main"),
     // Which OpenStreetMap waterways are read: rivers only, or rivers, streams and canals.
     remWaterways: parseAsStringLiteral(["river", "all"] as const).withDefault("river"),
     // The river's OpenStreetMap name when remRiver is "named".
@@ -766,6 +766,22 @@ export const QUERY_STATE_PARSERS = {
     remNeighbors: parseAsInteger.withDefault(0),
     // How the sampled water levels are made to fall downstream: running minimum, monotone least-squares fit, or left as read.
     remMonotone: parseAsStringLiteral(["min", "fit", "none"] as const).withDefault("min"),
+    // How the river's level is spread over the view: inverse-distance weighting of the nearest samples (RiverREM's), or the level at the nearest place on the centerline.
+    remInterp: parseAsStringLiteral(["idw", "nearest"] as const).withDefault("idw"),
+    // What the mode draws: the REM (height above the river) or the terrain source's own elevation, each with its own range.
+    remShow: parseAsStringLiteral(["rem", "elevation"] as const).withDefault("rem"),
+    // Elevation display: the range follows the heights in view; false uses remElevMin and remElevMax.
+    remElevAuto: parseAsBoolean.withDefault(true),
+    // Elevation display: height in metres at the start of the color ramp, when remElevAuto is false.
+    remElevMin: parseAsFloat.withDefault(0),
+    // Elevation display: height in metres at the end of the color ramp, when remElevAuto is false.
+    remElevMax: parseAsFloat.withDefault(100),
+    // Contour lines of the height above the river (of the elevation, in the Elevation display).
+    remContours: parseAsBoolean.withDefault(false),
+    // Interval of those contour lines, in metres.
+    remContourInterval: parseAsFloat.withDefault(1),
+    // How many zoom levels deeper than the screen needs the heights are read (0 to 2): finer heights where a source rounds them by zoom, four times the tiles per level.
+    remDetail: parseAsInteger.withDefault(1),
     // Height above the river, in metres, at the start of the color ramp.
     remMin: parseAsFloat.withDefault(0),
     // Height above the river, in metres, at the end of the color ramp.
@@ -4323,7 +4339,7 @@ export function TerrainViewer() {
           <TpiReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showTpi={state.showTpi && vm("showTpi")} tpiReliefPaint={tpiReliefPaint} />
           <LrmReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode && vm("showReliefVisualization")} showLrm={state.showLrm && vm("showLrm")} lrmReliefPaint={lrmReliefPaint} />
           {/* River REM mode: view A's engine, and its tiles on every view (from view A's terrain source). */}
-          <RiverRemLayers enabled={state.appMode === "rem"} primary={isPrimary} state={state} setState={setState} terrainSource={state.sourceA} />
+          <RiverRemLayers enabled={state.appMode === "rem"} primary={isPrimary} state={state} setState={setState} terrainSource={state.sourceA} mapLoaded={!!mapLoaded[side]} theme={theme} />
           <RoughnessReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showRoughness={state.showRoughness && vm("showRoughness")} roughnessReliefPaint={roughnessReliefPaint} />
           <ShapeIndexReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showShapeIndex={state.showShapeIndex && vm("showShapeIndex")} shapeIndexReliefPaint={shapeIndexReliefPaint} />
           <BlobnessReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showBlobness={state.showBlobness && vm("showBlobness")} blobnessReliefPaint={blobnessReliefPaint} />
