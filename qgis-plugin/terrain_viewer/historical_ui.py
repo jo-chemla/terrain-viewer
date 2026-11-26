@@ -3,15 +3,22 @@ picked by source and date, the dates of the map's centre as a list, as ticks
 on a small time axis and as the steps of QGIS's own Temporal Controller.
 
 How the dates reach QGIS: every date is one XYZ raster layer of the group
-"Historical imagery", with a fixed temporal range (its capture until the next
-one; a mosaic's month or year). The canvas's temporal navigation
-(QgsTemporalNavigationObject) is given those ranges as its available ranges.
-Its step is the panel's choice: "source timestamps" (an irregular step: one
-stop per date, the controller's date is the capture's), or a regular one
-(day, week, month, year: the slider's position is proportional to time, each
-frame draws the capture current at that time). QGIS does the filtering. The
-group works without the plugin (a saved project, a layout's atlas, an
-animation export).
+"Historical imagery", with a fixed temporal range: its true capture date
+until the next capture (a mosaic's month or year). The canvas's temporal
+navigation (QgsTemporalNavigationObject) is given those ranges as its
+available ranges. Its step is the panel's choice: a regular one (a week by
+default; a day, a month, a year), where the slider's position is
+proportional to time and each frame draws the latest capture at or before
+its end, or "source timestamps" (an irregular step: one stop per date, the
+controller's date is the capture's). QGIS does the filtering. The group
+works without the plugin (a saved project, a layout's atlas, an animation
+export).
+
+The backend: the dated sources that are a provider's own XYZ tiles (Esri
+Wayback, Planet, NASA HLS, EOX) need none, and the page says so. Google
+Earth historical is listed and drawn by a tile service: while it is picked,
+the page shows the panel's backend control (the very one of the Terrain
+page, moved here: one setting, one connection).
 
 The dates are listed by historical.py in a worker thread (urllib, as the
 Python backend reads its tiles), the panel polling its progress: nothing
@@ -72,21 +79,25 @@ FIXED_RANGE = _scoped(lambda: Qgis.RasterTemporalMode.FixedTemporalRange,
 TEMPORAL = None not in (IRREGULAR, NAV_OFF, NAV_ANIMATED, FIXED_RANGE)
 # The controller's step: id, label, QGIS's unit (None: the dates themselves), what it does.
 STEPS = (
-    ("timestamps", "Source timestamps", None,
-     "One stop per date: every step changes the imagery and the controller's date is the capture's. The stops are "
-     "evenly spaced on the slider, whatever the time between them."),
     ("day", "Day", _unit("Days"),
-     "One frame a day: the slider's position is proportional to time and every capture has its own frame, but most "
-     "frames change nothing (14 years are some 5000 frames)."),
+     "One frame a day: the slider's position is the date, and each frame draws the latest capture at or before it. "
+     "Every capture has its own frame; 14 years are some 5000 frames."),
     ("week", "Week", _unit("Weeks"),
-     "One frame a week, from a Monday: proportional to time. Two captures of the same week share a frame, which draws "
-     "the newer."),
+     "One frame a week, from a Monday (the default): the slider's position is the date, and each frame draws the latest "
+     "capture at or before the end of its week. Most frames change nothing, as time passes between captures."),
     ("month", "Month", _unit("Months"),
-     "One frame a calendar month: proportional to time, a short slider to read. Two captures of the same month share "
-     "a frame, which draws the newer."),
+     "One frame a calendar month: a short slider. Two captures of the same month share a frame, which draws the newer."),
     ("year", "Year", _unit("Years"),
      "One frame a calendar year: each draws the newest capture of the year."),
+    ("timestamps", "Source timestamps", None,
+     "One stop per capture date, nothing in between: every step changes the imagery, but the stops are evenly spaced "
+     "on the slider, whatever the time between them."),
 )
+# The step a new user gets: time runs evenly on the slider, a week a frame.
+# (0.10.1's was "timestamps", under the setting historicalStep; the choice is
+# kept under STEP_SETTING since, so every user starts on the week once.)
+DEFAULT_STEP = "week"
+STEP_SETTING = "temporalStep"
 
 
 def qdatetime(ms):
@@ -166,8 +177,10 @@ class HistoricalPanel(QWidget):
         self.paused = False  # Remove pressed: nothing listed again until asked
         self.shown_sid = None  # the source whose dates are shown
         s = QgsSettings()
-        step = str(s.value(f"{SETTINGS}/historicalStep", "timestamps"))
-        self.step = step if any(i == step for i, *_ in STEPS) else "timestamps"
+        step = str(s.value(f"{SETTINGS}/{STEP_SETTING}", DEFAULT_STEP))
+        usable = [i for i, _l, unit, _t in STEPS if unit is not None or i == "timestamps"]
+        self.step = step if step in usable else DEFAULT_STEP if DEFAULT_STEP in usable else "timestamps"
+        self.frame = None  # (start ms, end ms) of the controller's frame under a regular step
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -184,7 +197,10 @@ class HistoricalPanel(QWidget):
         self.opacity.opacityChanged.connect(lambda _v: self.apply_opacity())
         row.addWidget(self.opacity)
         lay.addLayout(row)
-        # Where the tiles come from: there is no backend to pick on this page.
+        # Where the tiles come from: a source that needs no backend says so;
+        # one a tile service draws (Google Earth historical) gets the
+        # panel's backend control here, the Terrain page's own (the dock
+        # moves it: place_backend_box).
         self.origin = QLabel()
         self.origin.setWordWrap(True)
         self.origin.setEnabled(False)  # the quiet grey of a disabled label
@@ -192,6 +208,9 @@ class HistoricalPanel(QWidget):
         f.setPointSizeF(max(6.0, f.pointSizeF() - 1))
         self.origin.setFont(f)
         lay.addWidget(self.origin)
+        self.backend_slot = QVBoxLayout()
+        self.backend_slot.setContentsMargins(0, 0, 0, 0)
+        lay.addLayout(self.backend_slot)
 
         # What the user must know before reading the dates: the view is too
         # wide for capture dates, or the dates are those of another place.
@@ -245,6 +264,11 @@ class HistoricalPanel(QWidget):
         self.detail = QLabel()
         self.detail.setWordWrap(True)
         lay.addWidget(self.detail)
+        # Under a regular step: the controller's frame, and the capture it draws.
+        self.frame_label = QLabel()
+        self.frame_label.setWordWrap(True)
+        self.frame_label.setVisible(False)
+        lay.addWidget(self.frame_label)
 
         opts = QHBoxLayout()
         self.follow = QCheckBox("Follow the map")
@@ -273,10 +297,10 @@ class HistoricalPanel(QWidget):
             self.step_box.addItem(label, sid)
             self.step_box.setItemData(self.step_box.count() - 1, tip, Qt.ItemDataRole.ToolTipRole)
         self.step_box.setCurrentIndex(max(0, self.step_box.findData(self.step)))
-        self.step_box.setToolTip("The step of the Temporal Controller's slider. Source timestamps: one stop per date, "
-                                 "evenly spaced. Day, week, month, year: frames of equal duration, so the slider's "
-                                 "position is proportional to time; each frame draws the capture current at that "
-                                 "time, and many frames change nothing.")
+        self.step_box.setToolTip("The step of the Temporal Controller's slider. Day, week (the default), month, year: "
+                                 "frames of equal duration, so the slider's position is the date; each frame draws the "
+                                 "latest capture at or before it, each layer standing from its true capture date until "
+                                 "the next one. Source timestamps: one stop per capture date, evenly spaced.")
         self.step_box.currentIndexChanged.connect(lambda _i: self.set_step(self.step_box.currentData()))
         tc.addWidget(self.step_box, 1)
         lay.addLayout(tc)
@@ -340,6 +364,12 @@ class HistoricalPanel(QWidget):
             return (dock.service_url() or "").rstrip("/") or None
         return None
 
+    def needs_backend(self):
+        """Whether the source picked is listed and drawn by a tile service:
+        the page then shows the panel's backend control."""
+        kind, sid = self.current()
+        return kind == "dated" and bool((historical.source(sid) or {}).get("service"))
+
     def backend_changed(self):
         """The dock connected to another backend, or lost it: the sources a
         tile service draws are offered or not, their layers follow its address."""
@@ -377,9 +407,12 @@ class HistoricalPanel(QWidget):
             why = historical.unavailable(s["id"], keys, service)
             short = "needs a Planet key" if s.get("key") else "needs a tile server backend"
             self.source.addItem(s["name"] + (f" ({short})" if why else ""), "dated:" + s["id"])
-            self.source.setItemData(self.source.count() - 1, s["about"] + (f" Unavailable: it {why}." if why else ""),
+            self.source.setItemData(self.source.count() - 1, s["about"] + (f" Now: it {why}." if why else ""),
                                     Qt.ItemDataRole.ToolTipRole)
-            if why and current != "dated:" + s["id"]:
+            # A source that waits for a key is greyed out; one that waits
+            # for a tile server can be picked: the backend control then
+            # shows on this page, to connect one.
+            if why and not s.get("service") and current != "dated:" + s["id"]:
                 self._disable(self.source.count() - 1)
         self._header("Worldwide defaults (no dates)")
         for sid, name in links.basemap_choices(self.dock.key_values() if hasattr(self.dock, "keys") else {}):
@@ -396,15 +429,18 @@ class HistoricalPanel(QWidget):
         if s is not None and s.get("service"):
             service = self.service()
             self.origin.setText(f"Dates and tiles through the tile server backend at {service}, which reads Google "
-                                "Earth and reprojects it to Web Mercator." if service else
+                                "Earth and reprojects it to Web Mercator. The backend below is the Terrain mode's." if service else
                                 "Google Earth's tiles are not Web Mercator: a tile server backend lists and "
-                                "reprojects them. Connect one in the Terrain mode (Packaged or Remote tile server).")
+                                "reprojects them. Pick Packaged tile server or Remote tile server below and Connect "
+                                "(the same backend as the Terrain mode's; the Python backend does not read Google Earth).")
         elif kind == "dated":
-            self.origin.setText("Tiles: the provider's own XYZ address, read by QGIS itself. No backend is involved "
-                                "(not the Python backend, not a tile server), so there is none to pick here.")
+            self.origin.setText(f"{s['short'] if s else 'This source'} needs no backend: its tiles are the provider's own "
+                                "XYZ address, read by QGIS itself (not the Python backend, not a tile server).")
         else:
-            self.origin.setText("The provider's own XYZ tiles, through the Basemap row of the Terrain mode. No backend "
-                                "is involved.")
+            self.origin.setText("No backend needed: the provider's own XYZ tiles, through the Basemap row of the Terrain mode.")
+        place = getattr(self.dock, "place_backend_box", None)
+        if place is not None:
+            place()
 
     def current(self):
         """("dated" or "basemap", id) of the imagery picked."""
@@ -790,6 +826,7 @@ class HistoricalPanel(QWidget):
         ok = 0 <= i < n
         self.current_label.setText(self.ticks[i]["label"] if ok else "No date")
         self.detail.setText(self.ticks[i].get("detail", "") if ok else "")
+        self.show_frame()
         self.prev_btn.setEnabled(ok and i > 0)
         self.next_btn.setEnabled(ok and i < n - 1)
         self.remove_btn.setEnabled(bool(self.ticks))
@@ -797,6 +834,27 @@ class HistoricalPanel(QWidget):
         self.dates.blockSignals(True)
         self.dates.setCurrentRow(n - 1 - i if ok else -1)
         self.dates.blockSignals(False)
+
+    def frame_text(self):
+        """Under a regular step with the controller on: the frame it is at
+        and the capture that frame draws, e.g. "Controller: week of
+        2019-06-03. Imagery: captured 2018-09-11, the latest at or before
+        it." Empty otherwise (source timestamps: the frame is the capture)."""
+        if self.frame is None or self.step == "timestamps" or not 0 <= self.index < len(self.ticks):
+            return ""
+        t = self.ticks[self.index]
+        start = historical.day_label(self.frame[0])
+        what = {"day": start, "week": f"week of {start}", "month": f"month of {start[:7]}", "year": f"year {start[:4]}"}[self.step]
+        if t.get("endMs"):  # a mosaic: its own span, not a capture
+            return f"Controller: {what}. Imagery: {t['label']}."
+        same = self.frame[0] <= t["dateMs"] < self.frame[1]
+        return (f"Controller: {what}. Imagery: captured {historical.day_label(t['dateMs'])}"
+                + (", in this frame." if same else ", the latest at or before it."))
+
+    def show_frame(self):
+        text = self.frame_text() if self.temporal_on() else ""
+        self.frame_label.setText(text)
+        self.frame_label.setVisible(bool(text))
 
     def _row_picked(self, row):
         if 0 <= row < len(self.ticks):
@@ -858,7 +916,8 @@ class HistoricalPanel(QWidget):
         if not any(sid == step and (unit is not None or sid == "timestamps") for sid, _l, unit, _t in STEPS):
             return False
         self.step = step
-        QgsSettings().setValue(f"{SETTINGS}/historicalStep", step)
+        self.frame = None
+        QgsSettings().setValue(f"{SETTINGS}/{STEP_SETTING}", step)
         i = self.step_box.findData(step)
         if i != self.step_box.currentIndex():
             self.step_box.blockSignals(True)
@@ -887,6 +946,7 @@ class HistoricalPanel(QWidget):
                     unit = self.step_unit()
                     nav.setAvailableTemporalRanges(ranges)
                     if unit is None:
+                        self.frame = None
                         if nav.frameDuration().originalUnit() != IRREGULAR:
                             nav.setFrameDuration(QgsInterval(1, IRREGULAR))
                         nav.setTemporalExtents(QgsDateTimeRange(ranges[0].begin(), ranges[-1].end(), True, False))
@@ -902,6 +962,7 @@ class HistoricalPanel(QWidget):
                         nav.setCurrentFrameNumber(frame)
                         rng = nav.dateTimeRangeForFrameNumber(frame)
                         self.dock.canvas.setTemporalRange(rng)
+                        self.frame = (rng.begin().toMSecsSinceEpoch(), rng.end().toMSecsSinceEpoch())
                         drawn = historical.index_in(self.ticks, rng.begin().toMSecsSinceEpoch(), rng.end().toMSecsSinceEpoch())
                         if drawn != self.index and drawn >= 0:
                             asked = self.ticks[self.index]["label"]
@@ -914,6 +975,7 @@ class HistoricalPanel(QWidget):
             finally:
                 self._driving = False
         self.sync_visibility()
+        self.show_frame()
 
     def sync_visibility(self):
         """With the temporal navigation on, every dated layer is checked and
@@ -943,13 +1005,18 @@ class HistoricalPanel(QWidget):
         if not self.ticks or self.group() is None:
             return
         if rng.isInfinite():
+            self.frame = None
             self.sync_visibility()
+            self.show_frame()
             return
+        self.frame = (rng.begin().toMSecsSinceEpoch(), rng.end().toMSecsSinceEpoch()) if self.step != "timestamps" else None
         i = historical.index_in(self.ticks, rng.begin().toMSecsSinceEpoch(), rng.end().toMSecsSinceEpoch())
         if i != self.index and i >= 0:
             self.index = i
             self.target_ms = self.ticks[i]["dateMs"]
             self.show_current()
+        else:
+            self.show_frame()
 
     def main_window(self):
         """QGIS's main window: the application's, else the one the dock is in."""

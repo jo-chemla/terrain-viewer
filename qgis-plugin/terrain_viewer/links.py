@@ -29,6 +29,13 @@ def builtin_basemaps():
     return {b["id"]: b for b in assets._json("app_defaults.json").get("basemaps", [])}
 
 
+def building_sources():
+    """The Library's vector sources the building shadows can read (tiles
+    with a height field), as lib/custom-sources.json has them: [{id, name,
+    type, url, sourceLayers, heightField, ...}]."""
+    return list(assets._json("app_defaults.json").get("buildingSources", []))
+
+
 def typed(value, default):
     """A link's value as the type of the app's default ("true" -> True,
     "0.8" -> 0.8); as given when it does not read as that type."""

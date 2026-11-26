@@ -793,6 +793,10 @@ check(list(dock.mode_switch.buttons) == ["terrain", "historical"] and dock.mode 
 hp = dock.historical
 hp.fetch = recorded_fetch
 check(not dock.terrain_page.isHidden() and hp.isHidden(), "Terrain: the terrain panel shown, the historical one hidden")
+# 0.11.0: a regular step, one week, is the default (0.10.1: source timestamps).
+check(hui.DEFAULT_STEP == "week" and (hp.step == "week" or _Settings().contains("terrain_viewer/temporalStep"))
+      and hp.step_box.currentData() == hp.step, f"the Temporal Controller's step starts on one week ({hp.step})")
+hp.set_step("timestamps")  # the 0.10.0 checks below step date by date
 canvas.freeze(True)  # nothing drawn: no tile asked from Esri or EOX
 nav = QgsTemporalNavigationObject()
 canvas.setTemporalController(nav)
@@ -1047,6 +1051,7 @@ QgsSettings_ = __import__("qgis.core", fromlist=["QgsSettings"]).QgsSettings
 QgsSettings_().remove("terrain_viewer/updateAvailable")
 QgsSettings_().remove("terrain_viewer/updateCheckedAt")
 _sh.rmtree(up, ignore_errors=True)
+exec(open(os.path.join(here_dir, "panel_buildings_checks.py"), encoding="utf-8").read())  # 0.11.0: the building shadows' buildings
 dock.cleanup()
 
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ")

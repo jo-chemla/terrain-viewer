@@ -51,6 +51,7 @@ from .settings_ui import (
 from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, RadioRow, CompactOpacity, ModeSwitch, hand, hand_title
 from . import solar
 from .historical_ui import HistoricalPanel
+from . import buildings_ui
 
 SETTINGS = "terrain_viewer"
 DEFAULT_SERVICE = "http://localhost:3400"
@@ -461,9 +462,18 @@ class ModeRow:
             self.opacity.opacityChanged.connect(lambda _v: self.apply_style())
             self.row.add_inline(self.opacity)
         self.settings = {}
+        # The building shadows' source: one control for the three kinds
+        # (a Library source, an address, a polygon layer of the project).
+        self.buildings = None
+        self._buildings_said = None
+        if mode["id"] == "buildingShadows":
+            self.buildings = buildings_ui.BuildingsFrom(dock, self.changed)
+            form.addRow("Buildings from", self.buildings)
         for spec in mode.get("settings", []):
             if spec["key"] in LIGHT_KEYS:
                 continue  # the panel's Light, shared by every shaded mode
+            if spec["key"] in buildings_ui.PARAMS:
+                continue  # written by "Buildings from"
             sw = SettingWidget(spec, dock, self.changed)
             self.settings[spec["key"]] = sw
             form.addRow(_label(spec["key"], mode["id"]), sw.widget)
@@ -514,6 +524,8 @@ class ModeRow:
                 self.settings[k].set(v)
         for sym in self.symmetric:
             self.mirror(sym)
+        if self.buildings is not None and params.get("buildingShadowSource"):
+            self.buildings.set_params(params)
 
     # the backend ------------------------------------------------------------
     def apply_backend(self, backend):
@@ -560,6 +572,15 @@ class ModeRow:
     def urls(self):
         base, common = self.dock.service_url(), self.dock.common_params(self.mode["id"])
         values = self.values()
+        if self.buildings is not None:
+            common = {k: v for k, v in common.items() if k not in buildings_ui.PARAMS}
+            if self.row.on("colour"):
+                extra, why = self.buildings.service_params(base)
+                if self.dock.catalog is not None and self.dock.catalog.building_sources is None and extra:
+                    extra, why = {}, ("this tile service reads OpenFreeMap's buildings only (it is older than 2026-11-27): "
+                                      "update it, or pick the Python backend, for another source of buildings")
+                self.say_buildings(why)
+                common.update(extra)
         out = {}
         if self.mode.get("form") != "vector":
             out[self.mode["id"]] = (tile_url(base, self.mode, values, common), False)
@@ -568,6 +589,12 @@ class ModeRow:
         if self.mode.get("values"):
             out[self.mode["id"] + ":values"] = (values_url(base, self.mode, values, common), "values")
         return out
+
+    def say_buildings(self, why):
+        """Why the buildings picked are not drawn, said once per reason."""
+        if why and why != self._buildings_said:
+            self.dock.warn(f"Building shadows: {why}")
+        self._buildings_said = why
 
     def update(self):
         """Each form's layer added (checked), re-pointed (a setting changed)
@@ -619,6 +646,11 @@ class ModeRow:
             return
         srv = dock.live_server()
         ext, width = dock.canvas_extent()
+        if self.buildings is not None and any(self.row.on(f) for f in keys):
+            bkey, why = self.buildings.python_key()
+            self.say_buildings(why)
+            if bkey:
+                opts["buildings"] = bkey
         if py == "elevation" and values.get("hypsoAutoRange") in (True, "true"):
             # The range follows the view (the app's hypsoAutoRange): its 2nd
             # to 98th percentile; otherwise the ramp settings as the service.
@@ -947,6 +979,14 @@ class TerrainViewerDock(QDockWidget):
         outer.setContentsMargins(0, 0, 0, 0)
 
         # -- the backend, and its options -----------------------------------
+        # One box (the radio buttons, the picked one's options, the status
+        # line): at the top of the Terrain page, and moved to the Historical
+        # page while a source there needs a tile server (place_backend_box).
+        self.backend_box = QWidget()
+        self.terrain_layout = outer
+        outer.addWidget(self.backend_box)
+        outer = QVBoxLayout(self.backend_box)
+        outer.setContentsMargins(0, 0, 0, 0)
         self.backend_picker = RadioRow(BACKENDS, backend)
         outer.addWidget(self.backend_picker)
         self.pages = QStackedWidget()
@@ -1002,6 +1042,7 @@ class TerrainViewerDock(QDockWidget):
         self.status = QLabel("Not connected")
         self.status.setWordWrap(True)
         outer.addWidget(self.status)
+        outer = self.terrain_layout
 
         # -- the source, with zoom-to -----------------------------------------
         src = QHBoxLayout()
@@ -1302,6 +1343,7 @@ class TerrainViewerDock(QDockWidget):
         self.historical.setVisible(mode == "historical")
         if save:
             QgsSettings().setValue(f"{SETTINGS}/appMode", mode)
+        self.place_backend_box()
         if mode == "historical":
             # After the panel is laid out (and, at start, the canvas is there).
             QTimer.singleShot(0, lambda: self.mode == "historical" and self.historical.activate())
@@ -1309,6 +1351,24 @@ class TerrainViewerDock(QDockWidget):
             self.historical.deactivate()
 
     # -- the backend --------------------------------------------------------
+    def place_backend_box(self):
+        """The backend control where it is needed: at the top of the Terrain
+        page, or on the Historical page while the source picked there is
+        drawn by a tile service (Google Earth historical). One control, one
+        setting, one connection: only its place changes."""
+        panel = getattr(self, "historical", None)
+        box = getattr(self, "backend_box", None)
+        if panel is None or box is None:
+            return
+        there = self.mode == "historical" and panel.needs_backend()
+        slot = panel.backend_slot if there else self.terrain_layout
+        if slot.indexOf(box) < 0:
+            if there:
+                slot.addWidget(box)
+            else:
+                slot.insertWidget(0, box)
+        box.setVisible(True)
+
     def show_backend(self, backend):
         self.pages.setCurrentWidget(self.page_of[backend])
         self.refresh_service_row()
@@ -2263,6 +2323,11 @@ class TerrainViewerDock(QDockWidget):
             self.prefetch_timer.start()
             if any(r.row.on("vector") for r in self.rows.values()):
                 self.vector_timer.start()
+        # A large polygon layer as the building shadows' buildings is read
+        # for the map's extent: again once the map leaves it.
+        shadows = self.rows.get("buildingShadows")
+        if shadows is not None and shadows.buildings is not None and shadows.row.on("colour"):
+            shadows.buildings.move_timer.start()
 
     def prefetch(self):
         if self.connected != "python":

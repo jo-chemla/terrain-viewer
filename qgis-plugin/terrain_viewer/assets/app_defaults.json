@@ -95,6 +95,7 @@
   "shadowSoft": true,
   "showBuildingShadows": false,
   "buildingShadowOpacity": 0.5,
+  "buildingShadowSource": "osm-buildings-openfreemap",
   "lightUseDatetime": false,
   "lightDayOfYear": 172,
   "lightTimeOfDay": 15,
@@ -162,6 +163,30 @@
   "lrmRadius": 16,
   "lrmCustomStops": "DEFAULT_SLOPE_CUSTOM_STOPS",
   "lrmCustomStopsDiscrete": false,
+  "remRiver": "main",
+  "remWaterways": "river",
+  "remRiverName": "",
+  "remLine": "",
+  "remSpacing": 0,
+  "remPower": 1,
+  "remNeighbors": 0,
+  "remMonotone": "min",
+  "remInterp": "idw",
+  "remShow": "rem",
+  "remElevAuto": true,
+  "remElevMin": 0,
+  "remElevMax": 100,
+  "remContours": false,
+  "remContourInterval": 1,
+  "remDetail": -1,
+  "remMin": 0,
+  "remMax": 10,
+  "remColorRamp": "rem-mako",
+  "remInvertColorRamp": false,
+  "remStretch": "log",
+  "remGamma": 0.5,
+  "remOpacity": 1,
+  "remShowLine": true,
   "showRoughness": false,
   "roughnessOpacity": 1,
   "roughnessColorRamp": "roughness-default",
@@ -381,6 +406,72 @@
    "name": "Google Satellite",
    "url": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
    "maxzoom": 21
+  }
+ ],
+ "buildingSources": [
+  {
+   "id": "overture-buildings",
+   "name": "Overture Maps buildings",
+   "shortName": "Overture buildings",
+   "type": "pmtiles",
+   "url": "https://tiles.overturemaps.org/{release}/buildings.pmtiles",
+   "resolver": "overture",
+   "fallbackRelease": "2026-11-18.0",
+   "minzoom": 5,
+   "maxzoom": 14,
+   "sourceLayers": [
+    "building"
+   ],
+   "partLayers": [
+    "building_part"
+   ],
+   "hasPartsField": "has_parts",
+   "heightField": "height",
+   "floorsField": "num_floors",
+   "minHeightField": "min_height"
+  },
+  {
+   "id": "osm-buildings-openfreemap",
+   "name": "OpenStreetMap buildings (OpenFreeMap)",
+   "shortName": "OSM buildings",
+   "type": "tilejson",
+   "url": "https://tiles.openfreemap.org/planet",
+   "minzoom": 13,
+   "maxzoom": 14,
+   "sourceLayers": [
+    "building"
+   ],
+   "heightField": "render_height",
+   "minHeightField": "render_min_height"
+  },
+  {
+   "id": "hwai-heritage-osm",
+   "name": "HW.ai Heritage Map - OSM",
+   "shortName": "Heritage: OSM",
+   "type": "pmtiles",
+   "url": "https://terria-catalog.prod.heritagewatch.ai/exports/osm-heritage-planet.pmtiles",
+   "minzoom": 0,
+   "maxzoom": 13,
+   "sourceLayers": [
+    "osm"
+   ],
+   "heightField": "height",
+   "floorsField": "levels"
+  },
+  {
+   "id": "hwai-heritage-osm-condition",
+   "name": "HW.ai Heritage Map - OSM condition (destroyed and damaged)",
+   "shortName": "Heritage: OSM condition",
+   "type": "pmtiles",
+   "url": "https://terria-catalog.prod.heritagewatch.ai/exports/osm-damage-planet.pmtiles",
+   "minzoom": 0,
+   "maxzoom": 14,
+   "sourceLayers": [
+    "shapes",
+    "damage"
+   ],
+   "heightField": "height",
+   "floorsField": "levels"
   }
  ]
 }

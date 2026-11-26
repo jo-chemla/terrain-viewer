@@ -66,6 +66,12 @@ Imagery: Esri Wayback of 2020 as XYZ tiles (the dated imagery and the built-in b
 http://localhost:3400/basemap-tiles/wayback/{z}/{x}/{y}.jpg?imageryDate=2020-01-01
 ```
 
+Building shadows from Overture's buildings (zoom 13 and finer; `buildingShadowSource` takes an id of `/building-sources`, or a PMTiles, TileJSON or `{z}/{x}/{y}` address with `buildingShadowLayer` and `buildingShadowHeightField`: [below](#building-shadows-where-the-buildings-come-from)):
+
+```text
+http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=buildingShadows&buildingShadowSource=overture-buildings&illuminationDir=135&illuminationAlt=25
+```
+
 A picture of a box (west, south, east, north in degrees; `.tif` with one mode gives its values):
 
 ```text
@@ -173,6 +179,7 @@ Like titiler's list of tile matrix sets, three lists give the ids the parameters
 | `/colorramps`, `/colorramps/{id}` | The app's 268 color ramps, to name as `colorRamp` (color relief) or `slopeColorRamp` (slope); one ramp gives its stops |
 | `/colorramps/{id}.png` or `.jpg` | A ramp as a picture, colored as the map colors it (MapLibre's color relief: linear between the stops): `width` and `height` (256 × 16 by default, 16 × 256 vertical), `orientation=vertical` (the lowest value at the bottom; horizontal: on the left), `reverse=true`. PNG keeps the ramp's transparency, JPEG is on white. For a legend or a ramp picker |
 | `/basemaps` | What `/basemap-tiles/{source}/…` takes: the dated imagery and the built-in basemaps, each with the parameter it stands for and its API key |
+| `/building-sources` | What `buildingShadowSource` takes by id: the Library's vector sources that have heights, each with its transport, address, polygon layers and height, floors and base fields ([building shadows](#building-shadows-where-the-buildings-come-from)) |
 | `/imagery-dates`, `/imagery-dates/{source}?lat=&lng=&zoom=` | The dated sources whose dates at a place can be listed, and those dates, newest first, with the tile template of one ([Google Earth historical](#google-earth-historical-dates-and-web-mercator-tiles-no-browser)) |
 | `/algorithms` | The modes with the engine that draws each |
 | `/processes`, `/processes/{id}` | Each mode as an [OGC API - Processes](#visualization-modes-ogc-api---processes) description: its settings as inputs with their JSON Schema (type, range, values, default), its outputs, its panel group, form, opacity parameters, and the unit and typical range of its values. The [QGIS plugin](/dev/qgis-plugin) builds its panel from it |
@@ -525,7 +532,39 @@ Mapbox, MapTiler and Cesium ion are read with your API key (`mapboxKey`, `maptil
 
 A file path is never accepted in an address. The QGIS plugin does this for you: a raster layer of the project picked as the source is registered with a service on the same machine, an https COG or VRT goes as its address ([QGIS Plugins](/dev/qgis-plugin#any-gdal-source)).
 
+### Building shadows: where the buildings come from
+
+`modes=buildingShadows` sweeps building footprints away from the sun on flat ground, as the app's layer does. Until 2026-11-27 the service read OpenFreeMap's OpenStreetMap buildings only. It now takes the app's `buildingShadowSource`, and reads the footprints with the app's own tile reader (`lib/building-tiles.ts`, picked by `tile-server/buildings.mjs`):
+
+| `buildingShadowSource` | What it is | What is read |
+|---|---|---|
+| unset, or `osm-buildings-openfreemap` | OpenStreetMap buildings from OpenFreeMap's planet tiles (a TileJSON) | Layer `building`, heights in `render_height` |
+| `overture-buildings` | Overture Maps buildings: a PMTiles archive per monthly release, whose current address the service reads from Overture's catalog | Layers `building` and `building_part` (a building marked `has_parts` is replaced by its parts), heights in `height`, else `num_floors` |
+| another id of `/building-sources` | Any vector source of the app's Library that has a height field | The entry's layers and fields |
+| an https address | A PMTiles archive (`.pmtiles`), a vector tile template (`{z}/{x}/{y}`), or a TileJSON (anything else; `buildingShadowType=pmtiles\|tilejson\|mvt` when the address does not say) | `buildingShadowLayer` (polygon layers, comma-separated; unset: every layer a PMTiles archive or a TileJSON lists, `building` for a template) and `buildingShadowHeightField` (metres; `height` when unset), with `buildingShadowFloorsField` and `buildingShadowMinHeightField` when the tiles have them |
+| a JSON value | The same as one parameter, with a Library entry's field names: `{"url", "type", "sourceLayers", "heightField", "floorsField", "minHeightField", "partLayers", "hasPartsField", "maxzoom"}` | As written |
+| `file:<id>` | A GeoJSON file of the service's own machine, registered with `POST /files` ([local files](#local-files)): polygons in longitude and latitude | Heights in `buildingShadowHeightField` (`height` when unset); a feature with no height is left out |
+
+```text
+http://localhost:3400/building-sources
+http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=buildingShadows&buildingShadowSource=overture-buildings
+http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=buildingShadows&buildingShadowSource=https://example.org/bati.pmtiles&buildingShadowLayer=bati&buildingShadowHeightField=hauteur
+http://localhost:3400/terrain-tiles/{z}/{x}/{y}.png?modes=buildingShadows&buildingShadowSource=file:9b1c...&buildingShadowHeightField=height
+```
+
+How it reads, and its limits:
+
+- **The height of a feature**: its height field, else its floors times 3.2 m, else 4 m (the app's rule, `featureHeight` in `lib/vector-sources.ts`), capped at 600 m for the sweep. A raised part (a base above the ground, `minHeightField`) shades from its base to its top and leaves the ground under it lit.
+- **Tiles at the source's deepest zoom, 14 at most**, where they hold every building whole; the tiles over the picture and the longest shadow around it (3 km at most) are read, 64 tiles at most, and nothing is drawn below map zoom 13. A tile's clip lines are not swept as walls (the reader flags them, whatever the tile set's buffer).
+- **An id the service does not know** (a source of a user's own list in the app, `custom-…`) draws the default, as the app does for an id that is gone. An address that is not https, or a `file:` id that is not registered (or whose file changed since), answers 400 or 404 with a message.
+- **Only the direct engine** takes an address or a file; a view the browser draws passes `buildingShadowSource` to the app, which knows ids only.
+- Measured on one z15 tile of Courbevoie (2026-11-27, sun at 20°, nothing cached): OpenFreeMap 1.5 s, Overture 2.1 s (its archive's header and directories once, then about 1 MB a tile), then from the cache.
+
+The QGIS plugin's **Buildings from** writes these parameters ([QGIS Plugins](/dev/qgis-plugin#building-shadows-buildings-from)): an id, an address with its layer and height field, or a polygon layer of the project, which it writes to a GeoJSON and registers. `/processes/buildingShadows` describes each parameter; `tile-server/test.mjs` checks the forms, the refusals, a raised part and a registered GeoJSON swept (offline).
+
 ### Local files
+
+A GeoJSON of building footprints registers the same way since 2026-11-27 (`.geojson`, 100 MB at most; `"type": "geojson"` in the answer): it is a source for `buildingShadowSource` ([above](#building-shadows-where-the-buildings-come-from)), never a terrain source.
 
 A GeoTIFF (COG or not) or a GDAL VRT on the service's own machine is a source once it is registered (`tile-server/files.mjs`, since 2026-11-25): the QGIS plugin hands over its raster layer's file this way.
 
@@ -547,7 +586,7 @@ The file is read by the app's own VRT reader (any CRS, reprojected with proj4, i
 What keeps a request from reading a file the user did not hand over:
 
 - **Registration only from this machine**: a request from a loopback address, with no `Origin` header (a web page's request always carries one, and a page cannot send JSON across origins without a preflight, which `/files` never grants), with a JSON body.
-- **The path checked**: absolute, resolved through its links (`realpath`), a regular file named `.tif`, `.tiff` or `.vrt` whose first bytes are a TIFF's or a VRT's. With `TV_FILE_ROOTS` set, it must lie under one of those folders, and so must every local source of a VRT (`../` included: the resolved path is what is checked). A VRT inside a VRT is refused.
+- **The path checked**: absolute, resolved through its links (`realpath`), a regular file named `.tif`, `.tiff` or `.vrt` whose first bytes are a TIFF's or a VRT's (or `.geojson`, starting as a JSON object: building footprints). With `TV_FILE_ROOTS` set, it must lie under one of those folders, and so must every local source of a VRT (`../` included: the resolved path is what is checked). A VRT inside a VRT is refused.
 - **No path in an address**: a tile names `file:<id>`; the reader names an id and one of that entry's own file names (`0.tif`, `source.vrt`). The id is an HMAC (key in the cache folder) of the real path, size and modification time: not guessable, the same while the file is unchanged (its cached tiles stay valid), new when it changes. A changed file is not read until registered again.
 - `TV_LOCAL_FILES=off` turns registration off. The registry is `local-files.json` in `TILE_CACHE_DIR` (the workers read it there; a registration outlives a restart while the file is unchanged).
 

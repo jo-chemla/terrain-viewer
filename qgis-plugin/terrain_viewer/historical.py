@@ -37,7 +37,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, quote
 
-USER_AGENT = "terrain-viewer-qgis/0.10"
+USER_AGENT = "terrain-viewer-qgis/0.11"
 DAY_MS = 86400000
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
@@ -140,7 +140,7 @@ def unavailable(sid, keys=None, service=None):
     if s.get("key") and not (keys or {}).get(s["key"]):
         return "needs a Planet key (API keys, below)"
     if s.get("service") and not service:
-        return "needs a tile server backend (Terrain mode: Packaged or Remote tile server, Connect)"
+        return "needs a tile server backend (Packaged or Remote tile server: pick one and Connect)"
     return None
 
 

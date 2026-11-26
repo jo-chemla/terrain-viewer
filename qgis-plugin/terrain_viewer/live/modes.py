@@ -374,7 +374,7 @@ MODES = {
     "shadows": {"label": "Shadows", "unit": "1 lit, 0 in shadow", "kind": "shade", "range": (0, 1),
                 "defaults": {"azimuth": 315.0, "altitude": 30.0, "radius": 256}, "opacity": 0.6},
     "buildingShadows": {"label": "Building shadows", "unit": "1 lit, 0 in shadow", "kind": "shade", "range": (0, 1),
-                        "defaults": {"azimuth": 315.0, "altitude": 45.0}, "opacity": 0.5,
+                        "defaults": {"azimuth": 315.0, "altitude": 45.0, "buildings": ""}, "opacity": 0.5,
                         "outputs": ("colour", "values"), "python_supported": True, "service": "buildingShadows"},
     "contours": {"label": "Contours", "unit": "1 minor, 2 major", "kind": "mask", "range": (1, 2),
                  "defaults": {"minor": 50.0, "major": 200.0, "reference": "absolute", "minorLrm": 5.0, "majorLrm": 20.0,
@@ -618,7 +618,8 @@ def values(mode, grid, res_m, opts, n=256, xp=np):
         return xp.where(m > 0, m, xp.nan).astype(xp.float32)  # the stroke's coverage, NaN off it
     if mode == "buildingShadows":
         from .buildings import lit
-        return xp.asarray(lit(grid.z, grid.x, grid.y, n, opts["azimuth"], opts["altitude"]))
+        # buildings: the source's key (buildings.register), "" for OpenFreeMap's.
+        return xp.asarray(lit(grid.z, grid.x, grid.y, n, opts["azimuth"], opts["altitude"], opts.get("buildings", "")))
     if mode == "planeSlicer":
         if opts["reference"] == "lrm":
             return values("lrm", grid, res_m, {"radius": opts["lrmRadius"]}, n, xp)
