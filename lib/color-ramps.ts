@@ -904,6 +904,41 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // River REM (metres above the river, lib/river-rem-protocol.ts). The stops'
+  // values are only an order: the mode spreads the ramp over its own range
+  // with its stretch (lib/river-rem-style.ts). "rem-mako" is RiverREM's
+  // default look, seaborn's mako reversed: the river pale, high ground dark.
+  "rem-mako": {
+    name: "REM Mako (river light)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "#def5e5",
+      1, "#8bdab2",
+      2, "#40b7ad",
+      3, "#348fa7",
+      4, "#37659e",
+      5, "#413d7b",
+      6, "#2e1e3b",
+      7, "#0b0405",
+    ],
+    continuous: true,
+  },
+  "rem-blues": {
+    name: "REM Blues (river light)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "#f7fbff",
+      1, "#deebf7",
+      2, "#c6dbef",
+      3, "#9ecae1",
+      4, "#6baed6",
+      5, "#4292c6",
+      6, "#2171b5",
+      7, "#08519c",
+      8, "#08306b",
+    ],
+    continuous: true,
+  },
   // Roughness (meters, max-min elevation in a 3x3 neighborhood) from
   // lib/roughness-protocol.ts. Flat ground (0) is fully transparent rather than
   // opaque white, matching tri-default, since it's the same "unrugged ground

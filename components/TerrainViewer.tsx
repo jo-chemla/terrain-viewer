@@ -92,6 +92,8 @@ import { curvatureProtocol, CURVATURE_ENCODE_SCALE } from '@/lib/curvature-proto
 import { tpiProtocol } from '@/lib/tpi-protocol'
 import { roughnessProtocol } from '@/lib/roughness-protocol'
 import { lrmProtocol } from '@/lib/lrm-protocol'
+import { riverRemProtocol } from '@/lib/river-rem-protocol'
+import { RiverRemLayers } from './RiverRem/RiverRemLayers'
 import { thresholdProtocol, lumaProtocol } from '@/lib/threshold-protocol'
 import { isobandProtocol } from '@/lib/isoband-protocol'
 import { unpaperProtocol } from '@/lib/unpaper-protocol'
@@ -178,7 +180,7 @@ const parseAsFloatPrecise = createParser({
 // falls back to full remounting this whole tree on every edit), which was
 // causing spurious mid-teardown crashes in ContoursLayer/TerraDraw during dev.
 const VIEW_MODES = ['2d', 'globe', '3d'] as const
-const APP_MODES = ['terrain', 'historical'] as const
+const APP_MODES = ['terrain', 'historical', 'rem'] as const
 // Shared by both the CSS-var minimap/scale clearance (see
 // measuredPanelClearance below) and the camera bottom-padding correction
 // (mapPaddingFor) — one gap value, not two independently-guessed ones.
@@ -746,6 +748,37 @@ export const QUERY_STATE_PARSERS = {
     lrmRadius: parseAsFloat.withDefault(16),
     lrmCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     lrmCustomStopsDiscrete: parseAsBoolean.withDefault(false),
+    // River REM mode (appMode=rem): height above the river, the DEM minus a
+    // trend surface that follows the river's water level (lib/river-rem.ts).
+    // Where the centerline comes from: OpenStreetMap's longest named river in view, every waterway in view, one river picked by name, or a drawn line.
+    remRiver: parseAsStringLiteral(["longest", "all", "named", "drawn"] as const).withDefault("longest"),
+    // Which OpenStreetMap waterways are read: rivers only, or rivers, streams and canals.
+    remWaterways: parseAsStringLiteral(["river", "all"] as const).withDefault("river"),
+    // The river's OpenStreetMap name when remRiver is "named".
+    remRiverName: parseAsString.withDefault(""),
+    // The drawn centerline when remRiver is "drawn": encoded polylines (5 decimals) joined by ";".
+    remLine: parseAsString.withDefault(""),
+    // Distance in metres between two heights read along the centerline; 0 spreads 1000 points over its length, as RiverREM does.
+    remSpacing: parseAsFloat.withDefault(0),
+    // Inverse-distance weighting exponent of the trend surface (weights 1 / distance^power); RiverREM uses 1.
+    remPower: parseAsFloat.withDefault(1),
+    // Nearest river samples averaged at each point of the trend surface; 0 guesses it from the river's sinuosity, as RiverREM does.
+    remNeighbors: parseAsInteger.withDefault(0),
+    // How the sampled water levels are made to fall downstream: running minimum, monotone least-squares fit, or left as read.
+    remMonotone: parseAsStringLiteral(["min", "fit", "none"] as const).withDefault("min"),
+    // Height above the river, in metres, at the start of the color ramp.
+    remMin: parseAsFloat.withDefault(0),
+    // Height above the river, in metres, at the end of the color ramp.
+    remMax: parseAsFloat.withDefault(10),
+    remColorRamp: parseAsString.withDefault("rem-mako"),
+    remInvertColorRamp: parseAsBoolean.withDefault(false),
+    // How the ramp is spread over the range: log (RiverREM's, most colors near the water), power (remGamma) or linear.
+    remStretch: parseAsStringLiteral(["log", "power", "linear"] as const).withDefault("log"),
+    // Exponent of the power stretch; under 1 gives more colors near the water.
+    remGamma: parseAsFloat.withDefault(0.5),
+    remOpacity: parseAsFloat.withDefault(1.0),
+    // Draws the centerline in use over the REM.
+    remShowLine: parseAsBoolean.withDefault(true),
     showRoughness: parseAsBoolean.withDefault(false),
     roughnessOpacity: parseAsFloat.withDefault(1.0),
     roughnessColorRamp: parseAsString.withDefault("roughness-default"),
@@ -1795,6 +1828,7 @@ export function TerrainViewer() {
     registerProtocol('curvature', withTileResultCache(curvatureProtocol))
     registerProtocol('tpi', withTileResultCache(tpiProtocol))
     registerProtocol('lrm', withTileResultCache(lrmProtocol))
+    registerProtocol('riverrem', withTileResultCache(riverRemProtocol))
     registerProtocol('threshold', withTileResultCache(thresholdProtocol))
     registerProtocol('luma', withTileResultCache(lumaProtocol))
     registerProtocol('isoband', withTileResultCache(isobandProtocol))
@@ -4288,6 +4322,8 @@ export function TerrainViewer() {
           <CurvatureReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showCurvature={state.showCurvature && vm("showCurvature")} curvatureReliefPaint={curvatureReliefPaint} />
           <TpiReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showTpi={state.showTpi && vm("showTpi")} tpiReliefPaint={tpiReliefPaint} />
           <LrmReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode && vm("showReliefVisualization")} showLrm={state.showLrm && vm("showLrm")} lrmReliefPaint={lrmReliefPaint} />
+          {/* River REM mode: view A's engine, and its tiles on every view (from view A's terrain source). */}
+          <RiverRemLayers enabled={state.appMode === "rem"} primary={isPrimary} state={state} setState={setState} terrainSource={state.sourceA} />
           <RoughnessReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showRoughness={state.showRoughness && vm("showRoughness")} roughnessReliefPaint={roughnessReliefPaint} />
           <ShapeIndexReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showShapeIndex={state.showShapeIndex && vm("showShapeIndex")} shapeIndexReliefPaint={shapeIndexReliefPaint} />
           <BlobnessReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showBlobness={state.showBlobness && vm("showBlobness")} blobnessReliefPaint={blobnessReliefPaint} />

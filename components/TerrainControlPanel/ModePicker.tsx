@@ -1,5 +1,5 @@
 import type React from "react"
-import { History, Mountain } from "lucide-react"
+import { History, Mountain, Waves } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -17,6 +17,12 @@ const MODES: { id: AppMode; label: string; description: string; icon: React.Comp
     label: "Historical Imagery",
     description: "For comparing historical basemap sources via a timeline — a simplified 2D view with no elevation source.",
     icon: History,
+  },
+  {
+    id: "rem",
+    label: "River REM",
+    description: "For floodplains — height above the river: the elevation minus the river's own slope, computed live, showing terraces, old channels and meander scars.",
+    icon: Waves,
   },
 ]
 

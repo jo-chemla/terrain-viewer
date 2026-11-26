@@ -424,7 +424,7 @@ export const dataLayersModalOpenAtom = atom(false)
 // "persist across a fresh session with no URL param" role as
 // tellsBetaEnabledAtom in TerrainViewer.tsx) so opening the app again
 // without `?appMode=` doesn't silently reset to Terrain.
-export type AppMode = "terrain" | "historical"
+export type AppMode = "terrain" | "historical" | "rem"
 export const appModeAtom = atomWithStorage<AppMode>("appMode", "terrain")
 
 // Hostnames whose whole purpose is "a dedicated historical imagery viewer" —

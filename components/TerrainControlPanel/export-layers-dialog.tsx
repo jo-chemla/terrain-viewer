@@ -49,7 +49,7 @@ type Branch = { key: "top" | "visible" | "hidden"; title: string; groups: Group[
 // `scale`: the protocol stores value x scale in the tile (curvature and
 // shape index, CURVATURE_ENCODE_SCALE in lib/curvature-protocol.ts, for
 // precision); the export divides it back out.
-const VALUE_MODES: { group: "Terrain Analysis" | "Relief Visualization"; sourceId: string; layerId: string; label: string; unit?: string; scale?: number }[] = [
+const VALUE_MODES: { group: "Terrain Analysis" | "Relief Visualization" | "River REM"; sourceId: string; layerId: string; label: string; unit?: string; scale?: number }[] = [
   { group: "Terrain Analysis", sourceId: "slopeSource", layerId: "slope-relief", label: "Slope", unit: "degrees" },
   { group: "Terrain Analysis", sourceId: "aspectSource", layerId: "aspect-relief", label: "Aspect", unit: "degrees" },
   { group: "Terrain Analysis", sourceId: "curvatureSource", layerId: "curvature-relief", label: "Curvature", scale: 1000 },
@@ -64,6 +64,8 @@ const VALUE_MODES: { group: "Terrain Analysis" | "Relief Visualization"; sourceI
   { group: "Relief Visualization", sourceId: "svfSource", layerId: "svf-relief", label: "SVF", unit: "%" },
   { group: "Relief Visualization", sourceId: "opennessSource", layerId: "openness-relief", label: "Openness" },
   { group: "Relief Visualization", sourceId: "localDominanceSource", layerId: "local-dominance-relief", label: "Local Dominance" },
+  // Only listed while the River REM mode has its source on the map: its tiles need the trend surface the mode built.
+  { group: "River REM", sourceId: "riverRemSource", layerId: "river-rem-relief", label: "REM, height above the river", unit: "m" },
 ]
 
 const isShown = (map: maplibregl.Map, id: string) => !!map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none"
@@ -103,8 +105,8 @@ function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: 
   if (tellsVisible) vector.push({ id: "tells", label: "Mound candidates", detail: "GeoJSON", kind: "vector", vector: "tells" })
   if (vector.length) visible.push({ key: "vector", title: "Vector", items: vector })
 
-  for (const title of ["Terrain Analysis", "Relief Visualization"] as const) {
-    const modes = VALUE_MODES.filter((m) => m.group === title)
+  for (const title of ["Terrain Analysis", "Relief Visualization", "River REM"] as const) {
+    const modes = VALUE_MODES.filter((m) => m.group === title && (title !== "River REM" || !!map.getSource(m.sourceId)))
     const toItem = (m: (typeof VALUE_MODES)[number]): Item => ({ id: `values:${m.sourceId}`, label: m.label, detail: m.unit, kind: "values", sourceId: m.sourceId })
     const on = modes.filter((m) => isShown(map, m.layerId)).map(toItem)
     const off = modes.filter((m) => !isShown(map, m.layerId)).map(toItem)
@@ -127,6 +129,7 @@ function buildTree(map: maplibregl.Map, contoursVisible: boolean, tellsVisible: 
   const other = [
     renderItem("terrain-analysis", "Terrain Analysis, as coloured on screen", VALUE_MODES.filter((m) => m.group === "Terrain Analysis").map((m) => m.layerId)),
     renderItem("relief", "Relief Visualization, as coloured on screen", VALUE_MODES.filter((m) => m.group === "Relief Visualization").map((m) => m.layerId)),
+    renderItem("river-rem", "River REM, as colored on screen", VALUE_MODES.filter((m) => m.group === "River REM").map((m) => m.layerId)),
     renderItem("overlays", "Basemap overlays", all.filter((id) => id.startsWith("overlay-basemap-"))),
   ]
   const oShown = other.flatMap((r) => (r.shown ? [r.shown] : []))

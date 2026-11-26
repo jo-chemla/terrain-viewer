@@ -248,17 +248,19 @@ test("mercator helpers round-trip", () => {
 
 test("Overpass: the query names the kinds and the box, the answer becomes ways", () => {
   const q = overpassQuery([3.1, 46.2, 3.5, 46.6], "river")
-  assert.match(q, /way\["waterway"="river"\]\(46\.20000,3\.10000,46\.60000,3\.50000\);out tags geom;/)
+  assert.match(q, /way\["waterway"="river"\]\(46\.20000,3\.10000,46\.60000,3\.50000\);out tags geom\(46\.20000,3\.10000,46\.60000,3\.50000\);/)
   assert.match(overpassQuery([0, 0, 1, 1], "all"), /river\|stream\|canal/)
   const ways = parseOverpassWays({ elements: [
     { type: "way", id: 1, tags: { name: "Allier", waterway: "river" }, geometry: [{ lat: 46.3, lon: 3.3 }, { lat: 46.4, lon: 3.31 }] },
-    { type: "way", id: 2, tags: { waterway: "stream" }, geometry: [{ lat: 1, lon: 2 }, null, { lat: 3, lon: 4 }] },
+    // Nodes outside the asked box are null: the way is cut there, a lone node is dropped.
+    { type: "way", id: 2, tags: { waterway: "stream" }, geometry: [null, { lat: 1, lon: 2 }, { lat: 3, lon: 4 }, null, null, { lat: 5, lon: 6 }, { lat: 7, lon: 8 }, null, { lat: 9, lon: 9 }] },
     { type: "way", id: 3, geometry: [{ lat: 1, lon: 2 }] },
     { type: "node", id: 4 },
   ] })
   assert.deepEqual(ways, [
     { id: 1, name: "Allier", kind: "river", coords: [[3.3, 46.3], [3.31, 46.4]] },
     { id: 2, name: "", kind: "stream", coords: [[2, 1], [4, 3]] },
+    { id: 2, name: "", kind: "stream", coords: [[6, 5], [8, 7]] },
   ])
   assert.deepEqual(parseOverpassWays(null), [])
 })

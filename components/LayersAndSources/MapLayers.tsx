@@ -20,6 +20,7 @@ export const LAYER_SLOTS = {
   CURVATURE: "slot-curvature",
   TPI: "slot-tpi",
   LRM: "slot-lrm",
+  RIVER_REM: "slot-river-rem",
   ROUGHNESS: "slot-roughness",
   SHAPE_INDEX: "slot-shape-index",
   BLOBNESS: "slot-blobness",
@@ -52,6 +53,7 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.CURVATURE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TPI}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.LRM}         type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.RIVER_REM}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.ROUGHNESS}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.SHAPE_INDEX} type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.BLOBNESS}    type="background" paint={{ "background-opacity": 0 }} />
