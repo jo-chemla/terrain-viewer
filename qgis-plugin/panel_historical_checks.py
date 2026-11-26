@@ -63,8 +63,9 @@ other.setParent(None)
 # -- the controller's step ---------------------------------------------------------
 hp.target_ms = None
 hp.pick(8)
-check(hp.step == "timestamps" and [hp.step_box.itemData(i) for i in range(hp.step_box.count())] == ["timestamps", "day", "week", "month", "year"],
-      "the step select: source timestamps (the default), day, week, month, year")
+check(hp.step == "timestamps" and [hp.step_box.itemData(i) for i in range(hp.step_box.count())] == ["day", "week", "month", "year", "timestamps"],
+      "the step select: day, week (the default), month, year, then source timestamps")
+check(hp.frame_label.isHidden() and hp.frame_text() == "", "source timestamps: the frame is the capture, no frame line")
 first_ms, last_ms = hp.ticks[0]["dateMs"], hp.ticks[-1]["dateMs"]
 for step in ("day", "week", "month", "year"):
     hp.step_box.setCurrentIndex(hp.step_box.findData(step))
@@ -82,9 +83,41 @@ for step in ("day", "week", "month", "year"):
         holds = holds and rng.begin().toMSecsSinceEpoch() <= cur["dateMs"] < rng.end().toMSecsSinceEpoch()
         # The slider's position is the date's place in time, to a frame.
         spread = spread and abs(frame / max(1, total - 1) - (cur["dateMs"] - first_ms) / (NOW - first_ms)) < 0.03 + 1.5 / total
-    check(unit_ok and same and holds and spread and _Settings().value("terrain_viewer/historicalStep") == step,
+    check(unit_ok and same and holds and spread and _Settings().value("terrain_viewer/temporalStep") == step,
           f"step {step}: {total} frames of equal duration, each date's frame holds it and draws it, the slider "
           f"proportional to time ({shared} dates sharing a frame with a newer one: the newer drawn, and shown by the panel)")
+# One week, the default: every frame draws the latest capture at or before
+# its end, each layer standing from its true capture date until the next.
+hp.set_step("week")
+hp.pick(0)
+wk0 = tnav.currentFrameNumber()
+weekly_ok, changes, checked_frames = True, 0, 0
+last_label = None
+for fr in list(range(wk0, tnav.totalFrameCount(), 37)) + [tnav.totalFrameCount() - 1]:
+    tnav.setCurrentFrameNumber(fr)
+    wr = tnav.dateTimeRangeForFrameNumber(fr)
+    a_ms, b_ms = wr.begin().toMSecsSinceEpoch(), wr.end().toMSecsSinceEpoch()
+    want = max((t for t in ticks if t["dateMs"] < b_ms), key=lambda t: t["dateMs"])  # the latest capture begun by the frame's end
+    weekly_ok = weekly_ok and hp.current_label.text() == want["label"] == max(drawn()) and b_ms - a_ms == 7 * 86400000 \
+        and wr.begin().date().dayOfWeek() == 1 and want["label"] in hp.frame_text()
+    changes += want["label"] != last_label
+    last_label = want["label"]
+    checked_frames += 1
+check(weekly_ok and changes >= 8 and checked_frames > 15,
+      f"one week a frame: {tnav.totalFrameCount()} frames from a Monday; at {checked_frames} of them the panel and the layers "
+      f"drawn are the latest capture at or before the frame's end ({changes} captures met)")
+tnav.setCurrentFrameNumber(tnav.findBestFrameNumberForFrameStart(hui.qdatetime(historical.utc_ms(2019, 6, 3))))
+check(hp.current_label.text() == "2018-09-11" and not hp.frame_label.isHidden()
+      and hp.frame_label.text() == "Controller: week of 2019-06-03. Imagery: captured 2018-09-11, the latest at or before it."
+      and [l.name() for l in hp.layers().values() if l.temporalProperties().isVisibleInTemporalRange(canvas.temporalRange())] == ["2018-09-11 · Esri Wayback"],
+      f"the week of 2019-06-03 draws the capture of 2018-09-11, and the panel says both ({hp.frame_label.text()})")
+hp.pick(5)
+check("in this frame" in hp.frame_label.text() and ticks[5]["label"] in hp.frame_label.text(),
+      f"a date picked: its week's frame, which holds the capture ({hp.frame_label.text()})")
+tnav.setNavigationMode(hui.NAV_OFF)
+check(hp.frame_label.isHidden(), "the controller turned off: no frame line")
+tnav.setNavigationMode(hui.NAV_ANIMATED)
+hp.temporal_wanted = True
 hp.set_step("month")
 hp.pick(0)
 f0 = tnav.currentFrameNumber()
@@ -104,10 +137,10 @@ hp.pick(0)
 check(hp.current_label.text() == "2014-09-12" and "same year" in hp.status.text() and "2014-03-01" in hp.status.text(),
       f"two captures of one year under the year step: the newer is drawn and shown, and said ({hp.status.text()[:60]}...)")
 hp.apply(ticks, True)
-hp.step_box.setCurrentIndex(0)
+hp.step_box.setCurrentIndex(hp.step_box.findData("timestamps"))
 check(hp.step == "timestamps" and tnav.totalFrameCount() == 9 and tnav.frameDuration().originalUnit() == hui.IRREGULAR
       and step_box.currentText() == "source timestamps", "back to source timestamps: nine stops again")
-_Settings().remove("terrain_viewer/historicalStep")
+_Settings().remove("terrain_viewer/temporalStep")
 check(hui.floor_ms("week", historical.utc_ms(2026, 11, 26)) == historical.utc_ms(2026, 11, 23)
       and hui.floor_ms("month", historical.utc_ms(1943, 12, 31)) == historical.utc_ms(1943, 12, 1)
       and hui.scale_text(254321) == "1:250 000", "a week starts on its Monday; a date before 1970; a scale to two figures")
@@ -115,8 +148,10 @@ check(hui.floor_ms("week", historical.utc_ms(2026, 11, 26)) == historical.utc_ms
 # -- the notices: the map moved, the view too wide ---------------------------------
 hp.target_ms = None
 hp.pick(8)
-check(hp.notice.isHidden() and "No backend is involved" in hp.origin.text() and "provider's own XYZ" in hp.origin.text(),
+check(hp.notice.isHidden() and "Esri Wayback needs no backend" in hp.origin.text() and "provider's own XYZ" in hp.origin.text(),
       f"one quiet line says where the tiles come from ({hp.origin.text()[:60]}...)")
+check(not hp.needs_backend() and dock.terrain_layout.indexOf(dock.backend_box) == 0 and hp.backend_slot.indexOf(dock.backend_box) < 0,
+      "Esri Wayback needs no backend: the backend control stays on the Terrain page")
 hp.follow.setChecked(True)
 dock.zoom_to(48.90, 2.2945, 15)
 hp.moved()
@@ -307,9 +342,37 @@ check(historical.ge_level(15) == 16 and historical.ge_dates_url("http://tiles.te
       and historical.place_key("ge-historical", *PARIS, service="http://a") != historical.place_key("ge-historical", PARIS[0], PARIS[1], 16, service="http://a"),
       "the dates are asked at the Keyhole level of the tiles QGIS draws (the app's zoom + 1), per node and per service")
 i_g = hp.source.findData("dated:ge-historical")
-check(not (hp.source.model().item(i_g).flags() & Qt.ItemFlag.ItemIsEnabled) and "needs a tile server backend" in hp.source.itemText(i_g)
-      and "Terrain mode" in str(hp.source.itemData(i_g, Qt.ItemDataRole.ToolTipRole)) and hp.service() is None,
-      "Google Earth historical without a tile server backend: greyed out, with the reason")
+check(bool(hp.source.model().item(i_g).flags() & Qt.ItemFlag.ItemIsEnabled) and "needs a tile server backend" in hp.source.itemText(i_g)
+      and "Connect" in str(hp.source.itemData(i_g, Qt.ItemDataRole.ToolTipRole)) and hp.service() is None,
+      "Google Earth historical without a tile server backend: named so, and still to pick (the backend control comes with it)")
+# 0.11.0: the backend control on the Historical page while a source needs it.
+backend_before = dock.backend
+hp.source.setCurrentIndex(i_g)
+spin(50)
+check(hp.needs_backend() and hp.backend_slot.indexOf(dock.backend_box) == 0 and dock.terrain_layout.indexOf(dock.backend_box) < 0
+      and not dock.backend_box.isHidden() and dock.backend_picker.parent() is dock.backend_box and dock.status.parent() is dock.backend_box
+      and "Pick Packaged tile server or Remote tile server below" in hp.origin.text() and not hp.layers()
+      and "needs a tile server backend" in hp.status.text(),
+      "Google Earth historical picked with no tile server: the panel's backend control (radio buttons, options, status) "
+      "is on the Historical page, the very widget of the Terrain page")
+dock.backend_picker.set("remote", emit=False)
+dock.set_backend("remote", connect=False)
+check(dock.backend == "remote" and _Settings().value("terrain_viewer/backend") == "remote" and dock.pages.currentWidget() is dock.page_of["remote"],
+      "a backend picked there is the panel's one backend (one setting)")
+dock.set_mode("terrain")
+spin(20)
+check(dock.terrain_layout.indexOf(dock.backend_box) == 0 and dock.backend_picker.current() == "remote" and not dock.backend_box.isHidden(),
+      "back on the Terrain page: the same control, at its top, with the backend picked on the Historical page")
+dock.set_mode("historical")
+spin(20)
+check(hp.backend_slot.indexOf(dock.backend_box) == 0, "and on the Historical page again with Google Earth still picked")
+hp.source.setCurrentIndex(hp.source.findData("dated:eox-s2"))
+spin(20)
+check(dock.terrain_layout.indexOf(dock.backend_box) == 0 and "EOX Sentinel-2 needs no backend" in hp.origin.text(),
+      "a source that needs no backend: the control leaves the page, and the line says so")
+dock.set_backend(backend_before, connect=False)
+hp.source.setCurrentIndex(hp.source.findData("dated:wayback"))
+settle()
 ge_asked = []
 
 
@@ -354,8 +417,9 @@ check("older than 2026-11-26" in hp.status.text() and "/imagery-dates" in hp.sta
       f"a tile service without the endpoint (an older one): said ({hp.status.text()[:80]}...)")
 dock.connected = None
 spin(80)
-check(not hp.layers() and "needs a tile server backend" in hp.status.text() and "Connect one in the Terrain mode" in hp.origin.text(),
-      "the tile service gone: the Google Earth layers go, the panel says what is needed")
+check(not hp.layers() and "needs a tile server backend" in hp.status.text() and "below and Connect" in hp.origin.text()
+      and hp.backend_slot.indexOf(dock.backend_box) == 0,
+      "the tile service gone: the Google Earth layers go, the panel says what is needed, the backend control at hand")
 dock.base = None
 historical.reset_cache()
 hp.fetch = recorded_fetch

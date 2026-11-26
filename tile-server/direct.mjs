@@ -37,6 +37,7 @@ import { float32GeoTiff } from "./tiff.mjs"
 import { installBrowserShim, pixelsOf } from "./browser-shim.mjs"
 import { encodeTile, tileBounds, levelGeometricError } from "./quantized-mesh.mjs"
 import { addUndulation, undulation, warmUpGeoid } from "./geoid.mjs"
+import { openBuildings, BUILDING_PARAMS } from "./buildings.mjs"
 
 let appPromise
 const app = () => (appPromise ??= (installBrowserShim(), import("./generated/app-render.mjs").then((A) => { A.registerDerivedProtocols(); return A })))
@@ -93,6 +94,9 @@ async function stateFor(view, rest) {
   // The tile service's own: background=none leaves the map's background out,
   // a transparent PNG to stack in a GIS.
   state.transparent = url.searchParams.get("background") === "none"
+  // The building shadows' source, wider here than in the app (buildings.mjs):
+  // the layer and the height field of an address given in buildingShadowSource.
+  for (const k of BUILDING_PARAMS) if (url.searchParams.has(k)) state[k] = url.searchParams.get(k)
   return { state, given }
 }
 
@@ -1088,50 +1092,46 @@ async function isolineSvg(A, dem, s, rect, baseUrl) {
 }
 
 /** The building shadows (BuildingShadowLayer.tsx), the same flat-ground
- *  sweep as the map's GPU layer: OpenFreeMap's z14 building footprints
- *  (lib/building-tiles.ts), each wall swept away from the sun by
- *  min(render_height, 600 m) / tan(altitude), the roof outline at the tip,
- *  the union of the sweeps in black at the layer's opacity (overlaps never
- *  darken twice), the footprints cut back out (roofs stay lit). Nothing
- *  below map zoom 13, as in the map. The roofs and the tips are filled
- *  nonzero: lib/building-tiles.ts keeps an outer ring's winding positive
- *  and a hole's negative, so overlapping parts (a tower on its podium, a
+ *  sweep as the map's GPU layer: the footprints of the source picked
+ *  (`buildingShadowSource`, buildings.mjs: a Library vector source with
+ *  heights, OpenFreeMap's OSM buildings by default, a PMTiles, TileJSON or
+ *  MVT address, a registered GeoJSON), each wall swept away from the sun by
+ *  min(height, 600 m) / tan(altitude), from its base for a raised part, the
+ *  roof outline at the tip, the union of the sweeps in black at the layer's
+ *  opacity (overlaps never darken twice), the footprints on the ground cut
+ *  back out (roofs stay lit). Nothing below map zoom 13, as in the map. The
+ *  roofs and the tips are filled nonzero: outer rings are wound positive
+ *  and holes negative, so overlapping parts (a tower on its podium, a
  *  building whole in two tiles' buffers) add up instead of cancelling, as
  *  even-odd did (the tower's roof stayed shaded: 35 % of the footprint
- *  pixels in Midtown Manhattan). Exported for test.mjs. */
-const BUILDING_OWNER = {}
-export async function buildingShadowSvg(A, s, { world, x0, y0, width, height }) {
+ *  pixels in Midtown Manhattan). `source`: openBuildings()'s answer, given
+ *  by test.mjs. Exported for test.mjs. */
+export async function buildingShadowSvg(A, s, { world, x0, y0, width, height }, source) {
   if (Math.log2(world / 512) < 12.5) return ""
-  const Z = A.BUILDING_TILE_ZOOM, n = 2 ** Z, C = 40075016.686
+  const C = 40075016.686
   const alt = Math.max(1, Number(s.illuminationAlt ?? 45)), az = Number(s.illuminationDir ?? 315)
   const kTan = 1 / Math.tan((alt * PI) / 180), away = ((az + 180) * PI) / 180
   // Away from the sun, per unit of sweep (Web Mercator, y down).
   const dir = [Math.sin(away) * kTan, -Math.cos(away) * kTan]
   const latC = Math.atan(Math.sinh(PI * (1 - (2 * (y0 + height / 2)) / world)))
-  // The z14 tiles whose buildings can shade the rectangle: widened by the
+  // The buildings that can shade the rectangle: it is widened by the
   // longest shadow at this sun height (3 km at most, as the map).
   const reach = Math.min(3000, 600 * kTan) / (C * Math.cos(latC))
-  const clamp = (v) => Math.min(n - 1, Math.max(0, v))
-  const tx0 = clamp(Math.floor((x0 / world - reach) * n)), tx1 = clamp(Math.floor(((x0 + width) / world + reach) * n))
-  const ty0 = clamp(Math.floor((y0 / world - reach) * n)), ty1 = clamp(Math.floor(((y0 + height) / world + reach) * n))
-  if ((tx1 - tx0 + 1) * (ty1 - ty0 + 1) > 64) return ""
-  const jobs = []
-  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) jobs.push(A.requestBuildingTile(tx, ty, BUILDING_OWNER))
-  const tiles = (await Promise.all(jobs)).filter(Boolean)
-  // The tiles' clip lines (a z14 tile edge plus its buffer) are not walls.
-  const onCut = (v) => { const u = v * n, d = Math.abs(u - Math.round(u)); return d < 1e-3 || Math.abs(d - A.BUILDING_TILE_BUFFER) < 1e-3 }
-  const isClipEdge = (ax, ay, bx, by) => (ax === bx && onCut(ax)) || (ay === by && onCut(ay))
+  source ??= await openBuildings(A, s)
+  const polygons = await source.polygons(x0 / world - reach, y0 / world - reach, (x0 + width) / world + reach, (y0 + height) / world + reach)
+  if (!polygons) return ""
   const px = (x, y, sw = 0) => [(x + sw * dir[0]) * world - x0, (y + sw * dir[1]) * world - y0]
   const pt = ([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`
   let walls = "", tips = "", feet = ""
   const seen = new Set()
-  for (const tile of tiles) for (const { rings, height: h } of tile) {
+  for (const { rings, cuts, height: h, base = 0 } of polygons) {
     // A building inside two tiles' buffers comes whole from both.
     const key = `${rings[0][0][0].toFixed(9)},${rings[0][0][1].toFixed(9)},${rings[0].length},${h}`
     if (seen.has(key)) continue
     seen.add(key)
     const cosLat = 1 / Math.cosh(PI * (1 - 2 * rings[0][0][1]))
-    const sw = Math.min(600, h) / (C * cosLat)
+    const sw = Math.min(600, h) / (C * cosLat), sb = Math.min(600, base) / (C * cosLat)
+    if (!(sw > sb)) continue
     // Only the buildings whose footprint or sweep reaches the rectangle: the
     // z14 tiles fetched for the longest shadow hold some 50 000 buildings in
     // Midtown, and the SVG of all of them (10 MB a tile) went to sharp whole.
@@ -1144,19 +1144,24 @@ export async function buildingShadowSvg(A, s, { world, x0, y0, width, height }) 
     const ex = sw * dir[0], ey = sw * dir[1]
     if ((Math.max(bx1, bx1 + ex) * world - x0 < -1) || (Math.min(bx0, bx0 + ex) * world - x0 > width + 1) ||
         (Math.max(by1, by1 + ey) * world - y0 < -1) || (Math.min(by0, by0 + ey) * world - y0 > height + 1)) continue
-    for (const ring of rings) {
+    for (let r = 0; r < rings.length; r++) {
+      const ring = rings[r], cut = cuts?.[r]
       for (let i = 0; i < ring.length - 1; i++) {
         const [ax, ay] = ring[i], [bx, by] = ring[i + 1]
-        if ((ax === bx && ay === by) || isClipEdge(ax, ay, bx, by)) continue
+        // A tile's clip line is not a wall.
+        if ((ax === bx && ay === by) || cut?.[i + 1]) continue
         // One quad per wall, all wound the same way so nonzero filling unions them.
-        let q = [px(ax, ay), px(bx, by), px(bx, by, sw), px(ax, ay, sw)]
+        let q = [px(ax, ay, sb), px(bx, by, sb), px(bx, by, sw), px(ax, ay, sw)]
         const area = q.reduce((a, [x, y], j) => { const [x2, y2] = q[(j + 1) % 4]; return a + x * y2 - x2 * y }, 0)
         if (area < 0) q = q.reverse()
         walls += `M${q.map(pt).join("L")}Z`
       }
     }
     tips += rings.map((r) => "M" + r.map(([x, y]) => pt(px(x, y, sw))).join("L") + "Z").join("")
-    feet += rings.map((r) => "M" + r.map(([x, y]) => pt(px(x, y))).join("L") + "Z").join("")
+    // A raised part shades from its base on and leaves the ground under it
+    // to the others; a building on the ground keeps its roof lit.
+    if (sb > 0) tips += rings.map((r) => "M" + r.map(([x, y]) => pt(px(x, y, sb))).join("L") + "Z").join("")
+    else feet += rings.map((r) => "M" + r.map(([x, y]) => pt(px(x, y))).join("L") + "Z").join("")
   }
   if (!walls && !tips) return ""
   const opacity = (s.lightingEffectsOpacity ?? 1) * (s.buildingShadowOpacity ?? 0.5)

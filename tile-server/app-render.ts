@@ -17,8 +17,12 @@ export { buildLocalDominanceProtocolUrl, localDominanceProtocol } from "../lib/l
 export { buildMatcapProtocolUrl, matcapProtocol } from "../lib/matcap-protocol"
 export { buildPhongProtocolUrl, phongProtocol } from "../lib/phong-protocol"
 export { buildShadowProtocolUrl, shadowProtocol } from "../lib/shadow-protocol"
-// The OSM building footprints the building shadows sweep (BuildingShadowLayer.tsx).
-export { requestOsmBuildingPolygons as requestBuildingTile, BUILDING_TILE_ZOOM, BUILDING_TILE_BUFFER } from "../lib/building-tiles"
+// The building footprints the building shadows sweep (BuildingShadowLayer.tsx),
+// from any vector source with heights (buildings.mjs picks it): the app's
+// own tile reader, the Library's vector sources, the shared PMTiles readers.
+export { openBuildingSource, requestBuildingTile as requestBuildingSourceTile, buildingSourceEntry, isBuildingSource, DEFAULT_BUILDING_SOURCE_ID, BUILDING_TILE_ZOOM, BUILDING_TILE_BUFFER } from "../lib/building-tiles"
+export { VECTOR_LIBRARY } from "../lib/vector-sources"
+export { pmtilesReader } from "../lib/pmtiles-readers"
 export { computeColorReliefPaint, computeHillshadePaint } from "../lib/layer-paints"
 export { MODE_RELIEF } from "../lib/mode-relief"
 export { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from "../lib/matcap-textures"

@@ -23,6 +23,7 @@ several cores.
 """
 import os
 import struct
+import sys
 import threading
 import time
 import zlib
@@ -186,6 +187,10 @@ class LiveServer:
             if cls._instance is not None:
                 cls._instance.stop()
                 cls._instance = None
+        # The buildings' OGR datasets must not outlive GDAL (buildings.clear).
+        mod = sys.modules.get(__package__ + ".buildings")
+        if mod is not None:
+            mod.clear()
 
     def __init__(self, port=None, workers=None, result_cache_mb=64):
         self.workers = workers or max(2, os.cpu_count() or 4)

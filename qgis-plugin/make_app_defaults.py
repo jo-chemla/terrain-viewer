@@ -11,6 +11,11 @@ app link the way the app reads it, with no tile service (the Python backend):
   (lib/basemap-sources.ts): the choices of the panel's Basemap row (a keyed
   one, `apiKey`, offered once the panel holds that key), which a link's
   showRasterBasemap=true also drives.
+- buildingSources: the Library's vector sources the building shadows can
+  read (lib/custom-sources.json SAMPLE_VECTOR_SOURCES: tiles with a height
+  field, lib/building-tiles.ts isBuildingSource), with what a reader needs:
+  the choices of the panel's "Buildings from", and what the Python backend
+  reads them with. A tile service lists the same at /building-sources.
 
 No service needed:
 
@@ -47,12 +52,24 @@ def basemaps():
     return out
 
 
+BUILDING_FIELDS = ("id", "name", "shortName", "type", "url", "resolver", "fallbackRelease", "minzoom", "maxzoom", "sourceLayers",
+                   "partLayers", "hasPartsField", "heightField", "floorsField", "minHeightField")
+
+
+def building_sources():
+    with open(os.path.join(ROOT, "lib", "custom-sources.json"), encoding="utf-8") as f:
+        entries = json.load(f).get("SAMPLE_VECTOR_SOURCES", [])
+    return [{k: e[k] for k in BUILDING_FIELDS if k in e} for e in entries
+            if e.get("heightField") and e.get("type") != "style" and e.get("sourceLayers")]
+
+
 def main():
-    data = {"defaults": defaults(), "basemaps": basemaps()}
+    data = {"defaults": defaults(), "basemaps": basemaps(), "buildingSources": building_sources()}
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         json.dump(data, f, indent=1, sort_keys=False)
         f.write("\n")
-    print(f"wrote {OUT}: {len(data['defaults'])} parameters, {len(data['basemaps'])} basemaps")
+    print(f"wrote {OUT}: {len(data['defaults'])} parameters, {len(data['basemaps'])} basemaps, "
+          f"{len(data['buildingSources'])} building sources")
 
 
 if __name__ == "__main__":

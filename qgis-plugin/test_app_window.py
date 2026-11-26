@@ -85,9 +85,13 @@ def run():
     hp.listed_key = historical.place_key("eox-s2", 0, 0, 0)
     hp.apply(historical.eox_ticks(), True)
     nav = iface.mapCanvas().temporalController()
-    check(nav.navigationMode() == hui.NAV_ANIMATED and nav.totalFrameCount() == len(historical.EOX_YEARS)
-          and nav.currentFrameNumber() == len(historical.EOX_YEARS) - 1,
-          f"the application's Temporal Controller steps through the panel's dates ({nav.totalFrameCount()} frames)")
+    # 0.11.0: one week a frame by default; source timestamps: one stop per date.
+    check(nav.navigationMode() == hui.NAV_ANIMATED and hp.step == "week" and nav.totalFrameCount() >= 52 * len(historical.EOX_YEARS)
+          and hp.current_label.text() == str(historical.EOX_YEARS[-1]),
+          f"the application's Temporal Controller steps through the panel's dates, a week a frame by default ({nav.totalFrameCount()} frames)")
+    hp.set_step("timestamps")
+    check(nav.totalFrameCount() == len(historical.EOX_YEARS) and nav.currentFrameNumber() == len(historical.EOX_YEARS) - 1,
+          f"step source timestamps: one stop per date ({nav.totalFrameCount()} frames)")
     hp.set_step("month")
     check(nav.totalFrameCount() >= 12 * len(historical.EOX_YEARS) and hp.current_label.text() == str(historical.EOX_YEARS[-1]),
           f"step month: {nav.totalFrameCount()} frames, the date shown kept")

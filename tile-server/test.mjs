@@ -973,10 +973,10 @@ function assertStacItem(item) {
   // Outer rings wound as lib/building-tiles.ts keeps them (MVT: clockwise, y down).
   const box = (a, b, c, d) => [[[(tx + a) / n, (ty + b) / n], [(tx + c) / n, (ty + b) / n], [(tx + c) / n, (ty + d) / n], [(tx + a) / n, (ty + d) / n], [(tx + a) / n, (ty + b) / n]]]
   const tile = [{ rings: box(0.3, 0.3, 0.7, 0.7), height: 20 }, { rings: box(0.45, 0.45, 0.55, 0.55), height: 200 }]
-  const A = { BUILDING_TILE_ZOOM: Z, BUILDING_TILE_BUFFER: 64 / 4096, requestBuildingTile: async (x, y) => (x === tx && y === ty ? tile : []) }
+  const source = { polygons: async () => tile }
   // The z14 tile as 512 px (map zoom 14), the sun in the south-east, low.
   const size = 512, world = size * n
-  const svg = await buildingShadowSvg(A, { illuminationDir: 135, illuminationAlt: 30, buildingShadowOpacity: 1 }, { world, x0: tx * size, y0: ty * size, width: size, height: size })
+  const svg = await buildingShadowSvg({}, { illuminationDir: 135, illuminationAlt: 30, buildingShadowOpacity: 1 }, { world, x0: tx * size, y0: ty * size, width: size, height: size }, source)
   const alpha = await sharp(Buffer.from(svg)).ensureAlpha().extractChannel(3).raw().toBuffer()
   const at = (u, v) => alpha[Math.floor(v * size) * size + Math.floor(u * size)]
   assert.equal(at(0.5, 0.5), 0, "the tower's roof is lit")
@@ -987,6 +987,95 @@ function assertStacItem(item) {
   let lit = 0, foot = 0
   for (let v = 0.3; v < 0.7; v += 1 / size) for (let u = 0.3; u < 0.7; u += 1 / size) { foot++; if (at(u + 0.5 / size, v + 0.5 / size) === 0) lit++ }
   assert.ok(lit / foot > 0.99, `${((100 * lit) / foot).toFixed(1)} % of the roofs lit`)
+}
+
+// The building shadows' source (buildings.mjs): what buildingShadowSource
+// names (a Library id, an address with its layer and height field, one JSON
+// value, a registered GeoJSON), the refusals, a raised part, and a GeoJSON's
+// polygons swept. Offline: the Library entries are read, none is fetched.
+{
+  const os = await import("node:os")
+  const path = await import("node:path")
+  const fs = await import("node:fs")
+  const A = await import("./generated/app-render.mjs")
+  const { describeBuildingSource, buildingSources, openBuildings } = await import("./buildings.mjs")
+  const { buildingShadowSvg } = await import("./direct.mjs")
+  const files = await import("./files.mjs")
+  const sharp = (await import("sharp")).default
+  const listed = buildingSources(A)
+  assert.ok(listed.some((x) => x.id === "overture-buildings" && x.type === "pmtiles" && x.heightField === "height" && x.partLayers?.[0] === "building_part"), "/building-sources lists Overture with its fields")
+  assert.equal(listed.filter((x) => x.default).map((x) => x.id).join(), "osm-buildings-openfreemap", "one default, OpenFreeMap's")
+  assert.ok(listed.every((x) => x.heightField && x.sourceLayers?.length && x.type !== "style"), "only sources with heights and layers")
+  assert.equal(describeBuildingSource(A, {}).entry.id, "osm-buildings-openfreemap")
+  assert.equal(describeBuildingSource(A, { buildingShadowSource: "overture-buildings" }).entry.id, "overture-buildings")
+  assert.equal(describeBuildingSource(A, { buildingShadowSource: "custom-1234" }).entry.id, "osm-buildings-openfreemap", "an id the service does not know: the default, as the app")
+  const pm = describeBuildingSource(A, { buildingShadowSource: "https://example.com/b.pmtiles", buildingShadowLayer: "bati, parts", buildingShadowHeightField: "hauteur", buildingShadowFloorsField: "etages" }).entry
+  assert.deepEqual([pm.type, pm.sourceLayers, pm.heightField, pm.floorsField], ["pmtiles", ["bati", "parts"], "hauteur", "etages"])
+  assert.ok(A.isBuildingSource(pm), "an address with its layer and field is a building source of the app's reader")
+  assert.equal(describeBuildingSource(A, { buildingShadowSource: "https://example.com/{z}/{x}/{y}.pbf" }).entry.type, "mvt")
+  assert.equal(describeBuildingSource(A, { buildingShadowSource: "https://example.com/tiles.json" }).entry.type, "tilejson")
+  assert.equal(describeBuildingSource(A, { buildingShadowSource: "https://example.com/t", buildingShadowType: "pmtiles" }).entry.type, "pmtiles")
+  const js = describeBuildingSource(A, { buildingShadowSource: JSON.stringify({ url: "pmtiles://https://example.com/b.pmtiles", sourceLayers: ["a"], heightField: "h", partLayers: ["p"], hasPartsField: "has_parts", maxzoom: 13 }) }).entry
+  assert.deepEqual([js.url, js.sourceLayers, js.heightField, js.partLayers, js.maxzoom], ["https://example.com/b.pmtiles", ["a"], "h", ["p"], 13])
+  assert.notEqual(js.id, pm.id, "the reader's key follows the address, the layers and the fields")
+  assert.equal(describeBuildingSource(A, { buildingShadowSource: "https://example.com/b.pmtiles", buildingShadowLayer: "bati, parts", buildingShadowHeightField: "hauteur", buildingShadowFloorsField: "etages" }).entry.id, pm.id)
+  for (const bad of ["http://example.com/b.pmtiles", "file:///etc/passwd", "{not json", "{\"url\":\"ftp://x/y\"}"]) {
+    assert.throws(() => describeBuildingSource(A, { buildingShadowSource: bad }), (e) => e.status === 400, bad)
+  }
+  assert.throws(() => describeBuildingSource(A, { buildingShadowSource: "https://example.com/t", buildingShadowType: "geojson" }), (e) => e.status === 400)
+  assert.throws(() => describeBuildingSource(A, { buildingShadowSource: "file:" + "0".repeat(32) }), (e) => e.status === 404, "a file nobody registered")
+
+  // A raised part (base 100 m, top 110 m) shades a band away from its
+  // footprint and leaves the ground under it lit; the sun in the south.
+  const Z = 14, n = 2 ** Z, tx = 4825, ty = 6156, size = 512, world = size * n
+  const box = (a, b, c, d) => [[[(tx + a) / n, (ty + b) / n], [(tx + c) / n, (ty + b) / n], [(tx + c) / n, (ty + d) / n], [(tx + a) / n, (ty + d) / n], [(tx + a) / n, (ty + b) / n]]]
+  const alphaOf = async (svg) => { const a = await sharp(Buffer.from(svg)).ensureAlpha().extractChannel(3).raw().toBuffer(); return (u, v) => a[Math.floor(v * size) * size + Math.floor(u * size)] }
+  const rect = { world, x0: tx * size, y0: ty * size, width: size, height: size }
+  const sun = { illuminationDir: 180, illuminationAlt: 45, buildingShadowOpacity: 1 }
+  const tileM = 40075016.686 / n / Math.cosh(Math.PI * (1 - (2 * (ty + 0.5)) / n))
+  let at = await alphaOf(await buildingShadowSvg({}, sun, rect, { polygons: async () => [{ rings: box(0.45, 0.8, 0.55, 0.85), height: 110, base: 100 }] }))
+  assert.equal(at(0.5, 0.825), 0, "the ground under a raised part is lit")
+  assert.equal(at(0.5, 0.825 - 105 / tileM), 255, "its shadow falls 100 to 110 m north of it")
+  assert.equal(at(0.5, 0.825 - 50 / tileM), 0, "and not in between")
+  // A wall along a tile's clip line (flagged by the reader) is not swept.
+  const cutRing = [new Uint8Array([0, 0, 0, 1, 0])] // the edge ending at vertex 3: the south side
+  at = await alphaOf(await buildingShadowSvg({}, { ...sun, illuminationDir: 0 }, rect, { polygons: async () => [{ rings: box(0.45, 0.4, 0.55, 0.5), cuts: cutRing, height: 30 }] }))
+  const whole = await alphaOf(await buildingShadowSvg({}, { ...sun, illuminationDir: 0 }, rect, { polygons: async () => [{ rings: box(0.45, 0.4, 0.55, 0.5), height: 30 }] }))
+  assert.equal(whole(0.5, 0.5 + 15 / tileM), 255, "a building's shadow south of it, the sun in the north")
+  assert.equal(at(0.5, 0.5 + 20 / tileM), 255, "with its south wall on a clip line, the other walls and the roof outline still shade")
+
+  // A registered GeoJSON: longitude and latitude, either winding, a height
+  // field of the user's choice; no terrain source.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tv-buildings-"))
+  const lon = (u) => (u / n) * 360 - 180, lat = (v) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * v) / n))) * 180) / Math.PI
+  const ll = (a, b, c, d, flip) => { const r = [[lon(tx + a), lat(ty + d)], [lon(tx + c), lat(ty + d)], [lon(tx + c), lat(ty + b)], [lon(tx + a), lat(ty + b)], [lon(tx + a), lat(ty + d)]]; return [flip ? r.reverse() : r] }
+  const file = path.join(dir, "bati.geojson")
+  fs.writeFileSync(file, JSON.stringify({ type: "FeatureCollection", features: [
+    { type: "Feature", properties: { height: 30, toit: 60 }, geometry: { type: "Polygon", coordinates: ll(0.45, 0.4, 0.55, 0.5) } },
+    { type: "Feature", properties: { height: "12.5" }, geometry: { type: "MultiPolygon", coordinates: [ll(0.1, 0.1, 0.15, 0.15, true)] } },
+    { type: "Feature", properties: { height: null, etages: 5 }, geometry: { type: "Polygon", coordinates: ll(0.8, 0.8, 0.85, 0.85) } },
+    { type: "Feature", properties: { height: 20 }, geometry: { type: "Point", coordinates: [lon(tx + 0.5), lat(ty + 0.5)] } },
+  ] }))
+  fs.writeFileSync(path.join(dir, "fake.geojson"), "not json at all")
+  assert.throws(() => files.registerFile(path.join(dir, "fake.geojson")), (e) => e.status === 400, "a .geojson that is not JSON is refused")
+  const reg = files.registerFile(file)
+  assert.equal(reg.type, "geojson")
+  assert.equal(files.fileSourceEntry(reg.source), null, "a GeoJSON is no terrain source")
+  const src = await openBuildings(A, { buildingShadowSource: reg.source })
+  let polys = await src.polygons(0, 0, 1, 1)
+  assert.deepEqual(polys.map((p) => p.height).sort((a, b) => a - b), [12.5, 30], "polygons with a height: a number, a numeric string; a point and a missing height left out")
+  const area = (ring) => { let a = 0; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a += (ring[j][0] - ring[i][0]) * (ring[i][1] + ring[j][1]); return a }
+  assert.ok(polys.every((p) => area(p.rings[0]) > 0), "outer rings wound as a vector tile's, whichever way the file has them")
+  assert.equal((await src.polygons(0, 0, (tx + 0.3) / n, (ty + 0.3) / n)).length, 1, "only the polygons over the rectangle")
+  polys = await (await openBuildings(A, { buildingShadowSource: reg.source, buildingShadowHeightField: "toit", buildingShadowFloorsField: "etages" })).polygons(0, 0, 1, 1)
+  assert.deepEqual(polys.map((p) => p.height).sort((a, b) => a - b), [16, 60], "another height field, floors times 3.2 m for a feature without one")
+  at = await alphaOf(await buildingShadowSvg(A, { ...sun, illuminationDir: 0, buildingShadowSource: reg.source }, rect))
+  assert.equal(at(0.5, 0.45), 0, "the GeoJSON building's roof is lit")
+  assert.equal(at(0.5, 0.5 + 15 / tileM), 255, "its shadow south of it")
+  assert.equal(at(0.5, 0.5 + 45 / tileM), 0, "30 m at 45 degrees: no further than 30 m")
+  fs.writeFileSync(file, "{}")
+  assert.throws(() => describeBuildingSource(A, { buildingShadowSource: reg.source }), (e) => e.status === 404, "a file changed since it was registered is not read")
+  fs.rmSync(dir, { recursive: true, force: true })
 }
 
 // Google Earth historical: the Keyhole grid is plate carrée, a Mercator tile

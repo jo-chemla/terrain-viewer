@@ -203,6 +203,7 @@ class Catalog:
             self.tree = snapshot.get("tree", [])
             self.colorramps = [r["id"] for r in snapshot.get("colorramps", [])]
             self.inputs = set(snapshot.get("inputs", []))
+            self.building_sources = []
         else:
             self.snapshot = False
             # /terrain-sources since 2026-11-25 (the old /sources is gone).
@@ -219,6 +220,11 @@ class Catalog:
                 self.colorramps = [r["id"] for r in get_json(f"{self.base}/colorramps").get("colorramps", [])]
             except ServiceError:
                 self.colorramps = []
+            # What buildingShadowSource takes by id (a service newer than 0.10.1's bundles).
+            try:
+                self.building_sources = get_json(f"{self.base}/building-sources").get("sources", [])
+            except ServiceError:
+                self.building_sources = None  # an older service: OpenFreeMap's buildings only
         self.modes = {item["id"]: item for _, item in walk_modes(self.tree)}
         self.order = [item["id"] for _, item in walk_modes(self.tree)]
 
