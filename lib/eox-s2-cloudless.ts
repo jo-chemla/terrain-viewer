@@ -12,12 +12,12 @@ export const EOX_S2_TILE_SIZE = 256
 export const EOX_S2_MAXZOOM = 14
 
 // Years EOX has actually published a s2cloudless-{year} layer for (confirmed
-// against their WMTS capabilities) — note 2017 is missing from the series.
-export const EOX_S2_YEARS = [2016, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+// against their WMTS capabilities) — 2017 included; the 2016 mosaic is the layer with no year in its name (checked 2026-11-26: s2cloudless-2016_3857 answers 404).
+export const EOX_S2_YEARS = [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
 
 /** Builds a MapLibre raster tile URL template for the given year's mosaic. */
 export function eoxS2CloudlessTileUrl(year: number): string {
-  return `${EOX_S2_BASE}/s2cloudless-${year}_3857/default/g/{z}/{y}/{x}.jpg`
+  return `${EOX_S2_BASE}/s2cloudless${year === 2016 ? "" : `-${year}`}_3857/default/g/{z}/{y}/{x}.jpg`
 }
 
 /** One tick per published year, oldest first. Jan 4 (not Jan 1) — see the

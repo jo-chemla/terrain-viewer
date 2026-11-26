@@ -376,3 +376,146 @@ class RadioRow(QWidget):
         b.setChecked(True)
         if not emit:
             b.blockSignals(False)
+
+
+class ModeSwitch(QWidget):
+    """The app's modes as buttons side by side, each with its icon, one
+    checked; `changed(id)` when another is picked. `items`: (id, label, tip,
+    icon or None)."""
+
+    changed = pyqtSignal(str)
+
+    def __init__(self, items, current=None, parent=None):
+        super().__init__(parent)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        self.group = QButtonGroup(self)
+        self.group.setExclusive(True)
+        self.buttons = {}
+        for item_id, label, tip, icon in items:
+            b = QToolButton()
+            b.setText(label)
+            b.setToolTip(tip)
+            b.setCheckable(True)
+            b.setAutoRaise(True)
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if icon is not None and not icon.isNull():
+                b.setIcon(icon)
+            hand(b)
+            self.group.addButton(b)
+            lay.addWidget(b)
+            self.buttons[item_id] = b
+            b.toggled.connect(lambda on, i=item_id: on and self.changed.emit(i))
+        if current in self.buttons:
+            self.set(current, emit=False)
+
+    def current(self):
+        return next((i for i, b in self.buttons.items() if b.isChecked()), None)
+
+    def set(self, item_id, emit=True):
+        b = self.buttons.get(item_id)
+        if b is None:
+            return
+        if not emit:
+            b.blockSignals(True)
+        b.setChecked(True)
+        if not emit:
+            b.blockSignals(False)
+
+
+class TickStrip(QWidget):
+    """Dates as ticks on a time axis, each at its place in time (the app's
+    timeline track): the current one as a handle, a year under each end. A
+    click picks the nearest tick, `picked(index)`; hovering names it.
+    `set_ticks([(ms, label, sure)], current)`: a tick that is not `sure`
+    (a release date standing in for a capture date) is drawn lighter."""
+
+    picked = pyqtSignal(int)
+    PAD = 9
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.ticks, self.current = [], -1
+        self.setMinimumHeight(38)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setMouseTracking(True)
+        hand(self)
+
+    def sizeHint(self):
+        return QSize(200, 38)
+
+    def set_ticks(self, ticks, current=-1):
+        self.ticks, self.current = list(ticks), current
+        self.update()
+
+    def set_current(self, index):
+        self.current = index
+        self.update()
+
+    def span(self):
+        """(first, last) of the axis in milliseconds, a little past the
+        oldest and the newest tick so neither sits on the edge."""
+        ms = [t[0] for t in self.ticks]
+        lo, hi = min(ms), max(ms)
+        pad = max((hi - lo) * 0.04, 86400000.0 * 30)
+        return lo - pad, hi + pad
+
+    def x_of(self, ms):
+        lo, hi = self.span()
+        return self.PAD + (ms - lo) / (hi - lo) * max(1, self.width() - 2 * self.PAD)
+
+    def index_at(self, x):
+        if not self.ticks:
+            return -1
+        return min(range(len(self.ticks)), key=lambda i: abs(self.x_of(self.ticks[i][0]) - x))
+
+    def mousePressEvent(self, e):
+        i = self.index_at(e.position().x() if hasattr(e, "position") else e.x())
+        if i >= 0:
+            self.picked.emit(i)
+
+    def mouseMoveEvent(self, e):
+        i = self.index_at(e.position().x() if hasattr(e, "position") else e.x())
+        self.setToolTip(self.ticks[i][1] if i >= 0 else "")
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        pal = self.palette()
+        text, accent = pal.color(QPalette.ColorRole.WindowText), pal.color(QPalette.ColorRole.Highlight)
+        faint = QColor(text)
+        faint.setAlpha(90)
+        y = 13.0
+        p.setPen(QPen(faint, 1))
+        p.drawLine(QPointF(self.PAD, y), QPointF(self.width() - self.PAD, y))
+        if not self.ticks:
+            p.end()
+            return
+        for i, (ms, _label, sure) in enumerate(self.ticks):
+            if i == self.current:
+                continue
+            p.setPen(QPen(text if sure else faint, 1.6))
+            x = self.x_of(ms)
+            p.drawLine(QPointF(x, y - 6), QPointF(x, y + 6))
+        if 0 <= self.current < len(self.ticks):
+            x = self.x_of(self.ticks[self.current][0])
+            p.setPen(QPen(accent, 2.4))
+            p.drawLine(QPointF(x, y - 9), QPointF(x, y + 9))
+            p.setBrush(QBrush(accent))
+            p.drawEllipse(QPointF(x, y), 4.0, 4.0)
+        lo, hi = self.span()
+        p.setPen(QPen(faint, 1))
+        f = p.font()
+        f.setPointSizeF(max(6.0, f.pointSizeF() * 0.85))
+        p.setFont(f)
+        year = lambda ms: str(1970 + int(ms // (86400000.0 * 365.2425)))  # noqa: E731
+
+        def flags(f):  # an int for drawText, Qt 5 and Qt 6
+            return f.value if hasattr(f, "value") else int(f)
+        left, right = QRectF(self.PAD, y + 9, 60, 14), QRectF(self.width() - self.PAD - 60, y + 9, 60, 14)
+        p.drawText(left, flags(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop), year(self.ticks[0][0]))
+        if year(self.ticks[-1][0]) != year(self.ticks[0][0]):
+            p.drawText(right, flags(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop), year(self.ticks[-1][0]))
+        p.end()

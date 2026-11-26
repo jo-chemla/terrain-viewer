@@ -65,6 +65,29 @@ for sid, place, lat, lon, z, reader, (lo, hi) in CASES:
           f"{sid}, {place} z{z}: {type(d).__name__}, {ok.mean():.0%} valid, {mn and round(mn)} to {mx and round(mx)} m "
           f"(expected {lo} to {hi}), {1000 * (time.perf_counter() - t0):.0f} ms")
 
+# 0.10.0, the Historical mode's sources for real: Esri Wayback's capture
+# dates at the Eiffel Tower (the catalog, the tilemap walk, the metadata of
+# each release, as historical.py asks them), a tile of the oldest and of the
+# newest date, and a tile of an EOX yearly mosaic.
+from terrain_viewer import historical  # noqa: E402
+
+t0 = time.perf_counter()
+steps = []
+wb = historical.list_dates("wayback", 48.8584, 2.2945, 15, report=lambda t, note: steps.append(len(t)))
+wb_labels = [t["label"] for t in wb]
+check(len(wb) >= 8 and wb_labels[0] == "2011-08-01" and wb_labels == sorted(set(wb_labels)) and "2014-09-12" in wb_labels,
+      f"Esri Wayback at the Eiffel Tower: {len(wb)} capture dates, {wb_labels[0]} to {wb_labels[-1]}, "
+      f"{sum(1 for t in wb if not t['real'])} at their release date, in {time.perf_counter() - t0:.1f} s "
+      f"({len(steps)} progress reports)")
+wx, wy = tile_of(48.8584, 2.2945, 16)
+tiles = [historical.fetch_url(t["url"].format(z=16, x=wx, y=wy)) for t in (wb[0], wb[-1])]
+check(all(b[:2] == b"\xff\xd8" and len(b) > 2000 for b in tiles) and tiles[0] != tiles[1],
+      f"a tile of {wb_labels[0]} and one of {wb_labels[-1]}: two different JPEGs ({len(tiles[0])} and {len(tiles[1])} bytes)")
+ex, ey = tile_of(48.8584, 2.2945, 12)
+eox_tile = historical.fetch_url(historical.eox_ticks()[0]["url"].format(z=12, x=ex, y=ey))
+check(eox_tile[:2] == b"\xff\xd8" and len(eox_tile) > 2000, f"EOX Sentinel-2 cloudless 2016: a tile ({len(eox_tile)} bytes)")
+historical.reset_cache()
+
 # The panel: the Python backend draws the source picked, or nothing.
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
 from terrain_viewer.dock import TerrainViewerDock  # noqa: E402

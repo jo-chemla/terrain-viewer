@@ -268,6 +268,7 @@ canvas.resize(800, 600)
 canvas.show()
 bridge = QgsLayerTreeMapCanvasBridge(QgsProject.instance().layerTreeRoot(), canvas)
 canvas.setDestinationCrs(QgsCoordinateReferenceSystem("EPSG:3857"))
+__import__("qgis.core", fromlist=["QgsSettings"]).QgsSettings().remove("terrain_viewer/appMode")  # a run that stopped in the Historical mode
 dock = TerrainViewerDock(canvas, None, None, bridge)
 labels_now = {b.text() for b in dock.backend_picker.buttons.values()}
 check(labels_now == {"Packaged tile server", "Remote tile server", "Python backend"}
@@ -687,6 +688,259 @@ for r in dock.rows.values():
     r.row.set_forms(set())
     del r.update
 dock.connected = None
+QgsProject.instance().clear()
+spin()
+
+# 0.10.0: the Historical mode (the app's appMode=historical). The dated
+# sources (historical.py) against a recorded Esri Wayback session at the
+# Eiffel Tower (fixtures/wayback_paris.json: the catalog, the tilemap walk,
+# the metadata of each release; no network), then the panel: the mode switch,
+# one layer per capture date with its fixed temporal range, QGIS's temporal
+# navigation stepping through them, both ways.
+import json  # noqa: E402
+import re as _re  # noqa: E402
+from terrain_viewer import historical  # noqa: E402
+from terrain_viewer import historical_ui as hui  # noqa: E402
+from qgis.core import QgsTemporalNavigationObject, QgsSettings as _Settings  # noqa: E402
+from qgis.PyQt.QtCore import Qt as _Qt  # noqa: E402
+
+here_dir = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(here_dir, "fixtures", "wayback_paris.json"), encoding="utf-8") as f:
+    recorded = json.load(f)
+PARIS = tuple(recorded["place"])
+asked, missed = [], []
+
+
+def recorded_fetch(url):
+    asked.append(url)
+    if url not in recorded["answers"]:
+        missed.append(url)
+        raise OSError("not recorded: " + url)
+    return recorded["answers"][url].encode("utf-8")
+
+
+def iso(dt):
+    return dt.toString(_Qt.DateFormat.ISODate)
+
+
+historical.reset_cache()
+releases = historical.parse_wayback_config(recorded["answers"][historical.WAYBACK_CONFIG])
+check(len(releases) > 150 and releases[0]["releaseMs"] > releases[-1]["releaseMs"] and releases[-1]["releaseLabel"] == "2014-02-20",
+      f"Wayback's catalog: {len(releases)} releases, the newest first, back to 2014-02-20")
+partial = []
+ticks = historical.list_dates("wayback", *PARIS, fetch=recorded_fetch, report=lambda t, note: partial.append((list(t), note)))
+labels_h = [t["label"] for t in ticks]
+check(not missed and len(ticks) == 9 and labels_h[0] == "2011-08-01" and labels_h[-1] == "2025-04-12",
+      f"Wayback at the Eiffel Tower: 9 capture dates from 2011-08-01 to 2025-04-12 ({labels_h}; {len(missed)} requests not recorded)")
+check(labels_h == sorted(set(labels_h)) and all(t["real"] for t in ticks), "one tick per capture date, the oldest first, all real dates")
+check(ticks[0]["url"].endswith("/MapServer/tile/10/{z}/{y}/{x}") and ticks[0]["ref"] == "10" and "Microsoft" in ticks[0]["detail"],
+      f"a tick names its release's tiles as an XYZ template and says who took it ({ticks[0]['detail']})")
+n_walk = sum("/tilemap/" in u for u in asked)
+check(len(asked) < 60 and n_walk < 30, f"{len(asked)} requests for the place ({n_walk} of the walk, not one per release)")
+check(len(partial) > 5 and partial[0][0] == [] and all(t["real"] for p in partial for t in p[0])
+      and len(partial[-1][0]) == 9 and "of 15 releases dated" in partial[-1][1],
+      f"the dates are reported as they arrive, only the ones known ({partial[-1][1]})")
+n_asked = len(asked)
+check(historical.list_dates("wayback", PARIS[0] + 0.0002, PARIS[1], PARIS[2], fetch=recorded_fetch) is ticks and len(asked) == n_asked,
+      "a small pan asks nothing again (the same quarter of a tile)")
+check(historical.place_key("wayback", 48.90, 2.2945, 15) != historical.place_key("wayback", *PARIS)
+      and historical.place_key("eox-s2", 1, 2, 3) == historical.place_key("eox-s2", 40, 50, 12),
+      "the dates' key: the tile for Wayback, nothing for EOX")
+two = historical.wayback_ticks(releases[:2], {releases[0]["releaseNum"]: None, releases[1]["releaseNum"]: None}, final=True)
+check(len(two) == 2 and not two[0]["real"] and two[1]["label"].endswith("(release date)")
+      and historical.wayback_ticks(releases[:2], {releases[0]["releaseNum"]: None}, final=False) == [],
+      "a release whose capture date did not answer: at its release date, marked, and only once the list is final")
+low = historical.list_dates("wayback", 20, 10, 3, fetch=recorded_fetch)
+check(len(low) == 1 and low[0]["ref"] == "latest" and "zoom in" in low[0]["hint"] and len(asked) == n_asked,
+      f"zoomed out: the newest release alone ({low[0]['label']})")
+eox = historical.list_dates("eox-s2", 0, 0, 0, fetch=recorded_fetch)
+check([t["label"] for t in eox] == [str(y) for y in range(2016, 2026)]
+      and eox[0]["url"] == "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg"
+      and "s2cloudless-2017_3857" in eox[1]["url"],
+      "EOX Sentinel-2 cloudless: 2016 to 2025, the first mosaic under its bare layer name (EOX's WMTS capabilities)")
+ts_path = os.path.join(here_dir, "..", "lib", "eox-s2-cloudless.ts")
+if os.path.exists(ts_path):
+    with open(ts_path, encoding="utf-8") as f:
+        ts = f.read()
+    years = [int(y) for y in _re.search(r"EOX_S2_YEARS = \[([^\]]+)\]", ts).group(1).split(",")]
+    check(set(years) <= set(historical.EOX_YEARS) and "s2cloudless-${year}_3857/default/g/{z}/{y}/{x}.jpg" in ts
+          and eox[-1]["url"] == "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/g/{z}/{y}/{x}.jpg",
+          f"EOX's tiles are the app's (lib/eox-s2-cloudless.ts), every year of the app listed: {years}")
+    with open(os.path.join(here_dir, "..", "lib", "dated-imagery.ts"), encoding="utf-8") as f:
+        app_ids = _re.findall(r'^\s+id: "([a-z0-9-]+)", name:', f.read(), _re.M)
+    known = {s["id"] for s in historical.SOURCES} | set(historical.LEFT_OUT)
+    check(len(app_ids) >= 6 and set(app_ids) <= known, f"every dated source of the app is listed or left out with a reason ({app_ids})")
+spans = historical.tick_ranges(ticks, now_ms=historical.utc_ms(2026, 11, 26))
+check(all(a < b for a, b in spans) and all(spans[i][1] == spans[i + 1][0] for i in range(8))
+      and spans[-1][1] == historical.utc_ms(2026, 11, 27),
+      "a capture's span: until the next one, the newest until tomorrow, none overlapping")
+espans = historical.tick_ranges(eox)
+check(espans[0] == (historical.utc_ms(2016), historical.utc_ms(2017)) and espans[-1] == (historical.utc_ms(2025), historical.utc_ms(2026)),
+      "a yearly mosaic's span is its year")
+check(historical.nearest(ticks, historical.utc_ms(2015, 1, 1)) == 2 and historical.nearest(ticks, None) == 8
+      and historical.index_at(ticks, historical.utc_ms(2019, 6, 1)) == 3 and historical.index_at(ticks, 0) == 0,
+      "the tick nearest a date, the newest without one, the tick whose span holds a moment")
+
+# The panel: the mode switch.
+QgsProject.instance().clear()
+spin()
+dock.project_fresh = False  # an existing project: the first layer does not send the canvas to the whole world
+check(list(dock.mode_switch.buttons) == ["terrain", "historical"] and dock.mode == "terrain"
+      and not dock.mode_switch.buttons["historical"].icon().isNull() and dock.mode_switch.buttons["terrain"].isChecked(),
+      "the mode switch: Terrain and Historical (a clock), Terrain first")
+hp = dock.historical
+hp.fetch = recorded_fetch
+check(not dock.terrain_page.isHidden() and hp.isHidden(), "Terrain: the terrain panel shown, the historical one hidden")
+canvas.freeze(True)  # nothing drawn: no tile asked from Esri or EOX
+nav = QgsTemporalNavigationObject()
+canvas.setTemporalController(nav)
+dock.zoom_to(*PARIS)
+spin(50)
+hp.follow.setChecked(False)  # the test lists by hand
+dock.mode_switch.buttons["historical"].click()
+check(dock.mode == "historical" and dock.terrain_page.isHidden() and not hp.isHidden()
+      and _Settings().value("terrain_viewer/appMode") == "historical",
+      "Historical picked: its panel shown, the terrain panel hidden, the mode remembered")
+hp.cancel_job()
+hp.listed_key = None
+check(hp.refresh(wait=True) and len(hp.ticks) == 9, f"the dates of the canvas centre listed ({hp.status.text()})")
+group = hp.group()
+names = [n.name() for n in group.findLayers()] if group is not None else []
+check(group is not None and group.parent() is not None and group.parent().customProperty("terrain_viewer/root")
+      and len(names) == 9 and names[0] == "2025-04-12 · Esri Wayback" and names[-1] == "2011-08-01 · Esri Wayback",
+      f"one XYZ layer per date in \"{group.name() if group else None}\" of the live group, the newest on top")
+first = hp.layers()["wayback:10"]
+r0 = first.temporalProperties().fixedTemporalRange()
+check(first.isValid() and first.temporalProperties().isActive() and first.temporalProperties().mode() == hui.FIXED_RANGE
+      and iso(r0.begin()) == "2011-08-01T00:00:00Z" and iso(r0.end()) == "2013-08-20T00:00:00Z" and not r0.includeEnd(),
+      "a date's layer has a fixed temporal range: its capture until the next one, half open")
+check("/tile/10/{z}/{y}/{x}" in __import__("urllib.parse").parse.unquote(first.source()), "its tiles are that release's")
+
+
+def drawn():
+    tree = QgsProject.instance().layerTreeRoot()
+    return sorted(lyr.name()[:10] for lyr in hp.layers().values()
+                  if lyr.temporalProperties().isVisibleInTemporalRange(canvas.temporalRange()) and tree.findLayer(lyr.id()).isVisible())
+
+
+def ticked():
+    return [n.name()[:10] for n in hp.group().findLayers() if n.itemVisibilityChecked()]
+
+
+check(nav.navigationMode() == hui.NAV_ANIMATED and nav.frameDuration().originalUnit() == hui.IRREGULAR
+      and nav.totalFrameCount() == 9 and len(nav.availableTemporalRanges()) == 9,
+      f"QGIS's temporal navigation: animated, step \"source timestamps\", one frame per date ({nav.totalFrameCount()})")
+check(nav.currentFrameNumber() == 8 and drawn() == ["2025-04-12"] and hp.current_label.text() == "2025-04-12",
+      f"the newest date first: its frame, its layer alone drawn ({drawn()})")
+check(hp.pick(0) and nav.currentFrameNumber() == 0 and drawn() == ["2011-08-01"] and not hp.prev_btn.isEnabled() and hp.next_btn.isEnabled(),
+      f"a date picked in the panel moves the Temporal Controller and swaps the imagery ({drawn()})")
+nav.setCurrentFrameNumber(3)  # the controller's slider
+check(hp.index == 3 and hp.current_label.text() == "2018-09-11" and drawn() == ["2018-09-11"] and hp.dates.currentRow() == 5
+      and hp.strip.current == 3 and "Maxar" in hp.detail.text(),
+      f"the controller's slider moved: the panel shows its date ({hp.current_label.text()}, {hp.detail.text()})")
+hp.next_btn.click()
+check(hp.index == 4 and nav.currentFrameNumber() == 4 and drawn() == ["2020-04-20"], "next: the following date")
+hp.dates.setCurrentRow(0)
+check(hp.index == 8 and drawn() == ["2025-04-12"], "a row of the list picks its date")
+hp.strip.picked.emit(2)
+check(hp.index == 2 and drawn() == ["2014-09-12"] and len(hp.strip.ticks) == 9, "a tick of the axis picks its date")
+hp.strip.resize(300, 38)
+hp.strip.repaint()
+check(hp.strip.x_of(ticks[0]["dateMs"]) < hp.strip.x_of(ticks[1]["dateMs"]) < hp.strip.x_of(ticks[8]["dateMs"])
+      and hp.strip.index_at(hp.strip.x_of(ticks[5]["dateMs"]) + 1) == 5, "the axis places each tick at its date")
+nav.setNavigationMode(hui.NAV_OFF)  # the user turns the controller off
+check(ticked() == ["2014-09-12"] and not hp.temporal_wanted,
+      f"the controller turned off: the date's layer alone checked, not all nine drawn ({ticked()})")
+hp.pick(5)
+check(ticked() == ["2021-03-06"] and nav.navigationMode() == hui.NAV_OFF, "and a pick swaps the checked layer, the controller left off")
+nav.setNavigationMode(hui.NAV_ANIMATED)
+hp.pick(5)
+check(len(ticked()) == 9 and drawn() == ["2021-03-06"], "turned on again: QGIS filters by time")
+
+# The Temporal Controller's own widget: its slider has one stop per date.
+from qgis.gui import QgsTemporalControllerWidget  # noqa: E402
+from qgis.PyQt.QtWidgets import QSlider, QComboBox as _Combo  # noqa: E402
+tcw = QgsTemporalControllerWidget()
+canvas.setTemporalController(tcw.temporalController())
+hp.pick(8)
+slider = tcw.findChild(QSlider, "mAnimationSlider")
+step_box = tcw.findChild(_Combo, "mTimeStepsComboBox")
+check(slider.maximum() == 8 and slider.value() == 8 and step_box.currentText() == "source timestamps",
+      f"QGIS's Temporal Controller: a slider of 9 stops, step \"{step_box.currentText()}\"")
+slider.setValue(1)
+check(hp.index == 1 and hp.current_label.text() == "2013-08-20" and drawn() == ["2013-08-20"],
+      "dragging its slider swaps the imagery and the panel's date")
+hp.apply(ticks[:5], True)
+check(slider.maximum() == 4 and tcw.temporalController().totalFrameCount() == 5 and len(hp.layers()) == 5,
+      f"another list of dates (a pan): the slider follows ({slider.maximum() + 1} stops), the layers too")
+hp.apply(ticks, True)
+check(slider.maximum() == 8 and len(hp.layers()) == 9 and hp.index == 1, "and back, the date asked for kept")
+
+# Another source: EOX's yearly mosaics, no request; then a worldwide default.
+n_asked = len(asked)
+hp.target_ms = None
+hp.source.setCurrentIndex(hp.source.findData("dated:eox-s2"))
+keys_h = sorted(hp.layers())
+check(len(keys_h) == 10 and keys_h[0] == "eox-s2:2016" and len(asked) == n_asked and hp.current_label.text() == "2025"
+      and "EOX" in hp.group().name(), f"EOX Sentinel-2: one layer per year, no request, the Wayback layers gone ({hp.group().name()})")
+r16 = hp.layers()["eox-s2:2016"].temporalProperties().fixedTemporalRange()
+check(iso(r16.begin()) == "2016-01-01T00:00:00Z" and iso(r16.end()) == "2017-01-01T00:00:00Z", "the 2016 mosaic's range is 2016")
+choices_h = [hp.source.itemData(i) for i in range(hp.source.count()) if hp.source.itemData(i)]
+check(choices_h[:2] == ["dated:wayback", "dated:eox-s2"] and "basemap:esri" in choices_h and "basemap:mapbox" not in choices_h,
+      f"the imagery select: the historical sources, then the worldwide defaults ({choices_h})")
+hp.source.setCurrentIndex(hp.source.findData("basemap:esri"))
+bm = dock.stack.find("basemap")
+check(not hp.layers() and bm is not None and bm.name() == "ESRI World Imagery" and dock.basemap_row.row.on("colour")
+      and hp.current_label.text() == "No date", "a worldwide default: no dates, the Basemap row draws it")
+hp.source.setCurrentIndex(hp.source.findData("dated:wayback"))
+check(len(hp.layers()) == 9 and dock.stack.find("basemap") is None and not dock.basemap_row.row.on("colour"),
+      "a historical source again: the dated layers, the Basemap row unchecked (one basemap at a time)")
+dock.zoom_to(PARIS[0] + 0.0002, PARIS[1], PARIS[2])
+check(hp.refresh(wait=True) is False, "a small pan: the same dates, nothing listed again")
+hp.remove()
+hp.follow.setChecked(True)
+hp.moved()
+check(hp.group() is None and not hp.ticks and hp.paused and not hp.move_timer.isActive(),
+      "Remove: the group and its layers out of the project, and a pan lists nothing again")
+hp.follow.setChecked(False)
+
+# A link in the app's historical mode: listed in a worker thread, the date asked for shown.
+dock.set_mode("terrain")
+spin(50)
+date_2014 = historical.utc_ms(2014, 9, 12)
+ok_link = dock.open_link(f"https://historical-satellite.iconem.com/?appMode=historical&lat={PARIS[0]}&lng={PARIS[1]}&zoom={PARIS[2]}"
+                         f"&basemapSourceA=historical&historicalActiveSourceA=wayback&dateA={date_2014 + 5 * 86400000}")
+historical.reset_cache()  # listed again as after a pan, in the worker thread: the dates shown stay meanwhile
+hp.listed_key = None
+hp.refresh()
+held = len(hp.layers()) == 9 and hp.job is not None and not hp.stream
+for _ in range(100):
+    spin(100)
+    held = held and len(hp.layers()) == 9
+    if hp.job is None and hp.ticks:
+        break
+check(held, "while the place's dates are listed again, the dates shown stay (no layer taken away and brought back)")
+check(ok_link and dock.mode == "historical" and len(hp.ticks) == 9 and hp.current_label.text() == "2014-09-12" and drawn() == ["2014-09-12"],
+      f"a historical link: the mode, the source, the date nearest dateA, listed off the UI thread ({hp.current_label.text()}, {hp.status.text()})")
+before_w = len(dock.warnings)
+dock.open_link(f"appMode=historical&lat={PARIS[0]}&lng={PARIS[1]}&zoom={PARIS[2]}&historicalActiveSourceA=ge-historical")
+check(len(dock.warnings) == before_w + 1 and "gehist" in dock.warnings[-1] and hp.current()[1] == "wayback",
+      f"a link's source the panel does not list: said, Esri Wayback instead ({dock.warnings[-1][:70]}...)")
+for _ in range(50):
+    spin(100)
+    if hp.job is None:
+        break
+hp.remove()
+hp.follow.setChecked(True)
+dock.set_mode("terrain")
+spin(50)
+check(not dock.terrain_page.isHidden() and hp.isHidden() and not hp.active, "back to Terrain")
+_Settings().remove("terrain_viewer/appMode")
+nav = QgsTemporalNavigationObject()  # kept: the canvas does not own its controller
+canvas.setTemporalController(nav)
+historical.reset_cache()
+canvas.freeze(False)
+canvas.stopRendering()
 QgsProject.instance().clear()
 spin()
 

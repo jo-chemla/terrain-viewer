@@ -11,11 +11,12 @@ the panel writes; a changed setting rewrites that address. Under the Python
 backend, the modes it does not compute are greyed out, and so are the
 settings it ignores."""
 import math
+import os
 import time
 from urllib.parse import urlsplit, parse_qsl
 
 from qgis.PyQt.QtCore import Qt, QTimer, QUrl, QSize, QDateTime, QDate, QTime
-from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtGui import QColor, QIcon
 from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
 from qgis.PyQt.QtWidgets import (
     QApplication, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
@@ -47,8 +48,9 @@ from .settings_ui import (
     LIGHT_KEYS, LIGHT_DEFAULT, LIGHT_MODES, slider_range, symmetric_pairs, is_ramp_key, is_matcap_key, is_color_key,
     clean_enum,
 )
-from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, RadioRow, CompactOpacity, hand, hand_title
+from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, RadioRow, CompactOpacity, ModeSwitch, hand, hand_title
 from . import solar
+from .historical_ui import HistoricalPanel
 
 SETTINGS = "terrain_viewer"
 DEFAULT_SERVICE = "http://localhost:3400"
@@ -81,6 +83,13 @@ LIGHT_THROTTLE_MS = {"python": 100, "service": 200}
 LIGHT_MAX_WAIT_MS = 2500
 # In the panel's order: Python first (nothing to install or run), then the
 # packaged tile server, then a remote one.
+# The app's modes (appMode): the terrain panel, or dated imagery on a timeline.
+APP_MODES = (
+    ("terrain", "Terrain", "The terrain modes: hillshade, slope, relief visualization, contours... (the app's Terrain mode)",
+     "icon.svg"),
+    ("historical", "Historical", "Dated satellite and aerial imagery: a source, the dates at the map's centre, and "
+     "QGIS's Temporal Controller stepping through them (the app's Historical Imagery mode)", "clock.svg"),
+)
 BACKENDS = (
     ("python", "Python backend",
      "The modes computed in QGIS's own Python with numpy, no tile service at all; it starts when picked. Every mode, "
@@ -926,6 +935,17 @@ class TerrainViewerDock(QDockWidget):
         self.update_reply = None
         outer.addWidget(self.update_box)
 
+        # -- the app's modes: Terrain (everything below), Historical ----------
+        here = os.path.dirname(os.path.abspath(__file__))
+        self.mode = "historical" if s.value(f"{SETTINGS}/appMode", "terrain") == "historical" else "terrain"
+        self.mode_switch = ModeSwitch([(i, label, tip, QIcon(os.path.join(here, icon))) for i, label, tip, icon in APP_MODES],
+                                      self.mode)
+        outer.addWidget(self.mode_switch)
+        self.terrain_page = QWidget()
+        page = outer  # the panel's own layout, kept for the two pages
+        outer = QVBoxLayout(self.terrain_page)
+        outer.setContentsMargins(0, 0, 0, 0)
+
         # -- the backend, and its options -----------------------------------
         self.backend_picker = RadioRow(BACKENDS, backend)
         outer.addWidget(self.backend_picker)
@@ -1132,6 +1152,9 @@ class TerrainViewerDock(QDockWidget):
         scroll.setWidget(self.groups_host)
         scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         outer.addWidget(scroll, 1)
+        page.addWidget(self.terrain_page, 1)
+        self.historical = HistoricalPanel(self)
+        page.addWidget(self.historical, 1)
         self.setWidget(body)
 
         # The tree from the packaged snapshot until a service answers.
@@ -1140,6 +1163,8 @@ class TerrainViewerDock(QDockWidget):
             self.catalog = Catalog(None, snapshot=snap)
             self.build()
         self.show_backend(backend)
+        self.mode_switch.changed.connect(self.set_mode)
+        self.set_mode(self.mode, save=False)
         # A newer release, looked for a few seconds after the panel opens (at
         # most once a day; terrain_viewer/checkUpdates false turns it off).
         if str(s.value(f"{SETTINGS}/checkUpdates", "true")).lower() in ("1", "true"):
@@ -1247,6 +1272,25 @@ class TerrainViewerDock(QDockWidget):
                                                      Qgis.MessageLevel.Info, 0)
             QTimer.singleShot(0, again)
         return version
+
+    # -- the app's modes ------------------------------------------------------
+    def set_mode(self, mode, save=True):
+        """Terrain (the backends, the source, the light, the modes tree) or
+        Historical (dated imagery, historical_ui.py). The layers of the
+        other mode stay in the project: dated imagery under a hillshade is
+        one picture."""
+        mode = "historical" if mode == "historical" else "terrain"
+        self.mode = mode
+        self.mode_switch.set(mode, emit=False)
+        self.terrain_page.setVisible(mode == "terrain")
+        self.historical.setVisible(mode == "historical")
+        if save:
+            QgsSettings().setValue(f"{SETTINGS}/appMode", mode)
+        if mode == "historical":
+            # After the panel is laid out (and, at start, the canvas is there).
+            QTimer.singleShot(0, lambda: self.mode == "historical" and self.historical.activate())
+        else:
+            self.historical.deactivate()
 
     # -- the backend --------------------------------------------------------
     def show_backend(self, backend):
@@ -1893,6 +1937,7 @@ class TerrainViewerDock(QDockWidget):
         if self.basemap_row is not None:  # a keyed basemap offered, or no longer
             self.basemap_row.fill()
             self.update_basemap()
+        self.historical.fill_sources()
 
     def light_value(self):
         return (float(self.light_az.value()), float(self.light_el.value()))
@@ -2133,6 +2178,7 @@ class TerrainViewerDock(QDockWidget):
             except (TypeError, RuntimeError):
                 pass
         self.health_timer.stop()
+        self.historical.cleanup()
 
     def _project_cleared(self):
         self.project_fresh = True
@@ -2193,6 +2239,8 @@ class TerrainViewerDock(QDockWidget):
             return None, 0
 
     def extent_changed(self):
+        if self.mode == "historical":
+            self.historical.moved()
         if self.sun_mode():
             self.sun_timer.start()
         if self.connected == "python":
@@ -2260,6 +2308,16 @@ class TerrainViewerDock(QDockWidget):
         if not query:
             self.warn("Not a share link: paste the app's link (https://...?zoom=...&lat=...) or its query")
             return False
+        hstate, hgiven = links.link_state(query)
+        if hstate.get("appMode") == "historical":
+            # The app's historical mode: no backend asked, the terrain modes
+            # left as they are; the camera, then view A's source and date.
+            self.set_mode("historical")
+            if hgiven.get("lat") not in (None, "") and hgiven.get("lng") not in (None, ""):
+                self.camera = (float(hgiven["lat"]), float(hgiven["lng"]), float(hgiven.get("zoom") or 12))
+                self.zoom_to(*self.camera)
+            self.historical.open_link(hstate)
+            return True
         if self.connected is None and not self.connect_service():
             return False
         if self.connected == "python":
