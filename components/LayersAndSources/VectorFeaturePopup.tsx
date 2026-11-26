@@ -141,7 +141,7 @@ export const VectorFeaturePopup = memo(({ ids }: { ids: string[] }) => {
       </Source>
       <Popup longitude={selected.lngLat[0]} latitude={selected.lngLat[1]} onClose={() => setSelected(null)} closeOnClick={false}
         offset={kind === "Point" || kind === "MultiPoint" ? 12 : 4} maxWidth="min(20rem, calc(100vw - 2rem))" className="vector-feature-popup">
-        <div className="w-full min-w-0 space-y-2 text-xs text-popover-foreground" data-vector-feature-card={selected.entry.id}>
+        <div className="w-64 max-w-full min-w-0 space-y-2 text-xs text-popover-foreground" data-vector-feature-card={selected.entry.id}>
           {card.image && <PopupImage src={card.image} />}
           <div className="min-w-0 pr-5">
             <p className="text-sm font-semibold leading-snug break-words">{card.title}</p>

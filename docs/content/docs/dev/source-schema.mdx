@@ -118,23 +118,53 @@ A third kind since 2026-11-26: `SourceKind` is `terrain`, `raster` or `vector`, 
 
 | Field | What it holds |
 |---|---|
-| `type` | `pmtiles` (the archive's https address), `mvt` (a `{z}/{x}/{y}` template), `tilejson`, `style` (a whole MapLibre style whose layers are drawn as they are), or `geojson` (one file read whole, 10 MB at most for a user's) |
+| `type` | `pmtiles` (the archive's https address), `mvt` (a `{z}/{x}/{y}` template), `tilejson`, `style` (a whole MapLibre style whose layers are drawn as they are), or `geojson` (one file read whole, 10 MB at most for a user's). A `geojson` `url` starting with `/` is a file the app serves itself (`public/vector/`, see below) |
+| `format` | For `geojson`: `kml` or `gpx`, a file converted in the browser by `parseVector` (`lib/remote-vector.ts`, the drawing tools' reader) before it is drawn |
 | `resolver`, `fallbackRelease` | An address that rotates: `url` holds `{release}`, and `"overture"` reads the current release from `stac.overturemaps.org/catalog.json` (a release older than about 60 days answers 410 Gone). The fallback is used when the catalog does not answer |
 | `sourceLayers`, `partLayers`, `hasPartsField` | The polygon layers to draw; the layers of building parts, drawn in 3D in place of the buildings marked as having parts |
 | `heightField`, `minHeightField`, `floorsField` | Offer 3D and color by height |
 | `categories`, `categoryLabel` | Color by category: a list of `{ label, color, field, value? }`, the first match wins (a value, one of several, or any non-empty value with no `value`). The label names what they are (Origin, Kind, Condition). `sourceField` with `sourceColors` is the older one-property form |
-| `companions` | More archives under the same switch and style: a dataset published as a points archive and a shapes archive |
+| `companions` | More archives under the same switch and style: a dataset published as a points archive and a shapes archive. A companion may state its own `filter` and `polygonFill` |
 | `geometries` | What is drawn of each layer: polygons (default), lines, points |
+| `filter` | A MapLibre filter expression every layer adds to its geometry test: what it rejects is neither drawn nor clickable |
+| `polygonFill` | `false`: polygons as outlines only, in the fill color, and never extruded (the heritage inventories' shapes) |
+| `outline` | `false`: no outlines until the user asks (land cover, a mosaic of classes) |
+| `sample` | `{ lng, lat, zoom }`: where **Zoom to** goes for a worldwide source. A source with `bounds` smaller than the world zooms to them; one with neither has no button (`vectorZoomTarget`) |
+| `popup` | The card of a clicked feature, see below |
 | `styleLayerTypes` | For `style`: which layer types of the style to draw (`["line", "symbol"]` is roads and labels) |
 
 `sourceKind` reads `vector` from the transports that exist nowhere else (`pmtiles`, `mvt`, `style`); a `tilejson` entry states its `kind`.
 
 Where things are:
 
-- **Entries**: `SAMPLE_VECTOR_SOURCES` in `lib/custom-sources.json`, in the `buildings`, `heritage` and `reference` library groups (the Vector library dialog; `vectorLibraryIdsAtom` holds the ones listed in the sidebar). The user's own are in `customVectorSourcesAtom` (`section: "custom"`, `geometries` set to polygons, lines and points), built from an address by `detectVectorSource` in `lib/vector-source-detect.ts` (a PMTiles header and metadata, a TileJSON, a tile template, or a MapLibre style); no saved list predates the field, so `kind` is required.
+- **Entries**: `SAMPLE_VECTOR_SOURCES` in `lib/custom-sources.json`, in the `buildings`, `heritage`, `landcover` and `reference` library groups (`VECTOR_LIBRARY_GROUPS` in `lib/vector-sources.ts`; `vectorLibraryIdsAtom` holds the ones listed in the sidebar). The user's own are in `customVectorSourcesAtom` (`section: "custom"`, `geometries` set to polygons, lines and points), built from an address by `detectVectorSource` in `lib/vector-source-detect.ts` (a PMTiles header and metadata, a TileJSON, a tile template, a MapLibre style, or a GeoJSON, KML or GPX file); no saved list predates the field, so `kind` is required.
+- **Library**: the Vector tab of the one Library dialog, `components/TerrainControlPanel/vector-library-panel.tsx`, rendered by `LibraryDialogHost` as its child while `vectorLibraryOpenAtom` is on (`?openLibrary=vector`). The Terrain and Basemap lists are portaled in by their sidebar sections; the vector list reads and writes atoms only, so it needs no section. The three tabs share `LibraryTabBar` and the search (`libraryQueryAtom`).
 - **Lookup and specs**: `lib/vector-sources.ts`. `findVectorSource(id)` is the one lookup; `resolveVectorUrl` fills the release; `vectorSourceSpec` and `vectorLayerSpecs` return the MapLibre source and its `fill`, `line` and `fill-extrusion` layers as plain objects (no MapLibre import, so the tile service can read the same entries). Its test validates every entry in every style against MapLibre's style spec: `node scripts/test-lib.mjs lib/vector-sources.test.ts`.
+- **Feature cards**: `components/LayersAndSources/VectorFeaturePopup.tsx`, mounted by the renderer in each view. It queries the exact layer ids `vectorLayerSpecs` gives each part (a prefix would let `…-osm` claim the layers of `…-osm-condition`), within 5 px of the click, and draws the clicked geometry in a GeoJSON source as the highlight. It stays out of the way of the tools: no card while `elevationPickerActiveAtom`, `sunShadowActiveAtom`, `georefActiveAtom` is on or `activeDrawModeAtom` is not `select`, nor on a click that hits a `td-` layer (a drawing). A `style` overlay is not queried.
 - **Renderer**: `components/LayersAndSources/VectorOverlayLayers.tsx`, one copy inside each view's `<Map>`, at the `VECTOR_OVERLAYS` slot ([Layer order](/dev/layer-order)). A PMTiles archive is read through the `pmtiles://` protocol as a tile template with the entry's zoom range. The `<Source>` is keyed on the resolved address, and the layer ids carry their type, so a change of release or from flat to 3D mounts new layers rather than retyping one.
-- **State**: which overlays are on is in the link (`vectorOverlayIds`, `vectorOverlayIdsB` to `H`, moved with the views by `permuteViewsUpdates`); how they are drawn is local: flat or 3D and color by are shared by all (`vectorOverlaySharedAtom`), color, opacity and outlines are per source (`vectorOverlayStylesAtom`).
+- **State**: which overlays are on is in the link (`vectorOverlayIds`, `vectorOverlayIdsB` to `H`, moved with the views by `permuteViewsUpdates`); how they are drawn is local: flat or 3D and color by are shared by all (`vectorOverlaySharedAtom`), color, opacity and outlines are per source (`vectorOverlayStylesAtom`). There is one opacity per overlay: the color picker edits `#rrggbbaa`, split by `splitAlpha` into the color and that opacity, which is also the row's pill.
+- **Building shadows**: `buildingPart` in `lib/building-tiles.ts` gives what the shadows read of an entry: its own tiles when they hold polygons, else its first companion that does (Heritage Watch's OSM export has its heights on the shapes archive). `isBuildingSource` is true only then, so a source of points with a `height` is not offered.
+
+### The card of a feature
+
+`featureCard(entry, properties)` in `lib/vector-popup.ts` returns the title, the rows, the picture and the links; it imports nothing of MapLibre or the DOM (`node scripts/test-lib.mjs lib/vector-popup.test.ts`). With no `popup` on the entry, the title is the first of `name`, `name_en`, `label`, `title`… that has a value (Overture's `names` JSON included), the rows are every non-empty property (40 at most, 400 characters each), and a link is made from what a property makes obvious: a Wikidata id in `wikidata` or `qid`, an OpenStreetMap `node/…`, `way/…` or `relation/…` in `id` or `@id`, a `wikipedia` tag.
+
+| `popup` field | What it does |
+|---|---|
+| `title`, `subtitle` | Properties tried in turn for the title and for a second line (a local name under the English one) |
+| `fields` | The rows shown first, in order: `{ field, label?, suffix? }` |
+| `hide` | Properties never listed (an id already behind a link) |
+| `rest` | `false`: only `fields` are listed |
+| `image` | `{ field, commons? }`: a picture address, or a Wikimedia Commons file name |
+| `links` | `{ label, url, field?, pattern? }`: `url` is a template with `{property}` placeholders. A value is URL-encoded (a slash kept), must match `pattern` in full when one is given, and the result must be an http(s) address; a template that is one placeholder (`{url}`) takes the property as the address |
+
+Properties come from someone else's tiles: the card renders them as text, never as HTML, and a link is only ever a fixed template or a value that is itself an http(s) address.
+
+The Heritage Watch entries follow the cards of the Heritage map: a Wikidata item has its label, its local label, its picture and its designation; an OpenStreetMap object its tags by group (historic, religion, heritage, museum), its state and the event, type and date of its damage, its height and levels; an inventory record its kind, its status, its id, its inventory and its licence class, with a link to the record. The Heritage map also reads Wikidata live for a description and the labels of an item's classes, and the inventories' full fields from a Parquet file: the app's card does not, it shows what the tile carries.
+
+### Files served by the app
+
+UNESCO's two sources are compact GeoJSON files in `public/vector/`, built by `node scripts/build-unesco-vectors.mjs` from the open data portal's `whc001` export (or from a downloaded export given as an argument): the properties and the components of serial properties, with the useful fields, coordinates at 5 decimals and the short description cut at 200 characters. Like the coverage footprints they are not tracked: they are on the `dataset-indexes` release and in `datasets.lock.json` (`pnpm datasets:push public/vector/<file>`, then commit the lock), pulled into `public/` before `pnpm app` and `pnpm build`, since a release asset sends no CORS header. The renderer puts the site's base path in front of the address (`appFileUrl`).
 
 The datasets, checked on 2026-11-26 by decoding tiles over Lyon, Chicago and Lagos:
 
@@ -144,8 +174,11 @@ The datasets, checked on 2026-11-26 by decoding tiles over Lyon, Chicago and Lag
 | **VIDA combined buildings** | `https://data.source.coop/vida/google-microsoft-osm-open-buildings/pmtiles/goog_msft_osm.pmtiles`, zoom 0 to 15, fixed | `goog_msft_osm_building_footprints`; `bf_source` (`google`, `microsoft`, `osm`), `confidence`, `area_in_meters`. No heights. Tiles of 45 to 300 KB |
 | **OpenFreeMap planet** | TileJSON `https://tiles.openfreemap.org/planet`, zoom 14 | `building` with `render_height`, `render_min_height` (OpenMapTiles schema); the same tiles as the building shadows |
 | **Microsoft Global ML Building Footprints** | Gzipped GeoJSON lines per quadkey, index CSV without CORS | Not streamable, and already inside the two archives above: no entry |
+| **Overture Maps base** (land cover, land use) | `https://tiles.overturemaps.org/<release>/base.pmtiles`, zoom 0 to 13, one archive for six layers (`land_cover`, `land_use`, `land`, `water`, `bathymetry`, `infrastructure`) | `land_cover`: `subtype` at every zoom. `land_use`: from zoom 6, but `subtype` and `class` only at zoom 13. Tiles over Lyon, compressed: 4.0 MB at zoom 5, 2.1 at 7 and 8, 1.6 at 9, 1.3 at 10, 0.7 at 11, 0.2 at 12, 1.9 at 13 (with 13 000 infrastructure points); a few tens of kilobytes over farmland or forest. Hence land cover from zoom 9 and land use from 13 |
+| **IGN OCS GE** (Géoplateforme TMS) | `https://data.geopf.fr/tms/1.0.0/OCSGE-TMS.COUVERTURE.2021-2023/{z}/{x}/{y}.pbf` and `OCSGE-TMS.USAGE.2021-2023`, zoom 12 to 16, CORS `*`, tiles not compressed | `occupation_sol`; `code_cs` (14 covers), `code_us` (20 uses), `millesime`, `source`: both tile sets hold the same polygons and fields. Paris: 1.7 MB at zoom 12, 0.2 to 0.6 MB at 13, 0.1 MB at 14. 12 of 16 cities tested answered; Lyon, Rennes, Nice and Auch were 404 on 2026-11-26. `metadata.json` beside the tiles is a TileJSON. The same server lists CoSIA 2017-2020 (`IGNF-TMS_COSIA_2017-2020`) and BD Forêt as vector tiles, not added |
+| **Heritage inventories, shapes** | `…/exports/sources/sources-all-shapes.pmtiles`, zoom 0 to 14, 2.37 million polygons | `rid`, `source` (216 inventories), `iso3`, `kind` (`monuments`, `archaeology`, `mixed`, `other`), `id`, `name`, `url`, `licence_class`; no area. Over 658 zoom 6 tiles, 599 polygons wider than a seventh of a tile, in dozens of inventories (Australia's Register of the National Estate 222, the US National Register 36, Parks Canada 16, the extent boxes of the HOT exports with `id` `EPSG:4326`). Hence outlines only, and the boxes filtered out |
 
-Still open: GeoJSON and FlatGeobuf files as vector sources, a blend mode per overlay (it needs MapLibre's `*-layer-blend`, which the app's MapLibre 6.13 does not have), and the tile service and QGIS plugin drawing the same entries from `generated/library.json`.
+Still open: FlatGeobuf files as vector sources (`flatgeobuf` is installed for the drawing import, 54 KB minified; reading by range requests per view is the part to write), an `area` property on the inventories' shapes so the large perimeters can be filtered rather than outlined, a blend mode per overlay (it needs MapLibre's `*-layer-blend`, which the app's MapLibre 6.13 does not have), and the tile service and QGIS plugin drawing the same entries from `generated/library.json`.
 
 ## Before the schema
 
