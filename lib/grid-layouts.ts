@@ -45,7 +45,8 @@ const BLEND_MODE_LABELS: Record<string, string> = {
   "hard-light": "Hard Light", "soft-light": "Soft Light", difference: "Difference", exclusion: "Exclusion",
   hue: "Hue", saturation: "Saturation", color: "Color", luminosity: "Luminosity",
   "plus-darker": "Plus Darker", "plus-lighter": "Plus Lighter",
-  "red-cyan": "Red / Cyan (two dates)",
+  "red-cyan": "Two-date composite (bright changes)",
+  "red-cyan-dark": "Two-date composite (dark changes)",
 }
 // Two flat, `as const` value tuples (not one big tuple-of-tuples) — a
 // grouped structure built by flatMap-ing an `as const` array of arrays
@@ -56,23 +57,44 @@ const BLEND_MODE_LABELS: Record<string, string> = {
 // value a real string-literal member of one shared union throughout.
 const STANDARD_BLEND_MODES = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion"] as const
 const EXTRA_BLEND_MODES = ["hue", "saturation", "color", "luminosity", "plus-darker", "plus-lighter"] as const
-// Not a CSS keyword: the two-date color composite. Both views are
-// desaturated, view A tinted red and view B cyan, then B is screened over A
-// (the channels do not overlap, so screen is a plain sum): what did not
-// change comes out grey, what is brighter in A red, what is brighter in B
-// cyan. splitBlendCss gives the CSS mode it is drawn with, compositeTint the
-// tint of each view; the tint itself is two blended boxes over each pane
-// (TerrainViewer.tsx) and the same two fills in a snapshot (controls-utils).
-export const COMPOSITE_BLEND_MODES = ["red-cyan"] as const
+// Not CSS keywords: the two-date color composites. Both views are
+// desaturated, each tinted with its own view color (Compare and Blend >
+// Advanced > side colors; cyan for A and red for B by default, which are
+// complementary), then B is screened over A: what did not change comes out
+// grey, what is brighter in one date takes that view's color. "red-cyan"
+// (the name kept from when the tints were fixed) shows bright features
+// present at one date only; "red-cyan-dark" inverts both views first, so
+// dark features present at one date only (a new road cut, a looting pit, a
+// burn scar) are the ones that take a color. splitBlendCss gives the CSS
+// mode they are drawn with, compositeTint the tint of each view; the tint
+// itself is blended boxes over each pane (TerrainViewer.tsx) and the same
+// fills in a snapshot (controls-utils).
+export const COMPOSITE_BLEND_MODES = ["red-cyan", "red-cyan-dark"] as const
 export const BLEND_MODES = [...STANDARD_BLEND_MODES, ...EXTRA_BLEND_MODES, ...COMPOSITE_BLEND_MODES] as const
+export const isCompositeBlend = (mode: string) => (COMPOSITE_BLEND_MODES as readonly string[]).includes(mode)
+/** Whether the composite inverts both views before tinting them. */
+export const compositeInverts = (mode: string) => mode === "red-cyan-dark"
 /** The CSS mix-blend-mode a split blend mode is drawn with. */
 export function splitBlendCss(mode: string): string {
-  return mode === "red-cyan" ? "screen" : mode
+  return isCompositeBlend(mode) ? "screen" : mode
 }
-/** The tint of a view under a composite mode (hex), or null. */
-export function compositeTint(mode: string, side: string): string | null {
-  if (mode !== "red-cyan") return null
-  return side === "A" ? "#ff0000" : side === "B" ? "#00ffff" : null
+/** A color's hue at full saturation and brightness: the composite stays as
+ *  bright as the imagery (a soft UI cyan would dim it), and two view colors
+ *  whose hues are opposite (the defaults: cyan and red) sum to white, so
+ *  what did not change is exactly grey. A grey view color stays grey. */
+export function fullStrength(hex: string): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex)
+  if (!m) return hex
+  const rgb = m.slice(1).map((c) => parseInt(c, 16))
+  const max = Math.max(...rgb), min = Math.min(...rgb)
+  if (max === min) return "#ffffff"
+  return "#" + rgb.map((c) => Math.round(((c - min) * 255) / (max - min)).toString(16).padStart(2, "0")).join("")
+}
+/** The tint of a view under a composite mode (hex), from that view's own
+ *  color, or null. Only A and B take part (the overlay split). */
+export function compositeTint(mode: string, side: string, sideColor: string): string | null {
+  if (!isCompositeBlend(mode) || (side !== "A" && side !== "B")) return null
+  return fullStrength(sideColor)
 }
 export type BlendModeOption = { value: string; label: string }
 // BLEND_MODE_LABELS' plain (non-`as const`) Record type is what keeps each
@@ -89,9 +111,9 @@ const FAVOURITE_BLEND_MODES = ["normal", "difference", "color-burn", "hue"] as c
 const isFavourite = (v: string) => (FAVOURITE_BLEND_MODES as readonly string[]).includes(v)
 export const BLEND_MODE_GROUPS: { label: string; items: BlendModeOption[] }[] = [
   { label: "Favourites", items: FAVOURITE_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
+  { label: "Two dates", items: COMPOSITE_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
   { label: "Standard", items: STANDARD_BLEND_MODES.filter((v) => !isFavourite(v)).map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
   { label: "Extra", items: EXTRA_BLEND_MODES.filter((v) => !isFavourite(v)).map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
-  { label: "Composite", items: COMPOSITE_BLEND_MODES.map((value) => ({ value, label: BLEND_MODE_LABELS[value] })) },
 ]
 export const BLEND_MODE_OPTIONS = BLEND_MODE_GROUPS.flatMap((g) => g.items)
 
@@ -235,12 +257,15 @@ export function sourceFieldName(side: ViewId): string {
 // pane's border, so both stay visually consistent. User-overridable via
 // lib/layout-constants.ts's sideColorOverridesAtom.
 export const SIDE_COLORS: Record<ViewId, string> = {
-  A: "#3b82f6", // blue
-  B: "#22c55e", // green
+  // A cyan and B red since 2026-11-26: complementary, so the two-date
+  // composite (compositeTint) comes out grey where nothing changed. They
+  // were blue and green, now D's and F's.
+  A: "#0fbdbd", // cyan (hue 180, the exact opposite of B's red)
+  B: "#ef4444", // red
   C: "#f59e0b", // amber
-  D: "#ef4444", // red
+  D: "#22c55e", // green
   E: "#a855f7", // purple
-  F: "#06b6d4", // cyan
+  F: "#3b82f6", // blue
   G: "#ec4899", // pink
   H: "#84cc16", // lime
 }

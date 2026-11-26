@@ -1,6 +1,7 @@
 // What a vector source's address is, read from the address itself and one
 // request: a PMTiles archive of vector tiles (its header and metadata), a
-// TileJSON, an MVT {z}/{x}/{y} template, or a whole MapLibre style. Returns
+// TileJSON, an MVT {z}/{x}/{y} template, a whole MapLibre style, or a
+// GeoJSON file of 10 MB at most. Returns
 // the VectorSourceEntry the Add dialog saves (Bring Your Own Data > Vector
 // overlays), with the layers and zoom range the source declares.
 //
@@ -19,6 +20,9 @@ export interface DetectedVectorSource {
   label: string
   note?: string
 }
+
+/** The largest GeoJSON file a source may be: it is loaded whole. */
+export const GEOJSON_MAX_BYTES = 10e6
 
 const HEIGHT_FIELDS = ["height", "render_height", "Height", "HEIGHT", "building:height", "hauteur"]
 const MIN_HEIGHT_FIELDS = ["min_height", "render_min_height"]
@@ -113,9 +117,18 @@ export async function detectVectorSource(raw: string, opts: { fetcher?: typeof f
 
   const res = await fetcher(url)
   if (!res.ok) throw new Error(`The address answered ${res.status}.`)
+  // A GeoJSON file is loaded whole, so it is capped (the header when the
+  // host states it, the text otherwise).
+  const declared = Number(res.headers?.get?.("content-length") ?? 0)
+  if (declared > GEOJSON_MAX_BYTES) throw new Error(`This file is ${Math.round(declared / 1e6)} MB: a GeoJSON source is loaded whole and capped at ${GEOJSON_MAX_BYTES / 1e6} MB. Make vector tiles of it (tippecanoe to PMTiles) instead.`)
   let json: Record<string, unknown>
   try { json = await res.json() } catch { throw new Error("The address is neither a PMTiles archive, a tile template nor JSON (a TileJSON or a MapLibre style).") }
 
+  if (json.type === "FeatureCollection" || json.type === "Feature") {
+    const features = (json.type === "Feature" ? [json] : Array.isArray(json.features) ? json.features : []) as { properties?: Record<string, unknown> | null }[]
+    const fields = [...new Set(features.slice(0, 200).flatMap((f) => Object.keys(f?.properties ?? {})))]
+    return { entry: clean({ ...base(url, "geojson"), ...heightFieldsOf([{ id: "data", fields }]) }), layers: [], label: `GeoJSON file, ${features.length} feature${features.length === 1 ? "" : "s"}`, note: "Read whole, not as tiles: fine up to a few megabytes." }
+  }
   if (Array.isArray(json.layers) && json.sources && typeof json.sources === "object") {
     return { entry: clean({ ...base(url, "style", typeof json.name === "string" ? json.name : undefined), geometries: undefined }), layers: [], label: "MapLibre style", note: "Drawn with the style's own layers and colors; only the opacity is yours." }
   }
@@ -132,5 +145,5 @@ export async function detectVectorSource(raw: string, opts: { fetcher?: typeof f
     })
     return { entry, layers, label: "TileJSON of vector tiles", note: layers.length ? undefined : "The TileJSON lists no layers: type their names." }
   }
-  throw new Error("This JSON is neither a TileJSON (tiles, vector_layers) nor a MapLibre style (sources, layers).")
+  throw new Error("This JSON is neither a TileJSON (tiles, vector_layers), a MapLibre style (sources, layers) nor GeoJSON.")
 }

@@ -46,18 +46,45 @@ export interface VectorOverlayStyle {
 
 export const VECTOR_STYLE_DEFAULT: VectorOverlayStyle = { mode: "flat", colorBy: "single", color: "#f97316", opacity: 0.7, outline: true }
 
-/** An entry's style: the defaults, the entry's own color, then the user's
- *  choices, with the choices the entry cannot honor put back (3D or color by
- *  height without a height, color by source without a source field). */
-export function vectorStyleOf(entry: VectorSourceEntry, saved?: Partial<VectorOverlayStyle>): VectorOverlayStyle {
-  const style = { ...VECTOR_STYLE_DEFAULT, ...(entry.color ? { color: entry.color } : {}), ...(entry.sourceField ? { colorBy: "source" as const } : {}), ...saved }
+/** What every vector overlay shares (vectorOverlaySharedAtom): flat or 3D,
+ *  and what colors them. "auto" is each source's own best (its categories,
+ *  else one color). A source that cannot honor the shared choice (no height,
+ *  no category) falls back, as vectorStyleOf does for its own. */
+export interface VectorSharedStyle {
+  mode: "flat" | "3d"
+  colorBy: "auto" | "single" | "source" | "height"
+}
+export const VECTOR_SHARED_DEFAULT: VectorSharedStyle = { mode: "flat", colorBy: "auto" }
+
+/** Whether the entry has categories to color by (its `categories`, or the
+ *  older `sourceField` with `sourceColors`). */
+export function hasCategories(entry: VectorSourceEntry): boolean {
+  return !!entry.categories?.length || !!entry.sourceField
+}
+
+/** An entry's style: the defaults, the entry's own color, the user's choices
+ *  for this source, then the shared choices (flat or 3D, color by), with the
+ *  choices the entry cannot honor put back (3D or color by height without a
+ *  height, color by category without one). */
+export function vectorStyleOf(entry: VectorSourceEntry, saved?: Partial<VectorOverlayStyle>, shared?: Partial<VectorSharedStyle>): VectorOverlayStyle {
+  const own = hasCategories(entry) ? ("source" as const) : ("single" as const)
+  const style = { ...VECTOR_STYLE_DEFAULT, ...(entry.color ? { color: entry.color } : {}), colorBy: own, ...saved }
+  if (shared?.mode) style.mode = shared.mode
+  if (shared?.colorBy) style.colorBy = shared.colorBy === "auto" ? own : shared.colorBy
   if (!entry.heightField) {
     style.mode = "flat"
-    if (style.colorBy === "height") style.colorBy = entry.sourceField ? "source" : "single"
+    if (style.colorBy === "height") style.colorBy = own
   }
-  if (!entry.sourceField && style.colorBy === "source") style.colorBy = "single"
+  if (!hasCategories(entry) && style.colorBy === "source") style.colorBy = "single"
   style.opacity = Math.max(0, Math.min(1, Number.isFinite(style.opacity) ? style.opacity : VECTOR_STYLE_DEFAULT.opacity))
   return style
+}
+
+/** The entry and its companions as entries of their own (one MapLibre
+ *  source each), ids suffixed: what the renderer mounts. */
+export function vectorParts(entry: VectorSourceEntry): VectorSourceEntry[] {
+  const { companions, ...main } = entry
+  return [main, ...(companions ?? []).map((c, i) => ({ ...main, resolver: undefined, ...c, id: `${entry.id}--${i + 1}` }))]
 }
 
 // ── Address ─────────────────────────────────────────────────────────────────
@@ -97,7 +124,7 @@ export async function resolveVectorUrl(entry: VectorSourceEntry, fetcher: typeof
  *  there and a tile still weighs hundreds of kilobytes. */
 export const VECTOR_FOOTPRINT_MINZOOM = 11
 
-export type VectorSourceSpec = { type: "vector"; tiles?: string[]; url?: string; minzoom?: number; maxzoom?: number; bounds?: [number, number, number, number]; attribution?: string }
+export type VectorSourceSpec = { type: "vector" | "geojson"; tiles?: string[]; url?: string; data?: string; minzoom?: number; maxzoom?: number; bounds?: [number, number, number, number]; attribution?: string }
 
 /** The MapLibre source of an entry at its resolved address. A PMTiles
  *  archive is read through the app's `pmtiles://` protocol, as a tile
@@ -105,6 +132,7 @@ export type VectorSourceSpec = { type: "vector"; tiles?: string[]; url?: string;
 export function vectorSourceSpec(entry: VectorSourceEntry, url: string): VectorSourceSpec {
   const common = { minzoom: entry.minzoom, maxzoom: entry.maxzoom, bounds: entry.bounds, attribution: entry.shortAttribution ?? entry.attribution }
   const clean = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T
+  if (entry.type === "geojson") return clean({ type: "geojson" as const, data: url, attribution: common.attribution })
   if (entry.type === "tilejson") return clean({ type: "vector" as const, url, attribution: common.attribution })
   const tiles = entry.type === "pmtiles" ? [`pmtiles://${url.replace(/^pmtiles:\/\//, "")}/{z}/{x}/{y}`] : [url]
   return clean({ type: "vector" as const, tiles, ...common })
@@ -131,12 +159,29 @@ export function heightExpression(entry: VectorSourceEntry, fallback: number = DE
   return ["case", [">", num(entry.heightField), 0], num(entry.heightField), byFloors]
 }
 
+/** The color of a feature by its category, as a MapLibre value: the first
+ *  matching category of `categories`, else the `sourceField` match, else
+ *  the single color. */
+export function categoryExpression(entry: VectorSourceEntry, fallback: string): Expr | string {
+  if (entry.categories?.length) {
+    const cases: unknown[] = []
+    for (const c of entry.categories) {
+      const text: Expr = ["to-string", ["get", c.field]]
+      const test: Expr = c.value === undefined ? ["!=", text, ""] : Array.isArray(c.value) ? ["in", text, ["literal", c.value]] : ["==", text, c.value]
+      cases.push(test, c.color)
+    }
+    return ["case", ...cases, fallback]
+  }
+  if (entry.sourceField) {
+    const pairs = Object.entries(entry.sourceColors ?? {}).flat()
+    return pairs.length ? ["match", ["to-string", ["get", entry.sourceField]], ...pairs, fallback] : fallback
+  }
+  return fallback
+}
+
 /** The fill color of a style as a MapLibre value. */
 export function colorExpression(entry: VectorSourceEntry, style: VectorOverlayStyle): Expr | string {
-  if (style.colorBy === "source" && entry.sourceField) {
-    const pairs = Object.entries(entry.sourceColors ?? {}).flat()
-    return pairs.length ? ["match", ["to-string", ["get", entry.sourceField]], ...pairs, style.color] : style.color
-  }
+  if (style.colorBy === "source" && hasCategories(entry)) return categoryExpression(entry, style.color)
   if (style.colorBy === "height" && entry.heightField) {
     const h = heightExpression(entry, -1)
     return ["case", ["<", h, 0], NO_HEIGHT_COLOR, ["interpolate", ["linear"], h, ...HEIGHT_RAMP.flat()]]
@@ -147,7 +192,8 @@ export function colorExpression(entry: VectorSourceEntry, style: VectorOverlaySt
 export type VectorLayerSpec = {
   id: string
   type: "fill" | "line" | "fill-extrusion" | "circle"
-  "source-layer": string
+  /** Absent for a GeoJSON source, which has no layers. */
+  "source-layer"?: string
   minzoom: number
   filter?: Expr
   layout?: Record<string, unknown>
@@ -177,35 +223,39 @@ export function vectorLayerSpecs(entry: VectorSourceEntry, style: VectorOverlayS
   const lineColor = style.colorBy === "single" ? darken(style.color) : "rgba(0,0,0,0.45)"
   // The Library's footprints wait for zoom 11; a source of your own draws
   // from its own first zoom.
-  const minzoom = entry.section === "custom" ? (entry.minzoom ?? 0) : Math.max(VECTOR_FOOTPRINT_MINZOOM, entry.minzoom ?? 0)
+  const footprints = entry.section !== "custom" && entry.libraryGroup === "buildings"
+  const minzoom = footprints ? Math.max(VECTOR_FOOTPRINT_MINZOOM, entry.minzoom ?? 0) : (entry.minzoom ?? 0)
   const threeD = style.mode === "3d" && !!entry.heightField
   const geometries = new Set(entry.geometries ?? ["polygon"])
   const lineOpacity = Math.min(1, style.opacity + 0.25)
-  for (const layer of entry.sourceLayers ?? []) {
+  // A GeoJSON source has no layers: one nameless one, with no source-layer.
+  const sourceLayers = entry.type === "geojson" ? ["data"] : (entry.sourceLayers ?? [])
+  const sl = (layer: string) => (entry.type === "geojson" ? {} : { "source-layer": layer })
+  for (const layer of sourceLayers) {
     if (geometries.has("polygon")) {
       if (!threeD) {
-        out.push({ id: `${prefix}-${layer}-fill`, type: "fill", "source-layer": layer, minzoom, filter: polygon,
+        out.push({ id: `${prefix}-${layer}-fill`, type: "fill", ...sl(layer), minzoom, filter: polygon,
           paint: { "fill-color": color, "fill-opacity": style.opacity, "fill-antialias": !style.outline } })
       }
       if (style.outline) {
-        out.push({ id: `${prefix}-${layer}-line`, type: "line", "source-layer": layer, minzoom, filter: polygon, layout: { "line-join": "round" },
+        out.push({ id: `${prefix}-${layer}-line`, type: "line", ...sl(layer), minzoom, filter: polygon, layout: { "line-join": "round" },
           paint: { "line-color": lineColor, "line-opacity": lineOpacity, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.4, 16, 1.2] } })
       }
     }
     // Lines and points of a source of your own, in the fill color.
     if (geometries.has("line")) {
-      out.push({ id: `${prefix}-${layer}-path`, type: "line", "source-layer": layer, minzoom, filter: ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false],
+      out.push({ id: `${prefix}-${layer}-path`, type: "line", ...sl(layer), minzoom, filter: ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false],
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": color, "line-opacity": lineOpacity, "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 16, 2.2] } })
     }
     if (geometries.has("point")) {
-      out.push({ id: `${prefix}-${layer}-point`, type: "circle", "source-layer": layer, minzoom, filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
-        paint: { "circle-color": color, "circle-opacity": lineOpacity, "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 1.5, 16, 4.5], "circle-stroke-color": "rgba(0,0,0,0.45)", "circle-stroke-width": 0.6 } })
+      out.push({ id: `${prefix}-${layer}-point`, type: "circle", ...sl(layer), minzoom, filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
+        paint: { "circle-color": color, "circle-opacity": lineOpacity, "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 1.6, 9, 3, 16, 6], "circle-stroke-color": "rgba(255,255,255,0.85)", "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 6, 0, 10, 0.8] } })
     }
   }
   if (threeD) {
     const extrusion = (layer: string, filter: Expr): VectorLayerSpec => ({
-      id: `${prefix}-${layer}-3d`, type: "fill-extrusion", "source-layer": layer, minzoom: entry.section === "custom" ? minzoom : Math.max(minzoom, 13), filter,
+      id: `${prefix}-${layer}-3d`, type: "fill-extrusion", ...sl(layer), minzoom: footprints ? Math.max(minzoom, 13) : minzoom, filter,
       paint: {
         "fill-extrusion-color": color, "fill-extrusion-opacity": style.opacity,
         "fill-extrusion-height": heightExpression(entry),
@@ -213,7 +263,7 @@ export function vectorLayerSpecs(entry: VectorSourceEntry, style: VectorOverlayS
       },
     })
     const whole: Expr = entry.partLayers?.length && entry.hasPartsField ? ["all", polygon, ["!=", ["get", entry.hasPartsField], true]] : polygon
-    for (const layer of entry.sourceLayers ?? []) out.push(extrusion(layer, whole))
+    for (const layer of sourceLayers) out.push(extrusion(layer, whole))
     for (const layer of entry.partLayers ?? []) out.push(extrusion(layer, polygon))
   }
   return out
@@ -221,6 +271,10 @@ export function vectorLayerSpecs(entry: VectorSourceEntry, style: VectorOverlayS
 
 /** The legend of a style: [label, color] rows, empty for a single color. */
 export function vectorLegend(entry: VectorSourceEntry, style: VectorOverlayStyle): [string, string][] {
+  if (style.colorBy === "source" && entry.categories?.length) {
+    const seen = new Set<string>()
+    return [...entry.categories.filter((c) => !seen.has(c.label) && !!seen.add(c.label)).map((c): [string, string] => [c.label, c.color]), ["other", style.color]]
+  }
   if (style.colorBy === "source" && entry.sourceColors) return Object.entries(entry.sourceColors)
   if (style.colorBy === "height" && entry.heightField) return [...HEIGHT_RAMP.map(([m, c]): [string, string] => [`${m} m`, c]), ["no height", NO_HEIGHT_COLOR]]
   return []

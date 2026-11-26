@@ -372,6 +372,12 @@ export const isBasemapByodOpenAtom = atomWithStorage("isBasemapByodOpen", true)
 export const byodBasemapsOpenAtom = atomWithStorage("byodBasemapsOpen", true)
 export const byodOverlaysOpenAtom = atomWithStorage("byodOverlaysOpen", true)
 export const byodVectorOverlaysOpenAtom = atomWithStorage("byodVectorOverlaysOpen", true)
+/** What every vector overlay shares: footprints or 3D, and what colors them
+ *  (lib/vector-sources.ts's VectorSharedStyle). */
+export const vectorOverlaySharedAtom = atomWithStorage<import("./vector-sources").VectorSharedStyle>("vectorOverlayShared", { mode: "flat", colorBy: "auto" })
+/** The Library's vector sources listed in the sidebar (the Vector library
+ *  dialog ticks them); one switched on by a link shows too. */
+export const vectorLibraryIdsAtom = atomWithStorage<string[]>("vectorLibraryIds", ["overture-buildings", "vida-open-buildings", "osm-buildings-openfreemap", "osm-liberty-lines-labels", "hwai-heritage-wikidata", "hwai-heritage-osm", "hwai-heritage-osm-condition"], undefined, { getOnInit: true })
 /** The user's own vector sources (Bring Your Own Data > Vector overlays > Add):
  *  PMTiles archives, TileJSONs, MVT templates or MapLibre styles, as
  *  VectorSourceEntry records with section "custom". */

@@ -118,21 +118,23 @@ A third kind since 2026-11-26: `SourceKind` is `terrain`, `raster` or `vector`, 
 
 | Field | What it holds |
 |---|---|
-| `type` | `pmtiles` (the archive's https address), `mvt` (a `{z}/{x}/{y}` template), `tilejson`, or `style` (a whole MapLibre style whose layers are drawn as they are) |
+| `type` | `pmtiles` (the archive's https address), `mvt` (a `{z}/{x}/{y}` template), `tilejson`, `style` (a whole MapLibre style whose layers are drawn as they are), or `geojson` (one file read whole, 10 MB at most for a user's) |
 | `resolver`, `fallbackRelease` | An address that rotates: `url` holds `{release}`, and `"overture"` reads the current release from `stac.overturemaps.org/catalog.json` (a release older than about 60 days answers 410 Gone). The fallback is used when the catalog does not answer |
 | `sourceLayers`, `partLayers`, `hasPartsField` | The polygon layers to draw; the layers of building parts, drawn in 3D in place of the buildings marked as having parts |
 | `heightField`, `minHeightField`, `floorsField` | Offer 3D and color by height |
-| `sourceField`, `sourceColors` | Offer color by origin |
+| `categories`, `categoryLabel` | Color by category: a list of `{ label, color, field, value? }`, the first match wins (a value, one of several, or any non-empty value with no `value`). The label names what they are (Origin, Kind, Condition). `sourceField` with `sourceColors` is the older one-property form |
+| `companions` | More archives under the same switch and style: a dataset published as a points archive and a shapes archive |
+| `geometries` | What is drawn of each layer: polygons (default), lines, points |
 | `styleLayerTypes` | For `style`: which layer types of the style to draw (`["line", "symbol"]` is roads and labels) |
 
 `sourceKind` reads `vector` from the transports that exist nowhere else (`pmtiles`, `mvt`, `style`); a `tilejson` entry states its `kind`.
 
 Where things are:
 
-- **Entries**: `SAMPLE_VECTOR_SOURCES` in `lib/custom-sources.json`, in the `buildings` library group. The user's own are in `customVectorSourcesAtom` (`section: "custom"`, `geometries` set to polygons, lines and points), built from an address by `detectVectorSource` in `lib/vector-source-detect.ts` (a PMTiles header and metadata, a TileJSON, a tile template, or a MapLibre style); no saved list predates the field, so `kind` is required.
+- **Entries**: `SAMPLE_VECTOR_SOURCES` in `lib/custom-sources.json`, in the `buildings`, `heritage` and `reference` library groups (the Vector library dialog; `vectorLibraryIdsAtom` holds the ones listed in the sidebar). The user's own are in `customVectorSourcesAtom` (`section: "custom"`, `geometries` set to polygons, lines and points), built from an address by `detectVectorSource` in `lib/vector-source-detect.ts` (a PMTiles header and metadata, a TileJSON, a tile template, or a MapLibre style); no saved list predates the field, so `kind` is required.
 - **Lookup and specs**: `lib/vector-sources.ts`. `findVectorSource(id)` is the one lookup; `resolveVectorUrl` fills the release; `vectorSourceSpec` and `vectorLayerSpecs` return the MapLibre source and its `fill`, `line` and `fill-extrusion` layers as plain objects (no MapLibre import, so the tile service can read the same entries). Its test validates every entry in every style against MapLibre's style spec: `node scripts/test-lib.mjs lib/vector-sources.test.ts`.
 - **Renderer**: `components/LayersAndSources/VectorOverlayLayers.tsx`, one copy inside each view's `<Map>`, at the `VECTOR_OVERLAYS` slot ([Layer order](/dev/layer-order)). A PMTiles archive is read through the `pmtiles://` protocol as a tile template with the entry's zoom range. The `<Source>` is keyed on the resolved address, and the layer ids carry their type, so a change of release or from flat to 3D mounts new layers rather than retyping one.
-- **State**: which overlays are on is in the link (`vectorOverlayIds`, `vectorOverlayIdsB` to `H`, moved with the views by `permuteViewsUpdates`); how each is drawn is local (`vectorOverlayStylesAtom`).
+- **State**: which overlays are on is in the link (`vectorOverlayIds`, `vectorOverlayIdsB` to `H`, moved with the views by `permuteViewsUpdates`); how they are drawn is local: flat or 3D and color by are shared by all (`vectorOverlaySharedAtom`), color, opacity and outlines are per source (`vectorOverlayStylesAtom`).
 
 The datasets, checked on 2026-11-26 by decoding tiles over Lyon, Chicago and Lagos:
 

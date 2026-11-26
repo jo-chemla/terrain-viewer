@@ -83,17 +83,26 @@ Overlay mode's Blend Mode dropdown controls how source A composites over source 
 ## Color Matching (Match Colors)
 
 
-### Red / Cyan: the two-date composite
+### Two-date composite
 
-**Red / Cyan (two dates)**, last in the Blend Mode list, is the classic two-date color composite. Both views are reduced to grey, view A is tinted red and view B cyan, and the two are added. What did not change between the two comes out grey; what is brighter in A shows red, what is brighter in B shows cyan. It reads at a glance over a whole site, where Difference only says that something changed, not in which date.
+**Two-date composite**, right under the favourites of the Blend Mode list, is the classic two-date color composite. Both views are reduced to grey, each is tinted with its own view color (cyan for A and red for B by default), and the two are added. What did not change between the two dates comes out grey; what is only in one date takes that view's color. It reads at a glance over a whole site, where Difference only says that something changed, not in which date.
 
-![Red / Cyan composite of Esri and Google imagery over Luxembourg: grey where the two agree, red and cyan where one differs, view A in its own colors left of the wipe](/screenshots/split-modes/blend-red-cyan.jpg)
+![Two-date composite of Esri and Bing imagery over Mazar-i-Sharif: grey where the two dates agree, cyan and red where one differs, view A in its own colors left of the wipe](/screenshots/split-modes/blend-red-cyan.jpg)
 
-Left of the wipe, view A keeps its own colors. Match Colors still applies, and helps: two dates of different exposure otherwise lean wholly red or cyan. Imagery taken from different angles shows red and cyan fringes along every tall building; that is parallax, not change.
+There are two of them:
 
-<OpenInApp href="/?zoom=15.5&lat=49.6116&lng=6.1319&splitStyle=overlay&basemapSourceA=esri&basemapSourceB=google&splitBlendModeEnabled=true&splitBlendMode=red-cyan&splitRatio=0.2&showRasterBasemap=true&showHillshade=false">Red / cyan composite of two imagery sources over Luxembourg</OpenInApp>
+- **Bright changes**: a bright feature present at one date only takes that date's color (a new roof, a cleared plot, a new white road marking).
+- **Dark changes**: both views are inverted first, so it is the dark features present at one date only that take a color (a looting pit, a new road cut, a burn scar, a shadow-casting wall).
+
+![The dark-changes composite of the same two dates](/screenshots/split-modes/blend-red-cyan-dark.jpg)
+
+The tints are the view colors of **Compare and Blend › Advanced** (the same as the pills and the timeline handles), at full strength. Cyan and red are opposite, so unchanged ground is exactly grey; two colors that are not opposite give a tinted result. Left of the wipe, view A keeps its own colors. Turn **Match Colors** on: two dates of different exposure otherwise lean wholly to one color. Imagery taken from different angles shows fringes along every tall building; that is parallax, not change.
+
+<OpenInApp href="/?zoom=16.2&lat=36.7066&lng=67.1100&viewMode=2d&splitStyle=overlay&basemapSourceA=esri&basemapSourceB=bing&splitBlendModeEnabled=true&splitBlendMode=red-cyan&splitRatio=0.2&showRasterBasemap=true&showHillshade=false&matchColorsToA=true">Two-date composite of Esri and Bing imagery over Mazar-i-Sharif</OpenInApp>
 
 Soft Light and Hard Light do something else: they use the top image to lighten or darken the bottom one, carrying one date's contrast onto the other's colors. The per-pixel "best of" modes are Lighten and Darken.
+
+Other ways to spot change between two images, none of them in the app yet: the ratio of the two dates (insensitive to exposure, which Difference is not); a three-date composite with one date per color channel; change vector analysis and its robust form, the iteratively reweighted MAD transform, which separates real change from a global shift in radiometry; and a difference of edges rather than of brightness, which ignores lighting.
 
 **Match Colors** (Compare and Blend) automatically recolors every other view onto view A's color histogram, so two different imagery sources — or two different dates of the same source — no longer look noticeably darker/bluer/warmer next to each other when compared or blended. A **Color Space** picker controls how thorough the match is: **RGB** (the default) is instant, while **HSL / HSV / LAB / LCH** are slower but can match more subtle color differences.
 

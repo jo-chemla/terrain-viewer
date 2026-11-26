@@ -303,6 +303,11 @@ async function compositeViews(root: HTMLElement, withChrome: boolean, includeTim
       const box: [number, number, number, number] = [(b.left - rootRect.left) * dpr, (b.top - rootRect.top) * dpr, b.width * dpr, b.height * dpr]
       t.globalAlpha = 1
       t.filter = "none"
+      if (tintBox.dataset.compositeInvert) {
+        t.globalCompositeOperation = "difference"
+        t.fillStyle = "#ffffff"
+        t.fillRect(...box)
+      }
       t.globalCompositeOperation = "saturation"
       t.fillStyle = "#808080"
       t.fillRect(...box)

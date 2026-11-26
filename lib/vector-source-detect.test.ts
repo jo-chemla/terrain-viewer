@@ -76,3 +76,13 @@ test("a source of your own: found by id beside the Library, drawn as fill, outli
   const solid = vectorLayerSpecs(one, vectorStyleOf(one, { mode: "3d" }), "p")
   assert.ok(solid.some((l) => l.type === "fill-extrusion"))
 })
+
+test("a GeoJSON file: read whole, capped at 10 MB, heights from its properties", async () => {
+  const fc = { type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Point", coordinates: [2, 48] }, properties: { name: "a", height: 12 } }] }
+  const d = await detectVectorSource("https://example.com/sites.geojson", { fetcher: json(fc) })
+  assert.equal(d.entry.type, "geojson")
+  assert.equal(d.entry.heightField, "height")
+  assert.match(d.label, /1 feature/)
+  const big = (async () => ({ ok: true, status: 200, headers: { get: () => "25000000" }, json: async () => fc })) as unknown as typeof fetch
+  await assert.rejects(detectVectorSource("https://example.com/big.geojson", { fetcher: big }), /capped at 10 MB/)
+})

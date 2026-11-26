@@ -4,9 +4,9 @@ import { Layer, Source, useMap } from "react-map-gl/maplibre"
 import type { LayerSpecification, SourceSpecification, StyleSpecification } from "maplibre-gl"
 import { useAtomValue } from "jotai"
 import { LAYER_SLOTS } from "./MapLayers"
-import { customVectorSourcesAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
+import { customVectorSourcesAtom, vectorOverlaySharedAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
 import type { VectorSourceEntry } from "@/lib/source-schema"
-import { findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, vectorSourceSpec, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
+import { findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, vectorParts, vectorSourceSpec, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
 
 /**
  * Vector overlays of one view: the vector sources (the Library's building
@@ -21,16 +21,20 @@ import { findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, v
 export const VectorOverlayLayers = memo(({ ids, opacity = 1 }: { ids: string[]; opacity?: number }) => {
   const styles = useAtomValue(vectorOverlayStylesAtom)
   const customs = useAtomValue(customVectorSourcesAtom)
+  const shared = useAtomValue(vectorOverlaySharedAtom)
   return (
     <>
       {ids.map((id) => {
         const entry = findVectorSource(id, customs)
         if (!entry) return null
-        const style = vectorStyleOf(entry, styles[id])
+        const style = vectorStyleOf(entry, styles[id], shared)
         const scaled = opacity === 1 ? style : { ...style, opacity: style.opacity * opacity }
-        return entry.type === "style"
-          ? <StyleOverlay key={`${id}|${entry.url}`} entry={entry} opacity={scaled.opacity} />
-          : <TileOverlay key={`${id}|${entry.url}|${entry.type}`} entry={entry} style={scaled} />
+        if (entry.type === "style") return <StyleOverlay key={`${id}|${entry.url}`} entry={entry} opacity={scaled.opacity} />
+        // A dataset in several archives (points and shapes): one source each,
+        // the companions first so the points draw over the shapes.
+        return vectorParts(entry).reverse().map((part) => (
+          <TileOverlay key={`${part.id}|${part.url}|${part.type}`} entry={part} style={scaled} />
+        ))
       })}
     </>
   )

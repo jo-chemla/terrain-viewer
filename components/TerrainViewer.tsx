@@ -67,7 +67,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { URL_KEYS, getUrlParam } from "@/lib/url-keys"
 import { bookmarksAtom, mergeImportedBookmarks, type Bookmark } from "@/lib/bookmarks"
 import { coverageOverlaysAtom, coverageGroups, parseAsCoverageOverlays } from "@/lib/coverage-overlays"
-import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, splitBlendCss, compositeTint, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
+import { GRID_LAYOUTS, GRID_LAYOUT_IDS, VIEW_IDS, viewFieldName, sourceFieldName, permuteViewsUpdates, bottomRightView, rightmostViewsPerRow, SIDE_COLORS, SPLIT_STYLES, splitBlendCss, compositeTint, compositeInverts, BLEND_MODES, type ViewId, type GridLayoutId } from "@/lib/grid-layouts"
 import { cn } from "@/lib/utils"
 
 import * as maplibregl from 'maplibre-gl'
@@ -4956,11 +4956,12 @@ export function TerrainViewer() {
       <div ref={splitContainerRef} data-snapshot-root className="absolute inset-0">
         {paneLayouts.map((pane) => {
           const isBlendedOverlayPane = isOverlaySplit && pane.side === "B"
-          // The two-date composite (splitBlendMode "red-cyan"): this view's
-          // tint, over the part of the view the wipe shows blended (all of
+          // The two-date composites (splitBlendMode "red-cyan", "red-cyan-dark"):
+          // this view's tint, its own view color, over the part of the view the wipe shows blended (all of
           // B's clipped pane; A right of the boundary, so A alone stays in
           // its own colors left of it).
-          const tint = isOverlaySplit && state.splitBlendModeEnabled ? compositeTint(state.splitBlendMode, pane.side) : null
+          const tint = isOverlaySplit && state.splitBlendModeEnabled ? compositeTint(state.splitBlendMode, pane.side, borderColorFor(pane.side)) : null
+          const tintInverts = compositeInverts(state.splitBlendMode)
           return (
             <div
               key={pane.side}
@@ -5005,8 +5006,11 @@ export function TerrainViewer() {
                   Left out of the snapshot's DOM pass: compositeViews
                   repeats the two fills on the canvases (data-composite-*). */}
               {tint && (
-                <div data-snapshot-ignore data-composite-tint={tint} data-composite-from={pane.side === "A" ? overlayBoundaryPct : 0}
+                <div data-snapshot-ignore data-composite-tint={tint} data-composite-invert={tintInverts ? "1" : undefined}
                   className="absolute inset-y-0 right-0 pointer-events-none" style={{ left: pane.side === "A" ? `${overlayBoundaryPct}%` : 0 }}>
+                  {/* The dark-changes composite: white as "difference" inverts
+                      the view, so its dark features become the bright ones. */}
+                  {tintInverts && <div className="absolute inset-0" style={{ background: "#ffffff", mixBlendMode: "difference" }} />}
                   <div className="absolute inset-0" style={{ background: "#808080", mixBlendMode: "saturation" }} />
                   <div className="absolute inset-0" style={{ background: tint, mixBlendMode: "multiply" }} />
                 </div>

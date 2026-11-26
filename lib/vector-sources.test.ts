@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { sourceKind } from "./source-schema"
 import {
   VECTOR_LIBRARY, findVectorSource, needsResolving, resolveVectorUrl, resetVectorResolvers, vectorLayerSpecs, vectorSourceSpec,
-  vectorStyleOf, vectorLegend, darken, VECTOR_FOOTPRINT_MINZOOM,
+  vectorStyleOf, vectorLegend, darken, VECTOR_FOOTPRINT_MINZOOM, vectorParts, categoryExpression, hasCategories,
 } from "./vector-sources"
 
 // The style validator MapLibre itself runs, found through maplibre-gl (it is
@@ -28,7 +28,9 @@ test("every library entry is a vector source with a licence and a credit", () =>
     assert.ok(!ids.has(s.id), `duplicate id ${s.id}`); ids.add(s.id)
     assert.ok(s.licenseName && s.attribution && s.infoUrl && s.description, `${s.id}: licence, credit, page, description`)
     assert.ok(/^https:\/\//.test(s.url), s.id)
-    if (s.type !== "style") assert.ok(s.sourceLayers?.length, `${s.id}: source layers`)
+    if (s.type !== "style" && s.type !== "geojson") assert.ok(s.sourceLayers?.length, `${s.id}: source layers`)
+    for (const c of s.companions ?? []) assert.ok(/^https:\/\//.test(c.url) && c.sourceLayers?.length, `${s.id}: companion`)
+    for (const c of s.categories ?? []) assert.ok(/^#[0-9a-f]{6}$/.test(c.color) && c.field && c.label, `${s.id}: category ${c.label}`)
   }
 })
 
@@ -99,8 +101,55 @@ test("every layer of every entry and style is valid MapLibre style", () => {
 })
 
 test("legend and outline shade", () => {
-  assert.deepEqual(vectorLegend(vida, vectorStyleOf(vida)).map(([l]) => l), ["osm", "microsoft", "google"])
+  assert.deepEqual(vectorLegend(vida, vectorStyleOf(vida)).map(([l]) => l), ["OpenStreetMap", "Google", "Microsoft", "other"])
   assert.equal(vectorLegend(osm, vectorStyleOf(osm)).length, 0)
   assert.ok(vectorLegend(osm, vectorStyleOf(osm, { colorBy: "height" })).length > 3)
   assert.equal(darken("#ffffff", 0.5), "#808080")
+})
+
+test("one color per origin, the same on every source", () => {
+  const colorOf = (id: string, label: string) => findVectorSource(id)!.categories!.find((c) => c.label === label)!.color
+  for (const label of ["OpenStreetMap", "Google", "Microsoft"]) assert.equal(colorOf("overture-buildings", label), colorOf("vida-open-buildings", label), label)
+  assert.equal(findVectorSource("osm-buildings-openfreemap")!.color, colorOf("overture-buildings", "OpenStreetMap"))
+})
+
+test("categories: a value, one of several values, or any non-empty value; the first match wins", () => {
+  const heritage = findVectorSource("hwai-heritage-osm")!
+  const condition = findVectorSource("hwai-heritage-osm-condition")!
+  assert.ok(hasCategories(heritage) && !hasCategories(osm))
+  const any = JSON.stringify(categoryExpression(heritage, "#000000"))
+  assert.match(any, /"!=",\["to-string",\["get","historic"\]\],""/)
+  const several = JSON.stringify(categoryExpression(condition, "#000000"))
+  assert.match(several, /"in",\["to-string",\["get","status"\]\],\["literal",\["demolished","razed"\]\]/)
+  assert.equal(categoryExpression(osm, "#123456"), "#123456")
+})
+
+test("the shared style: flat or 3D and color by for every source, each falling back to what it has", () => {
+  const heritage = findVectorSource("hwai-heritage-wikidata")!
+  assert.equal(vectorStyleOf(overture, {}, { mode: "3d", colorBy: "auto" }).mode, "3d")
+  assert.equal(vectorStyleOf(vida, {}, { mode: "3d", colorBy: "height" }).mode, "flat")
+  assert.equal(vectorStyleOf(vida, {}, { mode: "3d", colorBy: "height" }).colorBy, "source")
+  assert.equal(vectorStyleOf(overture, { colorBy: "single" }, { mode: "flat", colorBy: "auto" }).colorBy, "source")
+  assert.equal(vectorStyleOf(overture, {}, { mode: "flat", colorBy: "single" }).colorBy, "single")
+  assert.equal(vectorStyleOf(heritage, {}, { mode: "flat", colorBy: "height" }).colorBy, "source")
+  assert.equal(vectorStyleOf(osm, {}, { mode: "flat", colorBy: "auto" }).colorBy, "single")
+})
+
+test("companions are sources of their own; a GeoJSON source has no source-layer; heritage points draw at every zoom", () => {
+  const heritage = findVectorSource("hwai-heritage-osm")!
+  const parts = vectorParts(heritage)
+  assert.deepEqual(parts.map((p) => p.id), ["hwai-heritage-osm", "hwai-heritage-osm--1"])
+  assert.match(parts[1].url, /shapes\.pmtiles$/)
+  assert.deepEqual(parts[1].sourceLayers, ["shapes"])
+  assert.equal(parts[1].companions, undefined)
+  const points = vectorLayerSpecs(parts[0], vectorStyleOf(parts[0]), "p")
+  assert.deepEqual(points.map((l) => l.type), ["circle"])
+  assert.equal(points[0].minzoom, 0)
+  assert.deepEqual(vectorLayerSpecs(parts[1], vectorStyleOf(parts[1]), "p").map((l) => l.type), ["fill", "line", "line"])
+  const unesco = findVectorSource("unesco-world-heritage")!
+  assert.equal(vectorSourceSpec(unesco, unesco.url).type, "geojson")
+  assert.equal(vectorSourceSpec(unesco, unesco.url).data, unesco.url)
+  const layer = vectorLayerSpecs(unesco, vectorStyleOf(unesco), "p")[0]
+  assert.equal(layer["source-layer"], undefined)
+  assert.equal(layer.id, "p-data-point")
 })

@@ -228,9 +228,19 @@ export interface RasterSourceEntry extends SourceEntryBase {
 
 /** How a vector source's tiles are read (lib/vector-sources.ts): a PMTiles
  *  archive (`url` is the archive's https address), an MVT `{z}/{x}/{y}`
- *  template, a TileJSON, or a whole MapLibre style whose layers are drawn as
- *  they are ("style": OpenFreeMap's Liberty). */
-export type VectorTransport = "pmtiles" | "mvt" | "tilejson" | "style"
+ *  template, a TileJSON, a whole MapLibre style whose layers are drawn as
+ *  they are ("style": OpenFreeMap's Liberty), or one GeoJSON file of a few
+ *  megabytes at most ("geojson": no tiles, the whole file is loaded). */
+export type VectorTransport = "pmtiles" | "mvt" | "tilejson" | "style" | "geojson"
+
+/** One class of a vector source's "color by category". */
+export interface VectorCategory {
+  label: string
+  /** Hex. */
+  color: string
+  field: string
+  value?: string | string[]
+}
 
 /** A vector overlay: footprints (or a styled map) drawn over the terrain
  *  layers. Listed in SAMPLE_VECTOR_SOURCES of lib/custom-sources.json, or
@@ -262,6 +272,19 @@ export interface VectorSourceEntry extends SourceEntryBase {
    *  not listed takes the single color). */
   sourceField?: string
   sourceColors?: Record<string, string>
+  /** Color by category where one property does not say it all: the first
+   *  category a feature matches gives its color (a value, one of several, or
+   *  with no `value` any non-empty one: OSM's historic=*, a lifecycle
+   *  status). A feature matching none takes the single color. Wins over
+   *  `sourceField` when both are set. */
+  categories?: VectorCategory[]
+  /** What the categories are, for the "Color by" choice and the legend
+   *  ("Origin" by default; "Kind", "Condition"). */
+  categoryLabel?: string
+  /** More archives drawn with this entry, under one switch and one style:
+   *  a dataset published as a points archive and a shapes archive. Each
+   *  inherits everything it does not state. */
+  companions?: Pick<VectorSourceEntry, "url" | "sourceLayers" | "geometries" | "minzoom" | "maxzoom" | "type">[]
   /** "style" only: the layer types of the style to draw (default all but
    *  the background); ["line", "symbol"] makes a roads-and-labels overlay. */
   styleLayerTypes?: ("fill" | "line" | "symbol" | "fill-extrusion" | "raster")[]
@@ -286,7 +309,7 @@ export interface LibraryBrowseEntry extends Pick<SourceEntryBase, "id" | "name" 
   stac: LibraryStacLink
 }
 
-const VECTOR_ONLY = new Set<string>(["pmtiles", "mvt", "style"])
+const VECTOR_ONLY = new Set<string>(["pmtiles", "mvt", "style", "geojson"])
 const TERRAIN_ONLY = new Set<string>(["terrainrgb", "terrarium", "vrt", "stac", "mosaicjson", "wms-raw", "dem-diff", "lerc", "quantized-mesh"])
 
 /** An entry's kind: its own field, else read from its transport ("cog",
