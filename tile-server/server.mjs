@@ -55,6 +55,8 @@
 //   GET /colorramps, /colorramps/{id}  the colour ramps, by id; /colorramps/{id}.png|jpg
 //                                      a picture of one (width, height, orientation)
 //   GET /basemaps                      what /basemap-tiles/{source}/... takes
+//   GET /building-sources              what buildingShadowSource takes by id: the Library's
+//                                      vector sources with heights (buildings.mjs)
 //   GET /algorithms                    the modes, and which engine draws them
 //   GET /, /conformance                OGC API Common landing page (JSON) and conformance
 //   GET /processes, /processes/{id}    each mode as an OGC API - Processes description
@@ -832,6 +834,10 @@ async function handle(req, res) {
       const idates = u.pathname.match(/^\/imagery-dates\/([^/]+)$/)
       if (idates) return send(200, "application/json", JSON.stringify(await imageryDates(self, decodeURIComponent(idates[1]), u.searchParams), null, 2), { "cache-control": "public, max-age=3600" })
       if (u.pathname === "/imagery-dates") return send(200, "application/json", JSON.stringify({ sources: IMAGERY_DATE_SOURCES, note: "The dates of a source at a place: /imagery-dates/{source}?lat=..&lng=..&zoom=.. (zoom: the Web Mercator tile zoom of the 256 px tiles drawn)." }))
+      if (u.pathname === "/building-sources") {
+        const [A, { buildingSources }] = await Promise.all([import("./generated/app-render.mjs"), import("./buildings.mjs")])
+        return send(200, "application/json", JSON.stringify({ sources: buildingSources(A), note: "What buildingShadowSource takes by id (modes=buildingShadows). It also takes an https address (a .pmtiles archive, a {z}/{x}/{y} vector tile template, a TileJSON) with buildingShadowLayer and buildingShadowHeightField, or file:<id> for a GeoJSON registered with POST /files: see /processes/buildingShadows." }, null, 2))
+      }
       if (u.pathname === "/basemaps") return send(200, "application/json", JSON.stringify({ basemaps: await basemaps(), note: "Give an id in the path: /basemap-tiles/{id}/{z}/{x}/{y}.jpg (a dated one with imageryDate). An XYZ or COG address: /basemap-tiles/{z}/{x}/{y}.jpg?imageryUrl=..." }))
       // A ramp as a picture: the app's interpolation (MapLibre's colour
       // relief), horizontal by default.

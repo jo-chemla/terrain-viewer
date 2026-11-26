@@ -87,6 +87,7 @@ export const QUICK_START = [
   ["A picture of a box", "/bbox/7.6,45.95,7.7,46/800x600.png?terrainSource=mapterhorn&modes=hillshade,contours", "west,south,east,north; `.tif` with one mode for its values"],
   ["A colour ramp as a picture", "/colorramps/slope-plantopo.png?width=256&height=16", "a legend; `orientation=vertical`; the ids: `/colorramps`"],
   ["The STAC Item of a tile", "/terrain-tiles/mapterhorn/12/2133/1449.png.stac.json?modes=slope", "any raster export's address plus `.stac.json`"],
+  ["Building shadows from Overture's buildings, XYZ tiles", "/terrain-tiles/{z}/{x}/{y}.png?modes=buildingShadows&buildingShadowSource=overture-buildings&illuminationDir=135&illuminationAlt=25", "zoom 13 and finer; `buildingShadowSource`: an id of `/building-sources`, or a PMTiles, TileJSON or `{z}/{x}/{y}` address with `buildingShadowLayer` and `buildingShadowHeightField`"],
   ["The terrain sources, by id", "/terrain-sources", "what `/terrain-tiles/{source}/...`, `/quantized-mesh/{source}/...` and `terrainSource` take; one with its description: `/terrain-sources/{id}`"],
   ["The modes, as OGC API - Processes", "/processes", "each mode's settings: `/processes/{id}`"],
 ]
@@ -217,6 +218,9 @@ export function openapi(server = "http://localhost:3400", ids = {}) {
           ],
           responses: { ...image("The tile"), 404: { description: "No such source" } },
         },
+      },
+      "/building-sources": {
+        get: { tags: ["Terrain tiles"], operationId: "buildingSources", summary: "The building shadows' sources, by id", description: "The vector sources the building shadows (`modes=buildingShadows`) can take their footprints and heights from, by id: the app's Library entries that have a height field (Overture's buildings, OpenFreeMap's OSM buildings, the default, and the others), each with its transport (`pmtiles`, `tilejson`, `mvt`), its address, its polygon layers and its height, floors and base fields. Give an id as `buildingShadowSource`. That parameter also takes an https address (a `.pmtiles` archive, a `{z}/{x}/{y}` vector tile template, or a TileJSON) with `buildingShadowLayer` (its polygon layers, comma-separated) and `buildingShadowHeightField` (metres; `buildingShadowFloorsField`, `buildingShadowMinHeightField` and `buildingShadowType` when needed), the same as one JSON value (`{\"url\", \"type\", \"sourceLayers\", \"heightField\"}`), or `file:<id>` for a GeoJSON of this machine registered with `POST /files` (polygons in longitude and latitude, heights in `buildingShadowHeightField`, `height` by default): how the QGIS plugin sends a vector layer of the project. Tiles are read at the source's deepest zoom, 14 at most; a feature with no height takes its floors times 3.2 m, else 4 m; nothing is drawn below map zoom 13. `/processes/buildingShadows` describes each parameter.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },
       },
       "/basemaps": {
         get: { tags: ["Basemap tiles"], operationId: "basemaps", summary: "The basemaps, by id", description: "What `/basemap-tiles/{source}/...` takes: the dated imagery (`kind: dated`, read with `imageryDate`) and the built-in basemaps with a fixed address (`kind: static`), each with the query parameter it stands for (`imagerySource` or `basemapSource`) and the API key it needs.", responses: { 200: { description: "The list", content: { "application/json": { schema: { type: "object" } } } } } },

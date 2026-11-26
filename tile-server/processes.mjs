@@ -60,6 +60,18 @@ const COMMON_INPUTS = {
   engine: { title: "Engine", description: "Who draws: `direct` (in the server, fast), `browser` (the app, every source and mode) or `auto`.", minOccurs: 0, maxOccurs: 1, schema: { type: "string", enum: ["auto", "direct", "browser"], default: "auto" }, "x-tv-url-param": "engine", "x-tv-role": "common" },
 }
 
+/** The building shadows' source (buildings.mjs): the app's
+ *  buildingShadowSource, described as this service reads it, and the
+ *  service's own parameters for an address given there. */
+const BUILDING_SOURCE_NOTE = "Where the footprints and heights come from: an id of /building-sources (the Library's vector sources with heights; unset: OpenFreeMap's OSM buildings), an https address (a .pmtiles archive, a {z}/{x}/{y} vector tile template, or a TileJSON) with buildingShadowLayer and buildingShadowHeightField, the same as one JSON value {\"url\", \"type\", \"sourceLayers\", \"heightField\", \"floorsField\", \"minHeightField\", \"maxzoom\"}, or file:<id> for a GeoJSON registered with POST /files."
+const BUILDING_INPUTS = [
+  { key: "buildingShadowLayer", type: "string", note: "With an address in buildingShadowSource: its polygon layers, comma-separated. Unset: every layer a PMTiles archive or a TileJSON lists, `building` for a template." },
+  { key: "buildingShadowHeightField", type: "string", default: "height", note: "With an address or a file in buildingShadowSource: the property holding a height in metres. A feature without one takes its floors (buildingShadowFloorsField) times 3.2 m, else 4 m (a registered GeoJSON: left out)." },
+  { key: "buildingShadowFloorsField", type: "string", note: "With an address or a file: the property holding a number of floors, for a feature with no height." },
+  { key: "buildingShadowMinHeightField", type: "string", note: "With an address or a file: the property holding the base, in metres, of a raised part." },
+  { key: "buildingShadowType", type: "string", enum: ["pmtiles", "tilejson", "mvt"], note: "With an address that does not say what it is (.pmtiles: an archive; {z}/{x}/{y}: a template; anything else: a TileJSON)." },
+]
+
 /** The panel groups a mode's opacity is multiplied by: the group switch
  *  (showTerrainAnalysis) named as its opacity (terrainAnalysisOpacity), when
  *  the app has that parameter. */
@@ -95,6 +107,11 @@ function describe(m, path, known, byKey) {
   const groupKeys = groupOpacityKeys(m.id, known)
   for (const k of groupKeys) inputs[k] = input({ key: k, type: "number", default: byKey.get(k)?.default ?? 1, note: "The opacity of the mode's panel group, 0 to 1, multiplied with the mode's own." }, "group-opacity")
   for (const s of m.settings) inputs[s.key] = input(s, "setting")
+  if (m.id === "buildingShadows") {
+    if (inputs.buildingShadowSource) inputs.buildingShadowSource.description = BUILDING_SOURCE_NOTE
+    else inputs.buildingShadowSource = input({ key: "buildingShadowSource", type: "string", default: "osm-buildings-openfreemap", note: BUILDING_SOURCE_NOTE }, "setting")
+    for (const s of BUILDING_INPUTS) inputs[s.key] = input(s, "setting")
+  }
   const outputs = {
     image: { title: `${m.name}, coloured as in the app`, description: "PNG (transparent with background=none) or JPEG tiles.", schema: { oneOf: [binary("image/png"), binary("image/jpeg")] } },
   }

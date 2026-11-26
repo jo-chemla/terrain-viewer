@@ -31,6 +31,10 @@
 // - a read names an id and one of that entry's own file names, never a
 //   path; the file is checked unchanged before each read.
 //
+// A GeoJSON file (.geojson, at most 100 MB) registers the same way, as a
+// source of building footprints for the building shadows
+// (buildingShadowSource=file:<id>, buildings.mjs); it is no terrain source.
+//
 // The registry is local-files.json in the cache folder (TILE_CACHE_DIR):
 // the workers, separate threads, read it there, and a registration outlives
 // a restart while the file is unchanged.
@@ -46,7 +50,8 @@ const REGISTRY = path.join(DIR, "local-files.json")
 export const registryPath = () => REGISTRY
 const ID_RE = /^[0-9a-f]{32}$/
 export const SOURCE_RE = /^file:([0-9a-f]{32})$/
-const EXT_RE = /\.(tif|tiff|vrt)$/i
+const EXT_RE = /\.(tif|tiff|vrt|geojson)$/i
+const GEOJSON_MAX_BYTES = 100 * 1024 * 1024
 const SCHEME = "tvfile://"
 export const enabled = () => (process.env.TV_LOCAL_FILES || "").toLowerCase() !== "off"
 export const roots = () => (process.env.TV_FILE_ROOTS || "").split(path.delimiter).map((r) => r.trim()).filter(Boolean)
@@ -94,7 +99,7 @@ function checked(given, what = "file") {
   try { real = fs.realpathSync.native(given) } catch { throw refuse(404, `${what}: no such file: ${given}`) }
   const st = fs.statSync(real)
   if (!st.isFile()) throw refuse(400, `${what}: not a file: ${given}`)
-  if (!EXT_RE.test(real)) throw refuse(400, `${what}: ${path.basename(real)} is not a .tif, .tiff or .vrt`)
+  if (!EXT_RE.test(real)) throw refuse(400, `${what}: ${path.basename(real)} is not a .tif, .tiff, .vrt or .geojson`)
   const r = roots()
   if (r.length && !r.some((root) => inside(real, root))) throw refuse(403, `${what}: ${real} is outside the folders this service may read (TV_FILE_ROOTS)`)
   const head = Buffer.alloc(512)
@@ -104,8 +109,12 @@ function checked(given, what = "file") {
   const magic = head.subarray(0, 4).toString("latin1")
   const tiff = ["II*\0", "MM\0*", "II+\0", "MM\0+"].includes(magic)
   const vrt = /^\s*(<\?xml[^>]*\?>\s*)?<VRTDataset[\s>]/.test(head.subarray(0, n).toString("utf8").replace(/^\uFEFF/, ""))
-  if (!tiff && !vrt) throw refuse(400, `${what}: ${path.basename(real)} is neither a TIFF nor a VRT`)
-  return { real, st, type: tiff ? "tiff" : "vrt" }
+  // A GeoJSON by its name and its first character (a JSON object): building
+  // footprints, parsed when a tile asks for them.
+  const geojson = !tiff && !vrt && /\.geojson$/i.test(real) && /^\s*\{/.test(head.subarray(0, n).toString("utf8").replace(/^\uFEFF/, ""))
+  if (geojson && st.size > GEOJSON_MAX_BYTES) throw refuse(413, `${what}: ${path.basename(real)} is over 100 MB`)
+  if (!tiff && !vrt && !geojson) throw refuse(400, `${what}: ${path.basename(real)} is neither a TIFF, a VRT nor a GeoJSON`)
+  return { real, st, type: tiff ? "tiff" : vrt ? "vrt" : "geojson" }
 }
 
 const stamp = (st) => `${st.size}:${Math.round(st.mtimeMs)}`
@@ -136,7 +145,7 @@ function vrtSources(real) {
 export function registerFile(given) {
   if (!enabled()) throw refuse(403, "local files are turned off on this service (TV_LOCAL_FILES=off)")
   const { real, st, type } = checked(given)
-  const files = type === "tiff" ? { "0.tif": { path: real, stamp: stamp(st) } } : vrtSources(real)
+  const files = type === "tiff" ? { "0.tif": { path: real, stamp: stamp(st) } } : type === "geojson" ? { "0.geojson": { path: real, stamp: stamp(st) } } : vrtSources(real)
   if (type === "vrt" && !Object.keys(files).length && !/https?:\/\//i.test(fs.readFileSync(real, "utf8"))) throw refuse(400, "the VRT names no source file")
   const id = createHmac("sha256", secret()).update(`${real}\n${stamp(st)}\n${Object.values(files).map((f) => f.stamp).join(",")}`).digest("hex").slice(0, 32)
   const data = load()
@@ -167,7 +176,7 @@ export function lookupFile(id) {
 export function fileSourceEntry(source) {
   const m = SOURCE_RE.exec(String(source ?? ""))
   const e = m && lookupFile(m[1])
-  if (!e) return null
+  if (!e || e.type === "geojson") return null // footprints, not elevation
   return { id: source, name: e.name, type: "vrt", url: `${SCHEME}${m[1]}/source.vrt`, local: true }
 }
 
