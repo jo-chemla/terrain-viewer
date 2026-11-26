@@ -6,11 +6,14 @@ type: feedback
 
 # Reminders (bring up at the start of a session, then prune)
 
-- **Upstream requests**: the blend-mode PRs are open (maplibre-style-spec
-  2017, maplibre-gl-js 9143; gl-js CI is red until the spec release).
-  Jonathan posted the use-case comment on gl-js 48 and the reply on 9143 on
-  2026-11-26: wait for the reviewers. Still to tick by him after review: the
-  AI-policy box on both PRs. The impasto CORS request: draft it, he posts.
+- **Upstream blend modes: merged 2026-11-26.** maplibre-style-spec 2017
+  (released in 26.11.0) and maplibre-gl-js 9143 (merged as 7a6c543, with
+  the spec bump) add ten W3C modes to fill-, line- and raster-layer-blend.
+  They reach the app with the gl-js release after 6.19 and an upgrade from
+  6.13 (ask Jonathan before upgrading). Known defect to send upstream when
+  he says so: `color` mode over a fully transparent backdrop with a grey
+  source gives black (a 0/0 in clipColor of layer_composite.fragment.glsl;
+  guard the two divisions). The impasto CORS request: draft it, he posts.
 - **Next, Jonathan's order of 2026-11-19**: drawing on secondary views
   (B..H) is done ([[terra-draw-multi-map-adapter]]); then the MCP app
   (.claude/memory/mcp-apps-plan.md), the Umami website swap, the impasto
