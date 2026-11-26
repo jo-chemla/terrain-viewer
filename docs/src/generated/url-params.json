@@ -72,7 +72,8 @@
       "items": null,
       "enum": [
         "terrain",
-        "historical"
+        "historical",
+        "rem"
       ],
       "default": "terrain",
       "defaultSource": "\"terrain\"",
@@ -2006,6 +2007,182 @@
       "default": false,
       "defaultSource": "false",
       "note": ""
+    },
+    {
+      "key": "remRiver",
+      "stateKey": "remRiver",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "longest",
+        "all",
+        "named",
+        "drawn"
+      ],
+      "default": "longest",
+      "defaultSource": "\"longest\"",
+      "note": "River REM mode (appMode=rem): height above the river, the DEM minus a trend surface that follows the river's water level (lib/river-rem.ts)."
+    },
+    {
+      "key": "remWaterways",
+      "stateKey": "remWaterways",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "river",
+        "all"
+      ],
+      "default": "river",
+      "defaultSource": "\"river\"",
+      "note": "Which OpenStreetMap waterways are read: rivers only, or rivers, streams and canals."
+    },
+    {
+      "key": "remRiverName",
+      "stateKey": "remRiverName",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": "The river's OpenStreetMap name when remRiver is \"named\"."
+    },
+    {
+      "key": "remLine",
+      "stateKey": "remLine",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": "The drawn centerline when remRiver is \"drawn\": encoded polylines (5 decimals) joined by \";\"."
+    },
+    {
+      "key": "remSpacing",
+      "stateKey": "remSpacing",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "Distance in metres between two heights read along the centerline; 0 spreads 1000 points over its length, as RiverREM does."
+    },
+    {
+      "key": "remPower",
+      "stateKey": "remPower",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1",
+      "note": "Inverse-distance weighting exponent of the trend surface (weights 1 / distance^power); RiverREM uses 1."
+    },
+    {
+      "key": "remNeighbors",
+      "stateKey": "remNeighbors",
+      "type": "integer",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "Nearest river samples averaged at each point of the trend surface; 0 guesses it from the river's sinuosity, as RiverREM does."
+    },
+    {
+      "key": "remMonotone",
+      "stateKey": "remMonotone",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "min",
+        "fit",
+        "none"
+      ],
+      "default": "min",
+      "defaultSource": "\"min\"",
+      "note": "How the sampled water levels are made to fall downstream: running minimum, monotone least-squares fit, or left as read."
+    },
+    {
+      "key": "remMin",
+      "stateKey": "remMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": "Height above the river, in metres, at the start of the color ramp."
+    },
+    {
+      "key": "remMax",
+      "stateKey": "remMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 10,
+      "defaultSource": "10",
+      "note": "Height above the river, in metres, at the end of the color ramp."
+    },
+    {
+      "key": "remColorRamp",
+      "stateKey": "remColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "rem-mako",
+      "defaultSource": "\"rem-mako\"",
+      "note": ""
+    },
+    {
+      "key": "remInvertColorRamp",
+      "stateKey": "remInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "remStretch",
+      "stateKey": "remStretch",
+      "type": "enum",
+      "items": null,
+      "enum": [
+        "log",
+        "power",
+        "linear"
+      ],
+      "default": "log",
+      "defaultSource": "\"log\"",
+      "note": "How the ramp is spread over the range: log (RiverREM's, most colors near the water), power (remGamma) or linear."
+    },
+    {
+      "key": "remGamma",
+      "stateKey": "remGamma",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0.5,
+      "defaultSource": "0.5",
+      "note": "Exponent of the power stretch; under 1 gives more colors near the water."
+    },
+    {
+      "key": "remOpacity",
+      "stateKey": "remOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "remShowLine",
+      "stateKey": "remShowLine",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": true,
+      "defaultSource": "true",
+      "note": "Draws the centerline in use over the REM."
     },
     {
       "key": "showRoughness",
