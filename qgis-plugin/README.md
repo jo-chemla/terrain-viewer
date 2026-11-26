@@ -15,7 +15,7 @@ both (see Files).
 
 ## Terrain Viewer
 
-0.9.0 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel
+0.9.3 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel
 with the groups of the app's sidebar as one modes tree, drawn by the backend
 picked at its top (radio buttons): the **Python backend** (numpy in QGIS, no
 service, started when picked; every mode, from tile pyramids, COGs, VRTs, raw
@@ -27,8 +27,8 @@ dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-26c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26c)
-(Terrain Viewer 0.9.2, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
+The zips of each version are on a release: [`qgis-plugins-2026-11-26d`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26d)
+(Terrain Viewer 0.9.3, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this
@@ -100,11 +100,18 @@ modes computed in QGIS with numpy.
   previews (`assets/colorramps.png`, `assets/matcaps.png`), symmetric ramps
   whose minimum mirrors the maximum. A changed setting rewrites the layer's
   address (half a second after the last change), keeping its style.
-- **Light** (folded): a pad and two sliders for the light of hillshade,
+- **Basemap**, a row of the tree under Elevation Hypso (0.9.3): its checkbox
+  adds or removes one XYZ layer under every mode, its opacity in the row, and
+  under the cog its source, one of the app's built-in basemaps (Google Hybrid,
+  Bing Aerial, ESRI World Imagery by default, Google Satellite; Mapbox,
+  MapTiler and HERE once their key is set). Every backend; Open link drives
+  the same row.
+- **Light** (open): a pad and two sliders for the light of hillshade,
   Phong, terrain and building shadows (`illuminationDir`, `illuminationAlt`).
 - **Source**, in groups (QGIS elevation layers, Worldwide defaults, Terrain
   library), with a zoom to its bounds and a button that adds a library COG,
-  VRT or raw WMS as a QGIS layer ("Raw elevation inputs"); **API keys** behind a key icon
+  VRT or raw WMS as a QGIS layer ("Raw elevation inputs", kept under the modes,
+  its grey stretched to the view: above them it hid a hillshade, 0.9.2); **API keys** behind a key icon
   (Mapbox, MapTiler, HERE, Google, Cesium ion, in QGIS's settings
   `terrain_viewer/<key>`): the three the service reads go into every layer's
   address, Mapbox and MapTiler serve the Python backend.
@@ -112,8 +119,8 @@ modes computed in QGIS with numpy.
   too) or its bare query, read as the app reads it: a parameter it leaves out
   takes the app's default (`showTerrainAnalysis=true` alone is the slope);
   its modes, settings, opacities, source, light and camera (an extent in the
-  project's CRS), and with `showRasterBasemap=true` the view's basemap as an
-  XYZ layer under the modes. Only the parameters some mode takes go into the
+  project's CRS), and with `showRasterBasemap=true` the view's basemap
+  through the Basemap row. Only the parameters some mode takes go into the
   addresses (not `splitRatio` or the camera).
 - **Freeze** copies the layers drawn now into a dated group under the live
   one, which the panel never changes.
@@ -130,9 +137,9 @@ modes computed in QGIS with numpy.
 | `terrain_viewer/widgets.py`, `settings_ui.py` | The slider with its box, the light pad, the selects with previews, the foldable section, the backend buttons; the slider ranges and symmetric pairs by parameter name |
 | `terrain_viewer/python_backend.py` | The Python backend under the tree: the service's modes, settings and sources mapped onto `live/` |
 | `terrain_viewer/assets.py`, `assets/`, `make_assets.py` | The ramp and matcap previews (sprite sheets) and the catalog snapshot, made from a running tile service: `python make_assets.py [http://localhost:3400]` |
-| `terrain_viewer/links.py`, `assets/app_defaults.json`, `make_app_defaults.py` | An app link read as the app reads it (its defaults for what it leaves out, the basemap): the defaults and built-in basemaps from `docs/src/generated/url-params.json` and `lib/basemap-sources.ts`, `python make_app_defaults.py` |
-| `test_panel_units.py` | No service, no network: slider ranges, links, the Python mapping, the assets, the light pad, the panel's order and backends, the source groups, the labels, plugins.xml and an update installed: `QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py` |
-| `test_sources.py` | Network: the library's raw elevation read by the Python backend (NRCan's COG, IGN's raw WMS, a WCS, an ArcGIS image service), the panel drawing them and never Mapterhorn in their place, the raw inputs as QGIS layers: `QT_QPA_PLATFORM=offscreen python-qgis test_sources.py` |
+| `terrain_viewer/links.py`, `assets/app_defaults.json`, `make_app_defaults.py` | An app link read as the app reads it (its defaults for what it leaves out, the basemap) and the Basemap row's choices: the defaults and built-in basemaps from `docs/src/generated/url-params.json` and `lib/basemap-sources.ts`, `python make_app_defaults.py` |
+| `test_panel_units.py` | No service, no network: slider ranges, links, the Python mapping, the assets, the light pad, the panel's order and backends, the source groups, the labels, the Basemap row, the raw inputs under the modes, plugins.xml and an update installed: `QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py` |
+| `test_sources.py` | Network: the library's raw elevation read by the Python backend (NRCan's COG, IGN's raw WMS, a WCS, an ArcGIS image service), the panel drawing them and never Mapterhorn in their place, the raw inputs as QGIS layers, what a tile of NRCan's 84 GB COG reads and its hillshade drawn over the raw layer: `QT_QPA_PLATFORM=offscreen python-qgis test_sources.py` |
 | `terrain_viewer/updates.py` | Updates: `plugins.xml` read, a zip checked and unpacked over the plugin (the panel's Update button) |
 | `terrain_viewer/local_server.py` | The local tile service (installed, or a `server/` folder): started on 127.0.0.1, stopped on unload or when QGIS goes |
 | `terrain_viewer/service_install.py`, `service_pins.json` | The **Install** button: the pinned bundle downloaded through QGIS's network manager, its sha256 checked, unpacked into the plugin's data folder; **Remove** |

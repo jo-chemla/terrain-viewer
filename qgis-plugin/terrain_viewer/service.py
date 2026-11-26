@@ -13,8 +13,9 @@ from qgis.core import QgsNetworkAccessManager
 # the only ones sent to a tile service.
 KEY_PARAMS = ("mapboxKey", "maptilerKey", "cesiumIonKey")
 # Every key the panel keeps (QGIS settings terrain_viewer/<name>), with its
-# label; HERE and Google are the app's basemap keys, kept for the sources
-# that will need them, sent nowhere today.
+# label. Mapbox, MapTiler and HERE are also the keys of those basemaps (the
+# Basemap row offers one once its key is set); Google's is kept, sent
+# nowhere today.
 ALL_KEYS = (("mapboxKey", "Mapbox"), ("maptilerKey", "MapTiler"), ("hereKey", "HERE"), ("googleKey", "Google"),
             ("cesiumIonKey", "Cesium ion"))
 # The view's parameters that are the app's alone (the layout, the camera,

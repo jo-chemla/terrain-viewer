@@ -572,6 +572,117 @@ check(root is not None and root.children()[-1].layer() is bm if root and root.ch
       "link 2: the basemap at the bottom of the live group")
 check("over the basemap" in dock.status.text(), f"link 2: said ({dock.status.text()})")
 check(dock.open_link(LINK1) and dock.stack.find("basemap") is None, "link 1 again: the basemap removed")
+
+# 0.9.3: the basemap is a row of the tree, under Elevation Hypso: a checkbox,
+# an opacity, a select of the app's built-in basemaps under its cog; the link
+# reader drives the same row. And the raw elevation inputs stay under the modes.
+from terrain_viewer.dock import BASEMAP_KEY, raw_stretch  # noqa: E402
+brow = dock.basemap_row
+lay = dock.groups_layout
+order = [lay.itemAt(i).widget() for i in range(lay.count())]
+check(brow is not None and brow.box in order and order.index(brow.box) == order.index(dock.rows["colorRelief"].box) + 1
+      and order.index(dock.rows["hillshade"].box) < order.index(brow.box),
+      "the Basemap row: right under Elevation Hypso, itself under Hillshade")
+ids = [i for i, _n in links.basemap_choices({})]
+check(ids == ["google", "bing", "esri", "googlesat"], f"its choices without a key: the app's built-ins that need none ({ids})")
+check([i for i, _n in links.basemap_choices({"mapboxKey": "k", "hereKey": "k"})] == ["google", "bing", "esri", "mapbox", "here", "googlesat"],
+      "a keyed basemap is offered once the panel holds its key, in the app's order")
+check([brow.source.itemData(i) for i in range(brow.source.count())] == [i for i, _n in links.basemap_choices(dock.key_values())]
+      and brow.current() == "esri", "the row's select lists them, ESRI World Imagery picked (the app's default)")
+check(not brow.row.checked_forms() and brow.more.isHidden() and dock.stack.find(BASEMAP_KEY) is None, "unchecked: no layer, no cog")
+brow.check.setChecked(True)
+bm = dock.stack.find(BASEMAP_KEY)
+check(bm is not None and bm.name() == "ESRI World Imagery" and "World_Imagery" in bm.source() and "zmax=19" in bm.source()
+      and not brow.more.isHidden(), "checked: the ESRI layer, the cog shown")
+brow.source.setCurrentIndex(brow.source.findData("bing"))
+bm2 = dock.stack.find(BASEMAP_KEY)
+check(bm2 is not None and bm2.id() == bm.id() and bm2.name() == "Bing Aerial" and "virtualearth" in bm2.source() and "%7Bq%7D" in bm2.source(),
+      f"another source picked: the same layer re-pointed and renamed ({bm2 and bm2.name()})")
+brow.opacity.setOpacity(0.4)
+check(abs(bm2.renderer().opacity() - 0.4) < 1e-6, "its opacity is the layer's")
+# Under every mode: a mode's layer added after it lands above it.
+from qgis.core import QgsRasterLayer as _RL  # noqa: E402
+dock.stack.ensure("slope", "Slope", ("Terrain Analysis", "Surface derivatives"), "http://127.0.0.1:9/slope/{z}/{x}/{y}.png", False, backend="python")
+dock.stack.ensure("colorRelief", "Elevation Hypso", (), "http://127.0.0.1:9/elevation/{z}/{x}/{y}.png", False, backend="python")
+root = dock.stack.root(create=False)
+names = [c.name() for c in root.children()]
+check(names[-1] == "Bing Aerial" and names.index("Elevation Hypso") < names.index("Bing Aerial") and len(names) == 3,
+      f"the layer tree: the basemap under every mode and group ({names})")
+# A raw elevation input group above the live group (0.9.2 put it there): moved under it.
+tree_root = QgsProject.instance().layerTreeRoot()
+rawg = tree_root.insertGroup(0, dock.RAW_ROOT)
+rawg.setCustomProperty("terrain_viewer/raw_root", True)
+check([c.name() for c in tree_root.children()][0] == dock.RAW_ROOT and dock.place_raw_group()
+      and [c.name() for c in tree_root.children()] == [root.name(), dock.RAW_ROOT] and not dock.place_raw_group(),
+      "\"Raw elevation inputs\" above the live group: moved right under it (it hid the modes)")
+tree_root.removeChildNode(dock.raw_group())
+rawg = tree_root.insertGroup(0, dock.RAW_ROOT)
+rawg.setCustomProperty("terrain_viewer/raw_root", True)
+dock.stack.ensure("aspect", "Aspect", ("Terrain Analysis", "Surface derivatives"), "http://127.0.0.1:9/aspect/{z}/{x}/{y}.png", False, backend="python")
+check([c.name() for c in tree_root.children()] == [root.name(), dock.RAW_ROOT], "and again when a mode's layer joins the tree")
+tree_root.removeChildNode(dock.raw_group())
+for k in ("slope", "colorRelief", "aspect"):
+    dock.remove_layers(k)
+# A raw input's grey follows the canvas (a country's lowlands are not black).
+from osgeo import gdal as _gdal, osr as _osr  # noqa: E402
+import tempfile as _tf  # noqa: E402
+import numpy as _np  # noqa: E402
+_dir = _tf.mkdtemp()
+_ds = _gdal.GetDriverByName("GTiff").Create(os.path.join(_dir, "dem.tif"), 64, 64, 1, _gdal.GDT_Float32)
+_ds.SetGeoTransform((0, 100, 0, 6400, 0, -100))
+_srs = _osr.SpatialReference()
+_srs.ImportFromEPSG(3857)
+_ds.SetProjection(_srs.ExportToWkt())
+_ds.GetRasterBand(1).WriteArray(_np.linspace(0, 5900, 64 * 64, dtype=_np.float32).reshape(64, 64))
+_ds = None
+_raw = _RL(os.path.join(_dir, "dem.tif"), "raw", "gdal")
+from qgis.core import QgsRasterMinMaxOrigin as _MMO  # noqa: E402
+_mmo = _raw.renderer().minMaxOrigin() if raw_stretch(_raw) else None
+check(_mmo is not None and _mmo.extent() == getattr(getattr(_MMO, "Extent", _MMO), "UpdatedCanvas")
+      and _mmo.limits() == getattr(getattr(_MMO, "Limits", _MMO), "CumulativeCut"),
+      "a raw elevation input: its grey stretched to the canvas's 2nd to 98th percentile, at every view")
+del _raw, _mmo
+# Removed by hand: the row unchecks; unchecked: the layer goes.
+QgsProject.instance().removeMapLayer(bm2.id())
+spin(50)
+check(not brow.row.checked_forms() and not brow.check.isChecked(), "the basemap layer removed by hand: the row unchecked")
+brow.check.setChecked(True)
+check(dock.stack.find(BASEMAP_KEY) is not None and dock.stack.find(BASEMAP_KEY).name() == "Bing Aerial", "checked again: the source picked is kept")
+brow.check.setChecked(False)
+check(dock.stack.find(BASEMAP_KEY) is None and dock.stack.root(create=False) is None, "unchecked: the layer and the empty live group gone")
+# The link reader drives the row.
+check(dock.open_link("showRasterBasemap=true&basemapSourceA=google&rasterBasemapOpacity=0.6&showHillshade=false") and brow.check.isChecked()
+      and brow.current() == "google" and abs(brow.opacity.opacity() - 0.6) < 1e-6
+      and "lyrs%3Dy" in dock.stack.find(BASEMAP_KEY).source() and abs(dock.stack.find(BASEMAP_KEY).renderer().opacity() - 0.6) < 1e-6,
+      "a link's basemapSourceA and opacity: the row checked on Google Hybrid at 60%")
+check(dock.open_link("showRasterBasemap=true&basemapPerView=false&basemapSource=googlesat&showHillshade=false") and brow.current() == "googlesat",
+      "basemapSource with basemapPerView=false")
+check(dock.open_link("showRasterBasemap=true&showHillshade=false&basemapUrl=https://tiles.example.com/{z}/{x}/{y}.png")
+      and brow.source.currentText() == "XYZ tiles (tiles.example.com)" and "tiles.example.com" in dock.stack.find(BASEMAP_KEY).source(),
+      "a link's XYZ address: added to the select and drawn")
+n_warn = len(dock.warnings)
+check(dock.open_link("showRasterBasemap=true&showHillshade=false&basemapSourceA=wayback&date=2019-06-01")
+      and brow.current() == "wayback" and dock.stack.find(BASEMAP_KEY).name() == "ESRI World Imagery" and len(dock.warnings) == n_warn + 1,
+      f"a dated basemap under the Python backend: ESRI in its place, said once ({dock.warnings[-1][:60]})")
+dock.connected, dock.base = "remote", "http://localhost:3400"
+t = brow.tiles()
+check(t[1].startswith("http://localhost:3400/basemap-tiles/{z}/{x}/{y}.jpg?") and "date=2019-06-01" in t[1] and "basemapSourceA=wayback" in t[1],
+      "the same row under a tile server: the dated basemap through its /basemap-tiles, with the link's date")
+brow.set_source("esri")
+check(brow.tiles()[1].startswith("https://server.arcgisonline.com/"), "a built-in basemap under a tile server: its own address, no relay")
+dock.connected, dock.base = "python", None
+check(links.basemap_of_url(t[1])[0] == "wayback" and links.basemap_of_url(links.basemap_tiles("bing")[1]) == ("bing", {})
+      and links.basemap_of_url(links.basemap_tiles("mapbox", {"mapboxKey": "k"})[1])[0] == "mapbox",
+      "a saved project's basemap layer read back: its source from its address")
+brow.adopt(dock.stack.find(BASEMAP_KEY))
+check(brow.current() == "esri" and brow.check.isChecked(), "and into the row")
+dock.build()
+for r in dock.rows.values():
+    r.update = lambda: None
+check(dock.basemap_row is not brow and dock.basemap_row.check.isChecked() and dock.basemap_row.current() == "esri"
+      and dock.stack.find(BASEMAP_KEY) is not None, "the tree rebuilt (another backend): the Basemap row keeps its state")
+check(dock.open_link(LINK1) and dock.stack.find(BASEMAP_KEY) is None and not dock.basemap_row.check.isChecked(),
+      "a link with no basemap: the row unchecked, the layer removed")
 for r in dock.rows.values():
     r.row.set_forms(set())
     del r.update

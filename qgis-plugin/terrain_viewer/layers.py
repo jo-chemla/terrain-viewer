@@ -141,6 +141,9 @@ class LayerStack:
         # Called before a layer joins the project (the panel keeps the
         # canvas where it is, keep_extent).
         self.before_insert = None
+        # Called once a layer is in the tree (the panel keeps its raw
+        # elevation inputs under the live group, place_raw_group).
+        self.after_insert = None
 
     # -- the tree ---------------------------------------------------------
     def root(self, create=True):
@@ -194,7 +197,10 @@ class LayerStack:
             self.before_insert()
         self.project.addMapLayer(layer, False)
         g = self.group(path)
-        return g.insertLayer(self._index(g, tuple(path), self.ranks.get(("l", key), 10 ** 6)), layer)
+        node = g.insertLayer(self._index(g, tuple(path), self.ranks.get(("l", key), 10 ** 6)), layer)
+        if self.after_insert is not None:
+            self.after_insert()
+        return node
 
     def find_all(self, key):
         return [layer for layer in self.project.mapLayers().values() if layer.customProperty(PROP) == key]

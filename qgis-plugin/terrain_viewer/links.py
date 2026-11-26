@@ -7,8 +7,8 @@ defaults to true), and the hillshade is on unless the link says
 showHillshade=false.
 
 The Python backend reads links with this; every backend takes the basemap
-from it (showRasterBasemap=true: the view's basemap as an XYZ layer under the
-modes)."""
+from it: the Basemap row's choices (the app's built-in basemaps), a link's
+basemap (showRasterBasemap=true: the view's), and the XYZ layer of either."""
 from urllib.parse import urlencode
 
 from . import assets
@@ -124,24 +124,63 @@ def is_xyz(url):
         t in url for t in ("{z}", "{x}", "{y}"))
 
 
-def basemap(query, keys=None, service=None):
+# A link's parameters a dated or user basemap needs, handed to the tile
+# service's /basemap-tiles with it.
+BASEMAP_PARAMS = ("basemap", "imagery", "historicalActiveSource", "date", "overlay")
+
+
+def basemap_choices(keys=None):
+    """[(id, name)] of the Basemap row's select: the app's built-in basemaps
+    (lib/basemap-sources.ts, in its order), a keyed one (Mapbox, MapTiler,
+    HERE) only while the panel holds its key (`keys`, the panel's API keys),
+    as the app offers it once its key is set."""
+    keys = keys or {}
+    return [(b["id"], b["name"]) for b in builtin_basemaps().values() if not b.get("apiKey") or keys.get(b["apiKey"])]
+
+
+def basemap_label(src):
+    """The select's label of a basemap that is not one of its choices: a
+    link's XYZ address, dated source or keyed basemap."""
+    known = builtin_basemaps().get(src)
+    if known is not None:
+        return known["name"]
+    if is_xyz(src):
+        host = src.split("//", 1)[1].split("/", 1)[0]
+        return f"XYZ tiles ({host})"
+    return f"{src} (from a link)"
+
+
+def link_basemap(query):
     """The basemap a link shows, or None when it shows none
-    (showRasterBasemap false, the app's default): (name, XYZ template,
-    max zoom, note). The view's basemap is view A's (basemapSourceA, or
-    basemapSource with basemapPerView=false), the app's default ESRI World
-    Imagery when the link names none; an XYZ address (basemapUrl, imageryUrl,
-    or as the source) as it is. A dated or user source goes through the tile
-    service's /basemap-tiles when there is one (`service`, its address),
-    else the default, said in `note`. `keys`: the panel's keys, for the
-    keyed basemaps (Mapbox, MapTiler, HERE)."""
+    (showRasterBasemap false, the app's default): {"source", "opacity",
+    "params"}. The source is view A's (basemapSourceA, or basemapSource with
+    basemapPerView=false), the app's default ESRI World Imagery when the
+    link names none, or an XYZ address (basemapUrl, imageryUrl, or as the
+    source); `params`, the link's own basemap parameters (a dated source's
+    date), for the tile service."""
     state, given = link_state(query)
     if not truthy(state.get("showRasterBasemap")):
         return None
+    src = next((given[k] for k in ("basemapUrl", "imageryUrl") if is_xyz(given.get(k))), None)
+    if src is None:
+        src = state.get("basemapSourceA") if truthy(state.get("basemapPerView", True)) else state.get("basemapSource")
+    try:
+        opacity = max(0.0, min(1.0, float(state.get("rasterBasemapOpacity", 1))))
+    except (TypeError, ValueError):
+        opacity = 1.0
+    return {"source": src or DEFAULT_BASEMAP, "opacity": opacity,
+            "params": {k: v for k, v in given.items() if k.startswith(BASEMAP_PARAMS)}}
+
+
+def basemap_tiles(src, keys=None, service=None, params=None):
+    """A basemap as an XYZ layer: (name, XYZ template, max zoom, note), or
+    None when not even the default is known. A built-in basemap by its own
+    address, with any backend (a keyed one with the panel's key, `keys`); an
+    XYZ address as it is; a dated or user source through the tile service's
+    /basemap-tiles when there is one (`service`, its address; `params`, the
+    link's basemap parameters), else the app's default, ESRI World Imagery,
+    said in `note`."""
     keys = keys or {}
-    for k in ("basemapUrl", "imageryUrl"):
-        if is_xyz(given.get(k)):
-            return ("Basemap", _xyz(given[k]), 22, "")
-    src = state.get("basemapSourceA") if truthy(state.get("basemapPerView", True)) else state.get("basemapSource")
     src = src or DEFAULT_BASEMAP
     if is_xyz(src):
         return ("Basemap", _xyz(src), 22, "")
@@ -152,7 +191,7 @@ def basemap(query, keys=None, service=None):
         note = f"{b['name']} needs a {b['apiKey']}: ESRI World Imagery instead"
         b = None
     if b is None and service and src not in known:
-        q = {k: v for k, v in given.items() if k.startswith(("basemap", "imagery", "historicalActiveSource", "date", "overlay"))}
+        q = dict(params or {})
         q.setdefault("basemapSourceA", src)
         return (f"Basemap ({src})", f"{service.rstrip('/')}/basemap-tiles/{{z}}/{{x}}/{{y}}.jpg?{urlencode(q, safe=',{}')}", 22, "")
     if b is None:
@@ -165,3 +204,25 @@ def basemap(query, keys=None, service=None):
     if b.get("apiKey"):
         url = url.replace("{API_KEY}", keys.get(b["apiKey"], ""))
     return (b["name"], url, int(b.get("maxzoom", 19)), note)
+
+
+def basemap(query, keys=None, service=None):
+    """The basemap a link shows as an XYZ layer (link_basemap then
+    basemap_tiles), or None when it shows none."""
+    choice = link_basemap(query)
+    return None if choice is None else basemap_tiles(choice["source"], keys, service, choice["params"])
+
+
+def basemap_of_url(url):
+    """(source, params) of a basemap layer's XYZ address, to read a saved
+    project's basemap back into the Basemap row: a built-in's id, a dated
+    source relayed by a tile service (its /basemap-tiles query), else the
+    address itself."""
+    from urllib.parse import parse_qsl, urlsplit
+    for b in builtin_basemaps().values():
+        if url.startswith(_xyz(b["url"]).split("{API_KEY}")[0]):
+            return b["id"], {}
+    if "/basemap-tiles/" in url:
+        q = dict(parse_qsl(urlsplit(url).query))
+        return q.get("basemapSourceA") or DEFAULT_BASEMAP, q
+    return url, {}

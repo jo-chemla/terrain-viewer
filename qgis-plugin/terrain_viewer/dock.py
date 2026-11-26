@@ -64,9 +64,12 @@ PY_XYZ_ZMAX = 18
 # (the app's "" draws them half transparent black on the map, brown in a
 # QGIS vector style), for every backend.
 PANEL_DEFAULTS = {"contourColor": "#000000"}
-# The basemap a link shows (showRasterBasemap=true): one layer under the
-# modes, at the bottom of the live group.
+# The basemap (the Basemap row, which a link's showRasterBasemap=true also
+# drives): one layer under every mode, at the bottom of the live group.
 BASEMAP_KEY = "basemap"
+# The panel's row the Basemap row goes under (the app's stack: the basemap
+# under the elevation's hypsometric tint, docs/content/docs/dev/layer-order.mdx).
+BASEMAP_AFTER = "colorRelief"
 # While the light is dragged, the shaded modes' layers are rewritten as soon
 # as the canvas has drawn the previous light, and at most this often (ms);
 # after LIGHT_MAX_WAIT_MS without a finished draw, anyway. Measured on a
@@ -662,6 +665,165 @@ class ModeRow:
             self.dock.stack.style(layer, self.opacity_value(), shading)
 
 
+class BasemapRow:
+    """The basemap as a row of the tree, under Elevation Hypso: its checkbox
+    adds or removes one XYZ layer at the bottom of the live group (under
+    every mode, as the app stacks it), its opacity in the row, and under the
+    cog a select of its source: the app's built-in basemaps
+    (lib/basemap-sources.ts through assets/app_defaults.json), a keyed one
+    only while the panel holds its key. A link's basemap that is none of
+    them (an XYZ address, a dated source relayed by a tile service) is added
+    to the select when the link is opened. Open link drives this row, so
+    there is one way a basemap layer is made, for every backend."""
+
+    def __init__(self, dock):
+        self.dock = dock
+        self.custom = None  # (source, params): a link's basemap that is not a choice
+        self.noted = None
+        self.row = FormsRow("Basemap", ["colour"], self.update, None)
+        # One form, drawn: its box is the row's own, hidden (its room kept,
+        # so the opacities line up with the modes').
+        self.row.forms["colour"].setVisible(False)
+        self.box, self.check, self.more = self.row.box, self.row.check, self.row.more
+        self.check.setToolTip("An imagery basemap as an XYZ layer under every mode (the app's Raster basemap)")
+        self.opacity = CompactOpacity(1.0)
+        self.opacity.opacityChanged.connect(lambda _v: self.apply_style())
+        self.row.add_inline(self.opacity)
+        self.source = QComboBox()
+        self.source.setMinimumWidth(60)
+        self.source.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.source.setMinimumContentsLength(8)
+        self.source.setToolTip("The basemap's imagery: the app's built-in basemaps; Mapbox, MapTiler and HERE show once "
+                               "their key is set under API keys")
+        self.row.form_layout.addRow("Source", self.source)
+        self.fill()
+        self.source.currentIndexChanged.connect(lambda _i: self.update())
+        self.row._sync()
+
+    def fill(self):
+        """The select's choices again (a key was set or cleared, a link
+        brought its own), the one picked kept when it is still offered."""
+        current = self.current()
+        self.source.blockSignals(True)
+        self.source.clear()
+        for sid, name in links.basemap_choices(self.dock.key_values()):
+            self.source.addItem(name, sid)
+        if self.custom is not None and self.source.findData(self.custom[0]) < 0:
+            self.source.addItem(links.basemap_label(self.custom[0]), self.custom[0])
+        i = self.source.findData(current)
+        self.source.setCurrentIndex(i if i >= 0 else max(0, self.source.findData(links.DEFAULT_BASEMAP)))
+        self.source.blockSignals(False)
+
+    def current(self):
+        """The source picked: a built-in's id or a link's own source."""
+        return self.source.currentData() or links.DEFAULT_BASEMAP
+
+    def set_source(self, src, params=None):
+        """Picks a source without drawing it (update() does): a choice of the
+        select, or one added to it (a link's XYZ address, dated source or
+        keyed basemap, with the link's parameters for a tile service)."""
+        src = src or links.DEFAULT_BASEMAP
+        if self.source.findData(src) < 0 or params:
+            self.custom = (src, dict(params or {}))
+        self.fill()
+        self.source.blockSignals(True)
+        self.source.setCurrentIndex(max(0, self.source.findData(src)))
+        self.source.blockSignals(False)
+
+    def set_opacity(self, v):
+        self.opacity.setOpacity(float(v))
+
+    def state(self):
+        return (self.row.checked_forms(), self.row.remembered, self.current(), self.custom, self.opacity.opacity(),
+                self.more.isChecked())
+
+    def restore(self, state):
+        forms, remembered, src, custom, opacity, more = state
+        self.custom = custom
+        self.set_source(src)
+        self.opacity.blockSignals(True)
+        self.set_opacity(opacity)
+        self.opacity.blockSignals(False)
+        self.more.setChecked(more)
+        self.row.set_forms(forms)
+        self.row.remembered = remembered
+
+    def tiles(self):
+        """(name, XYZ template, max zoom, note) of the source picked, for the
+        backend connected (a tile service relays the dated sources)."""
+        dock = self.dock
+        service = dock.service_url() if dock.connected in ("local", "remote") else None
+        src = self.current()
+        params = self.custom[1] if self.custom is not None and self.custom[0] == src else None
+        return links.basemap_tiles(src, dock.key_values(), service, params)
+
+    def update(self):
+        """The basemap layer added (checked), re-pointed (another source,
+        another backend, a key) or removed (unchecked). Returns the layer,
+        or None."""
+        dock, stack = self.dock, self.dock.stack
+        base = self.tiles() if self.row.on("colour") else None
+        if base is None:
+            if stack.find(BASEMAP_KEY) is not None:
+                dock.remove_layers(BASEMAP_KEY)
+            return None
+        name, url, zmax, note = base
+        new = stack.find(BASEMAP_KEY) is None
+        layer = stack.ensure(BASEMAP_KEY, name, (), url, False, zmax=zmax,
+                             backend="python" if dock.connected == "python" else "service")
+        if layer.name() != name:
+            layer.setName(name)
+        if new:
+            stack.style(layer, self.opacity.opacity(), False)
+            stack.set_visible(layer, True)
+        if note and self.noted != (self.current(), note):
+            dock.warn(f"Basemap: {note}")
+        self.noted = (self.current(), note) if note else None
+        return layer
+
+    def apply_style(self):
+        self.dock.stack.style(self.dock.stack.find(BASEMAP_KEY), self.opacity.opacity(), False)
+
+    def adopt(self, layer):
+        """A basemap layer of a saved project read back: its source, its
+        opacity, the row checked."""
+        uri = QgsDataSourceUri()
+        uri.setEncodedUri(layer.source())
+        src, params = links.basemap_of_url(uri.param("url"))
+        self.set_source(src, params)
+        if layer.renderer() is not None:
+            self.opacity.blockSignals(True)
+            self.set_opacity(layer.renderer().opacity())
+            self.opacity.blockSignals(False)
+        self.row.set_forms({"colour"})
+
+
+def _enum(owner, scope, name):
+    """An enum value by its scoped name (QGIS 4, recent QGIS 3) or its flat
+    one (older QGIS 3)."""
+    scoped = getattr(getattr(owner, scope, None), name, None)
+    return scoped if scoped is not None else getattr(owner, name)
+
+
+def raw_stretch(layer):
+    """A raw elevation layer's grey stretched to the 2nd to 98th percentile
+    of what the canvas shows, again at every view (QGIS's "updated canvas"
+    min / max, estimated from the overviews). QGIS's default stretches the
+    whole raster's range once: a country's lowlands are then near black (0
+    to 300 m of NRCan's 0 to 5900 m), and a hillshade multiplied over them
+    stays black."""
+    from qgis.core import QgsRasterMinMaxOrigin
+    r = layer.renderer() if layer is not None and layer.isValid() else None
+    if r is None or not hasattr(r, "minMaxOrigin") or r.type() != "singlebandgray":
+        return False
+    mmo = QgsRasterMinMaxOrigin(r.minMaxOrigin())
+    mmo.setLimits(_enum(QgsRasterMinMaxOrigin, "Limits", "CumulativeCut"))
+    mmo.setExtent(_enum(QgsRasterMinMaxOrigin, "Extent", "UpdatedCanvas"))
+    mmo.setStatAccuracy(_enum(QgsRasterMinMaxOrigin, "StatAccuracy", "Estimated"))
+    r.setMinMaxOrigin(mmo)
+    return True
+
+
 class TerrainViewerDock(QDockWidget):
     def __init__(self, canvas=None, parent=None, message_bar=None, bridge=None):
         super().__init__("Terrain Viewer", parent)
@@ -674,12 +836,14 @@ class TerrainViewerDock(QDockWidget):
         self.connected = None  # None, "local", "remote" or "python"
         self.base = None  # the service connected to
         self.rows = {}
+        self.basemap_row = None  # the Basemap row, made with the tree (build)
         self.stack = LayerStack()
         # QGIS's layer tree to canvas bridge (iface.layerTreeCanvasBridge()):
         # it zooms to the first layer added to a project with none, the whole
         # world for tiles; keep_extent stops it for the panel's layers.
         self.bridge = bridge
         self.stack.before_insert = self.keep_extent
+        self.stack.after_insert = self.place_raw_group
         # A fresh, empty project (QGIS just started, or File > New): the
         # panel's first layer there sets the project up (keep_extent).
         project = QgsProject.instance()
@@ -862,10 +1026,14 @@ class TerrainViewerDock(QDockWidget):
             e = QLineEdit(s.value(f"{SETTINGS}/{k}", ""))
             e.setEchoMode(QLineEdit.EchoMode.Password)
             sent = k in KEY_PARAMS
-            e.setPlaceholderText("only for the sources that need it" if sent else "kept; no source needs it yet")
+            basemap = any(b.get("apiKey") == k for b in links.builtin_basemaps().values())
+            e.setPlaceholderText("only for the sources that need it" if sent else
+                                 "for its basemap (the Basemap row)" if basemap else "kept; no source needs it yet")
             e.setToolTip(f"{label} key ({k}): " + ("sent to the tile service with each tile of a source that needs it, "
                                                    "and used by the Python backend for that source" if sent else
-                                                   "stored in QGIS's settings for the app's sources that will need it"))
+                                                   "stored in QGIS's settings for the app's sources that will need it")
+                         + (f". With it, the Basemap row offers the {label} basemap (the key goes in that layer's address)"
+                            if basemap else ""))
             e.editingFinished.connect(self.keys_changed)
             self.keys[k] = e
             kform.addRow(label, e)
@@ -1292,6 +1460,7 @@ class TerrainViewerDock(QDockWidget):
         # Every checked mode drawn by this service (the layers of another
         # backend, or of a local service on another port, re-pointed).
         self.schedule_all()
+        self.update_basemap()
         self.health_timer.start()
         return True
 
@@ -1321,6 +1490,7 @@ class TerrainViewerDock(QDockWidget):
         if sid is not None:
             self.status.setText(f"Python backend: {n} of {len(self.rows)} modes, elevation from {self.current_source() or sid}")
         self.schedule_all()
+        self.update_basemap()
         self.prefetch()
         return True
 
@@ -1404,6 +1574,7 @@ class TerrainViewerDock(QDockWidget):
         """The tree from the catalog, the panel's state (checked forms,
         settings, opacities) kept across a rebuild."""
         state = {mid: (r.row.checked_forms(), r.row.remembered, r.values(), r.opacity_value()) for mid, r in self.rows.items()}
+        basemap_state = self.basemap_row.state() if self.basemap_row is not None else None
         while self.groups_layout.count():
             item = self.groups_layout.takeAt(0)
             w = item.widget()
@@ -1434,8 +1605,19 @@ class TerrainViewerDock(QDockWidget):
         # Elevation Hypso, analysis, relief, lighting, vector overlays);
         # /processes is top of the map first, and the layer tree keeps the
         # map's order (service.panel_tree).
+        # The Basemap row under Elevation Hypso (the bottom of the app's
+        # stack), at the end of a tree that has no such mode.
+        self.basemap_row = BasemapRow(self)
+        placed = False
         for g in panel_tree(self.catalog.tree):
             add_group(g, self.groups_layout, ())
+            if not placed and not g.get("group") and any(it["id"] == BASEMAP_AFTER for it in g.get("items", [])):
+                self.groups_layout.addWidget(self.basemap_row.box)
+                placed = True
+        if not placed:
+            self.groups_layout.addWidget(self.basemap_row.box)
+        if basemap_state is not None:
+            self.basemap_row.restore(basemap_state)
         self.groups_layout.addStretch(1)
         for mid, (forms, remembered, values, opacity) in state.items():
             row = self.rows.get(mid)
@@ -1480,6 +1662,9 @@ class TerrainViewerDock(QDockWidget):
         if light is not None:
             self._to_free()
             self.set_light(*light, schedule=False)
+        base = self.stack.find(BASEMAP_KEY)
+        if base is not None and self.basemap_row is not None and not self.adopted:
+            self.basemap_row.adopt(base)
         self.adopted = True
 
     # -- the source -----------------------------------------------------------
@@ -1602,14 +1787,16 @@ class TerrainViewerDock(QDockWidget):
         self.raw_btn.setToolTip(
             f"Add {entry.get('name')}'s raw elevation to the project as a raster layer (in \"{self.RAW_ROOT}\"): "
             "the very GDAL source the Python backend reads (/vsicurl/ for a COG or VRT, a GDAL WMS description for "
-            "a WMS), to see, identify or style the raw values" if ok else
+            "a WMS), to see, identify or style the raw values. It goes under the modes, its grey stretched to "
+            "what the canvas shows" if ok else
             "Add a library source's raw elevation as a QGIS layer: for COG, VRT and raw WMS sources")
 
     def add_raw_input(self):
         """The source picked (a library COG, VRT or raw WMS) as a raster
-        layer of the project, in the "Raw elevation inputs" group (made at
-        the top of the tree when missing); the one there already when it was
-        added before. Returns the layer, or None."""
+        layer of the project, in the "Raw elevation inputs" group (kept right
+        under the live group, place_raw_group), its grey following the view
+        (raw_stretch); the one there already when it was added before.
+        Returns the layer, or None."""
         from qgis.core import QgsRasterLayer
         src = self.current_source()
         entry = self.source_entry(src)
@@ -1627,16 +1814,37 @@ class TerrainViewerDock(QDockWidget):
             self.warn(f"{entry.get('name', src)}: GDAL did not open its raw elevation ({layer.error().summary()})")
             return None
         layer.setCustomProperty(self.RAW_PROP, src)
+        raw_stretch(layer)
         self.keep_extent()
-        root = project.layerTreeRoot()
-        group = next((g for g in root.findGroups() if g.customProperty("terrain_viewer/raw_root")), None)
+        group = self.raw_group()
         if group is None:
-            group = root.insertGroup(0, self.RAW_ROOT)
+            group = project.layerTreeRoot().insertGroup(0, self.RAW_ROOT)
             group.setCustomProperty("terrain_viewer/raw_root", True)
         project.addMapLayer(layer, False)
         group.addLayer(layer)
-        self.status.setText(f"{layer.name()} added to \"{self.RAW_ROOT}\": the GDAL source the Python backend reads")
+        self.place_raw_group()
+        self.status.setText(f"{layer.name()} added to \"{self.RAW_ROOT}\", under the modes: the GDAL source the "
+                            "Python backend reads (the shaded modes multiply over it)")
         return layer
+
+    def raw_group(self):
+        root = QgsProject.instance().layerTreeRoot()
+        return next((g for g in root.findGroups() if g.customProperty("terrain_viewer/raw_root")), None)
+
+    def place_raw_group(self):
+        """"Raw elevation inputs" kept right under the live group. A raw
+        input is an opaque raster: above the modes (0.9.2 put the group at
+        the top of the tree, so above a live group that was there already)
+        it hid every one of them, and a hillshade checked next drew nothing."""
+        root = QgsProject.instance().layerTreeRoot()
+        raw, live = self.raw_group(), self.stack.root(create=False)
+        kids = root.children()
+        if raw is None or live is None or raw not in kids or live not in kids or kids.index(raw) > kids.index(live):
+            return False
+        moved = raw.clone()
+        root.insertChildNode(kids.index(live) + 1, moved)
+        root.removeChildNode(raw)
+        return True
 
     def source_changed(self):
         self.refresh_raw_button()
@@ -1682,6 +1890,9 @@ class TerrainViewerDock(QDockWidget):
             s.setValue(f"{SETTINGS}/{k}", e.text().strip())
         self._py_sources.clear()
         self.schedule_all()
+        if self.basemap_row is not None:  # a keyed basemap offered, or no longer
+            self.basemap_row.fill()
+            self.update_basemap()
 
     def light_value(self):
         return (float(self.light_az.value()), float(self.light_el.value()))
@@ -1896,7 +2107,10 @@ class TerrainViewerDock(QDockWidget):
             if layer is None:
                 continue
             key = layer.customProperty(PROP)
-            if key and key.split(":")[0] in self.rows:
+            if key == BASEMAP_KEY and self.basemap_row is not None:
+                by_hand = True
+                self.basemap_row.row.form_removed("colour")
+            elif key and key.split(":")[0] in self.rows:
                 by_hand = True
                 self.rows[key.split(":")[0]].row.form_removed(ModeRow.form_of(key))
         if by_hand:
@@ -2111,31 +2325,27 @@ class TerrainViewerDock(QDockWidget):
                             + (f", {len(self.extra)} other parameters kept" if self.extra else ""))
         return True
 
+    def update_basemap(self):
+        """The basemap layer as the Basemap row says (another backend, a key)."""
+        return self.basemap_row.update() if self.basemap_row is not None else None
+
     def open_basemap(self, query):
-        """The basemap a link shows (showRasterBasemap=true) as an XYZ layer
-        at the bottom of the live group, or the panel's basemap layer removed
-        when it shows none. Returns the layer, or None."""
-        service = None if self.connected == "python" else self.service_url()
-        base = links.basemap(query, self.key_values(), service)
-        if base is None:
-            if self.stack.find(BASEMAP_KEY) is not None:
-                self.remove_layers(BASEMAP_KEY)
+        """A link's basemap through the Basemap row: showRasterBasemap=true
+        checks it with the view's source (basemapSourceA, or basemapSource)
+        and opacity; a link that shows none unchecks it. Returns the layer,
+        or None."""
+        row = self.basemap_row
+        if row is None:
             return None
-        name, url, zmax, note = base
-        old = self.stack.find(BASEMAP_KEY)
-        if old is not None and old.name() != name:
-            self.remove_layers(BASEMAP_KEY, prune=False)
-        layer = self.stack.ensure(BASEMAP_KEY, name, (), url, False, zmax=zmax,
-                                  backend="python" if self.connected == "python" else "service")
-        state, _ = links.link_state(query)
-        try:
-            opacity = max(0.0, min(1.0, float(state.get("rasterBasemapOpacity", 1))))
-        except (TypeError, ValueError):
-            opacity = 1.0
-        self.stack.style(layer, opacity, False)
-        self.stack.set_visible(layer, True)
-        if note:
-            self.warn(f"Basemap: {note}")
+        choice = links.link_basemap(query)
+        if choice is None:
+            row.row.set_forms(set())
+            return row.update()
+        row.set_source(choice["source"], choice["params"])
+        row.set_opacity(choice["opacity"])
+        row.row.set_forms({"colour"})
+        layer = row.update()
+        row.apply_style()
         return layer
 
     def sun_from_link(self, state):

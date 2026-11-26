@@ -8,7 +8,9 @@ app link the way the app reads it, with no tile service (the Python backend):
   that leaves a parameter out means its default: showTerrainAnalysis=true
   alone shows the slope, since showSlope defaults to true.
 - basemaps: the app's built-in basemaps with a fixed tile address
-  (lib/basemap-sources.ts), for showRasterBasemap=true.
+  (lib/basemap-sources.ts): the choices of the panel's Basemap row (a keyed
+  one, `apiKey`, offered once the panel holds that key), which a link's
+  showRasterBasemap=true also drives.
 
 No service needed:
 
