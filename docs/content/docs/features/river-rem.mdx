@@ -1,54 +1,92 @@
 ---
-title: River-REM
+title: River REM
 icon: MountainSnow
-description: Iconem's companion app for river-relative elevation models, and how this app hands off to it
+description: Height above the river, live in the browser - the River REM app mode, and Iconem's companion River-REM app
 ---
 
-<OpenInApp href="https://rem.prod.heritagewatch.ai/">Open the River REM app</OpenInApp>
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=46.46&lng=3.32&zoom=12.2">Open the River REM mode on the Allier, upstream of Moulins</OpenInApp>
 
-<Callout title="Canonical source" type="info">
-River-REM is a separate, complete app with its own repo — this page is only a summary. The source of truth is the [RiverREM_UI README](https://github.com/Iconem/RiverREM_UI) and the live app at [rem.prod.heritagewatch.ai](https://rem.prod.heritagewatch.ai/).
-</Callout>
+A **Relative Elevation Model (REM)** shows height above the river instead of height above the sea: the DEM minus a trend surface that follows the river's water level. The slope of the valley is gone, the floodplain reads flat, and what stands a metre or two above or below it shows at once: terraces, levees, old channels, meander scars, point-bar scrolls. The technique was popularized by Dan Coe's maps and automated by the [OpenTopography RiverREM](https://github.com/OpenTopography/RiverREM) Python package.
 
-A **Relative Elevation Model (REM)** re-references a DEM to the local river water surface instead of sea level: sample the water surface elevation (WSE) along the river centerline, interpolate it across the terrain, then detrend with `REM = DEM − WSE`. The floodplain reads as flat, and paleochannels, terraces, bars, and meander scrolls pop out at meter scale — the technique popularized by Dan Coe and automated by the [OpenTopography RiverREM](https://github.com/OpenTopography/RiverREM) Python package.
+The **River REM mode** computes one live, in the browser, from whatever terrain source is selected. There is no server: pan to a river and the picture follows.
 
-[River-REM](https://rem.prod.heritagewatch.ai/) wraps that workflow in a browser app: pan to a river, and it extracts the centerline from OpenStreetMap waterway data, samples WSE from the DEM, interpolates, detrends, and styles the result live in a MapLibre `color-relief` layer. The REM is served as a single float band, so all color logic stays client-side and recolors instantly with no recompute.
+## Two places to try
 
-## Two engines, same styling
+**The Allier upstream of Moulins (France).** One of the last freely wandering rivers of western Europe: the active channel belt in pale green, the abandoned channels of the last centuries as a braid of blue threads across the floodplain, the valley sides dark.
+
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=46.46&lng=3.32&zoom=12.2">Open the Allier upstream of Moulins</OpenInApp>
+
+**The Mississippi near Greenville (Mississippi, USA).** Meander scrolls, oxbow lakes cut off at different heights, and the levees as thin dark lines. The river is picked by name here: in this view a long, winding tributary (Deer Creek) is the longest named river, and the automatic choice would take it.
+
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.30&lng=-91.12&zoom=11&remRiver=named&remRiverName=Mississippi+River">Open the Mississippi near Greenville</OpenInApp>
+
+## How to use it
+
+Click the sidebar's title and choose **River REM**, or open a link with `appMode=rem`. The sidebar keeps General Settings, the terrain source and the tools, and gets a **River REM** group of three panels in place of the Options group.
+
+### River
+
+Where the centerline comes from:
+
+| Choice | What it does |
+|---|---|
+| **Longest named river in view** (default) | RiverREM's own rule: of the rivers OpenStreetMap has in view, the one with the most length there. |
+| **All waterways in view** | Every waterway found feeds the trend. For a confluence, a delta or a braided reach. |
+| **One river, picked by name** | A list of the named rivers found, with their length in view. |
+| **Drawn line** | A line drawn with the app's [Drawing tool](/features/tools) (the **Draw** button starts one), or any line already drawn. For paleochannels and historical courses OpenStreetMap does not have, or where its centerline is too coarse. The line can be drawn up or down the river. |
+
+**Rivers / Rivers, streams, canals** widens the OpenStreetMap search from `waterway=river` to streams and canals. **Sample spacing** is the distance between two heights read along the line; 0 spreads 1000 points over the river, as RiverREM does. The line in use is drawn in orange over the REM (**Show the centerline**).
+
+The rivers come from OpenStreetMap through the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API), asked once the view has rested and again only when it leaves the box already searched. Overpass is a shared, volunteer-run service: when a server is slow, another is asked as well; when all refuse, the panel says so and offers **Retry**, and the last rivers found stay in use. Rivers © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
+
+### Detrending
+
+- **IDW power**: the trend at a place is the average of nearby river heights, weighted by 1 / distance^power. 1 is RiverREM's. Higher values follow the nearest reach more closely.
+- **Neighbors**: how many of the nearest river heights are averaged. 0 guesses it from the river's sinuosity, as RiverREM does (2 % of the samples for a straight river, up to five times more for a winding one, between 5 and 100): on a tight meander, too few neighbors print each bend as a step.
+- **Downstream cleaning**: a river does not flow uphill, but what a DEM reads along a centerline sometimes does (bridges, banks where the line leaves the water, trees over a narrow stream). **Running minimum** keeps the lowest height met so far going downstream, since all those errors read too high. **Monotone fit** takes the falling profile closest to the heights read, steadier where the DEM has pits. **Off** uses the heights as read, as RiverREM does. The panel reports the water level at both ends and how many heights the cleaning moved.
+
+### Display
+
+A color ramp over a range of heights above the river (0 to 10 m by default), with a **stretch**: **Log** is RiverREM's, most of the ramp spent in the first metres above the water; **Power** with its gamma; **Linear**. The default ramp, *REM Mako*, is RiverREM's look (seaborn's mako reversed: the river pale, high ground dark); *REM Blues* and every other ramp of the app are in the list, with **Invert ramp**. **Opacity** lets a basemap show through, and **Hillshade on top** shades the result with the app's hillshade.
+
+Every setting is in the link (`remRiver`, `remPower`, `remMax`, ... see the [URL reference](/dev/url-api)), the drawn line included.
+
+**Download → Layers** exports the REM as a float32 GeoTIFF in metres above the river, or as colored on screen.
+
+## What is computed
+
+1. **Centerline.** OpenStreetMap ways of one name are joined end to end into lines and cut at the searched box; or the drawn line is taken as is.
+2. **Water level.** The DEM is read every *spacing* along the line, from the terrain source's own tiles (any source the other modes can read: XYZ tiles, COGs, VRTs, WMS). A long river is read one or two zoom levels down so that it stays under 48 tiles. The profile is cleaned so that it falls downstream.
+3. **Trend surface.** Inverse-distance weighting of the *k* nearest samples, on a grid of 256 cells on its longer side covering the river and the view, read bilinearly.
+4. **REM = elevation − trend**, per tile, as a custom MapLibre protocol (`riverrem://`, `lib/river-rem-protocol.ts`) drawn by a `color-relief` layer. A new centerline or parameter changes a revision number in the tile address: the tiles are recomputed, the map is not rebuilt.
+
+### Approximations against RiverREM
+
+- The trend is interpolated on a coarse grid (a cell is 100 to 300 m for a 30 to 80 km view), not at every DEM pixel. The water level varies slowly, so the difference is small away from the channel; inside a narrow channel the grid can smooth a step such as a weir.
+- Distances are Web Mercator metres, not a local UTM projection. The weights only depend on ratios of distances, so the effect is negligible at the scale of a view.
+- The heights along the river are read at the points of the resampled line (bilinear), where RiverREM burns the line into the DEM grid and takes every pixel it crosses.
+- The k nearest neighbors are exact (RiverREM allows 10 % slack for speed).
+- The downstream cleaning is an addition: RiverREM uses the heights as read. Set it to **Off** to compare.
+- A DEM whose water surface was flattened survey by survey (much of the USGS 3DEP lidar) shows steps in the river itself: they are in the data.
+
+### Split views
+
+The mode draws on every view of a split, but the first version computes everything from **view A's terrain source**: the centerline heights, the trend, and the elevation it is subtracted from. A trend built on one DEM and subtracted from another would mostly show the two surveys' differences.
+
+## The companion app and the Python package
 
 ![River-REM over a meandering floodplain — REM color-relief styling with the run controls sidebar](/screenshots/river-rem.jpg)
 
-<p className="text-sm text-fd-muted-foreground italic">The River-REM app: a detrended relative elevation model styled with a color ramp, meander scrolls and paleochannels visible across the floodplain</p>
+<p className="text-sm text-fd-muted-foreground italic">Iconem's River-REM app: a detrended relative elevation model styled with a color ramp, meander scrolls and paleochannels visible across the floodplain</p>
 
-The REM itself can be computed by either of two engines. The **Server engine was the original implementation**; the **Client engine was added in a second iteration** to make the whole pipeline run without a backend.
+<OpenInApp href="https://rem.prod.heritagewatch.ai/">Open the River-REM app</OpenInApp>
 
-- **Server engine** (default) — FastAPI + GDAL running the [OpenTopography RiverREM](https://github.com/OpenTopography/RiverREM) package. It mosaics Mapterhorn tiles into a UTM DEM, samples WSE along the centerline, and interpolates with k-NN IDW (power 1, KD-tree, with `k` derived from river sinuosity). Output is a full-fidelity single-band Float32 Cloud-Optimized GeoTIFF in EPSG:3857 — reusable across sessions and exportable (COG, DEM, GeoJSON centerline, JPG composite). Strengths: fidelity, full resolution, exports.
-- **Client engine** (beta) — pure JavaScript/WebGL, no backend required. A custom MapLibre `rem://{z}/{x}/{y}` protocol fetches Mapterhorn terrain tiles on demand, detrends each one live, and re-encodes the result as Terrarium tiles — with the deepest available Mapterhorn zoom probed per viewport so tiles are never over-requested. Its IDW weights all sampled points with a configurable power (QGIS-style), and two faster interpolation modes are available (see below). Strengths: no backend, live recompute, speed.
+[River-REM](https://rem.prod.heritagewatch.ai/) ([RiverREM_UI](https://github.com/Iconem/RiverREM_UI)) is Iconem's separate app around the same idea, and the reference this mode was ported from. Use it when you need what this mode leaves out:
 
-Both engines feed the exact same MapLibre `color-relief` layer, so the styling controls are identical either way: 15+ cpt-style color ramps with custom import, independent min/max bounds, transparency fading, REM vs. DEM layer toggling, basemap selection, a localStorage run history with rename/delete/duplicate, and URL-based state persistence via nuqs. Terrain comes from [Mapterhorn](https://mapterhorn.com/) tiles by default, with custom elevation COG ingest supported.
+- a **server engine**: FastAPI and GDAL running the OpenTopography RiverREM package itself on a UTM mosaic, with the result kept as a full-resolution float32 Cloud-Optimized GeoTIFF and a list of past runs;
+- other **interpolations** of the water level (nearest point on the polyline, Euclidean distance transform) next to IDW;
+- other **centerline sources** (QLever, OpenStreetMap vector tiles, a GeoJSON or shapefile import).
 
-## WSE interpolation modes
+**Open In → Iconem River-REM** in the sidebar hands the current view over (`https://rem.prod.heritagewatch.ai/?lng=…&lat=…&zoom=…`).
 
-Detrending needs a water surface elevation value at *every* DEM cell, but WSE is only sampled *along the centerline* — so the core algorithmic choice is how to spread those sparse samples across the grid. The client engine offers three modes, all flagged experimental in the UI ("REM built live in the browser, no server compute"), all reading the Mapterhorn DEM directly:
-
-- **IDW — inverse-distance weighting.** The classic approach (and what the server engine uses): each cell's WSE is a power-weighted mean of the sampled river points — in-app defaults are power 2 with 150 river samples. Smooth and well-known, but `O(cells × samples)` per query, and it produces radial "bull's-eye" halos around sample points where sample density is low. The app itself warns *IDW is slow — prefer JFA or EDT*.
-- **JFA — nearest-polyline.** Each cell takes the WSE of the nearest point on the river polyline: project the cell onto the nearest river segment and linearly interpolate WSE between the segment's endpoint elevations. Geometrically this is a labeled Voronoi allocation of the continuous polyline — the assignment a jump-flooding algorithm computes — and it's physically the most hydrological model (WSE at a floodplain point equals the elevation of the nearest centerline point). Cross-channel bands are perfectly clean, with no bull's-eyes by construction. One caveat: nearest is *Euclidean* nearest, so in a tight meander neck a cell can attach to the wrong reach across the neck.
-- **EDT — Euclidean distance transform.** A rasterized labeled distance transform: burn the centerline into the grid (Bresenham, writing linearly-interpolated WSE at each covered cell), then resolve nearest-seed labels with a column-wise two-pass scan followed by a row-wise Felzenszwalb–Huttenlocher parabola lower envelope. Total cost is `O(cells)` after the burn — versus `O(cells × segments)` for nearest-polyline — making it the fastest mode at high grid resolutions. The only trade-off is slight rasterization aliasing of band edges at coarse grids (imperceptible from 512² up).
-
-## Centerline extraction and river selection
-
-The centerline doesn't have to come from OSM at all: you can **draw it by hand** directly on the map, or **import your own** (GeoJSON or shapefile) — useful for paleochannels or historical courses OSM has no notion of. The default path, though, extracts it from OpenStreetMap `waterway` data covering the current view, fetched from a configurable source:
-
-- **[QLever](https://qlever.cs.uni-freiburg.de/osm-planet)** OSM endpoint — the fast SPARQL-backed option
-- **Overpass API** remotes — [overpass.de](https://overpass-api.de/), [Kumi Systems](https://overpass.kumi.systems/), [Private Coffee](https://overpass.private.coffee/), or [osm.ch](https://overpass.osm.ch/)
-- **OSM vector tiles**, decoded client-side — [Shortbread](https://shortbread-tiles.org/) MVT, [OpenFreeMap](https://openfreemap.org/) MVT, or [Protomaps](https://protomaps.com/) PMTiles
-
-Which waterways make it into the centerline is a separate choice, with three selection modes: the **longest named river** (the default — one clean trunk), **all named rivers**, or **all waterways including unnamed** ones (side channels, canals, streams).
-
-## How it connects to this app
-
-**Open In → Iconem River-REM.** The sidebar's Open In launcher hands off the current viewport directly — it builds `https://rem.prod.heritagewatch.ai/?lng=…&lat=…&zoom=…`, so the spot you're inspecting here opens at the same camera there. Typical flow: scout a floodplain in this app (hillshade, [LRM](/features/visualization-modes), historical imagery), then jump to River-REM for the river-referenced detrend and its COG/centerline exports.
-
-**LRM is the generic cousin.** This app's [Local Relief Model](/dev/lrm) viz mode also subtracts a trend surface from the DEM — but its trend is an isotropic low-pass blur (an ancestor tile of the pyramid), with no notion of a river. A REM's trend is the interpolated water surface itself, which is what makes "meters above river level" physically meaningful in a floodplain where LRM only shows "higher/lower than the neighborhood mean." Same idea applies to the [Elevation Picker](/features/tools#elevation-picker)'s **Sample Reference: Absolute vs. LRM** option — a per-point version of the same detrending trade-off.
-
-**Shared lineage.** The two apps share an author (Iconem / jo-chemla) and a stack (React + Vite, MapLibre GL, nuqs URL state, Mapterhorn terrain) — this app's [Bookmarks](/features/bookmarks) Runs/Gallery UI was directly modeled on RiverREM_UI's runs list and gallery modal (see the header comment in `lib/bookmarks.ts`).
+**LRM is the generic cousin.** The [Local Relief Model](/dev/lrm) mode also subtracts a trend from the DEM, but its trend is a blur with no notion of a river: it shows "higher or lower than the neighborhood", where a REM shows "metres above the water".

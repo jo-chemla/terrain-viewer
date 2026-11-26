@@ -36,6 +36,7 @@ import { FooterSection } from "./footer-section"
 import { TooltipIconButton, MacroSeparator } from "./controls-components"
 
 import { useTerraDraw, TerraDrawSection, drawingUrlsAtom } from "./TerraDrawSystem"
+import { RiverRemSections } from "./river-rem-sections"
 import { coverageOverlaysAtom } from "@/lib/coverage-overlays"
 import {AnimationSection, parseAsSnapshot} from "./CameraUtilities"
 import { ElevationPickerSection } from "./ElevationPickerSection"
@@ -229,6 +230,9 @@ export function TerrainControlPanel({
   // Info).
   const appMode: AppMode = state.appMode
   const historicalMode = appMode === "historical"
+  // River REM mode: the terrain sidebar with its own River / Detrending /
+  // Display group in place of the Options and Detectors groups.
+  const remMode = appMode === "rem"
   // ?openDataLayers=true - one-shot, like ?bookmarksGallery=true and
   // ?openLibrary=: opens the Data layers picker on arrival.
   useEffect(() => {
@@ -845,7 +849,7 @@ export function TerrainControlPanel({
                   className="flex items-center gap-1.5 text-xl font-semibold cursor-pointer hover:text-muted-foreground"
                   onClick={() => setIsModePickerOpen(true)}
                 >
-                  {activeProjectConfig?.name || (historicalMode ? "Historical Satellite" : "Terrain Viewer")}
+                  {activeProjectConfig?.name || (historicalMode ? "Historical Satellite" : remMode ? "River REM" : "Terrain Viewer")}
                   <ArrowLeftRight className="h-4 w-4 shrink-0 opacity-60" />
                 </h2>
               }
@@ -929,6 +933,7 @@ export function TerrainControlPanel({
         <DownloadSection state={state} setState={setState} getMapBounds={getMapBounds} getSourceConfig={getSourceConfig} mapRef={mapRef} isOpen={sectionOpen.download} onOpenChange={toggle("download")} historicalMode={historicalMode} />
           </>
         )}
+        {remMode && <RiverRemSections state={state} setState={setState} draw={draw} />}
         {/* Whole "Sources" group (label+chevron row AND its sections) is hidden
             when the project config hides source panels — otherwise the chevron/
             label row would sit there with nothing to expand. Historical mode
@@ -962,10 +967,10 @@ export function TerrainControlPanel({
         {/* The whole Options group (contours/hillshade/hypso/relief/terrain
             analysis/lighting/background) is terrain-only — historical mode has
             no elevation source to derive any of it from. */}
-        {!historicalMode && optionsHasContent && (
+        {!historicalMode && !remMode && optionsHasContent && (
           <MacroSeparator label="Options" isOpen={groupOpen("Options")} onToggle={() => toggleMacroGroup("Options")} />
         )}
-        {!historicalMode && optionsHasContent && groupOpen("Options") && (
+        {!historicalMode && !remMode && optionsHasContent && groupOpen("Options") && (
           <>
             {!hiddenSections.includes("contour") && (
               <ContourOptionsSection state={state} setState={setState} isOpen={sectionOpen.contour} onOpenChange={toggle("contour")} mapRef={mapRef} />
@@ -999,10 +1004,10 @@ export function TerrainControlPanel({
             <BackgroundOptionsSection state={state} setState={setState} theme={theme as any} isOpen={sectionOpen.background} onOpenChange={toggle("background")} />
           </>
         )}
-        {!historicalMode && showDetectors && (
+        {!historicalMode && !remMode && showDetectors && (
           <MacroSeparator label="Detectors" isOpen={groupOpen("Detectors")} onToggle={() => toggleMacroGroup("Detectors")} />
         )}
-        {!historicalMode && showDetectors && groupOpen("Detectors") && (
+        {!historicalMode && !remMode && showDetectors && groupOpen("Detectors") && (
           <DetectorMoundsSection
             state={state}
             setState={setState}
@@ -1012,7 +1017,7 @@ export function TerrainControlPanel({
             mapRef={mapRef}
           />
         )}
-        {!historicalMode && showDetectors && <MacroSeparator />}
+        {!historicalMode && !remMode && showDetectors && <MacroSeparator />}
         {/* Single id spanning the separator AND every section below it (own
             "space-y-2" replicates the scroll container's own spacing, lost by
             wrapping — see controls-components.tsx) — so the product tour's

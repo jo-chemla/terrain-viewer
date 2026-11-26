@@ -306,7 +306,8 @@
               "type": "string",
               "enum": [
                 "terrain",
-                "historical"
+                "historical",
+                "rem"
               ],
               "default": "terrain"
             }
@@ -2399,6 +2400,186 @@
             "schema": {
               "type": "boolean",
               "default": false
+            }
+          },
+          {
+            "name": "remRiver",
+            "in": "query",
+            "required": false,
+            "description": "State. River REM mode (appMode=rem): height above the river, the DEM minus a trend surface that follows the river's water level (lib/river-rem.ts).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "longest",
+                "all",
+                "named",
+                "drawn"
+              ],
+              "default": "longest"
+            }
+          },
+          {
+            "name": "remWaterways",
+            "in": "query",
+            "required": false,
+            "description": "State. Which OpenStreetMap waterways are read: rivers only, or rivers, streams and canals.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "river",
+                "all"
+              ],
+              "default": "river"
+            }
+          },
+          {
+            "name": "remRiverName",
+            "in": "query",
+            "required": false,
+            "description": "State. The river's OpenStreetMap name when remRiver is \"named\".",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "remLine",
+            "in": "query",
+            "required": false,
+            "description": "State. The drawn centerline when remRiver is \"drawn\": encoded polylines (5 decimals) joined by \";\".",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "remSpacing",
+            "in": "query",
+            "required": false,
+            "description": "State. Distance in metres between two heights read along the centerline; 0 spreads 1000 points over its length, as RiverREM does.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "remPower",
+            "in": "query",
+            "required": false,
+            "description": "State. Inverse-distance weighting exponent of the trend surface (weights 1 / distance^power); RiverREM uses 1.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "remNeighbors",
+            "in": "query",
+            "required": false,
+            "description": "State. Nearest river samples averaged at each point of the trend surface; 0 guesses it from the river's sinuosity, as RiverREM does.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "remMonotone",
+            "in": "query",
+            "required": false,
+            "description": "State. How the sampled water levels are made to fall downstream: running minimum, monotone least-squares fit, or left as read.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "min",
+                "fit",
+                "none"
+              ],
+              "default": "min"
+            }
+          },
+          {
+            "name": "remMin",
+            "in": "query",
+            "required": false,
+            "description": "State. Height above the river, in metres, at the start of the color ramp.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "remMax",
+            "in": "query",
+            "required": false,
+            "description": "State. Height above the river, in metres, at the end of the color ramp.",
+            "schema": {
+              "type": "number",
+              "default": 10
+            }
+          },
+          {
+            "name": "remColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "rem-mako"
+            }
+          },
+          {
+            "name": "remInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "remStretch",
+            "in": "query",
+            "required": false,
+            "description": "State. How the ramp is spread over the range: log (RiverREM's, most colors near the water), power (remGamma) or linear.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "log",
+                "power",
+                "linear"
+              ],
+              "default": "log"
+            }
+          },
+          {
+            "name": "remGamma",
+            "in": "query",
+            "required": false,
+            "description": "State. Exponent of the power stretch; under 1 gives more colors near the water.",
+            "schema": {
+              "type": "number",
+              "default": 0.5
+            }
+          },
+          {
+            "name": "remOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "remShowLine",
+            "in": "query",
+            "required": false,
+            "description": "State. Draws the centerline in use over the REM.",
+            "schema": {
+              "type": "boolean",
+              "default": true
             }
           },
           {
