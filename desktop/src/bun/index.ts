@@ -319,12 +319,11 @@ async function updateOnLaunch() {
       try { attempted = JSON.parse(readFileSync(marker, "utf8")).hash ?? null; } catch {}
       if (attempted === info.hash) {
         ulog("apply of", info.hash, "already attempted once; not retrying automatically");
-        announceUpdate("ready", info.version ?? "");
+        announceUpdate("ready", info.version ?? "", lastApplyError ? { message: lastApplyError } : {});
         return;
       }
       try { mkdirSync(dir, { recursive: true }); writeFileSync(marker, JSON.stringify({ hash: info.hash, at: new Date().toISOString() })); } catch (e) { ulog("marker error", String(e)); }
-      ulog("applying", info.hash);
-      await Updater.applyUpdate();
+      await applyDownloaded("applying", info.hash);
       ulog("applyUpdate returned");
       return;
     }
@@ -385,15 +384,33 @@ async function applyNow() {
     // previous session, replayed) still applies the downloaded bundle.
     if (!Updater.updateInfo()?.updateReady) await readFeed();
     if (!Updater.updateInfo()?.updateReady) { announceUpdate("error", "no downloaded update to install; use Check for updates"); return; }
-    ulog("applying on request", Updater.updateInfo().hash);
-    await Updater.applyUpdate();
+    await applyDownloaded("applying on request", Updater.updateInfo().hash);
   } catch (e) {
     ulog("apply failed", String(e));
-    announceUpdate("error", String(e));
+    announceUpdate("error", undefined, { message: String(e) });
   }
 }
+// Both ways in (the launch, Restart and install) free the app folder first:
+// the local tile service runs node.exe from inside it, and a running program
+// there made the swap fail with AccessDenied on Windows, so the old build
+// relaunched and offered the same update again, round after round.
+async function applyDownloaded(why: string, hash?: string) {
+  const freed = await tileService.stopForUpdate();
+  ulog(why, hash ?? "", freed ? "" : "(the tile service did not stop; the swap may fail)");
+  try {
+    await Updater.applyUpdate();
+  } catch (e) {
+    tileService.resume();
+    throw e;
+  }
+}
+// The reason the last apply failed ("Update to 2026.11.25 failed during
+// swapping: AccessDenied"), reported at the launch after it, kept for the
+// "ready" that follows so the toast says why the update is offered again.
+let lastApplyError = "";
 Updater.onStatusChange((entry) => {
   ulog(entry.status, entry.message, entry.details ?? "");
+  if (entry.status === "error" && entry.message?.includes(" failed during ")) lastApplyError = entry.message;
   if (inCheck && (entry.status === "checking" || entry.status === "update-available" || entry.status === "no-update")) return;
   const d = (entry.details ?? {}) as { progress?: number; version?: string; bytesDownloaded?: number; totalBytes?: number };
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);

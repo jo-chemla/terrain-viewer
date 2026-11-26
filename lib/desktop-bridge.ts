@@ -126,10 +126,14 @@ function fold(detail: UpdateEvent): DesktopUpdate | null {
     case "fetching-patch": case "patch-not-found": case "downloading-full-bundle": case "applying-patch":
       return { status: "downloading", version, progress: progress ?? current.progress, eta: status === "download-progress" ? etaOf(progress, bytes, total) : current.eta }
     case "decompressing": return { status: "downloading", version, progress: 100, message }
-    case "download-complete": case "ready": return { status: "ready", version }
+    // A "ready" may carry why the previous install did not finish.
+    case "download-complete": case "ready": return { status: "ready", version, message: status === "ready" ? message : undefined }
     case "applying": case "launching-new-version": return { status: "applying", version }
     case "complete": return { status: "installed", version }
-    case "error": return { status: "error", version, message: version ?? message }
+    // The reason: the updater's own message (a failed swap reports the feed
+    // version too, which used to win and read "Update check failed:
+    // 2026.11.25"), else the flow's, which arrives in the version slot.
+    case "error": return { status: "error", version, message: message ?? version }
     default: return null
   }
 }
@@ -195,7 +199,7 @@ export function initDesktopBridge(): void {
       pushToast({
         key: "desktop-update",
         title: "Update downloaded",
-        body: `${v} is ready. Restart and install now (about half a minute, the app restarts itself), or it installs at the next launch. Also under About.`,
+        body: `${next.message ? `The last install did not finish (${next.message}). ` : ""}${v} is ready. Restart and install now (about half a minute, the app restarts itself), or it installs at the next launch. Also under About.`,
         duration: Infinity,
         action: { label: "Restart and install", onClick: applyDesktopUpdate },
       })

@@ -92,3 +92,21 @@ project file, sources list, query, and a path with a space all work through
 launcher.exe; the served copy is gone within about a second of the reload.
 The launcher's working directory is `...\stable\app\bin`, so relative file
 paths resolve there: the docs ask for a full path.
+
+## Update swap fails with AccessDenied while the tile service runs (2026-11-26)
+
+Symptom: Restart and install, the app comes back on the old build and offers
+the same update again. `updater.log` in the channel root shows
+`error Update to 2026.11.25 failed during swapping: AccessDenied` and the
+`.electrobun-update-<id>.result.json` beside it says `"phase": "swapping"`.
+Cause: the local tile service (tile-service.ts) runs `node.exe` from inside
+`app/Resources/app/tile-service/bin`, and Windows refuses to rename a folder
+holding a running program. Closing its stdin on `process.on("exit")` was not
+enough (the updater's helper starts while the app is alive). Fix: every
+apply goes through `applyDownloaded()` in index.ts, which awaits
+`tileService.stopForUpdate()` (stop, wait, kill if it lingers) first and
+`resume()`s it if the apply throws. Same-day versions are not the problem:
+the updater compares bundle hashes (`2qxajzkz → b4hy1oeq`), not the
+date-only version. The page's error toast used to print the feed version
+instead of the updater's message (`fold` in lib/desktop-bridge.ts); a
+"ready" after a failed swap now carries the reason.

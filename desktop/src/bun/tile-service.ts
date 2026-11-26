@@ -204,6 +204,28 @@ export function createTileService(opts: { stateDir: string; serverDir?: string; 
       if (!child) await start();
       else opts.report(status());
     },
+    /** Before the updater swaps the app folder. The service is node.exe run
+     *  from inside it (Resources/app/tile-service/bin), and Windows refuses
+     *  to rename a folder holding a running program: the swap failed with
+     *  AccessDenied, the old build came back and offered the same update
+     *  again (2026-11-26). Closing its input at exit was not enough: the
+     *  updater's helper starts while the app is still alive, so the child is
+     *  stopped here and waited for (killed if it lingers), the saved setting
+     *  untouched so it starts again with the new build. True once it is gone. */
+    async stopForUpdate(): Promise<boolean> {
+      const proc = child;
+      if (!proc) return true;
+      const gone = () => proc.exitCode !== null || proc.signalCode !== null;
+      await stop();
+      if (!gone()) {
+        try { proc.kill("SIGKILL"); } catch { /* gone */ }
+        const deadline = Date.now() + 3000;
+        while (Date.now() < deadline && !gone()) await new Promise((r) => setTimeout(r, 100));
+      }
+      return gone();
+    },
+    /** The update did not go ahead: the service comes back if it was on. */
+    resume() { if (settings.enabled && !child) void start(); },
     /** When the app quits. */
     shutdown() { stopNow(); },
   };
