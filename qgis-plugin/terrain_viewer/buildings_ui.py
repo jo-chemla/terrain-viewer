@@ -552,7 +552,7 @@ class BuildingsFrom(QWidget):
                 self.registered[key] = local_files.register(base, snap["path"])["source"]
             except (ValueError, OSError) as e:
                 return {}, (f"the buildings of {snap['name']} were not registered with the tile service: {e} "
-                            "(a tile service from before 2026-11-27 reads no GeoJSON: update it)")
+                            "(a tile service without /building-sources reads no GeoJSON: update it)")
         return {"buildingShadowSource": self.registered[key]}, None
 
     def python_key(self):

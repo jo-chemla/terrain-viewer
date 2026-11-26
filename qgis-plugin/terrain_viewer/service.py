@@ -220,7 +220,7 @@ class Catalog:
                 self.colorramps = [r["id"] for r in get_json(f"{self.base}/colorramps").get("colorramps", [])]
             except ServiceError:
                 self.colorramps = []
-            # What buildingShadowSource takes by id (a service from 2026-11-27 on).
+            # What buildingShadowSource takes by id (a service newer than 0.10.1's bundles).
             try:
                 self.building_sources = get_json(f"{self.base}/building-sources").get("sources", [])
             except ServiceError:

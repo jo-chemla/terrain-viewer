@@ -577,7 +577,7 @@ class ModeRow:
             if self.row.on("colour"):
                 extra, why = self.buildings.service_params(base)
                 if self.dock.catalog is not None and self.dock.catalog.building_sources is None and extra:
-                    extra, why = {}, ("this tile service reads OpenFreeMap's buildings only (it is older than 2026-11-27): "
+                    extra, why = {}, ("this tile service reads OpenFreeMap's buildings only (it has no /building-sources: an older one): "
                                       "update it, or pick the Python backend, for another source of buildings")
                 self.say_buildings(why)
                 common.update(extra)

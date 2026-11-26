@@ -228,8 +228,8 @@ is one picture.
 A QGIS layer is written to a GeoJSON in the profile
 (`terrain_viewer/buildings/`): the Python backend burns it as it burns a
 tile's buildings, a tile server on this machine reads it once registered
-(`POST /files`, `buildingShadowSource=file:<id>`; a service from 2026-11-27
-on). A layer over 50 000 features is read for the map's extent. PMTiles are
+(`POST /files`, `buildingShadowSource=file:<id>`; a service that answers
+`/building-sources`). A layer over 50 000 features is read for the map's extent. PMTiles are
 read in plain Python (`live/pmtiles.py`). The tile service's side:
 [its docs](../docs/content/docs/dev/tile-service.mdx#building-shadows-where-the-buildings-come-from).
 

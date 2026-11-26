@@ -534,7 +534,7 @@ A file path is never accepted in an address. The QGIS plugin does this for you: 
 
 ### Building shadows: where the buildings come from
 
-`modes=buildingShadows` sweeps building footprints away from the sun on flat ground, as the app's layer does. Until 2026-11-27 the service read OpenFreeMap's OpenStreetMap buildings only. It now takes the app's `buildingShadowSource`, and reads the footprints with the app's own tile reader (`lib/building-tiles.ts`, picked by `tile-server/buildings.mjs`):
+`modes=buildingShadows` sweeps building footprints away from the sun on flat ground, as the app's layer does. Until this change (2026-11-26, after the bundles the QGIS plugin 0.10.1 pins) the service read OpenFreeMap's OpenStreetMap buildings only. It now takes the app's `buildingShadowSource`, and reads the footprints with the app's own tile reader (`lib/building-tiles.ts`, picked by `tile-server/buildings.mjs`):
 
 | `buildingShadowSource` | What it is | What is read |
 |---|---|---|
@@ -558,13 +558,13 @@ How it reads, and its limits:
 - **Tiles at the source's deepest zoom, 14 at most**, where they hold every building whole; the tiles over the picture and the longest shadow around it (3 km at most) are read, 64 tiles at most, and nothing is drawn below map zoom 13. A tile's clip lines are not swept as walls (the reader flags them, whatever the tile set's buffer).
 - **An id the service does not know** (a source of a user's own list in the app, `custom-…`) draws the default, as the app does for an id that is gone. An address that is not https, or a `file:` id that is not registered (or whose file changed since), answers 400 or 404 with a message.
 - **Only the direct engine** takes an address or a file; a view the browser draws passes `buildingShadowSource` to the app, which knows ids only.
-- Measured on one z15 tile of Courbevoie (2026-11-27, sun at 20°, nothing cached): OpenFreeMap 1.5 s, Overture 2.1 s (its archive's header and directories once, then about 1 MB a tile), then from the cache.
+- Measured on one z15 tile of Courbevoie (2026-11-26, sun at 20°, nothing cached): OpenFreeMap 1.5 s, Overture 2.1 s (its archive's header and directories once, then about 1 MB a tile), then from the cache.
 
 The QGIS plugin's **Buildings from** writes these parameters ([QGIS Plugins](/dev/qgis-plugin#building-shadows-buildings-from)): an id, an address with its layer and height field, or a polygon layer of the project, which it writes to a GeoJSON and registers. `/processes/buildingShadows` describes each parameter; `tile-server/test.mjs` checks the forms, the refusals, a raised part and a registered GeoJSON swept (offline).
 
 ### Local files
 
-A GeoJSON of building footprints registers the same way since 2026-11-27 (`.geojson`, 100 MB at most; `"type": "geojson"` in the answer): it is a source for `buildingShadowSource` ([above](#building-shadows-where-the-buildings-come-from)), never a terrain source.
+A GeoJSON of building footprints registers the same way since the same change (`.geojson`, 100 MB at most; `"type": "geojson"` in the answer): it is a source for `buildingShadowSource` ([above](#building-shadows-where-the-buildings-come-from)), never a terrain source.
 
 A GeoTIFF (COG or not) or a GDAL VRT on the service's own machine is a source once it is registered (`tile-server/files.mjs`, since 2026-11-25): the QGIS plugin hands over its raster layer's file this way.
 

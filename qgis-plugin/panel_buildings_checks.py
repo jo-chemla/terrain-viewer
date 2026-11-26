@@ -274,7 +274,7 @@ brow.row.set_forms({"colour"})
 url = dock.rows["buildingShadows"].urls()["buildingShadows"][0]
 check("buildingShadowSource=overture-buildings" in url and "something-from-a-link" not in url and "modes=buildingShadows" in url,
       "a tile service's address carries the buildings picked (not a link's leftover)")
-dock.catalog.building_sources = None  # a service from before 2026-11-27
+dock.catalog.building_sources = None  # a service from before /building-sources
 before_w = len(dock.warnings)
 url_old = dock.rows["buildingShadows"].urls()["buildingShadows"][0]
 check("buildingShadowSource" not in url_old and len(dock.warnings) == before_w + 1 and "OpenFreeMap's buildings only" in dock.warnings[-1],

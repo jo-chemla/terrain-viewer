@@ -9,7 +9,7 @@ backends are compared tile by tile: the same buildings, the same sun.
 
 Without TERRAIN_VIEWER_SERVICE only the Python backend is checked. The tile
 service must be on this machine (it reads the layer's GeoJSON from disk) and
-from 2026-11-27 or later.
+one that answers /building-sources.
 """
 import math
 import os
