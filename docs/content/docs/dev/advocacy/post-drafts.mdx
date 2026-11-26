@@ -51,9 +51,9 @@ A follow-up with a working implementation, in case it helps shape an API.
 - a set of visualization modes on top of MapLibre's hillshade: slope, curvatures, TPI, local relief model, sky-view factor, openness, Phong shading, etc. Each is its own `addProtocol` scheme that reads a `raster-dem` upstream and computes from it.
 - terrain MapLibre cannot read on its own, again through protocols: `cog://`, `vrt://` for GDAL VRT mosaics in any CRS, `lerc://` for ArcGIS ImageServers, `quantized-mesh://`, `float32dem://` for WMS, `demdiff://` for the difference of two DEMs. We wanted every mode to work on every one of those source types, without any mode knowing which protocol sits underneath its raster-dem.
 
-**What we built.** All of them go through one small registry, [`lib/protocol-registry.ts`](https://github.com/jo-chemla/terrain-viewer/blob/main/lib/protocol-registry.ts). `registerProtocol()` passes the handler to `maplibregl.addProtocol` and also keeps it, so anything that builds a tile URL itself can call `dispatchTile(url)` and reach the same handler. Architecture notes: [Custom Protocols](https://terrain-viewer.iconem.com/docs/dev/custom-protocols).
+**What we built.** All of them go through one small registry, [`lib/protocol-registry.ts`](https://github.com/Iconem/terrain-viewer/blob/main/lib/protocol-registry.ts). `registerProtocol()` passes the handler to `maplibregl.addProtocol` and also keeps it, so anything that builds a tile URL itself can call `dispatchTile(url)` and reach the same handler. Architecture notes: [Custom Protocols](https://terrain-viewer.iconem.com/docs/dev/custom-protocols).
 
-**How it feeds maplibre-contour today.** For a template on one of those schemes we build a `DemSource` with `worker: false`, then give its `LocalDemManager` two functions ([`buildRegistryDemSource`](https://github.com/jo-chemla/terrain-viewer/blob/main/components/LayersAndSources/ContoursLayer.tsx)):
+**How it feeds maplibre-contour today.** For a template on one of those schemes we build a `DemSource` with `worker: false`, then give its `LocalDemManager` two functions ([`buildRegistryDemSource`](https://github.com/Iconem/terrain-viewer/blob/main/components/LayersAndSources/ContoursLayer.tsx)):
 
 ```ts
 dem.manager = new LocalDemManager({
@@ -185,7 +185,7 @@ cogProtocol({ resampling: 'bilinear' })   // or per-URL: cog://…#bilinear
 
 applied only when the pixel window is smaller than the output (upsampling); same-or-finer reads keep the fast path and nearest, and mask tiles are never interpolated. geotiff.js already implements `bilinear`, so the change is one branch in `readTile`.
 
-**What we run today.** A pnpm patch doing exactly that: https://github.com/jo-chemla/terrain-viewer/blob/main/patches/%40geomatico__maplibre-cog-protocol.patch. It works on the ESM and the bundled build; the one known trade-off is that nodata sentinels bleed one pixel into their neighbours, which is why it should stay opt-in. Happy to turn it into a PR with a test if the direction suits you.
+**What we run today.** A pnpm patch doing exactly that: https://github.com/Iconem/terrain-viewer/blob/main/patches/%40geomatico__maplibre-cog-protocol.patch. It works on the ESM and the bundled build; the one known trade-off is that nodata sentinels bleed one pixel into their neighbours, which is why it should stay opt-in. Happy to turn it into a PR with a test if the direction suits you.
 ````
 
 </Accordion>
