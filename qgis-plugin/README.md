@@ -15,7 +15,7 @@ both (see Files).
 
 ## Terrain Viewer
 
-0.11.0 in the repository, 0.10.1 released ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
+0.11.0 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
 at its top. 0.11.0: the Temporal Controller's default step is one week, the
 backend control shows on the Historical page while a source needs a tile
 server, and the building shadows take their buildings from any vector source
@@ -33,8 +33,8 @@ dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-26e`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26e)
-(Terrain Viewer 0.10.1, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
+The zips of each version are on a release: [`qgis-plugins-2026-11-26f`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26f)
+(Terrain Viewer 0.11.0, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this
