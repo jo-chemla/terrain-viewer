@@ -48,12 +48,18 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
     // Library). The river is named: "Main river" finds it too, but a preset
     // should not depend on a ranking. Hillshade off: the sheet is read
     // against the REM's colors alone.
+    // The camera is the sheet's: its center (-91.1258, 33.1467; the sheet
+    // spans 0.464 degrees of longitude, -91.358 to -90.894) at the zoom
+    // where that width is a 960 px pane, half a 1920 px window (10.506), so
+    // the sheet's left and right edges sit at view B's edges there. A link
+    // holds a zoom, not an extent: a narrower window crops the sheet's
+    // sides, a wider one shows the REM beside it.
     id: "preset-mississippi-rem",
     name: "Mississippi at Greenville — River REM beside Fisk's 1944 meander map",
     ts: 0,
     thumb: "/bookmark-thumbs/mississippi-rem.jpg",
     search: presetSearch({
-      appMode: "rem", viewMode: "2d", zoom: 10.4, lat: 33.15, lng: -91.13, pitch: 0,
+      appMode: "rem", viewMode: "2d", zoom: 10.5, lat: 33.1467, lng: -91.1258, pitch: 0,
       remRiver: "named", remRiverName: "Mississippi River",
       splitStyle: "side-by-side", showRasterBasemap: true, basemapPerView: true,
       overlayBasemapIdsB: "custom-basemap-allmaps-ac79c53138d6b057", overlaysStack: "top", showHillshade: false,
