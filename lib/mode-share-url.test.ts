@@ -3,7 +3,6 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { modeShareUrl, MODE_PAGE_PATHS, hostDefaultAppMode } from "./mode-share-url"
 import { isHistoricalHostname, isRemHostname } from "./settings-atoms"
-// @ts-expect-error a build script, no types
 import { MODE_PAGES, modePageHtml } from "../scripts/mode-pages.mjs"
 
 const MAIN = "https://terrain-viewer.iconem.com"

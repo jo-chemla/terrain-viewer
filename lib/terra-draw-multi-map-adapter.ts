@@ -1,3 +1,4 @@
+import { setToolCursor } from "./map-cursor"
 import type * as maplibregl from "maplibre-gl"
 import { TerraDrawExtend, type TerraDrawChanges, type TerraDrawStylingFunction, type SetCursor } from "terra-draw"
 
@@ -134,7 +135,7 @@ export class TerraDrawMultiMapAdapter extends TerraDrawExtend.TerraDrawBaseAdapt
   private setCurrent(entry: AttachedMap): void {
     if (this._current === entry) return
     // Terra Draw's hover cursor stays on the view the pointer left otherwise.
-    this._current?.canvas.style.removeProperty("cursor")
+    if (this._current) setToolCursor(this._current.canvas, null)
     this._current = entry
   }
 
@@ -280,11 +281,15 @@ export class TerraDrawMultiMapAdapter extends TerraDrawExtend.TerraDrawBaseAdapt
     return { lng, lat }
   }
 
+  /** Terra Draw's modes say their cursor again on every pointer move, and
+   *  "unset" whenever they have none (lib/map-cursor.ts has the list). The
+   *  canvas's cursor has other users, so this states the tools' wish and the
+   *  shared owner writes: "unset" withdraws the tools' cursor, it does not
+   *  erase a hover's. */
   setCursor(cursor: Parameters<SetCursor>[0]): void {
     const canvas = this._current?.canvas
     if (!canvas) return
-    if (cursor === "unset") canvas.style.removeProperty("cursor")
-    else canvas.style.cursor = cursor
+    setToolCursor(canvas, cursor === "unset" ? null : cursor)
   }
 
   /** Every view: a drag that starts on one view can end on another, and the

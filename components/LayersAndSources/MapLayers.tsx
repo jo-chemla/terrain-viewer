@@ -1,3 +1,4 @@
+import { setHoverCursor, releaseHoverCursor } from "@/lib/map-cursor"
 import { memo, useEffect, useRef, useState, type RefObject } from "react"
 import { AllmapsOverlayLayer } from "./AllmapsOverlayLayer"
 import { Layer, Source, type MapRef } from "react-map-gl/maplibre"
@@ -859,15 +860,15 @@ export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<M
     // layer-scoped on("mouseenter"/"mouseleave", layerId, ...) overload — that
     // overload queries the named layer internally on every map pointer move, which
     // throws (rather than no-op-ing) if the layer isn't mounted yet.
-    // Only write the cursor on a change: writing "" on every move wiped the
-    // cursor terra-draw sets over a drawn feature or a polygon's closing
-    // point while the detector was active.
+    // The pointer cursor goes through the canvas's one owner
+    // (lib/map-cursor.ts): the drawing tools' cursor stands over it, and
+    // their "unset" on every move does not erase it.
     let wasHit = false
     const handleMove = (e: MapMouseEvent) => {
       const hit = !!map.getLayer("tells-markers") && map.queryRenderedFeatures(e.point, { layers: ["tells-markers"] }).length > 0
       if (hit === wasHit) return
       wasHit = hit
-      map.getCanvas().style.cursor = hit ? "pointer" : ""
+      setHoverCursor(map.getCanvas(), "tells", hit)
     }
 
     map.on("click", handleClick)
@@ -875,7 +876,7 @@ export const TellsInspectPopup = memo(({ mapRef, active }: { mapRef: RefObject<M
     return () => {
       map.off("click", handleClick)
       map.off("mousemove", handleMove)
-      if (wasHit) map.getCanvas().style.cursor = ""
+      releaseHoverCursor(map.getCanvas(), "tells")
       popup.remove()
     }
   }, [mapRef, active])

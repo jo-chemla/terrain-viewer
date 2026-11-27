@@ -1,3 +1,4 @@
+import { setHoverCursor, releaseHoverCursor } from "@/lib/map-cursor"
 import type React from "react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { Layer, Popup, Source, useMap } from "react-map-gl/maplibre"
@@ -97,32 +98,32 @@ export const VectorFeaturePopup = memo(({ ids }: { ids: string[] }) => {
       const at: [number, number] = f.geometry.type === "Point" ? [f.geometry.coordinates[0], f.geometry.coordinates[1]] : [e.lngLat.lng, e.lngLat.lat]
       setSelected({ entry, properties: (f.properties ?? {}) as FeatureProperties, geometry: f.geometry, lngLat: at, ring: Math.max(9, found.pointRadius + 3) })
     }
-    // The pointer says a feature is clickable. Checked once a frame at most.
-    // Over a feature the cursor is written again whenever something else
-    // took it back: the drawing tools (terra-draw, always mounted) reset the
-    // canvas cursor on every mouse move, so writing only on a change showed
-    // the pointer for one frame. Off a feature it is cleared once, and only
-    // if it is still ours, so a tool's own cursor survives.
+    // The pointer says a feature is clickable. Checked once a frame at most,
+    // and stated to the canvas's one cursor owner (lib/map-cursor.ts) on
+    // entering a feature and on leaving it: the drawing tools (terra-draw,
+    // always mounted) say "no cursor" on every mouse move, which no longer
+    // erases it, and their own cursor stands over it.
     let wasHit = false, frame = 0, last: MapMouseEvent | null = null
+    const canvas = map.getCanvas()
+    const onOut = () => { last = null; if (wasHit) { wasHit = false; releaseHoverCursor(canvas, "vector-feature") } }
     const onMove = (e: MapMouseEvent) => {
       last = e
       if (frame) return
       frame = requestAnimationFrame(() => {
         frame = 0
         const over = !!last && !toolActiveRef.current && !map.isMoving() && !!hit(last)
-        const canvas = map.getCanvas()
-        if (over) { if (canvas.style.cursor !== "pointer") canvas.style.cursor = "pointer" }
-        else if (wasHit && canvas.style.cursor === "pointer") canvas.style.cursor = ""
-        wasHit = over
+        if (over !== wasHit) { wasHit = over; setHoverCursor(canvas, "vector-feature", over) }
       })
     }
     map.on("click", onClick)
     map.on("mousemove", onMove)
+    map.on("mouseout", onOut)
     return () => {
       map.off("click", onClick)
       map.off("mousemove", onMove)
+      map.off("mouseout", onOut)
       if (frame) cancelAnimationFrame(frame)
-      if (wasHit && map.getCanvas().style.cursor === "pointer") map.getCanvas().style.cursor = ""
+      releaseHoverCursor(canvas, "vector-feature")
     }
   }, [mapRef])
 
