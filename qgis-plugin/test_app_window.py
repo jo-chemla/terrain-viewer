@@ -38,9 +38,9 @@ def run():
     from qgis.core import Qgis, QgsSettings, QgsTemporalNavigationObject
     from qgis.PyQt.QtCore import QEventLoop, QTimer
     from qgis.PyQt.QtWidgets import QDockWidget, QAction
-    from terrain_viewer import historical
-    from terrain_viewer import historical_ui as hui
-    from terrain_viewer.plugin import TerrainViewerPlugin
+    from iconem_terrain_viewer import historical
+    from iconem_terrain_viewer import historical_ui as hui
+    from iconem_terrain_viewer.plugin import TerrainViewerPlugin
 
     def spin(ms=200):
         loop = QEventLoop()

@@ -428,7 +428,7 @@ settle()
 check(len(hp.layers()) == 9 and all(k.startswith("wayback:") for k in hp.layers()) and not missed, "Esri Wayback again: its nine dates")
 
 # -- a second toolbar button, straight to the Historical mode ---------------------------
-from terrain_viewer.plugin import TerrainViewerPlugin  # noqa: E402
+from iconem_terrain_viewer.plugin import TerrainViewerPlugin  # noqa: E402
 tools, menus = [], []
 
 
@@ -493,7 +493,7 @@ historical.set_store(None)
 from qgis.core import (QgsHillshadeRenderer, QgsSingleBandPseudoColorRenderer, QgsRasterShader, QgsColorRampShader,  # noqa: E402
                        QgsContrastEnhancement, QgsSingleBandGrayRenderer)
 from qgis.PyQt.QtGui import QColor as _Color  # noqa: E402
-from terrain_viewer.live.gdal_source import layer_spec, make_dem  # noqa: E402
+from iconem_terrain_viewer.live.gdal_source import layer_spec, make_dem  # noqa: E402
 sym_dir = tempfile.mkdtemp()
 sym_path = os.path.join(sym_dir, "heights.tif")
 ds = gdal.GetDriverByName("GTiff").Create(sym_path, 64, 64, 1, gdal.GDT_Float32)

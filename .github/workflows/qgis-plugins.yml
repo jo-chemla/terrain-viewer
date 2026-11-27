@@ -89,7 +89,7 @@ jobs:
           python3 qgis-plugin/make_zip.py --pins "${{ inputs.release_tag }}" assets
           python3 qgis-plugin/make_zip.py
           python3 qgis-plugin/make_zip.py --plugins-xml "${{ inputs.release_tag }}"
-          cp qgis-plugin/dist/*.zip qgis-plugin/dist/plugins.xml qgis-plugin/terrain_viewer/service_pins.json assets/
+          cp qgis-plugin/dist/*.zip qgis-plugin/dist/plugins.xml qgis-plugin/iconem_terrain_viewer/service_pins.json assets/
           (cd assets && sha256sum *.zip > SHA256SUMS)
           ls -la assets
           gh release upload "${{ inputs.release_tag }}" assets/* --clobber

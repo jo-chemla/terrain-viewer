@@ -29,9 +29,9 @@ from qgis.core import (  # noqa: E402
 )
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
 from qgis.PyQt.QtCore import QEventLoop, QTimer  # noqa: E402
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
-from terrain_viewer import setups  # noqa: E402
-from terrain_viewer.layers import PROP, FROZEN_PROP  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+from iconem_terrain_viewer import setups  # noqa: E402
+from iconem_terrain_viewer.layers import PROP, FROZEN_PROP  # noqa: E402
 
 failures = []
 LAT, LNG, ZOOM = 45.8326, 6.8652, 11.5  # Mont Blanc
@@ -214,7 +214,7 @@ for _ in range(300):
     if not QgsApplication.taskManager().countActiveTasks():
         break
     spin(100)
-from terrain_viewer.live.server import LiveServer  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer  # noqa: E402
 LiveServer.shutdown()
 if len(sys.argv) <= 1:
     shutil.rmtree(parent, ignore_errors=True)

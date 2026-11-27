@@ -3,7 +3,7 @@ z12, z13 and z14 around Mont Blanc, tiles per second (the median of
 --reps runs), elevation already cached (what a pan or a setting change costs once the area was seen):
   QT_QPA_PLATFORM=offscreen python-qgis bench_canvas.py [--old <dir>] [--json out.json]
 --old: a folder holding an earlier copy of the package as tv_old/live/ (e.g.
-cb7c545's, `git show cb7c545:qgis-plugin/terrain_viewer/live/server.py` and
+cb7c545's, `git show cb7c545:qgis-plugin/iconem_terrain_viewer/live/server.py` and
 its siblings) to time it the same way: "before".
 Each run asks fresh tiles (a cache-busting parameter): QGIS's network cache,
 GDAL's block cache and the server's result LRU never answer.
@@ -36,9 +36,9 @@ from qgis.PyQt.QtCore import QEventLoop, QSize  # noqa: E402
 app = QgsApplication([], False)
 app.initQgis()
 
-from terrain_viewer.live.dem import Dem  # noqa: E402
-from terrain_viewer.live.layers import tiles_of, xyz_source  # noqa: E402
-from terrain_viewer.live.server import LiveServer  # noqa: E402
+from iconem_terrain_viewer.live.dem import Dem  # noqa: E402
+from iconem_terrain_viewer.live.layers import tiles_of, xyz_source  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer  # noqa: E402
 
 WORLD = 20037508.342789244
 LAT, LNG = 45.8326, 6.8652

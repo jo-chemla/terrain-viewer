@@ -1,7 +1,7 @@
 """The plugins as zips QGIS installs (Plugins > Manage and Install Plugins >
 Install from ZIP), and the tile service bundles the Terrain Viewer plugin
 downloads:
-  python make_zip.py                 -> dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
+  python make_zip.py                 -> dist/iconem_terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
   python make_zip.py send2map_app    -> only that one
   python make_zip.py --service-bundle [windows-x64 macos-arm64 macos-x64 linux-x64 linux-arm64]
       -> dist/terrain-viewer-tile-service-<platform>.zip: the tile service of
@@ -16,7 +16,7 @@ downloads:
          tile-server/generated/ first. Built by
          .github/workflows/qgis-plugins.yml for the releases.
   python make_zip.py --pins <release-tag> <folder>
-      -> terrain_viewer/service_pins.json: that release's address and, per
+      -> iconem_terrain_viewer/service_pins.json: that release's address and, per
          platform, the bundle in <folder>, its sha256 and size (the plugin
          downloads nothing else). Written before the plain zip is built.
   python make_zip.py --plugins-xml <release-tag> [folder]
@@ -48,7 +48,7 @@ import zipfile
 here = os.path.dirname(os.path.abspath(__file__))
 repo = os.path.dirname(here)
 tile_server = os.path.join(repo, "tile-server")
-PLUGINS = ["terrain_viewer", "send2map_app"]
+PLUGINS = ["iconem_terrain_viewer", "send2map_app"]
 SKIP_DIRS = {"__pycache__", "logos-hd"}  # logos-hd: the icons' sources, not used by the plugin
 
 # The Node shipped in the service bundles: an LTS, the one the service is tested with.
@@ -248,7 +248,7 @@ def build_service_bundle(target):
 
 
 def write_pins(release, folder):
-    """terrain_viewer/service_pins.json from the bundles in `folder`."""
+    """iconem_terrain_viewer/service_pins.json from the bundles in `folder`."""
     assets = {}
     for target in TARGETS:
         path = os.path.join(folder, SERVICE_BUNDLE.format(target))
@@ -262,7 +262,7 @@ def write_pins(release, folder):
         sys.exit(f"no {SERVICE_BUNDLE.format('<platform>')} in {folder}")
     pins = {"release": release, "base": f"https://github.com/{REPOSITORY}/releases/download/{release}", "node": NODE_VERSION,
             "assets": assets}
-    dest = os.path.join(here, "terrain_viewer", "service_pins.json")
+    dest = os.path.join(here, "iconem_terrain_viewer", "service_pins.json")
     with open(dest, "w", encoding="utf-8", newline="\n") as f:
         json.dump(pins, f, indent=2)
         f.write("\n")
@@ -277,7 +277,7 @@ def plugins_xml(release, folder=None):
     """dist/plugins.xml: a QGIS plugin repository listing both plugins of
     `release`, their zips in `folder` (dist/ by default) downloaded from that
     release. QGIS keys a plugin by <file_name> before its first dot, so it is
-    "<folder name>.<version>.zip" (the plugin's folder: terrain_viewer),
+    "<folder name>.<version>.zip" (the plugin's folder: iconem_terrain_viewer),
     whatever the asset is called. <sha256> is ours (QGIS ignores it): the
     panel checks a download against it. No email: the author is Iconem."""
     from xml.sax.saxutils import escape

@@ -24,7 +24,7 @@ canvas right-click menu, the current view (not only a click) and QGIS 4.
 It stays under the GNU GPL v2 or later (`LICENSE`), with the original
 copyright lines kept in each source file; the rest of the Terrain Viewer
 repository is MIT, which is why this is its own plugin folder rather than
-part of `terrain_viewer`.
+part of `iconem_terrain_viewer`.
 
 ## Use
 

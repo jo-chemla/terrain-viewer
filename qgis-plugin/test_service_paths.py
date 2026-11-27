@@ -1,8 +1,8 @@
 """Headless check of the ways the plugin reaches a tile service, the way
 QGIS uses it, from a temporary plugins folder (never a QGIS profile):
 
-  QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-<v>.zip [dist/terrain-viewer-tile-service-windows-x64.zip]
-  QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py external  dist/terrain_viewer-<v>.zip http://localhost:3431 [--stop "<command>"]
+  QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/iconem_terrain_viewer-<v>.zip [dist/terrain-viewer-tile-service-windows-x64.zip]
+  QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py external  dist/iconem_terrain_viewer-<v>.zip http://localhost:3431 [--stop "<command>"]
 
 installed: the panel's "Install local tile service": with a bundle given, it
 is served from this machine and pinned into the unzipped plugin (its sha256);
@@ -59,7 +59,7 @@ with zipfile.ZipFile(zip_path) as z:
     z.extractall(plugins)  # as QGIS's "Install from ZIP" does: no executable bits
 sys.path.insert(0, plugins)
 os.environ["TV_SERVICE_HOME"] = os.path.join(tmp, "service-home")
-pins_path = os.path.join(plugins, "terrain_viewer", "service_pins.json")
+pins_path = os.path.join(plugins, "iconem_terrain_viewer", "service_pins.json")
 if bundle_zip:
     # The bundle served from here, and pinned into the unzipped plugin.
     import hashlib
@@ -79,9 +79,9 @@ if bundle_zip:
                    "assets": {plat: {"file": os.path.basename(bundle_zip), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}}}, f)
 print("pins:", open(pins_path, encoding="utf-8").read().strip()[:400])
 
-import terrain_viewer  # noqa: E402
-from terrain_viewer import local_server  # noqa: E402
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+import iconem_terrain_viewer  # noqa: E402
+from iconem_terrain_viewer import local_server  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
 from qgis.PyQt.QtWidgets import QMainWindow  # noqa: E402
 
 failures = []
@@ -146,7 +146,7 @@ class Iface:
 
 
 iface = Iface()
-plugin = terrain_viewer.classFactory(iface)
+plugin = iconem_terrain_viewer.classFactory(iface)
 plugin.initGui()
 check(not local_server.bundled(), "a fresh plugin has no tile service yet")
 offered = local_server.installable()
@@ -165,7 +165,7 @@ if offered:
     check(dock.install_btn.text().startswith("Install"), f"the local page offers Install: [{dock.install_btn.text()}]")
 has_bundle = False
 if mode == "installed":
-    from terrain_viewer import service_install  # noqa: E402
+    from iconem_terrain_viewer import service_install  # noqa: E402
     # A download that is not what the plugin pins is refused.
     bad = local_server.pins()
     bad["assets"][local_server.platform_label()]["sha256"] = "0" * 64

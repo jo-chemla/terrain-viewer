@@ -18,14 +18,14 @@ base = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:3400"
 out = sys.argv[2] if len(sys.argv) > 2 else "."
 os.makedirs(out, exist_ok=True)
 
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
-from terrain_viewer.service import tile_url  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+from iconem_terrain_viewer.service import tile_url  # noqa: E402
 
 failures = []
 
 # The plugin around the panel: its button on the Web toolbar and in the Web
 # menu, its SVG icon, nothing left after unload.
-import terrain_viewer  # noqa: E402
+import iconem_terrain_viewer  # noqa: E402
 from qgis.PyQt.QtWidgets import QMainWindow  # noqa: E402
 
 
@@ -50,7 +50,7 @@ class Iface:
 
 
 iface = Iface()
-plugin = terrain_viewer.classFactory(iface)
+plugin = iconem_terrain_viewer.classFactory(iface)
 plugin.initGui()
 # Two buttons since 0.10.1: the panel, and a clock straight to its Historical mode.
 if (len(iface.toolbar) != 2 or len(iface.web) != 2 or any(a.icon().pixmap(24, 24).isNull() for a in iface.toolbar)
@@ -162,7 +162,7 @@ print(render("plugin-slope-values.png", [numbers], extent))
 
 # 2b. Freeze: the checked layers copied into a group, then a panel change
 # rewrites the live layers and leaves the copies alone.
-from terrain_viewer.layers import PROP, FROZEN_PROP  # noqa: E402
+from iconem_terrain_viewer.layers import PROP, FROZEN_PROP  # noqa: E402
 live_before = {l.customProperty(PROP): l.source() for l in dock.stack.live_checked()}
 group = dock.freeze()
 frozen = [n.layer() for n in group.findLayers()] if group else []
@@ -209,7 +209,7 @@ if not (group2 and roots[0] == "Terrain Viewer (live)" and group2.name().startsw
 
 # 2c. A project saved before the live group was renamed: its "Terrain Viewer"
 # group is adopted and renamed, the frozen groups left alone.
-from terrain_viewer.layers import ROOT_PROP, ROOT_NAME  # noqa: E402
+from iconem_terrain_viewer.layers import ROOT_PROP, ROOT_NAME  # noqa: E402
 live_group = dock.stack.root(create=False)
 live_group.setName("Terrain Viewer")
 live_group.removeCustomProperty(ROOT_PROP)

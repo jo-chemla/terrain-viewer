@@ -10,8 +10,8 @@ import json as _json
 import struct as _struct
 
 from qgis.core import QgsVectorLayer as _VLayer, QgsFeature as _Feature, QgsGeometry as _Geometry, QgsRectangle as _Rect  # noqa: E402
-from terrain_viewer import buildings_ui as bui, local_files as _local_files  # noqa: E402
-from terrain_viewer.live import buildings as lb, pmtiles as lp  # noqa: E402
+from iconem_terrain_viewer import buildings_ui as bui, local_files as _local_files  # noqa: E402
+from iconem_terrain_viewer.live import buildings as lb, pmtiles as lp  # noqa: E402
 
 
 # -- a PMTiles archive, written as the specification says --------------------------

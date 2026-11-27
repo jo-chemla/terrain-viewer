@@ -18,7 +18,7 @@ sys.path.insert(0, HERE)
 def make(out_dir, z=13, x0=4250, y0=2918, nx=6, ny=6):
     import numpy as np
     from osgeo import gdal
-    from terrain_viewer.live.dem import TILE, Dem
+    from iconem_terrain_viewer.live.dem import TILE, Dem
     gdal.UseExceptions()
     os.makedirs(out_dir, exist_ok=True)
     dem = Dem("mapterhorn")

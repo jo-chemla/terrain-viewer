@@ -1,5 +1,5 @@
 """The pictures and the catalog snapshot the Terrain Viewer plugin carries in
-terrain_viewer/assets/, so the panel shows ramp and matcap previews and the
+iconem_terrain_viewer/assets/, so the panel shows ramp and matcap previews and the
 modes tree without asking anything at runtime (and with no tile service at
 all, for the Python backend):
 
@@ -22,7 +22,7 @@ app's) and Pillow:
     python make_assets.py [http://localhost:3400]
 
 Run it when the app's ramps, matcaps, modes or sources change, then commit
-terrain_viewer/assets/."""
+iconem_terrain_viewer/assets/."""
 import io
 import json
 import os
@@ -34,7 +34,7 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-OUT = os.path.join(HERE, "terrain_viewer", "assets")
+OUT = os.path.join(HERE, "iconem_terrain_viewer", "assets")
 sys.path.insert(0, HERE)
 
 RAMP_W, RAMP_H = 96, 12

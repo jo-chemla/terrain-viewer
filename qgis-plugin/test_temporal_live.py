@@ -26,8 +26,8 @@ from qgis.core import (  # noqa: E402
 )
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
 from qgis.PyQt.QtCore import QEventLoop, QTimer, QSize  # noqa: E402
-from terrain_viewer import historical, historical_ui as hui  # noqa: E402
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+from iconem_terrain_viewer import historical, historical_ui as hui  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
 
 failures = []
 PARIS = (48.8584, 2.2945, 16)

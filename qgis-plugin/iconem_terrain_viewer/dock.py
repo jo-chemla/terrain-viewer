@@ -54,6 +54,14 @@ from .historical_ui import HistoricalPanel
 from . import buildings_ui
 from . import vector_library
 
+# Kept as "terrain_viewer" on purpose when the plugin's folder became
+# iconem_terrain_viewer (0.12.1): the QGIS settings (terrain_viewer/<key>),
+# the layers' and groups' custom properties (terrain_viewer/...), the
+# project's entries and the data folder in the profile (<profile>/
+# terrain_viewer/) keep their names, so settings, keys and frozen layers of
+# an earlier version are still found. The unrelated plugin whose folder is
+# terrain_viewer (LiDARgeek's, 1.3.1 read on 2026-11-27) stores no QGIS
+# setting, no custom property and no file in the profile: nothing collides.
 SETTINGS = "terrain_viewer"
 DEFAULT_SERVICE = "http://localhost:3400"
 WORLD = 20037508.342789244

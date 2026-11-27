@@ -11,8 +11,8 @@ import tempfile as _tempfile
 
 from qgis.core import QgsDataSourceUri as _Uri, QgsLayerDefinition as _LayerDefinition, QgsLayerTreeGroup as _TreeGroup, QgsProject as _Project  # noqa: E402
 from qgis.PyQt.QtWidgets import QToolButton as _ToolButton  # noqa: E402
-from terrain_viewer import setups, links as _links  # noqa: E402
-from terrain_viewer.layers import PROP as _PROP, FROZEN_PROP as _FROZEN  # noqa: E402
+from iconem_terrain_viewer import setups, links as _links  # noqa: E402
+from iconem_terrain_viewer.layers import PROP as _PROP, FROZEN_PROP as _FROZEN  # noqa: E402
 
 
 def _address(layer):

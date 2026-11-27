@@ -29,9 +29,9 @@ from qgis.core import (  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
 from qgis.PyQt.QtCore import QEventLoop, QTimer  # noqa: E402
 from qgis.PyQt.QtGui import QImage  # noqa: E402
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
-from terrain_viewer.live import buildings as lb  # noqa: E402
-from terrain_viewer import links  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+from iconem_terrain_viewer.live import buildings as lb  # noqa: E402
+from iconem_terrain_viewer import links  # noqa: E402
 
 failures = []
 service = (os.environ.get("TERRAIN_VIEWER_SERVICE") or "").rstrip("/")
@@ -200,7 +200,7 @@ row.check.setChecked(False)
 dock.flush()
 QgsProject.instance().removeEntry("terrain_viewer", "buildingsFrom")
 dock.cleanup()
-from terrain_viewer.live.server import LiveServer  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer  # noqa: E402
 LiveServer.shutdown()
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ", flush=True)
 canvas.stopRendering()
