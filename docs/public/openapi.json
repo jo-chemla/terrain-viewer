@@ -233,6 +233,15 @@
             }
           },
           {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "description": "Instruction. at/<did or handle>/<rkey> - a saved view: one public record (com.iconem.terrainviewer.view) in its author's AT Protocol repository, read without an account; the address then becomes the full link the record stands for.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "project",
             "in": "query",
             "required": false,

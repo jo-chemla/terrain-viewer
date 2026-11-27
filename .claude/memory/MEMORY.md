@@ -80,3 +80,4 @@
 - [River REM app mode](river-rem-mode.md) — appMode=rem: where each part lives, EDT / JFA / scan / IDW and why the GPU is not the default, water-profile ramps, stale raster-dem borders after a tile reload (MapLibre), QLever before Overpass, Mapterhorn rounds heights by zoom
 - [Vector overlays round 4](vector-overlays-round4.md) — cursor vs terra-draw, one attribution line for every view, compact GeoJSON, list-property categories, new-defaults migration, OCS GE vintages
 - [QGIS plugin gotchas (0.12.0)](qgis-plugin-gotchas-0-12.md) — a same-id plugin on plugins.qgis.org, the experimental key QGIS reads, no URL scheme, Overture refusing GDAL, 3.44 exit crashes, setParam adds
+- [AT Protocol saved views](atproto-view-sharing.md) — ?view=at/<did>/<rkey> prototype behind a beta flag: browser-only OAuth, per-host client metadata, what was verified live (CORS, blobs, CDN) and what is untested (a completed sign-in)

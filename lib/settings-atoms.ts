@@ -651,12 +651,20 @@ export const changelogEntriesOpenAtom = atomWithStorage<Record<string, boolean>>
 // above — these are read synchronously in TerrainViewer's first-load
 // stateOverrides effect, which would otherwise see the pre-hydration default
 // instead of the real stored value.
-const betaEnabledAtom = atomWithStorage("betaEnabled", { tells: false, georef: false }, undefined, { getOnInit: true })
+const betaEnabledAtom = atomWithStorage<{ tells: boolean; georef: boolean; atproto?: boolean }>("betaEnabled", { tells: false, georef: false, atproto: false }, undefined, { getOnInit: true })
 export const tellsBetaEnabledAtom = booleanField(betaEnabledAtom, "tells")
 // The historical imagery sources left beta on 2026-10-08 (always on; a stored
 // `historical` key from before is ignored).
 /** STAC catalog search in the Add Dataset / Add Basemap modals (no URL param: local only). */
 export const georefBetaEnabledAtom = booleanField(betaEnabledAtom, "georef")
+/** Saved views behind short links, in the Share dialog: sign in with an AT
+ *  Protocol (Bluesky) account, save the view as one record of the account.
+ *  Local only; a ?view=at/… link opens for everyone whatever this says. A
+ *  record stored before the field existed reads as off. */
+export const atprotoBetaEnabledAtom = atom(
+  (get) => !!get(betaEnabledAtom).atproto,
+  (get, set, on: boolean) => set(betaEnabledAtom, { ...get(betaEnabledAtom), atproto: on }),
+)
 
 // Bookmarks gallery modal: on (default) flattens every group's cards into one
 // continuous grid (each card's label prefixed with its project name) so

@@ -80,6 +80,49 @@ if (import.meta.env.DEV) {
   if (migrateLegacyUrlKeys(url.searchParams)) window.history.replaceState(window.history.state, "", url.toString())
 }
 
+// Two arrivals are settled before the app (and nuqs) reads the address bar,
+// both rare, so their code is fetched only then (lib/view-sharing.ts):
+//  - ?view=at/<did>/<rkey>: a saved view, one public record in its author's
+//    AT Protocol repository. Read without an account, then the address
+//    becomes the full link the record stands for, and the app starts as on
+//    any link. The short form does not stay in the address bar: nuqs owns
+//    the query string and writes the whole state back on the first change.
+//  - #state=…&iss=…&code=…: the way back from an AT Protocol sign-in.
+async function settleArrival(): Promise<void> {
+  const hasView = /[?&]view=/.test(window.location.search)
+  const isCallback = window.location.hash.includes("state=") && /[#&](code|error)=/.test(window.location.hash)
+  if (!hasView && !isCallback) return
+  const vs = await import("@/lib/view-sharing")
+  if (isCallback && vs.isSignInCallback()) {
+    const done = await vs.completeSignIn()
+    if (done.session) pushToast({ key: "atproto-sign-in", title: `Signed in as ${done.session.handle ?? done.session.did}`, body: "Share → Save view writes the current view to your account and gives a short link.", duration: 8000 })
+    else pushToast({ key: "atproto-sign-in", tone: "alert", title: "Sign-in did not complete", body: done.error, duration: 15000 })
+  }
+  const url = new URL(window.location.href)
+  const raw = url.searchParams.get(vs.VIEW_PARAM)
+  if (raw === null) return
+  const ref = vs.parseViewRef(raw)
+  // Whatever happens, the pointer leaves the address: a link copied later
+  // must not carry it beside a state it no longer describes.
+  url.searchParams.delete(vs.VIEW_PARAM)
+  if (!ref) {
+    window.history.replaceState(window.history.state, "", url.toString())
+    pushToast({ key: "saved-view", tone: "alert", title: "This link does not name a saved view", body: `"${raw.slice(0, 120)}" is not of the form at/<account>/<id>. The app opened on its default view.`, duration: 20000 })
+    return
+  }
+  try {
+    const view = await vs.loadView(ref)
+    window.history.replaceState(window.history.state, "", vs.expandedViewUrl(window.location.href, view.record, migrateLegacyUrlKeys))
+    pushToast({ key: "saved-view", title: `Saved view: ${view.record.title}`, body: `Loaded from ${new URL(view.pds).host}, the server of the account that saved it.`, duration: 6000 })
+  } catch (e) {
+    window.history.replaceState(window.history.state, "", url.toString())
+    const known = e instanceof vs.ViewLoadError
+    pushToast({ key: "saved-view", tone: "alert", title: "The saved view could not be opened", body: `${known ? (e as Error).message : "The record could not be read."} The app opened on its default view. (${vs.formatViewRef(ref)})`, duration: 30000, action: { label: "Try again", onClick: () => { window.location.search = `?${vs.VIEW_PARAM}=${vs.formatViewRef(ref)}` } } })
+    if (!known) console.error("[saved view]", e)
+  }
+}
+
+function start(): void {
 // When iframed by an allowed meta-app wrapper (heritagewatch/anchise/localhost),
 // stream our URL state up to it once a second — see lib/embed-bridge.ts.
 startEmbedBridge()
@@ -129,3 +172,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </React.Suspense>
   </React.StrictMode>,
 )
+}
+
+settleArrival().catch((e) => console.error("[arrival]", e)).finally(start)

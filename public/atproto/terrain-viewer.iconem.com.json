@@ -1,0 +1,20 @@
+{
+  "client_id": "https://terrain-viewer.iconem.com/atproto/terrain-viewer.iconem.com.json",
+  "client_name": "Terrain Viewer",
+  "client_uri": "https://terrain-viewer.iconem.com",
+  "logo_uri": "https://terrain-viewer.iconem.com/favicon.svg",
+  "redirect_uris": [
+    "https://terrain-viewer.iconem.com/"
+  ],
+  "scope": "atproto repo:com.iconem.terrainviewer.view blob:image/*",
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "token_endpoint_auth_method": "none",
+  "application_type": "web",
+  "dpop_bound_access_tokens": true
+}
