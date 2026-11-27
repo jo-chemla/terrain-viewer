@@ -4,8 +4,8 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import {
-  OAUTH_CLIENT_HOSTS, OAUTH_SCOPE, VIEW_COLLECTION, ViewLoadError, blobUrl, buildViewRecord, expandedViewUrl, formatViewRef,
-  loadView, maskSecretsInValue, maskedParamKeys, oauthClientConfig, oauthClientMetadata, parseViewRef, viewLink, viewParams, viewRecordToSearch,
+  OAUTH_CLIENT_HOSTS, OAUTH_POST_PERMISSION, OAUTH_SCOPE, OAUTH_SCOPE_DECLARED, OAUTH_SCOPE_WITH_POST, VIEW_COLLECTION, ViewLoadError, blobUrl, buildPostRecord, buildViewRecord, expandedViewUrl, formatViewRef,
+  graphemeLength, listViews, loadView, scopeAllowsPost, maskSecretsInValue, maskedParamKeys, oauthClientConfig, oauthClientMetadata, parseViewRef, viewLink, viewParams, viewRecordToSearch,
 } from "./atproto-view.ts"
 import fixture from "./fixtures/atproto-view.json"
 
@@ -239,7 +239,9 @@ test("each deployed host is its own client: the id is the address of its own met
     assert.equal(file.client_id, `https://${host}/atproto/${host}.json`)
     assert.equal(file.token_endpoint_auth_method, "none")
     assert.equal(file.dpop_bound_access_tokens, true)
-    assert.equal(file.scope, OAUTH_SCOPE)
+    // The file declares the most the app may ever ask for; a sign-in asks
+    // for OAUTH_SCOPE, a subset.
+    assert.equal(file.scope, OAUTH_SCOPE_DECLARED)
     for (const r of file.redirect_uris as string[]) assert.equal(new URL(r).origin, new URL(file.client_id).origin)
   }
 })
@@ -251,7 +253,7 @@ test("development is the loopback client: http://localhost as the id, 127.0.0.1 
   assert.equal(id.origin, "http://localhost")
   assert.equal(id.pathname, "/")
   assert.equal(id.searchParams.get("redirect_uri"), "http://127.0.0.1:5175/")
-  assert.equal(id.searchParams.get("scope"), OAUTH_SCOPE)
+  assert.equal(id.searchParams.get("scope"), OAUTH_SCOPE_DECLARED)
   assert.equal(c.redirect_uri, "http://127.0.0.1:5175/")
 })
 
@@ -264,4 +266,94 @@ test("localhost and unknown hosts cannot sign in, and say what to do", () => {
 
 test("the scope asks for this collection and pictures, nothing of the account's posts", () => {
   assert.equal(OAUTH_SCOPE, "atproto repo:com.iconem.terrainviewer.view blob:image/*")
+  assert.equal(scopeAllowsPost(OAUTH_SCOPE), false)
+})
+
+test("posting is one more permission, create only, asked on top of the sign-in's and declared by the client", () => {
+  assert.equal(OAUTH_POST_PERMISSION, "repo:app.bsky.feed.post?action=create")
+  assert.equal(OAUTH_SCOPE_WITH_POST, `${OAUTH_SCOPE} ${OAUTH_POST_PERMISSION}`)
+  const declared = OAUTH_SCOPE_DECLARED.split(" ")
+  for (const asked of [OAUTH_SCOPE, OAUTH_SCOPE_WITH_POST]) for (const part of asked.split(" ")) assert.ok(declared.includes(part), part)
+  assert.equal(scopeAllowsPost(OAUTH_SCOPE_WITH_POST), true)
+  assert.equal(scopeAllowsPost("atproto repo:app.bsky.feed.post"), true)
+  assert.equal(scopeAllowsPost("atproto repo:app.bsky.feed.post?action=delete"), false)
+  assert.equal(scopeAllowsPost("atproto repo:app.bsky.feed.like?action=create"), false)
+  assert.equal(scopeAllowsPost("atproto transition:generic"), true)
+  assert.equal(scopeAllowsPost(""), false)
+  assert.equal(scopeAllowsPost(null), false)
+})
+
+// ── the list of an account's views ───────────────────────────────────────
+
+const LIST_RECORDS = `${fixture.pds}/xrpc/com.atproto.repo.listRecords`
+
+test("an account's views are listed in two requests, with no credentials; what is not a view is left out", async () => {
+  const seen: string[] = []
+  const value = fixture.getRecord.value
+  const body = {
+    cursor: "3m7aaaaaaaa2k",
+    records: [
+      { uri: `at://${DID}/${VIEW_COLLECTION}/3m7abcdefgh2k`, cid: "bafyone", value },
+      { uri: `at://${DID}/${VIEW_COLLECTION}/3m7aaaaaaaa2k`, cid: "bafytwo", value: { ...value, title: "No picture", thumbnail: undefined, params: { appMode: "rem", lat: "33.1" } } },
+      { uri: `at://${DID}/${VIEW_COLLECTION}/3m7bad2k`, value: { $type: VIEW_COLLECTION, params: { zoom: 12 } } },
+      { uri: `at://${DID}/${VIEW_COLLECTION}/3m7newer2k`, value: { ...value, schemaVersion: 2 } },
+    ],
+  }
+  const list = await listViews(DID, { fetch: stubFetch({ [PLC]: { body: fixture.plcDocument }, [LIST_RECORDS]: { body } }, seen) })
+  assert.deepEqual(seen, [PLC, `${LIST_RECORDS}?repo=${encodeURIComponent(DID)}&collection=com.iconem.terrainviewer.view&limit=50`])
+  assert.equal(list.did, DID)
+  assert.equal(list.cursor, "3m7aaaaaaaa2k")
+  assert.deepEqual(list.views.map((v) => v.ref), [{ repo: DID, rkey: "3m7abcdefgh2k" }, { repo: DID, rkey: "3m7aaaaaaaa2k" }])
+  assert.equal(list.views[0].thumbnailUrl, blobUrl(fixture.pds, DID, "bafkreihwihm6kpd6zuwhhlro75p5qks5qtrcu55jp3gddbfjsieiv7wuka"))
+  assert.equal(list.views[1].thumbnailUrl, undefined)
+  assert.equal(list.views[1].record.params.appMode, "rem")
+})
+
+test("a list by handle, an empty list, and the failures say what happened", async () => {
+  const empty = await listViews("@bsky.app", { fetch: stubFetch({
+    "https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=bsky.app": { body: fixture.resolveHandle },
+    [PLC]: { body: fixture.plcDocument }, [LIST_RECORDS]: { body: { records: [] } },
+  }) })
+  assert.deepEqual(empty.views, [])
+  assert.equal(empty.cursor, undefined)
+  const fails = async (p: Promise<unknown>, kind: string) => { await assert.rejects(p, (e: unknown) => e instanceof ViewLoadError && e.kind === kind) }
+  await fails(listViews("not a handle"), "bad-ref")
+  await fails(listViews(DID, { fetch: stubFetch({ [PLC]: { body: fixture.plcDocument } }) }), "pds-unreachable")
+  await fails(listViews(DID, { fetch: stubFetch({ [PLC]: { body: fixture.plcDocument }, [LIST_RECORDS]: { status: 400, body: { error: "RepoNotFound" } } }) }), "not-found")
+})
+
+// ── the record keeps its mode ────────────────────────────────────────────
+
+test("appMode is a parameter like another: kept by the record and given back by its link", () => {
+  const record = buildViewRecord("?appMode=terrain&lat=45.9&zoom=12")
+  assert.deepEqual(record.params, { appMode: "terrain", lat: "45.9", zoom: "12" })
+  assert.equal(expandedViewUrl("https://terrain-viewer.iconem.com/?view=x&appMode=rem", record), "https://terrain-viewer.iconem.com/?appMode=terrain&lat=45.9&zoom=12")
+})
+
+// ── the post ─────────────────────────────────────────────────────────────
+
+test("a post carries the view as an external embed with its own title and picture; the link in the text is a facet in UTF-8 bytes", () => {
+  const link = `https://terrain-viewer.iconem.com/rem/?view=at/${DID}/3m7abcdefgh2k`
+  const thumb = { $type: "blob" as const, ref: { $link: "bafkreihwihm6kpd6zuwhhlro75p5qks5qtrcu55jp3gddbfjsieiv7wuka" }, mimeType: "image/jpeg", size: 1234 }
+  const text = `Méandres du Mississippi 🌊\n${link}`
+  const post = buildPostRecord({ text: `  ${text}\n`, link, title: "Mississippi", description: "A map view", thumb, createdAt: new Date("2026-11-27T10:00:00Z") })
+  assert.equal(post.$type, "app.bsky.feed.post")
+  assert.equal(post.text, text)
+  assert.equal(post.createdAt, "2026-11-27T10:00:00.000Z")
+  assert.deepEqual(post.embed, { $type: "app.bsky.embed.external", external: { uri: link, title: "Mississippi", description: "A map view", thumb } })
+  const bytes = new TextEncoder().encode(post.text)
+  const { byteStart, byteEnd } = post.facets![0].index
+  assert.equal(new TextDecoder().decode(bytes.slice(byteStart, byteEnd)), link)
+  assert.deepEqual(post.facets![0].features, [{ $type: "app.bsky.richtext.facet#link", uri: link }])
+  // Text without the link: no facet, the card still points at the view.
+  const bare = buildPostRecord({ text: "Look at this", link, title: "t" })
+  assert.equal(bare.facets, undefined)
+  assert.equal(bare.embed.external.uri, link)
+  assert.equal(bare.embed.external.thumb, undefined)
+})
+
+test("a post longer than 300 graphemes is refused; an emoji counts once", () => {
+  assert.equal(graphemeLength("👨‍👩‍👧é"), 2)
+  assert.throws(() => buildPostRecord({ text: "x".repeat(301), link: "https://example.org/", title: "t" }), /longer than 300/)
+  assert.equal(buildPostRecord({ text: "x".repeat(300), link: "https://example.org/", title: "t" }).text.length, 300)
 })

@@ -16,12 +16,11 @@
 // served from some other file keep their address as it is.
 //
 // The other half is the mode a link WITHOUT `appMode` opens in. It is not
-// always terrain: a host that is one mode's own (historical-satellite.…,
-// river-rem.…) opens that mode when the link names none (TerrainViewer.tsx,
-// isHistoricalHostname / isRemHostname). A terrain view shared from such a
-// host is therefore given `appMode=terrain` in so many words; nuqs leaves a
-// default out of the address, and without it the link would open the host's
-// mode instead.
+// terrain: the app opens the visitor's own stored mode (the last one they
+// used, TerrainViewer.tsx), and for a first visit the mode of a host that is
+// one mode's own (historical-satellite.…, river-rem.…). So every shared link
+// names its mode: a terrain view is given `appMode=terrain` in so many
+// words (nuqs leaves a default out of the address), on every host.
 
 /** The app modes that have a page, and the folder of each. Kept equal to
  *  MODE_PAGES of scripts/mode-pages.mjs by lib/mode-share-url.test.ts. */
@@ -56,8 +55,42 @@ export function modeShareUrl(href: string): string {
 
   const folder = mode ? MODE_PAGE_PATHS[mode] : undefined
   if (folder) return withQuery(`${root}${folder}/`, pairs.filter((p) => !isMode(p)))
-  // No mode named (terrain, the parameter's default) on a host that would
-  // open another one: say it.
-  if (mode === null && hostDefaultAppMode(url.hostname) !== "terrain") return withQuery(url.pathname, ["appMode=terrain", ...pairs])
+  // No mode named: terrain, the parameter's default, which nuqs leaves out
+  // of the address. Said in so many words on every host: a link without
+  // `appMode` opens the visitor's own stored mode, or the host's.
+  if (mode === null) return withQuery(url.pathname, ["appMode=terrain", ...pairs])
   return href
+}
+
+/** The mode a shared address names: its mode page's folder, else its
+ *  `appMode`, else terrain (the parameter's default, absent from the app's
+ *  own address). */
+export function shareUrlAppMode(href: string): string {
+  let url: URL
+  try { url = new URL(href) } catch { return "terrain" }
+  const named = url.searchParams.get("appMode")
+  if (named) return named
+  const root = url.pathname.replace(/index\.html$/, "")
+  for (const [mode, folder] of Object.entries(MODE_PAGE_PATHS)) if (root.endsWith(`/${folder}/`)) return mode
+  return "terrain"
+}
+
+/** The query string of a shared address with its mode always in it: what a
+ *  saved view keeps, so that the record opens in the mode it was saved in
+ *  whatever the path or the host it is opened from. */
+export function searchNamingMode(href: string): string {
+  let url: URL
+  try { url = new URL(href) } catch { return "" }
+  if (url.searchParams.has("appMode")) return url.search
+  const pairs = url.search.replace(/^\?/, "").split("&").filter(Boolean)
+  return `?${[`appMode=${shareUrlAppMode(href)}`, ...pairs].join("&")}`
+}
+
+/** The page a short link to a view of `mode` sits on: the mode's own page
+ *  where it has one (its link preview is that mode's), else the root. */
+export function modePageHref(rootHref: string, mode: string | undefined): string {
+  let url: URL
+  try { url = new URL(rootHref) } catch { return rootHref }
+  const shared = modeShareUrl(`${url.origin}${url.pathname}${mode ? `?appMode=${encodeURIComponent(mode)}` : ""}`)
+  try { const s = new URL(shared); return `${s.origin}${s.pathname}` } catch { return rootHref }
 }
