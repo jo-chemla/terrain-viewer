@@ -4545,7 +4545,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "vectorLibraryIds",
-      "default": "[\"overture-buildings\", \"vida-open-buildings\", \"osm-building…",
+      "default": "VECTOR_LIBRARY_DEFAULT_IDS",
       "note": ""
     },
     {

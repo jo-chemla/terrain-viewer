@@ -1,5 +1,24 @@
 # Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
 
+<!-- released: 2026-11-27T18:00 -->
+
+#### TL;DR
+
+- **[River REM beside Fisk's 1944 map](/docs/features/river-rem)**: the Mississippi bookmark, second in Featured, opens the REM beside Harold Fisk's meander map; the Amazon bookmark is now a River REM of the Rio Purus. That picture is the app's link preview.
+
+  ![The River REM of the lower Mississippi beside Harold Fisk's 1944 meander map](/docs/screenshots/river-rem-mode-fisk.jpg)
+- **A link preview per mode**: a link starting with `/rem/` or `/historical/` shows that mode's own title and picture when shared, and opens the app in that mode.
+- **[Vector overlays](/docs/features/vector-overlays)**: Heritage Watch AI's Wikidata and OpenStreetMap heritage layers are listed by default, Wikidata colored by heritage class; a point size per overlay; a source added from the Library is switched on; Zoom to on terrain and basemap Library entries too.
+- **Credits**: the credit line names the sources of every visible view of a split (it named one view's), and the building shadows' source.
+
+#### Details
+
+- Mode pages (`b48b480`): `scripts/mode-pages.mjs` and a Vite plugin write `/rem/index.html` and `/historical/index.html` with their own title, description, canonical address, `og:` and `twitter:` tags; a first line in `<head>` puts the address back to `/?appMode=<mode>`, query and hash kept. `public/og/river-rem.jpg` is the default preview image, Twitter card tags added. The deploy takes `SITE_MODE` (a repository variable; `historical` on the mirror), and a host starting with `river-rem.` opens in REM mode.
+- Bookmarks: Mississippi second in Featured with a side-by-side thumbnail; "Rio Purus, Amazon Basin, Brazil" as a REM (`remMax=45`, linear, the terrain there being a canopy surface 25 to 40 m above the water). The docs page opens on the Mississippi and compares terrain sources at Greenville (USGS 3DEP has the cleanest water and is slow; Mapterhorn stays the bookmark's source).
+- Vector overlays, fourth pass: the pointer cursor over a feature holds (the drawing tools reset it on every move); `lib/default-list.ts` gives a saved list the defaults added since, once; the lifecycle entry is "OSM destroyed and disappeared features (HW.ai)", same id; IGN OCS GE reads the 2017-2020 set, the 2021-2023 one answering 404 over Lyon, Rennes, Nice, Auch and Toulon; UNESCO components in a compact form of 911 KB (`format: "compact"`); Lighting Effects' subsection is "Buildings (Vector shadows)"; the locked view color under a composite explains itself in a tooltip.
+- Credits: vector overlays show their short credit linked to the licence (escaped; it was raw text).
+- Docs: the changelog is in Introduction, River REM under Historical sources, Vector overlays after Basemaps, nDSM in Tools, and the group is Apps and Integrations. A colon in the QGIS page's description had failed three deploys on 2026-11-26; quoted.
+
 <!-- released: 2026-11-26T23:55 -->
 
 #### TL;DR
