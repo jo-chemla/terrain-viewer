@@ -66,7 +66,9 @@ test("source specs: a PMTiles archive as a pmtiles:// template with the entry's 
   const spec = vectorSourceSpec(vida, vida.url)
   assert.deepEqual(spec.tiles, [`pmtiles://${vida.url}/{z}/{x}/{y}`])
   assert.equal(spec.maxzoom, 15)
-  assert.ok(spec.attribution)
+  // The credit of the attribution line: the short one, linked to the licence, escaped.
+  assert.equal(spec.attribution, `<a href="${vida.licenseUrl}" target="_blank" rel="noopener noreferrer">${vida.shortAttribution!.replace(/&/g, "&amp;")}</a>`)
+  assert.equal(vectorSourceSpec({ ...vida, shortAttribution: undefined, attribution: "<b>mine</b>", infoUrl: undefined }, vida.url).attribution, "&lt;b&gt;mine&lt;/b&gt;")
   const tj = vectorSourceSpec(osm, osm.url)
   assert.equal(tj.url, osm.url)
   assert.equal(tj.tiles, undefined)

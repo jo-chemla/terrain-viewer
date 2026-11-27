@@ -9,6 +9,7 @@
 // run under Node (node scripts/test-lib.mjs lib/vector-sources.test.ts) and
 // the tile service can read the same entries later.
 import customSources from "./custom-sources.json"
+import { sourceCredit } from "./source-credit"
 import type { VectorSourceEntry } from "./source-schema"
 
 /** The Library's vector sources, in list order. */
@@ -151,7 +152,7 @@ export type VectorSourceSpec = { type: "vector" | "geojson"; tiles?: string[]; u
  *  archive is read through the app's `pmtiles://` protocol, as a tile
  *  template: the zoom range comes from the entry, not from a second request. */
 export function vectorSourceSpec(entry: VectorSourceEntry, url: string): VectorSourceSpec {
-  const common = { minzoom: entry.minzoom, maxzoom: entry.maxzoom, bounds: entry.bounds, attribution: entry.shortAttribution ?? entry.attribution }
+  const common = { minzoom: entry.minzoom, maxzoom: entry.maxzoom, bounds: entry.bounds, attribution: sourceCredit(entry) }
   const clean = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T
   if (entry.type === "geojson") return clean({ type: "geojson" as const, data: url, attribution: common.attribution })
   if (entry.type === "tilejson") return clean({ type: "vector" as const, url, attribution: common.attribution })

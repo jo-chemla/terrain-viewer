@@ -1473,6 +1473,10 @@ export function TerrainViewer() {
   const gridConfig = GRID_LAYOUTS[effectiveGridLayout]
   const activeViewIds: ViewId[] = isSplit ? gridConfig.grid.flat() : ["A"]
   const bottomRightViewId: ViewId = isSplit ? bottomRightView(effectiveGridLayout) : "A"
+  // The maps on screen, for the one attribution line (it credits every view).
+  const activeViewIdsRef = useRef(activeViewIds)
+  activeViewIdsRef.current = activeViewIds
+  const visibleMaps = useCallback(() => activeViewIdsRef.current.map((v) => mapRefs[v].current?.getMap()), [mapRefs])
   // Which panes have the floating sidebar overlapping their own right edge,
   // and so need the matching camera-padding correction. The sidebar overlaps
   // the full height of the viewport, so that's the rightmost pane of EVERY
@@ -4550,7 +4554,7 @@ export function TerrainViewer() {
               stacking order matters for MapLibre's own corner container. */}
           {isBottomRight && (
             // Never opens by itself (MapControls/AttributionControlCollapsed.tsx).
-            <AttributionControlCollapsed position="bottom-right" />
+            <AttributionControlCollapsed position="bottom-right" views={visibleMaps} />
           )}
         </Map>
       )
