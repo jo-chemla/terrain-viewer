@@ -29,14 +29,17 @@
 // mode with a surface model (DSM) source is the way.
 import { memo, useEffect, useId, useRef } from "react"
 import { useAtomValue, useSetAtom } from "jotai"
-import { useMap } from "react-map-gl/maplibre"
+import { Layer, Source, useMap } from "react-map-gl/maplibre"
 import * as maplibregl from "maplibre-gl"
 import type { CustomLayerInterface, CustomRenderMethodInput } from "maplibre-gl"
 import earcut from "earcut"
 import { LAYER_SLOTS } from "./MapLayers"
 import { abortBuildingTilesExcept, buildingSourceEntry, cachedBuildingTile, openBuildingSource, requestBuildingTile, tileKey, type BuildingSource, type BuildingTile } from "@/lib/building-tiles"
 import { buildingShadowStatsAtom, customVectorSourcesAtom, type BuildingShadowStats } from "@/lib/settings-atoms"
+import { sourceCredit } from "@/lib/source-credit"
 import type { VectorSourceEntry } from "@/lib/source-schema"
+
+const EMPTY_COLLECTION: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] }
 
 const LAYER_ID = "osm-building-shadows"
 const MIN_ZOOM = 13
@@ -572,7 +575,18 @@ export const BuildingShadowLayer = memo(({ enabled, opacity, sunAzimuth, sunAlti
     mapRef?.getMap()?.triggerRepaint()
   }, [sunAzimuth, sunAltitude, opacity, color, mapRef, enabled])
 
-  // The tiles are fetched by the layer itself: nothing to mount in the style.
-  return null
+  // The tiles are fetched by the layer itself: nothing of them to mount in
+  // the style. MapLibre's attribution line only knows sources of the style
+  // that a visible layer uses, so the buildings' credit rides on an empty
+  // GeoJSON source with a line layer that draws nothing, mounted while the
+  // shadows are on (lib/source-credit.ts: the same short, linked credit the
+  // source gets as a vector overlay).
+  const credit = enabled ? sourceCredit(entry) : undefined
+  if (!credit) return null
+  return (
+    <Source key={credit} id={`building-shadow-credit${viewKey}`} type="geojson" data={EMPTY_COLLECTION} attribution={credit}>
+      <Layer id={`building-shadow-credit${viewKey}-layer`} type="line" paint={{ "line-opacity": 0 }} />
+    </Source>
+  )
 })
 BuildingShadowLayer.displayName = "BuildingShadowLayer"
