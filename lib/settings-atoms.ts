@@ -1,6 +1,7 @@
 import { atomWithStorage } from "jotai/utils"
 import type { TerrainSourceEntry, RasterSourceEntry } from "./source-schema"
 import { atom } from "jotai"
+import { applyNewDefaults } from "./default-list"
 import { GLIHT_DEFAULT_BASE } from "./gliht-kmz"
 import type { ViewId } from "./grid-layouts"
 import type { ProjectConfig } from "./project-config"
@@ -385,7 +386,14 @@ export const byodVectorOverlaysOpenAtom = atomWithStorage("byodVectorOverlaysOpe
 export const vectorOverlaySharedAtom = atomWithStorage<import("./vector-sources").VectorSharedStyle>("vectorOverlayShared", { mode: "flat", colorBy: "auto" })
 /** The Library's vector sources listed in the sidebar (the Vector library
  *  dialog ticks them); one switched on by a link shows too. */
-export const vectorLibraryIdsAtom = atomWithStorage<string[]>("vectorLibraryIds", ["overture-buildings", "vida-open-buildings", "osm-buildings-openfreemap", "osm-liberty-lines-labels", "hwai-heritage-osm", "hwai-heritage-wikidata"], undefined, { getOnInit: true })
+/** The vector sources listed until the user chooses otherwise: the three
+ *  building sources, the roads and labels, and Heritage Watch AI's
+ *  OpenStreetMap and Wikidata exports. Listed, not switched on. */
+export const VECTOR_LIBRARY_DEFAULT_IDS = ["overture-buildings", "vida-open-buildings", "osm-buildings-openfreemap", "osm-liberty-lines-labels", "hwai-heritage-osm", "hwai-heritage-wikidata"]
+// A list saved before a default existed gets it once (lib/default-list.ts):
+// the two heritage sources joined the defaults after the first lists were saved.
+applyNewDefaults("vectorLibraryIds", VECTOR_LIBRARY_DEFAULT_IDS)
+export const vectorLibraryIdsAtom = atomWithStorage<string[]>("vectorLibraryIds", VECTOR_LIBRARY_DEFAULT_IDS, undefined, { getOnInit: true })
 /** The user's own vector sources (Bring Your Own Data > Vector overlays > Add):
  *  PMTiles archives, TileJSONs, MVT templates or MapLibre styles, as
  *  VectorSourceEntry records with section "custom". */

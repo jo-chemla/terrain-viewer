@@ -8,7 +8,9 @@ import {
   VECTOR_LIBRARY, findVectorSource, needsResolving, resolveVectorUrl, resetVectorResolvers, vectorLayerSpecs, vectorSourceSpec,
   vectorStyleOf, vectorLegend, darken, VECTOR_FOOTPRINT_MINZOOM, vectorParts, categoryExpression, hasCategories,
   appFileUrl, isAppFile, splitAlpha, withAlpha, vectorZoomTarget, vectorLibraryGroups, vectorSearchText, VECTOR_LIBRARY_GROUPS,
+  drawsPoints, expandCompactGeoJSON, pointRadiusExpression, POINT_RADIUS_MAX, POINT_RADIUS_MIN,
 } from "./vector-sources"
+import { mergeNewDefaults } from "./default-list"
 import { searchLibrary } from "./library-search"
 
 // The style validator MapLibre itself runs, found through maplibre-gl (it is
@@ -161,7 +163,7 @@ test("the Library's order: heritage as the Heritage map lists it, OSM condition 
   const heritage = VECTOR_LIBRARY.filter((s) => s.libraryGroup === "heritage").map((s) => s.id)
   assert.deepEqual(heritage, ["hwai-heritage-osm", "hwai-heritage-wikidata", "hwai-heritage-osm-condition", "hwai-heritage-inventories", "unesco-world-heritage", "unesco-world-heritage-components"])
   assert.deepEqual(vectorLibraryGroups().map((g) => g.key), ["buildings", "heritage", "landcover", "reference"])
-  assert.deepEqual(vectorLibraryGroups().find((g) => g.key === "landcover")!.rows.map((s) => s.id), ["overture-land-cover", "overture-land-use", "ign-ocsge-couverture", "ign-ocsge-usage"])
+  assert.deepEqual(vectorLibraryGroups().find((g) => g.key === "landcover")!.rows.map((s) => s.id), ["overture-land-cover", "overture-land-use", "ign-ocsge-couverture", "ign-ocsge-usage", "ign-ocsge-couverture-2017-2020", "ign-ocsge-usage-2017-2020"])
   // Every group in use is in the registry (a title and a blurb).
   for (const s of VECTOR_LIBRARY) assert.ok(VECTOR_LIBRARY_GROUPS.some((g) => g.key === s.libraryGroup), `${s.id}: group ${s.libraryGroup}`)
   // An unknown group still gets a section, after the others.
@@ -170,7 +172,7 @@ test("the Library's order: heritage as the Heritage map lists it, OSM condition 
 
 test("the Library's search finds a source by its name, its keywords and its group", () => {
   const find = (q: string) => searchLibrary(VECTOR_LIBRARY, vectorSearchText, q).map((s) => s.id)
-  assert.deepEqual(find("land cover"), ["overture-land-cover", "overture-land-use", "ign-ocsge-couverture", "ign-ocsge-usage"])
+  assert.deepEqual(find("land cover"), ["overture-land-cover", "overture-land-use", "ign-ocsge-couverture", "ign-ocsge-usage", "ign-ocsge-couverture-2017-2020", "ign-ocsge-usage-2017-2020"])
   assert.ok(find("unesco").includes("unesco-world-heritage") && find("unesco").includes("unesco-world-heritage-components"))
   assert.ok(find("heritage").length >= 6)
   assert.deepEqual(find("vida"), ["vida-open-buildings"])
@@ -198,7 +200,7 @@ test("land use and land cover: Overture's base archive through the resolver, col
   assert.deepEqual(vectorSourceSpec(ocs, ocs.url).tiles, [ocs.url])
   assert.equal(vectorSourceSpec(ocs, ocs.url).minzoom, 13)
   // A color per class, each value once: a polygon cannot match two.
-  for (const id of ["overture-land-cover", "overture-land-use", "ign-ocsge-couverture", "ign-ocsge-usage"]) {
+  for (const id of ["overture-land-cover", "overture-land-use", "ign-ocsge-couverture", "ign-ocsge-usage", "ign-ocsge-couverture-2017-2020", "ign-ocsge-usage-2017-2020"]) {
     const values = findVectorSource(id)!.categories!.flatMap((c) => (Array.isArray(c.value) ? c.value : [c.value]))
     assert.equal(new Set(values).size, values.length, id)
   }
@@ -264,4 +266,95 @@ test("a KML or GPX source hands the map its converted features in place of the a
   assert.equal(spec.data, kml.url, "the renderer replaces it with the converted collection")
   const layers = vectorLayerSpecs(kml as never, vectorStyleOf(kml as never), "p").map((l) => ({ ...l, source: "s" }))
   assert.deepEqual(validateStyleMin({ version: 8, sources: { s: { type: "geojson", data: { type: "FeatureCollection", features: [] } } }, layers }).map((e) => e.message), [])
+})
+
+test("a list property: a category matches one of its items, whole items only", () => {
+  const wikidata = findVectorSource("hwai-heritage-wikidata")!
+  assert.equal(wikidata.categoryLabel, "Heritage class")
+  const expr = JSON.stringify(categoryExpression(wikidata, "#000000"))
+  // Between separators: Q358 (heritage site) is not found in Q3581.
+  assert.match(expr, /\["in",",Q358,",\["concat",",",\["to-string",\["get","cls"\]\],","\]\]/)
+  assert.match(expr, /\["in",",designated,",/)
+  // Gone first, then the classes; every one of the Heritage map's 40 classes once.
+  assert.equal(wikidata.categories![0].field, "gone")
+  const ids = wikidata.categories!.filter((c) => c.separator === ",").flatMap((c) => (Array.isArray(c.value) ? c.value : [c.value!]))
+  assert.equal(ids.filter((v) => /^Q\d+$/.test(v)).length, 40)
+  assert.equal(new Set(ids).size, ids.length)
+  const legend = vectorLegend(wikidata, vectorStyleOf(wikidata)).map(([l]) => l)
+  assert.equal(legend.length, 13)
+  assert.equal(legend.at(-1), "other")
+  const errors = validateStyleMin({ version: 8, sources: { s: vectorSourceSpec(wikidata, "https://example.com/a.pmtiles") }, layers: vectorLayerSpecs(wikidata, vectorStyleOf(wikidata), "p").map((l) => ({ ...l, source: "s" })) })
+  assert.deepEqual(errors.map((e) => e.message), [])
+})
+
+test("point size: a radius per source, scaled by zoom, kept in range, offered where points are drawn", () => {
+  const wikidata = findVectorSource("hwai-heritage-wikidata")!
+  assert.deepEqual(pointRadiusExpression(), ["interpolate", ["linear"], ["zoom"], 3, 1.6, 9, 3, 16, 6], "the default is what was drawn before")
+  assert.deepEqual(pointRadiusExpression(12), ["interpolate", ["linear"], ["zoom"], 3, 3.2, 9, 6, 16, 12])
+  assert.equal(vectorStyleOf(wikidata).pointRadius, 6)
+  assert.equal(vectorStyleOf(wikidata, { pointRadius: 99 }).pointRadius, POINT_RADIUS_MAX)
+  assert.equal(vectorStyleOf(wikidata, { pointRadius: 0 }).pointRadius, POINT_RADIUS_MIN)
+  const circle = vectorLayerSpecs(wikidata, vectorStyleOf(wikidata, { pointRadius: 10 }), "p").find((l) => l.type === "circle")!
+  assert.deepEqual(circle.paint["circle-radius"], pointRadiusExpression(10))
+  assert.ok(drawsPoints(wikidata) && drawsPoints(findVectorSource("hwai-heritage-osm-condition")!) && drawsPoints(findVectorSource("unesco-world-heritage")!))
+  assert.ok(!drawsPoints(overture) && !drawsPoints(liberty) && !drawsPoints(findVectorSource("ign-ocsge-couverture")!))
+})
+
+test("OCS GE: IGN's own colors, one per code; both vintages; the entry renamed keeps its id", () => {
+  const cover = findVectorSource("ign-ocsge-couverture")!, use = findVectorSource("ign-ocsge-usage")!
+  assert.equal(cover.categories!.length, 14)
+  assert.equal(use.categories!.length, 20)
+  const colorOf = (e: typeof cover, code: string) => e.categories!.find((c) => c.value === code)!.color
+  // From the Géoplateforme's style files (ocsge_couverture.json, ocsge_usage.json).
+  assert.equal(colorOf(cover, "CS1.1.1.1"), "#ff377a")
+  assert.equal(colorOf(cover, "CS1.1.2.2"), "#a64d00")
+  assert.equal(colorOf(cover, "CS2.2.2"), "#ccffcc")
+  assert.equal(colorOf(use, "US235"), "#e6004d")
+  assert.equal(colorOf(use, "US4.1.4"), "#0066ff")
+  for (const e of [cover, use]) {
+    const old = findVectorSource(`${e.id}-2017-2020`)!
+    assert.equal(old.url, e.url.replace("2021-2023", "2017-2020"))
+    assert.deepEqual(old.categories, e.categories)
+    assert.deepEqual(old.bounds, e.bounds)
+  }
+  const condition = findVectorSource("hwai-heritage-osm-condition")!
+  assert.equal(condition.name, "OSM destroyed and disappeared features (HW.ai)")
+  assert.ok(!/heritage/i.test(condition.shortName!))
+})
+
+test("compact GeoJSON: short keys named, shared values put back, a feature's own value wins", () => {
+  const compact = {
+    type: "FeatureCollection", keys: { n: "name", r: "ref", i: "id_no" },
+    shared: { by: "id_no", values: { 9: { property: "Serial", category: "Cultural", danger: true }, 12: { property: "Other", name: "never" } } },
+    features: [
+      { type: "Feature", properties: { n: "North", r: "9-001", i: 9 }, geometry: { type: "Point", coordinates: [1, 2] } },
+      { type: "Feature", properties: { n: "Mine", i: 12, extra: 1 }, geometry: { type: "Point", coordinates: [3, 4] } },
+      { type: "Feature", properties: { n: "Alone", i: 404 }, geometry: null },
+    ],
+  }
+  const out = expandCompactGeoJSON(compact) as unknown as { type: string; keys?: unknown; shared?: unknown; features: { properties: Record<string, unknown>; geometry: unknown }[] }
+  assert.deepEqual(out.features[0], { type: "Feature", properties: { property: "Serial", category: "Cultural", danger: true, name: "North", ref: "9-001", id_no: 9 }, geometry: { type: "Point", coordinates: [1, 2] } })
+  assert.deepEqual(out.features[1].properties, { property: "Other", name: "Mine", id_no: 12, extra: 1 })
+  assert.deepEqual(out.features[2].properties, { name: "Alone", id_no: 404 })
+  assert.ok(out.type === "FeatureCollection" && out.keys === undefined && out.shared === undefined)
+  // A plain file comes back as it is; a prototype key is not a group.
+  const plain = { type: "FeatureCollection", features: [{ type: "Feature", properties: { a: 1 }, geometry: null }] }
+  assert.equal(expandCompactGeoJSON(plain), plain)
+  const proto = expandCompactGeoJSON({ type: "FeatureCollection", shared: { by: "k", values: {} }, features: [{ type: "Feature", properties: { k: "constructor" }, geometry: null }] }) as unknown as { features: { properties: Record<string, unknown> }[] }
+  assert.deepEqual(proto.features[0].properties, { k: "constructor" })
+  assert.equal(findVectorSource("unesco-world-heritage-components")!.format, "compact")
+})
+
+test("new defaults reach a saved list once: added when first seen, never put back after a removal", () => {
+  const defaults = ["a", "b", "c"]
+  // Nothing saved: the atom's own default applies, every default is seen.
+  assert.deepEqual(mergeNewDefaults(null, null, defaults), { list: null, seen: defaults })
+  // A list saved before "c" was a default (no record of what was seen): what
+  // is missing is added once.
+  assert.deepEqual(mergeNewDefaults(["a", "x"], null, defaults), { list: ["a", "x", "b", "c"], seen: defaults })
+  // Seen and removed by the user: stays removed.
+  assert.deepEqual(mergeNewDefaults(["x"], ["a", "b", "c"], defaults), { list: ["x"], seen: defaults })
+  // A default added in a later release.
+  assert.deepEqual(mergeNewDefaults(["x"], ["a", "b"], defaults), { list: ["x", "c"], seen: defaults })
+  assert.deepEqual(mergeNewDefaults("nonsense", 3, defaults), { list: null, seen: defaults })
 })

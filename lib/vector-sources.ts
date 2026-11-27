@@ -42,9 +42,20 @@ export interface VectorOverlayStyle {
   opacity: number
   /** Footprint outlines (a line layer). */
   outline: boolean
+  /** The radius of a point in pixels at zoom 16 and beyond; smaller at lower
+   *  zooms, in proportion (POINT_RADIUS_MIN to POINT_RADIUS_MAX). */
+  pointRadius: number
 }
 
-export const VECTOR_STYLE_DEFAULT: VectorOverlayStyle = { mode: "flat", colorBy: "single", color: "#f97316", opacity: 0.7, outline: true }
+export const POINT_RADIUS_MIN = 2
+export const POINT_RADIUS_MAX = 16
+export const VECTOR_STYLE_DEFAULT: VectorOverlayStyle = { mode: "flat", colorBy: "single", color: "#f97316", opacity: 0.7, outline: true, pointRadius: 6 }
+
+/** Whether the entry (or one of its companions) draws points: its settings
+ *  then offer a point size. */
+export function drawsPoints(entry: VectorSourceEntry): boolean {
+  return entry.type !== "style" && vectorParts(entry).some((p) => (p.geometries ?? ["polygon"]).includes("point"))
+}
 
 /** What every vector overlay shares (vectorOverlaySharedAtom): flat or 3D,
  *  and what colors them. "auto" is each source's own best (its categories,
@@ -77,6 +88,7 @@ export function vectorStyleOf(entry: VectorSourceEntry, saved?: Partial<VectorOv
   }
   if (!hasCategories(entry) && style.colorBy === "source") style.colorBy = "single"
   style.opacity = Math.max(0, Math.min(1, Number.isFinite(style.opacity) ? style.opacity : VECTOR_STYLE_DEFAULT.opacity))
+  style.pointRadius = Math.max(POINT_RADIUS_MIN, Math.min(POINT_RADIUS_MAX, Number.isFinite(style.pointRadius) ? style.pointRadius : VECTOR_STYLE_DEFAULT.pointRadius))
   return style
 }
 
@@ -200,7 +212,13 @@ export function categoryExpression(entry: VectorSourceEntry, fallback: string): 
     const cases: unknown[] = []
     for (const c of entry.categories) {
       const text: Expr = ["to-string", ["get", c.field]]
-      const test: Expr = c.value === undefined ? ["!=", text, ""] : Array.isArray(c.value) ? ["in", text, ["literal", c.value]] : ["==", text, c.value]
+      const values = c.value === undefined ? [] : Array.isArray(c.value) ? c.value : [c.value]
+      // A list property ("Q839954,Q852190"): one of the values is an item,
+      // looked for between separators so that Q358 is not found in Q3581.
+      const item = (v: string): Expr => ["in", `${c.separator}${v}${c.separator}`, ["concat", c.separator, text, c.separator]]
+      const test: Expr = c.value === undefined ? ["!=", text, ""]
+        : c.separator ? (values.length === 1 ? item(values[0]) : ["any", ...values.map(item)])
+        : Array.isArray(c.value) ? ["in", text, ["literal", c.value]] : ["==", text, c.value]
       cases.push(test, c.color)
     }
     return ["case", ...cases, fallback]
@@ -238,6 +256,13 @@ export function darken(hex: string, by = 0.45): string {
   const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
   if (!m) return "#333333"
   return "#" + m.slice(1).map((c) => Math.round(parseInt(c, 16) * (1 - by)).toString(16).padStart(2, "0")).join("")
+}
+
+/** A point's radius by zoom for a size of `radius` pixels (at zoom 16): a
+ *  quarter of it at zoom 3, half at zoom 9, rounded to a tenth. */
+export function pointRadiusExpression(radius: number = VECTOR_STYLE_DEFAULT.pointRadius): Expr {
+  const r = (f: number) => Math.round(radius * f * 10) / 10
+  return ["interpolate", ["linear"], ["zoom"], 3, r(1.6 / 6), 9, r(0.5), 16, r(1)]
 }
 
 /** The layers an entry is drawn with, bottom first; ids start with
@@ -292,7 +317,7 @@ export function vectorLayerSpecs(entry: VectorSourceEntry, style: VectorOverlayS
     }
     if (geometries.has("point")) {
       out.push({ id: `${prefix}-${layer}-point`, type: "circle", ...sl(layer), minzoom, filter: only(["match", ["geometry-type"], ["Point", "MultiPoint"], true, false]),
-        paint: { "circle-color": color, "circle-opacity": lineOpacity, "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 1.6, 9, 3, 16, 6], "circle-stroke-color": "rgba(255,255,255,0.85)", "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 6, 0, 10, 0.8] } })
+        paint: { "circle-color": color, "circle-opacity": lineOpacity, "circle-radius": pointRadiusExpression(style.pointRadius), "circle-stroke-color": "rgba(255,255,255,0.85)", "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 6, 0, 10, 0.8] } })
     }
   }
   if (threeD) {
@@ -374,4 +399,33 @@ export function splitAlpha(hex: string): { color: string; opacity?: number } {
   const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?$/i.exec(hex.trim())
   if (short) return { color: `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase(), ...(short[4] ? { opacity: Math.round((parseInt(short[4] + short[4], 16) / 255) * 100) / 100 } : {}) }
   return { color: VECTOR_STYLE_DEFAULT.color }
+}
+
+// ── Compact GeoJSON ─────────────────────────────────────────────────────────
+
+/** A GeoJSON file made small for the app to serve (UNESCO's components,
+ *  scripts/build-unesco-vectors.mjs): it stays valid GeoJSON, with two
+ *  members of its own that this puts back into every feature.
+ *
+ *    keys    short property key to its full name ({"n": "name"})
+ *    shared  the properties features have in common, said once: `by` is the
+ *            (full) name of the property they are grouped by, `values` the
+ *            properties of each group ({"13": {"property": "…"}})
+ *
+ *  A feature's own property wins over a shared one. A file without either
+ *  member comes back as it is. */
+export function expandCompactGeoJSON<T extends { features?: unknown }>(collection: T): T {
+  const c = collection as T & { keys?: Record<string, string>; shared?: { by?: string; values?: Record<string, Record<string, unknown>> } }
+  const keys = c.keys && typeof c.keys === "object" ? c.keys : null
+  const by = typeof c.shared?.by === "string" ? c.shared.by : null
+  const groups = by && c.shared?.values && typeof c.shared.values === "object" ? c.shared.values : null
+  if ((!keys && !groups) || !Array.isArray(c.features)) return collection
+  const features = (c.features as { properties?: Record<string, unknown> | null }[]).map((f) => {
+    const own: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(f?.properties ?? {})) own[keys && Object.hasOwn(keys, k) ? keys[k] : k] = v
+    const group = groups && by && own[by] !== undefined && Object.hasOwn(groups, String(own[by])) ? groups[String(own[by])] : null
+    return { ...f, properties: group ? { ...group, ...own } : own }
+  })
+  const { keys: _k, shared: _s, ...rest } = c
+  return { ...rest, features } as unknown as T
 }

@@ -137,10 +137,20 @@ export function featureCard(entry: Pick<VectorSourceEntry, "popup" | "name" | "s
     if (!value) return null
     return isHttp(value) ? { key, label, value, href: value } : { key, label, value: value + suffix }
   }
+  // Codes to words: a value, or each item of a list, as its label.
+  const coded = (key: string, label: string, values: Record<string, string>, separator?: string): PopupRow | null => {
+    const raw = propertyText(props[key])
+    if (!raw) return null
+    const word = (v: string) => (Object.hasOwn(values, v) ? values[v] : undefined)
+    const value = separator
+      ? [...new Set(raw.split(separator).map((v) => word(v.trim())).filter((v): v is string => !!v))].join(", ")
+      : word(raw) ?? raw
+    return value ? { key, label, value } : null
+  }
   const rows: PopupRow[] = []
   for (const f of popup.fields ?? []) {
     if (used.has(f.field)) continue
-    const r = row(f.field, f.label ?? fieldLabel(f.field), f.suffix ?? "")
+    const r = f.values ? coded(f.field, f.label ?? fieldLabel(f.field), f.values, f.separator) : row(f.field, f.label ?? fieldLabel(f.field), f.suffix ?? "")
     if (r) rows.push(r)
     used.add(f.field)
   }

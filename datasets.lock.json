@@ -50,10 +50,10 @@
       "rolling": true
     },
     {
-      "name": "unesco-world-heritage-components.geojson",
+      "name": "unesco-world-heritage-components-compact.geojson",
       "dir": "public/vector",
-      "size": 1368613,
-      "sha256": "a68a3293215f3c3cd319346e58a4cbb77be7a75d689a58dd5003a42ed365c365"
+      "size": 911302,
+      "sha256": "e78c23fbaf0c9ef91a609fa20aedaa0408a08cdc44f07c1bfbaf2b516a207e48"
     },
     {
       "name": "unesco-world-heritage.geojson",

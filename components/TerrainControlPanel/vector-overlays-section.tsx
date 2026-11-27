@@ -4,7 +4,8 @@
 // TileJSON, a tile template, a MapLibre style, a GeoJSON, KML or GPX file,
 // read by lib/vector-source-detect.ts), each with its switch (one per view
 // in a split), its opacity, a Zoom to button and a settings popover (color
-// with transparency, outlines, legend, credit, and Remove for your own).
+// with transparency, point size, outlines, legend, credit, and Remove for
+// your own).
 import type React from "react"
 import { useState } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
@@ -21,14 +22,13 @@ import { cn } from "@/lib/utils"
 import { VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import { activeViewAtom, byodVectorOverlaysOpenAtom, customVectorSourcesAtom, vectorLibraryIdsAtom, vectorLibraryOpenAtom, vectorOverlaySharedAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
 import type { VectorSourceEntry } from "@/lib/source-schema"
-import { allVectorSources, hasCategories, splitAlpha, VECTOR_FOOTPRINT_MINZOOM, vectorLegend, vectorStyleOf, vectorZoomTarget, withAlpha, type VectorOverlayStyle, type VectorSharedStyle } from "@/lib/vector-sources"
+import { allVectorSources, drawsPoints, hasCategories, POINT_RADIUS_MAX, POINT_RADIUS_MIN, splitAlpha, VECTOR_FOOTPRINT_MINZOOM, vectorLegend, vectorStyleOf, vectorZoomTarget, withAlpha, type VectorOverlayStyle, type VectorSharedStyle } from "@/lib/vector-sources"
 import { detectVectorSource, heightFieldsOf, type DetectedVectorSource } from "@/lib/vector-source-detect"
 import { GroupHeading, SourceGridToggle, TooltipButton } from "./controls-components"
 import { ColorAlphaSwatch } from "./color-picker"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { zoomToVectorSource } from "./vector-library-panel"
-
-const fieldOf = (side: ViewId) => (side === "A" ? "vectorOverlayIds" : `vectorOverlayIds${side}`)
+import { Slider } from "@/components/ui/slider"
+import { vectorOverlayField as fieldOf, zoomToVectorSource } from "./vector-library-panel"
 
 export const VectorOverlaysSection: React.FC<{ state: any; setState: (updates: any) => void; mapRef?: React.RefObject<MapRef | null> }> = ({ state, setState, mapRef }) => {
   const [open, setOpen] = useAtom(byodVectorOverlaysOpenAtom)
@@ -252,6 +252,14 @@ const VectorOverlaySettings: React.FC<{ source: VectorSourceEntry; style: Vector
         )}
         {styled && style.colorBy === "source" && hasCategories(source) && (
           <p className="text-muted-foreground">Colored by {(source.categoryLabel ?? "origin").toLowerCase()}.</p>
+        )}
+        {styled && drawsPoints(source) && (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-muted-foreground shrink-0 w-16">Point size</span>
+            <Slider className="flex-1 min-w-0" aria-label="Point size" min={POINT_RADIUS_MIN} max={POINT_RADIUS_MAX} step={0.5}
+              value={style.pointRadius} onValueChange={(v) => onChange({ pointRadius: v as number })} />
+            <span className="text-muted-foreground tabular-nums shrink-0 w-10 text-right" title="Radius of a point at zoom 16 and beyond; smaller when zoomed out">{style.pointRadius} px</span>
+          </div>
         )}
         {styled && (
           <label className="flex items-center gap-2 cursor-pointer">

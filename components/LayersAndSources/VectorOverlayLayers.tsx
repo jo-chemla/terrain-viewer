@@ -6,7 +6,7 @@ import { useAtomValue } from "jotai"
 import { LAYER_SLOTS } from "./MapLayers"
 import { customVectorSourcesAtom, vectorOverlaySharedAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
 import type { VectorSourceEntry } from "@/lib/source-schema"
-import { appFileUrl, findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, vectorParts, vectorSourceSpec, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
+import { appFileUrl, expandCompactGeoJSON, findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, vectorParts, vectorSourceSpec, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
 import { VectorFeaturePopup } from "./VectorFeaturePopup"
 
 /**
@@ -61,7 +61,9 @@ function useResolvedUrl(entry: VectorSourceEntry): string | null {
 }
 
 // A KML or GPX source is fetched and converted to GeoJSON here (the drawing
-// tools' reader, lib/remote-vector.ts), once per address and session.
+// tools' reader, lib/remote-vector.ts), once per address and session; a
+// "compact" GeoJSON file (short keys, shared values said once) is put back
+// into plain features by expandCompactGeoJSON.
 const converted = new Map<string, Promise<GeoJSON.FeatureCollection>>()
 function useConvertedData(entry: VectorSourceEntry, url: string | null): GeoJSON.FeatureCollection | null | undefined {
   const [data, setData] = useState<GeoJSON.FeatureCollection | null>(null)
@@ -71,11 +73,17 @@ function useConvertedData(entry: VectorSourceEntry, url: string | null): GeoJSON
     let cancelled = false
     let p = converted.get(url)
     if (!p) {
-      p = import("@/lib/remote-vector").then(async ({ parseVector }) => {
-        const res = await fetch(url)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return parseVector(await res.arrayBuffer(), format) as Promise<GeoJSON.FeatureCollection>
-      }).catch((e) => { converted.delete(url); throw e })
+      p = (format === "compact"
+        ? fetch(url).then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return expandCompactGeoJSON((await res.json()) as GeoJSON.FeatureCollection)
+        })
+        : import("@/lib/remote-vector").then(async ({ parseVector }) => {
+          const res = await fetch(url)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return parseVector(await res.arrayBuffer(), format) as Promise<GeoJSON.FeatureCollection>
+        })
+      ).catch((e) => { converted.delete(url); throw e })
       converted.set(url, p)
     }
     p.then((fc) => { if (!cancelled) setData(fc) }).catch((e) => console.warn(`[vector overlay] ${entry.id}: ${e instanceof Error ? e.message : e}`))

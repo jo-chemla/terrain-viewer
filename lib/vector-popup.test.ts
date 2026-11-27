@@ -2,7 +2,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { commonsImage, featureCard, fieldLabel, fillLink, geometryBounds, propertyText, POPUP_ROWS_MAX, POPUP_VALUE_MAX } from "./vector-popup"
-import { findVectorSource, VECTOR_LIBRARY } from "./vector-sources"
+import { expandCompactGeoJSON, findVectorSource, VECTOR_LIBRARY } from "./vector-sources"
 import { buildUnesco, cap, parseComponents } from "../scripts/build-unesco-vectors.mjs"
 
 const plain = { name: "Mine", shortName: "Mine" }
@@ -62,7 +62,12 @@ test("the Heritage map's cards: Wikidata, OpenStreetMap, the inventories", () =>
   assert.equal(wikidata.title, "Umayyad Mosque")
   assert.equal(wikidata.subtitle, "الجامع الأموي")
   assert.equal(wikidata.image, "https://commons.wikimedia.org/wiki/Special:FilePath/Umayyad%20Mosque.jpg?width=480")
-  assert.deepEqual(wikidata.rows.map((r) => [r.label, r.value]), [["Designation", "World Heritage Site"]], "the class ids and the qid are not rows")
+  assert.deepEqual(wikidata.rows.map((r) => [r.label, r.value]), [["Class", "mosque, archaeological site"], ["Designation", "World Heritage Site"]], "the class ids as their names, the qid not a row")
+  const unclassed = featureCard(findVectorSource("hwai-heritage-wikidata")!, { qid: "Q1", label: "A", cls: "Q999999999,designated,Q358316" })
+  assert.deepEqual(unclassed.rows.map((r) => [r.label, r.value]), [["Class", "heritage designation alone"]], "an id outside the 40 classes is left out, and Q358 is not read in Q358316")
+  const ocs = featureCard(findVectorSource("ign-ocsge-couverture")!, { code_cs: "CS1.1.1.1", code_us: "US5", millesime: "2021", source: "calcul", fid: 3 })
+  assert.deepEqual(ocs.rows.map((r) => [r.label, r.value]), [["Cover", "Zones bâties (CS1.1.1.1)"], ["Use", "Usage résidentiel (US5)"], ["Year", "2021"], ["Origin", "calcul"]])
+  assert.deepEqual(featureCard(findVectorSource("ign-ocsge-couverture")!, { code_cs: "CS9" }).rows.map((r) => r.value), ["CS9"], "a code without a label shows as it is")
   assert.deepEqual(wikidata.links, [{ label: "Wikidata", href: "https://www.wikidata.org/wiki/Q190063" }])
 
   const osm = featureCard(findVectorSource("hwai-heritage-osm-condition")!, { id: "way/42", name: "جامع", name_en: "Great Mosque", historic: "", building: "mosque", status: "destroyed", damage_event: "war", damage_date: "2013", height: 14, levels: 2, wikidata: "Q1", gone: 1, parts: 1 })
@@ -130,7 +135,11 @@ test("UNESCO build: properties and components from a whc001 export, compact", ()
   assert.deepEqual(s.geometry.coordinates, [25, 61], "a serial property stands on its component nearest to the middle")
   assert.ok(s.properties.description.length <= 200 && s.properties.description.endsWith("…"))
   assert.equal(components.features.length, 3, "only the parts of serial properties")
-  assert.deepEqual(components.features[0], { type: "Feature", properties: { name: "North, the gate", ref: "9-001", id_no: 9, property: "Serial", category: "Cultural", danger: true }, geometry: { type: "Point", coordinates: [24.76543, 60.12346] } })
+  // Compact: short keys, and what a property's components share said once.
+  assert.deepEqual(components.features[0], { type: "Feature", properties: { n: "North, the gate", r: "9-001", i: 9 }, geometry: { type: "Point", coordinates: [24.76543, 60.12346] } })
+  assert.deepEqual(components.keys, { n: "name", r: "ref", i: "id_no" })
+  assert.deepEqual(components.shared, { by: "id_no", values: { 9: { property: "Serial", category: "Cultural", danger: true } } })
+  assert.deepEqual(expandCompactGeoJSON(components).features[0].properties, { property: "Serial", category: "Cultural", danger: true, name: "North, the gate", ref: "9-001", id_no: 9 }, "what the app's card and colors read")
   // The table view's bare form, names with commas and colons.
   assert.deepEqual(parseComponents("{name: Fort: north, east wing, ref: 12bis-001, latitude: 1.5, longitude: -2.25}{name: B, ref: 12bis-002, latitude: 3, longitude: 4}").map((c: { name: string; ref: string }) => [c.name, c.ref]), [["Fort: north, east wing", "12bis-001"], ["B", "12bis-002"]])
   assert.equal(cap("short"), "short")
