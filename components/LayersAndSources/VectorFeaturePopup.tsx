@@ -97,8 +97,12 @@ export const VectorFeaturePopup = memo(({ ids }: { ids: string[] }) => {
       const at: [number, number] = f.geometry.type === "Point" ? [f.geometry.coordinates[0], f.geometry.coordinates[1]] : [e.lngLat.lng, e.lngLat.lat]
       setSelected({ entry, properties: (f.properties ?? {}) as FeatureProperties, geometry: f.geometry, lngLat: at, ring: Math.max(9, found.pointRadius + 3) })
     }
-    // The pointer says a feature is clickable. Checked once a frame at most,
-    // and written only on a change so a tool's own cursor survives.
+    // The pointer says a feature is clickable. Checked once a frame at most.
+    // Over a feature the cursor is written again whenever something else
+    // took it back: the drawing tools (terra-draw, always mounted) reset the
+    // canvas cursor on every mouse move, so writing only on a change showed
+    // the pointer for one frame. Off a feature it is cleared once, and only
+    // if it is still ours, so a tool's own cursor survives.
     let wasHit = false, frame = 0, last: MapMouseEvent | null = null
     const onMove = (e: MapMouseEvent) => {
       last = e
@@ -106,7 +110,10 @@ export const VectorFeaturePopup = memo(({ ids }: { ids: string[] }) => {
       frame = requestAnimationFrame(() => {
         frame = 0
         const over = !!last && !toolActiveRef.current && !map.isMoving() && !!hit(last)
-        if (over !== wasHit) { wasHit = over; map.getCanvas().style.cursor = over ? "pointer" : "" }
+        const canvas = map.getCanvas()
+        if (over) { if (canvas.style.cursor !== "pointer") canvas.style.cursor = "pointer" }
+        else if (wasHit && canvas.style.cursor === "pointer") canvas.style.cursor = ""
+        wasHit = over
       })
     }
     map.on("click", onClick)
@@ -115,7 +122,7 @@ export const VectorFeaturePopup = memo(({ ids }: { ids: string[] }) => {
       map.off("click", onClick)
       map.off("mousemove", onMove)
       if (frame) cancelAnimationFrame(frame)
-      if (wasHit) map.getCanvas().style.cursor = ""
+      if (wasHit && map.getCanvas().style.cursor === "pointer") map.getCanvas().style.cursor = ""
     }
   }, [mapRef])
 
