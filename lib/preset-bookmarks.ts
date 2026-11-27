@@ -30,15 +30,16 @@ function presetSearch(overrides: Record<string, string | number | boolean>): str
 
 export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
   {
-    // A whole link rather than a set of fields: it loads a remote drawing
-    // and starts the Feature Iterator, which only a page load does (see
-    // restorePreset).
-    id: "preset-crater-candidates",
-    name: "Crater candidates — Feature Iterator on a remote CSV, four views",
+    id: "preset-matterhorn",
+    name: "Matterhorn, Alps — Custom Hypsometric Relief",
     ts: 0,
-    thumb: "/bookmark-thumbs/crater-candidates.jpg",
-    reload: true,
-    search: "zoom=12.24&splitStyle=side-by-side&gridLayout=2x2&terrainSourceB=mapterhorn&showColorRelief=true&showRasterBasemap=true&vizSync=false&vizViews=showHillshade:A;showColorRelief:A;showRasterBasemap:B;showLightingEffects:C;showPhong:C;showReliefVisualization:D;showSvf:D;showSlope:A;showTerrainAnalysis:A&drawingUrl=https://raw.githubusercontent.com/wrong-nebula/earth-anomalies/refs/heads/main/detections.csv&scrollTo=featureIterator&iteratorSort=quality&customHypsoMinMax=true&hypsoAutoRange=true&showLightingEffects=true&slopeMaxDegrees=14&showReliefVisualization=true&showSvf=true&showLrm=false&svfMin=90&showTerrainAnalysis=true&illuminationDir=16.59&illuminationAlt=53.36&lightDayOfYear=110&lightTimeOfDay=11.25&basemapSourceA=google&basemapSourceC=google&colorRamp=deep",
+    thumb: "/bookmark-thumbs/matterhorn.jpg",
+    search: presetSearch({
+      zoom: 12.31, lat: 45.9686, lng: 7.6499,
+      showColorRelief: true, colorRamp: "temp_19lev",
+      hypsoSliderMinBound: 0, hypsoSliderMaxBound: 20, customHypsoMinMax: true,
+      minElevation: 2330, maxElevation: 4220, colorReliefOpacity: 0.5,
+    }),
   },
   {
     // The River REM mode (appMode=rem), side by side: the REM on the left,
@@ -56,18 +57,6 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
       remRiver: "named", remRiverName: "Mississippi River",
       splitStyle: "side-by-side", showRasterBasemap: true, basemapPerView: true,
       overlayBasemapIdsB: "custom-basemap-allmaps-ac79c53138d6b057", overlaysStack: "top", showHillshade: false,
-    }),
-  },
-  {
-    id: "preset-matterhorn",
-    name: "Matterhorn, Alps — Custom Hypsometric Relief",
-    ts: 0,
-    thumb: "/bookmark-thumbs/matterhorn.jpg",
-    search: presetSearch({
-      zoom: 12.31, lat: 45.9686, lng: 7.6499,
-      showColorRelief: true, colorRamp: "temp_19lev",
-      hypsoSliderMinBound: 0, hypsoSliderMaxBound: 20, customHypsoMinMax: true,
-      minElevation: 2330, maxElevation: 4220, colorReliefOpacity: 0.5,
     }),
   },
   {
@@ -104,6 +93,18 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
       showRasterBasemap: true, basemapSourceA: "historical", dateA: 1648339200000,
       historicalActiveSourceA: "ge-historical",
     }),
+  },
+  {
+    // Sixth, not near the top: it reloads the page and fetches a large CSV.
+    // A whole link rather than a set of fields: it loads a remote drawing
+    // and starts the Feature Iterator, which only a page load does (see
+    // restorePreset).
+    id: "preset-crater-candidates",
+    name: "Crater candidates — Feature Iterator on a remote CSV, four views",
+    ts: 0,
+    thumb: "/bookmark-thumbs/crater-candidates.jpg",
+    reload: true,
+    search: "zoom=12.24&splitStyle=side-by-side&gridLayout=2x2&terrainSourceB=mapterhorn&showColorRelief=true&showRasterBasemap=true&vizSync=false&vizViews=showHillshade:A;showColorRelief:A;showRasterBasemap:B;showLightingEffects:C;showPhong:C;showReliefVisualization:D;showSvf:D;showSlope:A;showTerrainAnalysis:A&drawingUrl=https://raw.githubusercontent.com/wrong-nebula/earth-anomalies/refs/heads/main/detections.csv&scrollTo=featureIterator&iteratorSort=quality&customHypsoMinMax=true&hypsoAutoRange=true&showLightingEffects=true&slopeMaxDegrees=14&showReliefVisualization=true&showSvf=true&showLrm=false&svfMin=90&showTerrainAnalysis=true&illuminationDir=16.59&illuminationAlt=53.36&lightDayOfYear=110&lightTimeOfDay=11.25&basemapSourceA=google&basemapSourceC=google&colorRamp=deep",
   },
   {
     // The Rio Purus as a River REM. The terrain there is a surface model

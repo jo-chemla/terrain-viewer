@@ -51,13 +51,14 @@ const CENTERLINE_OPTIONS = [
   { value: "drawn", label: "Drawn or imported line", hint: "A line drawn with the Drawing tool, or a GeoJSON, KML or GPX file" },
 ]
 
-// The detrending methods, the default first. What each one is goes under the
+// The detrending methods, the default first and the scan (the reference,
+// whose cost is cells x heights) last. What each one is goes under the
 // toggle; the hover titles say what it costs.
 const METHOD_OPTIONS = [
   { value: "edt", label: "EDT", tooltip: "Euclidean distance transform: the level at the nearest place on the centerline, at the screen's resolution, on the CPU. The default" },
   { value: "jfa", label: "JFA", tooltip: "Jump flood: the same nearest place found on the GPU (WebGL2). Falls back to EDT where the GPU cannot" },
-  { value: "nearest", label: "Scan", tooltip: "Nearest centerline by a scan of every height for every cell: exact, on 256 cells. The reference the two above are checked against" },
   { value: "idw", label: "IDW", tooltip: "Inverse-distance weighting of the nearest river heights, RiverREM's and Dan Coe's method, on 256 cells" },
+  { value: "nearest", label: "Scan", tooltip: "Nearest centerline by a scan of every height for every cell: exact, at a cost of cells x heights, so on 256 cells. The reference EDT and JFA are checked against" },
 ]
 const METHOD_NOTES: Record<string, string> = {
   edt: "The river's level at the nearest place on the centerline. The line is burned into a grid and a Euclidean distance transform finds, for every cell, which part of it is nearest.",
