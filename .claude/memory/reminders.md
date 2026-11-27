@@ -6,6 +6,16 @@ type: feedback
 
 # Reminders (bring up at the start of a session, then prune)
 
+- **From 2026-12-03, ask Jonathan** (asked 2026-11-27): has he fixed the
+  huge polygons of the Heritage Watch inventories at the source (an area
+  column or a filter in the open geodata heritage PMTiles generation)? Until
+  then the app draws that archive as outlines only.
+- **Remind Jonathan to check Google Earth historical in the QGIS plugin**
+  (asked 2026-11-27; Historical page, backend control, packaged tile
+  server reinstalled). Raise it at the start of the next session.
+- **Deploys**: after every push to main, confirm the Pages deploy run
+  succeeded before reporting the work finished (Jonathan, 2026-11-27: a
+  recurring miss). MDX `description:` with a colon must be quoted.
 - **Upstream blend modes: merged 2026-11-26.** maplibre-style-spec 2017
   (released in 26.11.0) and maplibre-gl-js 9143 (merged as 7a6c543, with
   the spec bump) add ten W3C modes to fill-, line- and raster-layer-blend.
