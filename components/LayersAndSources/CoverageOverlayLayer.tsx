@@ -1,3 +1,4 @@
+import { setHoverCursor, releaseHoverCursor } from "@/lib/map-cursor"
 import type React from "react"
 import { useEffect, useState, useMemo, useRef } from "react"
 import { Source, Layer, useMap } from "react-map-gl/maplibre"
@@ -269,18 +270,19 @@ export const CoverageOverlayLayer: React.FC<{ publishInView?: boolean }> = ({ pu
     const onMove = (e: MapLayerMouseEvent) => {
       const hits = hitsAt(e)
       const hit = hits.length > 0
-      // Write only on change so terra-draw's own cursor survives a move.
-      if (hit !== wasHit) { wasHit = hit; m.getCanvas().style.cursor = hit ? "pointer" : "" }
+      // The pointer cursor, through the canvas's one owner (lib/map-cursor.ts):
+      // a drawing tool's own cursor stands over it.
+      if (hit !== wasHit) { wasHit = hit; setHoverCursor(m.getCanvas(), "coverage", hit) }
       setHover(hits.length ? { x: e.point.x, y: e.point.y, hits } : null)
     }
-    const onLeave = () => { setHover(null); if (wasHit) { wasHit = false; m.getCanvas().style.cursor = "" } }
+    const onLeave = () => { setHover(null); if (wasHit) { wasHit = false; releaseHoverCursor(m.getCanvas(), "coverage") } }
     // A map click belongs to the elevation picker, the sun calculator or a
     // drawing tool while one is active: no coverage modal then.
     const onClick = (e: MapLayerMouseEvent) => { if (toolActiveRef.current) return; const hits = hitsAt(e, true); if (hits.length) setClicked(hits) }
     m.on("mousemove", onMove)
     m.on("mouseout", onLeave)
     m.on("click", onClick)
-    return () => { m.off("mousemove", onMove); m.off("mouseout", onLeave); m.off("click", onClick); if (wasHit) m.getCanvas().style.cursor = "" }
+    return () => { m.off("mousemove", onMove); m.off("mouseout", onLeave); m.off("click", onClick); releaseHoverCursor(m.getCanvas(), "coverage") }
   }, [map, ids.length, catalogOn, mhMeta, geometryByKey])
 
   // View A lists everything the drawn overlays hold for the view, for the

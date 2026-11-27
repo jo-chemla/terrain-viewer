@@ -4,7 +4,7 @@ icon: MountainSnow
 description: Height above the river, live in the browser - the River REM app mode, and Iconem's companion River-REM app
 ---
 
-<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.15&lng=-91.13&zoom=10.4&remRiver=named&remRiverName=Mississippi+River&splitStyle=side-by-side&showRasterBasemap=true&basemapPerView=true&overlayBasemapIdsB=custom-basemap-allmaps-ac79c53138d6b057&overlaysStack=top&showHillshade=false">Open the River REM mode on the Mississippi, beside Harold Fisk's 1944 map</OpenInApp>
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.1467&lng=-91.1258&zoom=10.5&remRiver=named&remRiverName=Mississippi+River&splitStyle=side-by-side&showRasterBasemap=true&basemapPerView=true&overlayBasemapIdsB=custom-basemap-allmaps-ac79c53138d6b057&overlaysStack=top&showHillshade=false">Open the River REM mode on the Mississippi, beside Harold Fisk's 1944 map</OpenInApp>
 
 <LinkButtons quiet links={[
   { href: "https://github.com/Iconem/RiverREM_UI", label: "Our original implementation: Iconem RiverREM_UI", icon: "release" },
@@ -24,7 +24,7 @@ The **River REM mode** computes one live, in the browser, from whatever terrain 
 
 ![The River REM of the lower Mississippi beside Harold Fisk's 1944 meander map: the scars the REM shows are the former courses Fisk colored](/screenshots/river-rem-mode-fisk.jpg)
 
-<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.15&lng=-91.13&zoom=10.4&remRiver=named&remRiverName=Mississippi+River&splitStyle=side-by-side&showRasterBasemap=true&basemapPerView=true&overlayBasemapIdsB=custom-basemap-allmaps-ac79c53138d6b057&overlaysStack=top&showHillshade=false">Open the REM beside Fisk's 1944 meander map</OpenInApp>
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.1467&lng=-91.1258&zoom=10.5&remRiver=named&remRiverName=Mississippi+River&splitStyle=side-by-side&showRasterBasemap=true&basemapPerView=true&overlayBasemapIdsB=custom-basemap-allmaps-ac79c53138d6b057&overlaysStack=top&showHillshade=false">Open the REM beside Fisk's 1944 meander map</OpenInApp>
 
 In 1944 Harold Fisk drew, for the US Army Corps of Engineers, every former course of the lower Mississippi he could reconstruct from air photographs, borings and old surveys: plate 22 of his *Geological Investigation of the Alluvial Valley of the Lower Mississippi River*, each age of channel in its own color. The scrolls and cut-offs he traced by hand are the ones a REM shows from lidar eighty years later.
 
@@ -91,8 +91,8 @@ How the river's level is spread over the land. Four methods, in two families:
 |---|---|---|---|
 | **EDT** (default) | The level at the **nearest place on the centerline**. The line is burned into a grid and a Euclidean distance transform finds, for every cell, which part of it is nearest. On the CPU. | The screen's: one cell for two pixels, 512 to 2048 cells | 0.14 s for 1536 x 1373 cells, 0.24 s with blending |
 | **JFA** | The same nearest place, found by a jump flood on the graphics card (WebGL2). Falls back to EDT where the GPU cannot (no float render targets, a lost context), and the panel says so. | The same | 0.25 s for 1536 x 1373 cells |
-| **Scan** | The same again by trying every height for every cell: exact, and the reference the two above are tested against. | 256 cells | 0.22 s |
 | **IDW** | The average of the nearest river heights, weighted by 1 / distance^power: RiverREM's and Dan Coe's method. | 256 cells | 0.20 s (40 neighbors) |
+| **Scan** | The nearest place on the centerline again, by trying every height for every cell: exact, and the reference EDT and JFA are tested against. Its cost is cells x heights, hence the small grid and the last place in the panel. | 256 cells | 0.22 s |
 
 ![Four trends of the same view of the Mississippi: inverse-distance weighting with the water level's steps kept shows straight bands; the distance transform with ramps and blending shows none](/screenshots/river-rem-detrending-compare.jpg)
 
@@ -135,8 +135,8 @@ All of it runs in the page. The trend is computed on the main thread in plain Ja
 | Trend, EDT, 1000 heights | 0.03 s at 512 cells, 0.13 s at 1024, 0.14 s at 1536 x 1373, 0.34 s at 2048 x 1831 |
 | Trend, JFA on the GPU | 0.05 s at 512, 0.10 s at 1024, 0.25 s at 1536 x 1373, 0.43 s at 2048 x 1831 |
 | Blending the creases | 0.04 to 0.13 s on top, whatever the size |
-| Trend, scan, 256 cells | 0.22 s |
 | Trend, IDW, 256 cells | 0.20 s (40 neighbors); 2.7 s with 4000 heights |
+| Trend, scan, 256 cells | 0.22 s |
 | One REM tile | 1.3 ms at 256 px, 4 to 5 ms at 512 px, 15 to 20 ms at 1024 px; 42 ms for a 512 px tile whose rounded heights are smoothed |
 
 ### Heights along the river

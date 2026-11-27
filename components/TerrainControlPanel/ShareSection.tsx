@@ -5,6 +5,7 @@ import { track } from "@/lib/analytics"
 import { useAtom, useAtomValue } from "jotai"
 import { customTerrainSourcesAtom, customBasemapSourcesAtom, tileServerUrlAtom, atprotoBetaEnabledAtom } from "@/lib/settings-atoms"
 import { makePortableShareUrl, type PortableResult } from "@/lib/portable-share-url"
+import { modeShareUrl } from "@/lib/mode-share-url"
 // Same import-cycle shape as product-tour.tsx's — established/working here.
 import { sectionOpenAtom, DEFAULT_OPEN_STATE } from "./TerrainControlPanel"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -556,7 +557,13 @@ const ShareModal: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rawPageUrl, customTerrainSources, customBasemapSources, open],
   )
-  const pageUrl = portableEnabled ? portable.url : rawPageUrl
+  // The page's state as an address, and the link handed out: the same on
+  // the path of the app mode in use (/rem/?…, /historical/?…), whose page
+  // has that mode's link preview (lib/mode-share-url.ts). Copy, the short
+  // link, the social intents and the embed snippet all take the second;
+  // the QGIS project reads the state's query and takes the first.
+  const stateUrl = portableEnabled ? portable.url : rawPageUrl
+  const pageUrl = useMemo(() => modeShareUrl(stateUrl), [stateUrl])
   const atprotoBeta = useAtomValue(atprotoBetaEnabledAtom)
 
   const platformUrls = useMemo(() => {
@@ -746,7 +753,7 @@ const ShareModal: React.FC<{
 
         {atprotoBeta && open && (
           <Suspense fallback={null}>
-            <SavedViewPanel pageUrl={pageUrl} getSnapshot={getOrCreateBlob} />
+            <SavedViewPanel pageUrl={stateUrl} getSnapshot={getOrCreateBlob} />
           </Suspense>
         )}
 
@@ -863,7 +870,7 @@ const ShareModal: React.FC<{
 
           <CopyUrlButton pageUrl={activeUrl} />
           <CopyUrlWithPanelsButton pageUrl={activeUrl} />
-          <QgisProjectButton pageUrl={pageUrl} open={open} />
+          <QgisProjectButton pageUrl={stateUrl} open={open} />
         </div>
 
         <IframeSnippet pageUrl={activeUrl} />

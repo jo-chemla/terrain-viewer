@@ -1,3 +1,4 @@
+import { setHoverCursor, releaseHoverCursor } from "@/lib/map-cursor"
 import { defaultExportName } from '@/lib/export-names'
 import { outsideFence } from '@/lib/max-bounds'
 import { pushToast } from '@/components/ui/toast'
@@ -815,11 +816,11 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>, viewMapRefs?: Ref
                 // feature that is ALREADY selected (its "move" hand), and on
                 // every other pointer move it clears the cursor. An unselected
                 // feature therefore showed the map's grab hand, so nothing said
-                // "click me". In select mode, over any drawn feature, show a
-                // pointer whenever terra-draw left the cursor empty. This runs
-                // on maplibre's mousemove, which fires after terra-draw's own
-                // pointermove, so it re-applies after each clear. Its "move"
-                // over a selection and its handles stand. (A `cursors` mode
+                // "click me". In select mode, over any drawn feature, claim a
+                // pointer from the canvas's one cursor owner (lib/map-cursor.ts):
+                // it shows whenever terra-draw has no cursor of its own, so its
+                // "move" over a selection and its handles stand, and its "unset"
+                // on the next move does not erase it. (A `cursors` mode
                 // option does not work for this: terra-draw resets cursors to
                 // its defaults on every updateOptions call without them.)
                 // One listener per view, added when the view is attached.
@@ -827,23 +828,20 @@ export function useTerraDraw(mapRef: RefObject<MapRef | null>, viewMapRefs?: Ref
                     let hoverCursorSet = false
                     const canvas = viewMap.getCanvas()
                     const onHoverMove = (e: maplibregl.MapMouseEvent) => {
-                        if (!isCurrent || newDraw.getMode() !== 'select') return
+                        if (!isCurrent || newDraw.getMode() !== 'select') {
+                            if (hoverCursorSet) { hoverCursorSet = false; releaseHoverCursor(canvas, 'drawing') }
+                            return
+                        }
                         let hit = false
                         try {
                             hit = newDraw.getFeaturesAtLngLat(e.lngLat, { pointerDistance: SELECT_POINTER_DISTANCE, ignoreSelectFeatures: true }).length > 0
                         } catch { /* store mid-update */ }
-                        if (hit && !canvas.style.cursor) {
-                            canvas.style.cursor = 'pointer'
-                            hoverCursorSet = true
-                        } else if (!hit && hoverCursorSet) {
-                            if (canvas.style.cursor === 'pointer') canvas.style.removeProperty('cursor')
-                            hoverCursorSet = false
-                        }
+                        if (hit !== hoverCursorSet) { hoverCursorSet = hit; setHoverCursor(canvas, 'drawing', hit) }
                     }
                     viewMap.on('mousemove', onHoverMove)
                     viewCleanups.set(viewMap, () => {
                         try { viewMap.off('mousemove', onHoverMove) } catch { }
-                        if (hoverCursorSet && canvas.style.cursor === 'pointer') canvas.style.removeProperty('cursor')
+                        releaseHoverCursor(canvas, 'drawing')
                     })
                 }
                 hookView(map)

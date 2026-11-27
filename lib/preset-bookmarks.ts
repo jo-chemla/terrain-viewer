@@ -30,35 +30,6 @@ function presetSearch(overrides: Record<string, string | number | boolean>): str
 
 export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
   {
-    // A whole link rather than a set of fields: it loads a remote drawing
-    // and starts the Feature Iterator, which only a page load does (see
-    // restorePreset).
-    id: "preset-crater-candidates",
-    name: "Crater candidates — Feature Iterator on a remote CSV, four views",
-    ts: 0,
-    thumb: "/bookmark-thumbs/crater-candidates.jpg",
-    reload: true,
-    search: "zoom=12.24&splitStyle=side-by-side&gridLayout=2x2&terrainSourceB=mapterhorn&showColorRelief=true&showRasterBasemap=true&vizSync=false&vizViews=showHillshade:A;showColorRelief:A;showRasterBasemap:B;showLightingEffects:C;showPhong:C;showReliefVisualization:D;showSvf:D;showSlope:A;showTerrainAnalysis:A&drawingUrl=https://raw.githubusercontent.com/wrong-nebula/earth-anomalies/refs/heads/main/detections.csv&scrollTo=featureIterator&iteratorSort=quality&customHypsoMinMax=true&hypsoAutoRange=true&showLightingEffects=true&slopeMaxDegrees=14&showReliefVisualization=true&showSvf=true&showLrm=false&svfMin=90&showTerrainAnalysis=true&illuminationDir=16.59&illuminationAlt=53.36&lightDayOfYear=110&lightTimeOfDay=11.25&basemapSourceA=google&basemapSourceC=google&colorRamp=deep",
-  },
-  {
-    // The River REM mode (appMode=rem), side by side: the REM on the left,
-    // the same REM under Harold Fisk's 1944 meander map on the right (plate
-    // 22, sheet 5, georeferenced in Allmaps and bundled in the Basemap
-    // Library). The river is named: "Main river" finds it too, but a preset
-    // should not depend on a ranking. Hillshade off: the sheet is read
-    // against the REM's colors alone.
-    id: "preset-mississippi-rem",
-    name: "Mississippi at Greenville — River REM beside Fisk's 1944 meander map",
-    ts: 0,
-    thumb: "/bookmark-thumbs/mississippi-rem.jpg",
-    search: presetSearch({
-      appMode: "rem", viewMode: "2d", zoom: 10.4, lat: 33.15, lng: -91.13, pitch: 0,
-      remRiver: "named", remRiverName: "Mississippi River",
-      splitStyle: "side-by-side", showRasterBasemap: true, basemapPerView: true,
-      overlayBasemapIdsB: "custom-basemap-allmaps-ac79c53138d6b057", overlaysStack: "top", showHillshade: false,
-    }),
-  },
-  {
     id: "preset-matterhorn",
     name: "Matterhorn, Alps — Custom Hypsometric Relief",
     ts: 0,
@@ -68,6 +39,30 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
       showColorRelief: true, colorRamp: "temp_19lev",
       hypsoSliderMinBound: 0, hypsoSliderMaxBound: 20, customHypsoMinMax: true,
       minElevation: 2330, maxElevation: 4220, colorReliefOpacity: 0.5,
+    }),
+  },
+  {
+    // The River REM mode (appMode=rem), side by side: the REM on the left,
+    // the same REM under Harold Fisk's 1944 meander map on the right (plate
+    // 22, sheet 5, georeferenced in Allmaps and bundled in the Basemap
+    // Library). The river is named: "Main river" finds it too, but a preset
+    // should not depend on a ranking. Hillshade off: the sheet is read
+    // against the REM's colors alone.
+    // The camera is the sheet's: its center (-91.1258, 33.1467; the sheet
+    // spans 0.464 degrees of longitude, -91.358 to -90.894) at the zoom
+    // where that width is a 960 px pane, half a 1920 px window (10.506), so
+    // the sheet's left and right edges sit at view B's edges there. A link
+    // holds a zoom, not an extent: a narrower window crops the sheet's
+    // sides, a wider one shows the REM beside it.
+    id: "preset-mississippi-rem",
+    name: "Mississippi at Greenville — River REM beside Fisk's 1944 meander map",
+    ts: 0,
+    thumb: "/bookmark-thumbs/mississippi-rem.jpg",
+    search: presetSearch({
+      appMode: "rem", viewMode: "2d", zoom: 10.5, lat: 33.1467, lng: -91.1258, pitch: 0,
+      remRiver: "named", remRiverName: "Mississippi River",
+      splitStyle: "side-by-side", showRasterBasemap: true, basemapPerView: true,
+      overlayBasemapIdsB: "custom-basemap-allmaps-ac79c53138d6b057", overlaysStack: "top", showHillshade: false,
     }),
   },
   {
@@ -104,6 +99,18 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
       showRasterBasemap: true, basemapSourceA: "historical", dateA: 1648339200000,
       historicalActiveSourceA: "ge-historical",
     }),
+  },
+  {
+    // Sixth, not near the top: it reloads the page and fetches a large CSV.
+    // A whole link rather than a set of fields: it loads a remote drawing
+    // and starts the Feature Iterator, which only a page load does (see
+    // restorePreset).
+    id: "preset-crater-candidates",
+    name: "Crater candidates — Feature Iterator on a remote CSV, four views",
+    ts: 0,
+    thumb: "/bookmark-thumbs/crater-candidates.jpg",
+    reload: true,
+    search: "zoom=12.24&splitStyle=side-by-side&gridLayout=2x2&terrainSourceB=mapterhorn&showColorRelief=true&showRasterBasemap=true&vizSync=false&vizViews=showHillshade:A;showColorRelief:A;showRasterBasemap:B;showLightingEffects:C;showPhong:C;showReliefVisualization:D;showSvf:D;showSlope:A;showTerrainAnalysis:A&drawingUrl=https://raw.githubusercontent.com/wrong-nebula/earth-anomalies/refs/heads/main/detections.csv&scrollTo=featureIterator&iteratorSort=quality&customHypsoMinMax=true&hypsoAutoRange=true&showLightingEffects=true&slopeMaxDegrees=14&showReliefVisualization=true&showSvf=true&showLrm=false&svfMin=90&showTerrainAnalysis=true&illuminationDir=16.59&illuminationAlt=53.36&lightDayOfYear=110&lightTimeOfDay=11.25&basemapSourceA=google&basemapSourceC=google&colorRamp=deep",
   },
   {
     // The Rio Purus as a River REM. The terrain there is a surface model
