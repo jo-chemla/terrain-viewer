@@ -15,8 +15,10 @@ both (see Files).
 
 ## Terrain Viewer
 
-0.11.0 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
-at its top. 0.11.0: the Temporal Controller's default step is one week, the
+0.12.0 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
+at its top. 0.12.0: Freeze writes every parameter on its copies, a setup is
+saved to a folder and loaded back, the app's Vector library adds its entries
+as QGIS layers, and the plugin is no longer marked experimental. 0.11.0: the Temporal Controller's default step is one week, the
 backend control shows on the Historical page while a source needs a tile
 server, and the building shadows take their buildings from any vector source
 with heights or a polygon layer of the project ([below](#building-shadows-buildings-from)). **Historical** (a clock, new in 0.10.0; its own toolbar button
@@ -33,8 +35,39 @@ dependency; QGIS 3.28 and later, QGIS 4 (Qt 6) included.
 
 ## Install
 
-The zips of each version are on a release: [`qgis-plugins-2026-11-26f`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-26f)
-(Terrain Viewer 0.11.0, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
+**From the plugin repository (preferred: QGIS then updates the plugins by
+itself).** Once, in Plugins > Manage and Install Plugins > Settings: under
+Plugin Repositories press Add, name it (Terrain Viewer), give the URL
+
+```text
+https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml
+```
+
+and tick "Check for Updates on Startup". Then install Terrain Viewer (author:
+Iconem) and Send2MapApp from the All tab; new versions show under
+Upgradeable. Or, for the Add step, one line in QGIS's Python console
+(Plugins > Python Console), checked in QGIS 4.2 and 3.44:
+
+```python
+from qgis.core import QgsSettings; import pyplugin_installer; QgsSettings().setValue("app/plugin_repositories/Terrain Viewer/url", "https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml"); pyplugin_installer.instance().reloadAndExportData()
+```
+
+No link can do it: QGIS registers no URL scheme and no file type that adds a
+repository or installs a plugin. Two cautions:
+
+- Up to 0.11.0 the plugin was marked experimental and needed "Show also
+  Experimental Plugins" ticked. 0.12.0 is `experimental=False`
+  and needs no tick; `plugins.xml` takes the flag from `metadata.txt`.
+- plugins.qgis.org lists an unrelated plugin (Terrain Viewer by LiDARgeek,
+  1.3.1, QGIS 3.40 to 3.99) with the same folder name, `terrain_viewer`. QGIS
+  keys plugins by folder name across repositories: in QGIS 3.40 to 3.x the
+  Plugin Manager can show that one in place of this one, or offer it as an
+  upgrade. Check the author (Iconem) before installing or upgrading there;
+  the panel's own Update button reads this project's `plugins.xml` alone.
+  QGIS 4 is not concerned.
+
+**From a zip.** The zips of each version are on a release: [`qgis-plugins-2026-11-27`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-27)
+(Terrain Viewer 0.12.0, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this
@@ -64,12 +97,8 @@ copies to the fixed release `qgis-plugins-repository`.
 No plugins.qgis.org (it requires an email in `metadata.txt`, which the project
 does not publish): two ways from the GitHub releases instead.
 
-- **Plugin repository**: in Plugins > Manage and Install Plugins > Settings,
-  under Plugin Repositories press Add, name it (Terrain Viewer), give the URL
-  `https://github.com/Iconem/terrain-viewer/releases/download/qgis-plugins-repository/plugins.xml`,
-  then tick "Show also Experimental Plugins" (Terrain Viewer is marked
-  experimental: hidden otherwise) and "Check for Updates on Startup". QGIS
-  then lists both plugins and offers their updates. The address is a fixed
+- **Plugin repository** (added as under Install): QGIS lists both plugins
+  and offers their updates. The address is a fixed
   release whose `plugins.xml` each release replaces: nothing to change after
   a release. QGIS 3.44 and 4.2 have no interval to set: at start, when the
   last check is three days old or more, and whenever the Plugin Manager is
@@ -136,7 +165,37 @@ modes computed in QGIS with numpy.
   through the Basemap row. Only the parameters some mode takes go into the
   addresses (not `splitRatio` or the camera).
 - **Freeze** copies the layers drawn now into a dated group under the live
-  one, which the panel never changes.
+  one, which the panel never changes. 0.12.0: each copy carries its
+  parameters (custom properties `terrain_viewer/params`, `terrain_viewer/link`;
+  its abstract and metadata, shown when the layer is hovered and under Layer
+  Properties > Information), and the menu on the button's arrow keeps a setup
+  outside the project:
+  - **Save setup to folder...**: a new dated subfolder (never over an earlier
+    one) with `setup.json` (the setup as an app link, the format the web app
+    and Open link read, plus the panel's own: backend, source, light, each
+    mode's forms, opacity and every setting; no API key), `layers.qlr` (the
+    layers as plain layers, for any project) and `vectors.gpkg` (the Python
+    backend's lines and areas, which live in memory).
+  - **Save setup and GeoTIFFs to folder...**: the same, with each raster
+    layer for the map's extent at the map's pixel size (4096 px at most) in
+    `rasters/`: Color forms as RGBA, Values forms as Float32, read through the
+    layer's own provider, so with every backend.
+  - **Load setup...**: a `setup.json` read back into the panel.
+  A frozen or `.qlr` layer still asks its backend for tiles (frozen settings,
+  not frozen pixels: the GeoTIFFs are the pixels), and its address holds a
+  keyed source's key, as in a saved project.
+- **Vector library** (0.12.0, folded): the app's vector overlays (buildings,
+  heritage, land cover, a roads and labels reference) added as QGIS layers of
+  their own in "Vector overlays (library)", colored by their categories, with
+  their attribution: vector tile layers for `{z}/{x}/{y}` templates, TileJSON
+  and a MapLibre style (imported by QGIS, cut to lines and labels), vector
+  layers through GDAL for GeoJSON and for PMTiles over https (QGIS's own
+  vector tile layer opens PMTiles from disk only), and for Overture's
+  archives, whose host refuses GDAL's requests (HTTP 400), vector tiles from
+  the plugin's own 127.0.0.1 server (`/pmtiles/{z}/{x}/{y}.pbf`, read by
+  `live/pmtiles.py`; drawn while the panel is open). The panel does not
+  change them afterwards. All 14 entries open and draw in QGIS 4.2 and 3.44
+  (`test_overlays_live.py`).
 - A saved project reopens with its layers; on Connect the panel reads their
   addresses back into its checkboxes and settings.
 
@@ -250,6 +309,8 @@ read in plain Python (`live/pmtiles.py`). The tile service's side:
 | `test_app_window.py` | Inside the QGIS application itself, offscreen, in a throwaway profile (`qgis --code test_app_window.py`, see its header): the two toolbar buttons, the clock opening the Historical mode, the Temporal Controller button showing QGIS's own panel |
 | `terrain_viewer/buildings_ui.py`, `live/buildings.py`, `live/pmtiles.py`, `panel_buildings_checks.py`, `test_buildings_live.py` | The building shadows' buildings: the "Buildings from" choice (the Library's sources, an address, a polygon layer written as GeoJSON), the footprints read from vector tiles (TileJSON, MVT template, PMTiles in plain Python) or from that file and burnt with their heights; offline checks (run by `test_panel_units.py`: an archive written by the test, the choice, a layer written and burnt) and the network ones (both backends compared tile by tile): `TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_buildings_live.py` |
 | `test_temporal_live.py` | Network: the Temporal Controller under the default week step with Esri Wayback and, through a tile service connected from the Historical page, Google Earth historical: the capture named and drawn at a sample of frames, the picture changing with the capture: `TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_temporal_live.py` |
+| `terrain_viewer/setups.py`, `panel_setup_checks.py`, `test_setup_live.py` | A setup kept (0.12.0): the panel's state as an app link and the panel's own, a frozen layer's parameters written on it, Save setup to a folder (`setup.json`, `layers.qlr`, `vectors.gpkg`, GeoTIFFs), Load setup; offline checks (run by `test_panel_units.py`) and, network, a setup of the Python backend saved with its GeoTIFFs and reopened: `QT_QPA_PLATFORM=offscreen python-qgis test_setup_live.py` |
+| `terrain_viewer/vector_library.py`, `panel_overlay_checks.py`, `test_overlays_live.py` | The app's Vector library as QGIS layers (0.12.0): which layer each entry becomes, its categories as QGIS rules, its attribution; offline checks (run by `test_panel_units.py`) and, network, every entry added and drawn: `QT_QPA_PLATFORM=offscreen python-qgis test_overlays_live.py` |
 | `terrain_viewer/updates.py` | Updates: `plugins.xml` read, a zip checked and unpacked over the plugin (the panel's Update button) |
 | `terrain_viewer/local_server.py` | The local tile service (installed, or a `server/` folder): started on 127.0.0.1, stopped on unload or when QGIS goes |
 | `terrain_viewer/service_install.py`, `service_pins.json` | The **Install** button: the pinned bundle downloaded through QGIS's network manager, its sha256 checked, unpacked into the plugin's data folder; **Remove** |

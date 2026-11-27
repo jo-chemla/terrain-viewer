@@ -1028,6 +1028,8 @@ check(info and info["version"] == "9.9.9" and info["file_name"] == "terrain_view
       and info["download_url"].endswith("/releases/download/qgis-plugins-test/terrain_viewer-9.9.9.zip") and len(info["sha256"]) == 64,
       f"plugins.xml: the plugin keyed terrain_viewer, its zip on the release, its sha256 ({info and info['file_name']})")
 check(b"@" not in xml.replace(b"https://", b""), "plugins.xml: no email anywhere")
+check(xml.count(b"<experimental>False</experimental>") == 2 and b"<experimental>True" not in xml,
+      "plugins.xml: neither plugin marked experimental (0.12.0: the flag follows metadata.txt)")
 check(updates.parse_plugins_xml(xml, "send2map_app") is not None, "plugins.xml: Send2MapApp listed too")
 data = open(os.path.join(dist, "terrain_viewer-9.9.9.zip"), "rb").read()
 target = os.path.join(plugins_dir, "terrain_viewer")
@@ -1052,6 +1054,8 @@ QgsSettings_().remove("terrain_viewer/updateAvailable")
 QgsSettings_().remove("terrain_viewer/updateCheckedAt")
 _sh.rmtree(up, ignore_errors=True)
 exec(open(os.path.join(here_dir, "panel_buildings_checks.py"), encoding="utf-8").read())  # 0.11.0: the building shadows' buildings
+exec(open(os.path.join(here_dir, "panel_setup_checks.py"), encoding="utf-8").read())  # 0.12.0: Freeze's parameters, a setup saved and loaded
+exec(open(os.path.join(here_dir, "panel_overlay_checks.py"), encoding="utf-8").read())  # 0.12.0: the app's Vector library as QGIS layers
 dock.cleanup()
 
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ")

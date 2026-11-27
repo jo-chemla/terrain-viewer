@@ -9,9 +9,16 @@
   ![The River REM of the lower Mississippi beside Harold Fisk's 1944 meander map](/docs/screenshots/river-rem-mode-fisk.jpg)
 - **A link preview per mode**: a link starting with `/rem/` or `/historical/` shows that mode's own title and picture when shared, and opens the app in that mode.
 - **[Vector overlays](/docs/features/vector-overlays)**: Heritage Watch AI's Wikidata and OpenStreetMap heritage layers are listed by default, Wikidata colored by heritage class; a point size per overlay; a source added from the Library is switched on; Zoom to on terrain and basemap Library entries too.
+- **[QGIS plugin 0.12.0](/docs/dev/qgis-plugin)**: Freeze keeps a working setup with its parameters; Save setup writes it to a folder (the link, a layer definition, GeoTIFFs of the view) and Load setup reads it back. The Vector library adds buildings, heritage and land use as native QGIS layers. The plugin is no longer experimental, and installing from the plugin repository comes first in the docs.
 - **Credits**: the credit line names the sources of every visible view of a split (it named one view's), and the building shadows' source.
 
 #### Details
+
+##### QGIS Plugins
+
+- **0.12.0** (release [`qgis-plugins-2026-11-27`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-27)): `terrain_viewer/setups.py`. Freeze writes each copy's parameters as custom properties and in its abstract; Save setup to folder writes a dated subfolder with `setup.json` (the app's link format and the panel's state, no key), `layers.qlr`, `vectors.gpkg`, and optionally one GeoTIFF per raster layer at the map's pixel size (4096 px at most); Load setup reads `setup.json`. A Vector library select adds the app's entries as native layers styled by category (vector tiles, TileJSON, styles, GeoJSON; PMTiles through GDAL; Overture's through the plugin's local server). `experimental=False`. Both of the maintainer's profiles had the experimental tick under an old key QGIS no longer reads; set under `plugin-manager/allow-experimental`. Known: another plugin on plugins.qgis.org uses the folder name `terrain_viewer` (QGIS 3 merges the two by name; check the author before installing).
+
+##### App, docs
 
 - Mode pages (`b48b480`): `scripts/mode-pages.mjs` and a Vite plugin write `/rem/index.html` and `/historical/index.html` with their own title, description, canonical address, `og:` and `twitter:` tags; a first line in `<head>` puts the address back to `/?appMode=<mode>`, query and hash kept. `public/og/river-rem.jpg` is the default preview image, Twitter card tags added. The deploy takes `SITE_MODE` (a repository variable; `historical` on the mirror), and a host starting with `river-rem.` opens in REM mode.
 - Bookmarks: Mississippi second in Featured with a side-by-side thumbnail; "Rio Purus, Amazon Basin, Brazil" as a REM (`remMax=45`, linear, the terrain there being a canopy surface 25 to 40 m above the water). The docs page opens on the Mississippi and compares terrain sources at Greenville (USGS 3DEP has the cleanest water and is slow; Mapterhorn stays the bookmark's source).
