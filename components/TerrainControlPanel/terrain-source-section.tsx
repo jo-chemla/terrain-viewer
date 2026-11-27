@@ -533,6 +533,7 @@ export const TerrainSourceSection: React.FC<{
         onOpenChange={setIsSampleModalOpen}
         title="Terrain dataset library"
         stacTarget="terrain"
+        onZoomTo={(s) => { void handleFitToBounds(s, true) }}
         // One entry added by its own row (the terrain, or its nDSM) becomes
         // the terrain, as a source from the Add dialog does; a section's
         // "add all" selects nothing. Resolved from the entry itself, as in

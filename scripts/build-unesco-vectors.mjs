@@ -4,7 +4,7 @@
 // dataset-indexes release, see scripts/dataset-assets.mjs):
 //
 //   unesco-world-heritage.geojson             one point per inscribed property
-//   unesco-world-heritage-components.geojson  one point per component of a
+//   unesco-world-heritage-components-compact.geojson  one point per component of a
 //                                             serial property (2 parts or more)
 //
 // Source: the dataset whc001 of UNESCO's open data portal (CC BY-SA 4.0),
@@ -15,10 +15,20 @@
 // component keeps its name, its reference, its property and what colors it);
 // coordinates rounded to 5 decimals (about 1 m); minified.
 //
+// The components file is "compact" GeoJSON (under 1 MB; it was 1.4 MB with
+// every feature spelling out its property): still valid GeoJSON, with short
+// property keys named by a top-level `keys` member ({n: "name", r: "ref",
+// i: "id_no"}) and what the components of one property share (its name, its
+// category, its danger flag) said once in a top-level `shared` member,
+// grouped by id_no. The app puts both back into every feature when it loads
+// the file (expandCompactGeoJSON in lib/vector-sources.ts, the entry's
+// `format: "compact"`), so the card and the colors read full names. Another
+// reader (QGIS) sees the points with n, r and i.
+//
 //   node scripts/build-unesco-vectors.mjs                 from the portal (current list)
 //   node scripts/build-unesco-vectors.mjs <whc001.geojson>  from a downloaded export
 //
-// Then: pnpm datasets:push public/vector/unesco-world-heritage.geojson public/vector/unesco-world-heritage-components.geojson
+// Then: pnpm datasets:push public/vector/unesco-world-heritage.geojson public/vector/unesco-world-heritage-components-compact.geojson
 // and commit datasets.lock.json.
 //
 // The input is data, never code: it is only parsed as JSON.
@@ -61,9 +71,12 @@ export function parseComponents(raw) {
 const valid = (lng, lat) => Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lng === 0 && lat === 0)
 const point = (lng, lat, properties) => ({ type: "Feature", properties, geometry: { type: "Point", coordinates: [round(lng), round(lat)] } })
 
+/** The short keys of a component's properties (see the header). */
+export const COMPONENT_KEYS = { n: "name", r: "ref", i: "id_no" }
+
 /** The two collections of a whc001 export. */
 export function buildUnesco(collection) {
-  const properties = [], components = []
+  const properties = [], components = [], perProperty = {}
   for (const f of collection.features ?? []) {
     const p = f.properties ?? {}
     const id = Number(p.id_no)
@@ -91,12 +104,16 @@ export function buildUnesco(collection) {
       })))
     }
     if (parts.length > 1) {
-      for (const c of parts) components.push(point(c.lng, c.lat, compact({ name: c.name || text(p.name_en), ref: c.ref, id_no: id, property: text(p.name_en), ...shared })))
+      perProperty[id] = compact({ property: text(p.name_en), ...shared })
+      for (const c of parts) components.push(point(c.lng, c.lat, compact({ n: c.name || text(p.name_en), r: c.ref, i: id })))
     }
   }
   properties.sort((a, b) => a.properties.id_no - b.properties.id_no)
-  components.sort((a, b) => a.properties.id_no - b.properties.id_no || String(a.properties.ref).localeCompare(String(b.properties.ref)))
-  return { properties: { type: "FeatureCollection", features: properties }, components: { type: "FeatureCollection", features: components } }
+  components.sort((a, b) => a.properties.i - b.properties.i || String(a.properties.r).localeCompare(String(b.properties.r)))
+  return {
+    properties: { type: "FeatureCollection", features: properties },
+    components: { type: "FeatureCollection", keys: COMPONENT_KEYS, shared: { by: "id_no", values: perProperty }, features: components },
+  }
 }
 
 async function main() {
@@ -110,12 +127,12 @@ async function main() {
   }
   const { properties, components } = buildUnesco(collection)
   await mkdir(OUT, { recursive: true })
-  for (const [name, fc] of [["unesco-world-heritage.geojson", properties], ["unesco-world-heritage-components.geojson", components]]) {
+  for (const [name, fc] of [["unesco-world-heritage.geojson", properties], ["unesco-world-heritage-components-compact.geojson", components]]) {
     const body = JSON.stringify(fc)
     await writeFile(join(OUT, name), body)
     console.log(`${name}: ${fc.features.length} features, ${Math.round(Buffer.byteLength(body) / 1e3)} KB`)
   }
-  const serial = new Set(components.features.map((f) => f.properties.id_no)).size
+  const serial = new Set(components.features.map((f) => f.properties.i)).size
   console.log(`${collection.features.length} records read, ${properties.features.length} properties placed, ${serial} serial properties`)
 }
 

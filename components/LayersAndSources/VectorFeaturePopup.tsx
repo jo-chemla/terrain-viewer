@@ -22,6 +22,8 @@ interface Selected {
   /** The clicked piece: for a polygon, what the tile under the pointer holds of it. */
   geometry: GeoJSON.Geometry
   lngLat: [number, number]
+  /** The radius of the ring around a selected point: wider than the point. */
+  ring: number
 }
 
 /**
@@ -54,12 +56,12 @@ export const VectorFeaturePopup = memo(({ ids }: { ids: string[] }) => {
   // Layer id to the entry it draws: the ids vectorLayerSpecs gives each part
   // (exact ids, so "…-osm" never claims the layers of "…-osm-condition").
   const layerEntries = useMemo(() => {
-    const out = new Map<string, VectorSourceEntry>()
+    const out = new Map<string, { entry: VectorSourceEntry; pointRadius: number }>()
     for (const id of ids) {
       const entry = findVectorSource(id, customs)
       if (!entry || entry.type === "style") continue
       const style = vectorStyleOf(entry, styles[id], shared)
-      for (const part of vectorParts(entry)) for (const l of vectorLayerSpecs(part, style, `vector-overlay-${part.id}`)) out.set(l.id, entry)
+      for (const part of vectorParts(entry)) for (const l of vectorLayerSpecs(part, style, `vector-overlay-${part.id}`)) out.set(l.id, { entry, pointRadius: style.pointRadius })
     }
     return out
   }, [ids, customs, styles, shared])
@@ -88,11 +90,12 @@ export const VectorFeaturePopup = memo(({ ids }: { ids: string[] }) => {
       if (toolActiveRef.current || e.defaultPrevented) return
       const f = hit(e)
       if (!f) { setSelected(null); return }
-      const entry = layerEntriesRef.current.get(f.layer.id)
-      if (!entry) return
+      const found = layerEntriesRef.current.get(f.layer.id)
+      if (!found) return
+      const { entry } = found
       // A point's card sits on the point; a shape's, where it was clicked.
       const at: [number, number] = f.geometry.type === "Point" ? [f.geometry.coordinates[0], f.geometry.coordinates[1]] : [e.lngLat.lng, e.lngLat.lat]
-      setSelected({ entry, properties: (f.properties ?? {}) as FeatureProperties, geometry: f.geometry, lngLat: at })
+      setSelected({ entry, properties: (f.properties ?? {}) as FeatureProperties, geometry: f.geometry, lngLat: at, ring: Math.max(9, found.pointRadius + 3) })
     }
     // The pointer says a feature is clickable. Checked once a frame at most,
     // and written only on a change so a tool's own cursor survives.
@@ -137,7 +140,7 @@ export const VectorFeaturePopup = memo(({ ids }: { ids: string[] }) => {
           layout={{ "line-join": "round", "line-cap": "round" }} paint={{ "line-color": HIGHLIGHT, "line-width": 3, "line-opacity": 0.95 }} />
         <Layer id="vector-feature-selected-point" type="circle" beforeId={LAYER_SLOTS.VECTOR_OVERLAYS}
           filter={["match", ["geometry-type"], ["Point", "MultiPoint"], true, false]}
-          paint={{ "circle-radius": 9, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": HIGHLIGHT, "circle-stroke-width": 3 }} />
+          paint={{ "circle-radius": selected.ring, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": HIGHLIGHT, "circle-stroke-width": 3 }} />
       </Source>
       <Popup longitude={selected.lngLat[0]} latitude={selected.lngLat[1]} onClose={() => setSelected(null)} closeOnClick={false}
         offset={kind === "Point" || kind === "MultiPoint" ? 12 : 4} maxWidth="min(20rem, calc(100vw - 2rem))" className="vector-feature-popup">

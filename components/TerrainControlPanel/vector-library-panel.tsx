@@ -3,19 +3,23 @@
 // (SAMPLE_VECTOR_SOURCES, lib/vector-sources.ts) by group, with the same
 // header, tabs, search and rows as the Terrain and Basemap tabs. A row's plus
 // lists the source under Vector overlays in the sidebar, where it is switched
-// on per view; a listed row also offers Zoom to.
+// on per view. Adding one row also switches it on in the current view (the
+// selected view of a split with per-view basemaps, else view A, which every
+// view follows); removing switches it off everywhere. A row with a place to
+// go offers Zoom to.
 //
 // Unlike the two tile libraries, this list belongs to no sidebar section: it
 // reads and writes atoms only, so the host renders it directly.
 import type React from "react"
 import { useMemo, useState } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import type { MapRef } from "react-map-gl/maplibre"
 import { ChevronDown, ExternalLink, Maximize2, Minus, Plus, Search, Shapes } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
-import { libraryQueryAtom, vectorLibraryIdsAtom } from "@/lib/settings-atoms"
+import { activeViewAtom, libraryQueryAtom, vectorLibraryIdsAtom } from "@/lib/settings-atoms"
+import { VIEW_IDS, type ViewId } from "@/lib/grid-layouts"
 import { searchLibrary } from "@/lib/library-search"
 import type { VectorSourceEntry } from "@/lib/source-schema"
 import { VECTOR_LIBRARY, vectorLibraryGroups, vectorSearchText, vectorZoomTarget } from "@/lib/vector-sources"
@@ -35,8 +39,12 @@ export function zoomToVectorSource(map: MapRef | null | undefined, entry: Vector
   return true
 }
 
-export const VectorLibraryPanel: React.FC<{ mapRef: React.RefObject<MapRef | null>; terrainTab?: boolean }> = ({ mapRef, terrainTab = true }) => {
+/** The URL field of a view's vector overlays. */
+export const vectorOverlayField = (side: ViewId) => (side === "A" ? "vectorOverlayIds" : `vectorOverlayIds${side}`)
+
+export const VectorLibraryPanel: React.FC<{ mapRef: React.RefObject<MapRef | null>; terrainTab?: boolean; state?: any; setState?: (updates: any) => void }> = ({ mapRef, terrainTab = true, state, setState }) => {
   const [listed, setListed] = useAtom(vectorLibraryIdsAtom)
+  const activeView = useAtomValue(activeViewAtom)
   const [query, setQuery] = useAtom(libraryQueryAtom)
   const q = query.trim().toLowerCase()
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
@@ -44,8 +52,27 @@ export const VectorLibraryPanel: React.FC<{ mapRef: React.RefObject<MapRef | nul
   const present = useMemo(() => new Set(listed), [listed])
   const matches = useMemo(() => searchLibrary(VECTOR_LIBRARY, vectorSearchText, q), [q])
   const groups = useMemo(() => vectorLibraryGroups(matches), [matches])
-  const add = (rows: readonly VectorSourceEntry[]) => setListed((prev) => [...prev, ...rows.map((s) => s.id).filter((id) => !prev.includes(id))])
-  const remove = (rows: readonly VectorSourceEntry[]) => setListed((prev) => prev.filter((id) => !rows.some((s) => s.id === id)))
+  const idsOf = (side: ViewId): string[] => state?.[vectorOverlayField(side)] || []
+  // One row added: listed and switched on in the current view. A whole group
+  // (the header's plus) is only listed: land cover over buildings over
+  // heritage at once is nobody's intent.
+  const add = (rows: readonly VectorSourceEntry[], show = false) => {
+    setListed((prev) => [...prev, ...rows.map((s) => s.id).filter((id) => !prev.includes(id))])
+    if (!show || !state || !setState) return
+    const side: ViewId = state.basemapPerView && state.splitStyle !== "off" ? activeView ?? "A" : "A"
+    const missing = rows.map((s) => s.id).filter((id) => !idsOf(side).includes(id))
+    if (missing.length) setState({ [vectorOverlayField(side)]: [...idsOf(side), ...missing] })
+  }
+  // Off the list and off every view: a source a view still shows stays
+  // listed, so the minus would otherwise seem to do nothing.
+  const remove = (rows: readonly VectorSourceEntry[]) => {
+    setListed((prev) => prev.filter((id) => !rows.some((s) => s.id === id)))
+    if (!state || !setState) return
+    const gone = new Set(rows.map((s) => s.id))
+    const updates: Record<string, string[]> = {}
+    for (const side of VIEW_IDS) if (idsOf(side).some((id) => gone.has(id))) updates[vectorOverlayField(side)] = idsOf(side).filter((id) => !gone.has(id))
+    if (Object.keys(updates).length) setState(updates)
+  }
   const loadedCount = VECTOR_LIBRARY.filter((s) => present.has(s.id)).length
 
   return (
@@ -55,7 +82,7 @@ export const VectorLibraryPanel: React.FC<{ mapRef: React.RefObject<MapRef | nul
           Vector library <CopyModalLinkButton param="openLibrary" value="vector" label="the Vector library" />
         </h2>
         <p id="library-dialog-description" data-slot="dialog-description" className="text-muted-foreground min-w-0 text-sm break-words">
-          {loadedCount} of {VECTOR_LIBRARY.length} in your list. Add one to list it under Vector overlays, where it is switched on per view.
+          {loadedCount} of {VECTOR_LIBRARY.length} in your list. Add one to list it under Vector overlays and switch it on in the current view.
         </p>
       </div>
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2 min-w-0">
@@ -84,7 +111,7 @@ export const VectorLibraryPanel: React.FC<{ mapRef: React.RefObject<MapRef | nul
                     </span>
                   </CollapsibleTrigger>
                   <span className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Add every source in this group" disabled={loaded === g.rows.length} onClick={() => add(g.rows)}>
+                    <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Add every source in this group to your list (not switched on)" disabled={loaded === g.rows.length} onClick={() => add(g.rows)}>
                       <Plus className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="icon-sm" className="cursor-pointer h-7 w-7" title="Remove every source in this group" disabled={loaded === 0} onClick={() => remove(g.rows)}>
@@ -115,7 +142,7 @@ export const VectorLibraryPanel: React.FC<{ mapRef: React.RefObject<MapRef | nul
                               <ExternalLink className="h-3.5 w-3.5" />
                             </a>
                           )}
-                          {on && canZoom && (
+                          {canZoom && (
                             <Button variant="outline" size="icon-sm" className="cursor-pointer shrink-0" aria-label={`Zoom to ${s.name}`}
                               title={s.bounds ? "Zoom to this source's extent" : "Zoom to a place that shows this source"}
                               onClick={() => zoomToVectorSource(mapRef.current, s)}>
@@ -124,8 +151,8 @@ export const VectorLibraryPanel: React.FC<{ mapRef: React.RefObject<MapRef | nul
                           )}
                           <Button variant={on ? "outline" : "secondary"} size="icon-sm" className="cursor-pointer shrink-0"
                             aria-label={on ? `Remove ${s.name}` : `Add ${s.name}`}
-                            title={on ? "Remove from your Vector overlays list" : "Add to your Vector overlays list"}
-                            onClick={() => (on ? remove([s]) : add([s]))}>
+                            title={on ? "Remove from your Vector overlays list, and from the views showing it" : "Add to your Vector overlays list and switch it on"}
+                            onClick={() => (on ? remove([s]) : add([s], true))}>
                             {on ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                           </Button>
                         </div>

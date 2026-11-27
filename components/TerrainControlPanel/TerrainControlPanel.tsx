@@ -889,7 +889,7 @@ export function TerrainControlPanel({
             <DataLayersModal open={isDataLayersOpen} onOpenChange={setIsDataLayersOpen} state={state} setState={setState} />
             <SettingsDialog isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen} state={state} setState={setState} historicalMode={historicalMode}/>
             {/* The one Library dialog the libraries render into (sample-sources-modal.tsx); the Vector tab is its child. */}
-            <LibraryDialogHost><VectorLibraryPanel mapRef={mapRef} terrainTab={!historicalMode} /></LibraryDialogHost>
+            <LibraryDialogHost><VectorLibraryPanel mapRef={mapRef} terrainTab={!historicalMode} state={state} setState={setState} /></LibraryDialogHost>
             {isBottomSheet ? (
               <TooltipIconButton
                 icon={isSidebarOpen ? PanelBottomClose : PanelBottomOpen}

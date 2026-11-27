@@ -1,7 +1,7 @@
 import type React from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, ArrowRight, Waves, ExternalLink, Search, Library, Layers2, Mountain, Shapes, Map as MapIcon, type LucideIcon } from "lucide-react"
+import { Plus, Minus, ChevronDown, ArrowUp, ArrowDown, ArrowRight, Waves, ExternalLink, Search, Library, Layers2, Maximize2, Mountain, Shapes, Map as MapIcon, type LucideIcon } from "lucide-react"
 import { STAC_PRESETS } from "@/lib/stac-presets"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { disabledStacPresetsAtom, savedStacCatalogsAtom, libraryQueryAtom, terrainLibraryOpenAtom, basemapLibraryOpenAtom, vectorLibraryOpenAtom, libraryDialogHostAtom, libraryMountedAtom, type LibraryStacLink, type LibraryBrowseEntry } from "@/lib/settings-atoms"
@@ -187,6 +187,12 @@ const VERDICT_STYLE: Record<MapterhornVerdict, { label: string; className: strin
   coarser: { label: "Coarser", className: "bg-orange-500/15 text-orange-700 dark:text-orange-300", title: "Mapterhorn ingested finer data" },
 }
 
+/** Whether declared bounds are an extent to zoom to: four numbers, smaller
+ *  than the world (the test of the Vector tab's vectorZoomTarget). */
+export function hasExtent(b?: readonly number[] | null): b is [number, number, number, number] {
+  return !!b && b.length === 4 && b.every(Number.isFinite) && (b[2] - b[0] < 300 || b[3] - b[1] < 140)
+}
+
 /** Width and height of a declared bounds box in km, or null. */
 function extentKm(bounds?: [number, number, number, number]): { x: number; y: number } | null {
   if (!bounds || bounds.length !== 4) return null
@@ -300,8 +306,11 @@ export function LibraryDialogHost({ children }: { children?: React.ReactNode }) 
  */
 export function SampleSourcesModal<T extends SampleLike>({
   open, title, samples, current, setCurrent, compareToMapterhorn = false,
-  stacTarget, onBrowseStac, onAdded, browseOnly = [], terrainTabAvailable = true,
+  stacTarget, onBrowseStac, onAdded, browseOnly = [], terrainTabAvailable = true, onZoomTo,
 }: {
+  /** Moves the map to a row's extent: rows that state bounds smaller than
+   *  the world get a Zoom to button, as the Vector tab's rows do. */
+  onZoomTo?: (source: T) => void
   open: boolean
   /** Unused since the two libraries share one dialog (LibraryDialogHost),
    *  which closes both; kept so a caller may still pass its setter. */
@@ -554,6 +563,12 @@ export function SampleSourcesModal<T extends SampleLike>({
             title={onBrowseStac ? browseTitle(s.stac) : "Catalog search is not available here"}
             onClick={() => onBrowseStac?.(s.stac!.preset, { collection: s.stac!.collection, search: true })}>
             <Search className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Browse</span>
+          </Button>
+        )}
+        {!browseOnlyRow && onZoomTo && hasExtent(s.bounds) && (
+          <Button variant="outline" size="icon-sm" className="cursor-pointer shrink-0" aria-label={`Zoom to ${s.name}`}
+            title="Zoom to this source's extent" onClick={() => onZoomTo(s)}>
+            <Maximize2 className="h-4 w-4" />
           </Button>
         )}
         {!browseOnlyRow && (

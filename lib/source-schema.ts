@@ -241,6 +241,10 @@ export interface VectorCategory {
   color: string
   field: string
   value?: string | string[]
+  /** The property is a list joined by this separator ("," for Wikidata's
+   *  class ids, "Q839954,Q852190"): the feature matches when one of `value`
+   *  is an item of the list. */
+  separator?: string
 }
 
 /** A link of a feature's card to where the feature comes from. */
@@ -266,7 +270,13 @@ export interface VectorPopup {
   /** Properties tried in turn for a second line under the title. */
   subtitle?: string[]
   /** The rows shown first, in this order, each with its label. */
-  fields?: { field: string; label?: string; suffix?: string }[]
+  fields?: { field: string; label?: string; suffix?: string
+    /** Codes to words: the value (or, with `separator`, each item of the
+     *  list it is) is shown as its label here. With `separator`, items
+     *  without a label are left out (Wikidata's class ids); without it, a
+     *  value without a label shows as it is. */
+    values?: Record<string, string>
+    separator?: string }[]
   /** Properties never listed (ids already behind a link, internal numbers). */
   hide?: string[]
   /** false: only `fields` are listed, not the feature's other properties. */
@@ -331,8 +341,10 @@ export interface VectorSourceEntry extends SourceEntryBase {
    *  (default true; false for a mosaic of classes, land cover). */
   outline?: boolean
   /** "geojson" only: the file is KML or GPX, converted in the browser
-   *  (lib/remote-vector.ts) before it is drawn. */
-  format?: "kml" | "gpx"
+   *  (lib/remote-vector.ts) before it is drawn; or "compact", a GeoJSON
+   *  file with short property keys and the values its features share
+   *  factored out, put back by expandCompactGeoJSON (lib/vector-sources.ts). */
+  format?: "kml" | "gpx" | "compact"
   /** Where "Zoom to" goes for a worldwide source: a place that shows it well. */
   sample?: { lng: number; lat: number; zoom: number }
   /** The card of a clicked feature. */
