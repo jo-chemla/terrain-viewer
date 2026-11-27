@@ -382,7 +382,7 @@ export const LightingEffectsOptionsSection: React.FC<{
           )}
           <CheckboxWithSlider perView={perViewFor("showBuildingShadows")}
             id="lighting-building-shadows"
-            label="Buildings"
+            label="Buildings (Vector shadows)"
             tooltip="Shadows cast by buildings, from the footprints and heights of a vector source: OpenStreetMap through OpenFreeMap by default (OSM height or levels), Overture Maps, or a source of your own with a height field. Drawn on flat ground at each building's foot: fast, recomputed when the map settles, from zoom 13. Draped over 3D terrain but not bent by it. Same light as terrain shadows."
             checked={state.showBuildingShadows}
             onCheckedChange={(checked) => setState({ showBuildingShadows: checked })}

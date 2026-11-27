@@ -417,14 +417,20 @@ export const ComparisonMixSection: React.FC<{
                         {row.map((side: ViewId) => side === "B" && tintedComposite ? (
                           // Not a picker while the composite sets it: the
                           // stored color is kept for when the mode is off.
-                          <span
-                            key={side}
-                            role="img"
-                            aria-label="View B color, set by the two-date composite"
-                            title="View B color: the opposite of A's while the two-date composite is on"
-                            className="h-6 w-6 shrink-0 cursor-not-allowed bg-[repeating-linear-gradient(135deg,transparent_0_4px,rgba(255,255,255,0.45)_4px_5px)]"
-                            style={{ backgroundColor: effectiveSideColor("B", sideColorOverrides, true) }}
-                          />
+                          // A span, not a disabled button: a disabled
+                          // button gets no pointer events, so no tooltip.
+                          <Tooltip key={side}>
+                            <TooltipTrigger render={
+                              <span
+                                role="img"
+                                tabIndex={0}
+                                aria-label="View B color, set by the two-date composite"
+                                className="block h-6 w-6 shrink-0 cursor-not-allowed bg-[repeating-linear-gradient(135deg,transparent_0_4px,rgba(255,255,255,0.45)_4px_5px)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                                style={{ backgroundColor: effectiveSideColor("B", sideColorOverrides, true) }}
+                              />
+                            } />
+                            <TooltipContent className="max-w-60"><p>View B's color is locked: it is the opposite of A's while the two-date composite is on. Your own color comes back when the composite is switched off.</p></TooltipContent>
+                          </Tooltip>
                         ) : (
                           <ColorAlphaSwatch
                             key={side}
