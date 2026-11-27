@@ -307,12 +307,46 @@ test("OCS GE: IGN's own colors, one per code; both vintages; the entry renamed k
   assert.equal(cover.categories!.length, 14)
   assert.equal(use.categories!.length, 20)
   const colorOf = (e: typeof cover, code: string) => e.categories!.find((c) => c.value === code)!.color
-  // From the Géoplateforme's style files (ocsge_couverture.json, ocsge_usage.json).
+  // Every code, its name and its color (R, G, B) as IGN's content description
+  // gives them: "OCS GE NG, Descriptif de contenu", revision of June 2026,
+  // section 5.1 (class OCCUPATION_SOL), column RVB,
+  // https://data.geopf.fr/annexes/ressources/documentation/DC_OCSGE_NG.pdf.
+  // The Géoplateforme's style files agree on all 34 colors
+  // (https://data.geopf.fr/annexes/ressources/vectorTiles/styles/OCSGE/ocsge_couverture.json
+  // and ocsge_usage.json); the names are the document's, which the usage
+  // style file only has as layer ids. Compared 2026-11-27.
+  const OFFICIAL: [string, string, number, number, number][] = [
+    ["CS1.1.1.1", "Zones bâties", 255, 55, 122], ["CS1.1.1.2", "Zones non bâties", 255, 145, 145],
+    ["CS1.1.2.1", "Zones à matériaux minéraux", 255, 255, 153], ["CS1.1.2.2", "Zones à autres matériaux composites", 166, 77, 0],
+    ["CS1.2.1", "Sols nus", 204, 204, 204], ["CS1.2.2", "Surfaces d'eau", 0, 204, 242], ["CS1.2.3", "Névés et glaciers", 166, 230, 204],
+    ["CS2.1.1.1", "Peuplements de feuillus", 128, 255, 0], ["CS2.1.1.2", "Peuplements de conifères", 0, 166, 0], ["CS2.1.1.3", "Peuplements mixtes", 128, 190, 0],
+    ["CS2.1.2", "Formations arbustives et sous-arbrisseaux", 166, 255, 128], ["CS2.1.3", "Autres formations ligneuses", 230, 128, 0],
+    ["CS2.2.1", "Formations herbacées", 204, 242, 77], ["CS2.2.2", "Autres formations non ligneuses", 204, 255, 204],
+    ["US1.1", "Agriculture", 255, 255, 168], ["US1.2", "Sylviculture", 0, 128, 0], ["US1.3", "Activités d'extraction", 166, 0, 204],
+    ["US1.4", "Pêche et aquaculture", 0, 0, 153], ["US1.5", "Autres productions primaires", 153, 102, 51],
+    ["US2", "Production secondaire", 229, 229, 229], ["US3", "Production tertiaire", 255, 140, 0], ["US235", "Usage mixte", 230, 0, 77],
+    ["US4.1.1", "Réseaux routiers", 204, 0, 0], ["US4.1.2", "Réseaux ferrés", 90, 90, 90], ["US4.1.3", "Réseaux aériens", 230, 204, 230],
+    ["US4.1.4", "Réseaux de transport fluvial et maritime", 0, 102, 255], ["US4.1.5", "Autres réseaux de transport", 102, 0, 51],
+    ["US4.2", "Services de logistique et de stockage", 255, 0, 0], ["US4.3", "Réseaux d'utilité publique", 255, 75, 0],
+    ["US5", "Usage résidentiel", 190, 9, 97], ["US6.1", "Zones en transition", 255, 77, 255], ["US6.2", "Zones abandonnées", 64, 64, 64],
+    ["US6.3", "Sans usage", 240, 240, 40], ["US6.6", "Usage inconnu", 255, 204, 0],
+  ]
+  const hex = (r: number, g: number, b: number) => "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")
+  assert.equal(OFFICIAL.length, 34)
+  for (const [code, label, r, g, b] of OFFICIAL) {
+    const e = code.startsWith("CS") ? cover : use
+    const row = e.categories!.find((c) => c.value === code)
+    assert.ok(row, code)
+    assert.equal(row!.color, hex(r, g, b), code)
+    assert.equal(row!.label, label, code)
+    // The feature card names a code the same way, in both entries.
+    for (const entry of [cover, use]) {
+      const field = entry.popup!.fields!.find((x) => x.field === (code.startsWith("CS") ? "code_cs" : "code_us"))!
+      assert.equal((field.values as Record<string, string>)[code], `${label} (${code})`, `${entry.id} ${code}`)
+    }
+  }
   assert.equal(colorOf(cover, "CS1.1.1.1"), "#ff377a")
-  assert.equal(colorOf(cover, "CS1.1.2.2"), "#a64d00")
-  assert.equal(colorOf(cover, "CS2.2.2"), "#ccffcc")
   assert.equal(colorOf(use, "US235"), "#e6004d")
-  assert.equal(colorOf(use, "US4.1.4"), "#0066ff")
   for (const e of [cover, use]) {
     const old = findVectorSource(`${e.id}-2017-2020`)!
     assert.equal(old.url, e.url.replace("2021-2023", "2017-2020"))
