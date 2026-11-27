@@ -4203,6 +4203,11 @@
       "key": "bookmarksUrl",
       "type": "string",
       "note": "A bookmarks JSON (the Bookmarks section's export format) fetched and merged into the visitor's bookmarks; pair with openSections=bookmarks."
+    },
+    {
+      "key": "view",
+      "type": "string",
+      "note": "at/<did or handle>/<rkey> - a saved view: one public record (com.iconem.terrainviewer.view) in its author's AT Protocol repository, read without an account; the address then becomes the full link the record stands for."
     }
   ],
   "atoms": [
@@ -4659,7 +4664,7 @@
     {
       "file": "lib/settings-atoms.ts",
       "key": "betaEnabled",
-      "default": "{ tells: false, georef: false }",
+      "default": "{ tells: false, georef: false, atproto: false }",
       "note": "The beta gates."
     },
     {

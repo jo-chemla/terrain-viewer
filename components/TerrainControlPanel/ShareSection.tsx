@@ -1,9 +1,9 @@
 import type React from "react"
-import { useState, useCallback, useRef, useMemo, useEffect } from "react"
+import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from "react"
 import { Share2, Check, ImageIcon, Loader2, Link, Scissors, AlertCircle, PanelRight, Code, Globe, Info, Layers } from "lucide-react"
 import { track } from "@/lib/analytics"
 import { useAtom, useAtomValue } from "jotai"
-import { customTerrainSourcesAtom, customBasemapSourcesAtom, tileServerUrlAtom } from "@/lib/settings-atoms"
+import { customTerrainSourcesAtom, customBasemapSourcesAtom, tileServerUrlAtom, atprotoBetaEnabledAtom } from "@/lib/settings-atoms"
 import { makePortableShareUrl, type PortableResult } from "@/lib/portable-share-url"
 // Same import-cycle shape as product-tour.tsx's — established/working here.
 import { sectionOpenAtom, DEFAULT_OPEN_STATE } from "./TerrainControlPanel"
@@ -28,6 +28,13 @@ import { FaLinkedin } from "react-icons/fa6";
 import { TooltipButton } from "./controls-components"
 import { captureMapScreenshot, copyBlobToClipboard } from "@/lib/controls-utils"
 import { pushToast } from "@/components/ui/toast"
+
+// The "Save view" box (beta): its code, and the AT Protocol client behind
+// it, load when the box is first shown.
+const SavedViewPanel = lazy(() => import("./SavedViewPanel"))
+// Written by lib/view-sharing.ts when a sign-in completes, before the app
+// starts: the dialog opens itself again on the way back.
+const REOPEN_SHARE_KEY = "tv-atproto-reopen-share"
 
 // ── config — swap these for your self-hosted Zipline or Dub.co instance ──────
 
@@ -550,6 +557,7 @@ const ShareModal: React.FC<{
     [rawPageUrl, customTerrainSources, customBasemapSources, open],
   )
   const pageUrl = portableEnabled ? portable.url : rawPageUrl
+  const atprotoBeta = useAtomValue(atprotoBetaEnabledAtom)
 
   const platformUrls = useMemo(() => {
     // If we have a short URL, use it for intent links; otherwise fall back to pageUrl
@@ -736,6 +744,12 @@ const ShareModal: React.FC<{
 
         <PortableSourcesToggle enabled={portableEnabled} onChange={handlePortableToggle} result={portable} />
 
+        {atprotoBeta && open && (
+          <Suspense fallback={null}>
+            <SavedViewPanel pageUrl={pageUrl} getSnapshot={getOrCreateBlob} />
+          </Suspense>
+        )}
+
         {/* ── Shorten toggle (top of modal body) ── */}
         {/* <ShortenToggle
           enabled={shortenEnabled}
@@ -869,6 +883,16 @@ export const ShareButton: React.FC<{
   mapRef?: React.RefObject<any>
 }> = ({ mapRef }) => {
   const [open, setOpen] = useState(false)
+  // Back from an AT Protocol sign-in started in this dialog: open it again.
+  const atprotoBeta = useAtomValue(atprotoBetaEnabledAtom)
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(REOPEN_SHARE_KEY) !== "1") return
+      sessionStorage.removeItem(REOPEN_SHARE_KEY)
+      if (atprotoBeta) setOpen(true)
+    } catch { /* storage blocked */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <>

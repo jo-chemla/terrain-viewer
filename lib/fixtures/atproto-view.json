@@ -1,0 +1,33 @@
+{
+  "_comment": "Responses for lib/atproto-view.test.ts. The identity answers (PLC document, handle resolution, DNS-over-HTTPS) and the two error bodies were recorded on 2026-11-27 from plc.directory, public.api.bsky.app, cloudflare-dns.com and a bsky.network PDS, for the public account of Bluesky itself (bsky.app). The view record is in the shape com.atproto.repo.getRecord answers with, but written by hand: no record of com.iconem.terrainviewer.view existed when the test was written.",
+  "did": "did:plc:z72i7hdynmk6r22z27h6tvur",
+  "pds": "https://puffball.us-east.host.bsky.network",
+  "plcDocument": {"@context":["https://www.w3.org/ns/did/v1","https://w3id.org/security/multikey/v1","https://w3id.org/security/suites/secp256k1-2019/v1"],"id":"did:plc:z72i7hdynmk6r22z27h6tvur","alsoKnownAs":["at://bsky.app"],"verificationMethod":[{"id":"did:plc:z72i7hdynmk6r22z27h6tvur#atproto","type":"Multikey","controller":"did:plc:z72i7hdynmk6r22z27h6tvur","publicKeyMultibase":"zQ3shQo6TF2moaqMTrUZEM1jeuYRQXeHEx4evX9751y2qPqRA"}],"service":[{"id":"#atproto_pds","type":"AtprotoPersonalDataServer","serviceEndpoint":"https://puffball.us-east.host.bsky.network"}]},
+  "plcNotFound": {"status": 404, "body": {"message":"DID not registered: did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"}},
+  "resolveHandle": {"did":"did:plc:z72i7hdynmk6r22z27h6tvur"},
+  "resolveHandleNotFound": {"status": 400, "body": {"error":"InvalidRequest","message":"Unable to resolve handle"}},
+  "doh": {"Status":0,"TC":false,"RD":true,"RA":true,"AD":false,"CD":false,"Question":[{"name":"_atproto.bsky.app","type":16}],"Answer":[{"name":"_atproto.bsky.app","type":16,"TTL":300,"data":"\"did=did:plc:z72i7hdynmk6r22z27h6tvur\""}]},
+  "recordNotFound": {"status": 400, "body": {"error":"RecordNotFound","message":"Could not locate record: at://did:plc:z72i7hdynmk6r22z27h6tvur/com.iconem.terrainviewer.view/3lzzzzzzzzzz2"}},
+  "getRecord": {
+    "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/com.iconem.terrainviewer.view/3m7abcdefgh2k",
+    "cid": "bafyreicqaekplqmmk224coiwc7ar22zzvydex2dbxsjflrmbkjupx2rndm",
+    "value": {
+      "$type": "com.iconem.terrainviewer.view",
+      "title": "Mont Blanc, slope over hillshade",
+      "createdAt": "2026-11-27T10:00:00.000Z",
+      "schemaVersion": 1,
+      "appVersion": "d4c869f",
+      "site": "terrain-viewer.iconem.com",
+      "params": {
+        "zoom": "12.4",
+        "lat": "45.8326",
+        "lng": "6.8652",
+        "pitch": "60",
+        "sourceA": "mapterhorn",
+        "showSlope": "true",
+        "planetKey": "must-never-be-applied"
+      },
+      "thumbnail": {"$type":"blob","ref":{"$link":"bafkreihwihm6kpd6zuwhhlro75p5qks5qtrcu55jp3gddbfjsieiv7wuka"},"mimeType":"image/jpeg","size":142000}
+    }
+  }
+}

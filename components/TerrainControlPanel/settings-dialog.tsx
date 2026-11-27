@@ -22,7 +22,7 @@ import {
   mapboxKeyAtom, googleKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, planetAccessTokenAtom, cesiumIonKeyAtom, sentinelHubInstanceIdAtom, cesiumDetailOffsetAtom, titilerEndpointAtom, tileServerUrlAtom, glihtBaseUrlAtom,
   useCogProtocolVsTitilerAtom, transparentUiAtom, highResTerrainAtom,
   useClientExportAtom, customTerrainSourcesAtom, customBasemapSourcesAtom, cacheVizTilesAtom, nativeTerrainDrapeAtom, geHiDpiTilesAtom,
-  customThemesAtom,
+  customThemesAtom, atprotoBetaEnabledAtom,
   isSettingsAppearanceOpenAtom, isSettingsKeyboardShortcutsOpenAtom, isSettingsVisualizationModesOpenAtom,
   isSettingsStreamingOpenAtom, isSettingsStoragePersistenceOpenAtom, isSettingsBetaOpenAtom,
   isSettingsApiKeysOpenAtom, isSettingsMapBoundsOpenAtom,
@@ -358,6 +358,7 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
   // PrimitiveAtom<boolean>-shaped view onto one field of the single coalesced
   // "settingsSectionsOpen" atom (see lib/settings-atoms.ts's booleanField).
   const [isWhatsNewOpen, setIsWhatsNewOpen] = useAtom(isSettingsWhatsNewOpenAtom)
+  const [atprotoBeta, setAtprotoBeta] = useAtom(atprotoBetaEnabledAtom)
   const [isAppearanceOpen, setIsAppearanceOpen] = useAtom(isSettingsAppearanceOpenAtom)
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useAtom(isSettingsKeyboardShortcutsOpenAtom)
   const [isVisualizationModesOpen, setIsVisualizationModesOpen] = useAtom(isSettingsVisualizationModesOpenAtom)
@@ -1122,6 +1123,30 @@ export const SettingsDialog: React.FC<{ isOpen: boolean; onOpenChange: (open: bo
                 point pairs clicked on the image and on the map (Tools section), then
                 keep it as a basemap overlay. Local images are stored with the
                 persisted local files below.
+              </p>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold">Saved views, short links (AT Protocol)</h4>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="atproto-beta" className="text-xs font-normal text-muted-foreground">Beta</Label>
+                  <Switch
+                    id="atproto-beta"
+                    checked={atprotoBeta}
+                    className="cursor-pointer"
+                    onCheckedChange={(checked) => setAtprotoBeta(checked)}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Adds <span className="font-semibold text-foreground">Save view</span> to the Share
+                dialog: sign in with a Bluesky or other AT Protocol account, and the current view is
+                written as one public record of your own account, with a short link
+                (<code>?view=at/…</code>) that anyone opens without signing in. No server of this
+                app is involved; API keys are never part of the record.
               </p>
             </div>
 
