@@ -458,13 +458,21 @@ export function isHistoricalHostname(hostname: string): boolean {
   return HISTORICAL_HOSTNAME_RE.test(hostname)
 }
 
+// The same idea for the River REM mode: a host whose name starts with
+// "river-rem." (river-rem.iconem.com, wherever it is pointed) opens in that
+// mode when the link names none. Only the app's default: the link preview
+// of such a host is whatever page it serves (see scripts/mode-pages.mjs).
+export function isRemHostname(hostname: string): boolean {
+  return /^river-rem./.test(hostname)
+}
+
 // Real deploys of this app (as opposed to local dev, a fork, or a preview
 // URL) — used by the favicon swap (index.html's inline script AND the
 // appMode-reactive effect in TerrainViewer.tsx) to pick the blue/purple
 // color half of the icon, independently of isHistoricalHostname's own
 // mountain-vs-clock SHAPE decision above.
 export function isProdHostname(hostname: string): boolean {
-  return hostname === "terrain-viewer.iconem.com" || hostname === "jo-chemla.github.io" || isHistoricalHostname(hostname)
+  return hostname === "terrain-viewer.iconem.com" || hostname === "jo-chemla.github.io" || isHistoricalHostname(hostname) || hostname === "river-rem.iconem.com"
 }
 
 export const transparentUiAtom = atomWithStorage("isTransparentUi", true)

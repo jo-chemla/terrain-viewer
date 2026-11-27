@@ -4,7 +4,7 @@ icon: MountainSnow
 description: Height above the river, live in the browser - the River REM app mode, and Iconem's companion River-REM app
 ---
 
-<OpenInApp href="/?appMode=rem&viewMode=2d&lat=46.46&lng=3.32&zoom=12.2">Open the River REM mode on the Allier, upstream of Moulins</OpenInApp>
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.15&lng=-91.13&zoom=10.4&remRiver=named&remRiverName=Mississippi+River&splitStyle=side-by-side&showRasterBasemap=true&basemapPerView=true&overlayBasemapIdsB=custom-basemap-allmaps-ac79c53138d6b057&overlaysStack=top&showHillshade=false">Open the River REM mode on the Mississippi, beside Harold Fisk's 1944 map</OpenInApp>
 
 <LinkButtons quiet links={[
   { href: "https://github.com/Iconem/RiverREM_UI", label: "Our original implementation: Iconem RiverREM_UI", icon: "release" },
@@ -20,6 +20,24 @@ The **River REM mode** computes one live, in the browser, from whatever terrain 
 
 ## Places to try
 
+**The lower Mississippi at Greenville, beside Harold Fisk's 1944 map.** The **Mississippi at Greenville** entry of the sidebar's **Featured bookmarks**: the view split in two, the REM on the left and the same REM under Fisk's sheet on the right, cameras tied. The meander scars the REM shows from lidar are the former courses Fisk colored by hand eighty years earlier.
+
+![The River REM of the lower Mississippi beside Harold Fisk's 1944 meander map: the scars the REM shows are the former courses Fisk colored](/screenshots/river-rem-mode-fisk.jpg)
+
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.15&lng=-91.13&zoom=10.4&remRiver=named&remRiverName=Mississippi+River&splitStyle=side-by-side&showRasterBasemap=true&basemapPerView=true&overlayBasemapIdsB=custom-basemap-allmaps-ac79c53138d6b057&overlaysStack=top&showHillshade=false">Open the REM beside Fisk's 1944 meander map</OpenInApp>
+
+In 1944 Harold Fisk drew, for the US Army Corps of Engineers, every former course of the lower Mississippi he could reconstruct from air photographs, borings and old surveys: plate 22 of his *Geological Investigation of the Alluvial Valley of the Lower Mississippi River*, each age of channel in its own color. The scrolls and cut-offs he traced by hand are the ones a REM shows from lidar eighty years later.
+
+Two sheets of the plate are in the **Basemap Library** (search for *Fisk*), georeferenced in [Allmaps](https://allmaps.org) and drawn by the app's [old-map overlays](/features/historical-imagery): Greenville to Lake Providence, and Rosedale to Greenville.
+
+Lower the overlays' opacity (Basemaps and Overlays section) to see the REM through the paper. The sheet was placed with three control points: expect it to be off by a few hundred metres at its edges, and the river itself has moved since 1944. Any other georeferenced map works the same way: paste an Allmaps annotation or a David Rumsey sheet's address in **Add Basemap**, or pick one from the old-map catalogs of the timeline. Fisk's report is a work of the US federal government, in the public domain; the scan is served from Allmaps' example collection.
+
+**The Mississippi near Greenville (Mississippi, USA).** Meander scrolls, oxbow lakes cut off at different heights, and the levees as thin dark lines.
+
+![The River REM mode over the Mississippi near Greenville: meander scrolls and oxbow lakes, with the Detrending panel](/screenshots/river-rem-mode-mississippi.jpg)
+
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.30&lng=-91.12&zoom=11">Open the Mississippi near Greenville</OpenInApp>
+
 **The Allier upstream of Moulins (France).** One of the last freely wandering rivers of western Europe: the active channel belt in pale green, the abandoned channels of the last centuries as a braid of blue threads across the floodplain, the valley sides dark.
 
 ![The River REM mode over the Allier upstream of Moulins: the active channel belt in pale green, abandoned channels as blue threads across the floodplain, with the River Centerline and Detrending panels](/screenshots/river-rem-mode-allier.jpg)
@@ -30,23 +48,9 @@ The same reach from IGN's LiDAR HD terrain (0.5 m, read as raw floats from the n
 
 <OpenInApp href="/?appMode=rem&viewMode=2d&lat=46.46&lng=3.32&zoom=13&terrainSourceA=custom-ign-lidarhd-dtm-wms-raw">Open the Allier on IGN LiDAR HD</OpenInApp>
 
-**The Mississippi near Greenville (Mississippi, USA).** Meander scrolls, oxbow lakes cut off at different heights, and the levees as thin dark lines.
+**The Rio Purus (Amazon basin, Brazil).** A meander belt 30 km wide in the forest: the **Rio Purus** entry of the Featured bookmarks. The terrain there is a surface model, the canopy and not the ground, 25 to 40 m above the water, so the default range (0 to 10 m, log) leaves everything but the channel black. This view uses **0 to 45 m** with a **linear** stretch: what shows is the height of the forest above the river, lowest along the channel and its scroll bars.
 
-![The River REM mode over the Mississippi near Greenville: meander scrolls and oxbow lakes, with the Detrending panel](/screenshots/river-rem-mode-mississippi.jpg)
-
-<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.30&lng=-91.12&zoom=11">Open the Mississippi near Greenville</OpenInApp>
-
-### Beside Harold Fisk's 1944 map
-
-In 1944 Harold Fisk drew, for the US Army Corps of Engineers, every former course of the lower Mississippi he could reconstruct from air photographs, borings and old surveys: plate 22 of his *Geological Investigation of the Alluvial Valley of the Lower Mississippi River*, each age of channel in its own color. The scrolls and cut-offs he traced by hand are the ones a REM shows from lidar eighty years later.
-
-Two sheets of the plate are in the **Basemap Library** (search for *Fisk*), georeferenced in [Allmaps](https://allmaps.org) and drawn by the app's [old-map overlays](/features/historical-imagery): Greenville to Lake Providence, and Rosedale to Greenville. This view is the **Mississippi at Greenville** entry of the sidebar's **Featured bookmarks**: the view split in two, the REM on the left and the same REM under Fisk's sheet on the right, cameras tied.
-
-![The River REM of the lower Mississippi beside Harold Fisk's 1944 meander map: the scars the REM shows are the former courses Fisk colored](/screenshots/river-rem-mode-fisk.jpg)
-
-<OpenInApp href="/?appMode=rem&viewMode=2d&lat=33.15&lng=-91.13&zoom=10.4&remRiver=named&remRiverName=Mississippi+River&splitStyle=side-by-side&showRasterBasemap=true&basemapPerView=true&overlayBasemapIdsB=custom-basemap-allmaps-ac79c53138d6b057&overlaysStack=top&showHillshade=false">Open the REM beside Fisk's 1944 meander map</OpenInApp>
-
-Lower the overlays' opacity (Basemaps and Overlays section) to see the REM through the paper. The sheet was placed with three control points: expect it to be off by a few hundred metres at its edges, and the river itself has moved since 1944. Any other georeferenced map works the same way: paste an Allmaps annotation or a David Rumsey sheet's address in **Add Basemap**, or pick one from the old-map catalogs of the timeline. Fisk's report is a work of the US federal government, in the public domain; the scan is served from Allmaps' example collection.
+<OpenInApp href="/?appMode=rem&viewMode=2d&lat=-5.6075&lng=-63.92&zoom=10.11&remRiver=named&remRiverName=Rio+Purus&remMax=45&remStretch=linear&showHillshade=false">Open the Rio Purus</OpenInApp>
 
 ## How to use it
 
@@ -203,6 +207,16 @@ On the Greenville view, the same 420 px patch of floodplain (hillshade off) went
 ### Terrain sources
 
 The trend and the heights it is subtracted from are read through the same code as every computed mode, so any terrain source that those can read works. Checked on the two example rivers: Mapterhorn and AWS Terrain (the Worldwide Defaults), USGS 3DEP as raw floats from its ImageServer (1 m), IGN LiDAR HD as raw floats from its WMS (0.5 m), and Google GEM-15 (a VRT of COG cells, 15 m).
+
+**Which source for the Mississippi.** The water surface is where sources differ most, and the trend is read from it. On the Greenville view (2026-11-27, one run each):
+
+| Source | Water surface | Heights along the river |
+|---|---|---|
+| Mapterhorn (the default, and the bookmark's) | Two lidar surveys at different river stages: one step of about a metre, turned into a ramp | 84 tiles at zoom 14 in 0.25 s |
+| USGS 3DEP, raw floats from its ImageServer | The cleanest: one even surface, no step | 42 requests at zoom 13 in 1.6 to 15 s, and every tile of the picture is rendered by the server |
+| AWS Terrain | The worst: rectangular blocks of water at different levels, tile by tile | 84 tiles at zoom 14 in 3.8 s |
+
+3DEP gives the better water and is the one to choose for a figure (`terrainSourceA=custom-us-3dep`); the bookmark stays on Mapterhorn, which answers from ready-made tiles where the federal server renders each request.
 
 **A DEM with no heights on water.** Some elevation models have a hole where the river is (GEM-15, lidar terrain models with the water masked): the centerline runs in the void. Each such reading then takes the height of the nearest ground, the bank at the waterline, and the panel says how many heights were read that way. Bank heights are rougher than a water surface, so the profile is median-filtered and fitted rather than taken at its running minimum. On GEM-15 over the Mississippi the bank heights are themselves noisy (readings from −29 to 36 m around a river at about 30 m): the picture shows the floodplain's forms, but the heights above the river are approximate there. Prefer a source that has the water surface.
 

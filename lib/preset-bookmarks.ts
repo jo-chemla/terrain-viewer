@@ -41,6 +41,24 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
     search: "zoom=12.24&splitStyle=side-by-side&gridLayout=2x2&terrainSourceB=mapterhorn&showColorRelief=true&showRasterBasemap=true&vizSync=false&vizViews=showHillshade:A;showColorRelief:A;showRasterBasemap:B;showLightingEffects:C;showPhong:C;showReliefVisualization:D;showSvf:D;showSlope:A;showTerrainAnalysis:A&drawingUrl=https://raw.githubusercontent.com/wrong-nebula/earth-anomalies/refs/heads/main/detections.csv&scrollTo=featureIterator&iteratorSort=quality&customHypsoMinMax=true&hypsoAutoRange=true&showLightingEffects=true&slopeMaxDegrees=14&showReliefVisualization=true&showSvf=true&showLrm=false&svfMin=90&showTerrainAnalysis=true&illuminationDir=16.59&illuminationAlt=53.36&lightDayOfYear=110&lightTimeOfDay=11.25&basemapSourceA=google&basemapSourceC=google&colorRamp=deep",
   },
   {
+    // The River REM mode (appMode=rem), side by side: the REM on the left,
+    // the same REM under Harold Fisk's 1944 meander map on the right (plate
+    // 22, sheet 5, georeferenced in Allmaps and bundled in the Basemap
+    // Library). The river is named: "Main river" finds it too, but a preset
+    // should not depend on a ranking. Hillshade off: the sheet is read
+    // against the REM's colors alone.
+    id: "preset-mississippi-rem",
+    name: "Mississippi at Greenville — River REM beside Fisk's 1944 meander map",
+    ts: 0,
+    thumb: "/bookmark-thumbs/mississippi-rem.jpg",
+    search: presetSearch({
+      appMode: "rem", viewMode: "2d", zoom: 10.4, lat: 33.15, lng: -91.13, pitch: 0,
+      remRiver: "named", remRiverName: "Mississippi River",
+      splitStyle: "side-by-side", showRasterBasemap: true, basemapPerView: true,
+      overlayBasemapIdsB: "custom-basemap-allmaps-ac79c53138d6b057", overlaysStack: "top", showHillshade: false,
+    }),
+  },
+  {
     id: "preset-matterhorn",
     name: "Matterhorn, Alps — Custom Hypsometric Relief",
     ts: 0,
@@ -88,17 +106,19 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
     }),
   },
   {
+    // The Rio Purus as a River REM. The terrain there is a surface model
+    // (the forest canopy, 25 to 40 m above the water), so the range is 0 to
+    // 45 m with a linear stretch where the mode's default (0 to 10 m, log)
+    // leaves everything but the channel black. The river is named, as on
+    // the Mississippi. The id is the earlier hypsometric preset's, kept.
     id: "preset-amazon-rivers-contours",
-    name: "Amazon Rivers, Brazil — Deep Hypso + Contours",
+    name: "Rio Purus, Amazon Basin, Brazil — River REM",
     ts: 0,
     thumb: "/bookmark-thumbs/amazon-rivers.jpg",
     search: presetSearch({
-      zoom: 10.11, lat: -5.6075, lng: -63.92, pitch: 0,
-      showColorRelief: true, customHypsoMinMax: true,
-      minElevation: 32.3, maxElevation: 70,
-      hypsoSliderMinBound: 30, hypsoSliderMaxBound: 70,
-      colorRamp: "deep", rasterBasemapOpacity: 0.2, hillshadeOpacity: 0.2, colorReliefOpacity: 1,
-      showContoursAndGraticules: true, contourMinor: 2, contourMajor: 10,
+      appMode: "rem", viewMode: "2d", zoom: 10.11, lat: -5.6075, lng: -63.92, pitch: 0,
+      remRiver: "named", remRiverName: "Rio Purus",
+      remMax: 45, remStretch: "linear", showHillshade: false,
     }),
   },
   {
@@ -112,24 +132,6 @@ export const PRESET_BOOKMARKS: (Bookmark & { reload?: boolean })[] = [
       minElevation: 48.4, maxElevation: 60.6,
       hypsoSliderMinBound: 30, hypsoSliderMaxBound: 70,
       colorRamp: "deep", rasterBasemapOpacity: 0.2, hillshadeOpacity: 0.2, colorReliefOpacity: 1,
-    }),
-  },
-  {
-    // The River REM mode (appMode=rem), side by side: the REM on the left,
-    // the same REM under Harold Fisk's 1944 meander map on the right (plate
-    // 22, sheet 5, georeferenced in Allmaps and bundled in the Basemap
-    // Library). The river is named: "Main river" finds it too, but a preset
-    // should not depend on a ranking. Hillshade off: the sheet is read
-    // against the REM's colors alone.
-    id: "preset-mississippi-rem",
-    name: "Mississippi at Greenville — River REM beside Fisk's 1944 meander map",
-    ts: 0,
-    thumb: "/bookmark-thumbs/mississippi-rem.jpg",
-    search: presetSearch({
-      appMode: "rem", viewMode: "2d", zoom: 10.4, lat: 33.15, lng: -91.13, pitch: 0,
-      remRiver: "named", remRiverName: "Mississippi River",
-      splitStyle: "side-by-side", showRasterBasemap: true, basemapPerView: true,
-      overlayBasemapIdsB: "custom-basemap-allmaps-ac79c53138d6b057", overlaysStack: "top", showHillshade: false,
     }),
   },
   {
