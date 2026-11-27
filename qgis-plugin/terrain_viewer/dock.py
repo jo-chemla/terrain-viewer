@@ -21,7 +21,7 @@ from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
 from qgis.PyQt.QtWidgets import (
     QApplication, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox, QScrollArea, QToolButton, QFrame, QGroupBox, QSizePolicy,
-    QStackedWidget, QDateTimeEdit,
+    QStackedWidget, QDateTimeEdit, QMenu, QFileDialog,
 )
 from qgis.core import (
     Qgis, QgsApplication, QgsNetworkAccessManager, QgsSettings, QgsCoordinateReferenceSystem, QgsRectangle,
@@ -52,6 +52,7 @@ from .widgets import SliderSpin, LightPad, IconCombo, FoldSection, RadioRow, Com
 from . import solar
 from .historical_ui import HistoricalPanel
 from . import buildings_ui
+from . import vector_library
 
 SETTINGS = "terrain_viewer"
 DEFAULT_SERVICE = "http://localhost:3400"
@@ -1115,16 +1116,72 @@ class TerrainViewerDock(QDockWidget):
         link.addWidget(open_btn)
         outer.addLayout(link)
 
+        # Freeze, with the setups' menu on its arrow: a click freezes, the
+        # arrow saves the setup to a folder or loads one (setups.py).
         freeze = QHBoxLayout()
-        freeze_btn = QPushButton("Freeze")
+        freeze_btn = QToolButton()
+        freeze_btn.setText("Freeze")
+        freeze_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        freeze_btn.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         freeze_btn.setToolTip("Copy the layers drawn now from the \"Terrain Viewer (live)\" group into a new dated "
-                              "group under it, every setting kept in their addresses; the panel never changes the copies")
+                              "group under it, which the panel never changes: every setting is kept in their addresses "
+                              "and written on each copy (its tooltip, Layer Properties > Information). The arrow: save "
+                              "the setup to a folder, or load one")
         freeze_btn.clicked.connect(lambda _checked=False: self.freeze())
+        menu = QMenu(freeze_btn)
+        self.setup_actions = {}
+        for name, text, tip, slot in (
+                ("freeze", "Freeze", "The layers drawn now copied into a dated group the panel never changes", self.freeze),
+                ("save", "Save setup to folder...", "A dated subfolder with setup.json (every mode and its parameters, as "
+                 "the app's link and the panel's own), layers.qlr (the layers, to add to any project) and vectors.gpkg",
+                 lambda: self.save_setup(rasters=False)),
+                ("save_rasters", "Save setup and GeoTIFFs to folder...", "The same, with each raster layer for the map's "
+                 "extent at the map's pixel size as a GeoTIFF (color tiles as RGBA, values as Float32), with every backend",
+                 lambda: self.save_setup(rasters=True)),
+                ("load", "Load setup...", "A setup.json read back into the panel: modes, settings, opacities, source, "
+                 "light, basemap, the map's place", self.load_setup)):
+            act = menu.addAction(text)
+            act.setToolTip(tip)
+            act.triggered.connect(lambda _checked=False, f=slot: f())
+            self.setup_actions[name] = act
+        menu.setToolTipsVisible(True)
+        freeze_btn.setMenu(menu)
         hand(freeze_btn)
         freeze.addStretch(1)
         freeze.addWidget(freeze_btn)
         outer.addLayout(freeze)
         self.freeze_btn = freeze_btn
+
+        # -- the app's Vector library, as layers of the project's own ----------
+        self.overlays_section = FoldSection("Vector library (buildings, heritage, land cover)", None)
+        orow = QHBoxLayout()
+        orow.setContentsMargins(0, 0, 0, 0)
+        self.overlay_pick = QComboBox()
+        self.overlay_pick.setMinimumWidth(60)
+        self.overlay_pick.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.overlay_pick.setMinimumContentsLength(10)
+        self.overlay_pick.setToolTip("The app's Vector library: an entry is added as a QGIS layer of its own (vector tiles, "
+                                     "or a vector layer for a PMTiles archive or a GeoJSON), colored by its categories, "
+                                     "with its attribution. The panel does not change it afterwards")
+        for title, items in vector_library.grouped():
+            self.overlay_pick.addItem(title)
+            head = self.overlay_pick.model().item(self.overlay_pick.count() - 1)
+            head.setFlags(Qt.ItemFlag.NoItemFlags)
+            for e in items:
+                self.overlay_pick.addItem("  " + vector_library.label(e), e["id"])
+                self.overlay_pick.setItemData(self.overlay_pick.count() - 1,
+                                              f"{e.get('name', '')}\n{e.get('shortAttribution') or e.get('attribution') or ''}",
+                                              Qt.ItemDataRole.ToolTipRole)
+        self.overlay_pick.setCurrentIndex(max(0, self.overlay_pick.findData(vector_library.entries()[0]["id"])
+                                              if vector_library.entries() else 0))
+        self.overlay_add = QPushButton("Add")
+        self.overlay_add.setToolTip("Add the entry picked to the project, in the group \"Vector overlays (library)\"")
+        self.overlay_add.clicked.connect(lambda _checked=False: self.add_overlay())
+        hand(self.overlay_add)
+        orow.addWidget(self.overlay_pick, 1)
+        orow.addWidget(self.overlay_add)
+        self.overlays_section.body_layout.addLayout(orow)
+        outer.addWidget(self.overlays_section)
 
         # -- the light, shared by the shaded modes ----------------------------
         self.light_section = FoldSection("Light (hillshade, Phong, shadows)", None, open_=True)  # open by default (0.9.2)
@@ -1208,6 +1265,7 @@ class TerrainViewerDock(QDockWidget):
         self.set_mode(self.mode, save=False)
         # A newer release, looked for a few seconds after the panel opens (at
         # most once a day; terrain_viewer/checkUpdates false turns it off).
+        self.revive_overlays()
         if str(s.value(f"{SETTINGS}/checkUpdates", "true")).lower() in ("1", "true"):
             QTimer.singleShot(4000, lambda: self.check_updates())
 
@@ -2253,7 +2311,11 @@ class TerrainViewerDock(QDockWidget):
                 self.canvas.extentsChanged.disconnect(self.extent_changed)
             except (TypeError, RuntimeError):
                 pass
-        self.health_timer.stop()
+        # Nothing started after this: a prefetch or the view's lines begun
+        # while QGIS quits leaves a thread working as it goes.
+        for t in (self.health_timer, self.timer, self.light_timer, self.prefetch_timer, self.vector_timer, self.sun_timer):
+            t.stop()
+        self.pending.clear()
         self.historical.cleanup()
 
     def _project_cleared(self):
@@ -2261,6 +2323,15 @@ class TerrainViewerDock(QDockWidget):
 
     def _project_read(self, *_):
         self.project_fresh = False
+        self.revive_overlays()
+
+    def revive_overlays(self):
+        """A project's Vector library layers read through the plugin's own
+        server (Overture's archives) served again."""
+        try:
+            vector_library.revive(QgsProject.instance())
+        except Exception as e:  # noqa: BLE001 - numpy missing, no port: the layers stay as saved
+            self.warn(f"Vector library: the layers read through the plugin's server are not served ({e})")
 
     def first_layer_setup(self):
         """QGIS's own setup for a first layer, done by the panel: the project
@@ -2533,18 +2604,102 @@ class TerrainViewerDock(QDockWidget):
 
     def freeze(self, *_):
         """The layers drawn now copied into a new group named with the time
-        and the place, every setting burnt into their addresses."""
+        and the place, every setting burnt into their addresses and written
+        on each copy (custom properties, abstract, metadata: setups.py). The
+        group carries the whole setup (terrain_viewer/setup, JSON)."""
+        import json
+        from . import setups
         self.flush()  # a setting changed less than half a second ago
-        name = "Frozen " + time.strftime("%Y-%m-%d %H:%M")
-        place = self.place()
-        if place:
-            name += f" — {place[0]:.2f}, {place[1]:.2f} z{round(place[2])}"
-        group = self.stack.freeze(name)
+        setup = setups.snapshot(self)
+        group = self.stack.freeze(setups.frozen_name(self, setup), lambda copy, key: setups.describe(copy, setup, key))
         if group is None:
             self.status.setText("Nothing to freeze: no Terrain Viewer layer is checked")
             return None
-        self.status.setText(f"{group.name()}: {len(group.findLayers())} layers")
+        group.setCustomProperty(setups.SETUP_PROP, json.dumps(setup, ensure_ascii=False))
+        group.setCustomProperty(setups.LINK_PROP, setup["link"])
+        self.status.setText(f"{group.name()}: {len(group.findLayers())} layers, their parameters on each (hover a layer)")
         return group
+
+    def save_setup(self, folder=None, rasters=False):
+        """The setup written to a dated subfolder of `folder` (asked for when
+        not given): setup.json, layers.qlr, vectors.gpkg and, with
+        `rasters`, a GeoTIFF per raster layer for the map's extent. Returns
+        setups.save's result, or None."""
+        from . import setups
+        s = QgsSettings()
+        if folder is None:
+            folder = QFileDialog.getExistingDirectory(self, "Save the Terrain Viewer setup in a new subfolder of",
+                                                      s.value(f"{SETTINGS}/setupFolder", "") or os.path.expanduser("~"))
+            if not folder:
+                return None
+            s.setValue(f"{SETTINGS}/setupFolder", folder)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            res = setups.save(self, folder, rasters=rasters)
+        except OSError as e:
+            self.warn(f"The setup was not saved: {e}")
+            return None
+        finally:
+            QApplication.restoreOverrideCursor()
+        if res is None:
+            self.status.setText("Nothing to save: no Terrain Viewer layer is checked")
+            return None
+        text = (f"Setup saved in {res['folder']}: {res['layers']} layers in layers.qlr, their parameters in setup.json"
+                + (f", {res['rasters']} GeoTIFFs" if rasters else ""))
+        self.status.setText(text)
+        if res["problems"]:
+            self.warn("Setup saved, but: " + "; ".join(res["problems"]))
+        return res
+
+    def add_overlay(self, entry_id=None, fetch=None):
+        """An entry of the app's Vector library added to the project as a
+        QGIS layer of its own (vector_library.py), styled by its categories,
+        with its attribution. Returns the layers added."""
+        entry_id = entry_id or self.overlay_pick.currentData()
+        entry = next((e for e in vector_library.entries() if e["id"] == entry_id), None)
+        if entry is None:
+            return []
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            release = None
+            if entry.get("resolver") == "overture":
+                from .live import buildings as live_buildings
+                release = live_buildings.overture_release()
+            kw = {"fetch": fetch} if fetch is not None else {}
+            layers, problems = vector_library.add(entry, QgsProject.instance(), self.keep_extent, release=release, **kw)
+        except Exception as e:  # noqa: BLE001 - a TileJSON or a style that does not answer
+            layers, problems = [], [f"{vector_library.label(entry)}: {e}"]
+        finally:
+            QApplication.restoreOverrideCursor()
+        if problems:
+            self.warn("Vector library: " + "; ".join(problems))
+        if layers:
+            z = entry.get("minzoom") or 0
+            if entry.get("libraryGroup") == "buildings":
+                z = max(z, vector_library.FOOTPRINT_MINZOOM)
+            self.status.setText(f"{vector_library.label(entry)}: {len(layers)} layer{'s' if len(layers) > 1 else ''} in "
+                                f"\"{vector_library.GROUP}\"" + (f", drawn from zoom {z} on" if z else "")
+                                + f". {entry.get('shortAttribution') or entry.get('attribution') or ''}")
+        return layers
+
+    def load_setup(self, path=None):
+        """A setup.json (or its folder) read back into the panel. Returns
+        True when loaded."""
+        from . import setups
+        s = QgsSettings()
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(self, "Load a Terrain Viewer setup",
+                                                  s.value(f"{SETTINGS}/setupFolder", "") or os.path.expanduser("~"),
+                                                  "Terrain Viewer setup (setup.json *.json)")
+            if not path:
+                return False
+        try:
+            text = setups.load(self, setups.read(path))
+        except setups.SetupError as e:
+            self.warn(f"Setup not loaded: {e}")
+            return False
+        self.status.setText(text)
+        return True
 
     def zoom_to(self, lat, lng, zoom):
         """The app's camera as the canvas extent (512 px tiles: zoom z is a

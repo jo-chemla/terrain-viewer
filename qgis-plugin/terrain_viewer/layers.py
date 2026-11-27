@@ -351,11 +351,12 @@ class LayerStack:
         walk(root)
         return out
 
-    def freeze(self, name):
+    def freeze(self, name, describe=None):
         """A plain copy of every live layer drawn now, in a new group right
         under the live one (the newest freeze on top): the same address, with
         every setting in it, the same renderer, opacity and blending, the
-        same order. Nothing of the panel points at them afterwards."""
+        same order. Nothing of the panel points at them afterwards.
+        `describe(copy, key)` writes each copy's parameters on it (setups.py)."""
         layers = self.live_checked()
         if not layers:
             return None
@@ -368,11 +369,21 @@ class LayerStack:
             unique, n = f"{name} ({n})", n + 1
         group = tree.insertGroup(at, unique)
         for layer in layers:
-            copy = layer.clone()
-            key = layer.customProperty(PROP)
-            copy.removeCustomProperty(PROP)
-            copy.setCustomProperty(FROZEN_PROP, key)
-            copy.setName(layer.name())
+            copy = self.frozen_copy(layer)
+            if describe is not None:
+                describe(copy, layer.customProperty(PROP))
             self.project.addMapLayer(copy, False)
             group.addLayer(copy)
         return group
+
+    @staticmethod
+    def frozen_copy(layer):
+        """A plain copy of a live layer: the same address, style, opacity and
+        blending, its key under FROZEN_PROP instead of PROP, so the panel
+        never finds, rewrites or reads it back. Not in the project yet."""
+        copy = layer.clone()
+        key = layer.customProperty(PROP)
+        copy.removeCustomProperty(PROP)
+        copy.setCustomProperty(FROZEN_PROP, key)
+        copy.setName(layer.name())
+        return copy

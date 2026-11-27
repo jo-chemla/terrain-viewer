@@ -225,16 +225,25 @@ spec = dem.SOURCES[nrcan]
 check(spec["overviews"] >= 8 and spec["size_px"][0] > 100000, f"NRCan: {spec['size_px']} px, {spec['overviews']} overviews")
 srv = _Live.instance()
 d = srv.dem(nrcan)
+# The windows warped, by tile: the count below is of the tile's own zoom. The
+# reader's total (d.warps) also counts what the panel asked for a moment ago
+# (the source just picked: its checked modes' tiles of the canvas, z1 here),
+# and one of those ending inside the first measure read as a tenth window.
+warped = []
+_load = d._load_native
+d._load_native = lambda z, x, y: (warped.append((z, x, y)), _load(z, x, y))[1]
 for label, z, (lat, lon), min_greys in (("all of western Canada", 3, (55.0, -115.0), 20), ("Banff", 12, (51.1784, -115.5708), 20),
                                         ("Banff, past the COG's own zoom (18 of its pixels across)", 15, (51.1784, -115.5708), 4)):
-    before, warps = downloaded(), d.warps
+    before = downloaded()
+    del warped[:]
     x, y = tile_of(lat, lon, z)
     t0 = time.perf_counter()
     greys = grey_tile(srv.xyz_url("hillshade", {}, source=nrcan).replace("{z}", str(z)).replace("{x}", str(x)).replace("{y}", str(y)))
     after = downloaded()
     mb = (after - before) / 1e6 if before is not None and after is not None else None
-    check(len(greys) > min_greys and d.warps - warps <= 9 and (mb is None or mb < 48),
-          f"NRCan hillshade, {label} z{z}: {len(greys)} greys, {d.warps - warps} windows of 256 px warped, "
+    windows = len({t for t in warped if t[0] == z})
+    check(len(greys) > min_greys and 1 <= windows <= 9 and (mb is None or mb < 48),
+          f"NRCan hillshade, {label} z{z}: {len(greys)} greys, {windows} windows of 256 px warped, "
           f"{'%.1f MB' % mb if mb is not None else 'bytes not counted'} downloaded of 84 GB, {time.perf_counter() - t0:.1f} s")
 
 merc = QgsCoordinateReferenceSystem("EPSG:3857")

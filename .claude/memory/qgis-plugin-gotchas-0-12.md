@@ -1,0 +1,17 @@
+---
+name: qgis-plugin-gotchas-0-12
+description: QGIS plugin facts found in the 0.12.0 round - a same-id plugin on plugins.qgis.org, the experimental setting's key, no URL scheme, Overture's host refusing GDAL, exit crashes on 3.44
+type: project
+---
+
+Found on 2026-11-27 while building Terrain Viewer 0.12.0 (QGIS 4.2 and 3.44, Windows).
+
+- **plugins.qgis.org has another plugin with the folder id `terrain_viewer`** (Terrain Viewer by LiDARgeek, 1.3.1, QGIS 3.40 to 3.99). QGIS merges plugins by folder name across repositories, the last repository read winning (`pyplugin_installer/installer_data.py`, `rebuild`): in QGIS 3.40+ with both repositories, the Plugin Manager can show theirs in place of ours and offer it as an upgrade. `pyplugin_installer.instance().installPlugin("terrain_viewer")` installed theirs in 3.44. QGIS 4 is not concerned. **Why it matters:** never document or script an install by id; a rename of our folder (with a migration in `updates.py`) is the real fix, not decided yet. **How to apply:** docs tell users to check the author (Iconem); the panel's own Update button reads our `plugins.xml` only.
+- **"Show also Experimental Plugins"** is `plugin-manager/allow-experimental` (`[plugin-manager]` in the profile's ini) in QGIS 3.44 and 4.2. `app/plugin_installer/allowExperimental` is the old key, read by neither. The checkbox's own state is also kept under `[QgsCollapsibleGroupBox] QgsPluginManagerBase\ckbExperimental\checked`.
+- **QGIS registers no URL scheme** on any platform (no `x-scheme-handler`, no `CFBundleURLSchemes`, no Windows protocol key): nothing a web link can do to add a repository. The console one-liner (set `app/plugin_repositories/<name>/url`, then `pyplugin_installer.instance().reloadAndExportData()`) is verified in both versions.
+- **Overture's tile host answers HTTP 400 to GDAL's `/vsicurl/`** (its HEAD, and a GET without a Range): its PMTiles cannot be an OGR layer. The plugin serves them as vector tiles from its own 127.0.0.1 server (`live/server.py` `/pmtiles/{z}/{x}/{y}.pbf`). QGIS's own vector tile layer opens PMTiles from disk only. Other https PMTiles work through GDAL with `|option:ZOOM_LEVEL_AUTO=YES`.
+- **Never call `featureCount()` on a planet PMTiles layer** (it reads everything: a test hung on VIDA's 2.7 billion footprints).
+- **QGIS 3.44 ends `test_setup_live.py` with an access violation after its "OK"** (exit code 0xC0000005, no Python frame), about one run in two; 4.2 never. **Not solved.** Tried without ending it: `LiveServer.stop()` dropping queued tiles and joining the elevation pool's threads (3 s), stopping the panel's timers in `cleanup()`, waiting for QGIS's task manager, dropping the finished contour tasks, deleting the test's second `QgsProject` before `exitQgis()`. A 4 s wait before teardown gave one clean run (one run only). Stopping the test before its Load step gave clean runs (one each). Next thing to try: cut the test by stage, several runs each.
+- **`QgsDataSourceUri.setParam` adds, it does not replace**: `removeParam` first when rewriting `url`.
+- **A `.qlr` rewrites XYZ addresses** (adds `crs=` and `format`): compare layers by their `url` parameter, not by `source()`. Memory layers lose their features in a `.qlr`: write them to a GeoPackage first (`setups.py`).
+- **Test launches fail with `MemoryError` or empty output when the machine's commit memory is exhausted** (another application): retry, it is not the code.

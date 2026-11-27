@@ -171,7 +171,10 @@
   "remPower": 1,
   "remNeighbors": 0,
   "remMonotone": "min",
-  "remInterp": "idw",
+  "remInterp": "edt",
+  "remBlend": 0.5,
+  "remGrid": 0,
+  "remSmooth": true,
   "remShow": "rem",
   "remElevAuto": true,
   "remElevMin": 0,
@@ -472,6 +475,934 @@
    ],
    "heightField": "height",
    "floorsField": "levels"
+  }
+ ],
+ "vectorSources": [
+  {
+   "id": "overture-buildings",
+   "name": "Overture Maps buildings",
+   "shortName": "Overture buildings",
+   "type": "pmtiles",
+   "url": "https://tiles.overturemaps.org/{release}/buildings.pmtiles",
+   "resolver": "overture",
+   "fallbackRelease": "2026-11-18.0",
+   "minzoom": 5,
+   "maxzoom": 14,
+   "sourceLayers": [
+    "building"
+   ],
+   "categories": [
+    {
+     "label": "OpenStreetMap",
+     "color": "#7ebc6f",
+     "field": "@geometry_source",
+     "value": "OpenStreetMap"
+    },
+    {
+     "label": "Google",
+     "color": "#4285f4",
+     "field": "@geometry_source",
+     "value": "Google Open Buildings"
+    },
+    {
+     "label": "Microsoft",
+     "color": "#f25022",
+     "field": "@geometry_source",
+     "value": "Microsoft ML Buildings"
+    },
+    {
+     "label": "Esri",
+     "color": "#8e44ad",
+     "field": "@geometry_source",
+     "value": "Esri Community Maps"
+    }
+   ],
+   "categoryLabel": "Origin",
+   "libraryGroup": "buildings",
+   "description": "Overture's buildings theme, worldwide: OpenStreetMap footprints first, then Esri Community Maps, Google Open Buildings and Microsoft's ML footprints where OSM has none, each feature naming its origin. Heights and floor counts where a source gives one (dense in North America, sparse elsewhere), with building parts for 3D. One PMTiles archive per monthly release, zoom 5 to 14; the app reads the current release from Overture's catalog. Tiles are heavy in dense cities (about 1 MB at zoom 14).",
+   "infoUrl": "https://docs.overturemaps.org/guides/buildings/",
+   "attribution": "\u00a9 OpenStreetMap contributors, Overture Maps Foundation, Microsoft, Google, Esri Community Maps contributors",
+   "shortAttribution": "Overture Maps, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "ODbL 1.0",
+   "licenseUrl": "https://docs.overturemaps.org/attribution/",
+   "sample": {
+    "lng": -73.985,
+    "lat": 40.755,
+    "zoom": 15
+   }
+  },
+  {
+   "id": "vida-open-buildings",
+   "name": "VIDA Google + Microsoft + OSM open buildings",
+   "shortName": "VIDA buildings",
+   "type": "pmtiles",
+   "url": "https://data.source.coop/vida/google-microsoft-osm-open-buildings/pmtiles/goog_msft_osm.pmtiles",
+   "minzoom": 0,
+   "maxzoom": 15,
+   "sourceLayers": [
+    "goog_msft_osm_building_footprints"
+   ],
+   "categories": [
+    {
+     "label": "OpenStreetMap",
+     "color": "#7ebc6f",
+     "field": "bf_source",
+     "value": "osm"
+    },
+    {
+     "label": "Google",
+     "color": "#4285f4",
+     "field": "bf_source",
+     "value": "google"
+    },
+    {
+     "label": "Microsoft",
+     "color": "#f25022",
+     "field": "bf_source",
+     "value": "microsoft"
+    }
+   ],
+   "categoryLabel": "Origin",
+   "libraryGroup": "buildings",
+   "description": "2.7 billion footprints merged per country by VIDA from Google Open Buildings V3, Microsoft's Global ML Building Footprints and OpenStreetMap (2024 snapshots): the widest coverage of Africa, South Asia and Latin America, where Google's footprints fill what OSM and Microsoft miss. No heights. One fixed PMTiles archive on Source Cooperative, zoom 0 to 15.",
+   "infoUrl": "https://source.coop/vida/google-microsoft-osm-open-buildings",
+   "attribution": "VIDA; Google Open Buildings (CC BY 4.0), Microsoft Global ML Building Footprints (ODbL), \u00a9 OpenStreetMap contributors (ODbL)",
+   "shortAttribution": "VIDA, Google, Microsoft, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "ODbL 1.0 (Google's part also CC BY 4.0)",
+   "licenseUrl": "https://source.coop/vida/google-microsoft-osm-open-buildings",
+   "sample": {
+    "lng": 3.3947,
+    "lat": 6.4541,
+    "zoom": 15
+   }
+  },
+  {
+   "id": "osm-buildings-openfreemap",
+   "name": "OpenStreetMap buildings (OpenFreeMap)",
+   "shortName": "OSM buildings",
+   "type": "tilejson",
+   "url": "https://tiles.openfreemap.org/planet",
+   "minzoom": 13,
+   "maxzoom": 14,
+   "sourceLayers": [
+    "building"
+   ],
+   "color": "#7ebc6f",
+   "libraryGroup": "buildings",
+   "description": "OpenStreetMap's buildings from OpenFreeMap's weekly planet tiles (OpenMapTiles schema), with the rendering height OpenMapTiles derives from OSM's height and levels tags: light tiles, footprints only where mappers drew them. The same tiles feed the building shadows.",
+   "infoUrl": "https://openfreemap.org/",
+   "attribution": "OpenFreeMap \u00a9 OpenMapTiles, data \u00a9 OpenStreetMap contributors",
+   "shortAttribution": "OpenFreeMap, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "ODbL 1.0",
+   "licenseUrl": "https://www.openstreetmap.org/copyright",
+   "sample": {
+    "lng": 4.832,
+    "lat": 45.7578,
+    "zoom": 15
+   }
+  },
+  {
+   "id": "osm-liberty-lines-labels",
+   "name": "OpenStreetMap roads and labels (OpenFreeMap Liberty)",
+   "shortName": "OSM roads + labels",
+   "type": "style",
+   "url": "https://tiles.openfreemap.org/styles/liberty",
+   "styleLayerTypes": [
+    "line",
+    "symbol"
+   ],
+   "libraryGroup": "reference",
+   "description": "The lines and labels of OpenFreeMap's Liberty style, without its fills: roads, railways, waterways, boundaries, place and street names over any basemap or relief, as a hybrid map does. Drawn with Liberty's own colors; only the opacity is yours.",
+   "infoUrl": "https://openfreemap.org/",
+   "attribution": "OpenFreeMap \u00a9 OpenMapTiles, data \u00a9 OpenStreetMap contributors",
+   "shortAttribution": "OpenFreeMap, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "ODbL 1.0",
+   "licenseUrl": "https://www.openstreetmap.org/copyright"
+  },
+  {
+   "id": "hwai-heritage-osm",
+   "name": "HW.ai Heritage Map - OSM",
+   "shortName": "Heritage: OSM",
+   "type": "pmtiles",
+   "url": "https://terria-catalog.prod.heritagewatch.ai/exports/osm-heritage-planet.pmtiles",
+   "minzoom": 0,
+   "maxzoom": 13,
+   "sourceLayers": [
+    "osm"
+   ],
+   "geometries": [
+    "point"
+   ],
+   "companions": [
+    {
+     "url": "https://terria-catalog.prod.heritagewatch.ai/exports/osm-heritage-planet-shapes.pmtiles",
+     "sourceLayers": [
+      "shapes"
+     ],
+     "geometries": [
+      "polygon",
+      "line"
+     ],
+     "minzoom": 0,
+     "maxzoom": 14
+    }
+   ],
+   "color": "#0891b2",
+   "categories": [
+    {
+     "label": "historic=*",
+     "color": "#b45309",
+     "field": "historic"
+    },
+    {
+     "label": "place of worship",
+     "color": "#2563eb",
+     "field": "worship"
+    },
+    {
+     "label": "heritage=*",
+     "color": "#16a34a",
+     "field": "heritage"
+    },
+    {
+     "label": "museum",
+     "color": "#7c3aed",
+     "field": "museum"
+    }
+   ],
+   "categoryLabel": "Kind",
+   "libraryGroup": "heritage",
+   "description": "Heritage Watch AI's weekly OpenStreetMap export: 4.46 million objects tagged historic=*, heritage=*, places of worship, museums, and other worship buildings, ruins and lighthouses, as points with their footprints from a second archive. The destroyed ones carry their lifecycle status.",
+   "infoUrl": "https://terria-catalog.prod.heritagewatch.ai/tools/heritage-map/",
+   "attribution": "Heritage Watch AI (Iconem), \u00a9 OpenStreetMap contributors",
+   "shortAttribution": "HW.ai, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "ODbL 1.0",
+   "licenseUrl": "https://www.openstreetmap.org/copyright",
+   "sample": {
+    "lng": 36.3,
+    "lat": 33.51,
+    "zoom": 12
+   }
+  },
+  {
+   "id": "hwai-heritage-wikidata",
+   "name": "HW.ai Heritage Map - Wikidata",
+   "shortName": "Heritage: Wikidata",
+   "type": "pmtiles",
+   "url": "https://terria-catalog.prod.heritagewatch.ai/exports/wikidata-heritage.pmtiles",
+   "minzoom": 0,
+   "maxzoom": 13,
+   "sourceLayers": [
+    "wikidata"
+   ],
+   "geometries": [
+    "point"
+   ],
+   "color": "#7c3aed",
+   "categories": [
+    {
+     "label": "gone (destroyed, demolished)",
+     "color": "#dc2626",
+     "field": "gone",
+     "value": "1"
+    },
+    {
+     "label": "by heritage designation alone",
+     "color": "#16a34a",
+     "field": "cls",
+     "value": "designated"
+    }
+   ],
+   "categoryLabel": "Status",
+   "libraryGroup": "heritage",
+   "description": "Heritage Watch AI's weekly Wikidata export: 1.7 million items of 40 heritage classes (monuments, archaeological sites, places of worship, castles...) and 1.2 million more known by a heritage designation alone, as points, the ones Wikidata marks as gone flagged. Properties: label, class list, designation, image, Wikidata id.",
+   "infoUrl": "https://terria-catalog.prod.heritagewatch.ai/tools/heritage-map/",
+   "attribution": "Heritage Watch AI (Iconem), data from Wikidata",
+   "shortAttribution": "HW.ai, Wikidata, CC0",
+   "licenseName": "CC0 1.0 (Wikidata)",
+   "licenseUrl": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+   "sample": {
+    "lng": 12.49,
+    "lat": 41.89,
+    "zoom": 12
+   }
+  },
+  {
+   "id": "hwai-heritage-osm-condition",
+   "name": "HW.ai Heritage Map - OSM condition (destroyed and damaged)",
+   "shortName": "Heritage: OSM condition",
+   "type": "pmtiles",
+   "url": "https://terria-catalog.prod.heritagewatch.ai/exports/osm-damage-planet.pmtiles",
+   "minzoom": 0,
+   "maxzoom": 14,
+   "sourceLayers": [
+    "shapes",
+    "damage"
+   ],
+   "geometries": [
+    "polygon",
+    "line",
+    "point"
+   ],
+   "color": "#0891b2",
+   "categories": [
+    {
+     "label": "destroyed",
+     "color": "#dc2626",
+     "field": "status",
+     "value": "destroyed"
+    },
+    {
+     "label": "damaged",
+     "color": "#f59e0b",
+     "field": "status",
+     "value": "damaged"
+    },
+    {
+     "label": "demolished or razed",
+     "color": "#6b7280",
+     "field": "status",
+     "value": [
+      "demolished",
+      "razed"
+     ]
+    },
+    {
+     "label": "removed or former",
+     "color": "#9ca3af",
+     "field": "status",
+     "value": [
+      "removed",
+      "was"
+     ]
+    }
+   ],
+   "categoryLabel": "Condition",
+   "libraryGroup": "heritage",
+   "description": "Every object OpenStreetMap marks with a lifecycle prefix (destroyed:, damaged:, demolished:, razed:, removed:, was:), heritage or not: 663 thousand buildings, roads, amenities and historic features, with the date, event and type of damage where mappers gave one. Points and footprints in one archive.",
+   "infoUrl": "https://terria-catalog.prod.heritagewatch.ai/tools/heritage-map/",
+   "attribution": "Heritage Watch AI (Iconem), \u00a9 OpenStreetMap contributors",
+   "shortAttribution": "HW.ai, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "ODbL 1.0",
+   "licenseUrl": "https://www.openstreetmap.org/copyright",
+   "sample": {
+    "lng": 37.16,
+    "lat": 36.2,
+    "zoom": 13
+   }
+  },
+  {
+   "id": "hwai-heritage-inventories",
+   "name": "HW.ai Heritage Map - National and regional inventories",
+   "shortName": "Heritage: inventories",
+   "type": "pmtiles",
+   "url": "https://terria-catalog.prod.heritagewatch.ai/exports/sources/sources-all.pmtiles",
+   "minzoom": 0,
+   "maxzoom": 13,
+   "sourceLayers": [
+    "sources"
+   ],
+   "geometries": [
+    "point"
+   ],
+   "companions": [
+    {
+     "url": "https://terria-catalog.prod.heritagewatch.ai/exports/sources/sources-all-shapes.pmtiles",
+     "sourceLayers": [
+      "shapes"
+     ],
+     "geometries": [
+      "polygon",
+      "line"
+     ],
+     "minzoom": 0,
+     "maxzoom": 14,
+     "polygonFill": false,
+     "filter": [
+      "!=",
+      [
+       "to-string",
+       [
+        "get",
+        "id"
+       ]
+      ],
+      "EPSG:4326"
+     ]
+    }
+   ],
+   "color": "#0891b2",
+   "categories": [
+    {
+     "label": "monuments",
+     "color": "#b45309",
+     "field": "kind",
+     "value": "monuments"
+    },
+    {
+     "label": "archaeology",
+     "color": "#16a34a",
+     "field": "kind",
+     "value": "archaeology"
+    },
+    {
+     "label": "mixed",
+     "color": "#7c3aed",
+     "field": "kind",
+     "value": "mixed"
+    }
+   ],
+   "categoryLabel": "Kind",
+   "libraryGroup": "heritage",
+   "description": "A compilation in progress of national and regional heritage inventories (monument registers, archaeological site records), one feature per record with its source, country, kind and licence class, as points with the footprints the inventories publish. The footprints are drawn as outlines, not fills: a register's perimeters run from a house to a reef or a whole landscape, and the archive has no size to tell them apart. Each inventory keeps its own licence: read the licence_class and url of a record before re-use.",
+   "infoUrl": "https://terria-catalog.prod.heritagewatch.ai/tools/heritage-map/",
+   "attribution": "Heritage Watch AI (Iconem), national and regional heritage inventories (each under its own licence)",
+   "shortAttribution": "HW.ai, heritage inventories",
+   "licenseName": "Per inventory (open, non-commercial or not stated)",
+   "licenseUrl": "https://terria-catalog.prod.heritagewatch.ai/tools/heritage-map/",
+   "sample": {
+    "lng": 2.35,
+    "lat": 48.86,
+    "zoom": 13
+   }
+  },
+  {
+   "id": "unesco-world-heritage",
+   "name": "UNESCO World Heritage List",
+   "shortName": "UNESCO World Heritage",
+   "type": "geojson",
+   "url": "/vector/unesco-world-heritage.geojson",
+   "geometries": [
+    "point"
+   ],
+   "color": "#0ea5e9",
+   "categories": [
+    {
+     "label": "in danger",
+     "color": "#dc2626",
+     "field": "danger",
+     "value": "true"
+    },
+    {
+     "label": "cultural",
+     "color": "#f59e0b",
+     "field": "category",
+     "value": "Cultural"
+    },
+    {
+     "label": "natural",
+     "color": "#16a34a",
+     "field": "category",
+     "value": "Natural"
+    },
+    {
+     "label": "mixed",
+     "color": "#7c3aed",
+     "field": "category",
+     "value": "Mixed"
+    }
+   ],
+   "categoryLabel": "Category",
+   "libraryGroup": "heritage",
+   "description": "The properties of UNESCO's World Heritage List (1,271 placed of 1,273), one point each, with category, year of inscription, States Parties, criteria, the List in Danger flag and a short description: a compact copy (0.65 MB) of the open data portal's dataset, which weighs 23 MB. A serial property stands on the component nearest to the middle of its parts; its parts are the companion source, World Heritage components.",
+   "infoUrl": "https://data.unesco.org/explore/dataset/whc001/",
+   "attribution": "UNESCO World Heritage Centre, World Heritage List (data.unesco.org, whc001), CC BY-SA 4.0",
+   "shortAttribution": "UNESCO WHC",
+   "licenseName": "CC BY-SA 4.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  {
+   "id": "unesco-world-heritage-components",
+   "name": "UNESCO World Heritage components (serial properties)",
+   "shortName": "UNESCO components",
+   "type": "geojson",
+   "url": "/vector/unesco-world-heritage-components.geojson",
+   "geometries": [
+    "point"
+   ],
+   "color": "#0ea5e9",
+   "categories": [
+    {
+     "label": "in danger",
+     "color": "#dc2626",
+     "field": "danger",
+     "value": "true"
+    },
+    {
+     "label": "cultural",
+     "color": "#f59e0b",
+     "field": "category",
+     "value": "Cultural"
+    },
+    {
+     "label": "natural",
+     "color": "#16a34a",
+     "field": "category",
+     "value": "Natural"
+    },
+    {
+     "label": "mixed",
+     "color": "#7c3aed",
+     "field": "category",
+     "value": "Mixed"
+    }
+   ],
+   "categoryLabel": "Category",
+   "libraryGroup": "heritage",
+   "description": "Every component of the 486 serial properties of the World Heritage List (those inscribed as several parts: the Aalto works, the Struve arc, the Frontiers of the Roman Empire), 5,612 points with the component's name and reference and the property it belongs to. From the components list of UNESCO's open data; 1.4 MB, 160 KB once compressed by the server.",
+   "infoUrl": "https://data.unesco.org/explore/dataset/whc001/",
+   "attribution": "UNESCO World Heritage Centre, World Heritage List (data.unesco.org, whc001), CC BY-SA 4.0",
+   "shortAttribution": "UNESCO WHC",
+   "licenseName": "CC BY-SA 4.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  {
+   "id": "overture-land-cover",
+   "name": "Overture Maps land cover",
+   "shortName": "Overture land cover",
+   "type": "pmtiles",
+   "url": "https://tiles.overturemaps.org/{release}/base.pmtiles",
+   "resolver": "overture",
+   "fallbackRelease": "2026-11-18.0",
+   "minzoom": 9,
+   "maxzoom": 13,
+   "sourceLayers": [
+    "land_cover"
+   ],
+   "geometries": [
+    "polygon"
+   ],
+   "color": "#9ca3af",
+   "outline": false,
+   "categories": [
+    {
+     "label": "forest",
+     "color": "#1b7837",
+     "field": "subtype",
+     "value": "forest"
+    },
+    {
+     "label": "shrub",
+     "color": "#c2a23c",
+     "field": "subtype",
+     "value": "shrub"
+    },
+    {
+     "label": "grass",
+     "color": "#b8d977",
+     "field": "subtype",
+     "value": "grass"
+    },
+    {
+     "label": "crop",
+     "color": "#f2c75c",
+     "field": "subtype",
+     "value": "crop"
+    },
+    {
+     "label": "urban",
+     "color": "#d73027",
+     "field": "subtype",
+     "value": "urban"
+    },
+    {
+     "label": "barren",
+     "color": "#bdb6a8",
+     "field": "subtype",
+     "value": "barren"
+    },
+    {
+     "label": "wetland",
+     "color": "#35978f",
+     "field": "subtype",
+     "value": "wetland"
+    },
+    {
+     "label": "mangrove",
+     "color": "#00a884",
+     "field": "subtype",
+     "value": "mangrove"
+    },
+    {
+     "label": "moss",
+     "color": "#d9e8b0",
+     "field": "subtype",
+     "value": "moss"
+    },
+    {
+     "label": "snow",
+     "color": "#f2f6fa",
+     "field": "subtype",
+     "value": "snow"
+    }
+   ],
+   "categoryLabel": "Cover",
+   "libraryGroup": "landcover",
+   "description": "The land_cover layer of Overture's base theme, worldwide: polygons generalized from ESA WorldCover (10 m, 2020) into ten classes, a layer per zoom. Read from the theme's monthly PMTiles archive, which also holds water, bathymetry and infrastructure: its tiles weigh 2 to 4 MB below zoom 9 over Europe, so the layer is drawn from zoom 9 (0.2 to 1.6 MB a tile from there).",
+   "infoUrl": "https://docs.overturemaps.org/guides/base/",
+   "attribution": "Overture Maps Foundation; ESA WorldCover (CC BY 4.0)",
+   "shortAttribution": "Overture Maps, ESA WorldCover",
+   "licenseName": "CC BY 4.0 (ESA WorldCover, through Overture)",
+   "licenseUrl": "https://docs.overturemaps.org/attribution/",
+   "sample": {
+    "lng": 4.4,
+    "lat": 44.3,
+    "zoom": 10
+   }
+  },
+  {
+   "id": "overture-land-use",
+   "name": "Overture Maps land use",
+   "shortName": "Overture land use",
+   "type": "pmtiles",
+   "url": "https://tiles.overturemaps.org/{release}/base.pmtiles",
+   "resolver": "overture",
+   "fallbackRelease": "2026-11-18.0",
+   "minzoom": 13,
+   "maxzoom": 13,
+   "sourceLayers": [
+    "land_use"
+   ],
+   "geometries": [
+    "polygon"
+   ],
+   "color": "#9ca3af",
+   "outline": false,
+   "categories": [
+    {
+     "label": "residential",
+     "color": "#e8b4a0",
+     "field": "subtype",
+     "value": "residential"
+    },
+    {
+     "label": "commercial, industrial",
+     "color": "#b07aa1",
+     "field": "subtype",
+     "value": "developed"
+    },
+    {
+     "label": "farming",
+     "color": "#e9d66b",
+     "field": "subtype",
+     "value": [
+      "agriculture",
+      "horticulture",
+      "aquaculture"
+     ]
+    },
+    {
+     "label": "parks, sport, leisure",
+     "color": "#7fc97f",
+     "field": "subtype",
+     "value": [
+      "park",
+      "recreation",
+      "golf",
+      "managed",
+      "grass",
+      "campground",
+      "entertainment",
+      "winter_sports"
+     ]
+    },
+    {
+     "label": "protected",
+     "color": "#2e8b57",
+     "field": "subtype",
+     "value": "protected"
+    },
+    {
+     "label": "school, hospital, worship",
+     "color": "#6baed6",
+     "field": "subtype",
+     "value": [
+      "education",
+      "medical",
+      "religious"
+     ]
+    },
+    {
+     "label": "transport, pedestrian",
+     "color": "#9e9e9e",
+     "field": "subtype",
+     "value": [
+      "transportation",
+      "pedestrian"
+     ]
+    },
+    {
+     "label": "military",
+     "color": "#a6611a",
+     "field": "subtype",
+     "value": "military"
+    },
+    {
+     "label": "cemetery",
+     "color": "#5f7f6f",
+     "field": "subtype",
+     "value": "cemetery"
+    },
+    {
+     "label": "quarry, landfill, works",
+     "color": "#8c6d31",
+     "field": "subtype",
+     "value": [
+      "resource_extraction",
+      "landfill",
+      "construction"
+     ]
+    }
+   ],
+   "categoryLabel": "Use",
+   "libraryGroup": "landcover",
+   "description": "The land_use layer of Overture's base theme, worldwide, from OpenStreetMap's landuse, leisure and amenity areas: 23 kinds grouped into ten colors, with the name and class of each area. The archive carries the classes at its deepest zoom only (13), so the layer is drawn from zoom 13; a tile of a dense city weighs up to 2 MB there (it also holds every tree and street lamp of the base theme), a rural one a few kilobytes.",
+   "infoUrl": "https://docs.overturemaps.org/guides/base/",
+   "attribution": "\u00a9 OpenStreetMap contributors, Overture Maps Foundation",
+   "shortAttribution": "Overture Maps, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "ODbL 1.0",
+   "licenseUrl": "https://docs.overturemaps.org/attribution/",
+   "sample": {
+    "lng": 2.35,
+    "lat": 48.86,
+    "zoom": 14
+   }
+  },
+  {
+   "id": "ign-ocsge-couverture",
+   "name": "France - IGN OCS GE land cover 2021-2023 (vector)",
+   "shortName": "OCS GE cover",
+   "type": "mvt",
+   "url": "https://data.geopf.fr/tms/1.0.0/OCSGE-TMS.COUVERTURE.2021-2023/{z}/{x}/{y}.pbf",
+   "minzoom": 13,
+   "maxzoom": 16,
+   "bounds": [
+    -5.150528,
+    41.324748,
+    9.5711517,
+    51.0992102
+   ],
+   "sourceLayers": [
+    "occupation_sol"
+   ],
+   "geometries": [
+    "polygon"
+   ],
+   "color": "#9ca3af",
+   "outline": false,
+   "categories": [
+    {
+     "label": "built",
+     "color": "#ff377a",
+     "field": "code_cs",
+     "value": "CS1.1.1.1"
+    },
+    {
+     "label": "paved, not built",
+     "color": "#ff9191",
+     "field": "code_cs",
+     "value": "CS1.1.1.2"
+    },
+    {
+     "label": "mineral or composite ground",
+     "color": "#d9c27a",
+     "field": "code_cs",
+     "value": [
+      "CS1.1.2.1",
+      "CS1.1.2.2"
+     ]
+    },
+    {
+     "label": "bare soil",
+     "color": "#cccccc",
+     "field": "code_cs",
+     "value": "CS1.2.1"
+    },
+    {
+     "label": "water",
+     "color": "#00ccf2",
+     "field": "code_cs",
+     "value": "CS1.2.2"
+    },
+    {
+     "label": "snow and ice",
+     "color": "#a6e6cc",
+     "field": "code_cs",
+     "value": "CS1.2.3"
+    },
+    {
+     "label": "broadleaved",
+     "color": "#80ff00",
+     "field": "code_cs",
+     "value": "CS2.1.1.1"
+    },
+    {
+     "label": "conifers",
+     "color": "#00a600",
+     "field": "code_cs",
+     "value": "CS2.1.1.2"
+    },
+    {
+     "label": "mixed forest",
+     "color": "#80be00",
+     "field": "code_cs",
+     "value": "CS2.1.1.3"
+    },
+    {
+     "label": "shrubs and other woody",
+     "color": "#a6ff80",
+     "field": "code_cs",
+     "value": [
+      "CS2.1.2",
+      "CS2.1.3"
+     ]
+    },
+    {
+     "label": "grass and other herbaceous",
+     "color": "#ccf24d",
+     "field": "code_cs",
+     "value": [
+      "CS2.2.1",
+      "CS2.2.2"
+     ]
+    }
+   ],
+   "categoryLabel": "Cover",
+   "libraryGroup": "landcover",
+   "description": "IGN's large-scale land cover of France (OCS GE, 2021 to 2023 vintage) as vector tiles of the G\u00e9oplateforme: 28 million polygons, each with its cover (14 classes, colored close to IGN's own legend), its use and its year. Departments are added as they are produced: most of France answers, a few do not yet (Rh\u00f4ne, Ille-et-Vilaine, Gers, Alpes-Maritimes on 2026-11-26). Zoom 13 to 16; a zoom 12 tile of Paris weighs 1.7 MB, so the layer is drawn from 13 (0.2 to 0.6 MB).",
+   "infoUrl": "https://geoservices.ign.fr/ocsge",
+   "attribution": "IGN, OCS GE (Occupation du sol \u00e0 grande \u00e9chelle), Licence Ouverte 2.0",
+   "shortAttribution": "IGN OCS GE, LO 2.0",
+   "licenseName": "Licence Ouverte 2.0 (Etalab)",
+   "licenseUrl": "https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
+   "sample": {
+    "lng": 2.35,
+    "lat": 48.86,
+    "zoom": 14
+   }
+  },
+  {
+   "id": "ign-ocsge-usage",
+   "name": "France - IGN OCS GE land use 2021-2023 (vector)",
+   "shortName": "OCS GE use",
+   "type": "mvt",
+   "url": "https://data.geopf.fr/tms/1.0.0/OCSGE-TMS.USAGE.2021-2023/{z}/{x}/{y}.pbf",
+   "minzoom": 13,
+   "maxzoom": 16,
+   "bounds": [
+    -5.150528,
+    41.324748,
+    9.5711517,
+    51.0992102
+   ],
+   "sourceLayers": [
+    "occupation_sol"
+   ],
+   "geometries": [
+    "polygon"
+   ],
+   "color": "#9ca3af",
+   "outline": false,
+   "categories": [
+    {
+     "label": "agriculture",
+     "color": "#ffffa8",
+     "field": "code_us",
+     "value": "US1.1"
+    },
+    {
+     "label": "forestry",
+     "color": "#008000",
+     "field": "code_us",
+     "value": "US1.2"
+    },
+    {
+     "label": "extraction",
+     "color": "#a600cc",
+     "field": "code_us",
+     "value": "US1.3"
+    },
+    {
+     "label": "fishing, other primary",
+     "color": "#3f6fb5",
+     "field": "code_us",
+     "value": [
+      "US1.4",
+      "US1.5"
+     ]
+    },
+    {
+     "label": "industry, services, housing (mixed)",
+     "color": "#e6004d",
+     "field": "code_us",
+     "value": [
+      "US235",
+      "US2"
+     ]
+    },
+    {
+     "label": "services",
+     "color": "#ff8c00",
+     "field": "code_us",
+     "value": "US3"
+    },
+    {
+     "label": "roads",
+     "color": "#cc0000",
+     "field": "code_us",
+     "value": "US4.1.1"
+    },
+    {
+     "label": "rail, air, water, other transport",
+     "color": "#5a5a5a",
+     "field": "code_us",
+     "value": [
+      "US4.1.2",
+      "US4.1.3",
+      "US4.1.4",
+      "US4.1.5",
+      "US4.2",
+      "US4.3"
+     ]
+    },
+    {
+     "label": "residential",
+     "color": "#be0961",
+     "field": "code_us",
+     "value": "US5"
+    },
+    {
+     "label": "in transition, abandoned",
+     "color": "#ff4dff",
+     "field": "code_us",
+     "value": [
+      "US6.1",
+      "US6.2"
+     ]
+    },
+    {
+     "label": "no use, unknown",
+     "color": "#f0f028",
+     "field": "code_us",
+     "value": [
+      "US6.3",
+      "US6.6"
+     ]
+    }
+   ],
+   "categoryLabel": "Use",
+   "libraryGroup": "landcover",
+   "description": "The same polygons as the OCS GE land cover, colored by use (20 codes of IGN's nomenclature in eleven colors): agriculture, forestry, services, housing, roads and rail, land in transition. Vector tiles of the G\u00e9oplateforme, 2021 to 2023 vintage, zoom 13 to 16; the same departments answer.",
+   "infoUrl": "https://geoservices.ign.fr/ocsge",
+   "attribution": "IGN, OCS GE (Occupation du sol \u00e0 grande \u00e9chelle), Licence Ouverte 2.0",
+   "shortAttribution": "IGN OCS GE, LO 2.0",
+   "licenseName": "Licence Ouverte 2.0 (Etalab)",
+   "licenseUrl": "https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
+   "sample": {
+    "lng": 2.35,
+    "lat": 48.86,
+    "zoom": 14
+   }
   }
  ]
 }

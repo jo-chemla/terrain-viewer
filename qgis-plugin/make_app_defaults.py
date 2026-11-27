@@ -16,6 +16,9 @@ app link the way the app reads it, with no tile service (the Python backend):
   field, lib/building-tiles.ts isBuildingSource), with what a reader needs:
   the choices of the panel's "Buildings from", and what the Python backend
   reads them with. A tile service lists the same at /building-sources.
+- vectorSources: the whole Vector library (SAMPLE_VECTOR_SOURCES), which
+  the panel's "Vector library" adds as QGIS layers of their own, styled by
+  category (terrain_viewer/vector_library.py).
 
 No service needed:
 
@@ -63,13 +66,30 @@ def building_sources():
             if e.get("heightField") and e.get("type") != "style" and e.get("sourceLayers")]
 
 
+VECTOR_FIELDS = ("id", "name", "shortName", "type", "url", "resolver", "fallbackRelease", "minzoom", "maxzoom", "bounds",
+                 "sourceLayers", "geometries", "companions", "color", "outline", "polygonFill", "categories", "categoryLabel",
+                 "styleLayerTypes", "libraryGroup", "description", "infoUrl", "attribution", "shortAttribution", "licenseName",
+                 "licenseUrl", "sample")
+
+
+def vector_sources():
+    """The whole Vector library, with what QGIS needs to add an entry as a
+    layer of its own (terrain_viewer/vector_library.py): its address and
+    kind, its layers and geometries, its categories and colors, its
+    attribution and licence."""
+    with open(os.path.join(ROOT, "lib", "custom-sources.json"), encoding="utf-8") as f:
+        entries = json.load(f).get("SAMPLE_VECTOR_SOURCES", [])
+    return [{k: e[k] for k in VECTOR_FIELDS if k in e} for e in entries]
+
+
 def main():
-    data = {"defaults": defaults(), "basemaps": basemaps(), "buildingSources": building_sources()}
+    data = {"defaults": defaults(), "basemaps": basemaps(), "buildingSources": building_sources(),
+            "vectorSources": vector_sources()}
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         json.dump(data, f, indent=1, sort_keys=False)
         f.write("\n")
     print(f"wrote {OUT}: {len(data['defaults'])} parameters, {len(data['basemaps'])} basemaps, "
-          f"{len(data['buildingSources'])} building sources")
+          f"{len(data['buildingSources'])} building sources, {len(data['vectorSources'])} vector sources")
 
 
 if __name__ == "__main__":

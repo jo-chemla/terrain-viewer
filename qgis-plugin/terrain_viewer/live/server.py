@@ -110,6 +110,19 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             if parts == ["health"]:
                 return self._send(200, b'{"ok":true}', "application/json")
+            if parts[0] == "pmtiles":
+                # A PMTiles archive over https as plain vector tiles
+                # (/pmtiles/{z}/{x}/{y}.pbf?url=...), for the archives GDAL
+                # cannot open (vector_library.py): read by live/pmtiles.py.
+                z, x, y = int(parts[1]), int(parts[2]), int(parts[3].split(".")[0])
+                url = parse_qs(u.query).get("url", [""])[0]
+                if not url.startswith("https://") or z < 0 or not (0 <= x < 1 << z) or not (0 <= y < 1 << z):
+                    return self._send(400, b"expected /pmtiles/{z}/{x}/{y}.pbf?url=https://...", "text/plain")
+                data = srv.archive(url).tile(z, x, y)
+                srv.requests += 1
+                if data is None:
+                    return self._send(204, b"", "application/x-protobuf")
+                return self._send(200, data, "application/x-protobuf", {"Cache-Control": "max-age=86400"})
             mode, z, x, y = parts[0], int(parts[1]), int(parts[2]), parts[3]
             y, ext = y.split(".") if "." in y else (y, "png")
             y = int(y)
@@ -191,6 +204,16 @@ class LiveServer:
         mod = sys.modules.get(__package__ + ".buildings")
         if mod is not None:
             mod.clear()
+        # Nor the finished tasks of the view's lines, which hold their
+        # features (live/layers.py keeps the last sixteen referenced).
+        mod = sys.modules.get(__package__ + ".layers")
+        if mod is not None:
+            for task in mod._tasks:
+                try:
+                    task.returned_values = None
+                except Exception:  # noqa: BLE001 - a task QGIS already deleted
+                    pass
+            del mod._tasks[:]
 
     def __init__(self, port=None, workers=None, result_cache_mb=64):
         self.workers = workers or max(2, os.cpu_count() or 4)
@@ -224,6 +247,25 @@ class LiveServer:
         self._stats_lock = threading.Lock()
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="tv-live-http", daemon=True)
         self.thread.start()
+
+    def archive(self, url):
+        """The PMTiles archive at `url` (its header and directories read
+        once), the last eight kept."""
+        from .pmtiles import Archive
+        with self._stats_lock:
+            archives = self.__dict__.setdefault("_archives", OrderedDict())
+            a = archives.get(url)
+            if a is None:
+                a = archives[url] = Archive(url)
+                while len(archives) > 8:
+                    archives.popitem(last=False)
+            else:
+                archives.move_to_end(url)
+            return a
+
+    def pmtiles_url(self, url):
+        """The XYZ template of an archive's vector tiles, from this server."""
+        return f"http://127.0.0.1:{self.port}/pmtiles/{{z}}/{{x}}/{{y}}.pbf?{urlencode({'url': url})}"
 
     def dem(self, source):
         with self._stats_lock:
@@ -331,4 +373,21 @@ class LiveServer:
         for d in self._dems.values():
             # A GDAL source's datasets live in its pool's threads: let them end (and
             # close them) before QGIS tears GDAL down.
-            d.pool.shutdown(wait=bool(d.spec.get("gdal") or d.spec.get("qgis_provider")))
+            if d.spec.get("gdal") or d.spec.get("qgis_provider"):
+                d.pool.shutdown(wait=True)
+                continue
+            # A tile pyramid's: the tiles still queued (a prefetch for a view
+            # the map just left) are dropped, and the ones being downloaded
+            # or decoded get a moment to end, so that no thread of ours works
+            # while QGIS quits. (0.12.0, looking for an access violation
+            # QGIS 3.44's Python ends a headless script with, about one run
+            # in two of test_setup_live.py, after its last line: this did
+            # not end it, and its cause is not found.)
+            threads = list(getattr(d.pool, "_threads", ()))
+            try:
+                d.pool.shutdown(wait=False, cancel_futures=True)
+            except TypeError:  # Python < 3.9
+                d.pool.shutdown(wait=False)
+            deadline = time.monotonic() + 3.0
+            for t in threads:
+                t.join(max(0.0, deadline - time.monotonic()))
