@@ -27,8 +27,8 @@ from qgis.core import (  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
 from qgis.PyQt.QtCore import QEventLoop, QSize, QTimer  # noqa: E402
 from qgis.PyQt.QtGui import QColor  # noqa: E402
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
-from terrain_viewer import vector_library as vl  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+from iconem_terrain_viewer import vector_library as vl  # noqa: E402
 
 failures = []
 WORLD = 20037508.342789244
@@ -139,7 +139,7 @@ for k, v in kept.items():
     else:
         settings.setValue(f"terrain_viewer/{k}", v)
 dock.cleanup()
-from terrain_viewer.live.server import LiveServer  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer  # noqa: E402
 LiveServer.shutdown()
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ")
 app.exitQgis()

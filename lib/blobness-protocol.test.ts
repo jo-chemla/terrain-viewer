@@ -3,7 +3,7 @@
 // direction a feature runs (the dominant gradient turned by 90°: a ridge
 // running north-south reads 0°, east-west 90°): not mirrored east-west the way Aspect was until
 // 2026-11-25 (lib/aspect-protocol.test.ts). The QGIS plugin's Python port
-// (qgis-plugin/terrain_viewer/live/kernels.py orientation) is checked
+// (qgis-plugin/iconem_terrain_viewer/live/kernels.py orientation) is checked
 // against the same cases in qgis-plugin/test_live.py.
 import { test } from "node:test"
 import assert from "node:assert/strict"

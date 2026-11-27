@@ -1,4 +1,4 @@
-"""Headless check of the experimental local compute (terrain_viewer/live/):
+"""Headless check of the experimental local compute (iconem_terrain_viewer/live/):
   QT_QPA_PLATFORM=offscreen NODE=<node> python-qgis test_live.py [--service http://127.0.0.1:3461] [out-dir]
 1. Shadows and sky view factor against the app's own kernels (lib/shadow-kernel.ts,
    lib/horizon-kernel.ts run by Node through live_reference.mjs).
@@ -65,9 +65,9 @@ os.makedirs(out, exist_ok=True)
 import numpy as np  # noqa: E402
 from osgeo import gdal, ogr  # noqa: E402
 
-from terrain_viewer.live import kernels, kernels_numba, modes  # noqa: E402
-from terrain_viewer.live.dem import TILE, Dem, ground_resolution_m  # noqa: E402
-from terrain_viewer.live.server import LiveServer  # noqa: E402
+from iconem_terrain_viewer.live import kernels, kernels_numba, modes  # noqa: E402
+from iconem_terrain_viewer.live.dem import TILE, Dem, ground_resolution_m  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer  # noqa: E402
 
 gdal.UseExceptions()
 failures = []
@@ -276,7 +276,7 @@ if service:
     # service's picture (background none) is drawn against the plugin's
     # colour tile (its alpha), each within a pixel of the other (lines are
     # antialiased there: recall and precision, not equality).
-    from terrain_viewer.live import buildings as live_buildings  # noqa: E402
+    from iconem_terrain_viewer.live import buildings as live_buildings  # noqa: E402
 
     def grow1(m):
         g = m.copy()
@@ -425,7 +425,7 @@ if service:
     # tiles (the same tile of the source's pyramid), positions and measures.
     print("2c. the mound detector against the tile service's vector tiles")
     from mvt_reader import read_points  # noqa: E402
-    from terrain_viewer.live import mounds  # noqa: E402
+    from iconem_terrain_viewer.live import mounds  # noqa: E402
     for t, opts, q in [((13, 4253, 2921), {}, ""), ((14, 8507, 5843), {}, ""), ((12, 2126, 1460), {}, ""),
                        ((13, 4253, 2921), {"polarity": "both", "radius": 16, "size": 60}, "&tellsPolarity=both&tellRadius=16&tellSize=60"),
                        ((13, 4253, 2921), {"vetoResolution": "fine", "blobnessMin": 0.5, "measureScale": False},
@@ -512,8 +512,8 @@ for t in TILES[:2]:
 # Contour lines (the vector form): the lines of a view one tile wide are
 # GDAL's over the same grid; rasterized, within a pixel of the contour mask.
 from qgis.core import QgsRectangle as _R  # noqa: E402
-from terrain_viewer.live import contours as live_contours  # noqa: E402
-from terrain_viewer.live.server import WORLD as _W  # noqa: E402
+from iconem_terrain_viewer.live import contours as live_contours  # noqa: E402
+from iconem_terrain_viewer.live.server import WORLD as _W  # noqa: E402
 for t in TILES[:2]:
     zt, xt, yt = t
     size = 2 * _W / (1 << zt)
@@ -622,7 +622,7 @@ else:
 # 5. End to end in QGIS: each mode's forms (colour XYZ, values GDAL, contour
 # lines) on the localhost server, drawn by QGIS's parallel renderer.
 print("5. drawn by QGIS")
-from terrain_viewer.live.layers import LocalLayers  # noqa: E402
+from iconem_terrain_viewer.live.layers import LocalLayers  # noqa: E402
 
 srv = LiveServer.instance()
 ll = LocalLayers()
@@ -655,7 +655,7 @@ def draw(layer, name):
     return wall, int(px.max() - px.min()), len(np.unique(px[::37] @ np.array([65536, 256, 1])))
 
 
-from terrain_viewer.live import layers as live_layers  # noqa: E402
+from iconem_terrain_viewer.live import layers as live_layers  # noqa: E402
 
 # Settings that put something in the view (Mont Blanc's massif: no plane at
 # sea level, no building to shade).
@@ -725,9 +725,9 @@ ll.remove_all()
 # service's, the modes live/ does not compute greyed out, the forms it lacks
 # hidden; per mode, Colour and Values add and remove their layers in the
 # live group, marked as the Python backend's.
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
-from terrain_viewer.layers import PROP, BACKEND_PROP  # noqa: E402
-from terrain_viewer import python_backend as pyb  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+from iconem_terrain_viewer.layers import PROP, BACKEND_PROP  # noqa: E402
+from iconem_terrain_viewer import python_backend as pyb  # noqa: E402
 
 dock = TerrainViewerDock(None)
 dock.set_backend("remote", connect=False)
@@ -830,7 +830,7 @@ if py_keys():
 # feet GeoTIFF made from Mapterhorn, read through GDAL warped to EPSG:3857.
 print("7. any GDAL raster as the source")
 from make_test_dem import make as make_test_dem  # noqa: E402
-from terrain_viewer.live import gdal_source  # noqa: E402
+from iconem_terrain_viewer.live import gdal_source  # noqa: E402
 cog_path, ft_path = make_test_dem(os.path.join(out, "test-dem"))
 spec = gdal_source.probe(cog_path)
 spec_ft = gdal_source.probe(ft_path)
@@ -893,7 +893,7 @@ else:
     if not np.allclose(np.nan_to_num(pv, nan=-1), np.nan_to_num(gd.tile(13, 4253, 2921), nan=-1), atol=1e-3):
         failures.append("gdal source: the server's tile of the layer differs from the GdalDem's")
 if service:
-    from terrain_viewer import local_files  # noqa: E402
+    from iconem_terrain_viewer import local_files  # noqa: E402
     src, why = local_files.service_source(service, "layer:" + rl.id())
     print(f"  registered with the service: {src} {why or ''}")
     if src is None and "no /files" in (why or ""):

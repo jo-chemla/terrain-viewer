@@ -2,7 +2,7 @@
 the build machines of .github/workflows/qgis-plugins.yml):
   python -I smoke_bundled.py dist/terrain-viewer-tile-service-<platform>.zip
 Unzips it into a temporary folder the way the plugin's installer does (no
-executable bits), loads terrain_viewer/local_server.py alone (the package
+executable bits), loads iconem_terrain_viewer/local_server.py alone (the package
 itself imports QGIS), starts the service, asks /processes and a /terrain-tiles
 tile drawn with sharp, stops it and checks it is gone. test_service_paths.py
 is the same check through the panel, in QGIS, the bundle installed by the
@@ -20,7 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 tmp = tempfile.mkdtemp(prefix="tv-smoke-")
 with zipfile.ZipFile(sys.argv[1]) as z:
     z.extractall(tmp)
-spec = importlib.util.spec_from_file_location("local_server", os.path.join(HERE, "terrain_viewer", "local_server.py"))
+spec = importlib.util.spec_from_file_location("local_server", os.path.join(HERE, "iconem_terrain_viewer", "local_server.py"))
 local_server = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(local_server)
 

@@ -34,6 +34,7 @@ from .service import setting_params, split_link, query_dict, KEY_PARAMS
 APP_URL = "https://terrain-viewer.iconem.com/"
 FORMAT = "terrain-viewer-setup"
 VERSION = 1
+# "terrain_viewer/", not the folder name: kept so earlier frozen layers are read (see SETTINGS in dock.py).
 SETUP_PROP = "terrain_viewer/setup"            # on a frozen group: the whole record (JSON)
 PARAMS_PROP = "terrain_viewer/params"          # on a frozen layer: its part of it (JSON)
 LINK_PROP = "terrain_viewer/link"              # on a frozen layer and group: the app link

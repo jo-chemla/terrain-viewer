@@ -45,6 +45,7 @@ DEFAULT_SOURCE = "osm-buildings-openfreemap"
 # never shown as plain settings of the row.
 PARAMS = ("buildingShadowSource", "buildingShadowLayer", "buildingShadowHeightField", "buildingShadowFloorsField",
           "buildingShadowMinHeightField", "buildingShadowType")
+# "terrain_viewer", not the folder name (iconem_terrain_viewer): kept, see SETTINGS in dock.py.
 PROJECT_SCOPE, PROJECT_KEY = "terrain_viewer", "buildingsFrom"
 # A layer of at most this many features is written whole; a larger one for
 # the map's extent, and never more than SNAPSHOT_MAX features.

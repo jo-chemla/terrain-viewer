@@ -2,7 +2,7 @@
 
 Two plugins live here:
 
-- **`terrain_viewer/`**, Terrain Viewer's modes as QGIS layers (below). MIT,
+- **`iconem_terrain_viewer/`**, Terrain Viewer's modes as QGIS layers (below). MIT,
   as the rest of the repository.
 - **`send2map_app/`**, "Open in": the place shown or clicked in QGIS opened in
   Terrain Viewer, Google Earth, Bing Maps 3D, ShadeMap and the other
@@ -15,8 +15,10 @@ both (see Files).
 
 ## Terrain Viewer
 
-0.12.0 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
-at its top. 0.12.0: Freeze writes every parameter on its copies, a setup is
+0.12.1 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
+at its top. 0.12.1: the plugin's folder is `iconem_terrain_viewer` (it was
+`terrain_viewer`, the folder of an unrelated plugin on plugins.qgis.org; see
+Install). 0.12.0: Freeze writes every parameter on its copies, a setup is
 saved to a folder and loaded back, the app's Vector library adds its entries
 as QGIS layers, and the plugin is no longer marked experimental. 0.11.0: the Temporal Controller's default step is one week, the
 backend control shows on the Historical page while a source needs a tile
@@ -59,20 +61,26 @@ repository or installs a plugin. Two cautions:
   Experimental Plugins" ticked. 0.12.0 is `experimental=False`
   and needs no tick; `plugins.xml` takes the flag from `metadata.txt`.
 - plugins.qgis.org lists an unrelated plugin (Terrain Viewer by LiDARgeek,
-  1.3.1, QGIS 3.40 to 3.99) with the same folder name, `terrain_viewer`. QGIS
-  keys plugins by folder name across repositories: in QGIS 3.40 to 3.x the
-  Plugin Manager can show that one in place of this one, or offer it as an
-  upgrade. Check the author (Iconem) before installing or upgrading there;
-  the panel's own Update button reads this project's `plugins.xml` alone.
-  QGIS 4 is not concerned.
+  1.3.1, QGIS 3.40 to 3.99) whose folder is `terrain_viewer`, this plugin's
+  folder up to 0.12.0. QGIS keys plugins by folder name across repositories,
+  so in QGIS 3.40 to 3.x the Plugin Manager could show that one in place of
+  this one, or offer it as an upgrade. Since 0.12.1 the folder is
+  `iconem_terrain_viewer`; the display name stays Terrain Viewer (QGIS does
+  not merge by name), so QGIS 3 lists two of them: pick the one by Iconem.
+- **Coming from 0.12.0 or earlier**: for QGIS, 0.12.1 is another plugin, so
+  it is not offered as an upgrade and nothing moves the install over. In the
+  plugin manager, uninstall "Terrain Viewer" (folder `terrain_viewer`), then
+  install the new one. Settings are kept: the QGIS settings, the layers'
+  custom properties and the profile's data folder still use the
+  `terrain_viewer` prefix (the other plugin stores none of these).
 
-**From a zip.** The zips of each version are on a release: [`qgis-plugins-2026-11-27`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-27)
-(Terrain Viewer 0.12.0, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
+**From a zip.** The zips of each version are on a release: [`qgis-plugins-2026-11-27b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-27b)
+(Terrain Viewer 0.12.1, `iconem_terrain_viewer-0.12.1.zip`, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this
 platform's tile service bundle (Node and the service, about 48 MB) from the
-release that `terrain_viewer/service_pins.json` pins, checks its sha256 and
+release that `iconem_terrain_viewer/service_pins.json` pins, checks its sha256 and
 unpacks it into the plugin's data folder; with **Packaged tile server** picked,
 Connect installs it the first time and starts it on 127.0.0.1, picking another
 backend or quitting QGIS stops it. No browser engine (flat, north-up tiles only, what
@@ -80,9 +88,9 @@ QGIS asks for). See [the docs](../docs/content/docs/dev/qgis-plugin.mdx#the-loca
 To build them:
 
 ```bash
-python make_zip.py                              # dist/terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
+python make_zip.py                              # dist/iconem_terrain_viewer-<version>.zip and dist/send2map_app-<version>.zip
 python make_zip.py --service-bundle [platform]  # dist/terrain-viewer-tile-service-<platform>.zip, all four when none is named
-python make_zip.py --pins <release-tag> dist    # terrain_viewer/service_pins.json from those bundles
+python make_zip.py --pins <release-tag> dist    # iconem_terrain_viewer/service_pins.json from those bundles
 python make_zip.py --plugins-xml <release-tag>  # dist/plugins.xml, the QGIS plugin repository of that release (after the zips)
 ```
 
@@ -104,17 +112,17 @@ does not publish): two ways from the GitHub releases instead.
   last check is three days old or more, and whenever the Plugin Manager is
   opened. The Upgradeable tab shows only while an installed plugin has a
   newer version in an enabled repository (hidden otherwise). `plugins.xml` keys each plugin by `file_name` up to the
-  first dot (`terrain_viewer.0.9.0.zip`), downloads `download_url` (the dated
+  first dot (`iconem_terrain_viewer.0.12.1.zip`), downloads `download_url` (the dated
   release's zip), and carries a `sha256` element of ours.
 - **The panel**: once a day it reads the same `plugins.xml` in the background
-  (`terrain_viewer/updates.py`); a newer version shows "Update to x.y.z":
+  (`iconem_terrain_viewer/updates.py`); a newer version shows "Update to x.y.z":
   downloaded, sha256 checked, unpacked over the plugin's folder, the plugin
   reloaded. Never over a development copy (a link, a folder in a git
   checkout). Off with the QGIS setting `terrain_viewer/checkUpdates=false`.
 
 In QGIS: Plugins > Manage and Install Plugins > Install from ZIP. Or, while
 working on it, link the folder into the profile's plugins folder (Windows:
-`%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\terrain_viewer`; QGIS 4
+`%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\iconem_terrain_viewer`; QGIS 4
 uses `QGIS4`), then enable it in the plugin manager. `send2map_app` installs
 the same way, and replaces an earlier Send2MapApp in place (same folder name).
 
@@ -129,7 +137,7 @@ modes computed in QGIS with numpy.
   nothing answers, no layer made). Picking another backend re-points the
   checked modes' layers to it.
 - **The tree** comes from the service's `/processes` (each mode as an OGC
-  API Processes description), or from `terrain_viewer/assets/catalog.json` (a
+  API Processes description), or from `iconem_terrain_viewer/assets/catalog.json` (a
   snapshot made by `make_assets.py`) before a service answers and for the
   Python backend. Under Python, the modes and settings it does not handle are
   greyed out, and only the forms it makes show.
@@ -296,31 +304,31 @@ read in plain Python (`live/pmtiles.py`). The tile service's side:
 
 | File | Role |
 |---|---|
-| `terrain_viewer/service.py` | The service's catalogs and the tile addresses (no widget) |
-| `terrain_viewer/layers.py` | The layers in the project: the group tree, creation, address rewrite, opacity, blend, vector tile style |
-| `terrain_viewer/dock.py` | The panel: the backends, the tree, the rows |
-| `terrain_viewer/widgets.py`, `settings_ui.py` | The slider with its box, the light pad, the selects with previews, the foldable section, the backend buttons; the slider ranges and symmetric pairs by parameter name |
-| `terrain_viewer/python_backend.py` | The Python backend under the tree: the service's modes, settings and sources mapped onto `live/` |
-| `terrain_viewer/assets.py`, `assets/`, `make_assets.py` | The ramp and matcap previews (sprite sheets) and the catalog snapshot, made from a running tile service: `python make_assets.py [http://localhost:3400]` |
-| `terrain_viewer/links.py`, `assets/app_defaults.json`, `make_app_defaults.py` | An app link read as the app reads it (its defaults for what it leaves out, the basemap), the Basemap row's choices and the Library's building sources: the defaults, built-in basemaps and vector sources with heights from `docs/src/generated/url-params.json`, `lib/basemap-sources.ts` and `lib/custom-sources.json`, `python make_app_defaults.py` |
-| `terrain_viewer/historical.py`, `historical_ui.py`, `clock.svg`, `fixtures/wayback_paris.json`, `fixtures/ge_dates_paris.json` | The Historical mode: the dated sources with no QGIS import (Esri Wayback's catalog, walk and capture dates, Google Earth's dates from a tile service, Planet's and HLS's months, EOX's years; a port of `lib/wayback.ts`, `lib/planet.ts`, `lib/hls.ts` and `lib/dated-imagery.ts`), and its panel (the layers with their temporal ranges, QGIS's temporal navigation and its step, the frame line, the backend control when a source needs it, the notices, the Planet key); a recorded Wayback session and a tile service's Google Earth answer at the Eiffel Tower for the offline tests |
+| `iconem_terrain_viewer/service.py` | The service's catalogs and the tile addresses (no widget) |
+| `iconem_terrain_viewer/layers.py` | The layers in the project: the group tree, creation, address rewrite, opacity, blend, vector tile style |
+| `iconem_terrain_viewer/dock.py` | The panel: the backends, the tree, the rows |
+| `iconem_terrain_viewer/widgets.py`, `settings_ui.py` | The slider with its box, the light pad, the selects with previews, the foldable section, the backend buttons; the slider ranges and symmetric pairs by parameter name |
+| `iconem_terrain_viewer/python_backend.py` | The Python backend under the tree: the service's modes, settings and sources mapped onto `live/` |
+| `iconem_terrain_viewer/assets.py`, `assets/`, `make_assets.py` | The ramp and matcap previews (sprite sheets) and the catalog snapshot, made from a running tile service: `python make_assets.py [http://localhost:3400]` |
+| `iconem_terrain_viewer/links.py`, `assets/app_defaults.json`, `make_app_defaults.py` | An app link read as the app reads it (its defaults for what it leaves out, the basemap), the Basemap row's choices and the Library's building sources: the defaults, built-in basemaps and vector sources with heights from `docs/src/generated/url-params.json`, `lib/basemap-sources.ts` and `lib/custom-sources.json`, `python make_app_defaults.py` |
+| `iconem_terrain_viewer/historical.py`, `historical_ui.py`, `clock.svg`, `fixtures/wayback_paris.json`, `fixtures/ge_dates_paris.json` | The Historical mode: the dated sources with no QGIS import (Esri Wayback's catalog, walk and capture dates, Google Earth's dates from a tile service, Planet's and HLS's months, EOX's years; a port of `lib/wayback.ts`, `lib/planet.ts`, `lib/hls.ts` and `lib/dated-imagery.ts`), and its panel (the layers with their temporal ranges, QGIS's temporal navigation and its step, the frame line, the backend control when a source needs it, the notices, the Planet key); a recorded Wayback session and a tile service's Google Earth answer at the Eiffel Tower for the offline tests |
 | `test_panel_units.py` | No service, no network: slider ranges, links, the Python mapping, the assets, the light pad, the panel's order and backends, the source groups, the labels, the Basemap row, the raw inputs under the modes, the Historical mode (`panel_historical_checks.py`, run by it: a recorded Wayback session, the temporal navigation, the Temporal Controller's slider and its steps, the notices, Planet and HLS against the app's TypeScript, Google Earth from a recorded answer, the toolbar buttons, a layer's symbology playing no part in the elevation), plugins.xml and an update installed: `QT_QPA_PLATFORM=offscreen python-qgis test_panel_units.py` |
 | `test_sources.py` | Network: the library's raw elevation read by the Python backend (NRCan's COG, IGN's raw WMS, a WCS, an ArcGIS image service), the panel drawing them and never Mapterhorn in their place, the raw inputs as QGIS layers, what a tile of NRCan's 84 GB COG reads and its hillshade drawn over the raw layer, Esri Wayback's dates at the Eiffel Tower (how long, one by one, again from the kept file) and a tile of two of them, an EOX tile, an HLS tile, Google Earth's dates and two tiles through a tile service (`TERRAIN_VIEWER_SERVICE=http://localhost:3400`), Planet with `PLANET_API_KEY`: `QT_QPA_PLATFORM=offscreen python-qgis test_sources.py` |
 | `test_app_window.py` | Inside the QGIS application itself, offscreen, in a throwaway profile (`qgis --code test_app_window.py`, see its header): the two toolbar buttons, the clock opening the Historical mode, the Temporal Controller button showing QGIS's own panel |
-| `terrain_viewer/buildings_ui.py`, `live/buildings.py`, `live/pmtiles.py`, `panel_buildings_checks.py`, `test_buildings_live.py` | The building shadows' buildings: the "Buildings from" choice (the Library's sources, an address, a polygon layer written as GeoJSON), the footprints read from vector tiles (TileJSON, MVT template, PMTiles in plain Python) or from that file and burnt with their heights; offline checks (run by `test_panel_units.py`: an archive written by the test, the choice, a layer written and burnt) and the network ones (both backends compared tile by tile): `TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_buildings_live.py` |
+| `iconem_terrain_viewer/buildings_ui.py`, `live/buildings.py`, `live/pmtiles.py`, `panel_buildings_checks.py`, `test_buildings_live.py` | The building shadows' buildings: the "Buildings from" choice (the Library's sources, an address, a polygon layer written as GeoJSON), the footprints read from vector tiles (TileJSON, MVT template, PMTiles in plain Python) or from that file and burnt with their heights; offline checks (run by `test_panel_units.py`: an archive written by the test, the choice, a layer written and burnt) and the network ones (both backends compared tile by tile): `TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_buildings_live.py` |
 | `test_temporal_live.py` | Network: the Temporal Controller under the default week step with Esri Wayback and, through a tile service connected from the Historical page, Google Earth historical: the capture named and drawn at a sample of frames, the picture changing with the capture: `TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_temporal_live.py` |
-| `terrain_viewer/setups.py`, `panel_setup_checks.py`, `test_setup_live.py` | A setup kept (0.12.0): the panel's state as an app link and the panel's own, a frozen layer's parameters written on it, Save setup to a folder (`setup.json`, `layers.qlr`, `vectors.gpkg`, GeoTIFFs), Load setup; offline checks (run by `test_panel_units.py`) and, network, a setup of the Python backend saved with its GeoTIFFs and reopened: `QT_QPA_PLATFORM=offscreen python-qgis test_setup_live.py` |
-| `terrain_viewer/vector_library.py`, `panel_overlay_checks.py`, `test_overlays_live.py` | The app's Vector library as QGIS layers (0.12.0): which layer each entry becomes, its categories as QGIS rules, its attribution; offline checks (run by `test_panel_units.py`) and, network, every entry added and drawn: `QT_QPA_PLATFORM=offscreen python-qgis test_overlays_live.py` |
-| `terrain_viewer/updates.py` | Updates: `plugins.xml` read, a zip checked and unpacked over the plugin (the panel's Update button) |
-| `terrain_viewer/local_server.py` | The local tile service (installed, or a `server/` folder): started on 127.0.0.1, stopped on unload or when QGIS goes |
-| `terrain_viewer/service_install.py`, `service_pins.json` | The **Install** button: the pinned bundle downloaded through QGIS's network manager, its sha256 checked, unpacked into the plugin's data folder; **Remove** |
-| `terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.svg` | The QGIS plugin around it |
+| `iconem_terrain_viewer/setups.py`, `panel_setup_checks.py`, `test_setup_live.py` | A setup kept (0.12.0): the panel's state as an app link and the panel's own, a frozen layer's parameters written on it, Save setup to a folder (`setup.json`, `layers.qlr`, `vectors.gpkg`, GeoTIFFs), Load setup; offline checks (run by `test_panel_units.py`) and, network, a setup of the Python backend saved with its GeoTIFFs and reopened: `QT_QPA_PLATFORM=offscreen python-qgis test_setup_live.py` |
+| `iconem_terrain_viewer/vector_library.py`, `panel_overlay_checks.py`, `test_overlays_live.py` | The app's Vector library as QGIS layers (0.12.0): which layer each entry becomes, its categories as QGIS rules, its attribution; offline checks (run by `test_panel_units.py`) and, network, every entry added and drawn: `QT_QPA_PLATFORM=offscreen python-qgis test_overlays_live.py` |
+| `iconem_terrain_viewer/updates.py` | Updates: `plugins.xml` read, a zip checked and unpacked over the plugin (the panel's Update button) |
+| `iconem_terrain_viewer/local_server.py` | The local tile service (installed, or a `server/` folder): started on 127.0.0.1, stopped on unload or when QGIS goes |
+| `iconem_terrain_viewer/service_install.py`, `service_pins.json` | The **Install** button: the pinned bundle downloaded through QGIS's network manager, its sha256 checked, unpacked into the plugin's data folder; **Remove** |
+| `iconem_terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.svg` | The QGIS plugin around it |
 | `send2map_app/` | The "Open in" plugin: `destinations.py` (the URL builders, no QGIS import), `send2map_apptool.py` (the canvas as a camera, the map tool, opening a URL or a KML), `send2map_app.py` (toolbar, Web menu, canvas right-click menu) |
 | `make_zip.py` | The installable zips, the tile service bundles (`--service-bundle`), their pins (`--pins`) and the plugin repository (`--plugins-xml`) |
-| `test_plugin.py` | A headless check of `terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
-| `test_service_paths.py` | The plain zip unzipped into a temporary plugins folder and driven through the panel in headless QGIS: `installed` (Install from a bundle served locally, or the real pinned download; a tampered download refused; Connect, a slope tile, the unresponsive warnings, Remove) or `external` (an address, the desktop app's): `QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/terrain_viewer-<version>.zip [dist/terrain-viewer-tile-service-windows-x64.zip]`, or `... external dist/terrain_viewer-<version>.zip http://localhost:3400 [--stop "<command>"]` |
+| `test_plugin.py` | A headless check of `iconem_terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
+| `test_service_paths.py` | The plain zip unzipped into a temporary plugins folder and driven through the panel in headless QGIS: `installed` (Install from a bundle served locally, or the real pinned download; a tampered download refused; Connect, a slope tile, the unresponsive warnings, Remove) or `external` (an address, the desktop app's): `QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/iconem_terrain_viewer-<version>.zip [dist/terrain-viewer-tile-service-windows-x64.zip]`, or `... external dist/iconem_terrain_viewer-<version>.zip http://localhost:3400 [--stop "<command>"]` |
 | `smoke_bundled.py` | A service bundle started without QGIS (the build runners): `python -I smoke_bundled.py dist/terrain-viewer-tile-service-<platform>.zip` |
-| `terrain_viewer/live/`, `test_live.py`, `bench_live.py`, `bench_canvas.py`, `live_reference.mjs` | Experimental (the **Python** backend): 16 modes computed with numpy in QGIS (`live/modes.py`; the matcap pictures `live/textures.py`), served from a localhost thread as colored XYZ tiles (Color) and Float32 tiles GDAL reads (Values: QGIS's color ramps, Identify); contour lines as a vector layer for the view (`live/contours.py`). `test_live.py [--service <url>]` scores each mode against the app's kernels in Node, the tile service and gdaldem, and draws every form; `bench_live.py` times the kernels, `bench_canvas.py` a 1920x1080 canvas. Findings: [QGIS Live Compute](../docs/content/docs/dev/qgis-live-compute.mdx) |
+| `iconem_terrain_viewer/live/`, `test_live.py`, `bench_live.py`, `bench_canvas.py`, `live_reference.mjs` | Experimental (the **Python** backend): 16 modes computed with numpy in QGIS (`live/modes.py`; the matcap pictures `live/textures.py`), served from a localhost thread as colored XYZ tiles (Color) and Float32 tiles GDAL reads (Values: QGIS's color ramps, Identify); contour lines as a vector layer for the view (`live/contours.py`). `test_live.py [--service <url>]` scores each mode against the app's kernels in Node, the tile service and gdaldem, and draws every form; `bench_live.py` times the kernels, `bench_canvas.py` a 1920x1080 canvas. Findings: [QGIS Live Compute](../docs/content/docs/dev/qgis-live-compute.mdx) |
 | `test_send2map.py` | A headless check of `send2map_app`, no network: `QT_QPA_PLATFORM=offscreen python-qgis test_send2map.py` |
 | `test_open_in.py`, `open_in_reference.mjs` | `send2map_app`'s destinations against the web app's (`open-in-links.tsx`, evaluated by Node): `python test_open_in.py`, no QGIS |
 

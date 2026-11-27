@@ -3,7 +3,7 @@ platform's sharp, as one folder (qgis-plugin/make_zip.py --service-bundle).
 The plain plugin does not carry it: "Install local tile service" in the
 panel downloads the bundle of this platform from the GitHub release named in
 service_pins.json (that version, its sha256 checked) into the plugin's data
-folder (service_install.py). A copy unpacked as terrain_viewer/server/ (a
+folder (service_install.py). A copy unpacked as iconem_terrain_viewer/server/ (a
 0.4 platform zip, a developer's build) is used first.
 
 Off by default: it is started only when "Local tile service" is checked in
@@ -69,6 +69,9 @@ def service_home():
         base = QgsApplication.qgisSettingsDirPath()
     except Exception:  # noqa: BLE001 - outside QGIS
         base = os.path.join(os.path.expanduser("~"), ".terrain_viewer")
+    # "terrain_viewer", not the plugin's folder name (iconem_terrain_viewer
+    # since 0.12.1): the data folder kept its name, so a service already
+    # downloaded is found again (see SETTINGS in dock.py).
     return os.path.join(base, "terrain_viewer", "tile-service")
 
 
@@ -82,7 +85,7 @@ def installed_dir(p=None, plat=None):
 
 
 def current_dir():
-    """The service this plugin runs: terrain_viewer/server/ when there is
+    """The service this plugin runs: iconem_terrain_viewer/server/ when there is
     one, else the installed one (None when neither)."""
     if bundled(LEGACY_DIR):
         return LEGACY_DIR

@@ -52,9 +52,9 @@ app = QgsApplication([], False)
 app.initQgis()
 import numpy as np  # noqa: E402
 
-from terrain_viewer.live import kernels, kernels_numba, modes  # noqa: E402
-from terrain_viewer.live.dem import TILE, Dem, ground_resolution_m  # noqa: E402
-from terrain_viewer.live.server import LiveServer  # noqa: E402
+from iconem_terrain_viewer.live import kernels, kernels_numba, modes  # noqa: E402
+from iconem_terrain_viewer.live.dem import TILE, Dem, ground_resolution_m  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer  # noqa: E402
 
 try:
     import cupy
@@ -102,7 +102,7 @@ class Grid512:
 def per_mode():
     """Every mode of the registry, values and colour tile, numpy in one
     thread: median ms per tile over the 16 tiles, at 256 and 512 px."""
-    from terrain_viewer.live import buildings
+    from iconem_terrain_viewer.live import buildings
     city = [(16, 19298 + i, 24628 + j) for j in range(2) for i in range(2)] + \
            [(17, 38597 + i, 49257 + j) for j in range(2) for i in range(2)]  # Manhattan
     out = []

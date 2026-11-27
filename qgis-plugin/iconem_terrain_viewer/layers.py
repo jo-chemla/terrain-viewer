@@ -24,6 +24,9 @@ except (ImportError, AttributeError):  # QGIS 3.28
 # adopted and renamed.
 ROOT_NAME = "Terrain Viewer (live)"
 LEGACY_ROOT_NAME = "Terrain Viewer"
+# The property names keep "terrain_viewer/" although the plugin's folder is
+# iconem_terrain_viewer since 0.12.1: projects and frozen layers saved by an
+# earlier version must still be recognized (see SETTINGS in dock.py).
 ROOT_PROP = "terrain_viewer/root"
 PROP = "terrain_viewer/layer"  # "<mode>", "<mode>:vector" or "<mode>:values"
 # A frozen copy carries this one instead of PROP, so the panel never finds,

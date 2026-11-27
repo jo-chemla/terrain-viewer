@@ -13,7 +13,7 @@ the repository's GitHub releases:
 
 No email anywhere: plugins.xml names the author (Iconem) only.
 
-  parse_plugins_xml(data, "terrain_viewer") -> {"version", "download_url", "sha256", ...} or None
+  parse_plugins_xml(data, "iconem_terrain_viewer") -> {"version", "download_url", "sha256", ...} or None
   install_zip(data, sha256, folder)          -> the version installed, or raises UpdateError
 """
 import configparser
@@ -25,7 +25,10 @@ import tempfile
 import zipfile
 from xml.etree import ElementTree
 
-PLUGIN = "terrain_viewer"
+# The plugin's folder, which is its id in QGIS and its key in plugins.xml
+# (terrain_viewer up to 0.12.0: an unrelated plugin on plugins.qgis.org has
+# that folder name, and QGIS merges plugins by folder name).
+PLUGIN = "iconem_terrain_viewer"
 REPOSITORY_TAG = "qgis-plugins-repository"
 REPOSITORY_XML = f"https://github.com/Iconem/terrain-viewer/releases/download/{REPOSITORY_TAG}/plugins.xml"
 CHECK_EVERY_S = 24 * 3600

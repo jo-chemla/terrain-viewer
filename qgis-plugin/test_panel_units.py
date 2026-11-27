@@ -18,9 +18,9 @@ from qgis.core import QgsApplication  # noqa: E402
 app = QgsApplication([], True)
 app.initQgis()
 
-from terrain_viewer import assets, python_backend as pyb  # noqa: E402
-from terrain_viewer.service import split_link, link_params, clean_enum, query_dict  # noqa: E402
-from terrain_viewer.settings_ui import slider_range, symmetric_pairs  # noqa: E402
+from iconem_terrain_viewer import assets, python_backend as pyb  # noqa: E402
+from iconem_terrain_viewer.service import split_link, link_params, clean_enum, query_dict  # noqa: E402
+from iconem_terrain_viewer.settings_ui import slider_range, symmetric_pairs  # noqa: E402
 
 failures = []
 
@@ -85,7 +85,7 @@ py, opts = pyb.py_opts("graticules", {"graticuleDensity": 2, "graticuleColor": "
 check(opts == {"density": 2.0, "color": "#ff0000"}, f"graticule settings: {opts}")
 py, opts = pyb.py_opts("localDominance", {"localDominanceMaxRadius": 40}, None, reg)
 check(opts == {"maxRadius": 40}, f"local dominance settings: {opts}")
-missing = [m for m in reg if reg[m].get("python_supported", True) and m not in __import__("terrain_viewer.live.layers", fromlist=["ORDER"]).ORDER]
+missing = [m for m in reg if reg[m].get("python_supported", True) and m not in __import__("iconem_terrain_viewer.live.layers", fromlist=["ORDER"]).ORDER]
 check(not missing, f"every Python mode is in live/layers.py's ORDER {missing}")
 check(pyb.py_forms("hillshade", {"colour"}, reg) == {"colour"}, "hillshade: color only")
 check(pyb.py_forms("slope", {"colour", "values"}, reg) == {"colour", "values"}, "slope: color and values")
@@ -118,7 +118,7 @@ for sid, keys in (("slope", ["slopeColorRamp", "slopeMinDegrees", "slopeMaxDegre
     check(pyb.unsupported_settings(sid, keys, reg) == set(), f"{sid}: every setting applies under Python "
           f"({pyb.unsupported_settings(sid, keys, reg)})")
 # live/ramps.py: the app's colour relief rules.
-from terrain_viewer.live import ramps  # noqa: E402
+from iconem_terrain_viewer.live import ramps  # noqa: E402
 check(len(ramps.ramps()) > 200, "the packaged ramps' stops")
 p = ramps.mode_paint("slope", {})
 check([c for _v, c in p[2:4]] == ["rgba(0,0,0,0)"] * 2 and abs(p[3][0] - 29) < 1e-9, f"slope's default ramp, its own stops: {p[2:4]}")
@@ -138,7 +138,7 @@ check(pyb.is_local_source("C:/data/dem.tif") and pyb.is_local_source("/vsicurl/h
       and pyb.is_local_source("https://x.org/dem.vrt") and pyb.is_local_source("layer:abc")
       and not pyb.is_local_source("mapterhorn") and not pyb.is_local_source("https://x.org/{z}/{x}/{y}.png"),
       "what the Python backend hands to GDAL")
-from terrain_viewer import local_files  # noqa: E402
+from iconem_terrain_viewer import local_files  # noqa: E402
 check(local_files.is_loopback("http://localhost:3400") and local_files.is_loopback("http://127.0.0.1:3461/")
       and not local_files.is_loopback("https://tiles.example.com"), "a service on this machine")
 src, why = local_files.service_source("https://tiles.example.com", __file__)
@@ -161,7 +161,7 @@ check(sid is None and "lerc" in why.lower(), f"a LERC source needs a tile servic
 sid, why = pyb.source_spec("mapbox", cat["sources"], {})
 check(sid is None and "mapboxKey" in why, "Mapbox needs its key")
 sid, _ = pyb.source_spec("mapbox", cat["sources"], {"mapboxKey": "pk.test"})
-from terrain_viewer.live import dem  # noqa: E402
+from iconem_terrain_viewer.live import dem  # noqa: E402
 check(sid and sid.startswith("mapbox-") and "access_token=pk.test" in dem.SOURCES[sid]["url"], "Mapbox with its key")
 check(pyb.source_spec(None, [], {})[0] == "mapterhorn", "no source: Mapterhorn")
 sup = pyb.supported_sources(cat["sources"])
@@ -170,7 +170,7 @@ check("aws" in sup and "esri" not in sup and "mapbox" in sup, f"supported source
 # widgets
 from qgis.PyQt.QtCore import QPoint, Qt  # noqa: E402
 from qgis.PyQt.QtTest import QTest  # noqa: E402
-from terrain_viewer.widgets import LightPad, SliderSpin  # noqa: E402
+from iconem_terrain_viewer.widgets import LightPad, SliderSpin  # noqa: E402
 pad = LightPad()
 pad.resize(104, 104)
 got = []
@@ -193,7 +193,7 @@ check(s.slider.value() == 5 and seen[-1] == 0.25, "the box drives its slider")
 # solar: the app's lib/solar-position.ts (Cooper's declination, true solar
 # time), its values for these cases computed by the TypeScript itself
 # (node --experimental-strip-types), and again live when Node is there.
-from terrain_viewer import solar  # noqa: E402
+from iconem_terrain_viewer import solar  # noqa: E402
 SUN_CASES = [  # lat, lng, day of year, solar hour -> azimuth, altitude, sunrise, sunset
     (45.83, 6.86, 172, 15, 253.836619, 47.514487, 4.231942, 19.768058),
     (45.83, 6.86, 355, 9.5, 145.058696, 12.809362, 7.768058, 16.231942),
@@ -251,9 +251,9 @@ from qgis.PyQt.QtCore import QDateTime, QDate, QTime  # noqa: E402
 from qgis.PyQt.QtWidgets import QRadioButton, QPushButton  # noqa: E402
 from qgis.core import QgsProject, QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsVectorTileLayer  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
-from terrain_viewer import labels  # noqa: E402
-from terrain_viewer.layers import vector_renderer  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+from iconem_terrain_viewer import labels  # noqa: E402
+from iconem_terrain_viewer.layers import vector_renderer  # noqa: E402
 from qgis.PyQt.QtCore import QEventLoop, QTimer  # noqa: E402
 
 
@@ -379,7 +379,7 @@ check(labels.label_memory_layer(mem2, "contours") and mem2.labelsEnabled(), "con
 # backends' order and default, the opacity in the row, the plane slicer's
 # reference, the source groups, no other source drawn in place of one the
 # Python backend cannot read, the raw inputs, the light while dragged, updates.
-from terrain_viewer.service import panel_tree  # noqa: E402
+from iconem_terrain_viewer.service import panel_tree  # noqa: E402
 ids = list(dock.rows)
 check(ids[:2] == ["hillshade", "colorRelief"], f"the panel: Hillshade above Elevation Hypso ({ids[:3]})")
 check(ids[-5:] == ["contours", "isoline", "planeSlicer", "graticules", "moundDetector"],
@@ -392,7 +392,7 @@ from qgis.gui import QgsCollapsibleGroupBox  # noqa: E402
 titles = [b.title() for b in dock.groups_host.findChildren(QgsCollapsibleGroupBox)]
 check("Vector overlays" in titles and "Overlays" not in titles, f"the group boxes' titles ({titles})")
 check(list(dock.backend_picker.buttons) == ["python", "local", "remote"], f"backends: Python first ({list(dock.backend_picker.buttons)})")
-from terrain_viewer.dock import initial_backend  # noqa: E402
+from iconem_terrain_viewer.dock import initial_backend  # noqa: E402
 
 
 class FakeSettings(dict):
@@ -500,7 +500,7 @@ hill.row.set_forms(set())
 # 0.9.2: app links read as the app reads them (the parameters a link leaves
 # out at the app's defaults), any address or a bare query; the light section
 # open; contours black.
-from terrain_viewer import links  # noqa: E402
+from iconem_terrain_viewer import links  # noqa: E402
 check(dock.light_section.button.isChecked(), "the light section is open by default")
 check(dock.rows["contours"].values().get("contourColor") == "#000000", "contours: black by default")
 check(vector_renderer("contours", {}).styles()[0].symbol().color().name() == "#000000", "contours: black vector tiles without a color")
@@ -512,7 +512,7 @@ q1 = split_link(LINK1)
 check(q1.startswith("zoom=11.32") and q1.endswith("closeSections=general"), "views://app/index.html?...: its query")
 for variant in ("app/index.html?" + q1, "?" + q1, q1):
     check(split_link(variant) == q1, f"the same link as {variant[:24]}...: the same query")
-modes = {item["id"]: item for _, item in __import__("terrain_viewer.service", fromlist=["walk_modes"]).walk_modes(cat["tree"])}
+modes = {item["id"]: item for _, item in __import__("iconem_terrain_viewer.service", fromlist=["walk_modes"]).walk_modes(cat["tree"])}
 v1 = links.local_view(q1, modes)
 check(v1["active"] == ["slope"], f"link 1: the slope alone (showTerrainAnalysis=true, showSlope's default true; hillshade off): {v1['active']}")
 check(abs(v1["opacity"]["slope"] - 0.8) < 1e-9 and v1["opacity"]["aspect"] == 0.5, "link 1: slope at 0.8, the others at the app's defaults")
@@ -577,7 +577,7 @@ check(dock.open_link(LINK1) and dock.stack.find("basemap") is None, "link 1 agai
 # 0.9.3: the basemap is a row of the tree, under Elevation Hypso: a checkbox,
 # an opacity, a select of the app's built-in basemaps under its cog; the link
 # reader drives the same row. And the raw elevation inputs stay under the modes.
-from terrain_viewer.dock import BASEMAP_KEY, raw_stretch  # noqa: E402
+from iconem_terrain_viewer.dock import BASEMAP_KEY, raw_stretch  # noqa: E402
 brow = dock.basemap_row
 lay = dock.groups_layout
 order = [lay.itemAt(i).widget() for i in range(lay.count())]
@@ -699,8 +699,8 @@ spin()
 # navigation stepping through them, both ways.
 import json  # noqa: E402
 import re as _re  # noqa: E402
-from terrain_viewer import historical  # noqa: E402
-from terrain_viewer import historical_ui as hui  # noqa: E402
+from iconem_terrain_viewer import historical  # noqa: E402
+from iconem_terrain_viewer import historical_ui as hui  # noqa: E402
 from qgis.core import QgsTemporalNavigationObject, QgsSettings as _Settings  # noqa: E402
 from qgis.PyQt.QtCore import Qt as _Qt  # noqa: E402
 
@@ -985,17 +985,17 @@ spin()
 import importlib.util  # noqa: E402
 import shutil as _sh  # noqa: E402
 import zipfile  # noqa: E402
-from terrain_viewer import updates  # noqa: E402
+from iconem_terrain_viewer import updates  # noqa: E402
 spec_mz = importlib.util.spec_from_file_location("make_zip", os.path.join(os.path.dirname(os.path.abspath(__file__)), "make_zip.py"))
 mz = importlib.util.module_from_spec(spec_mz)
 spec_mz.loader.exec_module(mz)
 up = tempfile.mkdtemp()
 plugins_dir = os.path.join(up, "plugins")
-_sh.copytree(os.path.join(os.path.dirname(os.path.abspath(__file__)), "terrain_viewer"), os.path.join(plugins_dir, "terrain_viewer"),
+_sh.copytree(os.path.join(os.path.dirname(os.path.abspath(__file__)), "iconem_terrain_viewer"), os.path.join(plugins_dir, "iconem_terrain_viewer"),
              ignore=_sh.ignore_patterns("__pycache__", "server"))
-here_v = updates.installed_version(os.path.join(plugins_dir, "terrain_viewer"))
-staged = os.path.join(up, "stage", "terrain_viewer")
-_sh.copytree(os.path.join(plugins_dir, "terrain_viewer"), staged)
+here_v = updates.installed_version(os.path.join(plugins_dir, "iconem_terrain_viewer"))
+staged = os.path.join(up, "stage", "iconem_terrain_viewer")
+_sh.copytree(os.path.join(plugins_dir, "iconem_terrain_viewer"), staged)
 with open(os.path.join(staged, "metadata.txt"), encoding="utf-8") as f:
     meta = f.read().replace(f"version={here_v}", "version=9.9.9")
 with open(os.path.join(staged, "metadata.txt"), "w", encoding="utf-8") as f:
@@ -1004,17 +1004,17 @@ os.remove(os.path.join(staged, "solar.py"))  # a file the new version no longer 
 dist = os.path.join(up, "dist")
 os.makedirs(dist)
 for name in mz.PLUGINS:
-    zpath = os.path.join(dist, f"{name}-{mz.version_of(name) if name != 'terrain_viewer' else '9.9.9'}.zip")
+    zpath = os.path.join(dist, f"{name}-{mz.version_of(name) if name != 'iconem_terrain_viewer' else '9.9.9'}.zip")
     with zipfile.ZipFile(zpath, "w") as z:
-        mz.add_tree(z, staged if name == "terrain_viewer" else os.path.join(mz.here, name), name)
+        mz.add_tree(z, staged if name == "iconem_terrain_viewer" else os.path.join(mz.here, name), name)
 orig_version_of = mz.version_of
-mz.version_of = lambda n: "9.9.9" if n == "terrain_viewer" else orig_version_of(n)
+mz.version_of = lambda n: "9.9.9" if n == "iconem_terrain_viewer" else orig_version_of(n)
 real_read = mz.configparser.ConfigParser.read
 
 
 def read_bumped(self, path, encoding=None):
     out = real_read(self, path, encoding=encoding)
-    if "terrain_viewer" in str(path) and self.has_section("general"):
+    if "iconem_terrain_viewer" in str(path) and self.has_section("general"):
         self["general"]["version"] = "9.9.9"
     return out
 
@@ -1024,15 +1024,15 @@ xml_path = mz.plugins_xml("qgis-plugins-test", dist)
 mz.configparser.ConfigParser.read = real_read
 xml = open(xml_path, "rb").read()
 info = updates.parse_plugins_xml(xml)
-check(info and info["version"] == "9.9.9" and info["file_name"] == "terrain_viewer.9.9.9.zip"
-      and info["download_url"].endswith("/releases/download/qgis-plugins-test/terrain_viewer-9.9.9.zip") and len(info["sha256"]) == 64,
-      f"plugins.xml: the plugin keyed terrain_viewer, its zip on the release, its sha256 ({info and info['file_name']})")
+check(info and info["version"] == "9.9.9" and info["file_name"] == "iconem_terrain_viewer.9.9.9.zip"
+      and info["download_url"].endswith("/releases/download/qgis-plugins-test/iconem_terrain_viewer-9.9.9.zip") and len(info["sha256"]) == 64,
+      f"plugins.xml: the plugin keyed iconem_terrain_viewer, its zip on the release, its sha256 ({info and info['file_name']})")
 check(b"@" not in xml.replace(b"https://", b""), "plugins.xml: no email anywhere")
 check(xml.count(b"<experimental>False</experimental>") == 2 and b"<experimental>True" not in xml,
       "plugins.xml: neither plugin marked experimental (0.12.0: the flag follows metadata.txt)")
 check(updates.parse_plugins_xml(xml, "send2map_app") is not None, "plugins.xml: Send2MapApp listed too")
-data = open(os.path.join(dist, "terrain_viewer-9.9.9.zip"), "rb").read()
-target = os.path.join(plugins_dir, "terrain_viewer")
+data = open(os.path.join(dist, "iconem_terrain_viewer-9.9.9.zip"), "rb").read()
+target = os.path.join(plugins_dir, "iconem_terrain_viewer")
 os.makedirs(os.path.join(target, "server"))
 open(os.path.join(target, "server", "keep.txt"), "w").close()
 try:
@@ -1044,7 +1044,7 @@ got_v = updates.install_zip(data, info["sha256"], target)
 check(got_v == "9.9.9" and updates.installed_version(target) == "9.9.9" and not os.path.exists(os.path.join(target, "solar.py"))
       and os.path.exists(os.path.join(target, "server", "keep.txt")),
       "the update unpacked over the plugin: new version, a dropped file removed, server/ kept")
-check(not updates.can_update(os.path.join(os.path.dirname(os.path.abspath(__file__)), "terrain_viewer"))[0],
+check(not updates.can_update(os.path.join(os.path.dirname(os.path.abspath(__file__)), "iconem_terrain_viewer"))[0],
       "a development copy (in a git checkout) is never overwritten")
 check(updates.newer("0.10.0", "0.9.0") and not updates.newer("0.9.0", "0.9.0") and updates.newer("1.0", "0.99.9"), "versions compared as numbers")
 dock.updates_answered(xml, "file:///plugins.xml")

@@ -1,4 +1,4 @@
-"""terrain_viewer/assets/app_defaults.json: what the panel needs to read an
+"""iconem_terrain_viewer/assets/app_defaults.json: what the panel needs to read an
 app link the way the app reads it, with no tile service (the Python backend):
 
 - defaults: every URL parameter of the app with its default, from
@@ -18,21 +18,21 @@ app link the way the app reads it, with no tile service (the Python backend):
   reads them with. A tile service lists the same at /building-sources.
 - vectorSources: the whole Vector library (SAMPLE_VECTOR_SOURCES), which
   the panel's "Vector library" adds as QGIS layers of their own, styled by
-  category (terrain_viewer/vector_library.py).
+  category (iconem_terrain_viewer/vector_library.py).
 
 No service needed:
 
     python make_app_defaults.py
 
 Run it when the app's URL parameters or built-in basemaps change, then
-commit terrain_viewer/assets/app_defaults.json."""
+commit iconem_terrain_viewer/assets/app_defaults.json."""
 import json
 import os
 import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-OUT = os.path.join(HERE, "terrain_viewer", "assets", "app_defaults.json")
+OUT = os.path.join(HERE, "iconem_terrain_viewer", "assets", "app_defaults.json")
 
 
 def defaults():
@@ -74,7 +74,7 @@ VECTOR_FIELDS = ("id", "name", "shortName", "type", "url", "resolver", "fallback
 
 def vector_sources():
     """The whole Vector library, with what QGIS needs to add an entry as a
-    layer of its own (terrain_viewer/vector_library.py): its address and
+    layer of its own (iconem_terrain_viewer/vector_library.py): its address and
     kind, its layers and geometries, its categories and colors, its
     attribution and licence."""
     with open(os.path.join(ROOT, "lib", "custom-sources.json"), encoding="utf-8") as f:

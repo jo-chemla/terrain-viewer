@@ -22,8 +22,8 @@ gdal.SetConfigOption("CPL_VSIL_NETWORK_STATS_ENABLED", "YES")  # counted from GD
 import numpy as np  # noqa: E402
 from qgis.core import QgsProject, QgsCoordinateReferenceSystem  # noqa: E402
 from qgis.PyQt.QtCore import QEventLoop, QTimer  # noqa: E402
-from terrain_viewer import assets, python_backend as pyb  # noqa: E402
-from terrain_viewer.live import dem, gdal_source  # noqa: E402
+from iconem_terrain_viewer import assets, python_backend as pyb  # noqa: E402
+from iconem_terrain_viewer.live import dem, gdal_source  # noqa: E402
 
 failures = []
 
@@ -73,7 +73,7 @@ for sid, place, lat, lon, z, reader, (lo, hi) in CASES:
 # dates at the Eiffel Tower (the catalog, the tilemap walk, the metadata of
 # each release, as historical.py asks them), a tile of the oldest and of the
 # newest date, and a tile of an EOX yearly mosaic.
-from terrain_viewer import historical  # noqa: E402
+from iconem_terrain_viewer import historical  # noqa: E402
 
 import tempfile  # noqa: E402
 historical.set_store(os.path.join(tempfile.mkdtemp(), "wayback-dates.json"))  # not the profile's: listed from nothing
@@ -147,7 +147,7 @@ historical.reset_cache()
 
 # The panel: the Python backend draws the source picked, or nothing.
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
-from terrain_viewer.dock import TerrainViewerDock  # noqa: E402
+from iconem_terrain_viewer.dock import TerrainViewerDock  # noqa: E402
 
 
 def spin(ms=200):
@@ -200,7 +200,7 @@ import urllib.request  # noqa: E402
 from qgis.core import QgsMapRendererParallelJob, QgsMapSettings, QgsRectangle  # noqa: E402
 from qgis.PyQt.QtCore import QSize  # noqa: E402
 from qgis.PyQt.QtGui import QImage  # noqa: E402
-from terrain_viewer.live.server import LiveServer as _Live  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer as _Live  # noqa: E402
 
 def downloaded():
     """Bytes GDAL downloaded over /vsicurl/ so far (None when this GDAL does not count)."""
@@ -300,7 +300,7 @@ check(low_greys[len(low_greys) // 2] > 40 and low_greys[-1] - low_greys[0] > 150
       f"the raw layer over the prairies: stretched to the view (median grey {low_greys[len(low_greys) // 2]}, not near black)")
 dock.rows["hillshade"].check.setChecked(False)
 dock.cleanup()
-from terrain_viewer.live.server import LiveServer  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer  # noqa: E402
 LiveServer.shutdown()
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ", flush=True)
 # The canvas may still be drawing the raw inputs over the network: stopped,

@@ -12,7 +12,7 @@ import tempfile as _tempfile
 from qgis.core import (QgsExpression as _Expression, QgsExpressionContext as _ExpressionContext,  # noqa: E402
                        QgsExpressionContextUtils as _ContextUtils, QgsLayerTreeGroup as _TreeGroup, QgsProject as _Project,
                        QgsRuleBasedRenderer as _RuleRenderer, QgsVectorLayer as _VLayer, QgsVectorTileLayer as _VTLayer)
-from terrain_viewer import vector_library as vl  # noqa: E402
+from iconem_terrain_viewer import vector_library as vl  # noqa: E402
 
 _Project.instance().clear()
 spin(50)
@@ -51,7 +51,7 @@ class _FakeServer:
     port = 8765
 
     def pmtiles_url(self, url):
-        from terrain_viewer.live.server import LiveServer
+        from iconem_terrain_viewer.live.server import LiveServer
         return LiveServer.pmtiles_url(self, url)
 
 
@@ -173,7 +173,7 @@ check(len(_added) == 1 and isinstance(_added[0], _VTLayer) and _added[0].isValid
       f"Add: a styled vector tile layer in the project, its attribution in the status line ({dock.status.text()[:70]})")
 # A project reopened with a layer read through the plugin's own server,
 # saved when that server had another port: served again, on this one.
-from terrain_viewer.live.server import LiveServer as _Live  # noqa: E402
+from iconem_terrain_viewer.live.server import LiveServer as _Live  # noqa: E402
 _old = _VTLayer(vl.local_uri("https://tiles.overturemaps.org/2031-01-15.0/base.pmtiles", 9, 13, _FakeServer()), "saved earlier")
 _old.setCustomProperty(vl.PROP, "overture-land-cover")
 _Project.instance().addMapLayer(_old)

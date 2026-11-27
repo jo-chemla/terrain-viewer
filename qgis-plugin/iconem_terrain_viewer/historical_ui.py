@@ -41,7 +41,7 @@ from . import historical, links
 from .layers import xyz_uri
 from .widgets import TickStrip, CompactOpacity, FoldSection, hand
 
-SETTINGS = "terrain_viewer"
+SETTINGS = "terrain_viewer"  # not the folder name (iconem_terrain_viewer): kept, see SETTINGS in dock.py
 GROUP = "Historical imagery"
 ROOT_PROP = "terrain_viewer/historical_root"
 PROP = "terrain_viewer/historical"  # "<source>:<ref>" (a Wayback release, a year, a mosaic)
