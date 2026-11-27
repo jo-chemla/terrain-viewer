@@ -1,6 +1,6 @@
 # Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
 
-<!-- released: 2026-11-27T21:30 -->
+<!-- released: 2026-11-27T23:00 -->
 
 #### TL;DR
 
@@ -23,6 +23,7 @@
 ##### App, docs
 
 - Saved views as AT Protocol records, a prototype behind Settings > Beta: sign in with a Bluesky or other atproto handle in the browser only (a public OAuth client, its metadata a static file under `/atproto/`), Save view writes one `com.iconem.terrainviewer.view` record (the link's parameters, keys dropped, an optional picture) to the user's own server, and `?view=at/<did or handle>/<rkey>` opens it for anyone without signing in. Loaded lazily (14 kB gzip).
+- [Saved views](/docs/features/saved-views), second pass: the signed-in account's views listed with Open, Copy link and Delete; a signed-out visitor can list any handle's; an explicit Post to Bluesky button whose wider permission is asked only on that click (the post carries its own card picture, the one link preview a static site can give a short link); the panel says the record is public but not posted to the feed. Every shared link now names its mode (`appMode=terrain` on a terrain link), a link without one opening the visitor's last mode. Not yet run against a real account.
 - Share links per mode (`lib/mode-share-url.ts`): copy, short link, social intents and embed use `/rem/?…` or `/historical/?…` without `appMode`; on a host whose default is another mode a terrain link says `appMode=terrain`.
 - One owner of the map's cursor (`lib/map-cursor.ts`): Terra Draw restates its cursor on every pointer move and says "unset" when it has none, which erased the pointer over features; the tools' cursor now comes first, else the hover's, and no site re-applies it per move.
 - River REM: the Mississippi bookmark framed on Fisk's sheet (the sheet fills view B in a 1920 px window), pictures and link preview retaken; methods ordered EDT, JFA, IDW, Scan. Crater candidates is the sixth bookmark, Matterhorn first.
