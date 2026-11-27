@@ -27,7 +27,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   mapboxKeyAtom, maptilerKeyAtom, hereKeyAtom, planetKeyAtom, customTerrainSourcesAtom, titilerEndpointAtom, customBasemapSourcesAtom, highResTerrainAtom,
   viewportCenterAtom, activeProjectConfigAtom, activeViewAtom, useCogProtocolVsTitilerAtom, cacheVizTilesAtom, cesiumIonKeyAtom, cesiumDetailOffsetAtom, tellsBetaEnabledAtom, georefBetaEnabledAtom,
-  appModeAtom, type AppMode, isHistoricalHostname, isProdHostname,
+  appModeAtom, type AppMode, isHistoricalHostname, isRemHostname, isProdHostname,
   type CustomTerrainSource, type CustomBasemapSource, terrainLibraryOpenAtom, basemapLibraryOpenAtom, vectorLibraryOpenAtom, modeColorRampsAtom, addTerrainSourceOpenAtom, dataLayersModalOpenAtom, timelineWindowRequestAtom, shadowLiveUnsupportedAtom } from "@/lib/settings-atoms"
 import { hydrateAllPersistedCogs, localFileId, localFileVersionAtom } from "@/lib/local-file-store"
 import { withTileResultCache, setTileResultCacheEnabled } from "@/lib/tile-result-cache"
@@ -1421,8 +1421,10 @@ export function TerrainViewer() {
     // indexed the historical host under.
     document.title = isHistoricalMode
       ? "Historical Satellite Imagery: Esri Wayback, Google Earth and open archives by date"
-      : "Terrain Viewer: hillshade, LiDAR DEMs and historical imagery"
-  }, [isHistoricalMode])
+      : state.appMode === "rem"
+        ? "River REM: height above the river, live in the browser"
+        : "Terrain Viewer: hillshade, LiDAR DEMs and historical imagery"
+  }, [isHistoricalMode, state.appMode])
   // Snapshot taken the instant tellsFrozen flips to true — the currently
   // rendered candidates, querySourceFeatures'd off the live "tellsSource"
   // vector tiles into a plain geojson FeatureCollection. TellsSource swaps
@@ -1963,6 +1965,9 @@ export function TerrainViewer() {
         // `!searchParams.has("appMode")` guard above.
         if (isHistoricalHostname(window.location.hostname)) {
           stateOverrides.appMode = "historical"
+        } else if (isRemHostname(window.location.hostname)) {
+          // river-rem.* hosts: the same rule for the River REM mode.
+          stateOverrides.appMode = "rem"
         }
       }
     }

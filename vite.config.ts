@@ -10,6 +10,7 @@ import fs from "fs"
 import path from "path"
 import http from "http"
 import net from "net"
+import { MODE_PAGES, modePageHtml } from "./scripts/mode-pages.mjs"
 
 // Build stamp for the About section: the commit and the build day. The
 // commit comes from git at build time (CI checks the repo out), "dev" when
@@ -67,6 +68,45 @@ export default defineConfig({
         for (const [id, g] of Object.entries(await eliGeometries())) {
           this.emitFile({ type: "asset", fileName: `eli-geometries/${id}.json`, source: JSON.stringify(g) })
         }
+      },
+    },
+    // /rem/ and /historical/: the app with that mode's own title, description
+    // and social preview picture (scripts/mode-pages.mjs says why a path and
+    // not a query parameter). The build writes one index.html per path from
+    // the built index.html; the dev server answers the same paths.
+    {
+      name: "mode-pages",
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          const pathname = (req.url ?? "").split("?")[0]
+          const page = MODE_PAGES.find((p) => pathname === `/${p.path}/` || pathname === `/${p.path}` || pathname === `/${p.path}/index.html`)
+          if (!page) return next()
+          // GitHub Pages redirects /rem to /rem/; the relative "../" needs the slash.
+          if (pathname === `/${page.path}`) { res.writeHead(301, { Location: `/${page.path}/${(req.url ?? "").slice(pathname.length)}` }); res.end(); return }
+          try {
+            const html = await server.transformIndexHtml("/", fs.readFileSync(fileURLToPath(new URL("./index.html", import.meta.url)), "utf8"))
+            res.setHeader("Content-Type", "text/html; charset=utf-8")
+            res.end(modePageHtml(html, page))
+          } catch (e) { next(e) }
+        })
+      },
+      writeBundle(options) {
+        if (this.environment && this.environment.name !== "client") return
+        const dir = options.dir ?? "dist"
+        const index = path.join(dir, "index.html")
+        if (!fs.existsSync(index)) return
+        const html = fs.readFileSync(index, "utf8")
+        // A deployment that is one mode's own host (SITE_MODE=historical on the
+        // repository behind historical-satellite.iconem.com, set by the deploy
+        // workflow) also gets that mode's tags on its root page: a crawler
+        // that does not run JavaScript otherwise reads the terrain ones there.
+        const own = MODE_PAGES.find((p) => p.appMode === process.env.SITE_MODE)
+        if (process.env.SITE_MODE && !own) this.warn(`SITE_MODE=${process.env.SITE_MODE} is not a mode with a page (${MODE_PAGES.map((p) => p.appMode).join(", ")})`)
+        for (const page of MODE_PAGES) {
+          fs.mkdirSync(path.join(dir, page.path), { recursive: true })
+          fs.writeFileSync(path.join(dir, page.path, "index.html"), modePageHtml(html, page))
+        }
+        if (own) fs.writeFileSync(index, modePageHtml(html, own, { root: true }))
       },
     },
     devtools({

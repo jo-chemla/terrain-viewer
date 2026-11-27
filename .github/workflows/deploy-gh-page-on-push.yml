@@ -72,6 +72,15 @@ jobs:
           EOF
           sed -i '/^VITE_PLANET_API_KEY=/d; /^VITE_SENTINEL_HUB_INSTANCE_ID=/d' .env
       - name: Build
+        # SITE_MODE: the app mode this deployment is the own host of, if any.
+        # Its root page then carries that mode's title, description and social
+        # preview (scripts/mode-pages.mjs); every deployment has /rem/ and
+        # /historical/ whatever this says. The repository variable SITE_MODE
+        # (Settings > Secrets and variables > Actions > Variables; not a
+        # secret) wins; without it, the repository behind
+        # historical-satellite.iconem.com is "historical" and the others none.
+        env:
+          SITE_MODE: ${{ vars.SITE_MODE || (github.repository == 'jo-chemla/terrain-viewer' && 'historical') || '' }}
         run: |
           pnpm build
       - name: Add the UX flows captures

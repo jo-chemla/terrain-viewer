@@ -34,6 +34,12 @@ export const metadata: Metadata = {
   // is too short for a search result (Bing flagged eleven pages), and the
   // suffix says what the site is.
   title: { template: '%s · Terrain Viewer docs', default: 'Terrain Viewer docs: elevation, relief and historical imagery' },
+  // The social preview of the pages that set none of their own (the docs
+  // home): the app's picture, public/og/river-rem.jpg at the site root. A
+  // docs page replaces it with its generated card ([...slug]/page.tsx).
+  openGraph: {
+    images: [{ url: 'https://terrain-viewer.iconem.com/og/river-rem.jpg', width: 1200, height: 630, alt: "A relative elevation model of the lower Mississippi beside Harold Fisk's 1944 map of its former courses" }],
+  },
   // Without this, the browser falls back to fumadocs-ui's own default
   // favicon (a generic, unstyled lucide book-open glyph) instead of this
   // colored one. Deliberately a book-open glyph (not the main app's mountain

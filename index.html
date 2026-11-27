@@ -74,20 +74,34 @@
     <script>
       (function () {
         var h = location.hostname
-        if (h === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(h)) {
-          document.querySelector('link[rel="canonical"]').href = location.origin + "/"
-          // The same HTML serves both hosts, so the historical host rewrites
-          // its own title, description and Open Graph tags here (Google and
-          // Bing render JavaScript; the no-JS shell below names both uses).
-          // Without this the host was indexed as an elevation viewer.
-          var title = "Historical Satellite Imagery: Esri Wayback, Google Earth and open archives by date"
-          var desc = "Free viewer for historical satellite and aerial imagery: Esri World Imagery Wayback, Google Earth timelapse, Bing dated imagery, national archives and open post-disaster data on one timeline, side by side or swiped."
-          document.title = title
-          var set = function (sel, value) { var el = document.querySelector(sel); if (el) el.setAttribute("content", value) }
-          set('meta[name="description"]', desc)
-          set('meta[property="og:title"]', title)
-          set('meta[property="og:description"]', desc)
-          set('meta[property="og:url"]', location.origin + "/")
+        // The same HTML serves every host, so a host with a mode of its own
+        // rewrites its title, description and preview tags here (Google and
+        // Bing render JavaScript; the no-JS shell below names every use).
+        // Without this the historical host was indexed as an elevation
+        // viewer. A crawler that does not run JavaScript (every link
+        // preview) reads the tags as written: its page is /historical/ or
+        // /rem/ (scripts/mode-pages.mjs, whose texts these repeat).
+        var historical = h === "historical-satellite.iconem.com" || /.historical-satellite.iconem.com$/.test(h)
+        var rem = /^river-rem./.test(h)
+        if (!historical && !rem) return
+        var title = historical
+          ? "Historical Satellite Imagery: Esri Wayback, Google Earth and open archives by date"
+          : "River REM: height above the river, live in the browser"
+        var desc = historical
+          ? "Free viewer for historical satellite and aerial imagery: Esri World Imagery Wayback, Google Earth timelapse, Bing dated imagery, national archives and open post-disaster data on one timeline, side by side or swiped."
+          : "Relative elevation models of any river, computed in the browser from open terrain: meander scars, terraces, levees and old channels, side by side with historical maps. Free and open source."
+        document.querySelector('link[rel="canonical"]').href = location.origin + "/"
+        document.title = title
+        var set = function (sel, value) { var el = document.querySelector(sel); if (el) el.setAttribute("content", value) }
+        set('meta[name="description"]', desc)
+        set('meta[property="og:title"]', title)
+        set('meta[property="og:description"]', desc)
+        set('meta[property="og:url"]', location.origin + "/")
+        set('meta[name="twitter:title"]', title)
+        set('meta[name="twitter:description"]', desc)
+        if (historical) {
+          set('meta[property="og:image"]', "https://terrain-viewer.iconem.com/og/historical.jpg")
+          set('meta[name="twitter:image"]', "https://terrain-viewer.iconem.com/og/historical.jpg")
           var man = document.querySelector('link[rel="manifest"]'); if (man) man.href = "/manifest-historical.webmanifest"
           var apple = document.querySelector('link[rel="apple-touch-icon"]'); if (apple) apple.href = "/icons/icon-historical-apple-180.png"
           set('meta[name="apple-mobile-web-app-title"]', "Historical Sat")
@@ -147,7 +161,7 @@
       (function () {
         var host = location.hostname
         var isHistoricalHost = host === "historical-satellite.iconem.com" || /\.historical-satellite\.iconem\.com$/.test(host)
-        var isProd = host === "terrain-viewer.iconem.com" || host === "jo-chemla.github.io" || isHistoricalHost
+        var isProd = host === "terrain-viewer.iconem.com" || host === "jo-chemla.github.io" || isHistoricalHost || /^river-rem.iconem.com$/.test(host)
         var storedAppMode = null
         try { storedAppMode = JSON.parse(window.localStorage.getItem("appMode") || "null") } catch (e) {}
         var isHistoricalShape = storedAppMode ? storedAppMode === "historical" : isHistoricalHost
@@ -214,10 +228,27 @@
       })()
     </script>
 
+    <!-- Social preview (Open Graph, Twitter card). Crawlers do not run
+         JavaScript: what is written here is what a shared link shows, for
+         every address of this page whatever its query string. The modes
+         that want their own preview have their own page (/rem/,
+         /historical/), written by the build from this file: see
+         scripts/mode-pages.mjs, which fails the build when a tag below is
+         renamed. The picture is absolute and 1200 x 630. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Terrain Viewer" />
     <meta name="og:title" property="og:title" content="Terrain Viewer: hillshade, LiDAR DEMs and historical imagery" />
     <meta name="og:description" property="og:description" content="Free web viewer for elevation data: hillshade, contours, slope and sky-view factor on global terrain, national LiDAR or your own COG, in 2D, 3D and on a globe." />
-    <meta name="og:image" property="og:image" content="https://terrain-viewer.iconem.com/terrain-viewer.jpg" /> 
-    <meta property="og:url" content="https://terrain-viewer.iconem.com/" />   
+    <meta name="og:image" property="og:image" content="https://terrain-viewer.iconem.com/og/river-rem.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A relative elevation model of the lower Mississippi beside Harold Fisk's 1944 map of its former courses" />
+    <meta property="og:url" content="https://terrain-viewer.iconem.com/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Terrain Viewer: hillshade, LiDAR DEMs and historical imagery" />
+    <meta name="twitter:description" content="Free web viewer for elevation data: hillshade, contours, slope and sky-view factor on global terrain, national LiDAR or your own COG, in 2D, 3D and on a globe." />
+    <meta name="twitter:image" content="https://terrain-viewer.iconem.com/og/river-rem.jpg" />
+    <meta name="twitter:image:alt" content="A relative elevation model of the lower Mississippi beside Harold Fisk's 1944 map of its former courses" />
   </head>
   <body>
     <!-- What crawlers and AI fetchers that do not run JavaScript see; React

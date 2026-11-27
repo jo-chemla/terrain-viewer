@@ -25,6 +25,34 @@ The app is a single-page app: without JavaScript its page is nearly empty. These
 
 **Search consoles.** Google Search Console and Bing Webmaster Tools are where the owner proves the site is theirs, submits the sitemap and sees what gets indexed. ChatGPT search draws largely on Bing's index, so Bing matters as much as Google here.
 
+## Social previews, one page per mode
+
+The picture and text a link shows when pasted in a chat or a post come from the Open Graph and Twitter card tags of the page (`og:title`, `og:description`, `og:image`, `twitter:card` ...), read by a crawler that **does not run JavaScript**. On a static host the crawler gets the same file whatever the query string says, so `/?appMode=rem` can never show another picture than `/`. A path can.
+
+| Address | Title | Picture (1200 x 630, tracked in `public/og/`) |
+|---|---|---|
+| `/` | Terrain Viewer | `og/river-rem.jpg`: the River REM of the lower Mississippi beside Harold Fisk's 1944 map |
+| `/rem/` | River REM | the same |
+| `/historical/` | Historical Satellite Imagery | `og/historical.jpg`: four dated views and the timeline |
+
+`/rem/` and `/historical/` are written by the build (`scripts/mode-pages.mjs`, the `mode-pages` plugin of `vite.config.ts`): the built `index.html` with that mode's title, description, canonical address and preview tags, and one line at the top of `<head>` that puts the address back to `/?appMode=<mode>`, query string and hash kept, before the app starts. So `/rem/?lat=33.15&lng=-91.13&zoom=10.4` opens that view in the River REM mode, the address bar then reads `/?appMode=rem&lat=...`, and nothing in the app knows about the path. A link that already names an `appMode` keeps it. To share a view with a mode's preview, share the `/rem/?...` or `/historical/?...` form of its link. The dev server answers the same paths.
+
+A mode with a page is one entry of `MODE_PAGES` in that script; the build fails if a tag it rewrites is renamed in `index.html`.
+
+**Checking a preview.** `curl -s https://terrain-viewer.iconem.com/rem/ | grep -E "og:|twitter:"` shows what a crawler reads. The networks keep a preview for days: [opengraph.xyz](https://www.opengraph.xyz/), LinkedIn's [Post Inspector](https://www.linkedin.com/post-inspector/) and Facebook's [Sharing Debugger](https://developers.facebook.com/tools/debug/) fetch it again.
+
+### A domain per mode
+
+One build is deployed twice by the same workflow (`.github/workflows/deploy-gh-page-on-push.yml`), once per repository, and a GitHub Pages site has **one** custom domain: Iconem/terrain-viewer is terrain-viewer.iconem.com, jo-chemla/terrain-viewer is historical-satellite.iconem.com. Neither build knew its domain: the app picks its default mode from `location.hostname` when it starts (`isHistoricalHostname` and `isRemHostname` in `lib/settings-atoms.ts`), and an inline script of `index.html` rewrites the title and tags there for the crawlers that do run JavaScript (Google, Bing).
+
+For those that do not, the deploy now passes `SITE_MODE` to the build: the repository variable of that name if set (Settings → Secrets and variables → Actions → **Variables**; not a secret), else `historical` on jo-chemla/terrain-viewer, else nothing. A build with `SITE_MODE` writes that mode's tags on its root page too, so historical-satellite.iconem.com itself previews as the historical viewer.
+
+A third domain such as river-rem.iconem.com: any host whose name starts with `river-rem.` opens the app in the River REM mode, whatever serves it. What serves it is a choice between:
+
+1. **A redirect** from river-rem.iconem.com to `https://terrain-viewer.iconem.com/rem/` (a redirect rule at the DNS provider, path and query kept). No repository, no build, the preview is `/rem/`'s since crawlers follow redirects; the address bar ends on terrain-viewer.iconem.com. Recommended.
+2. **A third repository** mirroring this one, with river-rem.iconem.com as its Pages domain and the variable `SITE_MODE=rem`. The domain stays in the address bar and its root has the River REM preview; it costs a third push target and a third deploy, and the build needs the same `ENV_FILE_CONTENT` secret as the other two.
+3. **A proxy** in front of Pages (a Cloudflare Worker on river-rem.iconem.com fetching terrain-viewer.iconem.com and serving `/rem/`'s HTML at its root). The domain stays, with no third deploy, but it is a piece of infrastructure to keep.
+
 ## Umami analytics
 
 The app and the docs report to one Umami Cloud website, pageviews on the path only (no query string, no hash) and one custom event per intentional action (`lib/analytics.ts`). The website id is `VITE_UMAMI_WEBSITE_ID` in `.env`, not in the source: without it the tracker is not loaded, and the tracker only reports from the real hostnames, so a clone run elsewhere stays silent. Every load carries a tag: `web`, `embed` (inside the HeritageWatch or Anchise toolbox) or `desktop`. To keep your own sessions apart, open each site once with `?umamiTag=owner` appended to its URL: the tag is stored in that browser and its loads then carry `owner` instead, which the dashboard filters out with Filter, Tag. Storage is per origin and per browser profile, so do it on terrain-viewer.iconem.com and on historical-satellite.iconem.com, in each browser you use; localhost never reports. `?umamiTag=` with nothing after it clears the tag. The `source-add` event says whether a source came from the library or a pasted URL (`origin`). An export (Settings, Export) is read by `scripts/umami-export-analyze.mjs`, which lists the top sessions of given days.
