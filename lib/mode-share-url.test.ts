@@ -1,7 +1,7 @@
 // node scripts/test-lib.mjs lib/mode-share-url.test.ts
 import test from "node:test"
 import assert from "node:assert/strict"
-import { modeShareUrl, MODE_PAGE_PATHS, hostDefaultAppMode } from "./mode-share-url"
+import { modeShareUrl, MODE_PAGE_PATHS, hostDefaultAppMode, shareUrlAppMode, searchNamingMode, modePageHref } from "./mode-share-url"
 import { isHistoricalHostname, isRemHostname } from "./settings-atoms"
 import { MODE_PAGES, modePageHtml } from "../scripts/mode-pages.mjs"
 
@@ -24,12 +24,44 @@ test("the hash, the order and the encoding of the query are kept", () => {
   )
 })
 
-test("terrain, and a mode without a page, stay at the root", () => {
-  const terrain = `${MAIN}/?lat=45.9&lng=7.6&zoom=12`
-  assert.equal(modeShareUrl(terrain), terrain)
+test("terrain, and a mode without a page, stay at the root and name their mode", () => {
+  // Terrain is the parameter's default, so the app's address has no appMode;
+  // a link without one opens the visitor's stored mode, so the link says it.
+  assert.equal(modeShareUrl(`${MAIN}/?lat=45.9&lng=7.6&zoom=12`), `${MAIN}/?appMode=terrain&lat=45.9&lng=7.6&zoom=12`)
+  assert.equal(modeShareUrl(`${MAIN}/?lat=1#11/1/2`), `${MAIN}/?appMode=terrain&lat=1#11/1/2`)
   assert.equal(modeShareUrl(`${MAIN}/?appMode=terrain&lat=1`), `${MAIN}/?appMode=terrain&lat=1`)
   assert.equal(modeShareUrl(`${MAIN}/?appMode=georef&lat=1`), `${MAIN}/?appMode=georef&lat=1`)
-  assert.equal(modeShareUrl(`${MAIN}/`), `${MAIN}/`)
+  assert.equal(modeShareUrl(`${MAIN}/`), `${MAIN}/?appMode=terrain`)
+  assert.equal(modeShareUrl("http://localhost:5173/index.html?lat=1"), "http://localhost:5173/index.html?appMode=terrain&lat=1")
+})
+
+test("every shared link names its mode, by its path or by appMode", () => {
+  for (const href of [`${MAIN}/`, `${MAIN}/?lat=1`, `${MAIN}/?appMode=terrain`, `${MAIN}/?appMode=rem&lat=1`, `${MAIN}/?dateA=5&appMode=historical`, `${MAIN}/?appMode=georef`, `${HIST}/?lat=1`, "https://example.org/tv/?lat=1"]) {
+    const shared = new URL(modeShareUrl(href))
+    const onModePage = Object.values(MODE_PAGE_PATHS).some((p) => shared.pathname.endsWith(`/${p}/`))
+    assert.ok(onModePage !== shared.searchParams.has("appMode"), `${href} → ${shared.href}`)
+    assert.equal(shareUrlAppMode(shared.href), new URL(href).searchParams.get("appMode") ?? "terrain")
+  }
+})
+
+test("a saved view keeps its mode: the query a record is made of always has appMode", () => {
+  assert.equal(searchNamingMode(`${MAIN}/?lat=1&zoom=3`), "?appMode=terrain&lat=1&zoom=3")
+  assert.equal(searchNamingMode(`${MAIN}/`), "?appMode=terrain")
+  assert.equal(searchNamingMode(`${MAIN}/?lat=1&appMode=rem&x=%C3%A9`), "?lat=1&appMode=rem&x=%C3%A9")
+  assert.equal(searchNamingMode(`${MAIN}/rem/?lat=1`), "?appMode=rem&lat=1")
+  assert.equal(searchNamingMode(`${HIST}/historical/`), "?appMode=historical")
+  assert.equal(searchNamingMode(`${HIST}/?lat=1`), "?appMode=terrain&lat=1")
+  assert.equal(searchNamingMode("not a url"), "")
+})
+
+test("the page of a short link is the mode's own where it has one", () => {
+  assert.equal(modePageHref(`${MAIN}/?lat=1#h`, "rem"), `${MAIN}/rem/`)
+  assert.equal(modePageHref(`${MAIN}/`, "historical"), `${MAIN}/historical/`)
+  assert.equal(modePageHref(`${MAIN}/`, "terrain"), `${MAIN}/`)
+  assert.equal(modePageHref(`${MAIN}/`, "georef"), `${MAIN}/`)
+  assert.equal(modePageHref(`${MAIN}/`, undefined), `${MAIN}/`)
+  assert.equal(modePageHref("https://example.org/tv/index.html?x=1", "rem"), "https://example.org/tv/rem/")
+  assert.equal(modePageHref("views://mainview/index.html", "rem"), "views://mainview/index.html")
 })
 
 test("a sub-path deployment and index.html", () => {
@@ -49,8 +81,7 @@ test("the mirror host (SITE_MODE=historical): no link opens another mode than th
   // deployment, and names the mode whatever the host.
   assert.equal(modeShareUrl(`${HIST}/?appMode=historical&dateA=5`), `${HIST}/historical/?dateA=5`)
   assert.equal(modeShareUrl(`${HIST}/?appMode=rem&lat=1`), `${HIST}/rem/?lat=1`)
-  // Terrain is the parameter's default, so the address has no appMode; on
-  // this host such a link would open Historical.
+  // Terrain on this host: without the parameter the link would open Historical.
   assert.equal(modeShareUrl(`${HIST}/?lat=45.9&zoom=12`), `${HIST}/?appMode=terrain&lat=45.9&zoom=12`)
   assert.equal(modeShareUrl(`${HIST}/`), `${HIST}/?appMode=terrain`)
   assert.equal(modeShareUrl("https://river-rem.iconem.com/?lat=1#h"), "https://river-rem.iconem.com/?appMode=terrain&lat=1#h")

@@ -13,7 +13,7 @@
 // that, sign in again.
 import { configureOAuth, createAuthorizationUrl, finalizeAuthorization, getSession, deleteStoredSession, OAuthUserAgent } from "@atcute/oauth-browser-client"
 import { CompositeDidDocumentResolver, CompositeHandleResolver, DohJsonHandleResolver, LocalActorResolver, PlcDidDocumentResolver, WebDidDocumentResolver, XrpcHandleResolver } from "@atcute/identity-resolver"
-import { OAUTH_SCOPE, VIEW_COLLECTION, handleOfDid, isDid, isHandle, oauthClientConfig, type BlobRef, type ViewRecord, type ViewRef } from "./atproto-view"
+import { OAUTH_SCOPE, OAUTH_SCOPE_WITH_POST, POST_COLLECTION, VIEW_COLLECTION, handleOfDid, isDid, isHandle, oauthClientConfig, scopeAllowsPost, type BlobRef, type PostRecord, type ViewRecord, type ViewRef } from "./atproto-view"
 
 export interface Account { did: string; handle: string | null }
 
@@ -44,8 +44,11 @@ function configure(): void {
 }
 
 /** Leaves the page for the account's authorization server. `returnTo` (a
- *  path and query of this site) comes back from completeSignIn. */
-export async function startSignIn(identifier: string, returnTo: string): Promise<never> {
+ *  path and query of this site) comes back from completeSignIn. `withPost`
+ *  asks for one more permission, creating a post: only the "Post to Bluesky"
+ *  button passes it, so a plain sign-in never holds it. The new grant
+ *  replaces the session of the same account. */
+export async function startSignIn(identifier: string, returnTo: string, withPost = false): Promise<never> {
   configure()
   const id = identifier.trim().replace(/^@/, "")
   // A handle or a DID names an account; an https address names a server
@@ -56,7 +59,7 @@ export async function startSignIn(identifier: string, returnTo: string): Promise
       ? { type: "account" as const, identifier: id as any }
       : null
   if (!target) throw new Error("Enter a handle (alice.bsky.social), a DID, or the https address of your server.")
-  const url = await createAuthorizationUrl({ target, scope: OAUTH_SCOPE, state: { returnTo } })
+  const url = await createAuthorizationUrl({ target, scope: withPost ? OAUTH_SCOPE_WITH_POST : OAUTH_SCOPE, state: { returnTo } })
   // The library's own advice: let the browser write the pending state to
   // storage before the page goes away.
   await new Promise((r) => setTimeout(r, 200))
@@ -137,4 +140,38 @@ export async function saveView(did: string, record: ViewRecord, thumbnail?: Blob
   const rkey = uri.split("/").pop() ?? ""
   if (!rkey) throw new Error("The server accepted the view but returned no address for it.")
   return { ref: { repo: did, rkey }, uri, cid: out?.cid, thumbnail: blob, thumbnailError }
+}
+
+/** Deletes one saved view of the signed-in account. Its picture goes with
+ *  it: a PDS drops a blob no record points at any more. */
+export async function deleteView(did: string, rkey: string): Promise<void> {
+  const agent = await agentFor(did)
+  await xrpc(agent, "com.atproto.repo.deleteRecord", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ repo: did, collection: VIEW_COLLECTION, rkey }),
+  })
+}
+
+/** Whether the stored session was granted the permission to create a post
+ *  (read from the token the server returned, no network). */
+export async function canPost(did: string): Promise<boolean> {
+  configure()
+  try {
+    return scopeAllowsPost((await getSession(did as any, { allowStale: true })).token.scope)
+  } catch { return false }
+}
+
+/** Publishes one post to the account's feed. Called by the "Post" button of
+ *  the editor and by nothing else. */
+export async function createPost(did: string, record: PostRecord): Promise<{ uri: string; rkey: string }> {
+  const agent = await agentFor(did)
+  if (!scopeAllowsPost(agent.session.token.scope)) throw new Error("This sign-in does not hold the permission to post.")
+  const out = await xrpc(agent, "com.atproto.repo.createRecord", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ repo: did, collection: POST_COLLECTION, record }),
+  })
+  const uri = String(out?.uri ?? "")
+  return { uri, rkey: uri.split("/").pop() ?? "" }
 }

@@ -6,7 +6,7 @@
   "redirect_uris": [
     "https://historical-satellite.iconem.com/"
   ],
-  "scope": "atproto repo:com.iconem.terrainviewer.view blob:image/*",
+  "scope": "atproto repo:com.iconem.terrainviewer.view blob:image/* repo:app.bsky.feed.post?action=create",
   "grant_types": [
     "authorization_code",
     "refresh_token"

@@ -330,6 +330,41 @@ export async function loadView(ref: ViewRef, opts: LoadOptions = {}): Promise<Lo
   return { ref, did: fetched.did, pds: fetched.pds, record, thumbnailUrl: cid ? blobUrl(fetched.pds, fetched.did, cid) : undefined }
 }
 
+export interface ListedView { ref: ViewRef; uri: string; cid?: string; record: ViewRecord; thumbnailUrl?: string }
+export interface ViewList { did: string; pds: string; views: ListedView[]; cursor?: string }
+
+/** The saved views of an account, newest first: `com.atproto.repo.listRecords`
+ *  on its PDS, public like getRecord (no account, CORS open). `repo` is a DID
+ *  or a handle. Records of the collection that are not views (or that a newer
+ *  app wrote in a shape this one cannot read) are left out. */
+export async function listViews(repo: string, opts: LoadOptions & { limit?: number; cursor?: string } = {}): Promise<ViewList> {
+  const id = repo.trim().replace(/^@/, "")
+  if (!isDid(id) && !isHandle(id)) throw new ViewLoadError("bad-ref", `"${id.slice(0, 80)}" is neither a handle (alice.bsky.social) nor a DID.`)
+  const did = isDid(id) ? id : await resolveHandle(id.toLowerCase(), opts)
+  const pds = await resolvePds(did, opts)
+  const host = new URL(pds).host
+  const limit = Math.min(100, Math.max(1, opts.limit ?? 50))
+  let res: { status: number; body: any }
+  try {
+    res = await getJson(`${pds}/xrpc/com.atproto.repo.listRecords?repo=${encodeURIComponent(did)}&collection=${encodeURIComponent(VIEW_COLLECTION)}&limit=${limit}${opts.cursor ? `&cursor=${encodeURIComponent(opts.cursor)}` : ""}`, opts)
+  } catch {
+    throw new ViewLoadError("pds-unreachable", `The server that holds this account's views (${host}) did not answer. Try again later.`)
+  }
+  const error = String(res.body?.error ?? "")
+  if (error === "RepoNotFound" || error === "RepoDeactivated" || error === "RepoTakendown" || error === "RepoSuspended") throw new ViewLoadError("not-found", `The account is gone from ${host} (deleted, deactivated or moved).`)
+  if (res.status !== 200 || !Array.isArray(res.body?.records)) throw new ViewLoadError("pds-unreachable", `The server that holds this account's views (${host}) answered with an error (${res.status}${error ? `, ${error}` : ""}).`)
+  const views: ListedView[] = []
+  for (const r of res.body.records as { uri?: unknown; cid?: unknown; value?: unknown }[]) {
+    const uri = String(r.uri ?? "")
+    const rkey = uri.split("/").pop() ?? ""
+    if (!isViewRecord(r.value) || !RKEY_RE.test(rkey)) continue
+    if (typeof r.value.schemaVersion === "number" && r.value.schemaVersion > VIEW_SCHEMA_VERSION) continue
+    const cid = r.value.thumbnail?.ref?.$link
+    views.push({ ref: { repo: did, rkey }, uri, cid: typeof r.cid === "string" ? r.cid : undefined, record: r.value, thumbnailUrl: cid ? blobUrl(pds, did, cid) : undefined })
+  }
+  return { did, pds, views, cursor: typeof res.body.cursor === "string" && res.body.cursor ? res.body.cursor : undefined }
+}
+
 /** A blob's public address on its PDS. Served as an attachment with a
  *  sandbox policy: fine for <img> and for fetch, not a page to open. */
 export const blobUrl = (pds: string, did: string, cid: string): string =>
@@ -348,9 +383,78 @@ export function expandedViewUrl(pageHref: string, record: Pick<ViewRecord, "para
 
 // ── the OAuth client's identity, per host ────────────────────────────────
 
-/** What the app may write: records of its own collection and pictures (the
- *  thumbnail). Nothing of the account's posts, follows or messages. */
+/** What a sign-in asks for: records of the app's own collection (create,
+ *  update, delete) and pictures (the thumbnail). Nothing of the account's
+ *  posts, follows or messages. */
 export const OAUTH_SCOPE = `atproto repo:${VIEW_COLLECTION} blob:image/*`
+/** The one more permission "Post to Bluesky" asks for, and only when the
+ *  user clicks it: creating a post (not editing or deleting one, nothing
+ *  else of the account). */
+export const POST_COLLECTION = "app.bsky.feed.post"
+export const OAUTH_POST_PERMISSION = `repo:${POST_COLLECTION}?action=create`
+export const OAUTH_SCOPE_WITH_POST = `${OAUTH_SCOPE} ${OAUTH_POST_PERMISSION}`
+/** What the client metadata declares: the most the app may ever ask for. An
+ *  authorization request names a subset of it (OAuth: the granted scope is
+ *  the requested one, not the declared one), so a plain sign-in still gets
+ *  OAUTH_SCOPE and nothing more. */
+export const OAUTH_SCOPE_DECLARED = OAUTH_SCOPE_WITH_POST
+
+/** Whether a granted scope (a session's) lets the app create a post. */
+export function scopeAllowsPost(scope: string | null | undefined): boolean {
+  for (const part of String(scope ?? "").split(/\s+/)) {
+    if (part === "transition:generic") return true
+    const m = /^repo:([^?]+)(?:\?(.*))?$/.exec(part)
+    if (!m || (m[1] !== POST_COLLECTION && m[1] !== "*")) continue
+    const actions = new URLSearchParams(m[2] ?? "").getAll("action")
+    if (actions.length === 0 || actions.includes("create")) return true
+  }
+  return false
+}
+
+// ── a post that carries the view as its card ─────────────────────────────
+
+export interface PostRecord {
+  $type: typeof POST_COLLECTION
+  text: string
+  createdAt: string
+  facets?: { index: { byteStart: number; byteEnd: number }; features: { $type: "app.bsky.richtext.facet#link"; uri: string }[] }[]
+  embed: { $type: "app.bsky.embed.external"; external: { uri: string; title: string; description: string; thumb?: BlobRef } }
+}
+
+/** A post's length limit: 300 graphemes (and 3000 bytes). */
+export const POST_MAX_GRAPHEMES = 300
+export function graphemeLength(text: string): number {
+  const Seg = (Intl as any).Segmenter
+  if (typeof Seg !== "function") return Array.from(text).length
+  let n = 0
+  for (const _ of new Seg().segment(text)) n++
+  return n
+}
+
+export interface BuildPostOptions { text: string; link: string; title: string; description?: string; thumb?: BlobRef; createdAt?: Date }
+
+/** The post record: the user's text, and the view as an external embed. The
+ *  card's title, description and picture are supplied here by the client, so
+ *  no crawler reads the page. Where the text holds the link, a facet makes
+ *  it clickable (offsets count UTF-8 bytes). */
+export function buildPostRecord(opts: BuildPostOptions): PostRecord {
+  const text = opts.text.trim()
+  if (graphemeLength(text) > POST_MAX_GRAPHEMES) throw new Error(`The post is longer than ${POST_MAX_GRAPHEMES} characters.`)
+  const record: PostRecord = {
+    $type: POST_COLLECTION,
+    text,
+    createdAt: (opts.createdAt ?? new Date()).toISOString(),
+    embed: { $type: "app.bsky.embed.external", external: { uri: opts.link, title: opts.title.slice(0, 300), description: (opts.description ?? "").slice(0, 1000) } },
+  }
+  if (opts.thumb) record.embed.external.thumb = opts.thumb
+  const at = text.indexOf(opts.link)
+  if (at >= 0) {
+    const enc = new TextEncoder()
+    const byteStart = enc.encode(text.slice(0, at)).length
+    record.facets = [{ index: { byteStart, byteEnd: byteStart + enc.encode(opts.link).length }, features: [{ $type: "app.bsky.richtext.facet#link", uri: opts.link }] }]
+  }
+  return record
+}
 
 /** The hosts that serve a client metadata file (public/atproto/<host>.json).
  *  An atproto client is identified by the https address of that file, and
@@ -373,7 +477,7 @@ export function oauthClientConfig(loc: { protocol: string; hostname: string; por
   // 127.0.0.1: the session is stored per origin.
   if (loc.protocol === "http:" && (host === "127.0.0.1" || host === "[::1]")) {
     const redirect_uri = `http://${host}${loc.port ? `:${loc.port}` : ""}/`
-    return { ok: true, kind: "loopback", client_id: `http://localhost?redirect_uri=${encodeURIComponent(redirect_uri)}&scope=${encodeURIComponent(OAUTH_SCOPE)}`, redirect_uri }
+    return { ok: true, kind: "loopback", client_id: `http://localhost?redirect_uri=${encodeURIComponent(redirect_uri)}&scope=${encodeURIComponent(OAUTH_SCOPE_DECLARED)}`, redirect_uri }
   }
   if (loc.protocol === "http:" && host === "localhost") {
     return { ok: false, reason: `Sign-in does not work on http://localhost: open this page on http://127.0.0.1${loc.port ? `:${loc.port}` : ""}${loc.pathname ?? "/"}${loc.search ?? ""} instead (the AT Protocol's development client only redirects to an IP address).` }
@@ -389,7 +493,7 @@ export function oauthClientMetadata(host: string): Record<string, unknown> {
     client_uri: `https://${host}`,
     logo_uri: `https://${host}/${host === "historical-satellite.iconem.com" ? "favicon-historical.svg" : "favicon.svg"}`,
     redirect_uris: [`https://${host}/`],
-    scope: OAUTH_SCOPE,
+    scope: OAUTH_SCOPE_DECLARED,
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
     token_endpoint_auth_method: "none",
