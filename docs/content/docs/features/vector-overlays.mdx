@@ -16,9 +16,9 @@ description: "Open building footprints (Overture, VIDA, OpenStreetMap), heritage
 
 ![The Library dialog on its Vector tab: heritage sources with their licence, a link to their page, Zoom to and add or remove buttons](/screenshots/vector-overlays-library-tab.jpg)
 
-The vector sources are the third tab of the **Library** dialog, beside Terrain and Basemap, with the same search (it carries over from one tab to the next, each tab showing its number of matches) and the same rows: the plus lists a source under Vector overlays, where it is switched on per view; the minus takes it off the list. A listed source also has **Zoom to**: the extent of a regional source (OCS GE: France), a place that shows it well for a worldwide one (Overture's buildings: Midtown Manhattan).
+The vector sources are the third tab of the **Library** dialog, beside Terrain and Basemap, with the same search (it carries over from one tab to the next, each tab showing its number of matches) and the same rows: the plus lists a source under Vector overlays and switches it on in the current view (the selected view of a split with per-view basemaps, view A otherwise); the minus takes it off the list and off every view showing it. The plus of a group's header only lists its sources, without switching them on. A row has **Zoom to**, listed or not: the extent of a regional source (OCS GE: France), a place that shows it well for a worldwide one (Overture's buildings: Midtown Manhattan). The Terrain and Basemap tabs have the same button on every entry that states an extent smaller than the world.
 
-Six sources are listed until you choose otherwise: the three building sources, the roads and labels, and Heritage Watch AI's OpenStreetMap and Wikidata exports. A source a link switches on shows in the list whether you added it or not.
+Six sources are listed until you choose otherwise: the three building sources, the roads and labels, and Heritage Watch AI's OpenStreetMap and Wikidata exports. They are listed, not switched on. A browser that saved its list before a source joined these defaults receives it once; a default you removed is not put back. A source a link switches on shows in the list whether you added it or not.
 
 ## Buildings
 
@@ -45,17 +45,19 @@ The sources of Heritage Watch AI's [Heritage map](https://terria-catalog.prod.he
 | Overlay | What it holds | Colored by | Licence |
 |---|---|---|---|
 | **HW.ai Heritage Map - OSM** | 4.46 million objects: `historic=*`, `heritage=*`, places of worship, museums; points, with footprints from a second archive | Kind: historic, place of worship, heritage, museum | ODbL 1.0 |
-| **HW.ai Heritage Map - Wikidata** | 1.7 million items of 40 heritage classes and 1.2 million more by heritage designation alone, as points, many with a picture | Status: gone, designated only, other | CC0 1.0 |
-| **HW.ai Heritage Map - OSM condition** | 663 thousand objects OpenStreetMap marks with a lifecycle prefix, heritage or not | Condition: destroyed, damaged, demolished or razed, removed or former | ODbL 1.0 |
+| **HW.ai Heritage Map - Wikidata** | 1.7 million items of 40 heritage classes and 1.2 million more by heritage designation alone, as points, many with a picture | Heritage class, the 40 classes in nine colors: castle and fortification, archaeological site and ruins, place of worship, memorial and tomb, palace and historic house, museum, monument, landmark and historic district, heritage site; then designation alone, natural designation, other. Items Wikidata marks as gone are red | CC0 1.0 |
+| **OSM destroyed and disappeared features (HW.ai)** | 663 thousand objects of any kind that OpenStreetMap marks with a lifecycle prefix (`destroyed:`, `damaged:`, `demolished:`, `razed:`, `removed:`, `was:`): buildings, roads, amenities, and not only heritage | Condition: destroyed, damaged, demolished or razed, removed or former | ODbL 1.0 |
 | **HW.ai Heritage Map - National and regional inventories** | A compilation in progress of monument registers and archaeological site records, points and footprints | Kind: monuments, archaeology, mixed | Per inventory |
 | **UNESCO World Heritage List** | The inscribed properties, one point each (1,271 of 1,273; two have no coordinates), with category, year, criteria, States Parties and a short description | In danger, cultural, natural, mixed | CC BY-SA 4.0 |
 | **UNESCO World Heritage components** | The 5,612 parts of the 486 serial properties (the Aalto works, the Struve arc), each with its name, its reference and its property | The same | CC BY-SA 4.0 |
 
 The first two are listed by default; the others are in the **Vector library**. Points draw at every zoom.
 
+An item of Wikidata often has several classes (a basilica is a church building, a temple and a shrine): it takes the color of the first group of the legend it belongs to, and its card lists all its classes by name. The third source was named "OSM condition" before; its id in a link, `hwai-heritage-osm-condition`, has not changed.
+
 The inventories' footprints are drawn as **outlines, not fills**. A register's perimeters run from a house to the Great Barrier Reef, a canal or a whole protected landscape, in dozens of inventories, and the archive carries no size to tell them apart: filled, a handful of them hid whole regions. As a line, a large perimeter stays out of the way and a small one is still seen. The boxes that are only the extent of an export (the Humanitarian OpenStreetMap exports) are left out.
 
-UNESCO's two files are compact copies of the open data portal's World Heritage dataset, which weighs 23 MB with its texts in six languages: 0.65 MB for the properties and 1.4 MB for the components (0.16 MB each once compressed by the server), served by the app itself. A serial property stands on the component nearest to the middle of its parts. There is no Tentative List source: UNESCO's open data does not publish one with coordinates.
+UNESCO's two files are compact copies of the open data portal's World Heritage dataset, which weighs 23 MB with its texts in six languages: 0.65 MB for the properties and 0.9 MB for the components (about 0.16 MB each once compressed by the server), served by the app itself. The components file says a property's name, category and danger flag once for all its parts instead of once per part (it was 1.4 MB); the app puts them back, so a component's card still shows its property. A serial property stands on the component nearest to the middle of its parts. There is no Tentative List source: UNESCO's open data does not publish one with coordinates.
 
 ## Land use and land cover
 
@@ -67,12 +69,15 @@ UNESCO's two files are compact copies of the open data portal's World Heritage d
 |---|---|---|---|---|
 | **Overture Maps land cover** | Worldwide, generalized from ESA WorldCover (10 m, 2020) | 10: forest, shrub, grass, crop, urban, barren, wetland, mangrove, moss, snow | Zoom 9 | CC BY 4.0 |
 | **Overture Maps land use** | Worldwide, from OpenStreetMap's landuse, leisure and amenity areas | 23 kinds in 10 colors: residential, commercial and industrial, farming, parks and sport, protected, schools and hospitals, transport, military, cemetery, quarries and works | Zoom 13 | ODbL 1.0 |
-| **France - IGN OCS GE land cover** | Most French departments (2021 to 2023), 28 million polygons | 14 covers in 11 colors, close to IGN's legend | Zoom 13 | Licence Ouverte 2.0 |
-| **France - IGN OCS GE land use** | The same polygons | 20 uses in 11 colors | Zoom 13 | Licence Ouverte 2.0 |
+| **France - IGN OCS GE land cover 2021-2023** | The departments surveyed in 2021, 2022 or 2023: mainland France and Corsica without Rhône, Ille-et-Vilaine, Alpes-Maritimes, Gers and Var; 28 million polygons | The 14 covers of IGN's nomenclature, in the colors and under the names of IGN's legend | Zoom 13 | Licence Ouverte 2.0 |
+| **France - IGN OCS GE land use 2021-2023** | The same polygons | The 20 uses of IGN's nomenclature, in IGN's colors and names | Zoom 13 | Licence Ouverte 2.0 |
+| **France - IGN OCS GE land cover 2017-2020**, **land use 2017-2020** | Every department of mainland France and Corsica (surveys of 2017 to 2020), 29.9 million polygons | The same classes and colors | Zoom 13 | Licence Ouverte 2.0 |
 
 These are the vector forms of the land cover maps the [Basemap library](/features/basemaps) holds as imagery: here a class is a polygon with a name, which can be clicked. They are colored by class, without outlines, and each has its legend in its settings.
 
-The first zoom is a matter of weight. Overture publishes land cover and land use inside its `base` theme, one archive with water, bathymetry and every tree and street lamp: a tile of it weighs 2 to 4 MB below zoom 9 over Europe, 0.2 to 1.6 MB from there. The land use classes are only in the deepest zoom of the archive (13), where a tile of a dense city reaches 2 MB and a rural one a few kilobytes. OCS GE is drawn from zoom 13 too (a zoom 12 tile of Paris is 1.7 MB). The Géoplateforme adds departments as IGN produces them; a few had no tiles on 2026-11-26 (Rhône, Ille-et-Vilaine, Gers, Alpes-Maritimes).
+The first zoom is a matter of weight. Overture publishes land cover and land use inside its `base` theme, one archive with water, bathymetry and every tree and street lamp: a tile of it weighs 2 to 4 MB below zoom 9 over Europe, 0.2 to 1.6 MB from there. The land use classes are only in the deepest zoom of the archive (13), where a tile of a dense city reaches 2 MB and a rural one a few kilobytes. OCS GE is drawn from zoom 13 too (a zoom 12 tile of Paris is 1.7 MB).
+
+**Why OCS GE shows nothing over Lyon, Rennes, Nice, Auch or Toulon.** IGN produces OCS GE department by department, about every three years, and the Géoplateforme serves one tile set per period. The 2021-2023 set holds only the departments surveyed in those years. Five were not: Rhône, Ille-et-Vilaine, Alpes-Maritimes, Gers and Var, whose latest survey is of 2019 or 2020. Their tiles answer 404 in the 2021-2023 set (checked again on 2026-11-27 at zoom 14 over the five cities, for both cover and use) and 200 in the 2017-2020 set, which covers the whole of mainland France and Corsica. Use the 2017-2020 sources there; where both exist, one on each view of a split shows what changed in three years. The class names are IGN's own, in French ("Zones bâties", "Peuplements de feuillus", "Usage résidentiel"), with the code on the card.
 
 Corine Land Cover has no entry: its vector form is a WFS, not tiles. It stays an imagery overlay.
 
@@ -93,7 +98,7 @@ A click on a feature of a vector overlay opens its card, and the feature is ring
 - **Zoom to**, which frames the feature;
 - a link to **where it comes from**, when a property names it: the Wikidata item, the OpenStreetMap object, UNESCO's page of the property, the record of a heritage inventory.
 
-The pointer turns to a hand over a feature. In a split each view has its own card, for the overlays of that view. A card closes with its cross, with a click on the bare map, or when its overlay is switched off.
+The pointer turns to a hand over a feature: a point, a line or a shape, of every overlay but the roads and labels, in each view of a split. In a split each view has its own card, for the overlays of that view. A card closes with its cross, with a click on the bare map, or when its overlay is switched off.
 
 Nothing opens while a tool owns the map's clicks: the elevation picker, the sun shadow calculator, the image georeferencer, or a drawing mode other than Select; and a click on a drawing selects the drawing. The roads and labels overlay is a backdrop: its features are not clickable.
 
@@ -104,7 +109,7 @@ Two choices at the top of the list apply to every vector overlay, so two buildin
 - **Footprints** (flat, draped on the terrain) or **3D, by height** (extruded, for the sources that have heights). A building with no height stands 4 m tall, or 3.2 m a floor when it states its floors.
 - **Color by category** (origin, kind, condition or class, where a source has one), **One color each**, or **Color by height** (yellow for a house, purple for a tower, grey without a height). A source that lacks what was chosen falls back to what it has.
 
-The settings button of a row holds what is its own: its **color** (shown when it is drawn in one color), **outlines**, the legend and the credit. The color opens the app's color picker, with transparency: an overlay has one opacity, so the picker's transparency and the row's pill are the same number, and moving one moves the other.
+The settings button of a row holds what is its own: its **color** (shown when it is drawn in one color), its **point size** when the source draws points, **outlines**, the legend and the credit. The point size is the radius of a point at zoom 16 and beyond, 2 to 16 pixels (6 by default); points shrink in proportion when zoomed out, to a quarter of it at zoom 3. The color opens the app's color picker, with transparency: an overlay has one opacity, so the picker's transparency and the row's pill are the same number, and moving one moves the other.
 
 These choices are remembered in your browser. A shared link carries which overlays are on, not how they are drawn.
 
@@ -135,6 +140,10 @@ With per-view basemaps on, each row shows one button per view, as the raster ove
 
 <OpenInApp href="/?zoom=15.5&lat=6.4541&lng=3.3947&splitStyle=side-by-side&gridLayout=2x1&vectorOverlayIds=vida-open-buildings&vectorOverlayIdsB=overture-buildings">VIDA beside Overture over Lagos</OpenInApp>
 
+## Credits
+
+Each overlay that is switched on adds its short credit to the map's attribution line (the "i" at the bottom right), linked to its licence: "HW.ai, Wikidata, CC0", "IGN OCS GE, LO 2.0". It leaves the line when the overlay is switched off. The line is one for the whole map: in a split it credits the terrain, the basemap, the imagery overlays and the vector overlays of every view on screen, each once. The source the [building shadows](/features/sun-position#building-shadows) read is credited while the shadows are on. The full credit and the licence of a source are in its row's settings.
+
 ## In a link
 
 | Parameter | Value |
@@ -145,7 +154,7 @@ With per-view basemaps on, each row shows one button per view, as the raster ove
 
 ## Building shadows
 
-The [building shadows](/features/sun-position#building-shadows) read one source for every view (Lighting Effects, Buildings, **Buildings from**). Only sources with heights on polygons are offered: OpenFreeMap's OSM tiles, Overture's buildings, Heritage Watch AI's OSM export (through its footprints archive, where a few percent of the features state a height and about a quarter their floors) and its OSM condition export, plus a source of your own with a height field. A source of points is not offered, whatever its fields.
+The [building shadows](/features/sun-position#building-shadows) read one source for every view (Lighting Effects, Buildings (Vector shadows), **Buildings from**). Only sources with heights on polygons are offered: OpenFreeMap's OSM tiles, Overture's buildings, Heritage Watch AI's OSM export (through its footprints archive, where a few percent of the features state a height and about a quarter their floors) and its export of OSM's destroyed and disappeared features, plus a source of your own with a height field. A source of points is not offered, whatever its fields.
 
 ## Not yet
 
