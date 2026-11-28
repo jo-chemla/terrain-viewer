@@ -66,7 +66,7 @@ def building_sources():
             if e.get("heightField") and e.get("type") != "style" and e.get("sourceLayers")]
 
 
-VECTOR_FIELDS = ("id", "name", "shortName", "type", "url", "resolver", "fallbackRelease", "minzoom", "maxzoom", "bounds",
+VECTOR_FIELDS = ("id", "name", "shortName", "type", "url", "format", "resolver", "fallbackRelease", "minzoom", "maxzoom", "bounds",
                  "sourceLayers", "geometries", "companions", "color", "outline", "polygonFill", "categories", "categoryLabel",
                  "styleLayerTypes", "libraryGroup", "description", "infoUrl", "attribution", "shortAttribution", "licenseName",
                  "licenseUrl", "sample")

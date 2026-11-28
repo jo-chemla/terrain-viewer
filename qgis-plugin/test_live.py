@@ -929,5 +929,5 @@ with open(os.path.join(out, "scores.json"), "w") as f:
     json.dump([{"mode": m, "reference": r, "score": s, "detail": d} for m, r, s, d in scores], f, indent=1)
 print("out:", out)
 print("FAILURES:" if failures else "ALL OK", *failures, sep="\n  ")
-app.exitQgis()
-sys.exit(1 if failures else 0)
+import test_teardown  # noqa: E402 - the widgets deleted, exitQgis, the process ended as QGIS ends
+test_teardown.leave(app, 1 if failures else 0, dock)

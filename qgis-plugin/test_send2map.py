@@ -210,5 +210,5 @@ plugin.unload()
 if iface.toolbar or iface.web or canvas.mapTool() is tool:
     failures.append("unload")
 print("FAILURES:", failures or "none")
-app.exitQgis()
-sys.exit(1 if failures else 0)
+import test_teardown  # noqa: E402 - the widgets deleted, exitQgis, the process ended as QGIS ends
+test_teardown.leave(app, 1 if failures else 0)
