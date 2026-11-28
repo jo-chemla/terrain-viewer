@@ -20,6 +20,8 @@ export const MODES = {
   eigenRatio: { showTerrainAnalysis: true, showEigenRatio: true },
   orientation: { showTerrainAnalysis: true, showOrientation: true },
   lrm: { showReliefVisualization: true, showLrm: true },
+  // The terrain minus a second source, named by the ndsmSubtrahend parameter.
+  ndsm: { showReliefVisualization: true, showNdsm: true },
   svf: { showReliefVisualization: true, showSvf: true },
   openness: { showReliefVisualization: true, showOpenness: true },
   localDominance: { showReliefVisualization: true, showLocalDominance: true },
@@ -37,7 +39,7 @@ export const MODE_NAMES = Object.keys(MODES)
 /** Every mode but the basemap, bottom of the map to top: the order the map
  *  (and direct.mjs layersOf) draws them in, whatever order `modes` lists
  *  them. test.mjs checks it against layersOf. */
-export const STACK_ORDER = ["colorRelief", "slope", "aspect", "tri", "curvature", "tpi", "lrm", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "svf", "openness", "localDominance", "hillshade", "matcap", "phong", "shadows", "buildingShadows", "isoline", "graticules", "moundDetector", "planeSlicer", "contours"]
+export const STACK_ORDER = ["colorRelief", "slope", "aspect", "tri", "curvature", "tpi", "lrm", "ndsm", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "svf", "openness", "localDominance", "hillshade", "matcap", "phong", "shadows", "buildingShadows", "isoline", "graticules", "moundDetector", "planeSlicer", "contours"]
 export const IMAGERY_SOURCES = ["wayback", "ge-historical", "bing", "hls", "eox-s2"]
 
 const round = (n, d) => Number(Number(n).toFixed(d))

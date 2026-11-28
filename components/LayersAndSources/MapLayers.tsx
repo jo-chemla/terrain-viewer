@@ -21,6 +21,7 @@ export const LAYER_SLOTS = {
   CURVATURE: "slot-curvature",
   TPI: "slot-tpi",
   LRM: "slot-lrm",
+  NDSM: "slot-ndsm",
   RIVER_REM: "slot-river-rem",
   ROUGHNESS: "slot-roughness",
   SHAPE_INDEX: "slot-shape-index",
@@ -54,6 +55,7 @@ export const LayerOrderSlots = () => (
     <Layer id={LAYER_SLOTS.CURVATURE}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.TPI}         type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.LRM}         type="background" paint={{ "background-opacity": 0 }} />
+    <Layer id={LAYER_SLOTS.NDSM}        type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.RIVER_REM}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.ROUGHNESS}   type="background" paint={{ "background-opacity": 0 }} />
     <Layer id={LAYER_SLOTS.SHAPE_INDEX} type="background" paint={{ "background-opacity": 0 }} />
@@ -447,6 +449,22 @@ export const LrmReliefLayer = memo(({ enabled, showLrm, lrmReliefPaint }: { enab
   )
 })
 LrmReliefLayer.displayName = "LrmReliefLayer"
+
+// The nDSM / DEM difference mode (lib/ndsm-mode.ts). Mounted with its source
+// (NdsmSource in MapSources.tsx), only while the mode is on for the view.
+export const NdsmReliefLayer = memo(({ enabled, ndsmReliefPaint }: { enabled: boolean; ndsmReliefPaint: any }) => {
+  if (!enabled) return null
+  return (
+    <Layer
+      beforeId={LAYER_SLOTS.NDSM}
+      id="ndsm-relief"
+      type="color-relief"
+      source="ndsmSource"
+      paint={ndsmReliefPaint}
+    />
+  )
+})
+NdsmReliefLayer.displayName = "NdsmReliefLayer"
 
 // Reuses the real-elevation ("hillshadeSource", same as the hypsometric tint)
 // or LRM ("lrmSource") source depending on referenceMode — no dedicated tile

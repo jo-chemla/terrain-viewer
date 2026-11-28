@@ -119,7 +119,7 @@ import { phongProtocol } from '@/lib/phong-protocol'
 import { shadowProtocol } from '@/lib/shadow-protocol'
 import { MATCAP_TEXTURES, DEFAULT_MATCAP_ID } from '@/lib/matcap-textures'
 
-import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource } from "./LayersAndSources/MapSources"
+import { TerrainSources, RasterBasemapSource, OverlayBasemapSources, SlopeSource, AspectSource, TriSource, CurvatureSource, TpiSource, LrmSource, NdsmSource, RoughnessSource, ShapeIndexSource, BlobnessSource, EigenRatioSource, OrientationSource, SvfSource, OpennessSource, LocalDominanceSource, TellsSource, MatcapSource, PhongSource, ShadowSource } from "./LayersAndSources/MapSources"
 import { PhongLiveGlLayer } from "./LayersAndSources/PhongLiveGlLayer"
 import { ShadowLiveGlLayer } from "./LayersAndSources/ShadowLiveGlLayer"
 import { ProfileDock } from "./ProfileDock"
@@ -140,6 +140,7 @@ import {
   CurvatureReliefLayer,
   TpiReliefLayer,
   LrmReliefLayer,
+  NdsmReliefLayer,
   RoughnessReliefLayer,
   ShapeIndexReliefLayer,
   BlobnessReliefLayer,
@@ -244,7 +245,7 @@ const stallWatchers = new WeakMap<object, StallWatch>()
 const SOURCE_LABELS: Record<string, string> = {
   terrainSource: "Terrain", hillshadeSource: "Hillshade", "raster-basemap-source": "Basemap", "contour-source": "Contours",
   slopeSource: "Slope", aspectSource: "Aspect", curvatureSource: "Curvature", tpiSource: "TPI", triSource: "TRI",
-  roughnessSource: "Roughness", lrmSource: "LRM", svfSource: "SVF", opennessSource: "Openness",
+  roughnessSource: "Roughness", lrmSource: "LRM", ndsmSource: "nDSM", svfSource: "SVF", opennessSource: "Openness",
   localDominanceSource: "Local Dominance", blobnessSource: "Blobness", eigenRatioSource: "Eigen Ratio",
   shapeIndexSource: "Shape Index", orientationSource: "Orientation", matcapSource: "Matcap", phongSource: "Phong",
   shadowSource: "Hard Shadows", tellsSource: "Mound Detector", tellsSourceUnfiltered: "Mound Detector",
@@ -755,6 +756,24 @@ export const QUERY_STATE_PARSERS = {
     lrmRadius: parseAsFloat.withDefault(16),
     lrmCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
     lrmCustomStopsDiscrete: parseAsBoolean.withDefault(false),
+    // nDSM / DEM difference mode (lib/ndsm-mode.ts): the view's own terrain
+    // minus ndsmSubtrahend (a terrain source id), drawn over the view, which
+    // keeps its terrain for hillshade and 3D. Off by default: it needs a
+    // subtrahend. ndsmInvert swaps the operands (subtrahend minus terrain);
+    // ndsmOffset is added to every difference, as the difference source's
+    // own offset is. Defaults read heights above ground, 0 to 30 m.
+    showNdsm: parseAsBoolean.withDefault(false),
+    ndsmSubtrahend: parseAsString.withDefault(""),
+    ndsmInvert: parseAsBoolean.withDefault(false),
+    ndsmOffset: parseAsFloat.withDefault(0),
+    ndsmOpacity: parseAsFloat.withDefault(1.0),
+    ndsmColorRamp: parseAsString.withDefault("ndsm-heights"),
+    ndsmMin: parseAsFloat.withDefault(0),
+    ndsmMax: parseAsFloat.withDefault(30),
+    ndsmInvertColorRamp: parseAsBoolean.withDefault(false),
+    ndsmSymmetric: parseAsBoolean.withDefault(false),
+    ndsmCustomStops: parseAsCustomRampStops.withDefault(DEFAULT_SLOPE_CUSTOM_STOPS),
+    ndsmCustomStopsDiscrete: parseAsBoolean.withDefault(false),
     // River REM mode (appMode=rem): height above the river, the DEM minus a
     // trend surface that follows the river's water level (lib/river-rem.ts).
     // Where the centerline comes from: OpenStreetMap's main river in view (length times how well it is described), its longest named river, every waterway in view (tributaries too), one river picked by name, or a drawn or imported line.
@@ -1566,6 +1585,11 @@ export function TerrainViewer() {
     [ state.lrmColorRamp, state.lrmCustomStops, state.lrmCustomStopsDiscrete, state.lrmMin, state.lrmMax, state.lrmOpacity, state.reliefVisualizationOpacity, state.lrmInvertColorRamp, rampOverrides[state.lrmColorRamp] ]
   )
 
+  const ndsmReliefPaint = useMemo(
+    () => computeColorReliefPaint({ ...MODE_RELIEF.ndsm(state), sessionOverride: rampOverrides[state.ndsmColorRamp] }),
+    [ state.ndsmColorRamp, state.ndsmCustomStops, state.ndsmCustomStopsDiscrete, state.ndsmMin, state.ndsmMax, state.ndsmOpacity, state.reliefVisualizationOpacity, state.ndsmInvertColorRamp, rampOverrides[state.ndsmColorRamp] ]
+  )
+
   const planeSlicerPaint = useMemo(
     () => computePlaneSlicerPaint({
       value: state.planeSlicerReferenceMode === "lrm" ? state.planeSlicerValueLrm : state.planeSlicerValue,
@@ -1646,12 +1670,12 @@ export function TerrainViewer() {
     const pick = (p: unknown) => (p as Record<string, unknown> | undefined)?.["color-relief-color"]
     setModeColorRamps({
       "slope-relief": pick(slopeReliefPaint), "aspect-relief": pick(aspectReliefPaint), "tri-relief": pick(triReliefPaint),
-      "curvature-relief": pick(curvatureReliefPaint), "tpi-relief": pick(tpiReliefPaint), "lrm-relief": pick(lrmReliefPaint),
+      "curvature-relief": pick(curvatureReliefPaint), "tpi-relief": pick(tpiReliefPaint), "lrm-relief": pick(lrmReliefPaint), "ndsm-relief": pick(ndsmReliefPaint),
       "roughness-relief": pick(roughnessReliefPaint), "shape-index-relief": pick(shapeIndexReliefPaint), "blobness-relief": pick(blobnessReliefPaint),
       "eigen-ratio-relief": pick(eigenRatioReliefPaint), "orientation-relief": pick(orientationReliefPaint), "svf-relief": pick(svfReliefPaint),
       "openness-relief": pick(opennessReliefPaint), "local-dominance-relief": pick(localDominanceReliefPaint),
     })
-  }, [setModeColorRamps, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint, tpiReliefPaint, lrmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint, svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint])
+  }, [setModeColorRamps, slopeReliefPaint, aspectReliefPaint, triReliefPaint, curvatureReliefPaint, tpiReliefPaint, lrmReliefPaint, ndsmReliefPaint, roughnessReliefPaint, shapeIndexReliefPaint, blobnessReliefPaint, eigenRatioReliefPaint, orientationReliefPaint, svfReliefPaint, opennessReliefPaint, localDominanceReliefPaint])
 
   // circle-color expressions for the tells color-by marker styles, built from
   // the SAME ramp/range/invert state as the corresponding Slope-and-More layer
@@ -1721,7 +1745,7 @@ export function TerrainViewer() {
     ] as const
     const VIZ_SUBMODES = [
       "showMatcap", "showPhong", "showShadows", "showBuildingShadows",
-      "showLrm", "showSvf", "showOpenness", "showLocalDominance",
+      "showLrm", "showNdsm", "showSvf", "showOpenness", "showLocalDominance",
       "showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showShapeIndex",
       "showBlobness", "showEigenRatio", "showOrientation",
       "showContours", "showGraticules",
@@ -4139,6 +4163,20 @@ export function TerrainViewer() {
             lat={state.lat}
             lng={state.lng}
           />
+          <NdsmSource
+            // Unlike its neighbors, mounted only while the mode itself is on
+            // for this view: its tiles read a second terrain source, which
+            // must not be requested for a mode that is switched off.
+            enabled={!isHistoricalMode && state.showReliefVisualization && vm("showReliefVisualization") && state.showNdsm && vm("showNdsm")}
+            subtrahend={state.ndsmSubtrahend}
+            invert={state.ndsmInvert}
+            offsetM={state.ndsmOffset}
+            terrainSource={source}
+            customTerrainSources={customTerrainSources}
+            mapboxKey={mapboxKey}
+            maptilerKey={maptilerKey}
+            titilerEndpoint={titilerEndpoint}
+          />
           <RoughnessSource
             enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")}
             terrainSource={source}
@@ -4364,6 +4402,7 @@ export function TerrainViewer() {
           <CurvatureReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showCurvature={state.showCurvature && vm("showCurvature")} curvatureReliefPaint={curvatureReliefPaint} />
           <TpiReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showTpi={state.showTpi && vm("showTpi")} tpiReliefPaint={tpiReliefPaint} />
           <LrmReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode && vm("showReliefVisualization")} showLrm={state.showLrm && vm("showLrm")} lrmReliefPaint={lrmReliefPaint} />
+          <NdsmReliefLayer enabled={state.showReliefVisualization && !isHistoricalMode && vm("showReliefVisualization") && state.showNdsm && vm("showNdsm") && !!state.ndsmSubtrahend} ndsmReliefPaint={ndsmReliefPaint} />
           {/* River REM mode: view A's engine, and its tiles on every view (from view A's terrain source). */}
           <RiverRemLayers enabled={state.appMode === "rem"} primary={isPrimary} state={state} setState={setState} terrainSource={state.sourceA} mapLoaded={!!mapLoaded[side]} theme={theme} />
           <RoughnessReliefLayer enabled={state.showTerrainAnalysis && !isHistoricalMode && vm("showTerrainAnalysis")} showRoughness={state.showRoughness && vm("showRoughness")} roughnessReliefPaint={roughnessReliefPaint} />
@@ -4587,6 +4626,7 @@ export function TerrainViewer() {
       shadowLive, state.illuminationDir, state.illuminationAlt,
       state.showColorRelief, state.showTerrainAnalysis, state.showReliefVisualization, state.showSlope, state.slopeSourceMode, state.showContours, state.showContoursAndGraticules, state.showContourLabels,
       state.showAspect, state.showTri, state.showCurvature, state.curvatureMode, state.showTpi, state.showLrm, state.lrmRadius, state.showRoughness,
+      state.showNdsm, state.ndsmSubtrahend, state.ndsmInvert, state.ndsmOffset, ndsmReliefPaint,
       state.showShapeIndex, state.showBlobness, state.showEigenRatio, state.showOrientation,
       state.showSvf, state.svfRadius, state.svfPrecision, state.showOpenness, state.opennessRadius, state.opennessMode, state.opennessPrecision,
       state.showLocalDominance, state.localDominanceMinRadius, state.localDominanceMaxRadius,

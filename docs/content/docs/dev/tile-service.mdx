@@ -148,7 +148,8 @@ Both take the view as query parameters, the same words the [MCP server](/feature
 | Parameter | Meaning |
 |---|---|
 | `terrainSource` | An id from `/terrain-sources` (the built-in sources and the [library](/features/terrain-sources#the-library)), the address of Terrarium tiles, of a COG (`.tif`) or of a VRT (`.vrt`), or a configuration as JSON with the fields of a library entry: `{"url": "…/{z}/{x}/{y}.png", "type": "terrainrgb", "maxzoom": 15}` (types `terrarium`, `terrainrgb`, `cog`, `vrt`, `wms-raw`, `lerc`, `quantized-mesh`, `tilejson`) |
-| `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `moundDetector`, `isoline`, `graticules`, `planeSlicer`, `basemap` (also `tri`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`) |
+| `modes` | Comma-separated: `hillshade`, `colorRelief`, `contours`, `slope`, `aspect`, `curvature`, `tpi`, `roughness`, `lrm`, `ndsm`, `svf`, `openness`, `localDominance`, `phong`, `matcap`, `shadows`, `moundDetector`, `isoline`, `graticules`, `planeSlicer`, `basemap` (also `tri`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`) |
+| `ndsmSubtrahend` | With the `ndsm` mode: the terrain source subtracted from `terrainSource`, in the same forms (an id, a tile address, a JSON configuration), not itself a difference. `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the mode draws nothing and its values are refused with a 400; the second source is read only for a tile that draws the mode |
 | `imageryUrl`, `imagerySource`, `imageryDate` | The imagery of `/basemap-tiles` (and of a viewport, under the terrain, with the mode `basemap`) |
 | `engine` | `auto` (the default: direct when it can), `direct` (an error when it cannot), `browser` |
 | `background` | `none`: no white (or black) map background, a transparent PNG, to stack layers in a GIS. Direct engine only |
@@ -159,7 +160,7 @@ Every answer says which engine drew it in its `x-tv-engine` header, and `x-tv-en
 
 ### How several modes stack
 
-`modes=a,b,c` draws them in one tile in the map's order, never in the order written. Bottom to top: `colorRelief`, the terrain analysis and relief visualization modes (`slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`), `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, then the overlays `isoline`, `graticules`, `moundDetector`, `planeSlicer` and `contours` on top. `/processes/{id}` gives each mode's place as `x-tv-stack-rank`.
+`modes=a,b,c` draws them in one tile in the map's order, never in the order written. Bottom to top: `colorRelief`, the terrain analysis and relief visualization modes (`slope`, `aspect`, `tri`, `curvature`, `tpi`, `lrm`, `ndsm`, `roughness`, `shapeIndex`, `blobness`, `eigenRatio`, `orientation`, `svf`, `openness`, `localDominance`), `hillshade`, `matcap`, `phong`, `shadows`, `buildingShadows`, then the overlays `isoline`, `graticules`, `moundDetector`, `planeSlicer` and `contours` on top. `/processes/{id}` gives each mode's place as `x-tv-stack-rank`.
 
 A mode's opacity is its own parameter (`slopeOpacity`) times its panel group's (`terrainAnalysisOpacity`, `reliefVisualizationOpacity`, `lightingEffectsOpacity`): `slopeOpacity=0.5&terrainAnalysisOpacity=0.4` draws the slope at 0.2. Each layer is drawn source-over with that opacity, over the map's background (white, black with `theme=dark`, none with `background=none`). The shading layers differ: the hillshade is a half-transparent dark and light layer, Phong and matcap multiply the colors under them and add their highlight, the shadows darken. In a GIS, give them a multiply blend, as the QGIS project does.
 
@@ -245,9 +246,12 @@ One mode at a time; its own parameters count (`curvatureMode`, `lrmRadius`, `svf
 | `eigenRatio` | none | λmin/λmax of that tensor, 0 linear (slope, ridge, valley) to 1 isotropic (peak, pit, saddle) |
 | `orientation` | degree | The direction a ridge or valley runs (the dominant gradient's axis turned by 90°), clockwise from north, 0 to 180: north-south 0, east-west 90 |
 | `lrm` | m | Elevation minus its low-pass trend |
+| `ndsm` | m | `terrainSource` minus `ndsmSubtrahend` (the reverse with `ndsmInvert`), plus `ndsmOffset`: building and canopy heights for a DSM minus a DTM. NaN where either source has no data |
 | `svf` | none | The visible share of the sky, 0 to 1 (1 on open flat ground) |
 | `openness` | degree | Mean zenith angle to the horizon, 90 on flat ground |
 | `localDominance` | degree | Mean angle down to the surrounding terrain, high on mounds |
+
+The heights of buildings in Lyon, IGN Lidar HD DSM minus DTM at 0.5 m, as Float32 (median 8.9 m, the tallest roof 49.6 m in this tile, measured 2026-11-28): `/terrain-tiles/17/67304/46755.tif?modes=ndsm&terrainSource=custom-ign-lidarhd-dsm-wms-raw&ndsmSubtrahend=custom-ign-lidarhd-dtm-wms-raw`, and colored with the app's ramp (0 to 30 m, the ground transparent): the same address in `.png` with `background=none`. A QGIS project of a view lists the nDSM layers only when the view names a subtrahend.
 
 Some of the app's sliders read these in other units, where its protocols scale a value to fit their RGB packing or their ramp: the sky view factor and the eigenvalue ratio as percentages (×100), openness re-centred on flat ground (minus 90), blobness ×100, curvature ×100 (det-hessian ×10 000). The values here undo those factors. The values are read before that packing, so they are neither clamped (the app's curvature stops at ±0.33 1/m, which steep ground at high zoom exceeds on most pixels) nor rounded to its step.
 

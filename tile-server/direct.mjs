@@ -105,7 +105,7 @@ async function stateFor(view, rest) {
 /** The derived modes, in the map's layer order: state flag, protocol. */
 const DERIVED = [
   ["slope", "showSlope", "terrain"], ["aspect", "showAspect", "terrain"], ["tri", "showTri", "terrain"],
-  ["curvature", "showCurvature", "terrain"], ["tpi", "showTpi", "terrain"], ["lrm", "showLrm", "relief"],
+  ["curvature", "showCurvature", "terrain"], ["tpi", "showTpi", "terrain"], ["lrm", "showLrm", "relief"], ["ndsm", "showNdsm", "relief"],
   ["roughness", "showRoughness", "terrain"], ["shapeIndex", "showShapeIndex", "terrain"], ["blobness", "showBlobness", "terrain"],
   ["eigenRatio", "showEigenRatio", "terrain"], ["orientation", "showOrientation", "terrain"], ["svf", "showSvf", "relief"],
   ["openness", "showOpenness", "relief"], ["localDominance", "showLocalDominance", "relief"],
@@ -116,7 +116,8 @@ const GROUP = { terrain: "showTerrainAnalysis", relief: "showReliefVisualization
 function layersOf(s) {
   const out = []
   if (s.showColorRelief) out.push("colorRelief")
-  for (const [m, flag, group] of DERIVED) if (s[GROUP[group]] && s[flag]) out.push(m)
+  // The nDSM mode draws nothing without its subtrahend, as on the map.
+  for (const [m, flag, group] of DERIVED) if (s[GROUP[group]] && s[flag] && (m !== "ndsm" || s.ndsmSubtrahend)) out.push(m)
   if (s.showHillshade) out.push("hillshade")
   if (s.showLightingEffects) { if (s.showMatcap) out.push("matcap"); if (s.showPhong) out.push("phong"); if (s.showShadows) out.push("shadows"); if (s.showBuildingShadows) out.push("buildingShadows") }
   // Above the lighting, in the map's order: the iso-line and the graticule
@@ -155,6 +156,17 @@ export async function plan(view, rest, keys = {}) {
   const { state, given } = await stateFor(view, rest)
   for (const [test, why] of BROWSER_ONLY) if (test(state)) return no(why)
   const layers = layersOf(state)
+  // The nDSM / DEM difference mode reads a second source: ndsmSubtrahend, an
+  // id, a tile address or a configuration, as terrainSource is. Resolved
+  // here once, kept on the state the drawing reads (lib/ndsm-mode.ts).
+  if (layers.includes("ndsm")) {
+    let sub = state.ndsmSubtrahend
+    if (sub.trim().startsWith("{")) { try { sub = JSON.parse(sub) } catch { return no("ndsmSubtrahend is not valid JSON") } }
+    const second = await resolveDemOrWhy(sub, keys)
+    if (!second.dem) return no(`ndsmSubtrahend: ${second.why}`)
+    if (/^demdiff:/.test(second.dem.tiles)) return no("ndsmSubtrahend is itself a difference: subtract a plain source")
+    Object.defineProperty(state, "ndsmDem", { value: second.dem, enumerable: false })
+  }
   if (!HILLSHADE_METHODS.includes(state.hillshadeMethod)) return no(`the hillshade method ${state.hillshadeMethod} is not ported`)
   return { engine: "direct", dem, layers, state }
 }
@@ -169,7 +181,7 @@ export async function activeLayers(view, rest) {
 }
 
 /** The modes the direct engine draws, by the names of url.mjs. */
-export const DIRECT_MODES = ["hillshade", "colorRelief", "contours", "slope", "aspect", "tri", "curvature", "tpi", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "svf", "openness", "localDominance", "matcap", "phong", "shadows", "buildingShadows", "moundDetector", "isoline", "graticules", "planeSlicer"]
+export const DIRECT_MODES = ["hillshade", "colorRelief", "contours", "slope", "aspect", "tri", "curvature", "tpi", "roughness", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "ndsm", "svf", "openness", "localDominance", "matcap", "phong", "shadows", "buildingShadows", "moundDetector", "isoline", "graticules", "planeSlicer"]
 
 /** The elevation and intervals of the contour lines: the terrain, or with
  *  contourReferenceMode=lrm its local relief model (ContoursLayer.tsx). */
@@ -361,6 +373,14 @@ function protocolOf(A, layer, dem, s, base) {
     case "eigenRatio": return { url: A.buildBlobnessProtocolUrl(t, e, n, "eigen-ratio"), run: A.blobnessProtocol }
     case "orientation": return { url: A.buildBlobnessProtocolUrl(t, e, n, "orientation"), run: A.blobnessProtocol }
     case "lrm": return { url: A.buildLrmProtocolUrl(t, e, n, s.lrmRadius), run: A.lrmProtocol }
+    case "ndsm": {
+      // The terrain minus the subtrahend plan() resolved, as demdiff:// tiles
+      // on the terrain's grid: the map's own template (lib/ndsm-mode.ts).
+      const sub = s.ndsmDem
+      if (!sub) throw Object.assign(new Error("The ndsm mode needs ndsmSubtrahend: the terrain source to subtract"), { status: 400 })
+      const op = (d) => ({ template: d.tiles, encoding: d.encoding, tileSize: d.tileSize, minzoom: d.minzoom, maxzoom: d.maxzoom })
+      return { url: A.ndsmTileSpec(op(dem), op(sub), { invert: s.ndsmInvert, offsetM: s.ndsmOffset }).template, run: A.demDiffProtocol, enc: "mapbox", holes: true }
+    }
     case "svf": return { url: A.buildSvfProtocolUrl(t, e, n, s.svfRadius, s.svfPrecision), run: A.svfProtocol }
     case "openness": return { url: A.buildOpennessProtocolUrl(t, e, n, s.opennessRadius, s.opennessMode, s.opennessPrecision), run: A.opennessProtocol }
     case "localDominance": return { url: A.buildLocalDominanceProtocolUrl(t, e, n, s.localDominanceMinRadius, s.localDominanceMaxRadius), run: A.localDominanceProtocol }
@@ -441,7 +461,9 @@ async function protocolWindow(p, z, side, x0, y0, w, h) {
       for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
         const o = ((j - ty * side) * side + (i - tx * side)) * 4, q = (j - y0) * w + (i - x0)
         if (p.rgba) { const a = d[o + 3] / 255; out[q * 4] = (d[o] / 255) * a; out[q * 4 + 1] = (d[o + 1] / 255) * a; out[q * 4 + 2] = (d[o + 2] / 255) * a; out[q * 4 + 3] = a }
-        else if (d[o + 3] !== 0) out[q] = mapbox ? -10000 + (d[o] * 65536 + d[o + 1] * 256 + d[o + 2]) * 0.1 : d[o] * 256 + d[o + 1] + d[o + 2] / 256 - 32768
+        // `holes`: a difference writes a pixel missing from either side as
+        // 0 m with alpha 254 (demdiff-protocol.ts); here it is no data.
+        else if (d[o + 3] !== 0 && !(p.holes && d[o + 3] === 254)) out[q] = mapbox ? -10000 + (d[o] * 65536 + d[o + 1] * 256 + d[o + 2]) * 0.1 : d[o] * 256 + d[o + 1] + d[o + 2] / 256 - 32768
       }
     }))
   }
@@ -535,6 +557,7 @@ export const VALUE_MODES = {
   eigenRatio: { unit: "1", description: "Eigenvalue ratio λmin/λmax of the gradient structure tensor, 0 (linear: slope, ridge, valley) to 1 (isotropic: peak, pit, saddle); the app's ramp reads it as a percentage", to: () => ({ a: 1 / 100, b: 0 }) },
   orientation: { unit: "degree", description: "Direction a ridge or valley runs (the dominant gradient axis turned by 90 degrees), clockwise from north, 0 to 180" },
   lrm: { unit: "m", description: "Local Relief Model: elevation minus its low-pass trend (lrmRadius)" },
+  ndsm: { unit: "m", description: "nDSM / DEM difference: the terrain source minus ndsmSubtrahend (another terrain source), or the reverse with ndsmInvert, plus ndsmOffset; building and canopy heights for a DSM minus a DTM" },
   svf: { unit: "1", description: "Sky View Factor, the visible share of the sky, 0 to 1 (1: flat open ground); the app's ramp reads it as a percentage", to: () => ({ a: 1 / 100, b: 0 }) },
   openness: { unit: "degree", description: "Openness (opennessMode positive or negative): mean zenith angle to the horizon, 90 on flat ground, more on summits (positive) or in valleys (negative); the app's ramp reads it minus 90", to: () => ({ a: 1, b: 90 }) },
   localDominance: { unit: "degree", description: "Local Dominance: mean angle down from an observer to the surrounding terrain, high on mounds, low in hollows" },
