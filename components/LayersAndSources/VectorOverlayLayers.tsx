@@ -7,6 +7,7 @@ import { LAYER_SLOTS } from "./MapLayers"
 import { customVectorSourcesAtom, vectorOverlaySharedAtom, vectorOverlayStylesAtom } from "@/lib/settings-atoms"
 import type { VectorSourceEntry } from "@/lib/source-schema"
 import { appFileUrl, expandCompactGeoJSON, findVectorSource, needsResolving, resolveVectorUrl, vectorLayerSpecs, vectorParts, vectorSourceSpec, vectorStyleOf, type VectorOverlayStyle } from "@/lib/vector-sources"
+import { routeGlyphs, spriteIdOf, spriteUrl, withSprite } from "@/lib/style-overlay"
 import { VectorFeaturePopup } from "./VectorFeaturePopup"
 
 /**
@@ -132,26 +133,34 @@ const OPACITY_PROPS: Record<string, string[]> = { fill: ["fill-opacity"], line: 
  * A whole MapLibre style drawn as an overlay (OpenFreeMap's Liberty): its
  * layers of the entry's `styleLayerTypes` and the sources they read are
  * installed on the map at the vector slot, ids prefixed, and removed on
- * unmount. The map's own style has no glyphs or sprite, so the style's are
- * set when none is. Same approach as VectorBasemapLayer, which draws the
- * full style as the OSM basemap.
+ * unmount. Same approach as VectorBasemapLayer, which draws the full style
+ * as the OSM basemap. Several styles share the map, each with its fonts and
+ * its images (lib/style-overlay.ts): the map's glyphs address is the app's
+ * router, told where this style's fonts are served, and the style's sprite
+ * is added under an id of its own, its image names prefixed with it.
  */
 const StyleOverlay: React.FC<{ entry: VectorSourceEntry; opacity: number }> = ({ entry, opacity }) => {
   const { current: mapRef } = useMap()
   const [installed, setInstalled] = useState(0)
   const prefix = `vector-overlay-${entry.id}-`
+  // A style the app serves itself ("/styles/…") sits under the site's base path.
+  const url = appFileUrl(entry.url, import.meta.env.BASE_URL)
 
   useEffect(() => {
     const map = mapRef?.getMap()
     if (!map) return
     let cancelled = false
-    const added: { sources: string[]; layers: string[] } = { sources: [], layers: [] }
+    const added: { sources: string[]; layers: string[]; sprite?: string } = { sources: [], layers: [] }
     const install = (style: StyleSpecification) => {
       if (cancelled || !map.getStyle()) return
       const types = new Set<string>(entry.styleLayerTypes ?? ["fill", "line", "symbol", "fill-extrusion", "raster"])
       const layers = style.layers.filter((l) => types.has(l.type))
-      if (style.glyphs && !map.getGlyphs()) map.setGlyphs(style.glyphs)
-      if (style.sprite && !map.getSprite()?.length) map.setSprite(style.sprite as string)
+      routeGlyphs(map, layers as { layout?: Record<string, unknown> }[], style.glyphs)
+      const sprite = spriteUrl(style.sprite, url, window.location.href)
+      const spriteId = spriteIdOf(entry.id)
+      if (sprite && !map.getSprite().some((s) => s.id === spriteId)) {
+        try { map.addSprite(spriteId, sprite); added.sprite = spriteId } catch { /* the layers draw without their icons */ }
+      }
       const used = new Set(layers.map((l) => (l as { source?: string }).source).filter((s): s is string => !!s))
       for (const id of used) {
         const sid = prefix + id
@@ -161,20 +170,21 @@ const StyleOverlay: React.FC<{ entry: VectorSourceEntry; opacity: number }> = ({
       for (const layer of layers) {
         const lid = prefix + layer.id
         if (map.getLayer(lid)) continue
-        const spec = { ...layer, id: lid } as LayerSpecification & { source?: string }
+        const spec = { ...(sprite ? withSprite(layer as { layout?: Record<string, unknown>; paint?: Record<string, unknown> }, spriteId) : layer), id: lid } as LayerSpecification & { source?: string }
         if (spec.source) spec.source = prefix + spec.source
         try { map.addLayer(spec, before); added.layers.push(lid) } catch { /* an unsupported layer must not sink the rest */ }
       }
       setInstalled((n) => n + 1)
     }
-    loadStyle(entry.url).then(install).catch(() => {})
+    loadStyle(url).then(install).catch(() => {})
     return () => {
       cancelled = true
       if (!map.getStyle()) return
       for (const id of added.layers) { try { if (map.getLayer(id)) map.removeLayer(id) } catch { /* torn down */ } }
       for (const id of added.sources) { try { if (map.getSource(id)) map.removeSource(id) } catch { /* torn down */ } }
+      if (added.sprite) { try { if (map.getSprite().some((s) => s.id === added.sprite)) map.removeSprite(added.sprite) } catch { /* torn down */ } }
     }
-  }, [mapRef, entry, prefix])
+  }, [mapRef, entry, prefix, url])
 
   // The overlay's opacity times each layer's own. A layer whose opacity is an
   // expression (Liberty fades some by zoom) keeps it at full opacity and
@@ -183,7 +193,7 @@ const StyleOverlay: React.FC<{ entry: VectorSourceEntry; opacity: number }> = ({
     const map = mapRef?.getMap()
     if (!map?.getStyle()) return
     const set = map as unknown as { setPaintProperty: (id: string, name: string, value: unknown) => void }
-    loadStyle(entry.url).then((style) => {
+    loadStyle(url).then((style) => {
       if (!map.getStyle()) return
       for (const layer of style.layers) {
         const lid = prefix + layer.id
@@ -196,7 +206,7 @@ const StyleOverlay: React.FC<{ entry: VectorSourceEntry; opacity: number }> = ({
         }
       }
     }).catch(() => {})
-  }, [mapRef, opacity, installed, prefix, entry.url])
+  }, [mapRef, opacity, installed, prefix, url])
 
   return null
 }

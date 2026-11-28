@@ -4,6 +4,7 @@ import { useMap } from "react-map-gl/maplibre"
 import type { Map as MlMap, StyleSpecification, LayerSpecification, SourceSpecification } from "maplibre-gl"
 import { useAtomValue } from "jotai"
 import { LAYER_SLOTS } from "./MapLayers"
+import { routeGlyphs } from "@/lib/style-overlay"
 import { osmBuildings3dAtom, osmBuildingsStyleAtom, OSM_BUILDINGS_STYLE_DEFAULT, type OsmBuildingsStyle } from "@/lib/settings-atoms"
 
 /**
@@ -84,8 +85,13 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number; visible?: boolean 
     const added: { sources: string[]; layers: string[] } = { sources: [], layers: [] }
     const install = (style: StyleSpecification) => {
       if (cancelled || !map.getStyle()) return
-      if (style.glyphs && !map.getGlyphs()) map.setGlyphs(style.glyphs)
-      if (style.sprite && !map.getSprite()?.length) map.setSprite(style.sprite as string)
+      routeGlyphs(map, style.layers as { layout?: Record<string, unknown> }[], style.glyphs)
+      // Added as the "default" sprite (its image names unprefixed), never
+      // setSprite: that would drop the sprites the style overlays added
+      // under their own ids (lib/style-overlay.ts).
+      if (typeof style.sprite === "string" && !map.getSprite().some((s) => s.id === "default")) {
+        try { map.addSprite("default", style.sprite) } catch { /* drawn without its icons */ }
+      }
       for (const [id, spec] of Object.entries(style.sources)) {
         const sid = PREFIX + id
         if (!map.getSource(sid)) { map.addSource(sid, spec as SourceSpecification); added.sources.push(sid) }
