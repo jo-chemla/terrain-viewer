@@ -87,6 +87,28 @@ Corine Land Cover has no entry: its vector form is a WFS, not tiles. It stays an
 
 **OpenStreetMap roads and labels** (OpenFreeMap Liberty) draws the lines and labels of the Liberty style, without its fills: a hybrid map over any imagery or relief. ODbL 1.0. OpenFreeMap's four other styles are in the Library the same way, lines and labels only, each with its own colors: **Bright** (white and yellow roads, points of interest), **Positron** (pale grey, the quietest), **Dark** (near-black linework, for a light map) and **Fiord** (slate blue). They are not in the default list: add one from the Library's Vector tab. All five read the same tiles, fonts and icons from `tiles.openfreemap.org`, no key; the styles are BSD 3-Clause with a CC BY 4.0 design (OpenMapTiles' and Maputnik's, forked in [openfreemap-styles](https://github.com/hyperknot/openfreemap-styles)), the data ODbL. Dark and Fiord are served but not listed on OpenFreeMap's quick start page, which calls them not yet complete.
 
+Five more styles are in the Library, none in the default list. Search "gpx", "IGN" or "swisstopo" in the Vector tab.
+
+| Entry | What it draws | Where it comes from | Licence |
+|---|---|---|---|
+| **Roads and labels for imagery** (gpx.studio Liberty Satellite) | The whole style: translucent roads without casings, white names with dark halos, cased boundaries, peaks and saddles. It was made to sit over imagery | [gpx.studio](https://gpx.studio)'s rework of Liberty ([gpxstudio/styles](https://github.com/gpxstudio/styles)) | MIT (style), ODbL (data) |
+| **Roads, trails and labels** (gpx.studio Liberty Topo) | Lines and labels: Liberty plus trails apart from paved footpaths, peaks and saddles with their heights, nature parks | The same | MIT (style), ODbL (data) |
+| **Roads and labels in the OpenStreetMap look** (gpx.studio OSM) | Lines and labels: the colors, icons and shields of openstreetmap.org's standard map, points of interest from zoom 14 | OpenMapTiles' OSM style, as gpx.studio serves it | BSD 3-Clause and CC BY 4.0 (style), ODbL (data) |
+| **IGN roads and place names for aerial photographs** (Carte Facile) | The whole style: roads, railways and names from the Plan IGN tiles, France and its overseas territories | [Carte Facile](https://github.com/fab-geocommuns/carte-facile)'s aerial style, without its photographs | Apache-2.0 (style), Licence Ouverte 2.0 (data) |
+| **swisstopo labels** (Light Base Map) | Labels only, in swisstopo's lettering and symbols: places, peaks, lakes, glaciers, road numbers, stations. Switzerland and Liechtenstein | [swisstopo's Light Base Map](https://www.swisstopo.admin.ch/en/web-maps-light-base-map), read from swisstopo | [swisstopo free geodata](https://www.swisstopo.admin.ch/en/terms-of-use-free-geodata-and-geoservices) |
+
+The three gpx.studio styles and Carte Facile's are copies served by this app (`public/styles/`), each with its credits, its licence and the list of what was changed in its `metadata`:
+
+- **gpx.studio**'s own addresses (`styles.`, `tiles.`, `fonts.` and `sprites.gpx.studio`) answer no other site, so the copies, made with its maintainer's agreement, read OpenFreeMap's tiles, fonts and sprite instead: the same OpenMapTiles schema, the same three Noto Sans, the same sprite for Liberty.
+- **Liberty Topo** and **OSM Topo** also draw a hillshade and contour lines in metres and feet, from vector tiles gpx.studio makes from Mapterhorn and serves itself. Those layers are left out: the app's own [hillshade and contours](/features/visualization-modes) do that over any terrain source. Without them OSM Topo is the OSM style, so there is one entry for the two.
+- **Liberty Satellite** sat over MapTiler's satellite imagery, which needs a key. That layer is left out: the overlay goes over any basemap of the app.
+- **OSM** keeps its lines and labels with their 287 icons, served beside the style. The fills are left out with their 19 patterns (forest, scrub, wetland), which weigh a megabyte.
+- **Carte Facile** keeps its styles inside an npm package, with no address of their own. IGN's aerial photographs under the style are left out, and the fonts (the same three Noto Sans) are read from OpenFreeMap.
+
+Liberty, as OpenFreeMap publishes it, is a fork of OSM Liberty and OSM Bright, derived from Mapbox Open Styles: BSD 3-Clause code, CC BY 4.0 design. Credits: gpx.studio, OpenFreeMap, © OpenMapTiles, © OpenStreetMap contributors; Carte Facile (La Fabrique des géocommuns, IGN), © IGN; © swisstopo. To rebuild the copies from their repositories: `node scripts/build-vector-styles.mjs`.
+
+Several styles can be on at once, each drawn with its own fonts and its own icons: swisstopo's labels in Frutiger Neue beside OpenFreeMap's in Noto Sans.
+
 ## Click a feature
 
 <OpenInApp href="/?zoom=13.6&lat=33.5105&lng=36.3075&showRasterBasemap=true&showHillshade=false&vectorOverlayIds=hwai-heritage-osm,hwai-heritage-wikidata,unesco-world-heritage">Heritage over the old city of Damascus: click a point</OpenInApp>
