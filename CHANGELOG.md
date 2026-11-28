@@ -1,5 +1,20 @@
 # Changelog — GPU Terrain Shadows, Quantized Mesh, Tile Service on the Desktop
 
+<!-- released: 2026-11-28T12:00 -->
+
+#### TL;DR
+
+- **[nDSM / Difference as a visualization mode](/docs/features/ndsm-and-comparison)**: in Relief Visualization after LRM, on one view of a split or all, the view's terrain minus a subtrahend drawn over it with its own ramp (Heights 0 to 30 m, or Change, diverging), Invert and the measured offset; the view keeps its hillshade and 3D. The difference source stays for relief of the heights. The tile service serves it (`modes=ndsm&ndsmSubtrahend=…`).
+- **[Map styles from gpx.studio, IGN and swisstopo](/docs/features/vector-overlays)** in the Vector library: gpx.studio's Liberty Satellite, Liberty Topo and OSM copied with credit and pointed at OpenFreeMap; IGN's Carte Facile and swisstopo's labels in their own fonts.
+- **A link that keeps its mode**: every shared link names its mode, so it opens the same way for everyone whatever they used last.
+
+#### Details
+
+##### App, docs
+
+- nDSM mode (`lib/ndsm-mode.ts`): a `demdiff://` address over the view's terrain, so grid, upsampling, holes and offset behave as the difference source; the offset measurement shared (`measureDifference`). Parameters `showNdsm`, `ndsmSubtrahend`, `ndsmInvert`, `ndsmOffset`, `ndsmOpacity`, `ndsmColorRamp`, `ndsmMin`, `ndsmMax`, `ndsmSymmetric`, `ndsmInvertColorRamp`, custom stops. Export as Float32 values or colored. Checked: GEM-15 DSM minus DTM over Lyon (median 4.6 m, buildings to 44 m), IGN Lidar HD at Part-Dieu 115.7 m for the 115 m Tour Oxygène; the subtrahend is read only while the mode is on. The tile service refuses a difference as subtrahend.
+- Vector library: gpx.studio's styles (Liberty Satellite, Liberty Topo, OSM; MIT and OpenMapTiles' BSD / CC BY, credited) copied under `public/styles/` and pointed at OpenFreeMap, MapTiler's imagery and gpx.studio's own contour tiles dropped; IGN's Carte Facile and swisstopo's labels, possible now that a font router (`tvglyphs://`, `lib/style-overlay.ts`) sends each font to its own server and each style keeps its own sprite.
+
 <!-- released: 2026-11-27T23:00 -->
 
 #### TL;DR
@@ -23,7 +38,6 @@
 ##### App, docs
 
 - Saved views as AT Protocol records, a prototype behind Settings > Beta: sign in with a Bluesky or other atproto handle in the browser only (a public OAuth client, its metadata a static file under `/atproto/`), Save view writes one `com.iconem.terrainviewer.view` record (the link's parameters, keys dropped, an optional picture) to the user's own server, and `?view=at/<did or handle>/<rkey>` opens it for anyone without signing in. Loaded lazily (14 kB gzip).
-- Vector library: gpx.studio's styles (Liberty Satellite, Liberty Topo, OSM; MIT and OpenMapTiles' BSD / CC BY, credited) copied under `public/styles/` and pointed at OpenFreeMap, MapTiler's imagery and gpx.studio's own contour tiles dropped; IGN's Carte Facile and swisstopo's labels, possible now that a font router (`tvglyphs://`, `lib/style-overlay.ts`) sends each font to its own server and each style keeps its own sprite.
 - [Saved views](/docs/features/saved-views), second pass: the signed-in account's views listed with Open, Copy link and Delete; a signed-out visitor can list any handle's; an explicit Post to Bluesky button whose wider permission is asked only on that click (the post carries its own card picture, the one link preview a static site can give a short link); the panel says the record is public but not posted to the feed. Every shared link now names its mode (`appMode=terrain` on a terrain link), a link without one opening the visitor's last mode. Not yet run against a real account.
 - Share links per mode (`lib/mode-share-url.ts`): copy, short link, social intents and embed use `/rem/?…` or `/historical/?…` without `appMode`; on a host whose default is another mode a terrain link says `appMode=terrain`.
 - One owner of the map's cursor (`lib/map-cursor.ts`): Terra Draw restates its cursor on every pointer move and says "unset" when it has none, which erased the pointer over features; the tools' cursor now comes first, else the hover's, and no site re-applies it per move.
