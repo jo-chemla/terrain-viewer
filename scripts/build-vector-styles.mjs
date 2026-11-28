@@ -5,7 +5,7 @@
 //   gpx.studio's styles (github.com/gpxstudio/styles: liberty-topo,
 //   liberty-satellite, osm, osm-topo). Its hosts (tiles., fonts., sprites.,
 //   styles.gpx.studio) send no CORS header, so a browser on another origin
-//   cannot read them; its maintainer's answer was to keep copies here,
+//   cannot read them; copies are kept here (MIT, BSD and CC BY allow it),
 //   credited, pointed at OpenFreeMap. The tiles are the same OpenMapTiles
 //   schema, the fonts the same three Noto Sans, Liberty's sprite the same
 //   file.
@@ -80,7 +80,7 @@ function dropSources(style, ids) {
 }
 
 const GPX_CREDIT = {
-  "terrain-viewer:credit": "Style by gpx.studio (https://gpx.studio, https://github.com/gpxstudio/styles), copied with its maintainer's agreement. Tiles, fonts and sprite: OpenFreeMap (https://openfreemap.org). Schema and design: © OpenMapTiles (https://www.openmaptiles.org/). Data: © OpenStreetMap contributors (https://www.openstreetmap.org/copyright).",
+  "terrain-viewer:credit": "Style by gpx.studio (https://gpx.studio, https://github.com/gpxstudio/styles), copied under its licence (MIT for Liberty, BSD 3-Clause and CC BY 4.0 for OpenMapTiles' design) and credited. Tiles, fonts and sprite: OpenFreeMap (https://openfreemap.org). Schema and design: © OpenMapTiles (https://www.openmaptiles.org/). Data: © OpenStreetMap contributors (https://www.openstreetmap.org/copyright).",
   "terrain-viewer:source": `https://github.com/gpxstudio/styles/tree/${GPX_COMMIT}`,
 }
 const LIBERTY_LICENSE = "MIT (OpenFreeMap Styles, © 2023 Zsolt Ero; gpx.studio's changes under the same terms, https://github.com/gpxstudio/styles/blob/main/license.md). Liberty is a fork of maputnik/osm-liberty, itself a fork of OSM Bright, derived from Mapbox Open Styles: code BSD 3-Clause, design CC BY 4.0. Fonts: Noto Sans, SIL OFL 1.1. Icons: Maki, CC0."

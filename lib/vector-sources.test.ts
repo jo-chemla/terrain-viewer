@@ -203,7 +203,27 @@ test("styles from gpx.studio, Carte Facile and swisstopo: found by name, credite
     for (const who of ["gpx.studio", "https://gpx.studio", "https://github.com/gpxstudio/styles", "OpenFreeMap", "OpenMapTiles", "OpenStreetMap contributors"]) assert.ok(s.attribution!.includes(who), `${id}: ${who}`)
     assert.match(s.url, /^\/styles\/gpx-[\w-]+\.json$/)
     assert.equal(s.infoUrl, "https://github.com/gpxstudio/styles")
-    assert.match(s.description!, /gpx\.studio's agreement/)
+    assert.match(s.description!, /left out/)
+  }
+  // The copies the app serves: every tile, font and image address open and
+  // keyless (no gpx.studio host, which answers no other site; no MapTiler),
+  // every font one OpenFreeMap serves, the credits and the changes written in.
+  const OFM_FONTS = new Set(["Noto Sans Regular", "Noto Sans Bold", "Noto Sans Italic"])
+  for (const id of [...gpx, "ign-carte-facile-aerial"]) {
+    const s = findVectorSource(id)!
+    const style = JSON.parse(readFileSync(join(process.cwd(), "public", s.url), "utf8"))
+    const addresses = JSON.stringify([style.sources, style.glyphs, style.sprite])
+    assert.ok(!/gpx\.studio|maptiler|key=|token/i.test(addresses), `${id}: ${addresses}`)
+    assert.equal(style.glyphs, "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf", id)
+    for (const src of Object.values(style.sources) as { url?: string; tiles?: string[] }[]) {
+      assert.ok(src.url === "https://tiles.openfreemap.org/planet" || src.tiles?.every((t) => t.startsWith("https://data.geopf.fr/tms/1.0.0/PLAN.IGN/")), `${id}: ${JSON.stringify(src)}`)
+    }
+    const used = new Set(style.layers.map((l: { source?: string }) => l.source).filter(Boolean))
+    for (const src of used) assert.ok(style.sources[src as string], `${id}: layer of a dropped source ${src}`)
+    const fonts = new Set<string>()
+    JSON.stringify(style.layers.map((l: { layout?: Record<string, unknown> }) => l.layout?.["text-font"])).replace(/"(Noto[^"]*|[A-Z][a-z]+ [^"]*)"/g, (_m, f) => (fonts.add(f), ""))
+    for (const f of fonts) assert.ok(OFM_FONTS.has(f), `${id}: font ${f}`)
+    assert.ok(style.metadata["terrain-viewer:credit"] && style.metadata["terrain-viewer:license"] && style.metadata["terrain-viewer:changes"].length, id)
   }
   // Made as overlays over imagery, drawn whole; the two cut from a full map
   // keep their lines and labels; swisstopo's, its labels.
