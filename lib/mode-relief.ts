@@ -77,6 +77,17 @@ export const MODE_RELIEF: Record<string, (state: State) => ColorReliefConfig> = 
     colorReliefOpacity: state.lrmOpacity * state.reliefVisualizationOpacity,
     invertColorRamp: state.lrmInvertColorRamp,
   }),
+  // The view's terrain minus a second source, in metres (lib/ndsm-mode.ts).
+  ndsm: (state) => ({
+    colorRamp: state.ndsmColorRamp,
+    customStops: state.ndsmCustomStops,
+    customStopsDiscrete: state.ndsmCustomStopsDiscrete,
+    customHypsoMinMax: true,
+    minElevation: state.ndsmMin,
+    maxElevation: state.ndsmMax,
+    colorReliefOpacity: state.ndsmOpacity * state.reliefVisualizationOpacity,
+    invertColorRamp: state.ndsmInvertColorRamp,
+  }),
   roughness: (state) => ({
     colorRamp: state.roughnessColorRamp,
     customStops: state.roughnessCustomStops,

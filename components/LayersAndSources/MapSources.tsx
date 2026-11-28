@@ -59,6 +59,7 @@ import { buildCurvatureProtocolUrl, type CurvatureMode } from "@/lib/curvature-p
 import { buildTpiProtocolUrl } from "@/lib/tpi-protocol"
 import { buildRoughnessProtocolUrl } from "@/lib/roughness-protocol"
 import { buildLrmProtocolUrl } from "@/lib/lrm-protocol"
+import { ndsmTileSpec, withNdsmSubtrahend } from "@/lib/ndsm-mode"
 import { buildBlobnessProtocolUrl } from "@/lib/blobness-protocol"
 import { buildSvfProtocolUrl } from "@/lib/svf-protocol"
 import { buildOpennessProtocolUrl, type OpennessMode } from "@/lib/openness-protocol"
@@ -1091,6 +1092,40 @@ export const LrmSource = memo(({ radius, ...props }: Omit<NormalDerivedSourcePro
     />
 ))
 LrmSource.displayName = "LrmSource"
+
+// The nDSM / DEM difference mode (lib/ndsm-mode.ts): this view's terrain
+// minus `subtrahend`, another terrain source, as demdiff:// tiles for a
+// color-relief layer. The view's own terrain source is untouched. While not
+// enabled the subtrahend is not even resolved (no COG header, no VRT index,
+// no TileJSON read): a mode that is off asks the second source for nothing.
+export const NdsmSource = memo(({ enabled, subtrahend, invert, offsetM, terrainSource, customTerrainSources, mapboxKey, maptilerKey, titilerEndpoint }: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl" | "keySuffix" | "lat" | "lng"> & {
+    subtrahend: string
+    invert: boolean
+    offsetM: number
+}) => {
+    const active = enabled && !!subtrahend && subtrahend !== terrainSource
+    const sources = useMemo(() => withNdsmSubtrahend(customTerrainSources, active ? subtrahend : ""), [customTerrainSources, subtrahend, active])
+    const view = useClientDemUpstream(active ? terrainSource : "", sources, mapboxKey, maptilerKey, titilerEndpoint)
+    const sub = useClientDemUpstream(active ? subtrahend : "", sources, mapboxKey, maptilerKey, titilerEndpoint)
+    const spec = useMemo(() => (view && sub ? ndsmTileSpec(view, sub, { invert, offsetM }) : null), [view, sub, invert, offsetM])
+    if (!active || !spec) return null
+    return (
+        <Source
+            id="ndsmSource"
+            // The whole template in the key (both operands, the direction and
+            // the offset are in it): react-map-gl does not swap the tiles of
+            // a mounted raster-dem source reliably, see NormalDerivedSource.
+            key={`ndsmSource-${spec.template}-z${spec.maxzoom}`}
+            type="raster-dem"
+            tiles={[spec.template]}
+            tileSize={spec.tileSize}
+            encoding="mapbox"
+            {...(spec.minzoom != null ? { minzoom: spec.minzoom } : {})}
+            {...(spec.maxzoom != null ? { maxzoom: spec.maxzoom } : {})}
+        />
+    )
+})
+NdsmSource.displayName = "NdsmSource"
 
 export const RoughnessSource = memo((props: Omit<NormalDerivedSourceProps, "sourceId" | "buildUrl">) => (
     <NormalDerivedSource {...props} sourceId="roughnessSource" buildUrl={buildRoughnessProtocolUrl} />

@@ -2422,6 +2422,126 @@
             }
           },
           {
+            "name": "showNdsm",
+            "in": "query",
+            "required": false,
+            "description": "State. nDSM / DEM difference mode (lib/ndsm-mode.ts): the view's own terrain minus ndsmSubtrahend (a terrain source id), drawn over the view, which keeps its terrain for hillshade and 3D.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "ndsmSubtrahend",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "ndsmInvert",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "ndsmOffset",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "ndsmOpacity",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          },
+          {
+            "name": "ndsmColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "ndsm-heights"
+            }
+          },
+          {
+            "name": "ndsmMin",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          {
+            "name": "ndsmMax",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "number",
+              "default": 30
+            }
+          },
+          {
+            "name": "ndsmInvertColorRamp",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "ndsmSymmetric",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "ndsmCustomStops",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "string",
+              "default": "DEFAULT_SLOPE_CUSTOM_STOPS"
+            }
+          },
+          {
+            "name": "ndsmCustomStopsDiscrete",
+            "in": "query",
+            "required": false,
+            "description": "State.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
             "name": "remRiver",
             "in": "query",
             "required": false,

@@ -17,7 +17,7 @@ export const VIZ_GROUP_OF: Record<string, string> = {
   showSlope: "showTerrainAnalysis", showAspect: "showTerrainAnalysis", showTri: "showTerrainAnalysis", showCurvature: "showTerrainAnalysis",
   showTpi: "showTerrainAnalysis", showRoughness: "showTerrainAnalysis", showShapeIndex: "showTerrainAnalysis", showBlobness: "showTerrainAnalysis",
   showEigenRatio: "showTerrainAnalysis", showOrientation: "showTerrainAnalysis",
-  showLrm: "showReliefVisualization", showSvf: "showReliefVisualization", showOpenness: "showReliefVisualization", showLocalDominance: "showReliefVisualization",
+  showLrm: "showReliefVisualization", showNdsm: "showReliefVisualization", showSvf: "showReliefVisualization", showOpenness: "showReliefVisualization", showLocalDominance: "showReliefVisualization",
   showPhong: "showLightingEffects", showMatcap: "showLightingEffects", showShadows: "showLightingEffects", showBuildingShadows: "showLightingEffects",
 }
 
@@ -27,7 +27,7 @@ export const VIZ_MODE_LABELS: Record<string, string> = {
   showHillshade: "Hillshade", showColorRelief: "Hypso", showRasterBasemap: "Basemap", showContoursAndGraticules: "Contours", backgroundLayerActive: "Background",
   showSlope: "Slope", showAspect: "Aspect", showTri: "TRI", showCurvature: "Curvature", showTpi: "TPI", showRoughness: "Roughness",
   showShapeIndex: "Shape index", showBlobness: "Blobness", showEigenRatio: "Eigen ratio", showOrientation: "Orientation",
-  showLrm: "LRM", showSvf: "SVF", showOpenness: "Openness", showLocalDominance: "Local dominance",
+  showLrm: "LRM", showNdsm: "nDSM", showSvf: "SVF", showOpenness: "Openness", showLocalDominance: "Local dominance",
   showPhong: "Phong", showMatcap: "Matcap", showShadows: "Shadows", showBuildingShadows: "Building shadows",
 }
 

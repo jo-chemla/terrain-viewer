@@ -131,7 +131,7 @@ const GROUPS: Group[] = [
  *  `enabled={state.<master> && ...}` gates in TerrainViewer.tsx. */
 const MASTER_MEMBERS: Record<string, string[]> = {
   showTerrainAnalysis: ["showSlope", "showAspect", "showTri", "showCurvature", "showTpi", "showRoughness", "showShapeIndex", "showBlobness", "showEigenRatio", "showOrientation"],
-  showReliefVisualization: ["showLrm", "showSvf", "showOpenness", "showLocalDominance"],
+  showReliefVisualization: ["showLrm", "showNdsm", "showSvf", "showOpenness", "showLocalDominance"],
   showLightingEffects: ["showMatcap", "showPhong", "showShadows", "showBuildingShadows"],
   showContoursAndGraticules: ["showContours", "showGraticules"],
 }

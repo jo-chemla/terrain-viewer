@@ -3,7 +3,9 @@ import { perViewProps, modeOnVisibleView } from "@/lib/viz-views"
 import { useAtom } from "jotai"
 import { Section, CheckboxWithSlider, AdvancedModeToggle } from "./controls-components"
 import { reliefVisualizationAdvancedAtom } from "@/lib/settings-atoms"
+import type { MapRef } from "react-map-gl/maplibre"
 import { LrmFields } from "./lrm-options-section"
+import { NdsmFields } from "./ndsm-options-section"
 import { SvfFields } from "./svf-options-section"
 import { OpennessFields } from "./openness-options-section"
 import { LocalDominanceFields } from "./local-dominance-options-section"
@@ -22,7 +24,9 @@ export const ReliefVisualizationOptionsSection: React.FC<{
   // display an accurate meters-equivalent for their radius controls, instead
   // of assuming 256.
   terrainTileSize: number
-}> = ({ state, setState, isOpen, onOpenChange, terrainTileSize }) => {
+  /** The primary map, for the nDSM mode's offset measurement (its viewport). */
+  mapRef?: React.RefObject<MapRef | null>
+}> = ({ state, setState, isOpen, onOpenChange, terrainTileSize, mapRef }) => {
   const perViewFor = perViewProps(state, setState)
   const [advanced, setAdvanced] = useAtom(reliefVisualizationAdvancedAtom)
   if (!state.showReliefVisualization) return null
@@ -48,6 +52,23 @@ export const ReliefVisualizationOptionsSection: React.FC<{
             onSliderChange={(value) => setState({ lrmOpacity: value })}
           />
           {modeOnVisibleView(state, "showLrm") && advanced && <LrmFields state={state} setState={setState} tileSize={terrainTileSize} />}
+        </div>
+
+        {/* The view's terrain minus a second terrain source (lib/ndsm-mode.ts):
+            building and canopy heights (DSM minus DTM) or change between two
+            dates, over a view that keeps its own terrain. The subtrahend
+            picker shows whenever the mode is on; the rest with Advanced. */}
+        <div className="space-y-2 min-w-0">
+          <CheckboxWithSlider perView={perViewFor("showNdsm")}
+            id="relief-visualization-ndsm"
+            label="nDSM / Difference"
+            tooltip="This view's terrain minus another terrain source: heights of buildings and trees (a DSM minus a DTM), or change between two dates. The view keeps its own terrain for hillshade, contours and 3D."
+            checked={state.showNdsm}
+            onCheckedChange={(checked) => setState({ showNdsm: checked })}
+            sliderValue={state.ndsmOpacity}
+            onSliderChange={(value) => setState({ ndsmOpacity: value })}
+          />
+          {modeOnVisibleView(state, "showNdsm") && <NdsmFields state={state} setState={setState} advanced={advanced} mapRef={mapRef} />}
         </div>
 
         {/* Visibility-analysis modes: Sky View Factor, Openness — both built on the
