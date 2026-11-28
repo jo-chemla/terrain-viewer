@@ -904,6 +904,25 @@ export const colorRampsClassic = {
     ],
     continuous: true,
   },
+  // nDSM / DEM difference mode (metres, the view's terrain minus a second
+  // source, lib/ndsm-mode.ts): heights above ground. 0 is fully transparent so
+  // open ground, and the holes the difference writes as 0, leave the hillshade
+  // under it untinted; yellow for low vegetation and sheds, through orange and
+  // red for houses and trees, to purple for towers. The change-between-dates
+  // look uses diverging-blue-transparent-red instead.
+  "ndsm-heights": {
+    name: "nDSM heights (ground transparent)",
+    colors: [
+      "interpolate", ["linear"], ["elevation"],
+      0, "rgba(255, 237, 160, 0)",
+      2, "rgb(255, 237, 160)",
+      6, "rgb(254, 178, 76)",
+      12, "rgb(240, 59, 32)",
+      20, "rgb(189, 0, 38)",
+      30, "rgb(73, 0, 106)",
+    ],
+    continuous: true,
+  },
   // River REM (metres above the river, lib/river-rem-protocol.ts). The stops'
   // values are only an order: the mode spreads the ramp over its own range
   // with its stretch (lib/river-rem-style.ts). "rem-mako" is RiverREM's

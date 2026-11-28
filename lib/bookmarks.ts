@@ -231,6 +231,7 @@ const VIZ_MODE_SHORTHANDS: Array<{ master: string; flag: string; label: string }
   { master: "showTerrainAnalysis", flag: "showEigenRatio", label: "Eigen Ratio" },
   { master: "showTerrainAnalysis", flag: "showOrientation", label: "Orientation" },
   { master: "showReliefVisualization", flag: "showLrm", label: "LRM" },
+  { master: "showReliefVisualization", flag: "showNdsm", label: "nDSM" },
   { master: "showReliefVisualization", flag: "showSvf", label: "SVF" },
   { master: "showReliefVisualization", flag: "showOpenness", label: "Openness" },
   { master: "showReliefVisualization", flag: "showLocalDominance", label: "Local Dominance" },

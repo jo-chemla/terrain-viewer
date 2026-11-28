@@ -524,7 +524,7 @@ function assertStacItem(item) {
   const { activeLayers } = await import("./direct.mjs")
   const { MODE_NAMES, STACK_ORDER } = await import("./url.mjs")
   // The map's order, as /processes and the docs state it: every mode on.
-  const all = await activeLayers({ modes: MODE_NAMES.filter((m) => m !== "basemap") }, new URLSearchParams("tellsMarkersVisible=true"))
+  const all = await activeLayers({ modes: MODE_NAMES.filter((m) => m !== "basemap") }, new URLSearchParams("tellsMarkersVisible=true&ndsmSubtrahend=aws"))
   assert.deepEqual(all.layers, STACK_ORDER, "STACK_ORDER is the order layersOf draws")
   const server = start(0)
   await new Promise((ok) => server.once("listening", ok))

@@ -57,7 +57,7 @@ const image = (description) => ({
 const FORMAT = { name: "format", in: "path", required: true, schema: { type: "string", enum: ["png", "jpg"], default: "png" } }
 
 // A mode's values, before the colour ramp (direct.mjs VALUE_MODES).
-const VALUE_MODE_NAMES = ["elevation", "colorRelief", "slope", "aspect", "tri", "tpi", "roughness", "curvature", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "svf", "openness", "localDominance"]
+const VALUE_MODE_NAMES = ["elevation", "colorRelief", "slope", "aspect", "tri", "tpi", "roughness", "curvature", "shapeIndex", "blobness", "eigenRatio", "orientation", "lrm", "ndsm", "svf", "openness", "localDominance"]
 const VALUE_PARAMS = [
   q("terrainSource", { type: "string" }, "The elevation source: an id from `/terrain-sources`, a tile address or a JSON configuration."),
   q("modes", { type: "string", enum: VALUE_MODE_NAMES }, "One mode. `elevation` is the source's elevation in metres; the units of the others are listed in `/processes/{id}` (`x-tv-values`) and in the docs: slope and aspect in degrees, TRI, TPI, roughness and LRM in metres, svf and the eigenvalue ratio a share 0..1, openness and local dominance in degrees, curvature per metre.", { required: true, example: "slope" }),

@@ -999,6 +999,7 @@ export function TerrainControlPanel({
                 isOpen={sectionOpen.reliefVisualization}
                 onOpenChange={toggle("reliefVisualization")}
                 terrainTileSize={getSourceConfig(state.sourceA)?.tileSize ?? 256}
+                mapRef={mapRef}
               />
             )}
             {!hiddenSections.includes("terrainAnalysis") && (

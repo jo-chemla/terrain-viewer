@@ -2019,6 +2019,126 @@
       "note": ""
     },
     {
+      "key": "showNdsm",
+      "stateKey": "showNdsm",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": "nDSM / DEM difference mode (lib/ndsm-mode.ts): the view's own terrain minus ndsmSubtrahend (a terrain source id), drawn over the view, which keeps its terrain for hillshade and 3D."
+    },
+    {
+      "key": "ndsmSubtrahend",
+      "stateKey": "ndsmSubtrahend",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "",
+      "defaultSource": "\"\"",
+      "note": ""
+    },
+    {
+      "key": "ndsmInvert",
+      "stateKey": "ndsmInvert",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "ndsmOffset",
+      "stateKey": "ndsmOffset",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "ndsmOpacity",
+      "stateKey": "ndsmOpacity",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 1,
+      "defaultSource": "1.0",
+      "note": ""
+    },
+    {
+      "key": "ndsmColorRamp",
+      "stateKey": "ndsmColorRamp",
+      "type": "string",
+      "items": null,
+      "enum": null,
+      "default": "ndsm-heights",
+      "defaultSource": "\"ndsm-heights\"",
+      "note": ""
+    },
+    {
+      "key": "ndsmMin",
+      "stateKey": "ndsmMin",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 0,
+      "defaultSource": "0",
+      "note": ""
+    },
+    {
+      "key": "ndsmMax",
+      "stateKey": "ndsmMax",
+      "type": "number",
+      "items": null,
+      "enum": null,
+      "default": 30,
+      "defaultSource": "30",
+      "note": ""
+    },
+    {
+      "key": "ndsmInvertColorRamp",
+      "stateKey": "ndsmInvertColorRamp",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "ndsmSymmetric",
+      "stateKey": "ndsmSymmetric",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
+      "key": "ndsmCustomStops",
+      "stateKey": "ndsmCustomStops",
+      "type": "ramp-stops",
+      "items": null,
+      "enum": null,
+      "default": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "defaultSource": "DEFAULT_SLOPE_CUSTOM_STOPS",
+      "note": ""
+    },
+    {
+      "key": "ndsmCustomStopsDiscrete",
+      "stateKey": "ndsmCustomStopsDiscrete",
+      "type": "boolean",
+      "items": null,
+      "enum": null,
+      "default": false,
+      "defaultSource": "false",
+      "note": ""
+    },
+    {
       "key": "remRiver",
       "stateKey": "remRiver",
       "type": "enum",
