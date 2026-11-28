@@ -4,6 +4,7 @@ import { useMap } from "react-map-gl/maplibre"
 import type { Map as MlMap, StyleSpecification, LayerSpecification, SourceSpecification } from "maplibre-gl"
 import { useAtomValue } from "jotai"
 import { LAYER_SLOTS } from "./MapLayers"
+import { routeGlyphs } from "@/lib/style-overlay"
 import { osmBuildings3dAtom, osmBuildingsStyleAtom, OSM_BUILDINGS_STYLE_DEFAULT, type OsmBuildingsStyle } from "@/lib/settings-atoms"
 
 /**
@@ -84,7 +85,7 @@ export const VectorBasemapLayer: React.FC<{ opacity?: number; visible?: boolean 
     const added: { sources: string[]; layers: string[] } = { sources: [], layers: [] }
     const install = (style: StyleSpecification) => {
       if (cancelled || !map.getStyle()) return
-      if (style.glyphs && !map.getGlyphs()) map.setGlyphs(style.glyphs)
+      routeGlyphs(map, style.layers as { layout?: Record<string, unknown> }[], style.glyphs)
       if (style.sprite && !map.getSprite()?.length) map.setSprite(style.sprite as string)
       for (const [id, spec] of Object.entries(style.sources)) {
         const sid = PREFIX + id

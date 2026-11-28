@@ -3,6 +3,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { createRequire } from "node:module"
 import { join } from "node:path"
+import { readFileSync } from "node:fs"
 import { sourceKind } from "./source-schema"
 import {
   VECTOR_LIBRARY, findVectorSource, needsResolving, resolveVectorUrl, resetVectorResolvers, vectorLayerSpecs, vectorSourceSpec,
@@ -31,8 +32,9 @@ test("every library entry is a vector source with a licence and a credit", () =>
     assert.equal(sourceKind(s), "vector", s.id)
     assert.ok(!ids.has(s.id), `duplicate id ${s.id}`); ids.add(s.id)
     assert.ok(s.licenseName && s.attribution && s.infoUrl && s.description, `${s.id}: licence, credit, page, description`)
-    // An address, or a file the app serves itself (public/vector/, pulled from the dataset-indexes release).
-    assert.ok(/^https:\/\//.test(s.url) || /^\/vector\/[\w-]+\.geojson$/.test(s.url), s.id)
+    // An address, or a file the app serves itself (public/vector/, pulled from
+    // the dataset-indexes release; public/styles/, tracked, for a style).
+    assert.ok(/^https:\/\//.test(s.url) || /^\/vector\/[\w-]+\.geojson$/.test(s.url) || (s.type === "style" && /^\/styles\/[\w-]+\.json$/.test(s.url)), s.id)
     if (s.type !== "style" && s.type !== "geojson") assert.ok(s.sourceLayers?.length, `${s.id}: source layers`)
     for (const c of s.companions ?? []) assert.ok(/^https:\/\//.test(c.url) && c.sourceLayers?.length, `${s.id}: companion`)
     for (const c of s.categories ?? []) assert.ok(/^#[0-9a-f]{6}$/.test(c.color) && c.field && c.label, `${s.id}: category ${c.label}`)
@@ -178,6 +180,42 @@ test("the Library's search finds a source by its name, its keywords and its grou
   assert.ok(find("unesco").includes("unesco-world-heritage") && find("unesco").includes("unesco-world-heritage-components"))
   assert.ok(find("heritage").length >= 6)
   assert.deepEqual(find("vida"), ["vida-open-buildings"])
+})
+
+test("styles from gpx.studio, Carte Facile and swisstopo: found by name, credited, not in the default list", () => {
+  const find = (q: string) => searchLibrary(VECTOR_LIBRARY, vectorSearchText, q).map((s) => s.id)
+  const gpx = ["gpx-liberty-satellite", "gpx-liberty-topo-lines-labels", "gpx-osm-lines-labels"]
+  assert.deepEqual(find("gpx"), gpx)
+  assert.deepEqual(find("gpx.studio"), gpx)
+  assert.deepEqual(find("swisstopo"), ["swisstopo-lightbasemap-labels"])
+  assert.ok(find("carte facile").includes("ign-carte-facile-aerial") && find("plan ign").includes("ign-carte-facile-aerial"))
+  const defaults = /VECTOR_LIBRARY_DEFAULT_IDS = \[([^\]]*)\]/.exec(readFileSync(join(process.cwd(), "lib", "settings-atoms.ts"), "utf8"))![1]
+  for (const id of [...gpx, "ign-carte-facile-aerial", "swisstopo-lightbasemap-labels"]) {
+    const s = findVectorSource(id)!
+    assert.equal(s.type, "style", id); assert.equal(s.libraryGroup, "reference", id)
+    assert.ok(!defaults.includes(`"${id}"`), `${id}: not a default`)
+    assert.deepEqual(vectorLayerSpecs(s, vectorStyleOf(s), "p"), [], `${id}: drawn by its style, not by the app's layers`)
+    assert.ok(!drawsPoints(s))
+  }
+  for (const id of gpx) {
+    const s = findVectorSource(id)!
+    // gpx.studio's site and repository, OpenFreeMap, OpenMapTiles, OpenStreetMap.
+    for (const who of ["gpx.studio", "https://gpx.studio", "https://github.com/gpxstudio/styles", "OpenFreeMap", "OpenMapTiles", "OpenStreetMap contributors"]) assert.ok(s.attribution!.includes(who), `${id}: ${who}`)
+    assert.match(s.url, /^\/styles\/gpx-[\w-]+\.json$/)
+    assert.equal(s.infoUrl, "https://github.com/gpxstudio/styles")
+    assert.match(s.description!, /gpx\.studio's agreement/)
+  }
+  // Made as overlays over imagery, drawn whole; the two cut from a full map
+  // keep their lines and labels; swisstopo's, its labels.
+  assert.equal(findVectorSource("gpx-liberty-satellite")!.styleLayerTypes, undefined)
+  assert.equal(findVectorSource("ign-carte-facile-aerial")!.styleLayerTypes, undefined)
+  assert.deepEqual(findVectorSource("gpx-liberty-topo-lines-labels")!.styleLayerTypes, ["line", "symbol"])
+  assert.deepEqual(findVectorSource("gpx-osm-lines-labels")!.styleLayerTypes, ["line", "symbol"])
+  const swiss = findVectorSource("swisstopo-lightbasemap-labels")!
+  assert.deepEqual(swiss.styleLayerTypes, ["symbol"])
+  assert.match(swiss.url, /^https:\/\/vectortiles\.geo\.admin\.ch\//)
+  assert.deepEqual(vectorZoomTarget(swiss), { bounds: [5.9, 45.8, 10.55, 47.85] })
+  assert.match(swiss.attribution!, /swisstopo/)
 })
 
 test("land use and land cover: Overture's base archive through the resolver, colored by class, no outlines, drawn from a usable zoom", async () => {

@@ -73,6 +73,7 @@ import { cn } from "@/lib/utils"
 import * as maplibregl from 'maplibre-gl'
 import { getTransform, ensureLegacyTransform } from '@/lib/maplibre-internals'
 import { registerProtocol } from '@/lib/protocol-registry'
+import { GLYPH_SCHEME, glyphProtocol } from '@/lib/style-overlay'
 // Region readers (WMS, VRT, difference) for exports: see lib/region-readers.ts.
 import '@/lib/region-readers'
 import { isPosePlaybackActive } from '@/components/TerrainControlPanel/CameraUtilities'
@@ -1828,6 +1829,8 @@ export function TerrainViewer() {
   // cog is the external geomatico handler with its own fetch semantics, left bare.
   useEffect(() => {
     registerProtocol('cog', cogProtocol)
+    // Fonts of the styles laid over the map, each from its own server (lib/style-overlay.ts).
+    registerProtocol(GLYPH_SCHEME, glyphProtocol)
     // Own fetch semantics (delegates to a dedicated Worker) same as 'cog' — see
     // lib/cog-contour-protocol.ts for why this can't be maplibre-contour's own
     // DemSource/worker path.
