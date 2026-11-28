@@ -516,6 +516,81 @@ function assertStacItem(item) {
   }
 }
 
+// The nDSM / DEM difference mode, offline: a DSM (flat ground at 100 m and
+// a 20 m block on it, to z14) minus a DTM (the ground, to z12 only: read
+// from its ancestor tiles), both served as Terrarium tiles by a stubbed
+// fetch. Values, invert, offset, the ramp drawn, the QGIS project, and the
+// second source never asked for while the mode is off.
+{
+  const sharp = (await import("sharp")).default
+  const { valuesOf, draw } = await import("./direct.mjs")
+  const { qgisProjectXml, readView } = await import("./qgis-project.mjs")
+  const realFetch = globalThis.fetch
+  const asked = { dsm: 0, dtm: 0 }
+  // The tile x 8500, y 5800 at z14; the block covers its pixels 64..191.
+  const TX = 8500, TY = 5800
+  const inBlock = (z, x, y, i, j) => {
+    const s = 2 ** (14 - z), gx = (x * 256 + i + 0.5) * s - TX * 256, gy = (y * 256 + j + 0.5) * s - TY * 256
+    return gx >= 64 && gx < 192 && gy >= 64 && gy < 192
+  }
+  globalThis.fetch = async (url, init) => {
+    const m = String(url).match(/^https:\/\/(dsm|dtm)-stub\.test\/(\d+)\/(\d+)\/(\d+)\.png$/)
+    if (!m) return realFetch(url, init)
+    const [kind, z, x, y] = [m[1], ...m.slice(2).map(Number)]
+    asked[kind]++
+    if (z > (kind === "dsm" ? 14 : 12)) return new Response("", { status: 404 })
+    const rgba = Buffer.alloc(256 * 256 * 4)
+    for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) {
+      const t = 100 + (kind === "dsm" && inBlock(z, x, y, i, j) ? 20 : 0) + 32768, o = (j * 256 + i) * 4
+      rgba[o] = t >> 8; rgba[o + 1] = t & 255; rgba[o + 2] = 0; rgba[o + 3] = 255
+    }
+    return new Response(await sharp(rgba, { raw: { width: 256, height: 256, channels: 4 } }).png().toBuffer(), { headers: { "content-type": "image/png" } })
+  }
+  const DSM = JSON.stringify({ url: "https://dsm-stub.test/{z}/{x}/{y}.png", type: "terrarium", maxzoom: 14 })
+  const DTM = JSON.stringify({ url: "https://dtm-stub.test/{z}/{x}/{y}.png", type: "terrarium", maxzoom: 12 })
+  const rect = { world: 256 * 2 ** 14, x0: TX * 256, y0: TY * 256, width: 256, height: 256 }
+  const at = (v, i, j) => v[j * 256 + i]
+  try {
+    // Off: the second source is never read.
+    const off = await plan({ terrainSource: DSM, modes: ["slope"] }, new URLSearchParams(`ndsmSubtrahend=${encodeURIComponent(DTM)}`))
+    await valuesOf(off, "slope", rect)
+    assert.equal(asked.dtm, 0, "the subtrahend is not fetched while the mode is off")
+    assert.ok(asked.dsm > 0)
+    // Without a subtrahend the mode is not drawn and its values are refused.
+    const none = await plan({ terrainSource: DSM, modes: ["ndsm"] }, new URLSearchParams())
+    assert.equal(none.engine, "direct", none.why)
+    assert.deepEqual(none.layers, [])
+    await assert.rejects(valuesOf(none, "ndsm", rect), /needs ndsmSubtrahend/)
+    const bad = await plan({ terrainSource: DSM, modes: ["ndsm"] }, new URLSearchParams("ndsmSubtrahend=%7Bnot"))
+    assert.match(bad.why, /ndsmSubtrahend is not valid JSON/)
+    // DSM minus DTM: the block's height on it, 0 around it.
+    const how = await plan({ terrainSource: DSM, modes: ["ndsm"] }, new URLSearchParams(`ndsmSubtrahend=${encodeURIComponent(DTM)}`))
+    assert.equal(how.engine, "direct", how.why)
+    assert.deepEqual(how.layers, ["ndsm"])
+    const v = await valuesOf(how, "ndsm", rect)
+    assert.ok(Math.abs(at(v, 128, 128) - 20) < 0.11, `20 m on the block (${at(v, 128, 128)})`)
+    assert.ok(Math.abs(at(v, 10, 10)) < 0.11, `0 m on the ground (${at(v, 10, 10)})`)
+    assert.ok(asked.dtm > 0, "the subtrahend is read when the mode is drawn")
+    // Invert flips the sign, the offset is added.
+    const inv = await valuesOf(await plan({ terrainSource: DSM, modes: ["ndsm"] }, new URLSearchParams(`ndsmSubtrahend=${encodeURIComponent(DTM)}&ndsmInvert=true&ndsmOffset=1.5`)), "ndsm", rect)
+    assert.ok(Math.abs(at(inv, 128, 128) - -18.5) < 0.11, `-20 + 1.5 m inverted (${at(inv, 128, 128)})`)
+    // Drawn with the default ramp (ndsm-heights, 0 to 30 m): the ground
+    // transparent, the block at 20 m the ramp's dark red.
+    const png = await draw(await plan({ terrainSource: DSM, modes: ["ndsm"] }, new URLSearchParams(`ndsmSubtrahend=${encodeURIComponent(DTM)}&background=none`)), rect)
+    const { data } = await sharp(png).raw().toBuffer({ resolveWithObject: true })
+    const px = (i, j) => [...data.subarray((j * 256 + i) * 4, (j * 256 + i) * 4 + 4)]
+    assert.deepEqual(px(128, 128), [189, 0, 38, 255], "20 m: rgb(189, 0, 38)")
+    assert.equal(px(10, 10)[3], 0, "the ground left untinted")
+    // The QGIS project lists the mode only for a view that names a subtrahend.
+    const count = (xml) => [...xml.matchAll(/nDSM \/ DEM difference/g)].length
+    assert.equal(count(qgisProjectXml("http://t", await readView({}, new URLSearchParams(), null))), 0)
+    assert.equal(count(qgisProjectXml("http://t", await readView({}, new URLSearchParams("ndsmSubtrahend=custom-global-gem15-dtm"), null))), 4, "a layer and a values layer (name and tree entry each)")
+    console.log(`ndsm: block ${at(v, 128, 128).toFixed(2)} m, ground ${at(v, 10, 10).toFixed(2)} m, inverted with +1.5 m ${at(inv, 128, 128).toFixed(2)} m, drawn rgb(${px(128, 128).slice(0, 3)}), subtrahend tiles read ${asked.dtm} (0 while off)`)
+  } finally {
+    globalThis.fetch = realFetch
+  }
+}
+
 // Over HTTP: /terrain-tiles and /basemap-tiles, the old /tiles and /modes
 // and titiler's tile addresses gone (404), /bbox, quantized mesh, the OGC
 // API landing page, conformance and process descriptions.

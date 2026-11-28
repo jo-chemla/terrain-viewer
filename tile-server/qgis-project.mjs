@@ -25,7 +25,7 @@ export const QGIS_TREE = [
   { group: "Overlays", items: [["contours", "Contours", "both"], ["planeSlicer", "Plane slicer", "both"], ["moundDetector", "Mound candidates", "both"], ["graticules", "Graticule", "both"], ["isoline", "Iso-line", "both"]] },
   { group: "Lighting Effects", items: [["buildingShadows", "Building shadows"], ["shadows", "Terrain shadows"], ["phong", "Phong"], ["matcap", "Matcap"]] },
   { items: [["hillshade", "Hillshade"]] },
-  { group: "Relief Visualization", items: [["localDominance", "Local Dominance"], ["openness", "Openness"], ["svf", "Sky View Factor"], ["lrm", "Local Relief Model"]] },
+  { group: "Relief Visualization", items: [["localDominance", "Local Dominance"], ["openness", "Openness"], ["svf", "Sky View Factor"], ["ndsm", "nDSM / DEM difference"], ["lrm", "Local Relief Model"]] },
   { group: "Terrain Analysis", groups: [
     { group: "Principal Components", items: [["orientation", "Dominant Orientation"], ["eigenRatio", "Eigenvalue Ratio"], ["blobness", "Blobness"]] },
     { group: "Neighborhood statistics", items: [["shapeIndex", "Shape Index"], ["roughness", "Roughness"], ["tpi", "Topographic Position"], ["tri", "Terrain Ruggedness"]] },
@@ -148,7 +148,7 @@ export const VALUE_LAYERS = [
   ["curvature", "Curvature", [-0.01, 0.01]], ["tri", "Terrain Ruggedness (m)", [0, 50]], ["tpi", "Topographic Position (m)", [-20, 20]],
   ["roughness", "Roughness (m)", [0, 50]], ["shapeIndex", "Shape Index", [-1, 1]], ["blobness", "Blobness", [0, 0.5]],
   ["eigenRatio", "Eigenvalue Ratio", [0, 1]], ["orientation", "Dominant Orientation (°)", [0, 180]], ["lrm", "Local Relief Model (m)", [-20, 20]],
-  ["svf", "Sky View Factor", [0.6, 1]], ["openness", "Openness (°)", [75, 105]], ["localDominance", "Local Dominance (°)", [-5, 15]],
+  ["ndsm", "nDSM / DEM difference (m)", [0, 30]], ["svf", "Sky View Factor", [0.6, 1]], ["openness", "Openness (°)", [75, 105]], ["localDominance", "Local Dominance (°)", [-5, 15]],
 ]
 /** A mode's typical range of values, for a display stretch (a GIS's own
  *  estimate, from the coarsest overview, is far too narrow). */
@@ -212,7 +212,11 @@ export function qgisProjectXml(base, read) {
   }
   const kept = keep.toString()
   const vector = (mode, name, checked) => add(name, xyz(`${base}/terrain-tiles/{z}/{x}/{y}.pbf?modes=${mode}${kept ? "&" + kept : ""}`, 15, "", true), "xyzvectortiles", "vector-tile", checked, null, vectorRenderer(mode))
+  // The nDSM mode subtracts a second source, ndsmSubtrahend: without one its
+  // tiles are refused, so the project of a view that names none leaves it out.
+  const hasSubtrahend = !!keep.get("ndsmSubtrahend")
   const item = ([mode, name, form = "raster"]) => {
+    if (mode === "ndsm" && !hasSubtrahend) return ""
     if (form === "vector") return vector(mode, name, active.has(mode))
     return form === "both" && VECTOR.has(mode) ? raster(mode, name) + vector(mode, `${name} (vector tiles)`, false) : raster(mode, name)
   }
@@ -226,7 +230,7 @@ export function qgisProjectXml(base, read) {
   // statistics, profiles): one Float32 layer per mode, read by GDAL from the
   // service's GeoTIFF tiles (gdalWmsXml), in a group left unchecked and
   // closed. Each starts with a grey ramp over a typical range.
-  const values = VALUE_LAYERS.map(([mode, name, range]) => {
+  const values = VALUE_LAYERS.filter(([mode]) => mode !== "ndsm" || hasSubtrahend).map(([mode, name, range]) => {
     const pipe = range ? `<pipe><rasterrenderer type="singlebandgray" opacity="1" alphaBand="-1" grayBand="1" gradient="BlackToWhite" nodataColor=""><rasterTransparency/><contrastEnhancement><minValue>${range[0]}</minValue><maxValue>${range[1]}</maxValue><algorithm>StretchToMinimumMaximum</algorithm></contrastEnhancement></rasterrenderer></pipe>` : ""
     return add(name, gdalWmsXml(base, mode, kept, read?.valueLevel ?? 18), "gdal", "raster", false, pipe ? { pipe } : null)
   })
