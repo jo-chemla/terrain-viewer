@@ -727,7 +727,7 @@
                 "custom-global-gem15-dtm"
               ]
             },
-            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode is refused with a 400; the second source is read only while the mode is drawn."
+            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode draws nothing and its values are refused with a 400; the second source is read only while the mode is drawn."
           },
           {
             "name": "engine",
@@ -978,7 +978,7 @@
                 "custom-global-gem15-dtm"
               ]
             },
-            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode is refused with a 400; the second source is read only while the mode is drawn."
+            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode draws nothing and its values are refused with a 400; the second source is read only while the mode is drawn."
           },
           {
             "name": "engine",
@@ -1758,7 +1758,7 @@
                 "custom-global-gem15-dtm"
               ]
             },
-            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode is refused with a 400; the second source is read only while the mode is drawn."
+            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode draws nothing and its values are refused with a 400; the second source is read only while the mode is drawn."
           },
           {
             "name": "engine",
@@ -2064,7 +2064,7 @@
                 "custom-global-gem15-dtm"
               ]
             },
-            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode is refused with a 400; the second source is read only while the mode is drawn."
+            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode draws nothing and its values are refused with a 400; the second source is read only while the mode is drawn."
           },
           {
             "name": "engine",
@@ -2343,7 +2343,7 @@
                 "custom-global-gem15-dtm"
               ]
             },
-            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode is refused with a 400; the second source is read only while the mode is drawn."
+            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode draws nothing and its values are refused with a 400; the second source is read only while the mode is drawn."
           },
           {
             "name": "engine",
@@ -2916,7 +2916,7 @@
                 "custom-global-gem15-dtm"
               ]
             },
-            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode is refused with a 400; the second source is read only while the mode is drawn."
+            "description": "With the `ndsm` mode: the terrain source subtracted from `terrainSource` (an id, a tile address or a JSON configuration, as for `terrainSource`; not itself a difference). `ndsmInvert=true` subtracts the other way, `ndsmOffset` (metres) is added to every difference. Without it the `ndsm` mode draws nothing and its values are refused with a 400; the second source is read only while the mode is drawn."
           },
           {
             "name": "engine",

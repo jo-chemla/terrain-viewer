@@ -1,8 +1,8 @@
 {
   "release": "docs-media",
-  "asset": "screenshots-0d71973451e1.tar",
-  "sha256": "0d71973451e19527967e01b014234a487d284f2f56158540d7aa2922956c31da",
-  "size": 189880320,
-  "files": 176,
-  "pushed": "2026-11-27"
+  "asset": "screenshots-d8c49e7cc4ad.tar",
+  "sha256": "d8c49e7cc4add2440c73163fb00a897f4169fe8641d6dfdde193435744151013",
+  "size": 190289920,
+  "files": 177,
+  "pushed": "2026-11-28"
 }

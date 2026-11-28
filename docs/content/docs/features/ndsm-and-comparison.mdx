@@ -7,11 +7,36 @@ icon: LayersMinus
 
 <OpenInApp href="/?viewMode=2d&zoom=16&lat=45.762&lng=4.833&terrainSourceA=custom-fr-ign-lidarhd-nhm&showColorRelief=true&showRasterBasemap=true&splitRatio=0.454&rasterBasemapOpacity=0.2&colorRamp=diverging-blue-white-red&hypsoSliderMinBound=-1&hypsoSliderMaxBound=50&hypsoSymmetric=true&minElevation=-32.2&customHypsoMinMax=true&maxElevation=32.2">Open a height-above-ground model of Lyon: IGN LiDAR HD DSM minus DTM at 0.5 m</OpenInApp>
 
+There are two ways to subtract one elevation model from another: a **difference source**, which replaces the view's terrain by the difference, and the **nDSM / Difference visualization mode**, which keeps the view's terrain and draws the difference over it. [Which one when](#two-ways-a-source-or-a-mode).
+
 **Add Terrain → Difference of two sources** makes a terrain source out of two others: every tile of the first (the minuend) minus the same tile of the second (the subtrahend), computed in the browser as the tiles are requested. The result behaves like any elevation source, so every visualization mode reads the difference as if it were terrain. Two families of use, one mechanism.
 
 ![The Edit Terrain Dataset dialog for a difference source: the two operand pickers, the vertical offset field and the explanation panel, over a hypsometric difference map](/screenshots/byod-difference-dsm-dtm.jpg)
 
 <p className="text-sm text-fd-muted-foreground italic">The dialog — any two loaded terrain sources (built-in or your own) as operands, an optional vertical offset, and the explanation panel; behind it, a difference rendered with a symmetric hypsometric ramp.</p>
+
+## Two ways: a source or a mode
+
+<OpenInApp href="/?viewMode=2d&zoom=16.6&lat=45.7608&lng=4.8575&terrainSourceA=custom-ign-lidarhd-dsm-wms-raw&showReliefVisualization=true&showLrm=false&showNdsm=true&ndsmSubtrahend=custom-ign-lidarhd-dtm-wms-raw&showRasterBasemap=true&rasterBasemapOpacity=0.4">Open the nDSM mode over Lyon: IGN Lidar HD DSM as the terrain, its DTM subtracted</OpenInApp>
+
+**Relief Visualization → nDSM / Difference** is the same subtraction as a visualization mode. The view keeps its own terrain source (a DSM, say), so the hillshade, the contours and the 3D relief stay those of the real surface; the mode subtracts a second terrain source chosen in its settings (**Subtract**, the DTM) and draws the result over the view with a color ramp. Its settings:
+
+- **Subtract**: any terrain source but a difference. The line under it spells out what is drawn, terrain − subtrahend.
+- **Invert**: subtracts the other way (subtrahend − terrain), for when the view's terrain is the older date or the bare ground.
+- **Color Ramp** and **Range**, with two one-click looks: **Heights** (0 to 30 m, the ground left transparent so the hillshade shows through) and **Change** (a diverging ramp, symmetric, ±10 m). Any other ramp, Symmetric Range and Invert Ramp work as for the other modes.
+- **Offset**: the vertical offset of the difference source, typed, or measured from the tiles on screen (the Σ button: the interquartile mean of the difference, so it centers on zero). Reset it for a true nDSM, where zero means bare ground.
+- Its opacity slider, and the per-view buttons of a split, as for every mode: the nDSM on one side, the plain surface on the other.
+
+![The nDSM / Difference mode over Lyon: IGN Lidar HD DSM as the view's terrain, its DTM subtracted, heights from yellow (2 m) to purple (30 m), the ground left untinted, with the mode's settings open in the Relief Visualization section](/screenshots/ndsm-mode-lyon.jpg)
+
+<p className="text-sm text-fd-muted-foreground italic">The mode over Lyon at 0.5 m: buildings and trees colored by their height above the ground, the street and courtyards left to the hillshade and the imagery.</p>
+
+Which to use:
+
+- **The mode** when you want the surface and its heights together: hillshade and 3D of the DSM with the heights on top, a split with the mode on one view only, or a quick look at a pair without creating a source. It needs no entry in your sources list: a link naming a library source as subtrahend draws as is.
+- **The source** when the difference itself must be the terrain: 3D relief or contours *of* the heights, every other mode (slope, LRM, the profile, the elevation picker) reading the difference, a terrain export of it, or a library entry to share. Keep plain sources on both sides of the mode: a difference cannot be its subtrahend.
+
+Both compute the same tiles (one protocol, `demdiff://`, below), so the values, the holes and the offset are the same. The mode asks for the second source only while it is on: switched off, or off on a view of a split, it sends it no request. The [tile service](/dev/tile-service) serves it as `modes=ndsm` with `ndsmSubtrahend`, `ndsmInvert` and `ndsmOffset`, as colored tiles and as Float32 values.
 
 ## Height above ground: nDSM and CHM
 

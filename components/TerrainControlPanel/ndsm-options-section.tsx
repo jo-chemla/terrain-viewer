@@ -60,8 +60,10 @@ export const NdsmFields: React.FC<{
     () => withWorldwideDefaults(sources).filter((s) => s.type !== "dem-diff").map((s) => ({ id: s.id, name: s.name })),
     [sources],
   )
-  const terrainName = findTerrainSource(terrainId, sources)?.name ?? terrainId
-  const subtrahendName = findTerrainSource(subtrahend, sources)?.name
+  // The formula line: short names where the catalog has them.
+  const label = (s?: { name: string; shortName?: string }) => s?.shortName ?? s?.name
+  const terrainName = label(findTerrainSource(terrainId, sources)) ?? terrainId
+  const subtrahendName = label(findTerrainSource(subtrahend, sources))
   const invert = state.ndsmInvert ?? false
 
   // The offset measurement samples the same two templates the layer draws.
