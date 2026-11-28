@@ -1105,6 +1105,7 @@
    "shortName": "UNESCO components",
    "type": "geojson",
    "url": "/vector/unesco-world-heritage-components-compact.geojson",
+   "format": "compact",
    "geometries": [
     "point"
    ],

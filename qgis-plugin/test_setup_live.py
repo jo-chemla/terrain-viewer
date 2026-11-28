@@ -3,12 +3,21 @@ drawing a hillshade, a slope (Color and Values) and contour lines at Mont
 Blanc, frozen, saved to a folder with its GeoTIFFs, and read back.
 
   QT_QPA_PLATFORM=offscreen python-qgis test_setup_live.py [a folder to keep the setup in]
+  TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_setup_live.py
 
 What it checks: the frozen copies' parameters; setup.json; layers.qlr
 reopened in an empty project (its layers valid, the contour lines read from
 vectors.gpkg); each GeoTIFF's size, CRS, extent, bands and content (a Color
 form as RGBA, a Values form as Float32 degrees); Load setup after the panel
 was changed.
+
+0.12.2, the same GeoTIFFs under a tile service: the Remote tile server at
+TERRAIN_VIEWER_SERVICE when it is set, and the Packaged tile server when a
+bundle is at hand (the pinned one installed in this profile, else an older
+one installed there, else the folder TV_SERVICE_DIR names: the 50 MB bundle
+is never downloaded here). Each is skipped with a line when it is missing.
+The slope's values are compared with the Python backend's, and the files
+are opened again once the packaged server is stopped.
 """
 import json
 import os
@@ -50,7 +59,7 @@ def spin(ms=200):
 
 
 settings = QgsSettings()
-kept = {k: settings.value(f"terrain_viewer/{k}") for k in ("appMode", "backend", "checkUpdates")}
+kept = {k: settings.value(f"terrain_viewer/{k}") for k in ("appMode", "backend", "checkUpdates", "service")}
 settings.setValue("terrain_viewer/appMode", "terrain")
 settings.setValue("terrain_viewer/checkUpdates", "false")
 canvas = QgsMapCanvas()
@@ -118,29 +127,46 @@ check(data["rasters"]["width"] == canvas.width() and data["rasters"]["height"] =
       and data["panel"]["connected"] == "python" and data["panel"]["modes"]["slope"]["forms"] == ["color", "values"],
       f"setup.json: the GeoTIFFs listed at the canvas's size ({data['rasters']['width']} x {data['rasters']['height']} px), "
       "the gpkg, the Python backend, the slope's two forms")
-for key, rel in sorted(data["rasters"]["files"].items()):
-    ds = gdal.Open(os.path.join(folder, rel))
-    if ds is None:
-        check(False, f"{rel}: not a raster")
-        continue
-    gt = ds.GetGeoTransform()
-    size_ok = (ds.RasterXSize, ds.RasterYSize) == (canvas.width(), canvas.height())
-    where_ok = abs(gt[0] - ext.xMinimum()) < 1 and abs(gt[3] - ext.yMaximum()) < 1 and "3857" in (ds.GetProjection() or "")
-    a = ds.ReadAsArray()
-    if key.endswith(":values"):
-        band = a if a.ndim == 2 else a[0]
-        good = np.isfinite(band)
-        check(size_ok and where_ok and ds.RasterCount == 1 and gdal.GetDataTypeName(ds.GetRasterBand(1).DataType) == "Float32"
-              and good.mean() > 0.9 and 5 < float(np.nanmean(band[good])) < 60 and float(np.nanmax(band[good])) <= 90.01,
-              f"{rel}: Float32, {ds.RasterXSize} x {ds.RasterYSize} px on the map's extent in EPSG:3857, slopes of "
-              f"{float(np.nanmin(band[good])):.1f} to {float(np.nanmax(band[good])):.1f} degrees (mean {float(np.nanmean(band[good])):.1f})")
-    else:
-        rgb = a[:3].reshape(3, -1)
-        # The slope's ramp is transparent where the ground is flat: its own alpha, kept.
-        check(size_ok and where_ok and ds.RasterCount == 4 and len(np.unique(rgb[0])) > 20 and (a[3] > 0).mean() > 0.5,
-              f"{rel}: RGBA, {ds.RasterXSize} x {ds.RasterYSize} px on the map's extent in EPSG:3857, "
-              f"{len(np.unique(rgb[0]))} levels of red, {100 * (a[3] > 0).mean():.0f} % opaque")
-    ds = None
+COLORS = [gdal.GCI_RedBand, gdal.GCI_GreenBand, gdal.GCI_BlueBand, gdal.GCI_AlphaBand]
+
+
+def check_tiffs(folder, data, ext, label=""):
+    """Each GeoTIFF of a saved setup: its size, place, bands and content.
+    Returns the Values rasters read ({key: array})."""
+    values = {}
+    for key, rel in sorted(data["rasters"]["files"].items()):
+        ds = gdal.Open(os.path.join(folder, rel))
+        if ds is None:
+            check(False, f"{label}{rel}: not a raster")
+            continue
+        gt = ds.GetGeoTransform()
+        size_ok = (ds.RasterXSize, ds.RasterYSize) == (canvas.width(), canvas.height())
+        where_ok = abs(gt[0] - ext.xMinimum()) < 1 and abs(gt[3] - ext.yMaximum()) < 1 and "3857" in (ds.GetProjection() or "")
+        a = ds.ReadAsArray()
+        kinds = [ds.GetRasterBand(i + 1).GetColorInterpretation() for i in range(ds.RasterCount)]
+        types = {gdal.GetDataTypeName(ds.GetRasterBand(i + 1).DataType) for i in range(ds.RasterCount)}
+        if key.endswith(":values"):
+            band = a if a.ndim == 2 else a[0]
+            good = np.isfinite(band)
+            nodata = ds.GetRasterBand(1).GetNoDataValue()
+            check(size_ok and where_ok and ds.RasterCount == 1 and types == {"Float32"} and nodata is not None and np.isnan(nodata)
+                  and good.mean() > 0.9 and 5 < float(np.nanmean(band[good])) < 60 and float(np.nanmax(band[good])) <= 90.01,
+                  f"{label}{rel}: the raw values, one Float32 band (no data NaN), {ds.RasterXSize} x {ds.RasterYSize} px on the map's "
+                  f"extent in EPSG:3857, slopes of {float(np.nanmin(band[good])):.1f} to {float(np.nanmax(band[good])):.1f} degrees "
+                  f"(mean {float(np.nanmean(band[good])):.1f})")
+            values[key] = band
+        else:
+            rgb = a[:3].reshape(3, -1)
+            # The slope's ramp is transparent where the ground is flat: its own alpha, kept.
+            check(size_ok and where_ok and ds.RasterCount == 4 and types == {"Byte"} and kinds == COLORS
+                  and len(np.unique(rgb[0])) > 20 and (a[3] > 0).mean() > 0.5,
+                  f"{label}{rel}: the colors as drawn, four Byte bands (red, green, blue, alpha), {ds.RasterXSize} x {ds.RasterYSize} px "
+                  f"on the map's extent in EPSG:3857, {len(np.unique(rgb[0]))} levels of red, {100 * (a[3] > 0).mean():.0f} % opaque")
+        ds = None
+    return values
+
+
+py_values = check_tiffs(folder, data, ext)
 
 # layers.qlr in an empty project.
 live_n = live["contours:vector"].featureCount()
@@ -192,6 +218,110 @@ for _ in range(300):  # the lines again, in the background: awaited before QGIS 
 check("contours:vector" in now and now["contours:vector"].featureCount() == live_n,
       f"Load setup: the contour lines computed again for the place ({now['contours:vector'].featureCount() if 'contours:vector' in now else 0})")
 
+# The same GeoTIFFs under a tile service (0.12.2). The layers are then an
+# XYZ layer of the service's PNG tiles (Color) and a GDAL raster of its
+# /gdal.xml (Values); write_raster reads them through those providers.
+from iconem_terrain_viewer import local_server  # noqa: E402
+
+
+def under_service(label, backend, connect):
+    for r in dock.rows.values():
+        r.row.set_forms(set())
+        r.update()
+    connect()
+    spin(500)
+    if dock.connected != backend:
+        check(False, f"{label}: not connected ({dock.status.text()[:120]})")
+        return None
+    dock.set_source("mapterhorn", quiet=True)
+    canvas.freeze(False)
+    dock.zoom_to(LAT, LNG, ZOOM)
+    spin(100)
+    canvas.freeze(True)
+    dock.set_light(135.0, 35.0, schedule=False)
+    s_row, h_row = dock.rows["slope"], dock.rows["hillshade"]  # the tree was built again for this backend
+    for r in dock.rows.values():
+        r.row.set_forms(set())
+    s_row.row.set_forms({"colour", "values"})
+    h_row.row.set_forms({"colour"})
+    for r in (h_row, s_row):
+        r.update()
+        r.apply_style()
+    dock.flush()
+    lyrs = {l.customProperty(PROP): l for l in dock.stack.live_checked()}
+    kinds = {k: l.providerType() for k, l in lyrs.items()}
+    check(kinds == {"slope": "wms", "slope:values": "gdal", "hillshade": "wms"} and all(l.isValid() for l in lyrs.values())
+          and all(dock.base.split("//", 1)[-1] in l.source().replace("%3A", ":").replace("%2F", "/") for l in lyrs.values()),
+          f"{label} ({dock.base}): three live layers, the Color forms as XYZ tiles, the Values form as GDAL's read of /gdal.xml ({kinds})")
+    t = time.perf_counter()
+    r_ = dock.save_setup(parent, rasters=True)
+    dt = time.perf_counter() - t
+    d_ = r_["folder"] if r_ else ""
+    got = sorted(os.listdir(d_)) if d_ else []
+    check(r_ is not None and got == ["layers.qlr", "rasters", "setup.json"] and not r_["problems"] and r_["rasters"] == 3,
+          f"{label}: Save setup and GeoTIFFs: {got}, {r_['rasters'] if r_ else 0} GeoTIFFs in {dt:.1f} s "
+          f"({'; '.join(r_['problems']) if r_ else ''})")
+    if not r_:
+        return None
+    data_ = setups.read(d_)
+    e_, _w = dock.canvas_extent()
+    check(data_["panel"]["connected"] == backend and sorted(data_["rasters"]["files"]) == ["hillshade", "slope", "slope:values"],
+          f"{label}: setup.json names the backend ({data_['panel']['connected']}) and the three GeoTIFFs")
+    vals = check_tiffs(d_, data_, e_, label + ": ")
+    mine, theirs = py_values.get("slope:values"), vals.get("slope:values")
+    if mine is not None and theirs is not None and mine.shape == theirs.shape:
+        both = np.isfinite(mine) & np.isfinite(theirs)
+        diff = np.abs(mine - theirs)[both]
+        check(both.mean() > 0.9 and float(np.median(diff)) < 0.5,
+              f"{label}: its slope values against the Python backend's, pixel by pixel: median difference "
+              f"{float(np.median(diff)):.3f} degrees, 95 % under {float(np.percentile(diff, 95)):.2f}")
+    for r in dock.rows.values():
+        r.row.set_forms(set())
+        r.update()
+    return d_, data_
+
+
+def opens_alone(label, d_, data_):
+    """The GeoTIFFs as layers of QGIS, nothing running."""
+    n = 0
+    for key, rel in sorted(data_["rasters"]["files"].items()):
+        lyr = QgsRasterLayer(os.path.join(d_, rel), key)
+        st = lyr.dataProvider().bandStatistics(1) if lyr.isValid() else None
+        n += bool(lyr.isValid() and lyr.providerType() == "gdal" and st is not None and st.maximumValue > st.minimumValue)
+        del lyr, st
+    check(n == 3, f"{label}: the three GeoTIFFs open as plain raster layers with no server ({n} of 3)")
+
+
+service = (os.environ.get("TERRAIN_VIEWER_SERVICE") or "").rstrip("/")
+if not service:
+    print("  skip the Remote tile server: no TERRAIN_VIEWER_SERVICE (http://localhost:3400)", flush=True)
+else:
+    def _remote():
+        dock.url.setText(service)
+        dock.backend_picker.set("remote", emit=False)
+        dock.set_backend("remote")
+    under_service("Remote tile server", "remote", _remote)
+
+bundle = os.environ.get("TV_SERVICE_DIR") or local_server.current_dir()
+if not bundle:  # a bundle of an earlier release, installed in this profile
+    home = local_server.service_home()
+    older = sorted(os.path.join(home, rel, local_server.platform_label() or "") for rel in (os.listdir(home) if os.path.isdir(home) else []))
+    bundle = next((d for d in reversed(older) if local_server.bundled(d)), None)
+if not bundle or not local_server.bundled(bundle):
+    print("  skip the Packaged tile server: no bundle installed in this profile, none named by TV_SERVICE_DIR (never downloaded here)",
+          flush=True)
+else:
+    _installed_dir = local_server.installed_dir
+    local_server.installed_dir = lambda p=None, plat=None: bundle
+    info = local_server.bundle_info(bundle)
+    saved = under_service(f"Packaged tile server (built {info.get('built', '?')})", "local", lambda: dock.set_backend("local"))
+    dock.set_backend("python")  # stops the packaged server
+    spin(300)
+    check(not local_server.instance().running(), "the packaged server stopped once another backend is picked")
+    if saved:
+        opens_alone("Packaged tile server, stopped", *saved)
+    local_server.installed_dir = _installed_dir
+
 for r in dock.rows.values():
     r.row.set_forms(set())
     r.update()
@@ -206,10 +336,9 @@ for k, v in kept.items():
 dock.cleanup()
 # The view's lines are computed in QGIS tasks (a move of the map starts one
 # more): none may still run when QGIS goes. The application waits for its
-# tasks when it quits; a script must. Known and not solved (0.12.0): on QGIS
-# 3.44 this script still ends with an access violation after its "OK", about
-# one run in two (exit code 0xC0000005, no Python frame); every check has
-# passed by then. QGIS 4.2 ends cleanly.
+# tasks when it quits; a script must. (The access violation QGIS 3.44 ended
+# this script with after its "OK", 0.12.0, was the script's own teardown:
+# test_teardown.py.)
 for _ in range(300):
     if not QgsApplication.taskManager().countActiveTasks():
         break
@@ -219,5 +348,5 @@ LiveServer.shutdown()
 if len(sys.argv) <= 1:
     shutil.rmtree(parent, ignore_errors=True)
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ")
-app.exitQgis()
-sys.exit(1 if failures else 0)
+import test_teardown  # noqa: E402 - the widgets deleted, exitQgis, the process ended as QGIS ends
+test_teardown.leave(app, 1 if failures else 0, dock, bridge, canvas)

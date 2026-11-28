@@ -206,5 +206,5 @@ print("FAILURES:" if failures else "OK", *failures, sep="\n  ", flush=True)
 canvas.stopRendering()
 QgsProject.instance().clear()
 spin(200)
-app.exitQgis()
-sys.exit(1 if failures else 0)
+import test_teardown  # noqa: E402 - the widgets deleted, exitQgis, the process ended as QGIS ends
+test_teardown.leave(app, 1 if failures else 0, dock, bridge, canvas)
