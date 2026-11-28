@@ -13,8 +13,9 @@ was changed.
 
 0.12.2, the same GeoTIFFs under a tile service: the Remote tile server at
 TERRAIN_VIEWER_SERVICE when it is set, and the Packaged tile server when a
-bundle is at hand (the pinned one installed in this profile, else an older
-one installed there, else the folder TV_SERVICE_DIR names: the 50 MB bundle
+bundle is at hand (the folder TV_SERVICE_DIR names, else the pinned one
+installed in this profile, else one installed there or in the desktop
+QGIS's default profile: the 50 MB bundle
 is never downloaded here). Each is skipped with a line when it is missing.
 The slope's values are compared with the Python backend's, and the files
 are opened again once the packaged server is stopped.
@@ -34,7 +35,7 @@ app.initQgis()
 import numpy as np  # noqa: E402
 from osgeo import gdal  # noqa: E402
 from qgis.core import (  # noqa: E402
-    QgsProject, QgsCoordinateReferenceSystem, QgsLayerDefinition, QgsRasterLayer, QgsVectorLayer, QgsSettings,
+    Qgis, QgsProject, QgsCoordinateReferenceSystem, QgsLayerDefinition, QgsRasterLayer, QgsVectorLayer, QgsSettings,
 )
 from qgis.gui import QgsMapCanvas, QgsLayerTreeMapCanvasBridge  # noqa: E402
 from qgis.PyQt.QtCore import QEventLoop, QTimer  # noqa: E402
@@ -303,9 +304,16 @@ else:
     under_service("Remote tile server", "remote", _remote)
 
 bundle = os.environ.get("TV_SERVICE_DIR") or local_server.current_dir()
-if not bundle:  # a bundle of an earlier release, installed in this profile
-    home = local_server.service_home()
-    older = sorted(os.path.join(home, rel, local_server.platform_label() or "") for rel in (os.listdir(home) if os.path.isdir(home) else []))
+if not bundle:
+    # A bundle of an earlier release, installed in this profile, else in the
+    # desktop QGIS's default profile (a headless QGIS has a settings folder
+    # of its own: %APPDATA%/python/profiles/default on Windows).
+    major = "QGIS4" if Qgis.QGIS_VERSION_INT >= 39900 else "QGIS3"
+    homes = [local_server.service_home()]
+    if os.environ.get("APPDATA"):
+        homes.append(os.path.join(os.environ["APPDATA"], "QGIS", major, "profiles", "default", "terrain_viewer", "tile-service"))
+    older = sorted(os.path.join(home, rel, local_server.platform_label() or "")
+                   for home in homes if os.path.isdir(home) for rel in os.listdir(home))
     bundle = next((d for d in reversed(older) if local_server.bundled(d)), None)
 if not bundle or not local_server.bundled(bundle):
     print("  skip the Packaged tile server: no bundle installed in this profile, none named by TV_SERVICE_DIR (never downloaded here)",

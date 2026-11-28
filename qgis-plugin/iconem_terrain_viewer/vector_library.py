@@ -8,7 +8,7 @@ What QGIS reads, measured in QGIS 4.2 and 3.44 (2026-11-27):
 |---|---|
 | mvt (a {z}/{x}/{y} template) | A vector tile layer (type=xyz) |
 | tilejson | The same, from the tiles address the TileJSON names (one request) |
-| style (a MapLibre style) | A vector tile layer with the style imported by QGIS (styleUrl, loadDefaultStyle), cut to the entry's styleLayerTypes (lines and labels: the fills dropped) |
+| style (a MapLibre style) | A vector tile layer with the style imported by QGIS (styleUrl, loadDefaultStyle), its geometry tests repaired (fix_geometry_test), cut to the entry's styleLayerTypes (lines and labels: the fills dropped) |
 | pmtiles over https | A vector layer of GDAL's PMTiles driver (GDAL 3.8 or later) over /vsicurl/ (one per source layer, ZOOM_LEVEL_AUTO) |
 | pmtiles GDAL cannot read: on Overture's host (it answers 400 to the HEAD and the un-ranged GET GDAL sizes a file with, whatever GDAL's use_head), or any archive when GDAL has no PMTiles driver (before 3.8) | A vector tile layer on the plugin's own 127.0.0.1 server, which reads the archive by range requests (live/pmtiles.py, /pmtiles/{z}/{x}/{y}.pbf): drawn while the panel is open |
 | geojson | A vector layer of GDAL (the file downloaded whole) |
@@ -27,6 +27,7 @@ The plan (which layers, which addresses) is plain Python, tested offline;
 the layers and their styles need QGIS. Nothing here is live: a layer added
 is the project's, the panel never changes it afterwards."""
 import json
+import re
 import urllib.request
 
 from . import assets
@@ -367,6 +368,64 @@ def style_tile_layer(layer, entry, item):
     return len(styles)
 
 
+# QGIS's MapLibre style converter (3.44 and 4.2) writes the expression
+# ["geometry-type"] as an empty field name, "": a filter such as ["match",
+# ["geometry-type"], ["LineString", "MultiLineString"], true, false]
+# becomes `"" IN ('LineString', 'MultiLineString')`, false for every
+# feature, and the style draws nothing (OpenFreeMap's Dark and Fiord drew no
+# line at all, Positron and Bright only their labels; found 2026-11-28).
+_GEOM_TEST = re.compile(r'(?<![\w"])""' + r"\s*(NOT\s+IN|IN|IS\s+NOT|IS|=|!=|<>)\s*(\([^()]*\)|'[^']*')", re.IGNORECASE)
+_GEOM_NAMES = {"point": ("point", "multipoint"), "line": ("linestring", "multilinestring"),
+               "polygon": ("polygon", "multipolygon")}
+
+
+def fix_geometry_test(expr, geom):
+    """A converted filter with its geometry tests settled for a style that
+    draws `geom` ("point", "line", "polygon") only: each `"" IN (...)`,
+    `"" = '...'` (and their negations) becomes TRUE or FALSE. A style of
+    no known geometry keeps its filter."""
+    if not expr or '""' not in expr or geom not in _GEOM_NAMES:
+        return expr
+    mine = _GEOM_NAMES.get(geom, ())
+
+    def settle(m):
+        op = " ".join(m.group(1).upper().split())
+        names = [n.strip().strip("'").lower() for n in m.group(2).strip("()").split(",")]
+        hit = any(n in mine for n in names)
+        return "TRUE" if hit != (op in ("NOT IN", "IS NOT", "!=", "<>")) else "FALSE"
+    return _GEOM_TEST.sub(settle, expr)
+
+
+def _fix_geometry_tests(layer):
+    """fix_geometry_test on every style and label style of a layer whose
+    style QGIS imported. Returns how many filters changed."""
+    types = _geom_types()
+    kind = {v: k for k, v in types.items()}
+    n = 0
+    if layer.renderer() is not None and hasattr(layer.renderer(), "styles"):
+        renderer = layer.renderer().clone()
+        styles = renderer.styles()
+        for st in styles:
+            fixed = fix_geometry_test(st.filterExpression(), kind.get(st.geometryType()))
+            if fixed != st.filterExpression():
+                st.setFilterExpression(fixed)
+                n += 1
+        renderer.setStyles(styles)
+        layer.setRenderer(renderer)
+    labeling = layer.labeling()
+    if labeling is not None and hasattr(labeling, "styles"):
+        labeling = labeling.clone()
+        lstyles = labeling.styles()
+        for st in lstyles:
+            fixed = fix_geometry_test(st.filterExpression(), kind.get(st.geometryType()))
+            if fixed != st.filterExpression():
+                st.setFilterExpression(fixed)
+                n += 1
+        labeling.setStyles(lstyles)
+        layer.setLabeling(labeling)
+    return n
+
+
 def style_from_maplibre(layer, part):
     """The entry's MapLibre style, imported by QGIS, cut to its
     styleLayerTypes: without "fill", the polygon styles go (roads, rails,
@@ -374,6 +433,7 @@ def style_from_maplibre(layer, part):
     types = _geom_types()
     wanted = set(part.get("styleLayerTypes") or ["fill", "line", "symbol"])
     layer.loadDefaultStyle()
+    _fix_geometry_tests(layer)
     renderer = layer.renderer().clone()
     keep = [s for s in renderer.styles()
             if (s.geometryType() != types["polygon"] or "fill" in wanted)

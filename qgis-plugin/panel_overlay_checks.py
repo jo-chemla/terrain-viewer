@@ -139,6 +139,17 @@ check(_os.path.basename(_cpath) == "test-compact-1.geojson" and _os.listdir(_ctm
       f"its categories taken ({_ctaken})")
 del _clyr, _feat, _cctx
 __import__("shutil").rmtree(_ctmp, ignore_errors=True)
+# QGIS's style converter writes ["geometry-type"] as "" (0.12.2): the tests
+# settled per style, as QGIS 3.44 and 4.2 wrote them for OpenFreeMap's Dark.
+_ft = vl.fix_geometry_test
+check(_ft("(\"\" IN ('LineString', 'MultiLineString')) AND (\"class\" IN ('minor', 'service', 'track'))", "line")
+      == "(TRUE) AND (\"class\" IN ('minor', 'service', 'track'))"
+      and _ft("(\"\" IN ('MultiPoint', 'Point')) AND (\"class\" IS 'town')", "point") == "(TRUE) AND (\"class\" IS 'town')"
+      and _ft("\"\" IN ('LineString', 'MultiLineString')", "polygon") == "FALSE"
+      and _ft("\"\" NOT IN ('Polygon', 'MultiPolygon')", "line") == "TRUE" and _ft("\"\" = 'Point'", "line") == "FALSE"
+      and _ft("\"class\" = 'runway'", "line") == "\"class\" = 'runway'" and _ft("", "line") == ""
+      and _ft("\"\" IN ('Point')", None) == "\"\" IN ('Point')",
+      "a MapLibre style's geometry tests, which QGIS's converter writes as an empty field (\"\" IN (...)), settled per style")
 _asked = []
 
 

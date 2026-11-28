@@ -17,7 +17,8 @@ both (see Files).
 
 0.12.2 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
 at its top. 0.12.2: UNESCO's components are drawn in their categories (the
-app's compact GeoJSON, expanded), PMTiles archives go through the plugin's
+app's compact GeoJSON, expanded), OpenFreeMap's Dark and Fiord styles draw
+their lines (QGIS's style converter broke their geometry filters), PMTiles archives go through the plugin's
 own server where GDAL has no PMTiles driver, the GeoTIFFs of a setup are
 checked under the tile servers, and the Python backend's server waits for
 the tiles being answered when it stops. 0.12.1: the plugin's folder is `iconem_terrain_viewer` (it was
@@ -78,7 +79,7 @@ repository or installs a plugin. Two cautions:
   custom properties and the profile's data folder still use the
   `terrain_viewer` prefix (the other plugin stores none of these).
 
-**From a zip.** The zips of each version are on a release: [`qgis-plugins-2026-11-27c`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-27c)
+**From a zip.** The zips of each version are on a release: [`qgis-plugins-2026-11-28`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-28)
 (Terrain Viewer 0.12.2, `iconem_terrain_viewer-0.12.2.zip`, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
@@ -215,8 +216,11 @@ modes computed in QGIS with numpy.
   with HTTP 400; any archive where GDAL has no PMTiles driver, before GDAL
   3.8) vector tiles from the plugin's own 127.0.0.1 server
   (`/pmtiles/{z}/{x}/{y}.pbf`, read by `live/pmtiles.py`; drawn while the
-  panel is open). The panel does not change them afterwards. All @@N@@
-  entries open and draw in QGIS 4.2 and 3.44 (`test_overlays_live.py`).
+  panel is open). The panel does not change them afterwards. All 20
+  entries open and draw in QGIS 4.2 and 3.44 (`test_overlays_live.py`). A
+  MapLibre style's geometry tests, which QGIS's converter writes as an empty
+  field (`"" IN ('LineString', ...)`, no feature passes), are settled per
+  style after the import (`fix_geometry_test`, 0.12.2).
 - A saved project reopens with its layers; on Connect the panel reads their
   addresses back into its checkboxes and settings.
 
