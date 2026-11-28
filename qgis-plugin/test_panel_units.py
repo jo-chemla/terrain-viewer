@@ -1056,8 +1056,9 @@ _sh.rmtree(up, ignore_errors=True)
 exec(open(os.path.join(here_dir, "panel_buildings_checks.py"), encoding="utf-8").read())  # 0.11.0: the building shadows' buildings
 exec(open(os.path.join(here_dir, "panel_setup_checks.py"), encoding="utf-8").read())  # 0.12.0: Freeze's parameters, a setup saved and loaded
 exec(open(os.path.join(here_dir, "panel_overlay_checks.py"), encoding="utf-8").read())  # 0.12.0: the app's Vector library as QGIS layers
+exec(open(os.path.join(here_dir, "panel_server_checks.py"), encoding="utf-8").read())  # 0.12.2: the Python backend's server stopped while tiles are answered
 dock.cleanup()
 
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ")
-app.exitQgis()
-sys.exit(1 if failures else 0)
+import test_teardown  # noqa: E402 - the widgets deleted, exitQgis, the process ended as QGIS ends
+test_teardown.leave(app, 1 if failures else 0, dock, bridge, canvas)

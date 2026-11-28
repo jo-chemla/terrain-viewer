@@ -163,6 +163,18 @@
   "lrmRadius": 16,
   "lrmCustomStops": "DEFAULT_SLOPE_CUSTOM_STOPS",
   "lrmCustomStopsDiscrete": false,
+  "showNdsm": false,
+  "ndsmSubtrahend": "",
+  "ndsmInvert": false,
+  "ndsmOffset": 0,
+  "ndsmOpacity": 1,
+  "ndsmColorRamp": "ndsm-heights",
+  "ndsmMin": 0,
+  "ndsmMax": 30,
+  "ndsmInvertColorRamp": false,
+  "ndsmSymmetric": false,
+  "ndsmCustomStops": "DEFAULT_SLOPE_CUSTOM_STOPS",
+  "ndsmCustomStopsDiscrete": false,
   "remRiver": "main",
   "remWaterways": "river",
   "remRiverName": "",
@@ -692,6 +704,98 @@
    "licenseUrl": "https://www.openstreetmap.org/copyright"
   },
   {
+   "id": "gpx-liberty-satellite",
+   "name": "Roads and labels for imagery (gpx.studio Liberty Satellite)",
+   "shortName": "gpx.studio Liberty Satellite",
+   "type": "style",
+   "url": "/styles/gpx-liberty-satellite.json",
+   "libraryGroup": "reference",
+   "description": "gpx.studio's Liberty Satellite: OpenFreeMap's Liberty reworked by gpx.studio to sit over imagery, with the fills and the road casings taken out, the roads made translucent, white names with dark halos, cased boundaries, and peaks, saddles and nature parks named. Drawn whole (lines, labels and one pattern on pedestrian squares): it was made as an overlay. The copy is served by this app (the licence allows it, with credit) and reads OpenFreeMap's tiles, fonts and sprite instead of gpx.studio's own hosts (same OpenMapTiles schema, same Noto Sans, same sprite), which answer no other site; the MapTiler satellite layer under it (a key) is left out, any basemap of the app takes its place. Drawn with the style's own colors; only the opacity is yours. Style: MIT (OpenFreeMap Styles, Zsolt Ero; gpx.studio), from OSM Liberty and OSM Bright (BSD 3-Clause code, CC BY 4.0 design). Checked 2026-11-27.",
+   "infoUrl": "https://github.com/gpxstudio/styles",
+   "attribution": "Style: gpx.studio (https://gpx.studio, https://github.com/gpxstudio/styles). OpenFreeMap \u00a9 OpenMapTiles, data \u00a9 OpenStreetMap contributors",
+   "shortAttribution": "gpx.studio, OpenFreeMap, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "MIT (style), ODbL 1.0 (data)",
+   "licenseUrl": "https://github.com/gpxstudio/styles/blob/main/license.md"
+  },
+  {
+   "id": "gpx-liberty-topo-lines-labels",
+   "name": "Roads, trails and labels (gpx.studio Liberty Topo)",
+   "shortName": "gpx.studio Liberty Topo",
+   "type": "style",
+   "url": "/styles/gpx-liberty-topo.json",
+   "styleLayerTypes": [
+    "line",
+    "symbol"
+   ],
+   "libraryGroup": "reference",
+   "description": "The lines and labels of gpx.studio's Liberty Topo, without its fills: OpenFreeMap's Liberty with what a hiker reads added by gpx.studio, trails apart from paved footpaths, peaks and saddles with their heights, nature parks named. The original also draws a hillshade and contour lines in metres and feet from gpx.studio's own vector tiles (made from Mapterhorn), which answer no other site: they are left out, the app's own hillshade and contours do that over any terrain source. The copy is served by this app (the licence allows it, with credit) and reads OpenFreeMap's tiles, fonts and sprite. Drawn with the style's own colors; only the opacity is yours. Style: MIT (OpenFreeMap Styles, Zsolt Ero; gpx.studio), from OSM Liberty and OSM Bright (BSD 3-Clause code, CC BY 4.0 design), some layers from nst-guide's osm-liberty-topo. Checked 2026-11-27.",
+   "infoUrl": "https://github.com/gpxstudio/styles",
+   "attribution": "Style: gpx.studio (https://gpx.studio, https://github.com/gpxstudio/styles). OpenFreeMap \u00a9 OpenMapTiles, data \u00a9 OpenStreetMap contributors",
+   "shortAttribution": "gpx.studio, OpenFreeMap, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "MIT (style), ODbL 1.0 (data)",
+   "licenseUrl": "https://github.com/gpxstudio/styles/blob/main/license.md"
+  },
+  {
+   "id": "gpx-osm-lines-labels",
+   "name": "Roads and labels in the OpenStreetMap look (gpx.studio OSM)",
+   "shortName": "gpx.studio OSM",
+   "type": "style",
+   "url": "/styles/gpx-osm.json",
+   "styleLayerTypes": [
+    "line",
+    "symbol"
+   ],
+   "libraryGroup": "reference",
+   "description": "The lines and labels of the OSM style gpx.studio serves (OpenMapTiles' rendition of openstreetmap.org's standard map), without its fills: red motorways, orange and yellow main roads, dashed paths and tracks, the standard map's icons and shields. The densest of the road overlays, with points of interest from zoom 14. The copy is served by this app (the licence allows it, with credit) and reads OpenFreeMap's tiles and fonts; its icons (287 small images, the 19 fill patterns left out) are served beside it. gpx.studio's OSM Topo is the same style with a hillshade and contour lines from its own tiles, which answer no other site: with those left out the two are one, so there is one entry. Drawn with the style's own colors; only the opacity is yours. Style: BSD 3-Clause (code), CC BY 4.0 (design), OpenMapTiles contributors; icons from openstreetmap-carto (CC0). Checked 2026-11-27.",
+   "infoUrl": "https://github.com/gpxstudio/styles",
+   "attribution": "Style: gpx.studio (https://gpx.studio, https://github.com/gpxstudio/styles). OpenFreeMap \u00a9 OpenMapTiles, data \u00a9 OpenStreetMap contributors",
+   "shortAttribution": "gpx.studio, OpenFreeMap, \u00a9 OpenStreetMap, ODbL",
+   "licenseName": "BSD 3-Clause, CC BY 4.0 (style), ODbL 1.0 (data)",
+   "licenseUrl": "https://github.com/openmaptiles/openmaptiles/blob/master/LICENSE.md"
+  },
+  {
+   "id": "ign-carte-facile-aerial",
+   "name": "IGN roads and place names for aerial photographs (Carte Facile)",
+   "shortName": "IGN roads + names",
+   "type": "style",
+   "url": "/styles/ign-carte-facile-aerial.json",
+   "libraryGroup": "reference",
+   "description": "Carte Facile's aerial style without its photographs: the roads, railways, and the names of places, roads, rivers and summits that IGN's cartes.gouv.fr team lays over aerial imagery, from the Plan IGN vector tiles (France and its overseas territories, to zoom 18). Drawn whole, lines and labels: it was made as an overlay. Carte Facile keeps its styles inside an npm package, so a copy is served by this app, with its fonts (the same three Noto Sans) read from OpenFreeMap. Drawn with the style's own colors; only the opacity is yours. Style: Apache-2.0, La Fabrique des g\u00e9ocommuns (IGN). Tiles: \u00a9 IGN, Licence Ouverte 2.0. Checked 2026-11-27: tiles answer with CORS, no key.",
+   "infoUrl": "https://github.com/fab-geocommuns/carte-facile",
+   "attribution": "Style: Carte Facile (https://github.com/fab-geocommuns/carte-facile), Apache-2.0. Tiles \u00a9 IGN, Plan IGN, G\u00e9oplateforme",
+   "shortAttribution": "\u00a9 IGN, Carte Facile",
+   "licenseName": "Apache-2.0 (style), Licence Ouverte 2.0 (data)",
+   "licenseUrl": "https://github.com/fab-geocommuns/carte-facile/blob/main/LICENSE",
+   "sample": {
+    "lng": 4.832,
+    "lat": 45.7578,
+    "zoom": 14
+   }
+  },
+  {
+   "id": "swisstopo-lightbasemap-labels",
+   "name": "swisstopo labels (Light Base Map)",
+   "shortName": "swisstopo labels",
+   "type": "style",
+   "url": "https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json",
+   "bounds": [
+    5.9,
+    45.8,
+    10.55,
+    47.85
+   ],
+   "styleLayerTypes": [
+    "symbol"
+   ],
+   "libraryGroup": "reference",
+   "description": "The labels of swisstopo's Light Base Map, without its lines and fills: places, peaks and passes with their heights, lakes, rivers, glaciers, massifs, road numbers and stations, in swisstopo's own lettering (Frutiger Neue, served by swisstopo) and with its own symbols. swisstopo offers the service to everyone within Switzerland and Liechtenstein; the part of the map beyond is reserved to the Federal Administration, so the overlay is for those two countries. Drawn with the style's own colors; only the opacity is yours. Free geodata terms (OGD): the source must be named; in the event of excessive use, swisstopo may restrict access. Checked 2026-11-27: style, tiles, fonts and sprite answer with CORS, no key.",
+   "infoUrl": "https://www.swisstopo.admin.ch/en/web-maps-light-base-map",
+   "attribution": "\u00a9 swisstopo (Federal Office of Topography), Light Base Map; \u00a9 OpenMapTiles, \u00a9 OpenStreetMap contributors",
+   "shortAttribution": "\u00a9 swisstopo",
+   "licenseName": "swisstopo free geodata (OGD)",
+   "licenseUrl": "https://www.swisstopo.admin.ch/en/terms-of-use-free-geodata-and-geoservices"
+  },
+  {
    "id": "hwai-heritage-osm",
    "name": "HW.ai Heritage Map - OSM",
    "shortName": "Heritage: OSM",
@@ -1105,6 +1209,7 @@
    "shortName": "UNESCO components",
    "type": "geojson",
    "url": "/vector/unesco-world-heritage-components-compact.geojson",
+   "format": "compact",
    "geometries": [
     "point"
    ],

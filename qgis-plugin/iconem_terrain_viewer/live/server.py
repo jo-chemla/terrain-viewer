@@ -42,6 +42,11 @@ from .gdal_source import make_dem
 PREFERRED_PORT = 3420
 COLOUR_VERSION = 3  # bumped when the colour tiles change for the same settings (3: the app's ramps)
 WORLD = 20037508.342789244
+# How long stop() waits for the requests being answered (each in a thread of
+# its own, some with GDAL: a building shadows tile), so that none still works
+# while QGIS tears GDAL down after unloading the plugin. A tile still running
+# after that is left (a daemon thread): QGIS is not held at close.
+HANDLER_GRACE_S = 2.0
 
 
 def png(a):
@@ -175,6 +180,33 @@ class _Server(ThreadingHTTPServer):
     # the other QGIS ("unknown source"): an exclusive bind instead, so the
     # second one takes another port.
     allow_reuse_address = os.name != "nt"
+
+    def __init__(self, *a, **kw):
+        self.active = 0  # requests being answered now
+        self.idle = threading.Condition()
+        super().__init__(*a, **kw)
+
+    def process_request_thread(self, request, client_address):
+        with self.idle:
+            self.active += 1
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            with self.idle:
+                self.active -= 1
+                self.idle.notify_all()
+
+    def wait_idle(self, timeout):
+        """Wait until no request is being answered, `timeout` seconds at
+        most: whether none is left."""
+        deadline = time.monotonic() + timeout
+        with self.idle:
+            while self.active:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    return False
+                self.idle.wait(left)
+        return True
 
     def server_bind(self):
         import socket
@@ -391,3 +423,6 @@ class LiveServer:
             deadline = time.monotonic() + 3.0
             for t in threads:
                 t.join(max(0.0, deadline - time.monotonic()))
+        # The requests still being answered (0.12.2): a building shadows tile
+        # decodes and rasterizes with GDAL in its request's thread.
+        self.httpd.wait_idle(HANDLER_GRACE_S)

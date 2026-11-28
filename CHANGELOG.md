@@ -6,9 +6,14 @@
 
 - **[nDSM / Difference as a visualization mode](/docs/features/ndsm-and-comparison)**: in Relief Visualization after LRM, on one view of a split or all, the view's terrain minus a subtrahend drawn over it with its own ramp (Heights 0 to 30 m, or Change, diverging), Invert and the measured offset; the view keeps its hillshade and 3D. The difference source stays for relief of the heights. The tile service serves it (`modes=ndsm&ndsmSubtrahend=…`).
 - **[Map styles from gpx.studio, IGN and swisstopo](/docs/features/vector-overlays)** in the Vector library: gpx.studio's Liberty Satellite, Liberty Topo and OSM copied with credit and pointed at OpenFreeMap; IGN's Carte Facile and swisstopo's labels in their own fonts.
+- **[QGIS plugin 0.12.2](/docs/dev/qgis-plugin)**: UNESCO components keep their categories, OpenFreeMap's Dark and Fiord styles draw (QGIS's style import emptied their geometry filters), the nDSM mode and the new map styles are in its lists, and the docs say what Save setup keeps: GeoTIFFs as drawn (RGBA, or Float32 values), readable with no server.
 - **A link that keeps its mode**: every shared link names its mode, so it opens the same way for everyone whatever they used last.
 
 #### Details
+
+##### QGIS Plugins
+
+- **0.12.2** (release [`qgis-plugins-2026-11-28`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-28)): the compact GeoJSON form read (`expand_compact`); `fix_geometry_test` repairs the `"" IN ('LineString', …)` filters QGIS 3.44 and 4.2 write when importing a MapLibre style; the Python backend's server waits up to 2 s for requests in progress when it stops; the crash at exit of the live tests on 3.44 was their teardown (QGIS itself never finalizes Python), now `test_teardown.leave`. Remote PMTiles: QGIS has no native reader in 3.28, 3.44 or 4.2 (its vector tile providers are xyz, mbtiles, vtpk, arcgis), so archives still go through GDAL's driver, Overture's through the plugin's own server. GeoTIFF export checked under the Python backend, a remote and the packaged tile service. Assets regenerated (nDSM mode, 25 vector sources).
 
 ##### App, docs
 

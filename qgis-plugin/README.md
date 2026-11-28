@@ -15,8 +15,13 @@ both (see Files).
 
 ## Terrain Viewer
 
-0.12.1 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
-at its top. 0.12.1: the plugin's folder is `iconem_terrain_viewer` (it was
+0.12.2 ([the docs](../docs/content/docs/dev/qgis-plugin.mdx)): a dock panel with the app's two modes
+at its top. 0.12.2: UNESCO's components are drawn in their categories (the
+app's compact GeoJSON, expanded), OpenFreeMap's Dark and Fiord styles draw
+their lines (QGIS's style converter broke their geometry filters), PMTiles archives go through the plugin's
+own server where GDAL has no PMTiles driver, the GeoTIFFs of a setup are
+checked under the tile servers, and the Python backend's server waits for
+the tiles being answered when it stops. 0.12.1: the plugin's folder is `iconem_terrain_viewer` (it was
 `terrain_viewer`, the folder of an unrelated plugin on plugins.qgis.org; see
 Install). 0.12.0: Freeze writes every parameter on its copies, a setup is
 saved to a folder and loaded back, the app's Vector library adds its entries
@@ -74,8 +79,8 @@ repository or installs a plugin. Two cautions:
   custom properties and the profile's data folder still use the
   `terrain_viewer` prefix (the other plugin stores none of these).
 
-**From a zip.** The zips of each version are on a release: [`qgis-plugins-2026-11-27b`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-27b)
-(Terrain Viewer 0.12.1, `iconem_terrain_viewer-0.12.1.zip`, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
+**From a zip.** The zips of each version are on a release: [`qgis-plugins-2026-11-28`](https://github.com/Iconem/terrain-viewer/releases/tag/qgis-plugins-2026-11-28)
+(Terrain Viewer 0.12.2, `iconem_terrain_viewer-0.12.2.zip`, Send2MapApp 0.5.1, the tile service bundles it pins, and `plugins.xml`). Terrain Viewer is one plain zip,
 pure Python. It needs a tile service: the Terrain Viewer desktop app's (with
 Settings > Desktop: local tile service on, `http://localhost:3400`), a local
 or hosted one, or one installed from the panel: **Install** downloads this
@@ -112,7 +117,7 @@ does not publish): two ways from the GitHub releases instead.
   last check is three days old or more, and whenever the Plugin Manager is
   opened. The Upgradeable tab shows only while an installed plugin has a
   newer version in an enabled repository (hidden otherwise). `plugins.xml` keys each plugin by `file_name` up to the
-  first dot (`iconem_terrain_viewer.0.12.1.zip`), downloads `download_url` (the dated
+  first dot (`iconem_terrain_viewer.0.12.2.zip`), downloads `download_url` (the dated
   release's zip), and carries a `sha256` element of ours.
 - **The panel**: once a day it reads the same `plugins.xml` in the background
   (`iconem_terrain_viewer/updates.py`); a newer version shows "Update to x.y.z":
@@ -184,26 +189,38 @@ modes computed in QGIS with numpy.
     mode's forms, opacity and every setting; no API key), `layers.qlr` (the
     layers as plain layers, for any project) and `vectors.gpkg` (the Python
     backend's lines and areas, which live in memory).
-  - **Save setup and GeoTIFFs to folder...**: the same, with each raster
-    layer for the map's extent at the map's pixel size (4096 px at most) in
-    `rasters/`: Color forms as RGBA, Values forms as Float32, read through the
-    layer's own provider, so with every backend.
+  - **Save setup and GeoTIFFs to folder...**: the same, with one GeoTIFF per
+    raster layer for the map's extent at the map's pixel size (4096 px at
+    most) in `rasters/`, read through the layer's own provider, so with
+    every backend (checked under the three, 0.12.2). A Color form holds the
+    rendered colors (four 8-bit bands: red, green, blue, alpha; not the
+    values, and without the layer's opacity or blending), a Values form the
+    raw values (one Float32 band, no data as NaN). These files open with no
+    server.
   - **Load setup...**: a `setup.json` read back into the panel.
-  A frozen or `.qlr` layer still asks its backend for tiles (frozen settings,
-  not frozen pixels: the GeoTIFFs are the pixels), and its address holds a
-  keyed source's key, as in a saved project.
+  A frozen or `.qlr` layer, and the layers Load setup recreates, still ask
+  their backend for tiles (frozen settings, not frozen pixels): outside the
+  saved extent or at another zoom the backend must run. The GeoTIFFs are the
+  pixels, for the saved extent. A layer's address holds a keyed source's
+  key, as in a saved project.
 - **Vector library** (0.12.0, folded): the app's vector overlays (buildings,
   heritage, land cover, a roads and labels reference) added as QGIS layers of
   their own in "Vector overlays (library)", colored by their categories, with
   their attribution: vector tile layers for `{z}/{x}/{y}` templates, TileJSON
   and a MapLibre style (imported by QGIS, cut to lines and labels), vector
-  layers through GDAL for GeoJSON and for PMTiles over https (QGIS's own
-  vector tile layer opens PMTiles from disk only), and for Overture's
-  archives, whose host refuses GDAL's requests (HTTP 400), vector tiles from
-  the plugin's own 127.0.0.1 server (`/pmtiles/{z}/{x}/{y}.pbf`, read by
-  `live/pmtiles.py`; drawn while the panel is open). The panel does not
-  change them afterwards. All 14 entries open and draw in QGIS 4.2 and 3.44
-  (`test_overlays_live.py`).
+  layers through GDAL for GeoJSON (a compact GeoJSON, UNESCO's components,
+  expanded first as the app does: 0.12.2) and for PMTiles over https (QGIS's
+  own vector tile layer reads no PMTiles, on disk or remote: checked in 3.44
+  and 4.2; GDAL's PMTiles driver is how QGIS reads one), and for the
+  archives GDAL cannot read (Overture's, whose host answers its requests
+  with HTTP 400; any archive where GDAL has no PMTiles driver, before GDAL
+  3.8) vector tiles from the plugin's own 127.0.0.1 server
+  (`/pmtiles/{z}/{x}/{y}.pbf`, read by `live/pmtiles.py`; drawn while the
+  panel is open). The panel does not change them afterwards. All 20
+  entries open and draw in QGIS 4.2 and 3.44 (`test_overlays_live.py`). A
+  MapLibre style's geometry tests, which QGIS's converter writes as an empty
+  field (`"" IN ('LineString', ...)`, no feature passes), are settled per
+  style after the import (`fix_geometry_test`, 0.12.2).
 - A saved project reopens with its layers; on Connect the panel reads their
   addresses back into its checkboxes and settings.
 
@@ -317,7 +334,7 @@ read in plain Python (`live/pmtiles.py`). The tile service's side:
 | `test_app_window.py` | Inside the QGIS application itself, offscreen, in a throwaway profile (`qgis --code test_app_window.py`, see its header): the two toolbar buttons, the clock opening the Historical mode, the Temporal Controller button showing QGIS's own panel |
 | `iconem_terrain_viewer/buildings_ui.py`, `live/buildings.py`, `live/pmtiles.py`, `panel_buildings_checks.py`, `test_buildings_live.py` | The building shadows' buildings: the "Buildings from" choice (the Library's sources, an address, a polygon layer written as GeoJSON), the footprints read from vector tiles (TileJSON, MVT template, PMTiles in plain Python) or from that file and burnt with their heights; offline checks (run by `test_panel_units.py`: an archive written by the test, the choice, a layer written and burnt) and the network ones (both backends compared tile by tile): `TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_buildings_live.py` |
 | `test_temporal_live.py` | Network: the Temporal Controller under the default week step with Esri Wayback and, through a tile service connected from the Historical page, Google Earth historical: the capture named and drawn at a sample of frames, the picture changing with the capture: `TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_temporal_live.py` |
-| `iconem_terrain_viewer/setups.py`, `panel_setup_checks.py`, `test_setup_live.py` | A setup kept (0.12.0): the panel's state as an app link and the panel's own, a frozen layer's parameters written on it, Save setup to a folder (`setup.json`, `layers.qlr`, `vectors.gpkg`, GeoTIFFs), Load setup; offline checks (run by `test_panel_units.py`) and, network, a setup of the Python backend saved with its GeoTIFFs and reopened: `QT_QPA_PLATFORM=offscreen python-qgis test_setup_live.py` |
+| `iconem_terrain_viewer/setups.py`, `panel_setup_checks.py`, `test_setup_live.py` | A setup kept (0.12.0): the panel's state as an app link and the panel's own, a frozen layer's parameters written on it, Save setup to a folder (`setup.json`, `layers.qlr`, `vectors.gpkg`, GeoTIFFs), Load setup; offline checks (run by `test_panel_units.py`) and, network, a setup of the Python backend saved with its GeoTIFFs and reopened, then (0.12.2) the same GeoTIFFs under the Remote tile server (`TERRAIN_VIEWER_SERVICE`) and the Packaged one (a bundle installed in the profile, or `TV_SERVICE_DIR`; never downloaded by the test), compared with the Python backend's and opened again with the server stopped: `TERRAIN_VIEWER_SERVICE=http://localhost:3400 QT_QPA_PLATFORM=offscreen python-qgis test_setup_live.py` |
 | `iconem_terrain_viewer/vector_library.py`, `panel_overlay_checks.py`, `test_overlays_live.py` | The app's Vector library as QGIS layers (0.12.0): which layer each entry becomes, its categories as QGIS rules, its attribution; offline checks (run by `test_panel_units.py`) and, network, every entry added and drawn: `QT_QPA_PLATFORM=offscreen python-qgis test_overlays_live.py` |
 | `iconem_terrain_viewer/updates.py` | Updates: `plugins.xml` read, a zip checked and unpacked over the plugin (the panel's Update button) |
 | `iconem_terrain_viewer/local_server.py` | The local tile service (installed, or a `server/` folder): started on 127.0.0.1, stopped on unload or when QGIS goes |
@@ -325,6 +342,7 @@ read in plain Python (`live/pmtiles.py`). The tile service's side:
 | `iconem_terrain_viewer/plugin.py`, `__init__.py`, `metadata.txt`, `icon.svg` | The QGIS plugin around it |
 | `send2map_app/` | The "Open in" plugin: `destinations.py` (the URL builders, no QGIS import), `send2map_apptool.py` (the canvas as a camera, the map tool, opening a URL or a KML), `send2map_app.py` (toolbar, Web menu, canvas right-click menu) |
 | `make_zip.py` | The installable zips, the tile service bundles (`--service-bundle`), their pins (`--pins`) and the plugin repository (`--plugins-xml`) |
+| `test_teardown.py`, `panel_server_checks.py` | How every `test_*.py` leaves QGIS (0.12.2): its widgets deleted, `exitQgis()`, the process ended without finalizing Python, as QGIS itself does. The former ending (`exitQgis()` then `sys.exit()`) let Python delete the script's canvas and GDAL datasets after GDAL, which crashed QGIS 3.44 at exit about one run in four (`TV_TEARDOWN=old` to see it; the stack and the reasoning are in the file). And the offline check that the Python backend's server, when stopped, waits for the tiles being answered |
 | `test_plugin.py` | A headless check of `iconem_terrain_viewer` against a running service: `QT_QPA_PLATFORM=offscreen python-qgis test_plugin.py http://localhost:3400 out/` (on Windows, `python-qgis.bat` in QGIS's `bin`; `python-qgis-ltr.bat` for an LTR) |
 | `test_service_paths.py` | The plain zip unzipped into a temporary plugins folder and driven through the panel in headless QGIS: `installed` (Install from a bundle served locally, or the real pinned download; a tampered download refused; Connect, a slope tile, the unresponsive warnings, Remove) or `external` (an address, the desktop app's): `QT_QPA_PLATFORM=offscreen python-qgis test_service_paths.py installed dist/iconem_terrain_viewer-<version>.zip [dist/terrain-viewer-tile-service-windows-x64.zip]`, or `... external dist/iconem_terrain_viewer-<version>.zip http://localhost:3400 [--stop "<command>"]` |
 | `smoke_bundled.py` | A service bundle started without QGIS (the build runners): `python -I smoke_bundled.py dist/terrain-viewer-tile-service-<platform>.zip` |

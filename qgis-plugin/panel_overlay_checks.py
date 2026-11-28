@@ -1,7 +1,8 @@
 # Run by test_panel_units.py (exec, in its namespace: `dock`, `canvas`,
 # `check`, `spin`). 0.12.0: the app's Vector library as QGIS layers. Which
 # layer each kind of entry becomes (a vector tile layer, or a GDAL vector
-# layer for PMTiles and GeoJSON), Overture's release in its address, the
+# layer for PMTiles and GeoJSON), Overture's release in its address, a
+# compact GeoJSON's properties put back (the app's own test vectors), the
 # categories as QGIS rules no two of which take one feature, the symbols,
 # the attribution, the panel's select and its Add. No network: the TileJSON
 # and the style are answered here, and nothing is drawn.
@@ -34,7 +35,7 @@ _mvt = vl.plan(_entries["ign-ocsge-couverture"], _no_fetch)
 check(len(_mvt) == 1 and _mvt[0]["provider"] == "vectortile" and _mvt[0]["uri"].startswith("type=xyz&url=https://data.geopf.fr/")
       and "&zmin=13&zmax=16" in _mvt[0]["uri"] and _mvt[0]["layers"] == ["occupation_sol"],
       "a {z}/{x}/{y} template: one vector tile layer, its zooms the entry's, no request")
-_vd = vl.plan(_entries["vida-open-buildings"], _no_fetch)
+_vd = vl.plan(_entries["vida-open-buildings"], _no_fetch, gdal_pmtiles=True)
 check(len(_vd) == 1 and _vd[0]["provider"] == "ogr" and _vd[0]["uri"] == "/vsicurl/" + _entries["vida-open-buildings"]["url"]
       + "|layername=goog_msft_osm_building_footprints|option:ZOOM_LEVEL_AUTO=YES",
       "a PMTiles archive over https: a GDAL vector layer over /vsicurl/, its zoom picked for the view")
@@ -61,7 +62,13 @@ _u.setEncodedUri(vl.local_uri(_ov[0]["archive"], 5, 14, _FakeServer()))
 check(_u.param("type") == "xyz" and _u.param("zmin") == "5" and _u.param("zmax") == "14" and _u.param("url")
       == "http://127.0.0.1:8765/pmtiles/{z}/{x}/{y}.pbf?url=https%3A%2F%2Ftiles.overturemaps.org%2F2031-01-15.0%2Fbuildings.pmtiles",
       "its address: /pmtiles/{z}/{x}/{y}.pbf on 127.0.0.1, the archive named in the query")
-_hw = vl.plan(_entries["hwai-heritage-osm"], _no_fetch)
+_old_gdal = vl.plan(_entries["vida-open-buildings"], _no_fetch, gdal_pmtiles=False)
+check(len(_old_gdal) == 1 and _old_gdal[0]["provider"] == "vectortile" and _old_gdal[0]["uri"] is None
+      and _old_gdal[0]["archive"] == _entries["vida-open-buildings"]["url"] and (_old_gdal[0]["zmin"], _old_gdal[0]["zmax"]) == (0, 15)
+      and _old_gdal[0]["layers"] == ["goog_msft_osm_building_footprints"] and vl.gdal_reads_pmtiles() in (True, False),
+      "a GDAL without its PMTiles driver (before 3.8): any archive as vector tiles from the plugin's own server "
+      f"(this GDAL has the driver: {vl.gdal_reads_pmtiles()})")
+_hw = vl.plan(_entries["hwai-heritage-osm"], _no_fetch, gdal_pmtiles=True)
 check([i["layers"] for i in _hw] == [["osm"], ["shapes"]] and "osm-heritage-planet.pmtiles|" in _hw[0]["uri"]
       and "osm-heritage-planet-shapes.pmtiles|" in _hw[1]["uri"] and _hw[0]["geometries"] == ["point"]
       and _hw[1]["geometries"] == ["polygon", "line"] and _hw[0]["name"] != _hw[1]["name"],
@@ -70,6 +77,79 @@ _gj = vl.plan(_entries["unesco-world-heritage"], _no_fetch)
 check(_gj[0]["provider"] == "ogr" and _gj[0]["uri"] == "https://terrain-viewer.iconem.com/vector/unesco-world-heritage.geojson"
       and _gj[0]["fallback"] == "https://github.com/Iconem/terrain-viewer/releases/download/dataset-indexes/unesco-world-heritage.geojson",
       "a GeoJSON the app serves itself: read from the app's site, else from the release its build takes it from")
+# A compact GeoJSON (UNESCO's components): the app's own test vectors
+# (lib/vector-sources.test.ts "compact GeoJSON: short keys named, shared
+# values put back, a feature's own value wins"), the same answers.
+_compact = {
+    "type": "FeatureCollection", "keys": {"n": "name", "r": "ref", "i": "id_no"},
+    "shared": {"by": "id_no", "values": {"9": {"property": "Serial", "category": "Cultural", "danger": True},
+                                         "12": {"property": "Other", "name": "never"}}},
+    "features": [
+        {"type": "Feature", "properties": {"n": "North", "r": "9-001", "i": 9}, "geometry": {"type": "Point", "coordinates": [1, 2]}},
+        {"type": "Feature", "properties": {"n": "Mine", "i": 12, "extra": 1}, "geometry": {"type": "Point", "coordinates": [3, 4]}},
+        {"type": "Feature", "properties": {"n": "Alone", "i": 404}, "geometry": None},
+    ],
+}
+_exp = vl.expand_compact(_compact)
+check(_exp["features"][0] == {"type": "Feature", "properties": {"property": "Serial", "category": "Cultural", "danger": True,
+                                                                "name": "North", "ref": "9-001", "id_no": 9},
+                              "geometry": {"type": "Point", "coordinates": [1, 2]}}
+      and list(_exp["features"][0]["properties"]) == ["property", "category", "danger", "name", "ref", "id_no"]
+      and _exp["features"][1]["properties"] == {"property": "Other", "name": "Mine", "id_no": 12, "extra": 1}
+      and _exp["features"][2]["properties"] == {"name": "Alone", "id_no": 404}
+      and _exp["type"] == "FeatureCollection" and "keys" not in _exp and "shared" not in _exp and "keys" in _compact,
+      "a compact GeoJSON expanded as the app does: short keys named, shared values put back, a feature's own value wins")
+_plain = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"a": 1}, "geometry": None}]}
+_proto = vl.expand_compact({"type": "FeatureCollection", "shared": {"by": "k", "values": {}},
+                            "features": [{"type": "Feature", "properties": {"k": "constructor"}, "geometry": None}]})
+check(vl.expand_compact(_plain) is _plain and _proto["features"][0]["properties"] == {"k": "constructor"}
+      and vl._js_text(9.0) == "9" and vl._js_text(True) == "true" and vl._js_text(None) == "null",
+      "a plain file comes back as it is; a group is found by the text JavaScript makes of the value")
+_cp = vl.plan(_entries["unesco-world-heritage-components"], _no_fetch)
+check(_entries["unesco-world-heritage-components"].get("format") == "compact" and _cp[0].get("compact") is True
+      and _cp[0]["uri"].endswith("/vector/unesco-world-heritage-components-compact.geojson") and not _gj[0].get("compact"),
+      "UNESCO's components: the entry carries the app's format \"compact\", its file expanded before GDAL opens it")
+_ctmp = _tempfile.mkdtemp(prefix="tv-vl-compact-")
+_cfile = dict(_compact, features=[dict(f, geometry=f["geometry"] or {"type": "Point", "coordinates": [5, 6]}) for f in _compact["features"]])
+_casked = []
+
+
+def _compact_fetch(url):
+    _casked.append(url)
+    if "terrain-viewer.iconem.com" in url:
+        raise OSError("not served yet")
+    return _json.dumps(_cfile).encode("utf-8")
+
+
+_centry = dict(_entries["unesco-world-heritage-components"], id="test compact/1")
+_cpath = vl.compact_file(_centry, _cp[0]["uri"], _cp[0]["fallback"], _compact_fetch, _ctmp)
+_clyr = _VLayer(_cpath, "compact", "ogr")
+_cn = vl.style_vector_layer(_clyr, _centry, _centry)
+_cctx = _ExpressionContext(_ContextUtils.globalProjectLayerScopes(_clyr))
+_ctaken = {}
+for _feat in _clyr.getFeatures():
+    _cctx.setFeature(_feat)
+    _ctaken[_feat["name"]] = [rule.label() for rule in _clyr.renderer().rootRule().children()
+                              if _Expression(rule.filterExpression()).evaluate(_cctx)]
+check(_os.path.basename(_cpath) == "test-compact-1.geojson" and _os.listdir(_ctmp) == ["test-compact-1.geojson"]
+      and _casked == [_cp[0]["uri"], _cp[0]["fallback"]] and _clyr.isValid() and _clyr.featureCount() == 3
+      and {"name", "ref", "id_no", "property", "category", "danger"} <= {f.name() for f in _clyr.fields()} and _cn == 5
+      and _ctaken == {"North": ["in danger"], "Mine": ["other"], "Alone": ["other"]},
+      f"the expanded file (from the release when the site does not serve it): a layer with the full properties, "
+      f"its categories taken ({_ctaken})")
+del _clyr, _feat, _cctx
+__import__("shutil").rmtree(_ctmp, ignore_errors=True)
+# QGIS's style converter writes ["geometry-type"] as "" (0.12.2): the tests
+# settled per style, as QGIS 3.44 and 4.2 wrote them for OpenFreeMap's Dark.
+_ft = vl.fix_geometry_test
+check(_ft("(\"\" IN ('LineString', 'MultiLineString')) AND (\"class\" IN ('minor', 'service', 'track'))", "line")
+      == "(TRUE) AND (\"class\" IN ('minor', 'service', 'track'))"
+      and _ft("(\"\" IN ('MultiPoint', 'Point')) AND (\"class\" IS 'town')", "point") == "(TRUE) AND (\"class\" IS 'town')"
+      and _ft("\"\" IN ('LineString', 'MultiLineString')", "polygon") == "FALSE"
+      and _ft("\"\" NOT IN ('Polygon', 'MultiPolygon')", "line") == "TRUE" and _ft("\"\" = 'Point'", "line") == "FALSE"
+      and _ft("\"class\" = 'runway'", "line") == "\"class\" = 'runway'" and _ft("", "line") == ""
+      and _ft("\"\" IN ('Point')", None) == "\"\" IN ('Point')",
+      "a MapLibre style's geometry tests, which QGIS's converter writes as an empty field (\"\" IN (...)), settled per style")
 _asked = []
 
 

@@ -341,4 +341,5 @@ if len(QgsProject.instance().mapLayers()) != len([l for l in QgsProject.instance
     failures.append("read back: a layer lost its property")
 print("read back checked:", back, "svfRadius:", dock2.rows["svf"].settings["svfRadius"].get(), "slope values:", dock2.rows["slope"].numbers.isChecked())
 print("FAILURES:", failures or "none")
-app.exitQgis()
+import test_teardown  # noqa: E402 - the widgets deleted, exitQgis, the process ended as QGIS ends
+test_teardown.leave(app, 0, dock, dock2)

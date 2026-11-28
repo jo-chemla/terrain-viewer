@@ -1,7 +1,10 @@
 """The app's Vector library as QGIS layers, for real (network): every entry
 added through the panel and drawn at its sample place, in headless QGIS.
 
-  QT_QPA_PLATFORM=offscreen python-qgis test_overlays_live.py [an entry id ...]
+  QT_QPA_PLATFORM=offscreen python-qgis test_overlays_live.py [--no-gdal-pmtiles] [an entry id ...]
+
+--no-gdal-pmtiles: as in a QGIS whose GDAL has no PMTiles driver (before
+GDAL 3.8): every archive through the plugin's own server, as vector tiles.
 
 For each entry: the layers it becomes (a vector tile layer, or a GDAL vector
 layer for a PMTiles archive or a GeoJSON), each valid, styled by the entry's
@@ -100,7 +103,10 @@ canvas.freeze(True)  # the pictures are drawn by the jobs below, not by the canv
 dock = TerrainViewerDock(canvas, None, None, bridge)
 dock.project_fresh = False
 print(f"QGIS {Qgis.version()}", flush=True)
-wanted = set(sys.argv[1:])
+wanted = {a for a in sys.argv[1:] if not a.startswith("--")}
+if "--no-gdal-pmtiles" in sys.argv:
+    vl.GDAL_PMTILES = False
+    print("as without GDAL's PMTiles driver: the archives through the plugin's own server", flush=True)
 for entry in vl.entries():
     if wanted and entry["id"] not in wanted:
         continue
@@ -142,5 +148,5 @@ dock.cleanup()
 from iconem_terrain_viewer.live.server import LiveServer  # noqa: E402
 LiveServer.shutdown()
 print("FAILURES:" if failures else "OK", *failures, sep="\n  ")
-app.exitQgis()
-sys.exit(1 if failures else 0)
+import test_teardown  # noqa: E402 - the widgets deleted, exitQgis, the process ended as QGIS ends
+test_teardown.leave(app, 1 if failures else 0, dock, bridge, canvas)
